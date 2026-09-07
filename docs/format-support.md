@@ -1,7 +1,7 @@
 # File format support
 
-Dialect decisions for the readers (PLAN.md, Q2), and the contract the three
-writers hold themselves to (D226); the writers have their own section at the
+Dialect decisions for the readers, and the contract the three
+writers hold themselves to; the writers have their own section at the
 end of this file. Anything not listed here is
 either standard behaviour or not yet decided; when an edge case is settled
 during the Netlib campaign, it lands in this file in the same commit.
@@ -28,7 +28,7 @@ damaged instance is never solved as though it were a different model.
 
 ## Compressed output
 
-**Every writer here compresses when the path ends in `.gz`** (D340), and
+**Every writer here compresses when the path ends in `.gz`**, and
 that is the whole rule: `jaos_write_mps`, `jaos_write_lp`,
 `jaos_write_solution` and `jaos_write_mps_basis` share one open and one
 close, so all four take it. `jaos convert in.mps out.lp.gz` follows, and so
@@ -84,7 +84,7 @@ header is a line whose first character is non-blank, `*` opens a comment.
   `jaos_model_name` and written back by `jaos_write_mps`; a name with
   spaces in it, which fixed layout allows, keeps its first word only,
   because nothing this library writes can spell whitespace in a name. A
-  bare `NAME` line leaves the model called `JAOS` (D284).
+  bare `NAME` line leaves the model called `JAOS`.
 - **RANGES** with rhs `b` and range `r`:
   - `G` row: bounds `[b, b + |r|]`
   - `L` row: bounds `[b - |r|, b]`
@@ -93,11 +93,11 @@ header is a line whose first character is non-blank, `*` opens a comment.
     the CPLEX/lp_solve convention.
   - RANGES on the objective or on an `N` row is an error.
 - **BOUNDS**: `UP LO FX FR MI PL` supported. `BV LI UI` mark the column
-  integer (D288): `BV` is [0, 1], `LI` and `UI` set the bound. `SC SI`
+  integer: `BV` is [0, 1], `LI` and `UI` set the bound. `SC SI`
   (semi-continuous) are recognized and rejected.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
-  per run of integer columns (D288).
+  per run of integer columns.
   - **Negative-UP wart**: `UP` with a negative value on a column whose lower
     bound was never set explicitly drops that lower bound to -inf. This
     matches the classic convention documented by CPLEX and lp_solve.
@@ -120,7 +120,7 @@ header is a line whose first character is non-blank, `*` opens a comment.
   first `N` row is the objective, which is the rule every file that omits one
   is written to. It must come before `ROWS`, it may appear once, and a name
   that no `N` row carries is refused by name at `COLUMNS` — which is the
-  first line at which every row is known (D280).
+  first line at which every row is known.
 
 ## LP
 
@@ -139,7 +139,7 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   `_` only until D284 widened the rule to what other solvers' files carry.
 - **Labels are kept**: a constraint's label is the row's name, the
   objective's label is the objective's, and every variable's name is its
-  column's (D284). A constraint with no label is called by its position,
+  column's. A constraint with no label is called by its position,
   `R<i+1>` counting from 1.
 - **Terms**: coefficient and variable, multiplication implicit; `3x` and
   `3 x` both work. A repeated variable inside one expression **sums**, as
@@ -149,16 +149,16 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   the objective offset; may be empty.
 - **Constraints**: optional label; linear expression, one of `<= < =< >= >
   => =`, then a number. **A ranged (two-sided) constraint** `l <= expr <= u`
-  reads as one row with two ends (D239); the two operators must point the
+  reads as one row with two ends; the two operators must point the
   same way. **A constant inside the expression** moves to the other side of
   the relation with its sign flipped, so `3x + 5 <= 10` is the row
-  `3x <= 5`; on a two-sided row both ends shift by it (D278). A signed
+  `3x <= 5`; on a two-sided row both ends shift by it. A signed
   number at the head of a constraint is a left-hand bound only when a
   relation follows it, so the `3` in `3 x + y >= 2` is still a
   coefficient.
 - **Bounds** forms: `l <= x <= u`, `l <= x`, `x <= u`, `x >= l`, `x = v`,
   `x free`, and the same statements written value-first either way round —
-  `u >= x`, `u >= x >= l` (D281). The first operator says which side the
+  `u >= x`, `u >= x >= l`. The first operator says which side the
   leading value is; the second must point the same way, so `3 <= x >= 8`
   is refused at the first operator's line, the same rule and the same
   words a ranged constraint gets. `inf`/`infinity` with optional sign as
@@ -169,7 +169,7 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 - **Integer sections** (`General`, `Generals`, `Gen`, `Integer`, `Integers`;
   `Binary`, `Binaries`, `Bin`): names of variables the file has met, one per
   token until the next keyword; `Binary` also bounds them to [0, 1]. A name
-  no variable carries is refused (D288). The writer prints every integer
+  no variable carries is refused. The writer prints every integer
   column under `General`, its bounds already above. `Semi-continuous` and
   `SOS`: rejected.
 - **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
@@ -179,12 +179,12 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31
-(D226). One rule shapes all three: **what JAOS writes, JAOS reads back as the
+. One rule shapes all three: **what JAOS writes, JAOS reads back as the
 same model.** Where a format cannot express what the model holds, the call
 fails, `jaos_model_error` names the row or the column, and no file is left
 behind.
 
-- **Names.** Rows and columns are written under the model's names (D284):
+- **Names.** Rows and columns are written under the model's names:
   the file's, where the model was read from one, and positional --
   `C<j+1>` for a column, `R<i+1>` for a row, `COST` for the objective --
   where nobody named them. Reading the file back gives the same indices and
@@ -242,7 +242,7 @@ name FIRST appears in the token stream. Listing only the costed columns
 renumbers every other column by wherever its first coefficient happens to
 sit, and the resulting file is valid, reads without error, and describes a
 different model. That is how the first version of this writer behaved and it
-broke 83 of the 139 gate instances (D226). A zero term is also what lets LP
+broke 83 of the 139 gate instances. A zero term is also what lets LP
 name a column that appears in no row at all.
 
 ### What the LP dialect cannot express
@@ -269,9 +269,9 @@ objective, where every column appears whatever its cost.
 
 **104 of the 139 gate instances round-trip through the LP writer under the
 model's own names, 35 are refused and 0 differ**
-(`bench/measurements/02-188/lpcover.txt`, D284): 34 for a name the scanner
+: 34 for a name the scanner
 cannot read back and 1 for a free row. It was 138 and 1 while the writer
-printed positional names (`02-181/`, D276), 104 and 35 at D265 (`02-172`),
+printed positional names, 104 and 35 at D265 (`02-172`),
 and 02-138's own file is the D226 reading, taken before D239; every file is
 left as it was, because one file cannot carry two trees. D278 re-took the same reading after the reader change and
 got the same three numbers and the same single refusal
@@ -286,7 +286,7 @@ about and a person reading the file does.
 
 JAOS's own format, line-oriented, one record per line, written when the
 last solve reached an optimum or proved the model infeasible or unbounded
-(D285) — the rule `jaos_solution`, `jaos_certificate` and
+ — the rule `jaos_solution`, `jaos_certificate` and
 `jaos_unbounded_ray` already apply, and for their reason: a solve that
 stopped on a budget left nothing to write, and a file of zeros does not
 read as missing. The `status` line says which of the three the file holds
@@ -308,10 +308,10 @@ end
 
 `<status>` is one of `basic`, `lower`, `upper`, `free`, which are the four
 `jaos_basis_status` values. Names are the model's, the same ones the two
-model writers print (D284), so a solution file and a model file written from
+model writers print, so a solution file and a model file written from
 the same model refer to the same rows and columns.
 
-**A certificate is the same file with a different status** (D285). For an
+**A certificate is the same file with a different status**. For an
 infeasible model the records are one `ray` per row carrying the Farkas
 multiplier `jaos_certificate` hands out; for an unbounded one, one `ray`
 per column carrying the direction `jaos_unbounded_ray` hands out. There is
@@ -337,10 +337,10 @@ basis row EQ1 lower
 end
 ```
 
-**A certificate carries the basis the solve stopped on too** (D332). An
+**A certificate carries the basis the solve stopped on too**. An
 optimum's file has always carried its basis, on the same `col` and `row`
 records as its values; a certificate's had nowhere to put one until the
-basis behind a refusal became readable (D330). The `basis` records are
+basis behind a refusal became readable. The `basis` records are
 columns before rows, each in index order under the model's own names, and
 `<status>` is one of the same four words. What they buy is a warm start
 across processes: write the file, change a bound, and `jaos solve --start`
@@ -352,9 +352,9 @@ there is none, and so does every file written before D332. Half a basis is
 refused: the reader takes all of the section or none of it, since half of
 one says which variables are basic about half the model, which is nothing.
 
-**`jaos_read_solution` reads an optimum back** (D282),
+**`jaos_read_solution` reads an optimum back**,
 **`jaos_read_certificate` a certificate**, and **`jaos_read_basis` the
-basis out of a file of either kind** (D332), with
+basis out of a file of either kind**, with
 `jaos_solution_file_status` saying which a file holds so a caller need not
 know. One reader serves all four and the model decides the shape: the counts in the file must equal
 the model's, and each record's name must be the name the model gives that
@@ -374,7 +374,7 @@ does.
 ### The proof file
 
 **A third file, and it is not the solution file with another status**
-(D325). `jaos_write_proof` writes the exact optimality proof: every
+. `jaos_write_proof` writes the exact optimality proof: every
 column's value and every row's dual as decimal rationals, with the exact
 objective. It carries **no basis and no status word per record**, because
 `jaos_check_proof` reads neither — it judges the file from the model
@@ -406,7 +406,7 @@ with no exponent and no decimal point. That is what
 makes this the one file in the project whose reader and writer need no
 locale handling at all: there is no radix character to get wrong.
 
-**The same file carries a certificate** (D328). `proof infeasible` is
+**The same file carries a certificate**. `proof infeasible` is
 followed by one `ray` record per row holding the Farkas multiplier, and
 `proof unbounded` by one per column holding the direction. Neither carries
 an `objective` line, and neither carries a `col` or `row` record: a
@@ -455,11 +455,11 @@ cost or bound. A solved answer has no such guarantee: the objective is a sum
 and can overflow, so a model whose bounds reach 1e300 reaches an optimum
 holding an infinity or a NaN. Printing one would put a word in the file whose
 spelling belongs to the host libc, so the call fails and names the row or the
-column instead (D226).
+column instead.
 
 ### The MPS basis file
 
-`jaos_write_mps_basis` and `jaos_read_mps_basis` (D338), the format every
+`jaos_write_mps_basis` and `jaos_read_mps_basis`, the format every
 solver in the field exchanges a basis in. Its reader lives beside its
 writer in `src/write.c`, for the reason the two above do.
 
@@ -502,7 +502,7 @@ name works where the model has none of its own.
 
 ### The point file
 
-`jaos_write_point`, `jaos_read_point` and `jaos_read_duals` (D342). The
+`jaos_write_point`, `jaos_read_point` and `jaos_read_duals`. The
 smallest thing that can carry an answer between two programs, and it exists
 so the independent checker can judge **somebody else's**: JAOS's own
 solution file is JAOS's own, and nothing else writes one.
@@ -538,4 +538,4 @@ for; a richer format would be a better record and a worse bridge.
 The writer's availability rule is `jaos_solution`'s and is not restated
 here: an optimum has a point and nothing else does. It refuses two columns
 of a name and a value no file can carry, for the reasons every writer here
-does, and a `.gz` name compresses it (D340).
+does, and a `.gz` name compresses it.

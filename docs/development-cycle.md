@@ -200,7 +200,7 @@ flowchart LR
 **Why the gate is three sets and not one.** A solver that answers every
 feasible model correctly and calls an infeasible one optimal is broken, and no
 amount of the first set finds that. Kennington is there because the standard
-94 are small: two of them are 74% of the set's total work (D46), so a sum over
+94 are small: two of them are 74% of the set's total work, so a sum over
 the set is a statement about those two and nothing else.
 
 **Why every ratio is a geometric mean of per-instance ratios**, never a ratio
@@ -240,7 +240,7 @@ flowchart TD
 ```
 
 **The point.** Documentation rots silently. Here it fails the build. The first
-run of `record-check` found **147 failures** (D206).
+run of `record-check` found **147 failures**.
 
 ---
 

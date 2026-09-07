@@ -72,11 +72,6 @@ __all__ = [
     "MipReport",
 ]
 
-
-# --------------------------------------------------------------------------
-# The enumerations, mirroring include/jaos.h
-# --------------------------------------------------------------------------
-
 class Status(enum.IntEnum):
     """What a C call returned. Only OK reaches the caller of this module."""
     OK = 0
@@ -84,7 +79,6 @@ class Status(enum.IntEnum):
     ERR_OUT_OF_MEMORY = 2
     ERR_IO = 3
     ERR_NUMERICAL = 4
-
 
 class SolveStatus(enum.IntEnum):
     """Where a solve stopped. A budget stop is an honest report, not a
@@ -99,11 +93,9 @@ class SolveStatus(enum.IntEnum):
     INTERRUPTED = 7
     NODE_LIMIT = 8
 
-
 class ObjSense(enum.IntEnum):
     MINIMIZE = 0
     MAXIMIZE = 1
-
 
 class LogLevel(enum.IntEnum):
     OFF = 0
@@ -111,24 +103,20 @@ class LogLevel(enum.IntEnum):
     PROGRESS = 2
     DETAIL = 3
 
-
 class BasisStatus(enum.IntEnum):
     BASIC = 0
     AT_LOWER = 1
     AT_UPPER = 2
     FREE = 3
 
-
 class CallbackAction(enum.IntEnum):
     CONTINUE = 0
     STOP = 1
-
 
 class Branching(enum.IntEnum):
     """Which column a fractional node branches on (D292); jaos_branching."""
     PSEUDOCOST = 0
     MOST_FRACTIONAL = 1
-
 
 class DiveChild(enum.IntEnum):
     """Which child a dive solves first (D295); jaos_dive_child."""
@@ -136,7 +124,6 @@ class DiveChild(enum.IntEnum):
     UP = 1
     DOWN = 2
     PSEUDOCOST = 3
-
 
 class JaosError(Exception):
     """A C call that did not return OK.
@@ -152,30 +139,19 @@ class JaosError(Exception):
         name = _lib.jaos_status_str(int(status)).decode("utf-8", "replace")
         super().__init__(f"{name}: {detail}" if detail else name)
 
-
 Solution = namedtuple("Solution",
                       "col_value row_activity row_dual col_dual")
 Basis = namedtuple("Basis", "col_status row_status")
-# Ranging: each field is a list of one interval end per column or per row.
+
 CostRanging = namedtuple("CostRanging", "lower upper")
 BoundRanging = namedtuple("BoundRanging",
                           "lower_lo lower_hi upper_lo upper_hi")
 
-# What the solve reports about itself mid-run. See jaos_progress in jaos.h:
-# there is deliberately no objective in it.
 Progress = namedtuple("Progress",
                       "iterations work_units primal_infeasibility")
 
-# What a branch and bound says of each new incumbent (D291): the node it
-# was found at, its objective, the best bound any open node could still
-# reach, the point as a list, and whether the rounding heuristic found it.
 Incumbent = namedtuple("Incumbent",
                        "node objective bound values by_rounding")
-
-
-# --------------------------------------------------------------------------
-# Loading the library
-# --------------------------------------------------------------------------
 
 def _find_library():
     env = os.environ.get("JAOS_LIBRARY")
@@ -198,15 +174,12 @@ def _find_library():
         "libjaos.so not found. Build it with `make shared`, then either run "
         "from the repository root or set JAOS_LIBRARY to its full path.")
 
-
 _LIB_PATH = _find_library()
 _lib = ctypes.CDLL(_LIB_PATH)
-
 
 def library_path():
     """The shared library this module actually loaded."""
     return _LIB_PATH
-
 
 _P = ctypes.POINTER
 _I64 = ctypes.c_int64
@@ -221,7 +194,6 @@ class _Progress(ctypes.Structure):
         ("work_units", _I64),
         ("primal_infeasibility", _D),
     ]
-
 
 class _CheckReport(ctypes.Structure):
     """jaos_check_report, field for field and in the header's order. What
@@ -249,7 +221,6 @@ class _CheckReport(ctypes.Structure):
         ("max_integrality_violation", _D),
     ]
 
-
 class _PresolveReport(ctypes.Structure):
     """jaos_presolve_report, in the header's order."""
     _fields_ = [
@@ -271,7 +242,6 @@ class _PresolveReport(ctypes.Structure):
         ("duplicate_col", _I64),
         ("dominated_col", _I64),
     ]
-
 
 class _ModelStats(ctypes.Structure):
     """jaos_model_stats, in the header's order."""
@@ -298,13 +268,11 @@ class _ModelStats(ctypes.Structure):
         ("obj_max_abs", _D),
     ]
 
-
 class ProofKind(enum.IntEnum):
     """Which of the three a proof file claims (jaos_proof_kind, D328)."""
     OPTIMAL = 0
     INFEASIBLE = 1
     UNBOUNDED = 2
-
 
 class _ProofReport(ctypes.Structure):
     """jaos_proof_report, in the header's order."""
@@ -318,7 +286,6 @@ class _ProofReport(ctypes.Structure):
         ("kind", ctypes.c_int),
         ("certified", ctypes.c_bool),
     ]
-
 
 class _MipReport(ctypes.Structure):
     """jaos_mip_report, in the header's order."""
@@ -335,7 +302,6 @@ class _MipReport(ctypes.Structure):
         ("tightened", _I64),
     ]
 
-
 MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
 
 ProofReport = namedtuple("ProofReport",
@@ -346,10 +312,8 @@ ModelStats = namedtuple("ModelStats", [f for f, _ in _ModelStats._fields_])
 PresolveReport = namedtuple("PresolveReport",
                             [f for f, _ in _PresolveReport._fields_])
 
-
 CheckReport = namedtuple("CheckReport",
                          [f for f, _ in _CheckReport._fields_])
-
 
 class _CertificateReport(ctypes.Structure):
     """jaos_certificate_report, field for field. The proof is a difference
@@ -361,7 +325,6 @@ class _CertificateReport(ctypes.Structure):
         ("certified", ctypes.c_bool),
     ]
 
-
 class _RayReport(ctypes.Structure):
     """jaos_ray_report, field for field."""
     _fields_ = [
@@ -371,11 +334,9 @@ class _RayReport(ctypes.Structure):
         ("certified", ctypes.c_bool),
     ]
 
-
 CertificateReport = namedtuple("CertificateReport",
                                [f for f, _ in _CertificateReport._fields_])
 RayReport = namedtuple("RayReport", [f for f, _ in _RayReport._fields_])
-
 
 class IISSide(enum.IntFlag):
     """Which sides of a bound belong to an irreducible infeasible
@@ -385,7 +346,6 @@ class IISSide(enum.IntFlag):
     LOWER = 1
     UPPER = 2
     BOTH = 3
-
 
 class _IISReport(ctypes.Structure):
     """jaos_iis_report, field for field."""
@@ -397,17 +357,14 @@ class _IISReport(ctypes.Structure):
         ("from_certificate", ctypes.c_bool),
     ]
 
-
 IISReport = namedtuple("IISReport", [f for f, _ in _IISReport._fields_])
 IIS = namedtuple("IIS", "row_side col_side report")
-
 
 class RelaxScope(enum.IntEnum):
     """Which bounds a feasibility relaxation may move (jaos_relax_scope)."""
     ROWS = 1
     COLS = 2
     BOTH = 3
-
 
 class _RelaxReport(ctypes.Structure):
     """jaos_relax_report, field for field."""
@@ -422,10 +379,8 @@ class _RelaxReport(ctypes.Structure):
         ("status", ctypes.c_int),
     ]
 
-
 RelaxReport = namedtuple("RelaxReport", [f for f, _ in _RelaxReport._fields_])
 Relaxation = namedtuple("Relaxation", "row_move col_move report")
-
 
 class Proof(enum.IntEnum):
     """What jaos_verify concluded (jaos_proof). REFUSED is not a failure:
@@ -435,7 +390,6 @@ class Proof(enum.IntEnum):
     BROKEN = 1
     REFUSED = 2
 
-
 class ProofStage(enum.IntEnum):
     """Which check a BROKEN verdict came from (jaos_proof_stage). They run
     in this order and the first to fail is the one reported."""
@@ -443,7 +397,6 @@ class ProofStage(enum.IntEnum):
     RANK = 1
     PRIMAL = 2
     DUAL = 3
-
 
 class _VerifyReport(ctypes.Structure):
     """jaos_verify_report, field for field."""
@@ -461,10 +414,8 @@ class _VerifyReport(ctypes.Structure):
         ("terms", ctypes.c_int64),
     ]
 
-
 VerifyReport = namedtuple("VerifyReport",
                           [f for f, _ in _VerifyReport._fields_])
-
 
 class _ExactRayReport(ctypes.Structure):
     """jaos_exact_ray_report, field for field."""
@@ -479,13 +430,11 @@ class _ExactRayReport(ctypes.Structure):
         ("terms", ctypes.c_int64),
     ]
 
-
 ExactRayReport = namedtuple("ExactRayReport",
                             [f for f, _ in _ExactRayReport._fields_])
 
 _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
-
 
 class _Incumbent(ctypes.Structure):
     """jaos_incumbent, field for field."""
@@ -498,16 +447,13 @@ class _Incumbent(ctypes.Structure):
         ("by_rounding", ctypes.c_bool),
     ]
 
-
 _INCUMBENT_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Incumbent), _VP)
-
 
 def _sig(name, restype, *argtypes):
     fn = getattr(_lib, name)
     fn.restype = restype
     fn.argtypes = list(argtypes)
     return fn
-
 
 _sig("jaos_version", _CS)
 _sig("jaos_status_str", _CS, ctypes.c_int)
@@ -672,10 +618,7 @@ _sig("jaos_solve_time", _D, _VP)
 
 INFINITY = _lib.jaos_infinity()
 
-# JAOS_NAME_MAX in jaos.h: the longest name a row, column or objective may
-# carry, in bytes.
 NAME_MAX = 255
-
 
 def version():
     """The library's version string, from the library rather than from here.
@@ -685,11 +628,6 @@ def version():
     """
     return _lib.jaos_version().decode("utf-8")
 
-
-# --------------------------------------------------------------------------
-# Turning Python sequences into C arrays
-# --------------------------------------------------------------------------
-
 def _doubles(seq, name, want=None):
     if seq is None:
         return None, 0
@@ -698,7 +636,6 @@ def _doubles(seq, name, want=None):
         raise ValueError(f"{name} has {len(seq)} entries, expected {want}")
     return buf, len(seq)
 
-
 def _int64s(seq, name, want=None):
     if seq is None:
         return None, 0
@@ -706,11 +643,6 @@ def _int64s(seq, name, want=None):
     if want is not None and len(seq) != want:
         raise ValueError(f"{name} has {len(seq)} entries, expected {want}")
     return buf, len(seq)
-
-
-# --------------------------------------------------------------------------
-# The model
-# --------------------------------------------------------------------------
 
 class Model:
     """One problem, and the answer to it.
@@ -721,9 +653,7 @@ class Model:
     """
 
     def __init__(self, _handle=None):
-        # `_handle` adopts a model the library made -- iis_model()'s, for
-        # one. It is not part of the interface: a caller builds a Model
-        # and fills it, and only this module hands one over.
+
         if _handle is not None:
             handle = _handle
         else:
@@ -732,14 +662,10 @@ class Model:
             if rc != Status.OK:
                 raise JaosError(rc, "could not allocate a model")
         self._m = handle
-        # ctypes does not keep a callback alive on the C side's behalf, and
-        # a collected trampoline is a crash rather than an error. The two
-        # references below are what stop that.
+
         self._log_cb = None
         self._progress_cb = None
         self._incumbent_cb = None
-
-    # -- lifetime ----------------------------------------------------------
 
     def close(self):
         """Frees the model. Safe to call twice; the object is unusable
@@ -754,7 +680,7 @@ class Model:
     def __del__(self):
         try:
             self.close()
-        except Exception:                     # interpreter teardown
+        except Exception:
             pass
 
     def __enter__(self):
@@ -780,8 +706,6 @@ class Model:
         if getattr(self, "_m", None) is None:
             return ""
         return _lib.jaos_model_error(self._m).decode("utf-8", "replace")
-
-    # -- loading -----------------------------------------------------------
 
     def load(self, num_col, num_row, col_cost, col_lower, col_upper,
              row_lower, row_upper, a_start=None, a_index=None, a_value=None,
@@ -979,8 +903,6 @@ class Model:
             else list(cr[:nc])
         return status, ray
 
-    # -- reading the problem back ------------------------------------------
-
     @property
     def num_col(self):
         return _lib.jaos_num_col(self._handle())
@@ -1024,12 +946,6 @@ class Model:
                                                ctypes.byref(out)))
         return out.value
 
-    # -- names (D284) ------------------------------------------------------
-    #
-    # Every row and column has a name: the file's, or one set here, or its
-    # position -- R<i+1>, C<j+1>, COST for the objective -- where nobody
-    # gave one. None or "" takes a name away.
-
     def _name(self, fn, *args):
         buf = ctypes.create_string_buffer(NAME_MAX + 1)
         self._check(fn(self._handle(), *args, buf, NAME_MAX + 1))
@@ -1060,8 +976,6 @@ class Model:
     def set_objective_name(self, name):
         self._check(_lib.jaos_set_objective_name(self._handle(),
                                                  self._name_arg(name)))
-
-    # -- integer columns (D288) --------------------------------------------
 
     def set_col_integer(self, col, is_integer=True):
         """Marks a column integer; a model with one solves by branch and
@@ -1542,11 +1456,6 @@ class Model:
                                         ctypes.byref(out)))
         return out.value
 
-    # -- exact values (D286) -----------------------------------------------
-    #
-    # After verify() proved the basis, every value is on the model as an
-    # exact rational, and comes back as a fractions.Fraction.
-
     def _exact(self, fn, *args):
         out = _CS()
         self._check(fn(self._handle(), *args, ctypes.byref(out)))
@@ -1566,7 +1475,7 @@ class Model:
         return self._exact(_lib.jaos_exact_objective)
 
     def _entries(self, fn, k):
-        # Two calls, as the header describes: the count, then the arrays.
+
         n = _I64()
         self._check(fn(self._handle(), k, ctypes.byref(n), None, None))
         idx = (_I64 * max(n.value, 1))()
@@ -1591,8 +1500,6 @@ class Model:
         self._check(_lib.jaos_coefficient(self._handle(), row, col,
                                           ctypes.byref(out)))
         return out.value
-
-    # -- changing it -------------------------------------------------------
 
     def set_sense(self, sense):
         """Minimize or maximize. Discards the answer, keeps the basis."""
@@ -1626,8 +1533,6 @@ class Model:
         self._check(_lib.jaos_set_coefficient(self._handle(), row, col,
                                               float(value)))
         return self
-
-    # -- growing and shrinking it ------------------------------------------
 
     @staticmethod
     def _matrix(a_start, a_index, a_value, num_major, whose):
@@ -1695,8 +1600,6 @@ class Model:
         self._check(_lib.jaos_delete_rows(self._handle(), n, idx))
         return self
 
-    # -- limits, tolerances and output -------------------------------------
-
     def set_work_limit(self, units):
         self._check(_lib.jaos_set_work_limit(self._handle(), int(units)))
         return self
@@ -1733,11 +1636,10 @@ class Model:
             return self
 
         def trampoline(_user, lvl, line):
-            # An exception thrown through a C frame is undefined behaviour,
-            # so it is caught here and reported rather than propagated.
+
             try:
                 fn(LogLevel(lvl), line.decode("utf-8", "replace"))
-            except Exception:                 # pragma: no cover - defensive
+            except Exception:
                 sys.excepthook(*sys.exc_info())
 
         self._log_cb = _LOG_FN(trampoline)
@@ -1781,8 +1683,6 @@ class Model:
         self._check(_lib.jaos_set_progress_callback(self._handle(),
                                                     self._progress_cb, None))
         return self
-
-    # -- solving -----------------------------------------------------------
 
     def solve(self):
         """Runs the solve. Returns the outcome.
@@ -2080,28 +1980,8 @@ class Model:
         return (f"<jaos.Model {self.num_row}x{self.num_col}, "
                 f"{self.num_nz} nonzeros, {self.status.name.lower()}>")
 
-
 def _path(p):
     return os.fspath(p).encode(sys.getfilesystemencoding())
-
-
-# --------------------------------------------------------------------------
-# The modeling layer
-# --------------------------------------------------------------------------
-#
-# Sugar over Model, and nothing but sugar: it builds the same arrays load()
-# takes, in one place, and the C side validates them again. It is built in
-# Python and handed over whole at solve time rather than mirrored into C
-# call by call, because that is the shape jaos_load_lp already wants, it
-# crosses the ctypes boundary once instead of once per coefficient, and one
-# build step is one place to keep deterministic.
-#
-# After a first solve, a change that only moves bounds or objective
-# coefficients is applied through the three C setters instead, so the next
-# solve resumes warm from the basis it has — which is the case the dual
-# simplex is best at, as jaos.h says at jaos_set_col_cost. Adding a variable
-# or a constraint rebuilds, and the next solve runs cold.
-
 
 def quicksum(terms):
     """One expression from an iterable of variables, expressions and
@@ -2118,7 +1998,6 @@ def quicksum(terms):
         c += e._c
     return LinExpr(t, c, p)
 
-
 def _as_expr(o):
     """The LinExpr view of an operand, or None when there is none."""
     if isinstance(o, LinExpr):
@@ -2129,7 +2008,6 @@ def _as_expr(o):
         return LinExpr({}, float(o), None)
     return None
 
-
 def _merge_problem(a, b):
     if a is None:
         return b
@@ -2137,10 +2015,8 @@ def _merge_problem(a, b):
         return a
     raise ValueError("these variables belong to two different Problems")
 
-
 _NOT_LINEAR = ("JAOS solves linear programs; a product or quotient "
                "involving two variables is not linear")
-
 
 class Var:
     """One variable of a Problem. Made by add_var, never directly.
@@ -2150,10 +2026,6 @@ class Var:
     identity — use `is` to ask whether two names are the same variable.
     """
 
-    # Identity hashing, kept explicitly because __eq__ is overridden below.
-    # It is safe as a dict key this way: object.__hash__ gives two live
-    # objects two different hashes, so a dict never has to call the
-    # constraint-building __eq__ to tell two variables apart.
     __hash__ = object.__hash__
 
     __slots__ = ("_p", "_i", "_lb", "_ub", "name", "integer")
@@ -2230,7 +2102,6 @@ class Var:
     def __repr__(self):
         return self.name
 
-
 class LinExpr:
     """A linear expression: coefficients on variables plus a constant.
 
@@ -2291,10 +2162,6 @@ class LinExpr:
     def __pos__(self):
         return self
 
-    # A comparison builds the constraint  (self - other)  against the
-    # constant it leaves behind. The expression's own constant is folded
-    # into the bounds, so  x + 1 <= 4  and  x <= 3  build the same row.
-
     def _rel(self, o, lower, upper):
         e = _as_expr(o)
         if e is None:
@@ -2331,7 +2198,6 @@ class LinExpr:
         if self._c or not parts:
             parts.append(f"{self._c:g}")
         return " + ".join(parts)
-
 
 class Constraint:
     """One linear constraint. Made by comparing expressions; a row of the
@@ -2408,7 +2274,6 @@ class Constraint:
             return f"{e} >= {self._lo:g}"
         return f"{self._lo:g} <= {e} <= {self._hi:g}"
 
-
 class Problem:
     """A linear program written in variables and expressions.
 
@@ -2432,23 +2297,19 @@ class Problem:
 
     def __init__(self):
         self._m = Model()
-        self._vars = []            # every Var, in index order
-        self._cons = []            # every added Constraint, in row order
-        self._obj = {}             # Var -> objective coefficient
+        self._vars = []
+        self._cons = []
+        self._obj = {}
         self._obj_c = 0.0
         self._sense = ObjSense.MINIMIZE
-        self._loaded = False       # the Model holds the current structure
-        self._structural = False   # it no longer does; reload before solving
+        self._loaded = False
+        self._structural = False
         self._sol = None
-        # Value-only changes since the load, by index. Sets, because
-        # applying them commutes: each index owns its own slot in the C
-        # model and no floating point accumulates across them.
+
         self._dirty_var_bounds = set()
         self._dirty_costs = set()
-        self._dirty_objective = False   # the sense or the constant moved
+        self._dirty_objective = False
         self._dirty_row_bounds = set()
-
-    # -- lifetime ----------------------------------------------------------
 
     @property
     def model(self):
@@ -2464,8 +2325,6 @@ class Problem:
     def __exit__(self, *exc):
         self.close()
         return False
-
-    # -- writing the problem -----------------------------------------------
 
     def add_var(self, lb=0.0, ub=INFINITY, name=None, integer=False,
                 binary=False):
@@ -2540,8 +2399,7 @@ class Problem:
         new = {v: float(c) for v, c in e._t.items()}
         self._sol = None
         if self._loaded and not self._structural:
-            # Every part of the objective has a C setter (D283), so none of
-            # this is structural and the next solve resumes from the basis.
+
             if sense is not self._sense or float(e._c) != self._obj_c:
                 self._dirty_objective = True
             for v in set(self._obj) | set(new):
@@ -2551,8 +2409,6 @@ class Problem:
         self._obj_c = float(e._c)
         self._sense = sense
         return self
-
-    # -- change tracking ----------------------------------------------------
 
     def _touch_structure(self):
         self._sol = None
@@ -2575,16 +2431,12 @@ class Problem:
                 or bool(self._dirty_costs) or bool(self._dirty_var_bounds)
                 or bool(self._dirty_row_bounds))
 
-    # -- solving ------------------------------------------------------------
-
     def _build_and_load(self):
         nc, nr = len(self._vars), len(self._cons)
         cost = [0.0] * nc
         for v, c in self._obj.items():
             cost[v._i] = c
-        # One bucket per column. The outer loop walks rows in order, so
-        # each bucket's row indices come out ascending by construction —
-        # the same layout load() documents.
+
         cols = [[] for _ in range(nc)]
         for r, con in enumerate(self._cons):
             for v, c in con._t.items():
@@ -2608,10 +2460,7 @@ class Problem:
                      [c._hi for c in self._cons],
                      a_start, a_index, a_value,
                      sense=self._sense, obj_offset=self._obj_c)
-        # The names go with it (D284), so a file written from the Model
-        # and the CLI's output call things what this layer calls them. A
-        # name the library refuses -- whitespace in it -- raises here, at
-        # the solve, with the library's message.
+
         for v in self._vars:
             self._m.set_col_name(v._i, v.name)
             if getattr(v, "integer", False):
@@ -2661,8 +2510,6 @@ class Problem:
         if self._sol is None:
             self._sol = self._m.solution()
         return self._sol
-
-    # -- reading the answer -------------------------------------------------
 
     @property
     def status(self):
@@ -2795,8 +2642,6 @@ class Problem:
     def constraints(self):
         return tuple(self._cons)
 
-    # -- pass-through -------------------------------------------------------
-
     def set_work_limit(self, units):
         self._m.set_work_limit(units)
         return self
@@ -2812,8 +2657,6 @@ class Problem:
     def set_dual_tolerance(self, tol):
         self._m.set_dual_tolerance(tol)
         return self
-
-    # -- branch and bound (D288, D289) ---------------------------------------
 
     def set_mip_gap(self, gap):
         """The relative gap that closes a branch and bound; 0 restores the

@@ -4,7 +4,7 @@ Real instances arrive with coefficients spanning many orders of magnitude,
 often because the modeller mixed units. That spread is what makes a pivot
 look acceptable when it is not, and several Netlib instances are unsolvable
 without addressing it — which is why scaling sits inside the first milestone
-rather than after it (PLAN.md 2.5).
+rather than after it.
 
 ## What JAOS computes
 
@@ -53,7 +53,7 @@ sum over nonzeros of (log2|a_ij| - r_i - c_j)^2
 The normal equations form a symmetric positive semi-definite system in
 `[r; c]`, solved by Jacobi-preconditioned conjugate gradients. Each
 iteration is one fixed-order pass over the CSC copy, so results are
-bit-identical across runs (D8) — verified by a test that recomputes and
+bit-identical across runs — verified by a test that recomputes and
 compares raw bytes.
 
 Across *machines* the same claim holds for a different and weaker reason,
@@ -62,7 +62,7 @@ structural. `log2` above is the one libm result IEEE does not pin down, and
 a different C library could in principle tip one of the roundings below.
 Measured, it cannot: no scale factor of the 139 reference instances moves
 until `log2` is displaced by roughly 4x10^8 ulps, and the closest of
-1,590,682 rounded exponents came to a tie was 4.29e-7 (D34).
+1,590,682 rounded exponents came to a tie was 4.29e-7.
 
 The system is singular: adding `k` to every `r_i` while subtracting it from
 every `c_j` changes nothing. It is also consistent, so CG from a zero start

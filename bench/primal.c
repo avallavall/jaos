@@ -1,81 +1,8 @@
-/* The primal simplex against the dual, on the reference instances.
- *
- * The three `netlib*` sets are the gate and they solve each instance once,
- * from a fresh load, by whatever path the solver chooses. A cold start is
- * dual feasible by construction (`build_initial_basis`) and not primal
- * feasible, so the solver will always choose the dual there. **A primal
- * simplex therefore passes every campaign in this repository while doing
- * nothing**, which is the hole this program exists to cover (`TODO.md` §0).
- *
- * ## What is compared, and what the verdict is
- *
- * Each instance is solved twice, on the same model, with nothing perturbed:
- * once by the dual, which is the answer the committed records already hold,
- * and once with `cfg.force_primal` set. Both answers go through the
- * independent checker.
- *
- * **Agreement is the gate and speed is only the report.** Same verdict,
- * objectives within tolerance, and both answers accepted by the checker. A
- * disagreement is a defect and never a trade-off: the two algorithms are
- * solving the identical model and there is one optimum to find. This is the
- * same rule `bench/warm.c` states for warm against cold, and for the same
- * reason.
- *
- * Because of that this program **reports a ratio and not a verdict on the
- * solver**, so it is not a gate and cannot make one red. `CLAUDE.md` already
- * records the `warm*` targets that way and this is the third runner of that
- * kind.
- *
- * ## Validating the instrument before there is anything to measure
- *
- * `cfg.force_primal` had no reader when this file was written, deliberately
- * (see its comment in `src/jaos_internal.h`). So on that first run **both
- * solves were the dual**, and the whole set had to come back `ok` with a work
- * ratio of exactly 1.0 and identical objectives. That is not a null result to
- * be shrugged at: it is the only run in which the answer is known in advance,
- * and it is what makes a later disagreement mean something about the primal
- * rather than about this file. The other direction was confirmed too — one
- * side doctored, `DISAGREE` reported — because a predicate that has never
- * been made to fire is not evidence that it can.
- *
- * The primal has had a reader since D188. The validation count survives in
- * the summary, inverted: any instance that costs the same both ways NOW
- * means the primal path was not taken.
- *
- * ## Why it reaches past jaos.h
- *
- * `cfg.force_primal` is not public API and must not become it on this
- * schedule. `bench/run.c` has the same relationship to the solver and the
- * Makefile's rule for it carries the argument in full: `-Isrc` is a
- * deliberate exception for in-tree tooling reading the solver it ships
- * beside, which is what `tests/` already does, and not a caller judged by the
- * rule `jaos.h` enforces on everyone else (D-13, D64). Nothing else from
- * `jaos_internal.h` is used here.
- *
- * ## Units and seconds
- *
- * Work units are the currency, because they are deterministic integers and
- * need no same-session pairing (D16, D45). Seconds are printed and go
- * nowhere else: they answer whether the units bought anything, and they never
- * enter a file anything is judged against (D17). With `-j` they are inflated
- * by contention and say so.
- *
- * The summary reports a geometric mean of per-instance ratios and never a sum
- * over the set — two instances are 74% of the standard set's total work, so a
- * sum reports what those two did and calls it what the change did (D46).
- *
- * Usage: primal [-d DIR] [-m MANIFEST] [-o FILE] [-j N] [-w FACTOR]
- *               [instance ...]
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-/* `-std=c23` is strict ISO, which hides clock_gettime. */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos.h"
-/* jm_config's force_primal only — see the header comment above, and the
- * Makefile's rule for bench/run, for why this runner may reach past jaos.h
- * (D-13). Nothing else in jaos_internal.h is used here. */
+
 #include "jaos_internal.h"
 
 #include <math.h>
@@ -90,31 +17,8 @@
 constexpr int MAX_INSTANCES = 256;
 constexpr double CHECK_TOL = 1e-6;
 
-/* How far two objectives may differ before the two algorithms are said to
- * disagree. Relative to the value, because an objective of 1e6 and one of
- * 1e-6 do not deserve the same absolute window, and offset by one so a model
- * whose optimum is zero is judged absolutely. The same form and the same
- * number `bench/warm.c` uses on the same question. */
 constexpr double OBJ_TOL = 1e-6;
 
-/* How much work the primal is allowed, as a multiple of what the dual spent on
- * the same instance.
- *
- * **Without a bound this program does not terminate in any useful time.** The
- * primal prices by Dantzig's rule, which is the worst rule that is still
- * correct, and on a model of any size it takes enough iterations that the
- * internal guard — 200 times the model's size — is the only thing that would
- * stop it. The first run with a phase 1 live was killed at fifteen minutes on
- * a set the dual finishes in twenty-three seconds.
- *
- * A multiple of the dual's own work is the right shape for the bound: it is
- * per instance, it is in the currency the comparison is already in, and it is
- * a deterministic integer, so an OVERRUN verdict means the same thing on every
- * machine and in every run. A wall-clock cutoff would not (D17).
- *
- * Ten is a working number and not a measured one. It is generous enough that
- * finishing inside it says something, and small enough that the campaign ends.
- * `-w N` overrides it. */
 constexpr int64_t WORK_FACTOR = 10;
 
 typedef struct {
@@ -123,38 +27,17 @@ typedef struct {
 } entry;
 
 typedef enum {
-    PRIMAL_OK = 0,        /* both solved and agreed                      */
-    PRIMAL_SKIPPED,       /* the dual reached no optimum to compare with */
-    /* Phase 1 could not repair the start, so the method refused rather than
-     * guessing, citing D19. Its own verdict rather than an error, because a
-     * refusal on principle that reads like a failure gets investigated once
-     * per person who sees it.
-     *
-     * **It used to mean "the primal declined to start because there is no
-     * phase 1", and that has been false since phase 1 landed.** It reads 0 on
-     * every one of the 94 today; a non-zero count is now a real refusal to go
-     * and look at.
-     *
-     * **Phase 2's D19 refusal is a different verdict below, and it used to
-     * land here.** Both refusals cite D19, so a classifier that matched on
-     * the citation filed phase 2's improving-column refusal as "phase 1 could
-     * not repair the point it was given" and printed that sentence about a
-     * refusal phase 1 never made. */
+    PRIMAL_OK = 0,
+    PRIMAL_SKIPPED,
+
     PRIMAL_UNREACHED,
-    /* Phase 2 found an improving column that no declared bound stops. That
-     * reads as an unbounded ray and D19 refuses to publish it as one, because
-     * the column may be leaving a bound dual phase 1 invented. A designed
-     * refusal like `PRIMAL_UNREACHED`, and like it not counted against
-     * `all_ok` -- but a different event, in a different phase, and it is not
-     * phase 1 that anyone should go and read. */
+
     PRIMAL_UNBOUNDED,
-    /* The primal did not finish inside its work budget. A measured outcome
-     * and not a failure: with Dantzig pricing it is the expected one on
-     * anything large, and it is what §0's stage 5 exists to move. */
+
     PRIMAL_OVERRUN,
-    PRIMAL_DISAGREE,      /* the two algorithms reached different answers */
-    PRIMAL_REJECTED,      /* the checker refused one of the two answers   */
-    PRIMAL_ERROR,         /* read or solve failed                         */
+    PRIMAL_DISAGREE,
+    PRIMAL_REJECTED,
+    PRIMAL_ERROR,
 } verdict;
 
 static const char *verdict_str(verdict v)
@@ -175,62 +58,17 @@ static const char *verdict_str(verdict v)
 typedef struct {
     char name[64];
     int verdict;
-    int status_d, status_p;      /* jaos_solve_status, as ints        */
+    int status_d, status_p;
     long long iters_d, iters_p, work_d, work_p;
-    /* Whether the independent checker accepted each answer, recorded per side
-     * rather than folded into the verdict: "the pair was refused" does not
-     * say which half to go and look at. 1 accepted, 0 refused, -1 not
-     * applicable — the status was not OPTIMAL, so there was no claim to
-     * judge. */
+
     int check_d, check_p;
     double obj_d, obj_p;
     double secs_d, secs_p;
-    /* How the primal solve's iterations divide between phase 1, phase 2 and
-     * the dual's settling re-entry.
-     *
-     * **Reported because not reporting it made a published number wrong.**
-     * `iters_p` above counts every basis change the forced-primal solve made,
-     * whichever method made it, and the re-entry calls `run()` — so an
-     * instance can be counted as the primal agreeing with the dual when the
-     * dual did most of the work. Over the standard set that is 60.5% of every
-     * iteration, with phase 2 running 97 iterations in total (D194, D195).
-     * Three decisions were needed to find that out from outside; one column
-     * would have shown it on the first campaign (D197). */
+
     long long p1_iters, p2_iters, dual_iters;
-    /* **256, because the solver's refusal messages are about 250 characters
-     * and this was 64.** At 64 the record held
-     * `column 478 prices at 0 in row 790 of the primal phase 1 on a fr`, cut
-     * mid-word, and phase 1's own refusal lost the D19 citation and every
-     * clause after it. Two different refusals then landed in the record under
-     * notes neither of which carried the text that tells them apart.
-     * **288 and not 256, because two sites PREPEND to a message that can
-     * already fill `m->err`.** `m->err` is 256 bytes and the longest prefix is
-     * 26. Widening the LOCAL those two sites build in changes nothing: `fail`
-     * copies into this field with `sizeof r->note` as the width, so
-     * truncating at 287 and then again at 255 gives the same 255 characters
-     * as truncating once. The field is what has to move.
-     *
-     * `read_result`'s scanf width is sized from this and must move with it. */
+
     char note[288];
 } result;
-
-/* The split is read straight off the model, from `solve_primal_iters` and
- * `solve_phase1_iters`. This file used to parse it out of the solver's
- * closing SUMMARY line instead, and that was wrong twice over.
- *
- * `src/jaos_internal.h` says of exactly this class of counter that in-tree
- * tooling reads it directly, which is what `bench/run.c` does and what this
- * file already does for `cfg.force_primal`. And the parser had a twin in
- * `tests/test_simplex.c` that required a different substring, so an edit to
- * that sentence could leave the test green while this program silently
- * reported no split at all on all 94 instances -- with no target running it
- * to notice (the same shape as D191).
- *
- * Deleting it also removed a measurement defect nobody was looking for. The
- * callback was installed between the two solves, so the primal side paid for
- * three `vsnprintf` calls and the parser and the dual side did not. Every one
- * of ten sampled deltas was positive, up to +8.5% on `afiro`, which biased
- * every `secs_p / secs_d` this campaign has ever printed. */
 
 static double now_seconds(void)
 {
@@ -239,8 +77,6 @@ static double now_seconds(void)
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
-/* Builds "<dir>/<name>.mps", and says so rather than truncating: a path cut
- * short names a different file. Same rule as the gate's runner. */
 static bool instance_path(char *buf, size_t cap, const char *dir,
                           const char *name)
 {
@@ -260,10 +96,6 @@ static void fail(result *r, verdict v, const char *note)
     snprintf(r->note, sizeof r->note, "%s", note);
 }
 
-/* The answer the model is holding, through the independent checker. Returns 1
- * accepted, 0 refused, and -1 when the status carries no claim to judge.
- *
- * `x` and `y` are the caller's, so it may keep the point. */
 static int verified(jaos_model *m, int status, double *x, double *y)
 {
     if (status != (int)JAOS_SOLVE_OPTIMAL)
@@ -275,8 +107,6 @@ static int verified(jaos_model *m, int status, double *x, double *y)
     return (rep.primal_feasible && rep.dual_feasible) ? 1 : 0;
 }
 
-/* Everything one instance contributes, measured. Never judges: the caller
- * prints and the summary counts. */
 static void measure_one(const entry *e, const char *dir, int64_t factor,
                         result *r)
 {
@@ -285,14 +115,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     r->check_d = -1;
     r->check_p = -1;
     r->verdict = (int)PRIMAL_ERROR;
-    /* **Here, not after the primal solve.** `memset` leaves these at a real
-     * zero, and six paths below reach `done` before the primal ever runs
-     * (path too long, out of memory twice, read failed, dual solve failed,
-     * the work limit). Each one used to record a split of zero that the
-     * summing loop counted as successfully read, so the `no split` line the
-     * summary promises could stay silent while the denominator quietly
-     * shrank. `run_parallel`'s dead-worker path does the same and is fixed
-     * the same way. */
+
     r->p1_iters = r->p2_iters = r->dual_iters = -1;
 
     char path[512];
@@ -320,8 +143,6 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         goto done;
     }
 
-    /* The dual, which is the reference: this is the answer every committed
-     * record in bench/results already holds for this instance. */
     m->cfg.force_primal = false;
     double t0 = now_seconds();
     jaos_status st = jaos_solve(m);
@@ -336,13 +157,8 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     (void)jaos_objective(m, &r->obj_d);
     r->check_d = verified(m, r->status_d, x, y);
 
-    /* Nothing may be carried from the first solve into the second, or the
-     * comparison measures a warm start rather than an algorithm. The basis
-     * the dual just left on the model is exactly that, so it goes. */
     jaos_clear_basis(m);
 
-    /* The bound, in the dual's own currency. `+1` so an instance the dual
-     * solved for nothing still gets a budget rather than none at all. */
     if (jaos_set_work_limit(m, factor * (r->work_d + 1)) != JAOS_OK) {
         fail(r, PRIMAL_ERROR, "cannot set the work limit");
         goto done;
@@ -353,33 +169,11 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     st = jaos_solve(m);
     r->secs_p = now_seconds() - t0;
 
-    /* Recorded before the error branch below, because a solve that refuses is
-     * exactly the one whose split a reader wants. Written on every exit from
-     * `jm_dual_simplex`, the abandoned one included, so there is no case here
-     * where the numbers are missing. */
     r->p1_iters = m->solve_phase1_iters;
     r->p2_iters = m->solve_primal_iters - m->solve_phase1_iters;
     r->dual_iters = m->solve_iters - m->solve_primal_iters;
     if (st != JAOS_OK) {
-        /* The solver's own words, not "primal solve failed". A refusal the
-         * method is designed to make is a *limitation* rather than a defect,
-         * and reporting it as an error indistinguishable from a broken
-         * factorization is how a known and expected result gets investigated
-         * twice. `jaos_model_error` says which it was.
-         *
-         * **Matched on the phase's own sentence and not on `D19`.** Matching
-         * the citation was wrong because both refusals carry it: phase 1's
-         * bound-violation refusal and phase 2's improving-column one. Every
-         * phase-2 refusal was filed as `PRIMAL_UNREACHED`, and the summary
-         * then printed "phase 1 could not repair the point it was given"
-         * about a refusal phase 1 never made. Before that the match was on
-         * "no primal phase 1", which the phase 1 itself deleted, so every
-         * designed refusal became `PRIMAL_ERROR` and `make primal` exited 1
-         * on an outcome this file's own comment says a runner must not fail
-         * on. Two wrong matches in two milestones is why the third one is
-         * loud: a message that cites D19 and matches NEITHER phase is an
-         * error here, so the next drift stops a campaign instead of quietly
-         * refiling it. */
+
         const char *why = jaos_model_error(m);
         const bool cites = why != nullptr && strstr(why, "D19") != nullptr;
         const bool is_p1 = why != nullptr &&
@@ -404,15 +198,6 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     (void)jaos_objective(m, &r->obj_p);
     r->check_p = verified(m, r->status_p, x, y);
 
-    /* Out of budget is a measured outcome, not a disagreement: the primal did
-     * not reach an answer, so there is nothing to compare. Asked before the
-     * verdict tests below, which would otherwise read it as the two methods
-     * differing. */
-    /* A primal that ended in `NUMERICAL_ERROR` returned `JAOS_OK` to say so,
-     * which means the branch above never read `jaos_model_error` for it — and
-     * that is the dominant primal failure. Without this the record keeps only
-     * "different verdicts" and cannot tell a wrong answer from a refusal the
-     * method was designed to make. */
     char pnote[sizeof r->note];
     pnote[0] = '\0';
     if (r->status_p == (int)JAOS_SOLVE_NUMERICAL_ERROR) {
@@ -428,9 +213,6 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         goto done;
     }
 
-    /* An instance the dual cannot solve says nothing about the primal, so it
-     * is set aside rather than counted against either. Asked after both
-     * solves so the record still carries what each one did. */
     if (r->status_d != (int)JAOS_SOLVE_OPTIMAL &&
         r->status_d == r->status_p) {
         fail(r, PRIMAL_SKIPPED, "no optimum on either side");
@@ -438,15 +220,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     }
 
     if (r->status_d != r->status_p) {
-        /* **The solver's message goes in the note, and it did not before.**
-         * `fail` overwrites `r->note`, so the block above recovered the
-         * message and this line threw it away one branch later -- on every
-         * instance, because a primal ending in `NUMERICAL_ERROR` against a
-         * dual that reached `OPTIMAL` always lands here. All 31 `DISAGREE`
-         * lines in the last record said "different verdicts" and nothing
-         * else, which is the exact complaint that block's own comment was
-         * written to answer: it cannot tell a wrong answer from a refusal
-         * the method was designed to make. */
+
         char note[sizeof r->note];
         snprintf(note, sizeof note, "different verdicts%s%s",
                  pnote[0] != '\0' ? ": " : "", pnote);
@@ -458,10 +232,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         fail(r, PRIMAL_DISAGREE, "different objectives");
         goto done;
     }
-    /* Which side was refused is named, because it decides where to look. A
-     * refused primal answer is the new algorithm; a refused dual one is a
-     * model this solver already publishes an unverifiable optimum for, and
-     * the primal is not involved at all. */
+
     if (r->check_d == 0 || r->check_p == 0) {
         const char *which = r->check_p == 0
                                 ? (r->check_d == 0 ? "both" : "the-primal")
@@ -478,10 +249,6 @@ done:
     free(y);
     jaos_model_free(m);
 }
-
-/* --------------------------------------------------------------------- */
-/* Output                                                                */
-/* --------------------------------------------------------------------- */
 
 static FILE *g_record = nullptr;
 
@@ -508,27 +275,14 @@ static void print_result(const result *r)
 {
     if (r->verdict != (int)PRIMAL_OK && r->verdict != (int)PRIMAL_DISAGREE &&
         r->verdict != (int)PRIMAL_REJECTED) {
-        /* The dual's cost is still worth printing: it is what the primal
-         * would have had to beat, and it dates the comparison.
-         *
-         * **One branch, because the split belongs on all of them.** It was
-         * printed for `unreached` and `overrun` and dropped for `ERROR` and
-         * `skipped`, while the campaign's headline total went on counting
-         * those instances -- so the headline could not be re-derived from the
-         * record it was printed under. `pilot87` alone hid 17165 of 336064
-         * phase-1 iterations that way, 5.1% of the published figure.
-         * `measure_one` records the split before the error branch on purpose,
-         * and throwing it away here undid that. A `-1` reads as "no split",
-         * which is what an instance that never solved should say. */
+
         emit("%-12s %-9s dual=%lld/%lld split=p1:%lld/p2:%lld/dual:%lld "
              "%s\n", r->name, verdict_str((verdict)r->verdict),
              r->iters_d, r->work_d,
              r->p1_iters, r->p2_iters, r->dual_iters, r->note);
         return;
     }
-    /* The objectives are printed at full precision and side by side even
-     * when they agree. "Within tolerance" is the verdict, not the evidence,
-     * and the digits are what a later reader needs to see how close it was. */
+
     emit("%-12s %-9s dual=%lld/%lld primal=%lld/%lld "
          "split=p1:%lld/p2:%lld/dual:%lld verdict=%s/%s "
          "obj=%.17g/%.17g checker=dual:%s/primal:%s %s\n",
@@ -541,18 +295,12 @@ static void print_result(const result *r)
          check_str(r->check_d), check_str(r->check_p), r->note);
 }
 
-/* Seconds to the console only, never to the record: a file that changes on
- * every run cannot detect anything (D17). */
 static void stamp(const result *r)
 {
     if (r->verdict == (int)PRIMAL_OK)
         printf("      %-12s dual %.3f s, primal %.3f s\n", r->name,
                r->secs_d, r->secs_p);
 }
-
-/* --------------------------------------------------------------------- */
-/* Running them                                                          */
-/* --------------------------------------------------------------------- */
 
 static bool worker_path(char *buf, size_t cap, const char *tmp, int k)
 {
@@ -565,12 +313,7 @@ static bool write_result(const char *p, const result *r)
     FILE *f = fopen(p, "w");
     if (f == nullptr)
         return false;
-    /* The three split counts go before the note, because the note is read with
-     * a to-end-of-line conversion and anything after it would be swallowed.
-     *
-     * **Adding a field here means bumping the count `read_result` checks.**
-     * Missing that is invisible at `-j 1`, which never crosses this boundary,
-     * and turns every instance into "worker died" at `-j 12`. */
+
     fprintf(f, "%s %d %d %d %d %d %lld %lld %lld %lld %.17g %.17g %.17g "
                "%.17g %lld %lld %lld\n%s\n",
             r->name, r->verdict, r->status_d, r->status_p, r->check_d,
@@ -596,17 +339,7 @@ static bool read_result(const char *p, result *r)
                    &r->secs_d, &r->secs_p,
                    &r->p1_iters, &r->p2_iters, &r->dual_iters);
     if (n == 17) {
-        /* To the end of the line, not to the first space. `%63s` would stop
-         * at one token, so a note with a space in it — "path too long",
-         * "dual solve failed" — would reach the summary as its first word and
-         * read as a different failure from the one that happened. That is a
-         * defect `bench/warm.c` already had and fixed.
-         *
-         * The buffer is the destination's size and the width matches it.
-         * `warm.c` reads 79 characters into a 64-byte field, which `snprintf`
-         * truncates safely but which `-Wformat-truncation` refuses at `-O2`;
-         * it is invisible at the `-O3 -flto` the Makefile uses. Sized
-         * together here so there is nothing to truncate. */
+
         char note[sizeof r->note];
         if (fscanf(f, " %287[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
@@ -637,9 +370,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
     int running = 0, launched = 0, reaped = 0;
     while (reaped < nsel) {
         while (running < jobs && launched < nsel) {
-            /* Nothing of the parent's may still be sitting in a buffer when
-             * the address space is copied, or a worker exiting flushes a
-             * duplicate of it. */
+
             fflush(stdout);
             if (g_record != nullptr)
                 fflush(g_record);
@@ -694,11 +425,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
             snprintf(out[i].name, sizeof out[i].name, "%s",
                      ents[sel[i]].name);
             out[i].verdict = (int)PRIMAL_ERROR;
-            /* Same reason `measure_one` sets these up front: the `memset`
-             * above leaves a real zero, which the summing loop would count as
-             * a split it successfully read. Ten dead workers used to shrink
-             * the denominator in silence while the "reported no split" line
-             * stayed away. */
+
             out[i].p1_iters = out[i].p2_iters = out[i].dual_iters = -1;
             snprintf(out[i].note, sizeof out[i].note, "worker died");
             all_ok = false;
@@ -823,25 +550,6 @@ int main(int argc, char **argv)
         stamp(&results[k]);
     }
 
-    /* How the whole campaign's iterations divide between the three methods.
-     *
-     * **A sum over the set, and D46's objection to those is real here.** The
-     * total is still the honest answer to "what fraction of the work this
-     * program calls primal was done by the primal", so it stays. But it was
-     * printed bare, and the record refutes the comment that used to defend
-     * it: `dfl001` alone was 135068 of 336064 phase-1 iterations (40.2%) and
-     * never ran phase 2 or the re-entry at all, and `d2q06c` alone was 214244
-     * of 515435 dual re-entry iterations (41.6%). Together the two were 42.0%
-     * of the figure. So "phase 1 39.5%, dual re-entry 60.5%" was a statement
-     * about two instances, which is precisely what D46 bans.
-     *
-     * The fix is not to delete the total. It is to print the two largest
-     * carriers by name and the MEDIAN per-instance phase-1 share beside it,
-     * so a reader sees in the same breath whether the total describes the
-     * population or two members of it.
-     *
-     * Instances whose split could not be read contribute nothing and are
-     * counted, so a missing line cannot quietly shrink the denominator. */
     long long tot_p1 = 0, tot_p2 = 0, tot_dual = 0;
     int no_split = 0;
     static double share[MAX_INSTANCES];
@@ -862,10 +570,7 @@ int main(int argc, char **argv)
             carried[1] = n;          carrier[1] = r->name;
         }
     }
-    /* Insertion sort, because the order has to be the same on every machine
-     * and `n_share` is at most `MAX_INSTANCES`. Equal shares need no
-     * tie-break: only the middle value is read, never which instance it came
-     * from. */
+
     for (int i = 1; i < n_share; i++) {
         const double v = share[i];
         int j = i - 1;
@@ -877,8 +582,6 @@ int main(int argc, char **argv)
         : (n_share % 2 == 1) ? share[n_share / 2]
         : 0.5 * (share[n_share / 2 - 1] + share[n_share / 2]);
 
-    /* The summary. Geometric means of per-instance ratios, never a sum over
-     * the set (D46). */
     int measured = 0, skipped = 0, unreached = 0, unbounded = 0, overrun = 0,
         disagreed = 0, rejected = 0, errors = 0;
     int rej_dual = 0, rej_primal = 0;
@@ -890,19 +593,11 @@ int main(int argc, char **argv)
         const result *r = &results[k];
         switch ((verdict)r->verdict) {
         case PRIMAL_SKIPPED:  skipped++;   continue;
-        /* Not counted against `all_ok`: a refusal the method is designed to
-         * make is not a failure, and a runner that exits non-zero on a
-         * designed outcome is a runner nobody can put in a script. It reads 0
-         * on all 94 today, so this is a guard rather than an allowance. */
+
         case PRIMAL_UNREACHED: unreached++; continue;
-        /* Also a designed refusal, also not counted against `all_ok`, and
-         * counted apart from `unreached` because it happens in a different
-         * phase. Filing it as `unreached` printed a sentence about phase 1
-         * that phase 1 had nothing to do with. */
+
         case PRIMAL_UNBOUNDED: unbounded++;  continue;
-        /* Also not counted against `all_ok`: the primal running out of budget
-         * is what Dantzig pricing does on anything large, and it is measured
-         * rather than wrong. */
+
         case PRIMAL_OVERRUN:   overrun++;   continue;
         case PRIMAL_DISAGREE: disagreed++; all_ok = false; continue;
         case PRIMAL_REJECTED:
@@ -915,10 +610,7 @@ int main(int argc, char **argv)
         case PRIMAL_OK:       break;
         }
         measured++;
-        /* The count that validated this program before `force_primal` had a
-         * reader (D188's stage 0): two solves of the same model down the same
-         * path cost the same integer number of work units. Kept inverted now
-         * that it has one — see the summary line for what a non-zero means. */
+
         if (r->work_d == r->work_p && r->iters_d == r->iters_p)
             identical++;
         if (r->iters_p > r->iters_d)
@@ -938,12 +630,6 @@ int main(int argc, char **argv)
          measured, skipped, unreached, unbounded, overrun, disagreed, rejected,
          errors);
 
-    /* **Where the iterations of a "primal" campaign actually went.** Printed
-     * before every other figure, because every other figure is about solves
-     * this line says are mostly not the primal's: the settling re-entry calls
-     * `run()`, so an instance counts as agreeing when the dual finished it.
-     * Three decisions were spent discovering that from outside (D194, D195,
-     * D196) and one column shows it. */
     {
         const long long tot = tot_p1 + tot_p2 + tot_dual;
         if (tot > 0) {
@@ -970,28 +656,20 @@ int main(int argc, char **argv)
              "pricing is the worst rule that is still correct, and that is "
              "TODO.md section 0 stage 5, not a defect.\n",
              overrun, n_selected, (long long)factor);
-    /* Said out loud rather than left to be inferred from a column of
-     * `unreached`, and the sentence changed when phase 1 landed: it used to
-     * say there was no phase 1 at all, which stopped being true and stayed in
-     * the output. */
+
     if (unreached > 0)
         emit("  %d of %d could not be started: phase 1 could not repair the "
              "point it was given, and reading that as infeasibility needs the "
              "proof D19 requires. A refusal, not a defect.\n",
              unreached, n_selected);
-    /* Its own sentence, about its own phase. This used to be counted as
-     * `unreached` and described with the sentence above, which named a phase
-     * that had made no refusal at all. */
+
     if (unbounded > 0)
         emit("  %d of %d reached phase 2 and found an improving column no "
              "declared bound stops. Publishing that as UNBOUNDED needs the "
              "proof D19 requires, because the column may be leaving a bound "
              "dual phase 1 invented. A refusal, not a defect.\n",
              unbounded, n_selected);
-    /* Split, because the two are different defects. A refused primal answer
-     * says the new algorithm produced something the dual would not have; a
-     * refused dual one says this solver publishes an unverifiable optimum on
-     * that model whatever it runs, and the primal is not involved. */
+
     if (rejected > 0)
         emit("  of those, primal refused %d, dual refused %d\n",
              rej_primal, rej_dual);
@@ -1004,9 +682,7 @@ int main(int argc, char **argv)
         emit("work ratio, worst %s at %.4f\n", worst_name, worst);
         emit("took more iterations primal than dual:          %d of %d\n",
              worse_iters, measured);
-        /* Kept because it is the one number that would say the switch had
-         * stopped working: two solves down the same path cost the same
-         * integer, so a full house here means the primal never ran. */
+
         emit("bit-identical cost on both sides:               %d of %d\n",
              identical, measured);
         if (identical == measured && measured > 0)

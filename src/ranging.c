@@ -1,30 +1,3 @@
-/* Sensitivity and ranging on the basis behind the last optimum, over the
- * caller's own model (D258).
- *
- * The published basis is a basis of the model as loaded, count and all
- * (D257), so it is refactored here, on the matrix scaled as the solve
- * scales it (D260), and every range is a statement about that
- * factorization: how far one number in the model may move, everything
- * else held, before this basis stops being optimal.
- * Cost ranging keeps primal feasibility for free and asks every nonbasic
- * reduced cost to keep the sign its status requires; bound ranging keeps
- * dual feasibility for free and asks every basic value to stay inside its
- * bounds. Both are the textbook ratio tests (Chvatal, Linear Programming,
- * 1983, ch. 10), taken on values recomputed from the factorization rather
- * than read from the published arrays, so a range and the basis it
- * describes come from one arithmetic.
- *
- * Signs are stated for MINIMIZE, the canonical space the checker judges in;
- * a maximised model's costs and reduced costs are negated on the way in
- * and its cost intervals flipped on the way out. Rows enter as their
- * logicals, whose column in the basis matrix is -e_i and whose bounds are
- * the row's own, so "the bound of a row" and "the bound of a column" are
- * one question asked of one routine.
- *
- * Nothing here is billed to jaos_work_units, which belongs to the solve;
- * jaos.h states the cost. Every solve and every sum runs in a fixed order,
- * so the ranges are bit-identical on every machine and every run (D8). */
-
 #include "jaos_internal.h"
 
 #include <assert.h>
@@ -35,24 +8,23 @@
 
 struct jm_tableau {
     jaos_model *m;
-    int64_t nrow, ncol, nvar;   /* nvar = ncol + nrow; variable v >= ncol
-                                   is the logical of row v - ncol */
-    double sigma;               /* +1 minimise, -1 maximise */
-    const double *rho;          /* [nrow] the solve's row scales (D260) */
-    const double *gam;          /* [ncol] and column scales, powers of two */
-    int64_t *basis;             /* [nrow] the variable at each position */
-    int64_t *pos;               /* [nvar] a basic's position, -1 nonbasic */
+    int64_t nrow, ncol, nvar;
+    double sigma;
+    const double *rho;
+    const double *gam;
+    int64_t *basis;
+    int64_t *pos;
     jm_lu lu;
-    double *xb;                 /* [nrow] basic values, by position */
-    double *y;                  /* [nrow] canonical duals, by row */
-    double *d;                  /* [nvar] canonical reduced costs, 0 basic */
-    double *vec;                /* [nrow] dense solve vector */
-    int64_t *pat;               /* [nrow] a sparse solve's pattern */
-    uint64_t *mark;             /* bitmap for jm_pattern_order, zero at rest */
-    double *alpha;              /* [ncol] pricing scratch, zero at rest */
-    int64_t *touched;           /* [ncol] which alpha slots are live */
-    unsigned char *seen;        /* [ncol] the same, as a flag */
-    jm_work w;                  /* counted and not reported (jaos.h) */
+    double *xb;
+    double *y;
+    double *d;
+    double *vec;
+    int64_t *pat;
+    uint64_t *mark;
+    double *alpha;
+    int64_t *touched;
+    unsigned char *seen;
+    jm_work w;
 };
 typedef struct jm_tableau rg;
 
@@ -88,17 +60,11 @@ static jaos_basis_status rg_status(const rg *g, int64_t v)
                        : g->m->sol_row_status[v - g->ncol];
 }
 
-/* A variable's own scale: x = scale * x_scaled. A structural's is its
- * column scale; a logical's is the inverse of its row's, since the solve
- * scales an activity by the row (`publish`, s = s_scaled / rho). */
 static double rg_vscale(const rg *g, int64_t v)
 {
     return v < g->ncol ? g->gam[v] : 1.0 / g->rho[v - g->ncol];
 }
 
-/* The value a nonbasic variable rests at. False when its status names a
- * bound the variable does not have, which the solver's own publication
- * never does (D257) and a basis is not without. */
 static bool rg_rest(const rg *g, int64_t v, double *out)
 {
     switch (rg_status(g, v)) {
@@ -110,7 +76,6 @@ static bool rg_rest(const rg *g, int64_t v, double *out)
     return isfinite(*out);
 }
 
-/* The column of variable v in [A | -I], scattered by row into a zero vec. */
 static void rg_scatter(const rg *g, int64_t v, double *vec)
 {
     const jaos_model *m = g->m;
@@ -128,9 +93,6 @@ static bool rg_has_optimum(const jaos_model *m)
            m->sol_col_status != nullptr && m->sol_row_status != nullptr;
 }
 
-/* Factors the published basis on the model as loaded and recomputes the
- * basic values, the canonical duals and the canonical reduced costs from
- * it. Positions are structurals in index order, then logicals. */
 static jaos_status rg_build(jaos_model *m, rg *g)
 {
     memset(g, 0, sizeof *g);
@@ -145,11 +107,7 @@ static jaos_status rg_build(jaos_model *m, rg *g)
     jaos_status st = jm_model_ensure_rowwise(m);
     if (st != JAOS_OK)
         return st;
-    /* The basis is factored as the solve factors it, on the scaled matrix
-     * rho_i a_ij gamma_j with the same power-of-two factors, and every
-     * answer is scaled back (D260). A solve on a presolve-reduced model
-     * scaled that model, not this one, so the factors are computed here
-     * when missing; they are deterministic and exact powers of two. */
+
     if (!m->scale_valid) {
         st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
         if (st != JAOS_OK)
@@ -205,8 +163,6 @@ static jaos_status rg_build(jaos_model *m, rg *g)
     }
     assert(p == nrow);
 
-    /* The basis matrix, compressed by column, position by position. At
-     * least one slot: jm_lu_factor takes non-null arrays whenever dim > 0. */
     const int64_t room = nnz > 0 ? nnz : 1;
     int64_t *bs = jm_alloc_array(nrow + 1, sizeof *bs);
     int64_t *bi = jm_alloc_array(room, sizeof *bi);
@@ -226,7 +182,7 @@ static jaos_status rg_build(jaos_model *m, rg *g)
                 q++;
             }
         } else {
-            /* A logical's scaled column is -e_i: s_scaled = rho_i s. */
+
             bi[q] = v - ncol;
             bv[q] = -1.0;
             q++;
@@ -243,11 +199,7 @@ static jaos_status rg_build(jaos_model *m, rg *g)
                    (long long)g->lu.rank, (long long)nrow);
         return JAOS_ERR_NUMERICAL;
     }
-    /* No early return on a row-less model: both solves are no-ops at
-     * dimension zero and the reduced costs below are still the costs. */
 
-    /* x_B = B^-1 (-N x_N): the nonbasics' columns, at their resting values,
-     * scattered by row with the sign the equation Ax - s = 0 gives them. */
     for (int64_t v = 0; v < nvar; v++) {
         if (g->pos[v] >= 0)
             continue;
@@ -267,7 +219,7 @@ static jaos_status rg_build(jaos_model *m, rg *g)
             g->vec[v - ncol] += xv;
         }
     }
-    /* Into the scaled row space, solve, and each basic back to its own. */
+
     for (int64_t i = 0; i < nrow; i++)
         g->vec[i] *= g->rho[i];
     jm_lu_ftran(&g->lu, g->vec, &g->w);
@@ -275,9 +227,6 @@ static jaos_status rg_build(jaos_model *m, rg *g)
         g->xb[p] = g->vec[p] * rg_vscale(g, g->basis[p]);
     memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
 
-    /* y' = c_B' B^-1 in the canonical space on the scaled costs, gamma_j
-     * c_j; a logical costs nothing. The scaled dual comes back through the
-     * row scale, y = rho y_scaled (`publish`). */
     for (p = 0; p < nrow; p++) {
         const int64_t v = g->basis[p];
         g->vec[p] = v < ncol ? g->sigma * m->col_cost[v] * g->gam[v] : 0.0;
@@ -287,8 +236,6 @@ static jaos_status rg_build(jaos_model *m, rg *g)
         g->y[i] = g->vec[i] * g->rho[i];
     memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
 
-    /* d_N = c_N - N' y, canonical; a logical's is its row's dual, since its
-     * column is -e_i and its cost zero. */
     for (int64_t j = 0; j < ncol; j++) {
         if (g->pos[j] >= 0)
             continue;
@@ -304,12 +251,6 @@ static jaos_status rg_build(jaos_model *m, rg *g)
     return JAOS_OK;
 }
 
-/* --- Cost ranging ------------------------------------------------------ */
-
-/* One nonbasic variable's say on how far a basic column's cost may move:
- * its canonical reduced cost changes by -delta * alpha and must keep the
- * sign its status requires. A fixed variable's sign is free (check.c,
- * "fixed -> anything"), and a free nonbasic's must stay zero. */
 static void rg_cost_limit(const rg *g, int64_t v, double alpha,
                           double *dmin, double *dmax)
 {
@@ -317,15 +258,15 @@ static void rg_cost_limit(const rg *g, int64_t v, double alpha,
         return;
     const double ratio = g->d[v] / alpha;
     switch (rg_status(g, v)) {
-    case JAOS_BASIS_AT_LOWER:            /* d - delta * alpha >= 0 */
+    case JAOS_BASIS_AT_LOWER:
         if (alpha > 0.0) { if (ratio < *dmax) *dmax = ratio; }
         else             { if (ratio > *dmin) *dmin = ratio; }
         break;
-    case JAOS_BASIS_AT_UPPER:            /* d - delta * alpha <= 0 */
+    case JAOS_BASIS_AT_UPPER:
         if (alpha > 0.0) { if (ratio > *dmin) *dmin = ratio; }
         else             { if (ratio < *dmax) *dmax = ratio; }
         break;
-    case JAOS_BASIS_FREE:                /* d - delta * alpha == 0 */
+    case JAOS_BASIS_FREE:
         if (*dmin < 0.0) *dmin = 0.0;
         if (*dmax > 0.0) *dmax = 0.0;
         break;
@@ -334,7 +275,6 @@ static void rg_cost_limit(const rg *g, int64_t v, double alpha,
     }
 }
 
-/* A canonical interval into the model's own sense. */
 static void rg_publish(double sigma, double L, double U,
                        double *lo, double *hi)
 {
@@ -372,15 +312,11 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
         const double cc = sigma * m->col_cost[j];
         double L, U;
         if (m->col_lower[j] == m->col_upper[j]) {
-            /* A fixed column's cost decides nothing. */
+
             L = -INFINITY;
             U = INFINITY;
         } else if (g.pos[j] < 0) {
-            /* Nonbasic: its own reduced cost moves one for one with its
-             * cost and must keep its sign; `base` is where it reaches 0.
-             * The current cost stays inside: a reduced cost the solve
-             * accepted on the wrong side of zero inside its tolerance
-             * would otherwise put `base` past it. */
+
             const double base = cc - g.d[j];
             const double lo_end = base < cc ? base : cc;
             const double hi_end = base > cc ? base : cc;
@@ -390,19 +326,13 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
             default:                  L = lo_end;    U = hi_end;   break;
             }
         } else {
-            /* Basic at position p: the row r = e_p' B^-1 says how every
-             * nonbasic reduced cost moves per unit of this cost,
-             * alpha_k = r' a_k, and each of them limits the move. The
-             * row is priced over the rows r reaches, ascending (D35). */
+
             memset(g.vec, 0, (size_t)nrow * sizeof *g.vec);
             g.vec[g.pos[j]] = 1.0;
             int64_t npat = 0, words = 0;
             jm_lu_btran_sparse(&g.lu, g.vec, &g.w, g.pat, &npat);
             npat = jm_pattern_order(npat, g.pat, g.mark, nrow, &words);
 
-            /* The row comes back in the scaled space; r_i = rho_i r~_i
-             * prices the caller's entries, and a unit of this column's
-             * cost is gamma_j units of its scaled cost (D260). */
             const double gj = g.gam[j];
             int64_t nt = 0;
             for (int64_t t = 0; t < npat; t++) {
@@ -436,9 +366,7 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
                 if (g.pos[v] < 0)
                     rg_cost_limit(&g, v, -g.vec[i], &dmin, &dmax);
             }
-            /* The current cost is inside its own range: a limit the other
-             * side of it is a reduced cost the solve accepted inside its
-             * tolerance, and the range says so by stopping at zero. */
+
             if (dmin > 0.0) dmin = 0.0;
             if (dmax < 0.0) dmax = 0.0;
             L = cc + dmin;
@@ -451,14 +379,6 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
     return JAOS_OK;
 }
 
-/* --- Bound ranging ----------------------------------------------------- */
-
-/* The interval each of variable v's two bounds may take. A basic variable
- * is held by the basis and not by either bound, so each bound may close
- * in on the value and no further. A nonbasic one rests on a bound, moves
- * with it, and drags the basics along by w = B^-1 a_v per unit; those must
- * stay inside their own bounds, and the two bounds of v must not cross.
- * The bound it does not rest on may close in on the value. */
 static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
                            double *hi_lo, double *hi_hi)
 {
@@ -467,8 +387,7 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
     double LL, LU, UL, UU;
 
     if (s == JAOS_BASIS_BASIC) {
-        /* Each bound may close in on the value; the current bound stays
-         * inside when the recomputed value sits a rounding past it. */
+
         const double x = g->xb[g->pos[v]];
         LL = -INFINITY; LU = x > l ? x : l;
         UL = x < u ? x : u; UU = INFINITY;
@@ -476,18 +395,13 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
         LL = -INFINITY; LU = 0.0;
         UL = 0.0;       UU = INFINITY;
     } else {
-        /* A fixed variable's status names either bound and its reduced
-         * cost obeys no sign, so which bound holds it is read from that
-         * sign: a negative canonical reduced cost wants to rise and is
-         * held by the upper bound. */
+
         const bool at_lo = (l == u) ? !(g->d[v] < 0.0)
                                     : (s == JAOS_BASIS_AT_LOWER);
         const int64_t nrow = g->nrow;
         memset(g->vec, 0, (size_t)nrow * sizeof *g->vec);
         rg_scatter(g, v, g->vec);
-        /* The column into the scaled row space; the solve then gives each
-         * basic's move per unit of v in v's own units once it is scaled
-         * back by the basic's own factor (D260). */
+
         if (v < g->ncol) {
             const jaos_model *m = g->m;
             for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
@@ -507,7 +421,7 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
                 continue;
             const double lq = rg_lower(g, q), uq = rg_upper(g, q);
             const double x = g->xb[p];
-            /* lq <= x - delta * wp <= uq */
+
             if (wp > 0.0) {
                 if (isfinite(lq)) { const double r = (x - lq) / wp; if (r < dmax) dmax = r; }
                 if (isfinite(uq)) { const double r = (x - uq) / wp; if (r > dmin) dmin = r; }
@@ -521,7 +435,7 @@ static void rg_bound_range(rg *g, int64_t v, double *lo_lo, double *lo_hi,
         } else {
             if (isfinite(l)) { const double r = l - u; if (r > dmin) dmin = r; }
         }
-        /* The current bound is inside its own range, as for costs. */
+
         if (dmin > 0.0) dmin = 0.0;
         if (dmax < 0.0) dmax = 0.0;
         if (at_lo) {
@@ -582,12 +496,6 @@ jaos_status jaos_bound_ranging(jaos_model *m, double *lower_lo,
     return rg_bounds(m, false, lower_lo, lower_hi, upper_lo, upper_hi);
 }
 
-/* --- The tableau, for the cut generator ------------------------------- */
-
-/* The factorization above, handed to src/mip.c so a Gomory cut can read a
- * row of B^-1 [A | -I] over the model as loaded, in the model's own units
- * (D289). Nothing here is reachable through the public header. */
-
 jaos_status jm_tableau_build(jaos_model *m, jm_tableau **out)
 {
     *out = nullptr;
@@ -636,14 +544,6 @@ int64_t jm_tableau_work(const jm_tableau *g)
     return g->w.units;
 }
 
-/* Row p of the tableau: x_B(p) + sum_v row[v] x_v = value, over every
- * nonbasic variable v (a basic's entry is 0), in the model's own units.
- * The row of the inverse comes back in the scaled space, e_p' B_s^-1, and
- * an entry of the scaled tableau is (1/scale_B(p)) a~_v scale_v, so each
- * is put back by scale_B(p) / scale_v; a logical's scaled column is -e_i
- * (rg_build) and its scale 1/rho_i (rg_vscale). The row is priced over
- * the rows the inverse's row reaches, ascending (D35), so it is the same
- * on every machine (D8). */
 jaos_status jm_tableau_row(jm_tableau *g, int64_t p, double *row)
 {
     const jaos_model *m = g->m;
@@ -661,16 +561,14 @@ jaos_status jm_tableau_row(jm_tableau *g, int64_t p, double *row)
         g->vec[i] = 0.0;
         if (ri == 0.0)
             continue;
-        /* Structurals: sum_i r~_i rho_i a_ij, then times scale_B / gamma_j
-         * against the scaled column's gamma_j: the two cancel. */
+
         const double t_i = ri * g->rho[i] * sb;
         for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
             const int64_t j = m->ar_index[k];
             if (g->pos[j] < 0)
                 row[j] += t_i * m->ar_value[k];
         }
-        /* The logical of row i, when nonbasic: -r~_i times scale_B over
-         * its own scale 1/rho_i. */
+
         if (g->pos[ncol + i] < 0)
             row[ncol + i] = -ri * sb * g->rho[i];
     }

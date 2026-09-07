@@ -1,16 +1,10 @@
-/* Shared internals: growable arrays and the name -> value map used by the
- * file readers.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos_internal.h"
 
 #include <stdckdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Grows *arr (elements of elsize) to hold at least need elements. On
- * failure *arr is left untouched, so cleanup still frees the old block. */
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
 {
     if (need <= *cap)
@@ -29,8 +23,6 @@ bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
     *cap = ncap;
     return true;
 }
-
-/* ---- name map: FNV-1a, open addressing, names in one arena ---------- */
 
 static uint64_t fnv1a(const char *s)
 {
@@ -87,7 +79,6 @@ static bool nmap_rehash(jm_nmap *m, int64_t nslot)
     return true;
 }
 
-/* The caller must have checked the name is absent. */
 bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value)
 {
     int64_t len = (int64_t)strlen(name) + 1;
@@ -123,8 +114,6 @@ bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value)
     m->slot[i] = m->n - 1;
     return true;
 }
-
-/* ---- names for the model ------------------------------------------- */
 
 char *jm_name_copy(const char *name)
 {

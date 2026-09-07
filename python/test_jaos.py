@@ -20,14 +20,12 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import jaos                                                  # noqa: E402
+import jaos
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 def data(name):
     return os.path.join(ROOT, "tests", "data", name)
-
 
 class TestLibrary(unittest.TestCase):
     def test_the_version_comes_from_the_library(self):
@@ -40,7 +38,6 @@ class TestLibrary(unittest.TestCase):
 
     def test_the_loaded_path_is_reported(self):
         self.assertTrue(os.path.exists(jaos.library_path()))
-
 
 class TestSolving(unittest.TestCase):
     """The golden three-by-three, which tests/data/solve1.mps holds and
@@ -72,11 +69,6 @@ class TestSolving(unittest.TestCase):
             self.assertEqual(len(s.row_dual), 1)
             self.assertEqual(len(s.col_dual), 2)
 
-            # The values, not only the lengths. Four arrays of doubles go
-            # into one C call and lengths alone cannot tell two of them
-            # apart when the model is square; these numbers can.
-            # y = 4, x = 0, the row binds at 4, its dual is -2, and the
-            # reduced costs are d_x = -1 + 2 = 1 and d_y = -2 + 2 = 0.
             self.assertAlmostEqual(s.col_value[0], 0.0, places=9)
             self.assertAlmostEqual(s.col_value[1], 4.0, places=9)
             self.assertAlmostEqual(s.row_activity[0], 4.0, places=9)
@@ -120,7 +112,6 @@ class TestSolving(unittest.TestCase):
             self.assertGreaterEqual(m.iterations, 0)
             self.assertGreaterEqual(m.solve_time, 0.0)
 
-
 class TestReadingFiles(unittest.TestCase):
     def test_t1_mps_matches_what_the_c_suite_asserts(self):
         with jaos.Model() as m:
@@ -161,7 +152,6 @@ class TestReadingFiles(unittest.TestCase):
                 self.assertEqual((b.num_col, b.num_row, b.num_nz), want)
                 b.solve()
                 self.assertAlmostEqual(b.objective(), 29.0, places=9)
-
 
 class TestFailuresBecomeExceptions(unittest.TestCase):
     """Every one of these would be a silently ignored status code in C if
@@ -222,7 +212,7 @@ class TestFailuresBecomeExceptions(unittest.TestCase):
         with jaos.Model() as m:
             with self.assertRaises(ValueError):
                 m.load(num_col=2, num_row=1,
-                       col_cost=[1.0],                  # one, not two
+                       col_cost=[1.0],
                        col_lower=[0.0, 0.0], col_upper=[1.0, 1.0],
                        row_lower=[0.0], row_upper=[1.0])
 
@@ -230,11 +220,10 @@ class TestFailuresBecomeExceptions(unittest.TestCase):
         m = jaos.Model()
         m.read_mps(data("t1.mps"))
         m.close()
-        m.close()                                        # twice is fine
+        m.close()
         with self.assertRaises(ValueError):
             m.solve()
         self.assertIn("closed", repr(m))
-
 
 class TestLimitsAndOutput(unittest.TestCase):
     def test_a_work_limit_stops_the_solve_and_says_so(self):
@@ -286,7 +275,6 @@ class TestLimitsAndOutput(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertEqual(wa, wb)
 
-
 class TestChangingAModel(unittest.TestCase):
     def test_a_changed_bound_changes_the_answer(self):
         with jaos.Model() as m:
@@ -315,7 +303,7 @@ class TestChangingAModel(unittest.TestCase):
             m.solve()
             self.assertAlmostEqual(m.objective(), -10.0, places=9)
 
-            m.set_coefficient(0, 0, 2.0)      # x <= 5 now
+            m.set_coefficient(0, 0, 2.0)
             m.solve()
             self.assertAlmostEqual(m.objective(), -5.0, places=9)
 
@@ -366,7 +354,7 @@ class TestChangingAModel(unittest.TestCase):
             self.assertEqual(m.row_entries(0), ([0, 2], [1.0, 2.0]))
             self.assertEqual(m.row_entries(1), ([1, 2], [3.0, 4.0]))
             self.assertEqual(m.coefficient(1, 2), 4.0)
-            self.assertEqual(m.coefficient(1, 0), 0.0)     # the dropped zero
+            self.assertEqual(m.coefficient(1, 0), 0.0)
             self.assertEqual(m.coefficient(0, 1), 0.0)
 
             m.set_coefficient(1, 0, 7.0)
@@ -379,7 +367,6 @@ class TestChangingAModel(unittest.TestCase):
                 m.col_entries(3)
             with self.assertRaises(jaos.JaosError):
                 m.coefficient(2, 0)
-
 
 class TestNames(unittest.TestCase):
     """Names (D284): the file's, or one set here, or the position."""
@@ -419,7 +406,7 @@ class TestNames(unittest.TestCase):
             self.assertEqual(m.col_index("C1"), 0)
             self.assertEqual(m.row_index("cap"), 0)
             with self.assertRaises(jaos.JaosError):
-                m.col_index("C2")        # named y now, not reachable so
+                m.col_index("C2")
             m.set_col_name(1, None)
             self.assertEqual(m.col_name(1), "C2")
             with self.assertRaises(jaos.JaosError):
@@ -428,7 +415,7 @@ class TestNames(unittest.TestCase):
                 m.set_col_name(0, "x" * (jaos.NAME_MAX + 1))
             m.set_col_name(0, "x" * jaos.NAME_MAX)
             self.assertEqual(len(m.col_name(0)), jaos.NAME_MAX)
-            # A name is not problem data: the answer survives a rename.
+
             m.solve()
             m.set_row_name(0, "capacity")
             self.assertIs(m.status, jaos.SolveStatus.OPTIMAL)
@@ -484,13 +471,11 @@ class TestNames(unittest.TestCase):
                 self.assertEqual(back.row_name(1), "second")
                 self.assertEqual(back.col_name(2), "z")
                 self.assertEqual(back.objective_name, "obj")
-            # Two columns called the same cannot be written, whichever
-            # format, and the refusal names them.
+
             m.set_col_name(0, "z")
             with self.assertRaises(jaos.JaosError) as cm:
                 m.write_lp(os.path.join(d, "dup.lp"))
             self.assertIn("'z'", str(cm.exception))
-
 
 class TestGrowingAndShrinking(unittest.TestCase):
     """The append and delete calls. Each optimum here is distinct from the
@@ -514,10 +499,10 @@ class TestGrowingAndShrinking(unittest.TestCase):
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(m.objective(), -8.0, places=9)
 
-            m.add_rows([-jaos.INFINITY], [3.0],           # y <= 3
+            m.add_rows([-jaos.INFINITY], [3.0],
                        a_start=[0, 1], a_index=[1], a_value=[1.0])
             self.assertEqual((m.num_row, m.num_nz), (2, 3))
-            m.solve()                          # y = 3, x = 1
+            m.solve()
             self.assertAlmostEqual(m.objective(), -7.0, places=9)
 
             m.delete_rows([1])
@@ -528,15 +513,15 @@ class TestGrowingAndShrinking(unittest.TestCase):
     def test_adding_a_column_improves_the_optimum(self):
         with self.golden() as m:
             m.solve()
-            m.add_cols([-3.0], [0.0], [2.0],   # z in [0,2], joins the row
+            m.add_cols([-3.0], [0.0], [2.0],
                        a_start=[0, 1], a_index=[0], a_value=[1.0])
             self.assertEqual((m.num_col, m.num_nz), (3, 3))
-            m.solve()                          # z = 2, y = 2
+            m.solve()
             self.assertAlmostEqual(m.objective(), -10.0, places=9)
 
     def test_deleting_a_column_removes_its_contribution(self):
         with self.golden() as m:
-            m.delete_cols([1])                 # y is gone; min -x, x <= 4
+            m.delete_cols([1])
             self.assertEqual((m.num_col, m.num_nz), (1, 1))
             m.solve()
             self.assertAlmostEqual(m.objective(), -4.0, places=9)
@@ -545,7 +530,6 @@ class TestGrowingAndShrinking(unittest.TestCase):
         with self.golden() as m:
             with self.assertRaises(jaos.JaosError):
                 m.delete_cols([0, 0])
-
 
 class TestBasisRoundTrip(unittest.TestCase):
     def test_a_basis_read_out_can_be_handed_back(self):
@@ -565,7 +549,6 @@ class TestBasisRoundTrip(unittest.TestCase):
             m.read_mps(data("solve1.mps"))
             with self.assertRaises(ValueError):
                 m.set_basis([jaos.BasisStatus.BASIC], [])
-
 
 class TestTheChecker(unittest.TestCase):
     """jaos_check_solution through the binding. The accepting case alone
@@ -600,7 +583,6 @@ class TestTheChecker(unittest.TestCase):
             m.solve()
             r = m.check_solution(m.solution().col_value)
             self.assertFalse(r.checked_duals)
-
 
 class TestCertificates(unittest.TestCase):
     """jaos_certificate, jaos_unbounded_ray and their two checkers through
@@ -666,7 +648,6 @@ class TestCertificates(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.check_ray([1.0])
 
-
 class TestIIS(unittest.TestCase):
     """jaos_iis through the binding: the two-row model tests/test_iis.c
     works by hand, on Model and on Problem, and the refusals."""
@@ -686,7 +667,7 @@ class TestIIS(unittest.TestCase):
             self.assertEqual(found.report.members, 2)
             self.assertEqual(found.report.solves, 3)
             self.assertTrue(found.report.from_certificate)
-            # The model's own answer is still there afterwards.
+
             self.assertIs(m.status, jaos.SolveStatus.INFEASIBLE)
             self.assertEqual(len(m.certificate()), 2)
 
@@ -750,7 +731,6 @@ class TestIIS(unittest.TestCase):
         with p.iis_model() as sub:
             self.assertIs(sub.solve(), jaos.SolveStatus.INFEASIBLE)
 
-
 class TestVerify(unittest.TestCase):
     """jaos_verify through the binding.
 
@@ -766,8 +746,7 @@ class TestVerify(unittest.TestCase):
             m.read_mps(data("solve1.mps"))
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             r = m.verify()
-            # If a field were misplaced this would be a bound, a count or a
-            # pointer's low half, none of which is 4096.
+
             self.assertEqual(r.capacity_bits, 4096.0,
                              "the report's field order does not match "
                              "jaos_verify_report in jaos.h")
@@ -812,13 +791,12 @@ class TestVerify(unittest.TestCase):
         second the first would pass on a prover that proved everything."""
         B = jaos.BasisStatus
         with jaos.Model() as m:
-            # min -x - y, x + y <= 4, x <= 3: the optimum is x = 3, y = 1
-            # with x at its upper bound, y basic and the row at its upper.
+
             m.load(2, 1, [-1.0, -1.0], [0.0, 0.0], [3.0, float("inf")],
                    [-float("inf")], [4.0], [0, 1, 2], [0, 0], [1.0, 1.0])
             r = m.verify_basis([B.AT_UPPER, B.BASIC], [B.AT_UPPER])
             self.assertIs(r.status, jaos.Proof.OPTIMAL)
-            # Nothing solved, and the exact values are readable.
+
             self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
             self.assertEqual(str(m.exact_col_value(0)), "3")
             self.assertEqual(str(m.exact_objective()), "-4")
@@ -827,7 +805,6 @@ class TestVerify(unittest.TestCase):
             self.assertIs(r.status, jaos.Proof.BROKEN)
             self.assertIs(r.stage, jaos.ProofStage.DUAL)
 
-            # Two structural refusals, and a wrong length.
             with self.assertRaises(jaos.JaosError):
                 m.verify_basis([B.BASIC, B.BASIC], [B.BASIC])
             with self.assertRaises(ValueError):
@@ -843,7 +820,6 @@ class TestVerify(unittest.TestCase):
         r = p.verify_basis([B.AT_UPPER, B.BASIC], [B.AT_UPPER])
         self.assertIs(r.status, jaos.Proof.OPTIMAL)
 
-
 class TestProgressCallback(unittest.TestCase):
     def test_the_callback_sees_the_solve(self):
         seen = []
@@ -851,7 +827,7 @@ class TestProgressCallback(unittest.TestCase):
             m.read_mps(data("solve1.mps"))
             m.set_progress_callback(lambda p: seen.append(p))
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
-        # jaos.h promises the first call comes before anything is priced.
+
         self.assertTrue(seen)
         for p in seen:
             self.assertIsInstance(p, jaos.Progress)
@@ -882,7 +858,6 @@ class TestProgressCallback(unittest.TestCase):
                 m.objective()
             m.set_progress_callback(None)
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
-
 
 class TestExpressions(unittest.TestCase):
     """The algebra the modeling layer owns. Coefficients are asserted
@@ -937,7 +912,6 @@ class TestExpressions(unittest.TestCase):
             self.x + z
         with self.assertRaises(ValueError):
             self.p.add(z <= 1)
-
 
 class TestProblemSolves(unittest.TestCase):
     def test_the_golden_model_through_the_layer(self):
@@ -1003,7 +977,7 @@ class TestProblemSolves(unittest.TestCase):
     def test_a_variable_in_no_constraint_still_loads(self):
         p = jaos.Problem()
         x = p.add_var()
-        z = p.add_var(ub=2)                    # never in a row
+        z = p.add_var(ub=2)
         p.add(x <= 4)
         p.minimize(-x - 3 * z)
         p.solve()
@@ -1039,8 +1013,7 @@ class TestProblemSolves(unittest.TestCase):
         ray = p.certificate()
         self.assertEqual(len(ray), 2)
         self.assertTrue(p.model.check_certificate(ray).certified)
-        # Ahead of its solve, the layer refuses rather than hand out a
-        # ray for a model that no longer exists.
+
         p.add(x >= 0.5)
         with self.assertRaises(ValueError):
             p.certificate()
@@ -1066,7 +1039,6 @@ class TestProblemSolves(unittest.TestCase):
         r = p.check()
         self.assertTrue(r.primal_feasible)
         self.assertTrue(r.dual_feasible)
-
 
 class TestRanging(unittest.TestCase):
     """The three ranging calls through the binding, on the textbook pair
@@ -1131,7 +1103,6 @@ class TestRanging(unittest.TestCase):
         with self.assertRaises(ValueError):
             p.cost_ranging()
 
-
 class TestProblemResolves(unittest.TestCase):
     """The change-tracking path: a value moved after a solve goes through
     the C setters, everything else rebuilds. Each case is judged against a
@@ -1161,7 +1132,7 @@ class TestProblemResolves(unittest.TestCase):
         p, x, y, c = self.build()
         p.solve()
         x.lb = 1.0
-        p.solve()                              # x = 1, y = 3
+        p.solve()
         fresh, *_ = self.build(x_lb=1.0)
         fresh.solve()
         self.assertAlmostEqual(p.objective_value, fresh.objective_value,
@@ -1171,8 +1142,8 @@ class TestProblemResolves(unittest.TestCase):
     def test_a_new_objective_goes_through_the_cost_setter(self):
         p, x, y, c = self.build()
         p.solve()
-        p.minimize(-3 * x - 2 * y)             # same sense, same constant
-        p.solve()                              # x = 4 now
+        p.minimize(-3 * x - 2 * y)
+        p.solve()
         self.assertAlmostEqual(p.objective_value, -12.0, places=9)
 
     def test_adding_a_variable_after_a_solve_rebuilds(self):
@@ -1204,11 +1175,11 @@ class TestProblemResolves(unittest.TestCase):
         p, x, y, c = self.build()
         p.solve()
         loaded = p._m
-        p.maximize(-x - 2 * y)                 # same costs, other sense
+        p.maximize(-x - 2 * y)
         self.assertFalse(p._structural)
         self.assertTrue(p._dirty_objective)
         with self.assertRaises(ValueError):
-            p.objective_value                  # pending, so it refuses
+            p.objective_value
         p.solve()
         self.assertIs(p._m, loaded)
         self.assertAlmostEqual(p.objective_value, 0.0, places=9)
@@ -1231,7 +1202,6 @@ class TestProblemResolves(unittest.TestCase):
         self.assertAlmostEqual(p.objective_value, 92.0, places=9)
         self.assertEqual(p._m.obj_offset, 100.0)
 
-
 class TestBranchAndBound(unittest.TestCase):
     """Integer columns through both layers (D288). The knapsack is the one
     tests/test_mip.c solves to 9 against a relaxation of 10.67."""
@@ -1251,8 +1221,7 @@ class TestBranchAndBound(unittest.TestCase):
         obj, point = p.mip_incumbent()
         self.assertAlmostEqual(obj, 9.0, places=9)
         self.assertEqual((point[a], point[b], point[c]), (1.0, 1.0, 0.0))
-        # The root cuts close it at one node (D289); without them the tree
-        # branches, and the answer is the same either way.
+
         self.assertGreaterEqual(rep.cuts, 1)
         self.assertEqual(rep.nodes, 1)
         self.assertTrue(p._m.col_integer(0))
@@ -1266,14 +1235,13 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreaterEqual(rep.nodes, 2)
 
     def test_a_node_limit_stops_with_the_incumbent_and_the_callback_sees_it(self):
-        # The same model: a limit of one node stops after the root, where the
-        # rounding already found (2, 1), and the callback saw it (D291).
+
         seen = []
         p = jaos.Problem()
         x = p.add_var(integer=True, name="x")
         y = p.add_var(integer=True, name="y")
         p.add(x + y <= 3.6)
-        p.add(x <= 2.2)      # rows, not bounds: a bound is rounded (D292)
+        p.add(x <= 2.2)
         p.add(y <= 1.4)
         p.maximize(x + y)
         p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_node_limit(1)
@@ -1285,15 +1253,14 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual((seen[0].values[x], seen[0].values[y]), (2.0, 1.0))
         obj, point = p.mip_incumbent()
         self.assertAlmostEqual(obj, 3.0, places=9)
-        # And a callback that says STOP ends the search as INTERRUPTED.
+
         p.set_mip_node_limit(0)
         p.set_incumbent_callback(lambda inc: jaos.CallbackAction.STOP)
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
     def test_both_branching_rules_reach_the_knapsack_optimum(self):
-        # The rule changes the tree, never the answer (D292); a value outside
-        # the enum is refused.
+
         for rule in (jaos.Branching.MOST_FRACTIONAL, jaos.Branching.PSEUDOCOST):
             p = jaos.Problem()
             a = p.add_var(binary=True, name="a")
@@ -1308,8 +1275,7 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
         with self.assertRaises(jaos.JaosError):
             p.set_mip_branching(7)
-        # Strong branching until reliable (D293): the probes are counted as
-        # lp_solves beyond the nodes, and the answer is the same at 0 and 8.
+
         for rel in (0, 8):
             p.set_mip_branching(jaos.Branching.PSEUDOCOST).set_mip_reliability(rel)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
@@ -1321,9 +1287,7 @@ class TestBranchAndBound(unittest.TestCase):
                 self.assertGreater(rep.lp_solves, rep.nodes)
 
     def test_a_probe_cap_and_every_dive_child_rule_keep_the_knapsack_optimum(self):
-        # A work cap on each probe (D294) and the dive's child rule (D295):
-        # neither moves the answer; a NaN cap and a rule outside the enum
-        # are refused.
+
         def knapsack():
             p = jaos.Problem()
             a = p.add_var(binary=True, name="a")
@@ -1352,10 +1316,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_dive_child(7)
 
     def test_cuts_below_the_root_keep_the_optimum(self):
-        # max 10a + 13b + 7c + 9d + 5e over 3a + 5b + 2c + 4d + 2e <= 8,
-        # binaries: 23 at a = b = 1, and the relaxation is 24.6 (D296). Every
-        # depth reaches it with the root's cuts off; a negative depth is the
-        # default again.
+
         for depth in (0, 1, 100):
             p = jaos.Problem()
             v = [p.add_var(binary=True, name=n) for n in "abcde"]
@@ -1375,10 +1336,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertAlmostEqual(p.objective_value, 23.0, places=9)
 
     def test_the_solution_pool_and_the_two_depth_switches(self):
-        # The five-item knapsack again: a pool of three holds the optimum
-        # first, distinct feasible points after it, in objective order
-        # (D299); the cut drop (D297) and the probe depth (D298) keep the
-        # optimum; a pool of 0 is refused.
+
         def knapsack5():
             p = jaos.Problem()
             v = [p.add_var(binary=True, name=n) for n in "abcde"]
@@ -1408,8 +1366,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreater(p.mip_report().lp_solves, p.mip_report().nodes)
 
     def test_a_cover_cut_closes_the_knapsack_at_the_root(self):
-        # The three-item knapsack with the Gomory cuts off: one round of
-        # cover cuts adds a + b + c <= 2 and the root is integral (D300).
+
         p = jaos.Problem()
         a = p.add_var(binary=True, name="a")
         b = p.add_var(binary=True, name="b")
@@ -1427,8 +1384,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertGreaterEqual(p.mip_report().nodes, 2)
 
     def test_a_cap_on_a_nodes_cuts_keeps_the_optimum(self):
-        # The five-item knapsack with cuts to depth 100 and one cut per node
-        # (D301) reaches 23; a negative cap is the default again.
+
         p = jaos.Problem()
         v = [p.add_var(binary=True, name=n) for n in "abcde"]
         a, b, c, d, e = v
@@ -1450,9 +1406,7 @@ class TestBranchAndBound(unittest.TestCase):
         return p, (a, b)
 
     def test_a_stalled_root_round_is_the_last(self):
-        # The five-item knapsack with five Gomory rounds and the covers off
-        # closes at the root with three cuts; a stall of 1 ends the rounds
-        # after the first, so one cut and a tree (D304). NaN is refused.
+
         for stall, cuts in ((0.0, 3), (1.0, 1)):
             p, (a, b) = self._knapsack5()
             p.set_mip_cut_rounds(5).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
@@ -1466,9 +1420,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_cut_stall(-1)
 
     def test_a_stalled_round_ends_the_cuts_under_it(self):
-        # The five-item knapsack with cuts to every depth, no cap and the MIR
-        # rounds off: a node stall of 1 judges the root's phase stalled, so
-        # no node cuts and fewer cuts than without it, the same optimum (D305).
+
         counts = []
         for stall in (0.0, 1.0):
             p, (a, b) = self._knapsack5()
@@ -1483,8 +1435,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_node_cut_stall(-1)
 
     def test_root_cuts_may_leave_below_a_node(self):
-        # One Gomory and one cover round at the root with the drop on, with
-        # and without the node cuts, reach 23 (D306); None is the default.
+
         for depth in (0, 100):
             p, (a, b) = self._knapsack5()
             p.set_mip_cut_rounds(1).set_mip_cover_rounds(1).set_mip_cut_depth(depth)
@@ -1496,10 +1447,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
 
     def test_a_lifted_cover_closes_what_the_extended_cover_leaves(self):
-        # max 10a + 10b + 6f + 15d, 4a + 4b + 3f + 8d <= 10, binary: the
-        # cover {a, b, f} extended gives d the coefficient 1 and leaves the
-        # root at 22.5; lifted, d gets 2 and the root is integral at 20
-        # (D307).
+
         for lift, one_node in ((False, False), (True, True)):
             p = jaos.Problem()
             a, b, f, d = [p.add_var(binary=True, name=n) for n in "abfd"]
@@ -1516,9 +1464,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_cover_lift(None)
 
     def test_a_mir_cut_closes_the_halved_row_at_the_root(self):
-        # max x + y, 2x + 2y <= 3, x and y integer: the row scaled by 2 and
-        # rounded is x + y <= 1, which closes the root (D309); without it
-        # the tree branches to the same answer.
+
         for rounds, one_node in ((1, True), (0, False)):
             p = jaos.Problem()
             x = p.add_var(integer=True, name="x")
@@ -1535,8 +1481,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_mir_rounds(-1)
 
     def test_a_backtracking_dive_reaches_the_same_optimum(self):
-        # The five-item knapsack with the cuts off, the dive on and up to
-        # 1000 backtracks per dive reaches 23 like the plain dive (D308).
+
         for times in (0, 1, 1000):
             p, (a, b) = self._knapsack5()
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
@@ -1547,9 +1492,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_dive_backtrack(-1)
 
     def test_mir_cuts_at_the_nodes_keep_the_optimum(self):
-        # The five-item knapsack with the root cuts off and cuts to every
-        # depth reaches 23 with MIR at the nodes on and off, and on adds
-        # at least as many cuts (D310); None is the default again.
+
         counts = []
         for on in (False, True):
             p, (a, b) = self._knapsack5()
@@ -1563,9 +1506,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_node_mir(None)
 
     def test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(self):
-        # The five-item knapsack with the cuts off, the dive on, no resume
-        # count and a resume gap of 0.01 and of 1 reaches 23 (D311); NaN is
-        # refused and a negative value restores the default.
+
         for frac in (0.01, 1.0):
             p, (a, b) = self._knapsack5()
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
@@ -1578,9 +1519,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_dive_gap(-1)
 
     def test_an_aggregated_mir_cut_closes_what_one_row_leaves(self):
-        # max 3x + 2y, 2x - s <= 0, 2y + s <= 3, x + y <= 4: neither row
-        # alone gives a MIR cut, their aggregate gives x + y <= 1 and the
-        # root closes at 3 (D312).
+
         for rows, one_node in ((0, False), (1, True)):
             p = jaos.Problem()
             x = p.add_var(integer=True, ub=3, name="x")
@@ -1598,8 +1537,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_mir_aggregate(-1)
 
     def test_the_dive_heuristic_finds_the_first_incumbent(self):
-        # The neighbour model with the rounding heuristic off: a dive of
-        # five solves puts the first incumbent at node 1 (D313).
+
         firsts = []
         for solves in (0, 5):
             p = jaos.Problem()
@@ -1621,8 +1559,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_dive_heuristic(-1)
 
     def test_the_feasibility_pump_finds_a_point_at_the_root(self):
-        # With the other two heuristics off, a pump of five rounds puts the
-        # first incumbent at node 1 and the answer does not move (D318).
+
         firsts = []
         for rounds in (0, 5):
             p = jaos.Problem()
@@ -1642,9 +1579,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_feaspump(-1)
 
     def test_the_pumps_two_extensions_keep_the_answer(self):
-        # The general-integer distance and the objective pump both leave
-        # the optimum of a general-integer model alone, in every
-        # combination; a decay of 1 or more is refused.
+
         for general, decay in ((0, 0.0), (1, 0.0), (0, 0.9), (1, 0.9)):
             p = jaos.Problem()
             x = p.add_var(integer=True, ub=4, name="x")
@@ -1664,10 +1599,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_obj(-1.0)
 
     def test_the_presolve_report_reaches_python(self):
-        # afiro loses two singleton rows; the report says so at both
-        # layers (D329). The build with presolve compiled out is not
-        # exercised from Python, so the assertion is one-sided here and
-        # two-sided in tests/test_presolve.c.
+
         p = jaos.Problem()
         x = p.add_var(name="x")
         y = p.add_var(name="y")
@@ -1681,8 +1613,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(rep.duplicate_row, 0)
 
     def test_a_starting_point_a_cutoff_and_the_statistics(self):
-        # The tree's two inputs and the model census, at the Problem layer
-        # (D326, D327).
+
         def build():
             p = jaos.Problem()
             a = p.add_var(integer=True, ub=1, name="a")
@@ -1699,7 +1630,7 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertEqual(st.integer_col, 3)
         self.assertEqual(st.binary_col, 3)
         self.assertEqual(st.one_sided_row, 1)
-        # The two partitions, which is what says the walk saw everything.
+
         self.assertEqual(st.num_row, st.equality_row + st.ranged_row
                          + st.one_sided_row + st.free_row)
         self.assertEqual(st.num_col, st.fixed_col + st.ranged_col
@@ -1707,25 +1638,20 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         best = p.objective_value
 
-        # The optimum handed over: the answer does not move.
         p, a, b, c = build()
         p.set_mip_start({a: 1, b: 1})
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, best, places=9)
 
-        # A point outside the bounds: refused, and the search runs on.
         p, a, b, c = build()
         p.set_mip_start({a: 9, b: 9, c: 9})
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, best, places=9)
 
-        # A cutoff nothing beats: no answer at all, which is the honest
-        # reply to the question a cutoff asks.
         p, a, b, c = build()
         p.set_mip_cutoff(best + 1000.0)
         self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
 
-        # And one the optimum does beat leaves it where it was.
         p, a, b, c = build()
         p.set_mip_cutoff(best - 1.0)
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
@@ -1734,9 +1660,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_start(None)
 
     def test_an_exact_proof_round_trips_through_a_file(self):
-        # x = 1/3 with a dual of 1/3: values no double holds, which is why
-        # the file carries rationals (D325). The check reads no basis and
-        # runs on a problem that was never solved.
+
         import os
         import tempfile
         p = jaos.Problem()
@@ -1764,7 +1688,6 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertEqual(rep.bad_row, -1)
             self.assertGreater(rep.terms, 0)
 
-            # The case it must reject: a value outside the row.
             with open(path, encoding="ascii") as f:
                 body = f.read()
             with open(path, "w", encoding="ascii") as f:
@@ -1774,8 +1697,6 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertFalse(bad.certified)
             self.assertIs(bad.kind, jaos.ProofKind.OPTIMAL)
 
-            # An infeasible answer's certificate needs no verify at all,
-            # and is judged exactly (D328).
             r = jaos.Problem()
             z = r.add_var(lb=float("-inf"), name="z")
             r.add(z >= 1)
@@ -1791,8 +1712,7 @@ class TestBranchAndBound(unittest.TestCase):
                 os.remove(path)
 
     def test_propagation_and_reduced_cost_fixing_keep_the_answer(self):
-        # Propagation reports the bounds it moved and reduced-cost fixing
-        # the columns it fixed; neither moves the optimum (D323, D324).
+
         moved = []
         for rounds in (0, 4):
             p = jaos.Problem()
@@ -1816,8 +1736,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_pump_always(-1)
 
     def test_the_dive_heuristic_runs_below_the_root(self):
-        # The same model as the root dive's, with the dive at every node:
-        # the answer does not move and the extra dives cost solves (D314).
+
         solves = []
         for depth in (0, 20):
             p = jaos.Problem()
@@ -1837,8 +1756,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_dive_heuristic_depth(-1)
 
     def test_rins_keeps_the_optimum(self):
-        # RINS fixes the columns the incumbent and the node agree on and
-        # dives on the rest; the answer does not move (D315).
+
         for budget in (0, 20):
             p = jaos.Problem()
             x = p.add_var(integer=True, ub=1, name="x")
@@ -1854,8 +1772,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_rins(-1)
 
     def test_a_dive_bounded_by_the_degradation_keeps_the_optimum(self):
-        # The dive goes on only while the node's bound stays near its
-        # parent's; every fraction reaches the same answer (D316).
+
         for frac in (0.0, 0.01, 1.0):
             p = jaos.Problem()
             x = p.add_var(integer=True, ub=1, name="x")
@@ -1871,15 +1788,13 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_dive_degrade(-1.0)
 
     def test_the_rounding_heuristic_finds_the_root_relaxations_neighbour(self):
-        # max x + y, x + y <= 3.6, x <= 2.2, y <= 1.4, both integer: the
-        # relaxation sits at (2.2, 1.4) and rounds to (2, 1), which is the
-        # optimum (D290); with the heuristic off the tree finds it instead.
+
         for on in (True, False):
             p = jaos.Problem()
             x = p.add_var(integer=True, name="x")
             y = p.add_var(integer=True, name="y")
             p.add(x + y <= 3.6)
-            p.add(x <= 2.2)  # rows, not bounds: a bound is rounded (D292)
+            p.add(x <= 2.2)
             p.add(y <= 1.4)
             p.maximize(x + y)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(on)
@@ -1911,7 +1826,6 @@ class TestBranchAndBound(unittest.TestCase):
             with self.assertRaises(jaos.JaosError):
                 m.set_mip_gap(-1.0)
 
-
 class TestExactValues(unittest.TestCase):
     """The proved basis's exact coordinates (D286), as Fractions."""
 
@@ -1937,7 +1851,6 @@ class TestExactValues(unittest.TestCase):
             m.set_col_cost(0, 2.0)
             with self.assertRaises(jaos.JaosError):
                 m.exact_objective()
-
 
 class TestCertificateFile(unittest.TestCase):
     """The solution file carries the certificate of an infeasible or an
@@ -1976,7 +1889,6 @@ class TestCertificateFile(unittest.TestCase):
             self.assertEqual(ray, m.unbounded_ray())
             self.assertTrue(m.check_ray(ray).certified)
 
-
 class TestExactCertificate(unittest.TestCase):
     """D333. The oracle is arithmetic by hand: for `x + y <= 1` beside
     `x + y >= 2` the only multipliers that certify are opposite and
@@ -1999,7 +1911,7 @@ class TestExactCertificate(unittest.TestCase):
         self.assertLessEqual(rep.bound_bits, rep.capacity_bits)
         self.assertEqual(p.exact_row_multiplier(0), fractions.Fraction(-1))
         self.assertEqual(p.exact_row_multiplier(1), fractions.Fraction(1))
-        # And by Constraint as well as by index.
+
         self.assertEqual(p.exact_row_multiplier(p._cons[1]), fractions.Fraction(1))
 
     def test_the_derived_file_is_judged_by_the_independent_checker(self):
@@ -2040,10 +1952,9 @@ class TestExactCertificate(unittest.TestCase):
     def test_the_model_layer_refuses_what_has_no_basis(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))
-            m.solve()          # optimal: no certificate to derive
+            m.solve()
             with self.assertRaises(jaos.JaosError):
                 m.exact_certificate()
-
 
 class TestFeasibilityRelaxation(unittest.TestCase):
     """D331. The oracle is the solver: the moves are applied to a problem
@@ -2066,7 +1977,7 @@ class TestFeasibilityRelaxation(unittest.TestCase):
         self.assertEqual([(c.name, mv) for c, mv in r.row_move],
                          [("big", -10.0)])
         self.assertEqual(r.col_move, [])
-        # The moved problem is feasible, which is the whole claim.
+
         moved = self.asks_too_much(row_lo=30.0 + r.row_move[0][1])
         self.assertIs(moved.solve(), jaos.SolveStatus.OPTIMAL)
 
@@ -2099,19 +2010,17 @@ class TestFeasibilityRelaxation(unittest.TestCase):
             self.assertGreater(r.report.total, 0.0)
             self.assertEqual(len(r.row_move), m.num_row)
             self.assertEqual(len(r.col_move), m.num_col)
-            # The caller's model is not solved and not billed.
+
             self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
             self.assertGreater(r.report.work_units, 0)
 
     def test_a_model_with_no_relaxation_raises(self):
         with jaos.Model() as m:
-            # A lower bound above its upper: the two ends move together
-            # and the elastic form cannot open them.
+
             m.load(1, 1, [0.0], [5.0], [3.0], [0.0], [jaos.INFINITY],
                    [0, 1], [0], [1.0])
             with self.assertRaises(jaos.JaosError):
                 m.feasrelax()
-
 
 class TestSolutionFileRoundTrip(unittest.TestCase):
     """jaos_read_solution through the binding. The accepting case alone
@@ -2173,8 +2082,6 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                     text = f.read()
                 self.assertIn("ENDATA", text)
 
-            # And it warm-starts a second model, which is the point of
-            # having the file at all.
             with jaos.Model() as n:
                 n.read_mps(data("solve1.mps"))
                 b = n.read_mps_basis(path)
@@ -2210,8 +2117,6 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 self.assertTrue(rep.primal_feasible)
                 self.assertFalse(rep.checked_duals)
 
-                # A file that names fewer columns than the model has is
-                # refused, not completed with zeros.
                 with open(path) as f:
                     lines = [ln for ln in f if not ln.startswith("#")]
                 with open(path, "w") as f:
@@ -2237,7 +2142,7 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
             with jaos.Model() as m:
                 m.read_mps(data("solve1.mps"))
                 with self.assertRaises(jaos.JaosError):
-                    m.write_point(path)      # nothing solved
+                    m.write_point(path)
                 m.write_point_values(path, [1.5, -2.0, 0.0])
                 self.assertEqual(m.read_point(path), [1.5, -2.0, 0.0])
                 with self.assertRaises(ValueError):
@@ -2260,7 +2165,7 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 rep = m.check_solution(m.read_point(p), m.read_duals(d))
                 self.assertTrue(rep.checked_duals)
                 self.assertTrue(rep.dual_feasible)
-                # And from values the caller has, with no solve involved.
+
                 m.write_dual_values(d, [0.0] * m.num_row)
                 self.assertEqual(m.read_duals(d), [0.0] * m.num_row)
                 with self.assertRaises(ValueError):
@@ -2293,7 +2198,7 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 m.solve()
                 with self.assertRaises(Exception):
                     m.read_mps_basis(path)
-            # And a model that never solved has no basis to write.
+
             with jaos.Model() as n:
                 n.read_mps(data("solve1.mps"))
                 with self.assertRaises(Exception):
@@ -2316,8 +2221,7 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             cert = os.path.join(tmp, "cert.sol")
             opt = os.path.join(tmp, "opt.sol")
-            # x + y <= 1 beside x + y >= 2: no presolve family reads two
-            # rows at once, so the simplex answers and there is a basis.
+
             p = jaos.Problem()
             x = p.add_var(lb=0, name="x")
             y = p.add_var(lb=0, name="y")
@@ -2355,7 +2259,6 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
             self.assertAlmostEqual(obj, 3.0, places=9)
             self.assertEqual(len(sol.col_value), 1)
             self.assertEqual(len(basis.col_status), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

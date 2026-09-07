@@ -14,7 +14,7 @@ static void test_version_matches_macros(void)
 
 static void test_status_zero_values_are_the_defaults(void)
 {
-    /* Zero-initialized memory must read as "fine, nothing happened". */
+
     TEST_ASSERT_EQUAL_INT(0, JAOS_OK);
     TEST_ASSERT_EQUAL_INT(0, JAOS_SOLVE_NOT_RUN);
 }

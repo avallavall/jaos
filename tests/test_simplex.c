@@ -1,13 +1,4 @@
-/* Dual simplex tests.
- *
- * Every solve is judged twice: against the optimum worked out by hand, and
- * by the independent checker, which recomputes activities from the
- * original matrix and verifies primal feasibility, dual sign conditions
- * and the objective gap without consulting any solver bookkeeping. A
- * simplex bug cannot sign its own approval.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 #include "jaos_internal.h"
 #include "unity.h"
@@ -28,18 +19,6 @@ static jaos_model *fresh(void)
     return m;
 }
 
-/* Solves, then puts the answer through the independent checker.
- *
- * Every caller is a positive test, so all of them are skipped under either
- * fault build: those builds make presolve wrong on purpose, and `jaos_solve`
- * runs presolve, so the checker refuses the answer and the assertion that
- * fires is the fault doing its job rather than a defect. Guarding here rather
- * than at fifteen call sites — TEST_IGNORE marks the calling test ignored,
- * which is what the fifteen would each have said.
- *
- * `test_simplex.c` carried no fault guard at all until 2026-08-19, so both
- * fault builds failed here while `test_presolve.c`'s thirty guards kept its
- * own negative tests green. `make configs` is what found it. */
 static void solve_and_verify(jaos_model *m, double expect_obj)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -73,7 +52,6 @@ static void solve_and_verify(jaos_model *m, double expect_obj)
 #endif
 }
 
-/* min x + y  s.t. x + y >= 2, 0 <= x,y <= 5. Optimum 2. */
 static void test_minimise_over_a_ge_row(void)
 {
     const double c[] = {1.0, 1.0};
@@ -90,19 +68,12 @@ static void test_minimise_over_a_ge_row(void)
     jaos_model_free(m);
 }
 
-/* max 3x + 2y  s.t. x + y <= 4, x <= 2, 0 <= x <= 2, 0 <= y <= 10.
- * Optimum x=2, y=2, objective 10.
- *
- * The column bounds are finite on purpose: maximising pushes both reduced
- * costs negative, so the slack basis is only dual feasible if each column
- * has an upper bound to sit at. Without one the model needs a dual
- * phase 1 — see test_model_needing_dual_phase_one_says_so. */
 static void test_maximise_with_two_rows(void)
 {
     const double c[] = {3.0, 2.0};
     const double cl[] = {0.0, 0.0}, cu[] = {2.0, 10.0};
     const double rl[] = {-INFINITY, -INFINITY}, ru[] = {4.0, 2.0};
-    /* col0 hits both rows, col1 only the first */
+
     const int64_t as[] = {0, 2, 3};
     const int64_t ai[] = {0, 1, 0};
     const double av[] = {1.0, 1.0, 1.0};
@@ -115,8 +86,6 @@ static void test_maximise_with_two_rows(void)
     jaos_model_free(m);
 }
 
-/* An equality row: min x + 2y s.t. x + y = 3, 0<=x<=1, 0<=y<=5.
- * x is capped at 1, so y = 2 and the objective is 1 + 4 = 5. */
 static void test_equality_row_with_a_capped_column(void)
 {
     const double c[] = {1.0, 2.0};
@@ -133,8 +102,6 @@ static void test_equality_row_with_a_capped_column(void)
     jaos_model_free(m);
 }
 
-/* A ranged row exercises the bound machinery on logicals:
- * min -x s.t. 1 <= x <= 3 (as a row), 0 <= x <= 10. Optimum -3. */
 static void test_ranged_row(void)
 {
     const double c[] = {-1.0};
@@ -151,7 +118,6 @@ static void test_ranged_row(void)
     jaos_model_free(m);
 }
 
-/* The objective constant must survive into the reported value. */
 static void test_objective_offset_is_carried(void)
 {
     const double c[] = {1.0};
@@ -164,12 +130,10 @@ static void test_objective_offset_is_carried(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 7.5, c, cl, cu, rl, ru,
                      1, as, ai, av));
-    solve_and_verify(m, 9.5);   /* x = 2 at its lower bound, plus 7.5 */
+    solve_and_verify(m, 9.5);
     jaos_model_free(m);
 }
 
-/* A model with no feasible point must be reported as such, not as a bad
- * optimum: x >= 3 and x <= 1 cannot both hold. */
 static void test_infeasible_model_is_reported(void)
 {
     const double c[] = {1.0};
@@ -185,20 +149,12 @@ static void test_infeasible_model_is_reported(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
 
-    /* An infeasible model has no solution to hand out either. */
     double x[1];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
         jaos_solution(m, x, nullptr, nullptr, nullptr));
     jaos_model_free(m);
 }
 
-/* Several rows and columns at once, still small enough to verify by hand:
- *   min 2a + 3b + 4c
- *   s.t. a + b + c >= 10
- *        a       <= 4
- *              b <= 3
- *   0 <= a,b,c <= 100
- * Cheapest is a=4, b=3, c=3 -> 8 + 9 + 12 = 29. */
 static void test_three_by_three(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -206,7 +162,7 @@ static void test_three_by_three(void)
     const double cu[] = {100.0, 100.0, 100.0};
     const double rl[] = {10.0, -INFINITY, -INFINITY};
     const double ru[] = {INFINITY, 4.0, 3.0};
-    /* a: rows 0,1 ; b: rows 0,2 ; c: row 0 */
+
     const int64_t as[] = {0, 2, 4, 5};
     const int64_t ai[] = {0, 1, 0, 2, 0};
     const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0};
@@ -219,22 +175,15 @@ static void test_three_by_three(void)
     jaos_model_free(m);
 }
 
-/* Reading a model from disk and solving it must agree with the same model
- * built through the API — the readers and the solver meeting for the first
- * time. */
 static void test_solving_a_model_read_from_mps(void)
 {
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
-    /* Same problem as test_three_by_three, this time off disk. */
+
     solve_and_verify(m, 29.0);
     jaos_model_free(m);
 }
 
-/* A genuinely unbounded model: min -x with x >= 0 and no ceiling, and a
- * row that does not restrain it. Dual phase 1 lends x an artificial upper
- * bound; the optimum settles on it, which is the evidence that the
- * objective wanted to run past a bound that was never real. */
 static void test_unbounded_model_is_reported(void)
 {
     const double c[] = {-1.0};
@@ -250,24 +199,15 @@ static void test_unbounded_model_is_reported(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
 
-    /* No objective and no solution are on offer for a solve that found no
-     * optimum: zeros handed out here would be indistinguishable from an
-     * answer that is genuinely zero. */
     double obj = 1234.0;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
-    TEST_ASSERT_EQUAL_DOUBLE(1234.0, obj);   /* left untouched */
+    TEST_ASSERT_EQUAL_DOUBLE(1234.0, obj);
     double x[1];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
         jaos_solution(m, x, nullptr, nullptr, nullptr));
     jaos_model_free(m);
 }
 
-/* The same shape of column — cost pushing towards a missing bound — but
- * held back by a constraint. The artificial bound is never reached, so it
- * never mattered, and the answer is the real problem's.
- *
- *   min -x - 2y  s.t. x + y <= 4, x,y >= 0, neither bounded above
- * Optimum puts everything on y: y = 4, objective -8. */
 static void test_missing_bound_that_a_row_restrains_solves_normally(void)
 {
     const double c[] = {-1.0, -2.0};
@@ -285,22 +225,6 @@ static void test_missing_bound_that_a_row_restrains_solves_normally(void)
     jaos_model_free(m);
 }
 
-/* The pair below is the whole of the unbounded verdict, and the only thing
- * that differs between them is the ceiling on the row.
- *
- *   min -x  s.t. x <= R, x >= 0, no column upper bound
- *
- * Either way dual phase 1 lends x an upper bound and the optimum of the
- * bounded problem comes to rest exactly on it, so "a variable is sitting on
- * a bound JAOS invented" cannot tell the two apart — which is precisely
- * what the old verdict read. What tells them apart is whether letting x off
- * that bound runs into anything: with R infinite nothing blocks and the
- * model really is unbounded; with R finite the row blocks, and the model
- * has a finite optimum at -R that this phase 1 cannot reach.
- *
- * This one is R infinite, and it passed before the ray existed too — it is
- * here to hold the verdict that was already right. The one that moves is
- * below it. */
 static void test_a_ray_is_what_proves_unbounded(void)
 {
     const double c[] = {-1.0};
@@ -318,29 +242,6 @@ static void test_a_ray_is_what_proves_unbounded(void)
     jaos_model_free(m);
 }
 
-/* The same model with the row capped, and the test that actually moved:
- * against the old verdict it returns UNBOUNDED, which is a wrong answer
- * rather than a missing one, on a model whose optimum is a perfectly
- * ordinary -1e11.
- *
- * The cap is ten times ARTIFICIAL_BOUND, and that placement is the point.
- * Enlarging the loan does not turn this green — at 1e12 the model solves to
- * OPTIMAL and the assertion fails on the status instead — so the test
- * cannot be satisfied by a constant that mimics the ray. Both halves were
- * run: UNBOUNDED against the old code, OPTIMAL against a widened loan. */
-/* 02-03: this model is a singleton row (x's only constraint, x <= 1e11) on
- * a column with no other bound, so presolve now solves it directly — a
- * bound fold and an empty-column favourable-bound pick, both exact
- * arithmetic, neither touching the artificial-loan mechanism this test
- * means to exercise at all. The refusal this test checks for is a
- * *simplex* safety net for a case its own ray-based unboundedness check
- * cannot resolve; presolve sidesteps the ambiguity structurally rather
- * than resolving it numerically, and there is no loan left to be refused
- * once the reduction has already computed x = 1e11 exactly. Guarded to run
- * under JAOS_NO_PRESOLVE only, the same way test_presolve.c's own
- * fault-injection tests are guarded the other way — this is still the
- * simplex's own behavior, tested with presolve compiled out rather than
- * accidentally exercised by a model presolve no longer leaves for it. */
 static void test_an_optimum_past_the_lent_bound_is_refused(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -361,11 +262,6 @@ static void test_an_optimum_past_the_lent_bound_is_refused(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
 
-    /* Refusing silently would be no better than answering wrongly: a
-     * caller has to be able to find out which column could not be sized.
-     * With one held column the combined direction equals the single one,
-     * so this refusal also proves the combined test read a blocked
-     * direction as blocked (D247). */
     const char *err = jaos_model_error(m);
     TEST_ASSERT_NOT_NULL(err);
     TEST_ASSERT_NOT_NULL(strstr(err, "phase 1"));
@@ -376,19 +272,6 @@ static void test_an_optimum_past_the_lent_bound_is_refused(void)
 #endif
 }
 
-/* Both columns get a lent bound and neither is held by one at the end.
- *
- *   min -x - y  s.t. x + y <= 3, x,y >= 0, neither bounded above
- *
- * Every point on x + y = 3 is optimal at -3. One column ends up basic and
- * the other nonbasic at its *real* lower bound, so no ray is ever computed
- * — the verdict comes out of the third branch, the one that says the loans
- * never mattered. Instrumenting the solve confirms that is the branch taken
- * rather than the ray returning blocked.
- *
- * It is here because that branch is what every ordinary model reaches, and
- * a verdict that only handled its own two interesting cases would fail on
- * all the rest. */
 static void test_a_lent_bound_that_never_constrained_anything(void)
 {
     const double c[] = {-1.0, -1.0};
@@ -406,26 +289,6 @@ static void test_a_lent_bound_that_never_constrained_anything(void)
     jaos_model_free(m);
 }
 
-/* Optimality declared on carried numbers rather than computed ones.
- *
- *   min 2a - 3b  s.t. 4a + b <= 19, -3a + b <= 13, a,b >= 0
- *
- * Both rows bind at a = 6/7, b = 109/7, where the objective is exactly -45.
- * Small as it is, this model used to finish with reduced costs the
- * independent checker rejected: x_B and the factorization are both carried
- * forward by the pivots, and the test for optimality was applied to the
- * carried values, which had drifted. Pricing the point again from a fresh
- * factorization is what makes the published duals belong to the basis.
- *
- * Against the old code this fails twice over, and the objective goes first:
- * -44.9999943 for an optimum that is exactly -45, an error of 6e-6 on a
- * model of two rows. The checker rejects the duals as well. Both are the
- * same drift seen from two sides, which is why the assertion is
- * solve_and_verify rather than either one alone.
- *
- * What it cannot be satisfied by is a tolerance. The violation behind it
- * sat far outside the solver's own, in the solver's own scaled space, so
- * loosening anything would hide it rather than fix it. */
 static void test_optimality_is_rechecked_before_it_is_believed(void)
 {
     const double c[] = {2.0, -3.0};
@@ -445,9 +308,6 @@ static void test_optimality_is_rechecked_before_it_is_believed(void)
     jaos_model_free(m);
 }
 
-/* Maximisation with no upper bounds is the same situation mirrored, and
- * was the case that used to be refused outright.
- *   max 3x + 2y  s.t. x + y <= 4, x <= 2  ->  x=2, y=2, objective 10 */
 static void test_maximise_without_column_upper_bounds(void)
 {
     const double c[] = {3.0, 2.0};
@@ -466,12 +326,6 @@ static void test_maximise_without_column_upper_bounds(void)
     jaos_model_free(m);
 }
 
-/* t1.mps was written to exercise the reader and turns out to have no
- * feasible point at all: EQ1 forces X3 = 7 + X2, so X2 >= -1 puts X3 at 6
- * or more, while LIM2 caps X1 + X3 at 3.5 with X1 >= 0. Worth keeping
- * exactly for that — an infeasibility that comes off disk through the
- * reader, in a model nobody constructed to be infeasible. It also needs
- * phase 1 to start, since X3 has a negative cost and no upper bound. */
 static void test_t1_mps_is_infeasible_and_says_so(void)
 {
     jaos_model *m = fresh();
@@ -481,8 +335,6 @@ static void test_t1_mps_is_infeasible_and_says_so(void)
     jaos_model_free(m);
 }
 
-/* An objective of exactly zero must be reported as an answer, not
- * confused with "nothing to report". */
 static void test_zero_objective_is_distinguishable_from_no_answer(void)
 {
     const double c[] = {0.0};
@@ -504,26 +356,6 @@ static void test_zero_objective_is_distinguishable_from_no_answer(void)
     jaos_model_free(m);
 }
 
-/* A hundred rows to repair, one iteration each: the refactorization
- * interval (64) falls in the middle, so this is the one test where the
- * mid-solve refresh path — refactor, recompute primal and duals, carry the
- * steepest-edge weights across — actually runs. Every other model in this
- * file finishes in a handful of iterations and never touches it.
- *
- * The model: min sum x_i with a row x_i >= 1 per column, x in [0, 10],
- * plus one coupling row sum x_i <= 200 so the basis matrix is not
- * diagonal and the updates have something to do. Optimum: every x_i = 1,
- * objective 100. Solved twice, and the two runs must agree bit for bit —
- * determinism (D8) across a refactorization, not only across the short
- * solves the other test pins. */
-/* 02-03: every one of the N per-column rows (`x_i >= 1`) is a singleton
- * row, and presolve folds all N of them into column bounds directly,
- * leaving only the coupling row — nowhere near the refactorization
- * interval this test means to cross. Guarded to run under
- * JAOS_NO_PRESOLVE only, same reasoning as
- * test_an_optimum_past_the_lent_bound_is_refused above: still testing the
- * simplex's own mid-solve refresh path, just with presolve compiled out
- * rather than silently deprived of the 100 rows it needs. */
 static void test_a_long_solve_crosses_a_refactorization(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -544,9 +376,9 @@ static void test_a_long_solve_crosses_a_refactorization(void)
         rl[j] = 1.0;
         ru[j] = INFINITY;
         as[j] = 2 * j;
-        ai[2 * j] = j;          /* its own row */
+        ai[2 * j] = j;
         av[2 * j] = 1.0;
-        ai[2 * j + 1] = N;      /* the coupling row */
+        ai[2 * j + 1] = N;
         av[2 * j + 1] = 1.0;
     }
     as[N] = 2 * N;
@@ -562,9 +394,6 @@ static void test_a_long_solve_crosses_a_refactorization(void)
                          2 * N, as, ai, av));
         solve_and_verify(m, 100.0);
 
-        /* One entering column per violated row, and the interval is 64:
-         * anything past it proves the mid-solve refresh ran. The exact
-         * count is pinned by the determinism assertion below instead. */
         TEST_ASSERT_TRUE(jaos_iterations(m) > 64);
 
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[run]));
@@ -578,16 +407,6 @@ static void test_a_long_solve_crosses_a_refactorization(void)
 #endif
 }
 
-/* A free variable — no bounds, zero cost — is a status of its own
- * (JM_FREE) with its own branches in pricing, the ratio test and the
- * shifting, and no other model in this file has one.
- *
- *   min 2x  s.t.  x + z >= 4,  x - z >= -1,  x in [0, 10],  z free
- *
- * z must enter the basis: it is the only way either row moves. Both rows
- * end tight — z >= 4 - x and z <= 1 + x force 4 - x <= 1 + x, so
- * x = 1.5, z = 2.5, objective 3. The duals come from the two active rows:
- * y1 + y2 = 2 (column x) and y1 - y2 = 0 (column z), so y = (1, 1). */
 static void test_free_variable_enters_and_settles(void)
 {
     const double c[] = {2.0, 0.0};
@@ -614,86 +433,10 @@ static void test_free_variable_enters_and_settles(void)
     jaos_model_free(m);
 }
 
-/* The work accounting, pinned. PLAN 2.7 defines what gets charged —
- * pricing, ratio test, eliminations, the fixed floors — and D16 makes the
- * count deterministic, so for a fixed model the total is one exact number
- * and any change to what is charged moves it.
- *
- * This replaces an assertion of `work > JM_WORK_FACTOR`, which was
- * vacuous: a single factorization alone satisfies it, so deleting every
- * charge outside the LU left it green.
- *
- * When this fails after a deliberate change to the algorithm or the
- * weights, re-pin: the diff of this constant is the record of what the
- * change did to the accounting. If it fails and you did not intend to
- * change the accounting, that is the bug it exists to catch.
- *
- * D43 did not move it, and that was worked for rather than lucky. The BTRAN
- * reporting where its answer is nonzero went through three shapes here:
- * 8566 when the pattern was ordered whatever its size, 8557 once the
- * thresholds refused to order a dense one, and 8548 while the dense branch
- * still forgot to leave the pattern behind for the exact weight. A basis
- * this small takes the dense branch of every one of those decisions, so the
- * accounting it sees must come out unchanged — and an entry whose baseline
- * diff mixes an accounting correction into a measurement cannot be read at
- * all. The number staying put is the evidence that it does not.
- *
- * Last moved by the ratio test's dense branch charging the variables its
- * scan actually visited rather than the dimension (D93): 8545 -> 8536. The
- * bitmap walk that replaced the scan over [0, nvar) reaches only the
- * nonbasic variables, so billing `nvar` for it charged for variables the
- * scan no longer reads. Nine units is the whole of it, and the arithmetic
- * closes exactly: three iterations, each taking a dense ratio test, each now
- * billing this model's three nonbasic variables instead of its six variables
- * — 3 x (6 - 3). That it closes exactly is also the evidence that the dense
- * branch is taken on every one of the three, which is what the D40/D41 note
- * below would predict: a quarter of six variables is one, and the pricing
- * row's pattern is never that small.
- *
- * Before that, by summing the exact steepest-edge weight over rho's pattern
- * (D42): 8548 -> 8545. The norm is charged for the slots it adds up rather
- * than for the dimension, and over this solve rho held three zeros in total.
- * Three units is the whole of it because a three-row row of B^-1 has almost
- * nothing to skip — the same shape of answer the two entries below give, and
- * for the same reason.
- *
- * Neither D40 nor D41 moved it, which is itself the accounting working: both
- * read the pricing row through its pattern only where the pattern is at most
- * a quarter of the variables, and a quarter of six variables is one.
- *
- * Before that, by BTRAN's reachability search (D38): 8544 -> 8548. The
- * search is billed for the edges it walks, and on a three-row basis it walks
- * almost the whole of U to discover that almost the whole of U is
- * reachable. This test is where the technique costs the most and saves the
- * least; the instance sets are where the question is settled.
- *
- * Before that, by row-wise pricing (D35): 8535 -> 8544. The column-wise pass
- * skipped a basic variable without reading it at all; the row-wise one walks
- * matrix rows, so it reads the entries of basic columns too and is charged
- * for them. On a three-row model with five nonzeros that is the whole of the
- * difference, and it goes the wrong way — the saving is in skipping rows
- * where rho is zero, and on a model this small rho has no zeros to skip.
- * Which way it goes on real models is the question the instance sets answer,
- * not this test.
- *
- * Before that, by the refinement that recheck asks its two solves for (D29):
- * 8517 -> 8535, one extra FTRAN and one extra BTRAN over a three-row basis
- * plus the two residuals they are computed from. Before that, by the recheck
- * itself: 4411 -> 8517, the one extra factorization it costs plus the
- * pricing pass that follows it. */
 #if defined(JAOS_NO_PRESOLVE)
 constexpr int64_t WORK_PINNED = 8536;
 #endif
 
-/* 02-03: rows 1 and 2 (`x1 <= 4`, `x2 <= 3`) are both singleton rows;
- * presolve folds both into column bounds directly, leaving row 0 alone —
- * a different kernel shape than the three-row basis this constant is
- * pinned against and everything in the history above is reasoning about.
- * Guarded to run under JAOS_NO_PRESOLVE only, same reasoning as the two
- * tests above it in this file: still testing the simplex's own kernel
- * accounting, on the three-row model the accounting history is actually
- * about, with presolve compiled out rather than silently handed a
- * one-row problem instead. */
 static void test_work_accounting_is_pinned(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -723,18 +466,6 @@ static void test_work_accounting_is_pinned(void)
 #endif
 }
 
-/* Three rows violated at once, by amounts three million apart, because the
- * same constraints are written in different units:
- *      x1 + x2       >= 2
- *   1000 x2 + 1000 x3 >= 3000        (x2 + x3 >= 3)
- *  0.001 x1 + 0.001 x3 >= 0.001      (x1 + x3 >= 1)
- * minimising x1 + x2 + x3 over [0, 10]^3. Adding the three constraints
- * gives 2(x1+x2+x3) >= 6, and x = (0, 2, 1) attains it: the optimum is 3,
- * whichever order the rows are repaired in.
- *
- * The units are the point. A rule that ranks rows by raw violation sees
- * one row breached by 3000 and another by a thousandth, and reads that as
- * importance rather than as millimetres against kilometres. */
 static void test_simultaneous_violations_of_wildly_different_size(void)
 {
     const double c[] = {1.0, 1.0, 1.0};
@@ -742,7 +473,7 @@ static void test_simultaneous_violations_of_wildly_different_size(void)
     const double cu[] = {10.0, 10.0, 10.0};
     const double rl[] = {2.0, 3000.0, 0.001};
     const double ru[] = {INFINITY, INFINITY, INFINITY};
-    /* x1: rows 0,2 ; x2: rows 0,1 ; x3: rows 1,2 */
+
     const int64_t as[] = {0, 2, 4, 6};
     const int64_t ai[] = {0, 2, 0, 1, 1, 2};
     const double av[] = {1.0, 0.001, 1.0, 1000.0, 1000.0, 0.001};
@@ -754,14 +485,6 @@ static void test_simultaneous_violations_of_wildly_different_size(void)
     solve_and_verify(m, 3.0);
     jaos_model_free(m);
 }
-
-/* ---- dual steepest-edge weights -------------------------------------- */
-
-/* The weight recurrence is a heuristic: get it wrong and JAOS still
- * answers correctly, only slower, so no solve-level assertion can catch
- * it. It is checked directly instead, against the row norms of B^-1
- * recomputed from a factorization of the resulting basis — which shares no
- * arithmetic with the recurrence under test. */
 
 constexpr int64_t DSE_N = 3;
 
@@ -795,7 +518,6 @@ static void factor3(double a[DSE_N][DSE_N], csc3 *c, jm_lu *lu)
     TEST_ASSERT_EQUAL_INT64(DSE_N, lu->rank);
 }
 
-/* ||row i of B^-1||^2, for every i. */
 static void exact_weights(double b[DSE_N][DSE_N], double *w)
 {
     csc3 c;
@@ -813,16 +535,7 @@ static void exact_weights(double b[DSE_N][DSE_N], double *w)
     jm_lu_free(&lu);
 }
 
-/* The pivot the three weight tests below all share: a basis with nothing
- * special about it beyond being nonsingular, an entering column that
- * leaves the replacement nonsingular too, and the two transformed vectors
- * the recurrence needs — both taken against the basis as it stands before
- * the change, which is exactly how the simplex has them when it pivots.
- *
- * Fills `w` with the exact weights before the pivot, `expect` with the
- * exact weights after it, and alpha/tau with what jm_dse_update consumes.
- */
-constexpr int64_t DSE_ROW = 1;      /* the basis row the column enters at */
+constexpr int64_t DSE_ROW = 1;
 
 static void dse_pivot_case(double *w, double *expect,
                            double *alpha, double *tau)
@@ -867,16 +580,13 @@ static void test_dse_weights_match_recomputed_norms(void)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
 }
 
-/* A carried weight that has slipped, but not far enough to be worthless,
- * is repaired rather than propagated: the exact value is known for that
- * one row, so the answer must be the same as if it had never slipped. */
 static void test_dse_repairs_a_carried_weight_that_slipped(void)
 {
     double w[DSE_N], expect[DSE_N], alpha[DSE_N], tau[DSE_N];
     dse_pivot_case(w, expect, alpha, tau);
 
     double truth = w[DSE_ROW];
-    w[DSE_ROW] = truth * 1.5;       /* inside a factor of ten */
+    w[DSE_ROW] = truth * 1.5;
 
     jm_dse_update(DSE_N, w, DSE_ROW, alpha, tau, truth, 10.0, nullptr, 0);
 
@@ -884,11 +594,6 @@ static void test_dse_repairs_a_carried_weight_that_slipped(void)
         TEST_ASSERT_DOUBLE_WITHIN(1e-9, expect[i], w[i]);
 }
 
-/* Past the factor there is nothing to repair with: the other weights are
- * carried by the same recurrence that produced this one, so all of them
- * are thrown away for the neutral prior. Both directions count — a weight
- * that has shrunk makes its row look urgent, which is the worse of the
- * two. */
 static void test_dse_restarts_when_the_carried_weight_has_drifted(void)
 {
     for (int trial = 0; trial < 2; trial++) {
@@ -905,20 +610,6 @@ static void test_dse_restarts_when_the_carried_weight_has_drifted(void)
     }
 }
 
-/* ---- scaling ---------------------------------------------------------- */
-
-/*   min 1e6 x1 + 1.5 x2 + 1e6 x3
- *   s.t. 1e6 x1 +   x2 + 1e3 x3 >= 2
- *        1e6 x1 + 2 x2 + 1e3 x3 >= 3
- *        0 <= x <= 10
- *
- * Coefficients three orders of magnitude apart in both directions, which
- * is what makes the scaling produce factors on rows and columns alike.
- * Measured in what a unit of column 1 contributes — a = 1e6 x1 — the
- * problem reads min a + 1.5 x2 + 1000 (1e3 x3) subject to a + x2 >= 2 and
- * a + 2 x2 >= 3, whose unique optimum is a = 1, x2 = 1. So x1 = 1e-6,
- * x2 = 1, x3 = 0 and the objective is 2.5; column 3 is priced at a
- * thousand times what it contributes and never enters. */
 static jaos_model *badly_scaled_model(void)
 {
     static const double c[] = {1e6, 1.5, 1e6};
@@ -937,14 +628,6 @@ static jaos_model *badly_scaled_model(void)
     return m;
 }
 
-/* The solver works on a scaled copy, so the claim to test is that the
- * change of variable is a change of variable: the same optimum comes out
- * whether the arithmetic happened in the model's units or in scaled ones.
- *
- * Both halves of the scaling are asserted to be non-trivial first.
- * Without that this test could pass by scaling nothing at all, which is
- * the failure it exists to catch — and it very nearly did: the model it
- * used before turned out to have every column factor equal to one. */
 static void test_scaling_changes_the_arithmetic_not_the_answer(void)
 {
     jaos_model *plain = badly_scaled_model();
@@ -967,8 +650,6 @@ static void test_scaling_changes_the_arithmetic_not_the_answer(void)
 
     solve_and_verify(scaled, 2.5);
 
-    /* And the two agree with each other, not merely each with its own
-     * tolerance. */
     double a = 0.0, b = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(plain, &a));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(scaled, &b));
@@ -978,21 +659,10 @@ static void test_scaling_changes_the_arithmetic_not_the_answer(void)
     jaos_model_free(scaled);
 }
 
-/* Every number the solver reports is computed in scaled units and has to
- * arrive in the caller's. The checker covers the primal values and the
- * objective; it does not cover the row activities or the reduced costs,
- * because it recomputes those from the matrix and the duals rather than
- * trusting what it is handed. So they are pinned here, against arithmetic
- * done by hand.
- *
- * Both rows are tight at the optimum and columns 1 and 2 are basic, which
- * fixes the duals: y0 + y1 = 1 from column 1 and y0 + 2 y1 = 1.5 from
- * column 2, so y = (0.5, 0.5). Column 3 then prices at
- * 1e6 - (0.5 + 0.5) * 1e3 = 999000. */
 static void test_answers_come_back_in_the_models_units(void)
 {
     jaos_model *m = badly_scaled_model();
-    solve_and_verify(m, 2.5);     /* no mode chosen: the default applies */
+    solve_and_verify(m, 2.5);
 
     double x[3], act[2], y[2], dj[3];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, dj));
@@ -1014,18 +684,6 @@ static void test_answers_come_back_in_the_models_units(void)
     jaos_model_free(m);
 }
 
-/* Eight boxed columns feeding one row:
- *   min sum j*x_j  s.t. sum x_j >= 5.5, 0 <= x_j <= 1
- * The answer is to fill the five cheapest columns and half-fill the sixth:
- * 1+2+3+4+5 + 3 = 18.
- *
- * Every column starts at its lower bound and every one of them blocks the
- * dual step in turn, so without bound flipping this is one iteration per
- * column filled. With it the step passes each column by swapping it to its
- * upper bound and carries on while the row is still short, and the whole
- * model is one long step: five swaps and a single basis change. The
- * iteration count is asserted for exactly that reason - it is the only
- * place the long step is visible from outside. */
 static void test_bound_flipping_fills_columns_in_one_step(void)
 {
     const double c[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
@@ -1045,51 +703,10 @@ static void test_bound_flipping_fills_columns_in_one_step(void)
     jaos_model_free(m);
 }
 
-/* ---- cost shifting and settling up ------------------------------------ */
-
-/* A model built to make the ratio test spend dual feasibility and then to
- * make both outcomes of settling up visible in one solve:
- *
- *   min 0 xA + 2e-8 xC + 5e-7 xB   s.t.  xA + xC + 10 xB >= 1
- *   xA in [0, 100],  xC in [0, 0.001],  xB in [0, 100]
- *
- * Scaling is switched off, so the numbers below are the ones the solver
- * sees. At the slack start every reduced cost is its cost and every pivot
- * entry is minus its coefficient, so the candidates are A at ratio 0, C at
- * 2e-8 and B at 5e-8. Bound flipping stops at A — swapping a box 100 wide
- * would overshoot a violation of 1 — and Harris then takes B, whose pivot
- * is ten times the others', for a step of 5e-8. That step pushes A and C
- * past zero by 5e-8 and 3e-8, which is what the shifting buys back.
- *
- * Settling up hands both cases back. A wants to move to 100, which would
- * drive the basic column to -9.9, so the free repair refuses it; C wants to
- * move to 0.001, which leaves the basic at 0.0999 and is taken. That used
- * to be the end of it, and this test used to assert the result: x = (0,
- * 0.001, 0.0999) at an objective of 5e-8, primal feasible, with a dual
- * certificate that does not carry.
- *
- * **It carries now, and the answer was wrong before.** A's reduced cost of
- * -5e-8 points at an upper bound of 100 it is nowhere near, so its term in
- * `P - D` is 5e-8 * 100 = 5e-6, and the re-entry moves a column when its
- * term is worth moving (D27). Sending A to 100 breaks the primal by a mile
- * and the dual simplex repairs it in one pivot, landing on A basic at 1.
- *
- * A's reduced cost also passes the other half of that test, which is what
- * stops it being noise: the only term in `d_A` is `y * 1 = 5e-8`, so the
- * traffic through the column is 5e-8 and the reduced cost stands 4.5e15
- * times the rounding of its own dot product.
- *
- * That is the true optimum and it is checkable by hand: A costs nothing and
- * satisfies the row on its own, so the objective is 0 and every other
- * answer is worse. The solve used to stop 5e-8 above it on a basis whose
- * duals could not be certified, which PLAN 2.8 recorded as a defect. This
- * test is what closes it, and the reason it is worth more than the Netlib
- * evidence is that nobody has to trust a reference value to read it. */
 static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
-    /* The only caller in this file that asserts an exact answer without going
-     * through solve_and_verify, so it needs the guard the helper carries. */
+
     TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
 #else
     const double c[] = {0.0, 2e-8, 5e-7};
@@ -1112,7 +729,6 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
     double x[3], act[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, nullptr, nullptr));
 
-    /* A alone, which is what costs nothing. */
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, x[0]);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[1]);
     TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, x[2]);
@@ -1122,9 +738,6 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, obj);
 
-    /* And the certificate carries, which is the half that used to fail.
-     * The row prices at zero now; y = 5e-8 belonged to the basis the
-     * re-entry left behind. */
     double y[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, y[0]);
@@ -1136,10 +749,6 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
     TEST_ASSERT_TRUE(rep.dual_feasible);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.objective_gap);
 
-    /* Both halves of the gap are zero, not merely their difference. On the
-     * answer this test used to assert, `gap_positive` was 5e-6 — the whole
-     * of the suboptimality, and exactly the term the re-entry now reads to
-     * decide the flip (D24, D27). */
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.gap_positive);
     TEST_ASSERT_DOUBLE_WITHIN(1e-15, 0.0, rep.gap_negative);
 
@@ -1147,47 +756,6 @@ static void test_settling_up_reaches_the_optimum_a_shifted_basis_hid(void)
 #endif
 }
 
-/* A clean-up pass must act on every column it decided wants a pivot, not on
- * the first one and then stop.
- *
- * It used to stop. The predicate that decides "this column wants a pivot"
- * consulted the duals, and the first pivot of the pass overwrote the vector
- * they lived in, so from the second candidate onwards the question was put
- * to the wrong quantity and answered no. Underneath that, the basis change
- * itself lends every other candidate's sign condition away — it sets the
- * reduced cost to zero and books the loan — so even asking correctly finds
- * nothing left to do unless the loan is called in first.
- *
- * Neither half is visible in a model built by hand: the state only arises
- * where settling leaves a column at a bound with nothing on the other side,
- * which needs a solve long enough to accumulate loans. So the model is
- * generated — twenty rows, forty columns, half of them unbounded above, and
- * costs small enough that the ratio test's window can push a reduced cost
- * past zero. The seed is not arbitrary and not tuned to pass: it was found by
- * sweeping, and it is one where the clean-up identifies two columns and
- * pivots both, twice over.
- *
- * **What this can and cannot catch, because the first attempt at it caught
- * nothing.** Re-introducing the defect leaves this model's answer correct and
- * its iteration count identical: the same pivots still happen, one per round
- * instead of several per call, and the re-entry simply goes round more times.
- * The answer only breaks when the round cap runs out, and that needs a model
- * needing more than thirty-two clean-up pivots — `pilot87` scale, not unit
- * test scale. So an assertion on the answer alone passes either way and is
- * worth nothing here.
- *
- * What does separate them is the cost of those extra rounds, each of which
- * is a refactorization and a re-solve. Measured on this model: **60701 work
- * units correct, 64633 with the defect**, and the bound below sits between
- * them with room on both sides. That is the number this test actually
- * guards; the checker assertions guard the answer, which no longer moves.
- *
- * Both figures were re-measured under D93's accounting; the room on either
- * side of the bound is narrower than the 58141/67416 they replace, and the
- * note at the assertion says by how much and why.
- *
- * The oracle for the answer is the independent checker rather than a pinned
- * objective, because what went wrong was a certificate that did not carry. */
 static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
 {
     constexpr int64_t NR = 20;
@@ -1196,8 +764,6 @@ static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
     double c[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[NC * 4];
     int64_t as[NC + 1], ai[NC * 4];
 
-    /* Deterministic and self-contained: a solve must not depend on a library
-     * PRNG, and a test model must not depend on one either. */
     uint64_t st = 236;
     #define NEXTU() (st = st * 6364136223846793005u + 1442695040888963407u, \
                      (double)((st >> 11) & 0x1FFFFFFFFFFFFFu) / 9007199254740992.0)
@@ -1215,7 +781,7 @@ static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
                 if (rows[t] == r) dup = true;
             if (!dup) rows[nrows++] = r;
         }
-        for (int a = 1; a < nrows; a++) {          /* the reader wants them sorted */
+        for (int a = 1; a < nrows; a++) {
             int64_t v = rows[a];
             int b = a - 1;
             while (b >= 0 && rows[b] > v) { rows[b + 1] = rows[b]; b--; }
@@ -1223,9 +789,7 @@ static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
         }
         for (int k = 0; k < nrows; k++) {
             ai[nz] = rows[k];
-            /* Positive throughout: a row of negatives against a positive
-             * lower bound has no feasible point, and an infeasible model
-             * never reaches the settling this is about. */
+
             av[nz] = pow(10.0, NEXTU() * 2.0 - 1.0);
             nz++;
         }
@@ -1253,36 +817,13 @@ static void test_a_clean_up_pass_dispatches_every_column_it_identified(void)
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
 
-    /* 60701 correct, 64633 with one pivot per call. Not a pinned value: a
-     * ceiling with a measurement on each side of it, and both sides were
-     * re-measured on this tree under D93's accounting rather than carried.
-     *
-     * They replace 58141 and 67416, and only 240 units of that move is D93's:
-     * the correct side measured 60941 immediately before the dense ratio test
-     * stopped billing `nvar`, and 60701 after. The other ~2800 had accumulated
-     * since the pair was last measured, unnoticed, because a ceiling is
-     * consulted only when it trips and nothing re-measures it on the way up.
-     * The margin is now 1299 units where it was 3859, and the gap the test
-     * lives on has closed from 16% to 6.5%. Left at 62000 because it still
-     * separates the two; moving it would need a measurement of its own rather
-     * than headroom chosen by eye. */
     TEST_ASSERT_TRUE(jaos_work_units(m) < 62000);
 
     jaos_model_free(m);
 }
 
-/* ---- Harris' ratio test ---------------------------------------------- */
-
-/* Same argument as the weights above: which candidate the ratio test picks
- * changes conditioning, not the answer, so the choice is asserted directly
- * on hand-built numbers rather than inferred from a solve. */
-
 constexpr double HARRIS_TOL = 1e-7;
 
-/* A candidate that blocks later does not win by having a large pivot: the
- * window is about how far the step may go, and outside it nothing counts.
- * Ratios here are 1 and 5, and the second candidate's pivot is a hundred
- * times the first's. */
 static void test_harris_ignores_a_big_pivot_outside_the_window(void)
 {
     const double num[] = {1.0, 500.0};
@@ -1290,14 +831,6 @@ static void test_harris_ignores_a_big_pivot_outside_the_window(void)
     TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, HARRIS_TOL));
 }
 
-/* The case the whole two-pass structure exists for. One candidate blocks
- * immediately on a pivot of 1e-8; another blocks a hair later, at 1e-8, on
- * a pivot of 1. Widening by the dual tolerance brings both inside one
- * window, and the second is a hundred million times better conditioned for
- * a step that differs in the eighth decimal.
- *
- * The same data with no tolerance to spend picks the tiny pivot, which is
- * exactly what the window is for. */
 static void test_harris_prefers_the_larger_pivot_inside_the_window(void)
 {
     const double num[] = {0.0, 1e-8};
@@ -1306,8 +839,6 @@ static void test_harris_prefers_the_larger_pivot_inside_the_window(void)
     TEST_ASSERT_EQUAL_INT64(0, jm_harris_pick(2, num, den, 0.0));
 }
 
-/* A degenerate vertex: every candidate blocks at zero, so the step is zero
- * whichever is taken and the only thing left to choose on is the pivot. */
 static void test_harris_on_a_degenerate_vertex_takes_the_best_pivot(void)
 {
     const double num[] = {0.0, 0.0, 0.0};
@@ -1315,8 +846,6 @@ static void test_harris_on_a_degenerate_vertex_takes_the_best_pivot(void)
     TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(3, num, den, HARRIS_TOL));
 }
 
-/* One candidate is the whole answer; no candidates is not an answer at all
- * and must not read as "the first one". */
 static void test_harris_edge_counts(void)
 {
     const double num[] = {42.0};
@@ -1325,25 +854,13 @@ static void test_harris_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_harris_pick(0, num, den, HARRIS_TOL));
 }
 
-/* ---- Bland's rule, for when Harris' has cycled -------------------------
- *
- * Same candidate set, same arithmetic, and deliberately the opposite
- * priorities: no window to spend, and the index decides. The pair of tests
- * below are the Harris cases above with their answers inverted, which is
- * the point — this rule is worse at everything except terminating. */
-
-/* The degenerate vertex Harris' resolves by conditioning. Every candidate
- * blocks at zero, so a rule that picks on pivot size is choosing freely,
- * and free choices repeated at a degenerate vertex are what a cycle is
- * made of. Bland's takes the lowest index and gives the freedom up. */
 static void test_bland_on_a_degenerate_vertex_takes_the_lowest_index(void)
 {
     const int64_t var[] = {9, 4, 7};
     const double num[] = {0.0, 0.0, 0.0};
     const double den[] = {1.0, 7.0, 3.0};
     TEST_ASSERT_EQUAL_INT64(1, jm_bland_pick(3, var, num, den));
-    /* Harris', on the same data, prefers the pivot of 7 — which happens to
-     * be the same candidate here. So a case where they differ: */
+
     const int64_t var2[] = {2, 8};
     const double num2[] = {0.0, 0.0};
     const double den2[] = {1.0, 7.0};
@@ -1351,9 +868,6 @@ static void test_bland_on_a_degenerate_vertex_takes_the_lowest_index(void)
     TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num2, den2, HARRIS_TOL));
 }
 
-/* There is no window, so a candidate that blocks a hair earlier wins
- * however badly conditioned it is. This is the Harris case above, and the
- * answers are opposite: 1e-8 of step is not available to trade. */
 static void test_bland_has_no_window_to_trade(void)
 {
     const int64_t var[] = {5, 1};
@@ -1363,9 +877,6 @@ static void test_bland_has_no_window_to_trade(void)
     TEST_ASSERT_EQUAL_INT64(1, jm_harris_pick(2, num, den, HARRIS_TOL));
 }
 
-/* The index only breaks ties at the minimum. A lower-indexed candidate that
- * blocks later does not win — that would leave a reduced cost past feasible
- * and it is not what the rule says. */
 static void test_bland_does_not_let_the_index_beat_the_quotient(void)
 {
     const int64_t var[] = {1, 9};
@@ -1383,53 +894,35 @@ static void test_bland_edge_counts(void)
     TEST_ASSERT_EQUAL_INT64(-1, jm_bland_pick(0, var, num, den));
 }
 
-/* "The minimum is compared exactly" — pinned at one ulp, because that is the
- * claim and nothing weaker tests it (D224). Two quotients one ulp apart: the
- * rule must take the smaller one, not the lower index. If a window or an
- * epsilon ever creeps into this comparison, the two become a tie and the
- * lower index wins, and this is the test that says so.
- *
- * Both quotients are computed the way the rule computes them, so the
- * expected answer does not depend on how the compiler folds a literal. */
 static void test_bland_compares_the_minimum_exactly_at_one_ulp(void)
 {
     const int64_t var[] = {1, 9};
     const double q  = 1.0;
-    const double qp = nextafter(q, 2.0);        /* exactly one ulp above */
+    const double qp = nextafter(q, 2.0);
     TEST_ASSERT_TRUE(qp > q);
-    /* Candidate 0 blocks one ulp LATER, so candidate 1 must win on the
-     * quotient even though its index is higher. */
+
     const double num[] = {qp, q};
     const double den[] = {1.0, 1.0};
     TEST_ASSERT_EQUAL_INT64(1, jm_bland_pick(2, var, num, den));
 
-    /* Swap them: now the lower index also holds the smaller quotient, and
-     * the answer moves. A rule that ignored the quotient would answer 0
-     * both times. */
     const double num2[] = {q, qp};
     TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var, num2, den));
 
-    /* A true tie is where the index is allowed to decide. */
     const double num3[] = {q, q};
     TEST_ASSERT_EQUAL_INT64(0, jm_bland_pick(2, var, num3, den));
 }
 
-/* "A non-positive `nvar` ... return zero" (D224). The bitmap is untouched,
- * which is what lets a caller pass a null pointer for an empty model. */
 static void test_nonbasic_build_on_no_variables_counts_zero(void)
 {
     uint64_t mark[2] = {0xdeadbeefULL, 0xfeedfaceULL};
     const jm_var_status status[] = {JM_AT_LOWER};
     TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(0, status, mark));
     TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(-1, status, mark));
-    /* Untouched: nwords is (nvar + 63) / 64, which is 0 for both. */
+
     TEST_ASSERT_EQUAL_UINT64(0xdeadbeefULL, mark[0]);
     TEST_ASSERT_EQUAL_UINT64(0xfeedfaceULL, mark[1]);
 }
 
-/* "n == 0 still returns a valid non-NULL allocation" (D224). Callers test
- * the result against null to detect failure, so a zero-length request that
- * answered null would read as out of memory on an empty model. */
 static void test_alloc_array_of_zero_is_not_a_failure(void)
 {
     void *p = jm_alloc_array(0, sizeof(double));
@@ -1440,61 +933,26 @@ static void test_alloc_array_of_zero_is_not_a_failure(void)
     free(c);
 }
 
-/* ---- Bland's rule on the primal side ----------------------------------
- *
- * The dual chooses a row and then a column, so its Bland's rule falls on the
- * entering variable and `jm_bland_pick` above is the whole of it. The primal
- * chooses a column and then a row, so the rule falls on the LEAVING one, and
- * `jm_primal_row_wins` is that half.
- *
- * **Both halves or neither.** Between 2026-08-25 and the change these tests
- * arrived with, phase 2 had the entering half and not the leaving half: the
- * ratio test kept whichever row it scanned FIRST among equal ratios, which is
- * a choice the basis order makes and not one the variable index makes. Phase 1
- * had neither. A solve cannot report that: it terminates on every instance
- * anyone has run, because a cycle needs a degenerate vertex revisited in a
- * particular order and no small model reaches one. So the case is built here.
- */
-
-/* The cycling case, and the reason the rule exists. Every candidate row
- * blocks at a step of exactly zero — a degenerate vertex — so a rule that
- * keeps the first row scanned is choosing by basis order, and the basis order
- * is what a pivot changes. Under Bland the lowest variable index wins and the
- * choice stops being free. */
 static void test_primal_bland_breaks_a_degenerate_tie_on_the_lowest_index(void)
 {
-    /* Incumbent: row holding variable 9, blocking at 0. Candidate: variable
-     * 4, blocking at 0 as well. */
+
     TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 4, 0.0, 9, true));
-    /* And the other way round, which is the half that was missing: the
-     * incumbent already holds the lower index, so nothing displaces it. */
+
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 9, 0.0, 4, true));
 }
 
-/* Without the flag the tie goes to the incumbent, which is the first row
- * scanned. That is the pre-change behaviour and it is deliberate: Bland's
- * rule is armed only after a stall, and until then the ratio test is free to
- * keep whatever it found first. */
 static void test_primal_without_bland_a_tie_keeps_the_first_row(void)
 {
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 4, 0.0, 9, false));
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 9, 0.0, 4, false));
 }
 
-/* The index only breaks ties at the minimum, exactly as on the dual side. A
- * lower-indexed row that blocks later does not win: taking it would step past
- * a bound and leave the point primal infeasible, which is the one invariant
- * the whole method rests on. */
 static void test_primal_bland_does_not_let_the_index_beat_the_step(void)
 {
     TEST_ASSERT_FALSE(jm_primal_row_wins(5.0, 1, 1.0, 9, true));
     TEST_ASSERT_TRUE(jm_primal_row_wins(1.0, 9, 5.0, 1, true));
 }
 
-/* The tie is exact and not a window. One ulp of daylight is a strictly
- * smaller step and wins on the quotient, whatever the indices say — the same
- * refusal `jm_bland_pick` makes, and for the same reason: a tolerance here
- * hands back the freedom the rule exists to remove. */
 static void test_primal_bland_has_no_window(void)
 {
     const double a = 1.0;
@@ -1504,53 +962,26 @@ static void test_primal_bland_has_no_window(void)
     TEST_ASSERT_FALSE(jm_primal_row_wins(b, 1, a, 9, true));
 }
 
-/* No incumbent yet. `best_var < 0` is how the ratio tests say so, and the
- * first finite step must win against the `HUGE_VAL` they start from — under
- * either rule, because a scan that rejected its own first candidate would
- * return -1 and the caller would read that as an unbounded ray. */
 static void test_primal_bland_first_row_always_wins(void)
 {
     TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 7, HUGE_VAL, -1, true));
     TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 7, HUGE_VAL, -1, false));
-    /* And an equal step against no incumbent is not a tie to break. It
-     * cannot arise from the callers, whose `best_step` starts at `HUGE_VAL`
-     * and whose steps are finite, but the predicate must not read
-     * `best_var` when it is -1. */
+
     TEST_ASSERT_FALSE(jm_primal_row_wins(HUGE_VAL, 7, HUGE_VAL, -1, true));
 }
 
-/* Variable 0 is a real index and beats every other under the rule, and an
- * incumbent already holding it is never displaced on a tie. That second half
- * is the rule's terminal case, and it is also why `best_var >= 0` and
- * `best_var > 0` are the same program here: no basis variable index is
- * negative, so `var < 0` is unreachable and the two guards differ nowhere.
- * The guard's whole job is the `best_var < 0` case above. Written down
- * because doctoring the `>=` to a `>` was tried as a negative control and
- * changed nothing, which is a fact about the code and not a gap in the
- * tests. */
 static void test_primal_bland_variable_zero_is_an_index(void)
 {
     TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 0, 0.0, 1, true));
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 1, 0.0, 0, true));
 }
 
-/* The direction of the comparison, pinned. A rule that took the HIGHEST index
- * among equal ratios would satisfy every "a tie is broken deterministically"
- * reading of the code and terminate nothing: Bland's proof is on the lowest.
- */
 static void test_primal_bland_takes_the_lowest_and_not_the_highest(void)
 {
     TEST_ASSERT_TRUE(jm_primal_row_wins(0.0, 2, 0.0, 8, true));
     TEST_ASSERT_FALSE(jm_primal_row_wins(0.0, 8, 0.0, 2, true));
 }
 
-/* `jm_primal_row_wins` is the comparison of a strict total order on
- * `(step, basis)`, so a greedy scan's winner is a function of the candidate
- * SET alone: it survives every subset that keeps it, and no ordering of the
- * candidates changes it. The primal ratio tests' Bland branch runs that scan
- * over a list `primal_apply_floor` may have compacted (D207, D212); this is
- * what says the compaction cannot change the answer. Checked over every
- * subset of a fixed set, in both tie-break modes. */
 static int64_t greedy_winner(const double *step, const int64_t *var, int n,
                              unsigned mask, bool bland)
 {
@@ -1568,8 +999,7 @@ static int64_t greedy_winner(const double *step, const int64_t *var, int n,
 
 static void test_primal_row_wins_minimum_survives_every_subset(void)
 {
-    /* Degenerate ties, ordinary ratios, one that blocks late, and indices
-     * deliberately out of scan order so a lazy tie-break shows up. */
+
     const double step[6] = { 0.0, 2.5, 0.0, 7.0, 2.5, 0.0 };
     const int64_t var[6] = {  9,   3,   4,   0,   1,   7 };
 
@@ -1579,16 +1009,13 @@ static void test_primal_row_wins_minimum_survives_every_subset(void)
         TEST_ASSERT_TRUE(full >= 0);
         for (unsigned mask = 1; mask < 64u; mask++) {
             if ((mask & (1u << full)) == 0)
-                continue;      /* only subsets that keep the winner */
+                continue;
             TEST_ASSERT_EQUAL_INT64(full, greedy_winner(step, var, 6,
                                                         mask, bland));
         }
     }
 }
 
-/* And the case the floor must NOT be allowed to hide: with the winner
- * removed, the answer is free to change. If this ever stopped changing the
- * test above would be vacuous. */
 static void test_primal_row_wins_dropping_the_winner_can_change_it(void)
 {
     const double step[3] = { 1.0, 2.0, 3.0 };
@@ -1598,16 +1025,9 @@ static void test_primal_row_wins_dropping_the_winner_can_change_it(void)
     TEST_ASSERT_EQUAL_INT64(1, greedy_winner(step, var, 3, 0x6u, false));
 }
 
-/* jm_pattern_order: the scatter's record of where it wrote, made into
- * something a consumer can walk. Every property below is one that no solve
- * would report — a dropped position only makes the answer different, and a
- * bit left behind in the bitmap only corrupts the iteration after. */
-
 #define PAT_WORDS 8
 #define PAT_LIMIT (PAT_WORDS * 64)
 
-/* The bitmap must come back exactly as it went in, or the next call sees a
- * position nobody recorded. Checked on every case below. */
 static void assert_mark_clean(const uint64_t *mark)
 {
     for (int i = 0; i < PAT_WORDS; i++)
@@ -1618,7 +1038,7 @@ static void test_pattern_order_sorts_and_dedups(void)
 {
     uint64_t mark[PAT_WORDS] = {0};
     int64_t words = -1;
-    /* Out of order, one position three times, across four words. */
+
     int64_t pos[] = {200, 5, 63, 5, 64, 130, 5, 0};
     int64_t k = jm_pattern_order(8, pos, mark, PAT_LIMIT, &words);
 
@@ -1626,12 +1046,10 @@ static void test_pattern_order_sorts_and_dedups(void)
     const int64_t want[] = {0, 5, 63, 64, 130, 200};
     for (int i = 0; i < 6; i++)
         TEST_ASSERT_EQUAL_INT64(want[i], pos[i]);
-    TEST_ASSERT_EQUAL_INT64(4, words);   /* words 0..3 inclusive */
+    TEST_ASSERT_EQUAL_INT64(4, words);
     assert_mark_clean(mark);
 }
 
-/* A pattern living in one corner must not pay for the whole bitmap: the
- * scan starts at the first word touched, not at zero. */
 static void test_pattern_order_scans_only_the_touched_range(void)
 {
     uint64_t mark[PAT_WORDS] = {0};
@@ -1645,14 +1063,13 @@ static void test_pattern_order_scans_only_the_touched_range(void)
     assert_mark_clean(mark);
 }
 
-/* Nothing may be lost when the pattern is everything. */
 static void test_pattern_order_keeps_a_full_pattern(void)
 {
     uint64_t mark[PAT_WORDS] = {0};
     int64_t words = -1;
     int64_t pos[PAT_LIMIT];
     for (int64_t i = 0; i < PAT_LIMIT; i++)
-        pos[i] = PAT_LIMIT - 1 - i;          /* descending */
+        pos[i] = PAT_LIMIT - 1 - i;
 
     TEST_ASSERT_EQUAL_INT64(PAT_LIMIT,
         jm_pattern_order(PAT_LIMIT, pos, mark, PAT_LIMIT, &words));
@@ -1662,8 +1079,6 @@ static void test_pattern_order_keeps_a_full_pattern(void)
     assert_mark_clean(mark);
 }
 
-/* A position with nowhere to be recorded is dropped rather than written
- * past the end of the bitmap. */
 static void test_pattern_order_drops_what_it_cannot_hold(void)
 {
     uint64_t mark[PAT_WORDS] = {0};
@@ -1689,25 +1104,9 @@ static void test_pattern_order_edge_counts(void)
     assert_mark_clean(mark);
 }
 
-/* ---- The nonbasic set the ratio test walks --------------------------- */
-
-/* The bitmap that holds `{v : status[v] != JM_BASIC}`, which the dual ratio
- * test's dense branch walks instead of every variable in the model. Every
- * property below is one no solve would report: a variable dropped from the
- * set is left out of a ratio test that would have been correct with it, so
- * the solve carries on and publishes an answer that is merely different.
- *
- * Note what is NOT asserted here. This bitmap is persistent by design and
- * nothing clears it on the way out, so assert_mark_clean above is the wrong
- * check for it — running it here would fail a correct implementation. */
-
 #define NB_WORDS 4
 #define NB_VARS (NB_WORDS * 64)
 
-/* The property every maintenance sequence has to end in: the bitmap expands
- * to exactly the variables the status array says are not basic, in exactly
- * that order. A predicate rather than an assertion because the last test in
- * this cluster is the one that needs the case where it does not hold. */
 static bool expansion_matches_status(int64_t nvar,
                                      const jm_var_status *status,
                                      const uint64_t *mark)
@@ -1726,10 +1125,6 @@ static bool expansion_matches_status(int64_t nvar,
     return true;
 }
 
-/* Membership, and never "has a finite bound". A rule keyed on the bounds
- * drops every nonbasic free variable — and a free variable is admitted to
- * the ratio test with a zero numerator and may move either way, so losing
- * one costs a candidate rather than raising an error. */
 static void test_nonbasic_build_keeps_free_variables(void)
 {
     jm_var_status status[NB_VARS];
@@ -1740,7 +1135,7 @@ static void test_nonbasic_build_keeps_free_variables(void)
         status[v] = JM_BASIC;
     status[3]   = JM_AT_LOWER;
     status[70]  = JM_AT_UPPER;
-    status[131] = JM_FREE;          /* the two a bound-keyed rule loses */
+    status[131] = JM_FREE;
     status[255] = JM_FREE;
 
     TEST_ASSERT_EQUAL_INT64(4, jm_nonbasic_build(NB_VARS, status, mark));
@@ -1750,8 +1145,6 @@ static void test_nonbasic_build_keeps_free_variables(void)
     for (int i = 0; i < 4; i++)
         TEST_ASSERT_EQUAL_INT64(want[i], out[i]);
 
-    /* And nothing basic crept in, which the count above cannot see on its
-     * own: two errors that cancel would leave it at four. */
     for (int64_t v = 0; v < NB_VARS; v++) {
         bool set = ((mark[v >> 6] >> (v & 63)) & 1) != 0;
         if (status[v] == JM_BASIC)
@@ -1761,17 +1154,11 @@ static void test_nonbasic_build_keeps_free_variables(void)
     }
 }
 
-/* Bit position is the variable index, so ascending is what the walk gives
- * rather than what a sort restores. It has to be: bfrt_walk, jm_harris_pick
- * and apply_flips each break an exact tie by whichever candidate they meet
- * first, so any other order is a different trajectory. */
 static void test_nonbasic_expand_is_ascending_across_words(void)
 {
     uint64_t mark[NB_WORDS] = {0};
     int64_t out[NB_VARS];
 
-    /* Inserted back to front and out of word order, on purpose, including
-     * both variables either side of every word boundary. */
     const int64_t put[] = {255, 64, 192, 0, 63, 128, 191, 65};
     for (size_t i = 0; i < sizeof put / sizeof *put; i++)
         jm_nonbasic_insert(mark, put[i]);
@@ -1784,15 +1171,10 @@ static void test_nonbasic_expand_is_ascending_across_words(void)
         TEST_ASSERT_TRUE(out[i] > out[i - 1]);
 }
 
-/* No bit set, one bit set, every bit set. The first is the state where the
- * ratio test admits nothing and has to return -1 exactly as the dense scan
- * did; the last is where the bitmap saves nothing and has to stay right
- * anyway. */
 static void test_nonbasic_expand_handles_the_degenerate_counts(void)
 {
     jm_var_status status[NB_VARS];
-    /* Deliberately not zeroed: jm_nonbasic_build writes every word, and a
-     * build that only set bits would leave whatever was here. */
+
     uint64_t mark[NB_WORDS];
     int64_t out[NB_VARS];
 
@@ -1801,10 +1183,8 @@ static void test_nonbasic_expand_handles_the_degenerate_counts(void)
     out[0] = -7;
     TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_build(NB_VARS, status, mark));
     TEST_ASSERT_EQUAL_INT64(0, jm_nonbasic_expand(NB_VARS, mark, out));
-    TEST_ASSERT_EQUAL_INT64(-7, out[0]);        /* nothing was written */
+    TEST_ASSERT_EQUAL_INT64(-7, out[0]);
 
-    /* Exactly one, in the last word, where an off-by-one in the word count
-     * loses it. */
     status[NB_VARS - 1] = JM_AT_UPPER;
     TEST_ASSERT_EQUAL_INT64(1, jm_nonbasic_build(NB_VARS, status, mark));
     TEST_ASSERT_EQUAL_INT64(1, jm_nonbasic_expand(NB_VARS, mark, out));
@@ -1818,11 +1198,6 @@ static void test_nonbasic_expand_handles_the_degenerate_counts(void)
         TEST_ASSERT_EQUAL_INT64(v, out[v]);
 }
 
-/* The sequence the maintenance actually runs, with the two variables
- * interleaved: A leaves the set, B enters it from inside the gap A left, B
- * leaves again, A comes back. An insertion-ordered structure has to compute
- * where B goes and can get it wrong; a bitmap has no position to compute,
- * which is the reason this representation was chosen over a list. */
 static void test_nonbasic_survives_interleaved_eviction(void)
 {
     jm_var_status status[NB_VARS];
@@ -1834,14 +1209,10 @@ static void test_nonbasic_survives_interleaved_eviction(void)
     jm_nonbasic_build(NB_VARS, status, mark);
     TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
 
-    /* A = 98 enters the basis and leaves the set. Its neighbours in the set
-     * are 97 and 100, and the gap it leaves behind spans 98 and 99. */
     status[98] = JM_BASIC;
     jm_nonbasic_remove(mark, 98);
     TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
 
-    /* B = 99 lands inside that gap — the position a list would have to find
-     * by walking from a neighbour that has just been unlinked. */
     status[99] = JM_AT_UPPER;
     jm_nonbasic_insert(mark, 99);
     TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
@@ -1852,24 +1223,15 @@ static void test_nonbasic_survives_interleaved_eviction(void)
     jm_nonbasic_insert(mark, 98);
     TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
 
-    /* An insert and a remove of the same variable are exact inverses — the
-     * words come back bit for bit, not merely expanding to the same list. */
     uint64_t before[NB_WORDS];
     for (int i = 0; i < NB_WORDS; i++)
         before[i] = mark[i];
-    jm_nonbasic_insert(mark, 42);       /* 42 is basic, so this is a lie */
-    jm_nonbasic_remove(mark, 42);       /* and this takes it back exactly */
+    jm_nonbasic_insert(mark, 42);
+    jm_nonbasic_remove(mark, 42);
     for (int i = 0; i < NB_WORDS; i++)
         TEST_ASSERT_EQUAL_UINT64(before[i], mark[i]);
 }
 
-/* The instrument, pointed at the failure this representation is actually
- * vulnerable to. A bitmap has no neighbour pointer to go stale, so the only
- * way it desynchronises is a hook nobody called — which is exactly what the
- * two memcpy restore sites in simplex.c look like, since a wholesale copy
- * over `status` carries no assignment for a reader to notice.
- *
- * If this test passes, every test above it is asserting nothing. */
 static void test_nonbasic_notices_a_missed_hook(void)
 {
     jm_var_status status[NB_VARS];
@@ -1881,17 +1243,13 @@ static void test_nonbasic_notices_a_missed_hook(void)
 
     status[98] = JM_BASIC;
     jm_nonbasic_remove(mark, 98);
-    status[99] = JM_AT_UPPER;           /* and the hook that never ran */
+    status[99] = JM_AT_UPPER;
     TEST_ASSERT_FALSE(expansion_matches_status(NB_VARS, status, mark));
 
-    /* Calling it puts the two back into agreement, so what was caught above
-     * was the missing call and not the sequence around it. */
     jm_nonbasic_insert(mark, 99);
     TEST_ASSERT_TRUE(expansion_matches_status(NB_VARS, status, mark));
 }
 
-/* Determinism (D8): the same model solved twice must produce the same
- * objective bit for bit, the same iteration count, and the same work. */
 static void test_solving_twice_is_bit_identical(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -1921,8 +1279,6 @@ static void test_solving_twice_is_bit_identical(void)
     TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
 }
 
-/* A work limit must stop the solve and say so, rather than running on or
- * pretending to have found an optimum. */
 static void test_work_limit_stops_and_reports(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -1944,7 +1300,6 @@ static void test_work_limit_stops_and_reports(void)
     jaos_model_free(m);
 }
 
-/* Loading a new problem must not silently discard configured budgets. */
 static void test_budgets_survive_a_reload(void)
 {
     const double c[] = {1.0};
@@ -1956,9 +1311,7 @@ static void test_budgets_survive_a_reload(void)
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 12345));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, 42.0));
-    /* Configuring before loading is the natural order to write, and every
-     * setting has to survive it. The primal tolerance did not, until this
-     * test's sibling caught it. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-4));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_dual_tolerance(m, 1e-5));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -1971,15 +1324,6 @@ static void test_budgets_survive_a_reload(void)
     jaos_model_free(m);
 }
 
-/* The two tolerances a caller owns.
- *
- * The first two tests are the ordinary ones: what is refused, and that an
- * untouched model is unchanged. The third is the one that matters, because
- * a setting that is stored and never consulted passes both of the others.
- * `min x subject to x >= 5` starts at x = 0, five units outside the row, and
- * a primal tolerance wider than five makes that starting point feasible —
- * so the solver stops there and reports 0 instead of 5. Nothing but the
- * tolerance reaching the feasibility test can produce that. */
 static void test_a_tolerance_must_be_a_tolerance(void)
 {
     jaos_model *m = fresh();
@@ -2006,8 +1350,7 @@ static void test_an_untouched_model_carries_no_tolerance_of_its_own(void)
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.primal_tol);
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.dual_tol);
-    /* Set, then handed back with zero, which is the only way to say
-     * "whatever you would have done" once a value has been given. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-3));
     TEST_ASSERT_EQUAL_DOUBLE(1e-3, m->cfg.primal_tol);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 0.0));
@@ -2017,14 +1360,6 @@ static void test_an_untouched_model_carries_no_tolerance_of_its_own(void)
     jaos_model_free(m);
 }
 
-/* 02-03: `x >= 5` is a singleton row, so presolve folds it into x's own
- * bound directly and reaches the answer (x = 5) by exact arithmetic before
- * the simplex — and before the simplex's own scaled-space primal
- * tolerance — ever enters the picture at all. This test means to exercise
- * that solver-level tolerance specifically (a wide one letting the cold
- * start pass as "already feasible"), which a presolve-resolved model
- * never reaches. Guarded to run under JAOS_NO_PRESOLVE only, same
- * reasoning as the tests above it in this file. */
 static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -2038,7 +1373,6 @@ static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
     const int64_t as[] = {0, 1}, ai[] = {0};
     const double av[] = {1.0};
 
-    /* Default: the row is repaired and the answer is 5. */
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
@@ -2050,8 +1384,6 @@ static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, obj);
     jaos_model_free(m);
 
-    /* A tolerance wider than the violation: the starting point is already
-     * "feasible" and the solve stops on it. */
     m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 10.0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -2066,14 +1398,6 @@ static void test_a_wide_primal_tolerance_accepts_a_point_it_should_not(void)
 #endif
 }
 
-/* Logging.
- *
- * The claim that has to be tested is not that lines come out — it is that
- * they change nothing. A solver that priced differently when someone was
- * watching would be undebuggable, so the same model is solved silently and
- * at full verbosity and the two answers are compared bit for bit. The
- * reference sets check the same claim across 139 instances; this checks it
- * where a failure would be readable. */
 static int64_t g_log_lines;
 static jaos_log_level g_log_max;
 static char g_log_last[256];
@@ -2089,7 +1413,7 @@ static void collect_log(void *user, jaos_log_level level, const char *line)
 
 static jaos_model *log_model(void)
 {
-    /* Something with enough rows to take a few iterations. */
+
     const double c[] = {-1.0, -2.0, -1.0};
     const double cl[] = {0.0, 0.0, 0.0}, cu[] = {4.0, 4.0, 4.0};
     const double rl[] = {-INFINITY, -INFINITY}, ru[] = {5.0, 6.0};
@@ -2107,7 +1431,6 @@ static void test_logging_says_nothing_until_it_is_asked_to(void)
     int hits = 0;
     jaos_model *m = log_model();
 
-    /* A level with no callback is silent, and so is a callback at OFF. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(0, hits);
@@ -2117,13 +1440,11 @@ static void test_logging_says_nothing_until_it_is_asked_to(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(0, hits);
 
-    /* And at SUMMARY it speaks. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_TRUE(hits >= 2);          /* one opening, one closing */
+    TEST_ASSERT_TRUE(hits >= 2);
     TEST_ASSERT_TRUE(g_log_last[0] != '\0');
 
-    /* Turning the callback off again stops it. */
     int after = hits;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, nullptr, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -2169,8 +1490,7 @@ static void test_watching_a_solve_does_not_change_it(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(loud, lx, nullptr, ly, nullptr));
 
     TEST_ASSERT_TRUE(hits > 0);
-    /* Bit for bit, not within a tolerance: the claim is that the arithmetic
-     * was untouched, and "close" would not be that claim. */
+
     TEST_ASSERT_EQUAL_MEMORY(&qobj, &lobj, sizeof qobj);
     TEST_ASSERT_EQUAL_MEMORY(qx, lx, sizeof qx);
     TEST_ASSERT_EQUAL_MEMORY(qy, ly, sizeof qy);
@@ -2181,16 +1501,12 @@ static void test_watching_a_solve_does_not_change_it(void)
     jaos_model_free(loud);
 }
 
-/* ---------------------------------------------------------------------- */
-/* Watching a solve, and stopping one                                      */
-/* ---------------------------------------------------------------------- */
-
 typedef struct {
     int calls;
-    int stop_after;              /* -1 never */
+    int stop_after;
     int64_t last_iters;
     int64_t last_work;
-    bool iters_on_the_beat;      /* every call landed on a fixed multiple */
+    bool iters_on_the_beat;
     bool work_never_went_back;
 } watcher;
 
@@ -2234,14 +1550,10 @@ static void test_a_watcher_is_asked_and_changes_nothing(void)
     double sx_[3] = {0}, sy[2] = {0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(seen, sx_, nullptr, sy, nullptr));
 
-    /* The instrument, before the claim: a watcher that was never asked would
-     * pass every assertion below without proving anything. */
     TEST_ASSERT_TRUE(w.calls > 0);
     TEST_ASSERT_TRUE(w.iters_on_the_beat);
     TEST_ASSERT_TRUE(w.work_never_went_back);
 
-    /* Bit for bit, for the reason the logging test gives: the claim is that
-     * the arithmetic was untouched, and "close" would not be that claim. */
     TEST_ASSERT_EQUAL_MEMORY(&qobj, &sobj, sizeof qobj);
     TEST_ASSERT_EQUAL_MEMORY(qx, sx_, sizeof qx);
     TEST_ASSERT_EQUAL_MEMORY(qy, sy, sizeof qy);
@@ -2254,26 +1566,22 @@ static void test_a_watcher_is_asked_and_changes_nothing(void)
 
 static void test_a_watcher_can_stop_a_solve_and_it_resumes(void)
 {
-    watcher w = fresh_watcher(0);          /* stop at the first question */
+    watcher w = fresh_watcher(0);
     jaos_model *m = log_model();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(1, w.calls);
 
-    /* A stopping point is not a solution, and the two are not readable
-     * through one call. */
     double x[3] = {0};
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
         jaos_solution(m, x, nullptr, nullptr, nullptr));
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
 
-    /* But it kept where it stopped, exactly as a budget stop does. */
     TEST_ASSERT_NOT_NULL(m->start_col_status);
     TEST_ASSERT_NOT_NULL(m->start_row_status);
 
-    /* Stop asking, and the next solve finishes the job. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_set_progress_callback(m, nullptr, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -2290,9 +1598,6 @@ static void test_a_watcher_can_stop_a_solve_and_it_resumes(void)
     jaos_model_free(cold);
 }
 
-/* The defect D78 found, kept from coming back: configuration is not problem
- * data, so loading a problem must not silently discard it. Logging was lost
- * this way from the day it landed. */
 static void test_configuration_survives_a_load(void)
 {
     int hits = 0;
@@ -2305,7 +1610,6 @@ static void test_configuration_survives_a_load(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1000000));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_primal_tolerance(m, 1e-8));
 
-    /* Configure first, load second — the order anyone writes it in. */
     const double c[] = {-1.0, -2.0, -1.0};
     const double cl[] = {0.0, 0.0, 0.0}, cu[] = {4.0, 4.0, 4.0};
     const double rl[] = {-INFINITY, -INFINITY}, ru[] = {5.0, 6.0};
@@ -2320,15 +1624,11 @@ static void test_configuration_survives_a_load(void)
     TEST_ASSERT_EQUAL_INT(JAOS_LOG_DETAIL, m->cfg.log_level);
 
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_TRUE(hits > 0);     /* the callback survived the load */
+    TEST_ASSERT_TRUE(hits > 0);
     TEST_ASSERT_TRUE(w.calls > 0);
     jaos_model_free(m);
 }
 
-/* What can be asserted about a clock without the test becoming a flake: that
- * it starts at zero, that it is finite and not negative after a solve, that a
- * modification retires it along with the rest of the answer, and that a model
- * that never solved reports nothing. Not how long anything took. */
 static void test_solve_time_is_reported_and_retired(void)
 {
     jaos_model *m = log_model();
@@ -2340,9 +1640,6 @@ static void test_solve_time_is_reported_and_retired(void)
     TEST_ASSERT_TRUE(t >= 0.0);
     TEST_ASSERT_TRUE(isfinite(t));
 
-    /* The answer is stale after a modification and so is the time it took to
-     * reach it: reporting seconds for a solve whose result has been withdrawn
-     * would be a number about nothing. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 0.0, 1.0));
     TEST_ASSERT_EQUAL_DOUBLE(0.0, jaos_solve_time(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_work_units(m));
@@ -2364,25 +1661,6 @@ static void test_queries_before_a_solve(void)
     jaos_model_free(m);
 }
 
-/* ---- Rank-deficient constraint matrices ----------------------------- *
- *
- * These do not reach the basis repair in src/simplex.c, and no small model
- * can: the dual simplex only pivots on an alpha above PIVOT_MIN, so every
- * basis it assembles is nonsingular in exact arithmetic, and a singular one
- * is always the residue of carried error rather than a property of the
- * model. The instance that actually produces one is `gran` of the
- * infeasible set, at 2658 rows and 1728 iterations of drift.
- *
- * What these cover is the family that instance belongs to, where the danger
- * is a wrong verdict and not a crash. A dependent row is satisfied for
- * nothing, and a method that reads "no pivot available in this row" as "no
- * feasible point" answers INFEASIBLE on a model with a perfectly good
- * optimum — which is the exact failure the revert of 2026-08-07 was forced
- * by. Each answer below is worked out by hand, and each infeasible one is
- * infeasible for a reason no dependency explains away.
- */
-
-/* Two identical rows. Optimum 2, at any point of the segment x + y == 2. */
 static void test_duplicate_rows_reach_the_same_optimum(void)
 {
     const double c[] = {1.0, 1.0};
@@ -2399,10 +1677,6 @@ static void test_duplicate_rows_reach_the_same_optimum(void)
     jaos_model_free(m);
 }
 
-/* r2 is r0 + r1 exactly, so the matrix has rank two over three rows and the
- * third constraint adds nothing. min x+y+z with x+y >= 2, y+z >= 2 and
- * x+2y+z >= 4: adding the first two gives obj >= 4 - y, and y <= obj since
- * x and z are non-negative, so obj >= 2 — reached at y = 2, x = z = 0. */
 static void test_a_row_that_is_the_sum_of_two_others(void)
 {
     const double c[] = {1.0, 1.0, 1.0};
@@ -2421,9 +1695,6 @@ static void test_a_row_that_is_the_sum_of_two_others(void)
     jaos_model_free(m);
 }
 
-/* The same row asked for two things at once: x + y >= 3 and x + y <= 1.
- * Infeasible, and the proof needs no bound on any column — which is what
- * makes it a statement about the dependency rather than about the box. */
 static void test_dependent_rows_that_contradict_each_other(void)
 {
     const double c[] = {1.0, 1.0};
@@ -2441,10 +1712,6 @@ static void test_dependent_rows_that_contradict_each_other(void)
     jaos_model_free(m);
 }
 
-/* A row no column reaches, demanding an activity of at least one. Its
- * activity is identically zero, so the model is infeasible however the
- * columns move — the case where the structural matrix does not span the
- * row space at all, which is the shape the repair pairs its logicals to. */
 static void test_a_row_no_column_reaches(void)
 {
     const double c[] = {1.0};
@@ -2461,8 +1728,6 @@ static void test_a_row_no_column_reaches(void)
     jaos_model_free(m);
 }
 
-/* The same empty row, asking for something it can give: activity zero is
- * inside [-1, 2], so the row is simply satisfied and the columns decide. */
 static void test_a_row_no_column_reaches_but_that_holds_anyway(void)
 {
     const double c[] = {1.0};
@@ -2478,25 +1743,13 @@ static void test_a_row_no_column_reaches_but_that_holds_anyway(void)
     jaos_model_free(m);
 }
 
-/* ---- The basis, which the values cannot carry ------------------------ *
- *
- *   min 2x + 3y   s.t.  r0: x + y >= 2
- *                       r1: x + y <= 100
- *                       r2: x      <= 1.5
- *                       0 <= x, y <= 5
- *
- * x is the cheaper column, so it is used to its limit: x = 1.5, y = 0.5,
- * objective 4.5, and that optimum is unique. r0 and r2 are what hold it
- * there; r1 is nowhere near. Three rows means exactly three basic variables
- * among the five, and which three is forced: neither column rests on a
- * bound of its own, and neither does r1's activity. */
 static void test_the_basis_names_which_rows_hold_the_optimum(void)
 {
     const double c[] = {2.0, 3.0};
     const double cl[] = {0.0, 0.0}, cu[] = {5.0, 5.0};
     const double rl[] = {2.0, -INFINITY, -INFINITY};
     const double ru[] = {INFINITY, 100.0, 1.5};
-    /* x hits r0, r1 and r2; y hits r0 and r1. */
+
     const int64_t as[] = {0, 3, 5};
     const int64_t ai[] = {0, 1, 2, 0, 1};
     const double av[] = {1.0, 1.0, 1.0, 1.0, 1.0};
@@ -2510,25 +1763,18 @@ static void test_the_basis_names_which_rows_hold_the_optimum(void)
     jaos_basis_status cs[2], rs[3];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
 
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);     /* x = 1.5, off its bounds */
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[1]);     /* y = 0.5, likewise       */
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[0]);  /* x + y == 2              */
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[1]);     /* 2 is far from 100       */
-    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[2]);  /* x == 1.5                */
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[2]);
 
-    /* Either buffer may be left out, like every other query here. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, rs));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, nullptr));
     jaos_model_free(m);
 }
 
-/* What a consumer of jaos_basis is entitled to assume, checked against the
- * values published beside it rather than against an expectation: exactly
- * num_row variables are basic, and every nonbasic one sits on the bound its
- * status names. A mapping that swapped the two bounds, or logicals
- * published with the rows' orientation reversed, describes a different
- * point and fails here instead of being believed. */
 static void test_the_basis_agrees_with_the_values_it_came_with(void)
 {
     jaos_model *m = fresh();
@@ -2578,19 +1824,6 @@ static void test_the_basis_agrees_with_the_values_it_came_with(void)
     jaos_model_free(m);
 }
 
-/* No simplex, no basis — and the reason is sharper here than it is for the
- * values. A buffer of zeros does not read as absent: it reads as a solution
- * in which every variable is basic, which is not something a simplex can
- * report at all.
- *
- * A basis is available after a refusal since D330, so what this pins is
- * the other side of that rule: a model with no solve behind it, and a
- * verdict reached without one. The row below asks for more than its own
- * columns can give, which is one forcing-row test, so under the default
- * build presolve settles it and there is nothing to publish. The
- * reference build has no presolve and its simplex answers, so it asserts
- * a basis with exactly num_row basics -- a one-sided test would pass on a
- * call that always refuses. */
 static void test_the_basis_is_refused_where_no_simplex_ran(void)
 {
     jaos_basis_status cs[2], rs[1];
@@ -2598,7 +1831,6 @@ static void test_the_basis_is_refused_where_no_simplex_ran(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(nullptr, cs, rs));
 
-    /* x + y >= 5 with both capped at 1: no feasible point. */
     const double c[] = {1.0, 1.0};
     const double cl[] = {0.0, 0.0}, cu[] = {1.0, 1.0};
     const double rl[] = {5.0}, ru[] = {INFINITY};
@@ -2621,22 +1853,6 @@ static void test_the_basis_is_refused_where_no_simplex_ran(void)
     jaos_model_free(m);
 }
 
-/* ---- Warm re-solve --------------------------------------------------- *
- *
- * Every test below starts from the model the basis tests use:
- *
- *   min 2x + 3y   s.t.  r0: x + y >= 2
- *                       r1: x + y <= 100
- *                       r2: x      <= r2_upper
- *                       0 <= x, y <= 5
- *
- * and for the same reason. Its optimum is unique, so a warm start cannot be
- * judged correct by landing on a different vertex of a tie — which is exactly
- * the mistake a warm start is in a position to make.
- *
- * At r2_upper = 1.5 the answer is x = 1.5, y = 0.5, objective 4.5, and the
- * basis holding it is {x, y, r1} with r0 at its lower bound and r2 at its
- * upper. */
 static void load_warm_model(jaos_model *m, double r2_upper)
 {
     const double c[] = {2.0, 3.0};
@@ -2651,13 +1867,6 @@ static void load_warm_model(jaos_model *m, double r2_upper)
                      5, as, ai, av));
 }
 
-/* The same model solved twice. The second solve starts where the first
- * finished and therefore has nothing left to do.
- *
- * Iterations are what says so, and nothing else can: an answer alone cannot
- * tell a warm start from a cold one, since both reach the same optimum. A
- * count of zero is the only observation that distinguishes "resumed" from
- * "walked the whole way back". */
 static void test_re_solving_an_unchanged_model_costs_no_iterations(void)
 {
     jaos_model *m = fresh();
@@ -2673,7 +1882,6 @@ static void test_re_solving_an_unchanged_model_costs_no_iterations(void)
     solve_and_verify(m, 4.5);
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
 
-    /* And it stops at the same point, not merely at one worth the same. */
     double again[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_solution(m, again, nullptr, nullptr, nullptr));
@@ -2681,20 +1889,12 @@ static void test_re_solving_an_unchanged_model_costs_no_iterations(void)
     jaos_model_free(m);
 }
 
-/* A bound moves, and the warm re-solve reaches the answer a model loaded at
- * the new bound reaches from scratch. Two different trajectories, one
- * optimum: that is the whole claim a warm start makes and the only one it is
- * entitled to. The points are compared as numbers rather than as bits,
- * because they come out of different factorizations with different shift
- * histories behind them — equal optima, not equal arithmetic. */
 static void test_a_warm_re_solve_agrees_with_a_cold_one(void)
 {
     jaos_model *warm = fresh();
     load_warm_model(warm, 1.5);
     solve_and_verify(warm, 4.5);
 
-    /* r2 tightens to x <= 1, so the expensive column takes up the slack:
-     * x = 1, y = 1, objective 5. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(warm, 2, -INFINITY, 1.0));
     solve_and_verify(warm, 5.0);
 
@@ -2714,11 +1914,6 @@ static void test_a_warm_re_solve_agrees_with_a_cold_one(void)
     jaos_model_free(cold);
 }
 
-/* What jaos_set_basis refuses, and the sharp end of accepting one: handed the
- * optimal basis before it has ever run, the solve costs no iterations. That
- * is a stronger statement than "it was accepted" — a basis that was validated
- * and then dropped on the floor would pass every rejection test here and fail
- * this one. */
 static void test_a_basis_handed_in_must_be_a_basis(void)
 {
     jaos_model *m = fresh();
@@ -2730,7 +1925,7 @@ static void test_a_basis_handed_in_must_be_a_basis(void)
 
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
         jaos_set_basis(nullptr, cs, rs));
-    /* Half a basis does not say which variables are basic. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
         jaos_set_basis(m, nullptr, rs));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
@@ -2739,46 +1934,23 @@ static void test_a_basis_handed_in_must_be_a_basis(void)
     jaos_basis_status bc[2], br[3];
     memcpy(bc, cs, sizeof cs);
     memcpy(br, rs, sizeof rs);
-    bc[0] = JAOS_BASIS_AT_LOWER;               /* two basic, and three rows */
+    bc[0] = JAOS_BASIS_AT_LOWER;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
 
     memcpy(bc, cs, sizeof cs);
-    br[0] = JAOS_BASIS_BASIC;                  /* four basic */
+    br[0] = JAOS_BASIS_BASIC;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
 
     memcpy(br, rs, sizeof rs);
-    bc[1] = (jaos_basis_status)17;             /* not a status at all */
+    bc[1] = (jaos_basis_status)17;
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_basis(m, bc, br));
 
-    /* The one that is a basis is the optimal one, so there is nothing left
-     * for the solve to find. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
     solve_and_verify(m, 4.5);
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
     jaos_model_free(m);
 }
 
-/* --------------------------------------------------------------------- */
-/* The primal method                                                     */
-/* --------------------------------------------------------------------- */
-
-/* A model presolve leaves alone. Every primal test below uses it.
- *
- * **`load_warm_model` cannot be used for any of them, and finding that out
- * cost two rounds.** Its third row is `x <= 1.5`, a singleton, and presolve
- * folds a singleton row straight into the column's own bound (02-03) — on
- * this model it takes three rows down to one. Two consequences, both of which
- * made a test say something it did not mean. A basis with both structurals at
- * their upper bounds reads as plainly primal infeasible on the model as
- * written, `x` at 5 against a row capping it at 1.5, and is nothing of the
- * kind by the time the simplex sees it, because `x`'s upper bound *is* 1.5
- * now. And on the one row that survives, every basis the model admits is
- * already dual feasible, so the primal has no work whatever it is handed.
- *
- * `min x + 3y` over `x + y >= 2` and `x + 2y <= 10`, both columns in `[0, 5]`.
- * Every row has two entries and every column has two, so there is no
- * singleton of either kind for presolve to take, and no fixed or empty
- * anything. The optimum is `x = 2, y = 0` at 2. */
 static void load_unreducible_model(jaos_model *m)
 {
     const double c[] = {1.0, 3.0};
@@ -2792,46 +1964,13 @@ static void load_unreducible_model(jaos_model *m)
         jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      4, as, ai, av));
 }
-/* The primal simplex reaches the same optimum as the dual, from a basis it
- * can actually start from.
- *
- * **Getting one is the whole difficulty and it is worth writing down.** The
- * cold basis is dual feasible by construction, so if it were also primal
- * feasible it would already be optimal and there would be nothing to watch.
- * The primal needs a start that is primal feasible and *not* dual feasible,
- * and no cold start is ever that. So it has to be handed one.
- *
- * `load_warm_model` is `min 2x + 3y` over `x + y >= 2`, `x + y <= 100`,
- * `x <= 1.5`, with both columns in `[0, 5]`. Put `x` on its lower bound and
- * `y` on its upper and every logical is basic: the row activities are 5, 5
- * and 0, each inside its own bounds, so the point is primal feasible. It is
- * not dual feasible — `y` sits at an upper bound with a reduced cost of +3,
- * which points the wrong way — and it is not optimal, at an objective of 15
- * against the true 4.5.
- *
- * **`jaos_iterations() > 0` is NOT enough to say the primal ran, and asserting
- * it was a false green that a negative control caught.** With `run_primal`
- * doctored to declare optimality immediately and pivot not once, all four
- * tests in this section still passed: the settling re-entry calls `run()`,
- * the dual repaired the point, and the answer, the checker and the iteration
- * count were all satisfied by the wrong algorithm. So the assertion is on the
- * one count only `run_primal` can raise, read off the closing summary line
- * through the caller's own log callback.
- *
- * The other two assertions stay and are load-bearing too. The objective is the
- * answer, and the independent checker accepting the point is what says that
- * answer is defensible rather than merely equal to a number typed in this
- * file. */
+
 static void test_the_primal_reaches_the_optimum_from_a_feasible_basis(void)
 {
     int hits = 0;
     jaos_model *m = fresh();
     load_unreducible_model(m);
 
-    /* `x` on its lower bound, `y` on its upper, both logicals basic. The
-     * point is `(0, 5)`: row 0 reads 5 against a lower bound of 2 and row 1
-     * reads 10 against an upper bound of 10, so it is primal feasible, and
-     * its objective is 15 against the true 2. */
     jaos_basis_status cs[2] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_AT_UPPER};
     jaos_basis_status rs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
@@ -2843,8 +1982,6 @@ static void test_the_primal_reaches_the_optimum_from_a_feasible_basis(void)
     m->cfg.force_primal = true;
     solve_and_verify(m, 2.0);
 
-    /* The closing summary is the last line logged. It must report primal
-     * iterations, and must not report none of them. */
     TEST_ASSERT_NOT_NULL_MESSAGE(strstr(g_log_last, "primal iterations"),
                                  "the summary must count them at all");
     TEST_ASSERT_NULL_MESSAGE(strstr(g_log_last, " 0 primal iterations"),
@@ -2852,14 +1989,6 @@ static void test_the_primal_reaches_the_optimum_from_a_feasible_basis(void)
     jaos_model_free(m);
 }
 
-/* And it is the same answer the dual gives, which is the only comparison
- * that means anything.
- *
- * A test asserting 4.5 against a constant proves the primal agrees with
- * whoever typed 4.5. This one solves the identical model both ways in one
- * process and compares the two objectives against each other, which is what
- * `bench/primal.c` does over the reference set and what this is the small
- * version of. */
 static void test_the_primal_and_the_dual_agree_on_the_same_model(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -2897,9 +2026,6 @@ static void test_the_primal_and_the_dual_agree_on_the_same_model(void)
 
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, obj_d, obj_p);
 
-    /* And the two really were different methods. Without this the test is
-     * satisfied by solving the same model with the dual twice, which is
-     * exactly what happened when `run_primal` was doctored to do nothing. */
     TEST_ASSERT_NOT_NULL_MESSAGE(strstr(dual_line, " 0 primal iterations"),
                                  "the dual solve took primal iterations");
     TEST_ASSERT_NULL_MESSAGE(strstr(primal_line, " 0 primal iterations"),
@@ -2909,25 +2035,6 @@ static void test_the_primal_and_the_dual_agree_on_the_same_model(void)
 #endif
 }
 
-/* A watcher can stop the solve from inside the primal phase 1.
- *
- * **Written because it could not, for a whole milestone.** Phase 2 and the
- * dual both offer `progress_cb`; phase 1 did not, so a caller could neither
- * see nor stop the part of a forced-primal solve that spends 39.5% of its
- * iterations (D197, D200). A budget could end it and a person could not.
- *
- * **The assertion that separates the two is the log, not the status.** A stop
- * on the first callback returns `INTERRUPTED` either way — before this change
- * the first call simply happened later, in phase 2, by which time phase 1 had
- * finished and said so. So the test requires the solve to stop WITHOUT that
- * line, which is only reachable from inside phase 1.
- *
- * `load_unreducible_model`'s first row is `x + y >= 2`, so the slack basis is
- * primal infeasible and phase 1 runs. `PROGRESS_EVERY` is 64 and `s->iters` is
- * 0 on a cold start, so the first phase-1 iteration is on the beat.
- *
- * It brings its own log collector rather than reusing `collect_log`, which
- * keeps only the last line and is depended on by several tests above. */
 #if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
     !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static bool g_saw_phase1_finish;
@@ -2948,7 +2055,7 @@ static void test_a_watcher_can_stop_the_primal_phase_1(void)
     TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
 #else
     int hits = 0;
-    watcher w = fresh_watcher(0);           /* stop on the first call */
+    watcher w = fresh_watcher(0);
     jaos_model *m = fresh();
     load_unreducible_model(m);
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -2969,44 +2076,12 @@ static void test_a_watcher_can_stop_the_primal_phase_1(void)
 #endif
 }
 
-/* The primal's iteration split, read off the model.
- *
- * **Written because the absence of this number made a published one wrong.**
- * Before it, phase 1's count was readable only from the log line `phase 1
- * reached a feasible point in N iterations`, which is emitted on SUCCESS. A
- * phase 1 that ran and did not finish emitted nothing, so a probe reading that
- * line recorded zero and the instance read as a solve with no phase 1 at all --
- * and therefore as a pure phase-2 run. D194 published exactly that about eight
- * netlib instances and D195 corrected it. `solve_primal_iters` and
- * `solve_phase1_iters` are written on every exit from `jm_dual_simplex`, the
- * abandoned one included.
- *
- * **It reads the two fields and no longer parses the summary sentence.** The
- * parser it used to carry had a twin in `bench/primal.c` that matched on a
- * substring this one did not require, so an edit to that sentence could leave
- * this test green while the campaign silently reported no split at all on all
- * 94 instances. Two copies of one backwards character walk, agreeing about
- * nothing. The sentence itself is still tested, by the two tests above that
- * assert on ` 0 primal iterations` -- what is gone is reading NUMBERS out of
- * prose.
- *
- * **The non-success path is not reproduced here and the reason is the usual
- * one**: it needs a phase 1 that takes many iterations and then runs out of
- * budget, which no two-row model reaches. The campaign covers it and names the
- * case -- `wood1p` reports 3820 primal iterations, all 3820 of them phase 1,
- * ending `work limit reached` (`bench/measurements/02-108/`). What is tested
- * here is the property that failed: the count is present, non-zero when phase
- * 1 ran, and never larger than the primal count it is a part of.
- *
- * The dual's own counts must read zero on both, which is the same separation
- * `solve_primal_iters` exists for: without it this test is satisfied by a
- * solve that never entered the primal at all. */
 static void test_the_summary_separates_phase_1_from_phase_2(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
 #else
-    /* The dual, on the same model: both counts must be zero. */
+
     jaos_model *d = fresh();
     load_unreducible_model(d);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(d));
@@ -3016,65 +2091,24 @@ static void test_the_summary_separates_phase_1_from_phase_2(void)
                                     "the dual entered a primal phase 1");
     jaos_model_free(d);
 
-    /* The primal, cold. `load_unreducible_model`'s first row is `x + y >= 2`,
-     * so the slack basis sits at zero and is primal INFEASIBLE by 2 -- which is
-     * what makes phase 1 run at all. A cold basis that were primal feasible
-     * would already be optimal and there would be nothing to count. */
     jaos_model *p = fresh();
     load_unreducible_model(p);
     p->cfg.force_primal = true;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(p));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(p));
-    /* Phase 1 ran, and the count says so rather than reading as absent. */
+
     TEST_ASSERT_GREATER_THAN_INT64_MESSAGE(0, p->solve_phase1_iters,
         "phase 1 ran from a primal infeasible start and reported none");
-    /* And it is a part of the primal count, not a second total beside it.
-     * A field that exceeded its container would be a different defect wearing
-     * the same name. */
+
     TEST_ASSERT_TRUE_MESSAGE(p->solve_phase1_iters <= p->solve_primal_iters,
         "more phase-1 iterations than primal iterations");
-    /* And the primal count is a part of the solve's total, for the same
-     * reason: the record's `dual re-entry` column is the difference between
-     * the two and a negative one would be nonsense. */
+
     TEST_ASSERT_TRUE_MESSAGE(p->solve_primal_iters <= p->solve_iters,
         "more primal iterations than iterations");
     jaos_model_free(p);
 #endif
 }
 
-/* The three counts belong to the solve that just ran, not to the one before.
- *
- * **Written because a solve that was ABANDONED published the previous solve's
- * total.** `solve_iters` has one writer inside `publish`, and `publish` runs
- * only when the solve returned `JAOS_OK`. So a refused solve left the field
- * holding whatever the model was solved with last time, and any reader
- * subtracting the primal counts from it got a difference between two
- * different solves. `bench/primal.c` does exactly that subtraction, and it
- * printed `dual:20835` for `pilot87` -- which is 38000 - 17165, the dual
- * reference solve's total minus the primal's own count. `jm_dual_simplex`
- * zeroes all three on entry now and writes the total on the abandoned branch.
- *
- * The shape is the one that failed: the same model solved twice, the dual
- * first, so a carried-over total has a wrong value to carry rather than a
- * zero that would pass by accident.
- *
- * **This model is too small to separate the two on its own, and saying so is
- * the point.** Measured under `-DJAOS_NO_PRESOLVE`: the dual solve costs 1
- * iteration and the refused primal solve costs 1 as well, so a carried total
- * and an honest one are the same integer here. What the assertions below can
- * still hold is the SHAPE -- a refused primal solve did no dual re-entry, so
- * `solve_iters` and `solve_primal_iters` must be equal -- and that shape is
- * what breaks on any model where the two solves differ. The instance that
- * caught it is `pilot87`, at 38000 against 17165, and the negative control
- * that proves these assertions are worth having is
- * `bench/measurements/02-115/`.
- *
- * **The refusal branch is conditional, exactly as
- * `test_the_primal_refuses_to_call_a_model_infeasible` is**: presolve may
- * prove this model infeasible before the simplex runs. The chain above it is
- * not conditional and holds on every solve in this test. The abandoned path
- * is covered where it actually occurs -- 1 of 94 in the primal campaign --
- * and the negative control for it is `bench/measurements/02-115/`. */
 static void test_the_counts_belong_to_the_solve_that_just_ran(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3093,7 +2127,6 @@ static void test_the_counts_belong_to_the_solve_that_just_ran(void)
         jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      4, as, ai, av));
 
-    /* A dual solve first, so there is a total on the model to carry. */
     (void)jaos_solve(m);
     const int64_t carried = m->solve_iters;
     TEST_ASSERT_EQUAL_INT64_MESSAGE(0, m->solve_primal_iters,
@@ -3103,9 +2136,6 @@ static void test_the_counts_belong_to_the_solve_that_just_ran(void)
     m->cfg.force_primal = true;
     const jaos_status st = jaos_solve(m);
 
-    /* The chain, on every outcome. A count that is a part of another cannot
-     * exceed it, and the record's `dual re-entry` column is the outer
-     * difference. */
     TEST_ASSERT_TRUE_MESSAGE(m->solve_phase1_iters >= 0,
         "a negative phase-1 count");
     TEST_ASSERT_TRUE_MESSAGE(
@@ -3118,19 +2148,6 @@ static void test_the_counts_belong_to_the_solve_that_just_ran(void)
         TEST_ASSERT_TRUE_MESSAGE(m->solve_primal_iters > 0,
             "the primal was forced and reported no primal iterations");
 
-        /* **The equality holds only when the refusal came from inside
-         * `run_primal`, and the test asks before it asserts.** There is a
-         * second way to reach `st != JAOS_OK`: `run_primal` reaches OPTIMAL
-         * and `reenter_after_settling` fails afterwards. On that path
-         * `primal_cleanup`'s pivots and the re-entry's own `run()` have both
-         * raised `s->iters` without touching `n_primal_iters`, so the
-         * difference is correctly positive. Asserting equality unconditionally
-         * would be asserting the defect. `bench/primal.c` reaches that path
-         * whenever its work limit bites during the re-entry.
-         *
-         * Phase 1's refusal names itself, so the question is answerable
-         * without new state. When it is the answer, nothing after `run_primal`
-         * ran, and the record's `dual re-entry` column must be zero. */
         const char *why = jaos_model_error(m);
         if (why != nullptr &&
             strstr(why, "the primal phase 1 cannot reduce") != nullptr)
@@ -3143,15 +2160,6 @@ static void test_the_counts_belong_to_the_solve_that_just_ran(void)
 #endif
 }
 
-/* A model where the entering column's own box binds before any row does.
- *
- * `min -x - 0.5y` over `x + y <= 10` and `x + 2y <= 12`, with `x` in `[0, 1]`
- * and `y` in `[0, 10]`. The optimum is `x = 1, y = 5.5` at -4.25... on the
- * costs alone; the published objective is -3.75 because `x + 2y <= 12` binds.
- *
- * From the origin the primal prices `x` first — `|d|` of 1 against 0.5 — and
- * moves it up. **Nothing basic stops it before 10, and `x`'s own upper bound
- * is 1.** */
 static void load_boxed_model(jaos_model *m)
 {
     const double c[]  = {-1.0, -0.5};
@@ -3166,20 +2174,6 @@ static void load_boxed_model(jaos_model *m)
                      4, as, ai, av));
 }
 
-/* The entering column must not walk past its own bound, and this is the case
- * that proves it does not.
- *
- * **It was a wrong answer, not a hypothetical.** Before the bound flip existed,
- * this model published `x = 10` against a declared upper bound of 1, as
- * `OPTIMAL`, at an objective of -10 against a true -3.75. The independent
- * checker refused the point and the solver said optimal anyway. Stage 1's
- * pricing rule is what made the case reachable: the primal clean-up only ever
- * enters columns with no declared bound on the improving side, so nothing
- * before it could reach a column whose own box binds first.
- *
- * The assertion is the answer *and* the bound, because those are two different
- * failures. A solve that lands on the right objective through a point outside
- * its bounds has still published something the model forbids. */
 static void test_the_entering_column_stops_at_its_own_bound(void)
 {
     jaos_model *m = fresh();
@@ -3201,22 +2195,6 @@ static void test_the_entering_column_stops_at_its_own_bound(void)
     jaos_model_free(m);
 }
 
-/* Phase 1 repairs a start phase 2 has no invariant for.
- *
- * **This test used to assert a refusal.** Before the phase 1 landed, the
- * primal was handed the origin — where `x + y >= 2` is violated by 2 — and
- * said so rather than answering, because the two alternatives were both worse:
- * reporting `INFEASIBLE` would be a wrong answer about a model that has an
- * optimum, and running anyway would drive an objective across a region the
- * point is not in. It now repairs the point and solves.
- *
- * The same basis is also dual feasible — both costs positive, both columns at
- * a lower bound — so it is exactly the shape a cold start has, which is what
- * makes it the case worth pinning. The test below this one asserts the dual
- * reaches the same answer from it.
- *
- * `n_primal_iters` covers both phases, so a positive count says the primal
- * method did the work and not the settling re-entry's dual solve. */
 static void test_the_primal_phase_1_repairs_an_infeasible_start(void)
 {
     int hits = 0;
@@ -3238,25 +2216,6 @@ static void test_the_primal_phase_1_repairs_an_infeasible_start(void)
     jaos_model_free(m);
 }
 
-/* The refusal that is left, and it is the one the method must not turn into a
- * verdict.
- *
- * `min x + y` over `x + y >= 10` and `x + 2y <= 3`, both columns in `[0, 5]`.
- * The second row caps `x + y` at 3, so there is no feasible point at all.
- *
- * **The primal must not answer `INFEASIBLE` here, and that is not caution for
- * its own sake.** "No improving direction with infeasibility left" is the
- * textbook proof of primal infeasibility, and this method is not entitled to
- * it: phase 1 measures against `real_lower`/`real_upper`, the bounds the model
- * declared, while the columns may be pinned by bounds dual phase 1 invented.
- * So "nothing improves" can be a statement about the loans rather than about
- * the model, and D19 refuses exactly that inference. The infeasible instance
- * set is the dual method's to answer.
- *
- * What is asserted is that it refuses **and says why**, read through
- * `jaos_model_error` on the caller's own model — the only place a caller can
- * look, and where no simplex message arrived at all until D188 on any model
- * presolve had reduced. */
 static void test_the_primal_refuses_to_call_a_model_infeasible(void)
 {
     const double c[]  = {1.0, 1.0};
@@ -3275,10 +2234,6 @@ static void test_the_primal_refuses_to_call_a_model_infeasible(void)
     m->cfg.force_primal = true;
     jaos_status st = jaos_solve(m);
 
-    /* Presolve may prove it infeasible before the simplex ever runs, and that
-     * verdict is sound because a reduction proved it rather than a method
-     * failing to improve. Only the case that reaches the simplex is this
-     * test's subject. */
     if (st == JAOS_OK) {
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     } else {
@@ -3291,14 +2246,6 @@ static void test_the_primal_refuses_to_call_a_model_infeasible(void)
     jaos_model_free(m);
 }
 
-/* The same model with the switch off must be untouched by any of this.
- *
- * `force_primal` is a development switch, and the whole claim about it is
- * that a solve which never sets it behaves exactly as it did before the
- * switch existed. The reference sets test that across every instance; this
- * tests it where a reader can see it, on the exact basis the refusal above
- * uses — primal infeasible, which the dual does not mind at all, because
- * driving primal infeasibility out is what the dual method is for. */
 static void test_the_dual_agrees_from_the_same_infeasible_start(void)
 {
     jaos_model *m = fresh();
@@ -3312,14 +2259,6 @@ static void test_the_dual_agrees_from_the_same_infeasible_start(void)
     jaos_model_free(m);
 }
 
-/* A basis that is wrong is not a wrong answer.
- *
- * Both structurals pinned to their upper bounds puts x at 5, which r2
- * forbids, and leaves both reduced costs pointing the wrong way — primal
- * infeasible and dual infeasible at once, which is the worst start this API
- * can be handed. It costs iterations. It does not cost the optimum, and it
- * must not, because a warm start is a starting point and never a claim: the
- * solve that follows proves optimality from scratch. */
 static void test_a_hostile_basis_costs_iterations_and_not_the_answer(void)
 {
     jaos_model *m = fresh();
@@ -3335,31 +2274,6 @@ static void test_a_hostile_basis_costs_iterations_and_not_the_answer(void)
     jaos_model_free(m);
 }
 
-/* A nonbasic free variable whose reduced cost is negative must not be
- * invisible — the defect D68 recorded and PLAN.md carried as its fourth.
- *
- *   min -f      r0: f + 2g in [2, 6]      r1: h in [0, 1]
- *   f free,     g in [0, 2],              h in [0, 1]
- *
- * The optimum is -6 at f = 6, g = 0, and a cold solve finds it.
- *
- * The hostile basis {f, g} is what reaches the state: both columns live in
- * r0 alone, so it has rank 1, and repair_singular_basis evicts f — which has
- * neither bound — to nonbasic free. That pins f at zero, and the point that
- * results is *primal feasible*, so the dual method stops without an iteration
- * and never gets the chance to price f back in. Everything then rests on the
- * primal clean-up, which is where the defect lived: f's reduced cost is -1,
- * and `wants_a_pivot` read a free variable as sitting at an upper bound, so
- * it repaired a positive reduced cost and dropped a negative one.
- *
- * What this test asserts is the promise jaos_set_basis makes in the header:
- * a hostile basis costs iterations and cannot produce a wrong verdict.
- *
- * Calibrated against the defect rather than written blind: before the repair
- * this model published **0.0 with a verdict of OPTIMAL** — the checker caught
- * the dual infeasibility, and nothing else did. Confirmed on an instrumented
- * build, which also confirmed that the eviction happens and that
- * `wants_a_pivot` returned false on a breach of 1. */
 static void test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired(void)
 {
     const double inf = jaos_infinity();
@@ -3377,8 +2291,6 @@ static void test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired(void)
         jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, lo, up, rlo, rup,
                      3, st, idx, val));
 
-    /* Cold first, so the expected value is the solver's own and not a number
-     * copied out of this comment. */
     solve_and_verify(m, -6.0);
 
     jaos_basis_status cs[3] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC,
@@ -3390,9 +2302,6 @@ static void test_a_free_nonbasic_with_a_negative_reduced_cost_is_repaired(void)
     jaos_model_free(m);
 }
 
-/* Which start a solve took, read off the line it logs at JAOS_LOG_DETAIL.
- * The alternative is inferring it from an iteration count, which says the
- * same thing only when the warm basis happens to already be optimal. */
 static char g_start_line[80];
 
 static void collect_start(void *user, jaos_log_level level, const char *line)
@@ -3411,19 +2320,6 @@ static void watch_the_start(jaos_model *m)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
 }
 
-/* Two ways a stored status can name a bound the model no longer has, and they
- * get two different answers.
- *
- * r2's activity rests on an upper bound of 1.5. Give the row a lower bound
- * instead and the status moves to it — there is still somewhere to rest, so
- * the warm start holds.
- *
- * Take *both* bounds away and there is nowhere. A nonbasic with no bounds
- * rests at zero, which pins that row's activity, and therefore x, at zero: a
- * constraint this model does not have and one the method cannot always price
- * its way out of. The whole warm start is dropped and the solve runs cold.
- * Installed instead of refused, it published 6 where the optimum is 4, and
- * called it optimal. */
 static void test_a_status_whose_bound_was_retired(void)
 {
     jaos_model *m = fresh();
@@ -3434,22 +2330,12 @@ static void test_a_status_whose_bound_was_retired(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, nullptr, rs));
     TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[2]);
 
-    /* x >= 1 now, and only its own bound of 5 caps it: x = 2, y = 0. */
     watch_the_start(m);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 2, 1.0, INFINITY));
     solve_and_verify(m, 4.0);
     TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the basis on the model"));
     jaos_model_free(m);
 
-    /* Take *both* bounds away and the row's logical has nowhere to rest but
-     * zero, which pins that row's activity — and therefore x — at zero. This
-     * used to abandon the warm start, because the method could not price a
-     * free nonbasic back off zero and published 6 where the optimum is 4.
-     *
-     * It is D68's own example, and it is now the case that proves the two
-     * repairs meet: D85 taught the primal clean-up to move a free column in
-     * the direction its reduced cost points, so D90 could stop refusing to
-     * create one. The warm start holds and the answer is still 4. */
     m = fresh();
     load_warm_model(m, 1.5);
     solve_and_verify(m, 4.5);
@@ -3462,11 +2348,6 @@ static void test_a_status_whose_bound_was_retired(void)
     jaos_model_free(m);
 }
 
-/* Clearing puts the model back where it started, and it has to be exact:
- * the cleared solve costs the same iterations the first one did. Without a
- * way to ask for it, one solve would turn every later solve into a re-solve
- * for good, and "what does this model do cold" would stop being a question
- * this library could answer about its own model. */
 static void test_clearing_the_basis_makes_the_next_solve_cold(void)
 {
     jaos_model *m = fresh();
@@ -3485,22 +2366,11 @@ static void test_clearing_the_basis_makes_the_next_solve_cold(void)
     TEST_ASSERT_EQUAL_INT64(cold, jaos_iterations(m));
     TEST_ASSERT_NOT_NULL(strstr(g_start_line, "the slack basis"));
 
-    jaos_clear_basis(m);        /* and clearing twice is not an error */
+    jaos_clear_basis(m);
     jaos_clear_basis(nullptr);
     jaos_model_free(m);
 }
 
-/* A budget is for stopping and coming back, and until the basis survived the
- * stop it was only for stopping.
- *
- * The interrupted solve publishes no answer, because it has none — but the
- * basis it stopped on is where the next one starts, so raising the limit and
- * solving again continues instead of beginning. Two assertions make this a
- * test of that rather than of the budget: the interrupted run has to have got
- * past its first iteration, or the basis it left is the slack basis and
- * "resuming" from it proves nothing; and the resumed run has to cost fewer
- * iterations than a whole cold solve, which is the only evidence that the
- * first run's work was kept. */
 static void test_a_budget_stop_can_be_resumed(void)
 {
     jaos_model *m = fresh();
@@ -3516,10 +2386,6 @@ static void test_a_budget_stop_can_be_resumed(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
     TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
 
-    /* No answer to read: a stopping point is not a solution, and the call
-     * that publishes one still says so. The basis behind it IS readable
-     * since D330 -- it is a starting point and not an answer, and exactly
-     * num_row of the statuses are basic. */
     double obj = 0.0;
     jaos_basis_status cs[2], rs[3];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
@@ -3532,7 +2398,7 @@ static void test_a_budget_stop_can_be_resumed(void)
             basic += rs[i] == JAOS_BASIS_BASIC;
         TEST_ASSERT_EQUAL_INT64(jaos_num_row(m), basic);
     }
-    /* It is kept where the next solve looks, which is somewhere else. */
+
     TEST_ASSERT_NOT_NULL(m->start_col_status);
 
     watch_the_start(m);
@@ -3543,14 +2409,6 @@ static void test_a_budget_stop_can_be_resumed(void)
     jaos_model_free(m);
 }
 
-/* A basis of nothing but structurally empty columns.
- *
- * The slack basis cannot reach this state — every logical carries an entry —
- * and a warm one can, by keeping a column basic after the last coefficient in
- * it is deleted. The matrix that reaches the factorization then has no
- * entries at all, which is singular and has to be reported as a rank rather
- * than refused as bad input. It was refused, once, and the answer was that
- * the solve failed rather than that the model was infeasible. */
 static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
 {
     const double c[] = {1.0};
@@ -3565,7 +2423,6 @@ static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
                      1, as, ai, av));
     solve_and_verify(m, 3.0);
 
-    /* x is basic at the optimum, and its only entry is now deleted. */
     jaos_basis_status cs[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
@@ -3577,46 +2434,6 @@ static void test_a_warm_basis_of_empty_columns_factors_and_is_infeasible(void)
     jaos_model_free(m);
 }
 
-/* ---- A row activity that meets a large term before many small ones ---- *
- *
- * `x_B = -B^-1 (N x_N)` builds its right-hand side by walking the nonbasic
- * columns in column order and adding each one's entries into the rows it
- * touches. A row that meets a large term first can then lose every small term
- * after it: each is below half an ulp of the running total, so each addition
- * returns the total unchanged.
- *
- *   row R:  x0 + x1 + (256 smalls) + w1 + w2  ==  256*2^-25 + 1e-7
- *   row S:  x1 + z                            == -1e9
- *
- *   x0      fixed at +1e9
- *   x1      in [-1e9-1, -1e9+1]
- *   smalls  fixed at 2^-25, a quarter of an ulp of 1e9
- *   w1, w2  in [0, 2e-7], cost 1
- *   z       fixed at 0
- *
- * Every value here is a dyadic rational a double holds exactly, and the model
- * is feasible at x0 = 1e9, x1 = -1e9, every small at 2^-25, w1 = 1e-7, w2 = 0.
- * Summed in column order the 256 smalls fall off the end of 1e9 and the
- * activity comes back short by 2^-17 = 7.63e-6, which nothing left in the
- * model can make up: the solve reads INFEASIBLE.
- *
- * It is D162's model (`bench/measurements/02-72/`) and it is what named the
- * defect; D168 compensates the accumulation and closes it
- * (`bench/measurements/02-78/`).
- *
- * **The shipping build already answered this one and the reference build did
- * not.** Presolve removes the fixed columns before the simplex sees them, and
- * since D165 it subtracts them with the residue kept, so the row it hands over
- * is the row the model has. `-DJAOS_NO_PRESOLVE` hands the whole model to the
- * simplex and is where the defect is visible. The assertion is not guarded by
- * build, because OPTIMAL is the right answer in every one of them.
- *
- * `k` is a parameter of the model and not of the defect: 64, 128 and 512 read
- * the same way. 256 is kept because it makes this the same model 02-72's
- * record carries, and for no other reason — **not** because of presolve's own
- * window, which this test never reaches: `-DJAOS_NO_PRESOLVE` is the
- * configuration where the defect is visible and it consults no such window,
- * and 02-72 §4 records the reference build refusing all four counts alike. */
 #define ACT_K 256
 #define ACT_NC (ACT_K + 5)
 #define ACT_NNZ (ACT_K + 6)
@@ -3633,20 +2450,20 @@ static jaos_model *make_lost_terms_model(double slack)
     for (int64_t j = 0; j < ACT_NC; j++) {
         as[j] = nz;
         c[j] = 0.0;
-        if (j == 0) {                      /* x0 */
+        if (j == 0) {
             cl[j] = cu[j] = 1e9;
             ai[nz] = 0; av[nz++] = 1.0;
-        } else if (j == 1) {               /* x1 */
+        } else if (j == 1) {
             cl[j] = -1e9 - 1.0; cu[j] = -1e9 + 1.0;
             ai[nz] = 0; av[nz++] = 1.0;
             ai[nz] = 1; av[nz++] = 1.0;
-        } else if (j < ACT_K + 2) {        /* the smalls */
+        } else if (j < ACT_K + 2) {
             cl[j] = cu[j] = t;
             ai[nz] = 0; av[nz++] = 1.0;
-        } else if (j < ACT_K + 4) {        /* w1, w2 */
+        } else if (j < ACT_K + 4) {
             cl[j] = 0.0; cu[j] = 2e-7; c[j] = 1.0;
             ai[nz] = 0; av[nz++] = 1.0;
-        } else {                           /* z */
+        } else {
             cl[j] = cu[j] = 0.0;
             ai[nz] = 1; av[nz++] = 1.0;
         }
@@ -3669,25 +2486,6 @@ static void test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
 
-    /* OPTIMAL alone is not enough, and 02-72 is why: on an earlier tree this
-     * model published `obj = 4e-07`, and before D165 the shipping build
-     * published 0 at three of the four counts. A repair that reported OPTIMAL
-     * with either would pass a status assertion.
-     *
-     * **The value is bounded, not pinned, and the two builds differ.** Only
-     * `w1` and `w2` carry a cost, so the objective is `w1 + w2` and
-     * feasibility asks that for `T - 2^-17`; the optimum is 1e-7 at
-     * `x1 = -1e9`. The shipping build reads 1.0000000000000074e-07 and
-     * `-DJAOS_NO_PRESOLVE` reads 1.1920928955078125e-07, which is 2^-23 —
-     * one ulp of x1's own magnitude, and the last step of the ratio test is
-     * not on that grid. The window here admits both and rejects 0, 2e-7 and
-     * 4e-7, which are the answers that would mean something was wrong.
-     *
-     * **The rejecting case is measured and not argued.** The same model with
-     * `slack = 1e-7` publishes 2.0000000000000147e-07, which this window
-     * refuses — so the pin discriminates on a real reading of this model and
-     * not only on the arithmetic. `bench/measurements/02-78/controls.txt`
-     * carries the sweep. */
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(5e-8, 1.1e-7, obj);
@@ -3695,31 +2493,6 @@ static void test_a_row_activity_keeps_terms_below_an_ulp_of_its_own_total(void)
 #endif
 }
 
-/* The two controls the compensation must still refuse, and the near one is
- * the one that means something.
- *
- * **1e-2 is D162's inherited control and it separates nothing here.** It is
- * 1300 times the 7.63e-6 the compensation recovers, so any repair that
- * widened a feasibility window by anything up to a hundredth would pass it.
- * It is kept because it is the shape that must be refused on every build at
- * every count.
- *
- * **5e-6 is the one that tells an accurate sum from a wider window.** The
- * model is infeasible by about 4.7e-6 there — 47 times `PRIMAL_TOL` and 40
- * times the row's own ulp noise of 1.19e-7 — and `w1 + w2` cannot reach it,
- * since it would need 5.1e-6 against a cap of 4e-7. It sits INSIDE a window
- * widened to cover the 7.63e-6 that was lost, so such a repair accepts it and
- * an accurate sum refuses it. Both read INFEASIBLE on both builds, before
- * D168 and after. Found by `numerics-reviewer`.
- *
- * **This one runs under the fault builds and is meant to.** The convention in
- * `tests/test_presolve.c` guards POSITIVE tests off there, because a fault
- * build breaks the answer they assert. This asserts a refusal, and a fault
- * that made presolve accept either model would be worth hearing about. Row S
- * becomes a singleton row on `x1` once `z` is removed, which is the path
- * `JAOS_PRESOLVE_FAULT_WRONGDUAL` perturbs, so the coverage is real. Both
- * counts pass under both fault builds; this sentence is what records that it
- * was checked rather than overlooked. */
 static void test_a_row_activity_still_refuses_a_real_shortfall(void)
 {
     jaos_model *m = make_lost_terms_model(1e-2);
@@ -3733,21 +2506,6 @@ static void test_a_row_activity_still_refuses_a_real_shortfall(void)
     jaos_model_free(m);
 }
 
-/* --------------------------------------------------------------------- */
-/* The three contracts `jaos_internal.h` states that had no test (D230)   */
-/* --------------------------------------------------------------------- */
-
-/* `jm_pattern_order` turns an unordered, repeating list of positions into the
- * ascending distinct list of them, drops anything outside [0, limit), and
- * leaves its bitmap all zero again on return.
- *
- * Ascending is not a preference. Every consumer of a pricing row breaks its
- * ties by scan position, so an order that is merely deterministic would still
- * change which column enters.
- *
- * The bitmap being clean on the way out is what lets a caller reuse it
- * without clearing, and the second call below is the arm that checks it: it
- * hands back the SAME bitmap, unzeroed, and requires the same answer. */
 static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
 {
     constexpr int64_t limit = 10;
@@ -3755,8 +2513,6 @@ static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
     uint64_t mark[words_needed];
     memset(mark, 0, sizeof mark);
 
-    /* Unordered, repeating, and carrying three positions the limit excludes:
-     * a negative one, one just past the end, and one far past it. */
     int64_t pos[] = {5, 2, 5, 0, 9, 2, -1, 10, 100, 9};
     int64_t words = -1;
     int64_t n = jm_pattern_order(10, pos, mark, limit, &words);
@@ -3773,7 +2529,6 @@ static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
         TEST_ASSERT_EQUAL_UINT64_MESSAGE(0, mark[w],
             "a bit was left set, so the next caller starts dirty");
 
-    /* Same bitmap, not re-zeroed. A leftover bit would swallow a position. */
     int64_t again[] = {9, 9, 0, 2, 5};
     int64_t words2 = -1;
     int64_t n2 = jm_pattern_order(5, again, mark, limit, &words2);
@@ -3785,7 +2540,6 @@ static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
     for (int64_t w = 0; w < words_needed; w++)
         TEST_ASSERT_EQUAL_UINT64(0, mark[w]);
 
-    /* An empty list bills nothing and marks nothing. */
     int64_t none[1] = {0};
     int64_t words3 = -1;
     TEST_ASSERT_EQUAL_INT64(0, jm_pattern_order(0, none, mark, limit, &words3));
@@ -3793,19 +2547,9 @@ static void test_pattern_order_sorts_deduplicates_and_leaves_no_marks(void)
         TEST_ASSERT_EQUAL_UINT64(0, mark[w]);
 }
 
-/* The nonbasic bitmap is maintained by hand at every site that moves a
- * variable into or out of the basis, and `jm_nonbasic_build` is the only
- * thing that writes it wholesale. So the property worth testing is that the
- * two agree: apply a basis change through `jm_nonbasic_insert` and
- * `jm_nonbasic_remove`, rebuild from the status array, and compare word for
- * word.
- *
- * Membership, and never "has a finite bound": a nonbasic FREE variable is in
- * the set exactly as a bounded one is, which is why the status array below
- * carries all four values. */
 static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void)
 {
-    constexpr int64_t nvar = 130;             /* three words, not a round one */
+    constexpr int64_t nvar = 130;
     constexpr int64_t words_needed = (nvar + 63) / 64;
     jm_var_status status[nvar];
     int64_t want_nonbasic = 0;
@@ -3827,11 +2571,8 @@ static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void
     const int64_t n0 = jm_nonbasic_build(nvar, status, kept);
     TEST_ASSERT_EQUAL_INT64(want_nonbasic, n0);
 
-    /* A basis change, of the shape an iteration makes: one variable enters
-     * the basis and one leaves it. 64 and 65 straddle a word boundary, which
-     * is where a bitmap gets its indexing wrong. */
-    const int64_t entering = 65;    /* was AT_LOWER, becomes basic */
-    const int64_t leaving  = 64;    /* was BASIC, becomes AT_UPPER */
+    const int64_t entering = 65;
+    const int64_t leaving  = 64;
     TEST_ASSERT_EQUAL_INT(JM_AT_LOWER, status[entering]);
     TEST_ASSERT_EQUAL_INT(JM_BASIC, status[leaving]);
 
@@ -3841,12 +2582,11 @@ static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void
     jm_nonbasic_insert(kept, leaving);
 
     const int64_t n1 = jm_nonbasic_build(nvar, status, rebuilt);
-    TEST_ASSERT_EQUAL_INT64(n0, n1);            /* one in, one out */
+    TEST_ASSERT_EQUAL_INT64(n0, n1);
     for (int64_t w = 0; w < words_needed; w++)
         TEST_ASSERT_EQUAL_UINT64_MESSAGE(rebuilt[w], kept[w],
             "the hand-maintained bitmap drifted from a rebuild");
 
-    /* And the expansion of both is the same ascending list. */
     int64_t a[nvar], b[nvar];
     const int64_t na = jm_nonbasic_expand(nvar, kept, a);
     const int64_t nb = jm_nonbasic_expand(nvar, rebuilt, b);
@@ -3859,9 +2599,6 @@ static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void
                 "jm_nonbasic_expand did not come back ascending");
     }
 
-    /* The arm that makes the comparison mean something: a bitmap that was
-     * NOT maintained disagrees, so word-for-word equality is a real check
-     * and not two copies of the same call. */
     uint64_t stale[words_needed];
     memset(stale, 0, sizeof stale);
     jm_var_status before[nvar];
@@ -3876,22 +2613,12 @@ static void test_the_nonbasic_bitmap_matches_a_rebuild_after_a_basis_change(void
         "the basis change moved no bit, so this test compares nothing");
 }
 
-/* `solve_primal_iters` and `solve_phase1_iters` are written on EVERY exit
- * from `jm_dual_simplex`, "the abandoned one included".
- *
- * `test_the_summary_separates_phase_1_from_phase_2` covers the successful
- * exit and says in its own comment that the non-success path is not
- * reproduced there. This is that path: a forced primal solve stopped by a
- * watcher, which is the one abandoned exit a two-row model can reach. D194
- * published a wrong count for eight netlib instances precisely because a
- * phase 1 that ran and did not finish reported nothing. */
 static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
 #else
-    /* Run it once to the end first, so the interrupted numbers below have
-     * something to be a prefix of. */
+
     jaos_model *full = fresh();
     load_unreducible_model(full);
     full->cfg.force_primal = true;
@@ -3900,7 +2627,6 @@ static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
     TEST_ASSERT_GREATER_THAN_INT64_MESSAGE(0, full_primal,
         "the forced primal ran no iterations, so there is nothing to split");
 
-    /* Now the same solve, stopped at the first question. */
     watcher w = fresh_watcher(0);
     jaos_model *m = fresh();
     load_unreducible_model(m);
@@ -3913,9 +2639,6 @@ static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
     TEST_ASSERT_GREATER_THAN_INT_MESSAGE(0, w.calls,
         "the watcher was never called, so nothing was interrupted");
 
-    /* Written, not left at whatever the previous solve put there: the
-     * counters are zeroed on entry, so an exit that skipped them would read
-     * zero here while `solve_iters` did not. */
     TEST_ASSERT_EQUAL_INT64_MESSAGE(jaos_iterations(m), m->solve_primal_iters,
         "an interrupted forced-primal solve did not write its primal count");
     TEST_ASSERT_TRUE_MESSAGE(
@@ -3930,21 +2653,6 @@ static void test_the_iteration_split_is_written_on_an_interrupted_exit(void)
 #endif
 }
 
-/* The primal's own unboundedness verdict (TODO.md §0 stage 7).
- *
- * The dual reaches this verdict through `classify_optimum`: a column held
- * by a bound phase 1 lent it, whose direction meets nothing real. That
- * catches every unbounded model whose ray is one column leaving its
- * starting bound, which is most of them, and the primal shares it.
- *
- * These two are the ones it does not catch. In both, the column carrying
- * the negative cost is pulled into the BASIS on the way, so at the end
- * there is no column sitting on a loan to read the verdict off. The primal
- * meets the ray during phase 2 instead, as a column nothing blocks, and
- * before this test existed it refused there rather than deciding.
- *
- * The dual is the oracle: it answers UNBOUNDED on both, so the primal
- * agreeing is the whole claim. Run both ways for exactly that reason. */
 static void solved_both_ways_as_unbounded(jaos_model *m)
 {
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
@@ -3958,9 +2666,6 @@ static void solved_both_ways_as_unbounded(jaos_model *m)
                                   "the primal must agree with the dual");
 }
 
-/* min -y  s.t. y - w = 0, x + w >= 3, x in [0,1], y and w >= 0 with no
- * ceiling. w may grow without limit, y follows it, and the objective runs
- * to -inf. The `>=` row gives phase 1 something to repair first. */
 static void test_the_primal_declares_a_ray_it_meets_in_phase_2(void)
 {
     const double c[] = {-1.0, 0.0, 0.0};
@@ -3979,9 +2684,6 @@ static void test_the_primal_declares_a_ray_it_meets_in_phase_2(void)
     jaos_model_free(m);
 }
 
-/* min z  s.t. z + w = 0, z free, w >= 0 with no ceiling. w grows, z = -w
- * follows it down, and the objective is z. A free column needs no loan at
- * all, so there is nothing for the lent-bound verdict to look at. */
 static void test_the_primal_declares_a_ray_through_a_free_column(void)
 {
     const double c[] = {1.0, 0.0};
@@ -3999,19 +2701,6 @@ static void test_the_primal_declares_a_ray_through_a_free_column(void)
     jaos_model_free(m);
 }
 
-/* The bounded neighbour of the first one, one sign apart: the equality caps
- * the pair instead of tying them together.
- *
- *   min -y  s.t. y + w = 3, x + w >= 3, x in [0,1], y, w >= 0
- *
- * The second row forces w >= 2, the equality then caps y at 1, and the
- * optimum is -1. No ray exists and neither method may report one.
- *
- * This is a regression test and not a control. It was written as one, and
- * the arm that would make it a control was run and did not move it: with
- * the verdict forced to fire, this model still solves, because it never
- * reaches the branch at all (`bench/measurements/02-153/`). What it does
- * hold is the pair — two models one sign apart, one a ray and one not. */
 static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
 {
     const double c[] = {-1.0, 0.0, 0.0};
@@ -4028,11 +2717,7 @@ static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
                      4, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    /* The value is read only outside the two presolve fault builds, which
-     * corrupt the postsolved answer on purpose. This one read -1 under the
-     * off-by-one fault by the accident of what lay beyond the array, and
-     * NaN once the model grew a field (D286): the rule every test that
-     * reads a postsolved answer follows, and this one had not. */
+
     double obj = 0.0;
 #if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
@@ -4052,21 +2737,6 @@ static void test_a_bounded_neighbour_of_that_model_is_not_a_ray(void)
     jaos_model_free(m);
 }
 
-/* The gap D241 pinned, closed (D247).
- *
- *   min -p - q  s.t. p - q = 0, p + q >= 2, p and q >= 0, neither capped
- *
- * The equality ties the two together and the inequality pushes the pair
- * out, so p = q may grow for ever and the objective is -2p. Moving either
- * column ALONE runs into the equality, so `improves_without_limit` cannot
- * see the ray; the combined direction moves both at unit rate, cancels in
- * the equality, and only lifts the sum row off its floor, so
- * `combined_improves_without_limit` decides UNBOUNDED.
- *
- * The cap ladder stays because it is the independent evidence the verdict
- * is right, and JAOS cannot be its own witness: cap p and the optimum
- * comes back as exactly -2 times the cap, at every size tried, so the
- * uncapped model has no finite optimum. */
 static void test_a_ray_needing_two_columns_is_answered(void)
 {
     const double c[] = {-1.0, -1.0};
@@ -4091,8 +2761,6 @@ static void test_a_ray_needing_two_columns_is_answered(void)
         jaos_model_free(m);
     }
 
-    /* Uncapped: UNBOUNDED, by the combined direction, and both methods
-     * must say so — the ladder above is the witness that they are right. */
     const double cu[] = {INFINITY, INFINITY};
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -4102,23 +2770,6 @@ static void test_a_ray_needing_two_columns_is_answered(void)
     jaos_model_free(m);
 }
 
-/* Two held columns whose combined direction is blocked: the refusal must
- * survive D247, not just its single-column form.
- *
- *   min -u - v  s.t. u <= 1e11 (row), v <= 1e11 (row), u and v >= 0
- *
- * Phase 1 lends both columns a bound well under 1e11, so the relaxed
- * optimum holds BOTH on loans. Each column alone runs into its own row's
- * real ceiling, and the unit-rate sum raises both row activities at once,
- * so the combined direction is blocked too — by a bound the model
- * declared, on a model that is genuinely bounded (at -2e11, past the lent
- * bounds). Publishing UNBOUNDED here would be a wrong answer; the refusal
- * is the correct one, and it must say both directions were tried.
- *
- * Guarded like test_an_optimum_past_the_lent_bound_is_refused above, and
- * for the same reason: each row is a singleton row, and presolve folds
- * those into column bounds, which removes the loans this test exists to
- * read. */
 static void test_two_held_columns_whose_sum_is_still_blocked(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -4148,26 +2799,6 @@ static void test_two_held_columns_whose_sum_is_still_blocked(void)
 #endif
 }
 
-/* The family D248 diagnosed on agg, built small: the bound-flip walk
- * retires every candidate and the leftover violation is real but inside
- * `primal_tol`, so the flips are the repair and the answer is OPTIMAL —
- * publishing INFEASIBLE off that leftover is what the old strict zero did.
- *
- *   min x1 + 2 x2  s.t.  x1 + x2 >= 4,  x1 in [0,2],  x2 in [0, 2 - 2^-40]
- *
- * Flip capacity is 2 + (2 - 2^-40), which misses the violation of 4 by
- * exactly 2^-40 ~ 9.1e-13 — representable, deterministic, and five orders
- * inside the 1e-7 tolerance. Under D249's exhaustion branch the walk puts
- * its last retiree back as the blocker, a normal pivot runs, and both
- * halves of the step happen — the certificate assertion below is what a
- * flips-only repair failed on review, publishing OPTIMAL with reduced
- * costs of the wrong sign. agg's own gap cannot be rebuilt small (one ulp
- * of 5e4-magnitude sums, four hundred iterations deep), so this tests the
- * family: same branch, same decision, exact gap (D249).
- *
- * Guarded: presolve computes the same activity range and would answer for
- * the model before the simplex ever prices it. The branch under test is
- * the simplex's own. */
 static void test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -4194,9 +2825,6 @@ static void test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
 
-    /* The certificate, not only the answer: the published point must
-     * carry dual-feasible reduced costs, which is the half of the step a
-     * flips-only repair skipped. */
     double cv[2], ra[1], rd[1], cd[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, cv, ra, rd, cd));
     jaos_check_report rep;
@@ -4209,9 +2837,6 @@ static void test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible(void)
 #endif
 }
 
-/* The other side of D249's comparison: the same shape with a gap of 1.0,
- * seven orders past the tolerance, stays INFEASIBLE. A repair that
- * swallowed this one would be hiding real infeasibility behind flips. */
 static void test_a_real_flip_gap_past_tolerance_stays_infeasible(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -4236,24 +2861,6 @@ static void test_a_real_flip_gap_past_tolerance_stays_infeasible(void)
 #endif
 }
 
-/* The dual's ratio test used to admit a fixed column as a bound-flip
- * candidate: the walk retired it — its width is zero, so it absorbed
- * nothing — and apply_flips toggled its published label. D252 refuses it
- * at admission, the same rule the primal pricing sites already apply.
- * Built so the old walk retired the fixed column:
- *
- *   min x1 + 2 x2 + 2 x3  s.t.  x1 + x2 + x3 >= 4,
- *   x1 in [0,2], x2 in [0,2], x3 fixed at 1
- *
- * The walk flips x1, x2 blocks and enters, and the optimum is 6. x3's
- * final reduced cost is exactly 0.0 (2 minus the row dual of 2), so no
- * dual-feasibility cleanup renames its label after the solve — a
- * breached fixed column IS renamed to its feasible side, which is why a
- * nonzero final reduced cost cannot watch the walk. The only writer
- * left is the walk's own toggle: the old code published AT_UPPER.
- *
- * Guarded: presolve removes the fixed column and answers the reduced
- * model; the branch under test is the simplex's own. */
 static void test_a_fixed_column_is_not_a_flip_candidate(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -4280,7 +2887,7 @@ static void test_a_fixed_column_is_not_a_flip_candidate(void)
 
     jaos_basis_status cs[3], rs[1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
-    /* x1's flip is what proves the walk ran at all in this solve. */
+
     TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_BASIS_AT_UPPER, cs[0],
                                   "the walk must have flipped x1");
     TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_BASIS_AT_LOWER, cs[2],
@@ -4290,10 +2897,6 @@ static void test_a_fixed_column_is_not_a_flip_candidate(void)
 #endif
 }
 
-/* The other side: a row whose only same-signed candidates are fixed
- * columns has no repair at all — under D252 the candidate list is empty
- * where the old walk retired them for nothing — and the verdict must
- * still be INFEASIBLE, not a crash and not an answer. */
 static void test_a_row_repairable_only_by_fixed_columns_is_infeasible(void)
 {
 #if !defined(JAOS_NO_PRESOLVE)
@@ -4318,25 +2921,6 @@ static void test_a_row_repairable_only_by_fixed_columns_is_infeasible(void)
 #endif
 }
 
-/* A work limit may expire anywhere, the settling re-entry included, and
- * the verdict must always be the stop itself: seven of the forced
- * primal's fourteen "not dual feasible" refusals were budget stops
- * wearing a numerical error's label (D250). The ladder walks the limit
- * through every stopping point this model has, on both methods; no limit
- * value may produce an error, and every stop must resume to the same
- * optimum once the budget is lifted, which is jaos_set_work_limit's
- * stated contract. The re-entry stop itself cannot be pinned to one
- * limit value here — where a budget lands depends on every charge before
- * it — so this tests the family, and the campaign's seven instances are
- * the new branch's own evidence.
- *
- * Two coverage notes, on review. In the default build presolve may answer
- * this small model outright and collapse the ladder to OPTIMAL at its
- * first rung; the stops and resumes are then walked by the
- * -DJAOS_NO_PRESOLVE configurations, which `make configs` runs. And
- * TIME_LIMIT and INTERRUPTED take the same branch as WORK_LIMIT and are
- * deliberately not laddered here: a clock stop cannot be pinned, and a
- * callback-driven ladder is a follow-up, not this test. */
 static void test_every_work_limit_stops_honestly_and_resumes(void)
 {
     const double c[] = {-1.0, -2.0};
@@ -4382,17 +2966,6 @@ static void test_every_work_limit_stops_honestly_and_resumes(void)
     }
 }
 
-/* The combined direction that cancels to nothing in row space.
- *
- *   min -p - q  s.t. p - q = 0, p - q <= 5, p and q >= 0, neither capped
- *
- * Along (1,1) every row activity is unchanged and the objective falls, so
- * the model is unbounded; either column alone runs into the equality. The
- * combined direction sums to exactly zero in row space, and a zero
- * direction that every held column rides off its loan is still a ray —
- * the verdict must not mistake "no basic moves" for "no direction exists"
- * (D247). The second row is there so neither column is a singleton, which
- * keeps presolve's column rules out of the model's way. */
 static void test_a_ray_whose_direction_cancels_in_row_space(void)
 {
     const double c[] = {-1.0, -1.0};
@@ -4411,14 +2984,6 @@ static void test_a_ray_whose_direction_cancels_in_row_space(void)
     jaos_model_free(m);
 }
 
-/* -- An inverted box is infeasible, before any solve runs (D259) ----------
- *
- * jaos_load_lp says a lower bound above its upper is legal input and a
- * trivially infeasible model. Both builds answered OPTIMAL on one, cold
- * and warm, because a nonbasic variable rests on a bound and nothing asks
- * whether its other bound lies on the far side; ranging's oracle (D258)
- * found it by moving a row's upper bound below the lower bound the row
- * rested on. The model is the oracle's own, with one box inverted. */
 static jaos_model *make_inverted(bool row)
 {
     const double c[]  = {2.0, 3.0, 1.0, 4.0};
@@ -4442,7 +3007,7 @@ static void expect_trivially_infeasible(jaos_model *m)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_work_units(m));
-    /* The bounds are the proof; there is no ray to hand out. */
+
     double y[3];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_certificate(m, y));
     jaos_basis_status cs[4], rs[3];
@@ -4453,22 +3018,13 @@ static void test_an_inverted_column_box_is_infeasible(void)
 {
     jaos_model *m = make_inverted(false);
     expect_trivially_infeasible(m);
-    /* Repaired, it solves; the refusal left nothing behind. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 2, 0.0, 5.0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     jaos_model_free(m);
 }
 
-/* Everything the published answer of a model with no infinite bound in it
- * has to satisfy, whatever the solve did on the way. Exactly `num_row`
- * basics; no nonbasic status naming a bound the model does not have; every
- * value inside its own box; and the independent checker satisfied. The
- * third is what catches a value of 1e10 published for a model whose
- * numbers are all below ten.
- *
- * Compiled out under either fault build, with its two callers: both are
- * positive tests and a deliberately broken presolve fails them. */
 #if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
     !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 static void assert_basis_is_of_the_model(jaos_model *m, int64_t nc,
@@ -4523,27 +3079,6 @@ static void assert_basis_is_of_the_model(jaos_model *m, int64_t nc,
 }
 #endif
 
-/* Dual phase 1 lends a bound to a column whose cost has no bound on the
- * side it wants, and at the end nothing may still be resting on one: the
- * value is 1e10, the model never authorised it, and `jaos_basis` promises
- * that a nonbasic status names a bound the variable has.
- *
- * Both models come from the family search in
- * `bench/measurements/02-168/`, which walks small models and reports the
- * ones whose solve reaches the retirement -- 458 of 50000, where every
- * shape built by hand missed it. On the tree before the retirement each
- * publishes ONE column nonbasic at 1e10 and another BASIC at 9999999999.5,
- * with a correct objective the two absurd values cancel into. Both run in
- * every build: the search finds the same models with presolve compiled
- * out.
- *
- *   min x0 - x2
- *   s.t. -2 x0 + 2 x2 <= 1, 2 x0 + x1 - 2 x2 <= 3,
- *        x0 - 2 x1 - x2 <= 1, -x2 <= 4,  all x >= 0 and no upper bound
- *
- * The optimum is -1/2 at x = (0, 0, 1/2). x2 is the column that earns the
- * loan; its reduced cost settles at zero, so nothing prices it back off
- * 1e10 and the retirement is what moves it. */
 static void test_a_loan_nobody_holds_is_retired_before_publishing(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -4569,8 +3104,6 @@ static void test_a_loan_nobody_holds_is_retired_before_publishing(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -0.5, obj);
     assert_basis_is_of_the_model(m, 3, 4, cl, cu, rl, ru);
 
-    /* The point itself, and not only its objective: before the retirement
-     * this reads (9999999999.5, 0, 1e10). */
     double x[3], act[4], rd[4], cd[3];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, rd, cd));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[0]);
@@ -4580,16 +3113,6 @@ static void test_a_loan_nobody_holds_is_retired_before_publishing(void)
 #endif
 }
 
-/* The second model of the pair, whose retirement ends in a bound flip
- * rather than a pivot: x2 walks the whole way from 5e9 down to its own
- * lower bound of zero and x1 takes the basis it leaves.
- *
- *   min x1 - x2
- *   s.t. x0 - 2 x1 + 2 x2 <= 5,  x1 - 2 x2 <= 5,
- *        -x0 + x1 - 2 x2 <= 0,  -x2 <= 5,  all x >= 0, no upper bound
- *
- * The optimum is -5/2 at x = (0, 0, 5/2); before the retirement it reads
- * (0, 4999999997.5, 5e9). */
 static void test_a_retired_loan_leaves_a_basis_of_the_model(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -4628,8 +3151,7 @@ static void test_an_inverted_row_box_is_infeasible(void)
 {
     jaos_model *m = make_inverted(true);
     expect_trivially_infeasible(m);
-    /* And warm, from a basis that solved the repaired model: the check
-     * runs before the basis is even read. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 2.0, 8.0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));

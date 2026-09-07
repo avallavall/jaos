@@ -1,33 +1,4 @@
 #!/bin/bash
-# icount: a deterministic instruction count for the solver, per instance.
-#
-#   tools/icount.sh [-r REF] INSTANCE...
-#
-# Prints, per instance, the number of instructions retired inside the solver
-# (`jm_dual_simplex` and everything it calls) under callgrind. With `-r REF`
-# it also builds that git ref in a temporary worktree and prints the ratio
-# working-tree / REF, and a geometric mean over the instances.
-#
-# Why this exists. Seconds on this host repeat to 6.27% (D93), so a change
-# worth 0.5% cannot be seen in seconds at all. Work units are deterministic
-# but by construction cannot see a layout, branch or cache change (D45). A
-# refusal made on "under the noise floor" is therefore not a measurement; it
-# is the absence of one. An instruction count is deterministic for a
-# deterministic program: two runs give the same integer, and 0.5% is 0.5%.
-#
-# What it is not. Instructions are not time: a cache miss costs the same
-# instruction as a hit. It answers "did this change make the CPU do less
-# work", which is the question seconds cannot answer here, and it is the
-# third metric beside digests and work units; the time ratio is the fourth,
-# and it is taken only where the count is not readable (D206).
-#
-# The count is taken inside `jm_dual_simplex*` and not the whole process,
-# because the driver reads a clock and formats seconds, which is about a
-# hundred instructions of noise per run. `jaos_solve` is inlined by LTO and
-# counts zero. Measured on adlittle: 7755048 twice, and identical with ASLR
-# off (bench/measurements/02-117/, and the numbers are in D206).
-#
-# Cost: about 50x native. Name instances that take under a few seconds.
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root" || exit 2
@@ -52,21 +23,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# With -m the cache model is simulated too and the reported figure is L1 data
-# READ MISSES rather than instructions. `--simulate-hwpref=yes` is not
-# optional for that reading: software prefetching only pays where the
-# hardware prefetcher cannot see the pattern, so a model without one flatters
-# every prefetch change. Both are deterministic — two runs of one binary give
-# the same integers, checked on `adlittle` (D225).
 SIM=""
 [ "$misses" = 1 ] && SIM="--cache-sim=yes --simulate-hwpref=yes"
-# summary: Ir Dr Dw I1mr D1mr D1mw ILmr DLmr DLmw, so awk field 6 is D1mr
-# once `summary:` itself is field 1. Without -m the line has Ir alone.
 FIELD=2
 [ "$misses" = 1 ] && FIELD=6
 
 count() {   # $1 = tree dir, $2 = instance
-    # shellcheck disable=SC2086
     ( cd "$1" && valgrind --tool=callgrind $SIM --toggle-collect='jm_dual_simplex*' \
           --callgrind-out-file="$D/cg" build/bench/run -j 1 -o "$D/out" "$2" \
           > /dev/null 2>&1 )
@@ -105,12 +67,6 @@ done
 if [ -n "$ref" ] && [ "$n" -gt 0 ]; then
     awk -v s="$sum" -v n="$n" \
         'BEGIN{printf "geometric mean of per-instance ratios: %.5f  (below 1 = fewer instructions now)\n", exp(s/n)}'
-    # The canary. A comparison in which every instance counts identically has
-    # measured one program twice: the change is not on the solve path, or the
-    # two trees are the same code (a binary comparison cannot say so, because
-    # -g puts line numbers in the object and a comment edit moves them). D82
-    # once read exactly 1.0000x at six settings because make had rebuilt
-    # nothing; this is the line that would have said so.
     if [ "$sum" = 0 ] || awk -v s="$sum" 'BEGIN{exit (s == 0) ? 0 : 1}'; then
         echo "STOP: every instance retired exactly the same instructions on both trees;" >&2
         echo "      the change is not on the measured path, or the trees are the same code" >&2

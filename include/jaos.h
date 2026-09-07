@@ -1,10 +1,4 @@
-/* JAOS — Just Another Optimization Solver.
- *
- * Public API. This is the only public header; everything not declared here is
- * internal and carries no stability promise.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #ifndef JAOS_H
 #define JAOS_H
 
@@ -17,8 +11,6 @@
 extern "C" {
 #endif
 
-/* JAOS itself is built as C23, but this header is consumed by whatever
- * compiler the caller uses, so attribute use degrades gracefully. */
 #if defined(__cplusplus) && __cplusplus >= 201703L
   #define JAOS_NODISCARD [[nodiscard]]
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
@@ -32,22 +24,16 @@ extern "C" {
 #define JAOS_VERSION_PATCH 0
 #define JAOS_VERSION_STRING "0.3.0"
 
-/* Runtime library version, e.g. "0.1.1". Static storage, never NULL. */
 JAOS_NODISCARD const char *jaos_version(void);
 
-/* Result of a library call. Every fallible function returns one of these;
- * data leaves through parameters, never through the return value. */
 typedef enum jaos_status {
     JAOS_OK = 0,
-    JAOS_ERR_INVALID_INPUT,  /* an argument or file content JAOS rejects */
+    JAOS_ERR_INVALID_INPUT,
     JAOS_ERR_OUT_OF_MEMORY,
-    JAOS_ERR_IO,             /* the underlying read failed, not the content */
-    JAOS_ERR_NUMERICAL,      /* computation abandoned for numerical reasons */
+    JAOS_ERR_IO,
+    JAOS_ERR_NUMERICAL,
 } jaos_status;
 
-/* Outcome of a solve. Distinct from jaos_status on purpose: hitting a work or
- * time budget is not a failure — it is an honest report of where the solver
- * stopped (see DECISIONS.md, D8). */
 typedef enum jaos_solve_status {
     JAOS_SOLVE_NOT_RUN = 0,
     JAOS_SOLVE_OPTIMAL,
@@ -56,44 +42,22 @@ typedef enum jaos_solve_status {
     JAOS_SOLVE_WORK_LIMIT,
     JAOS_SOLVE_TIME_LIMIT,
     JAOS_SOLVE_NUMERICAL_ERROR,
-    /* Appended, and appended on purpose: an enumerator inserted above this
-     * line would renumber every one below it for anyone who did not
-     * recompile. */
+
     JAOS_SOLVE_INTERRUPTED,
-    /* A branch and bound stopped by jaos_set_mip_node_limit (D291). */
+
     JAOS_SOLVE_NODE_LIMIT,
 } jaos_solve_status;
 
-/* Human-readable name for a status. Static storage; never NULL, including for
- * values outside the enum. */
 JAOS_NODISCARD const char *jaos_status_str(jaos_status s);
 JAOS_NODISCARD const char *jaos_solve_status_str(jaos_solve_status s);
 
-/* How much the solver says about what it is doing. Silent by default: a
- * library that writes to stdout because nobody asked it not to is a library
- * that cannot be embedded. */
 typedef enum jaos_log_level {
     JAOS_LOG_OFF = 0,
-    JAOS_LOG_SUMMARY,   /* one line when a solve starts, one when it ends */
-    JAOS_LOG_PROGRESS,  /* and the objective every so many iterations */
-    JAOS_LOG_DETAIL,    /* and the events that change how a solve behaves */
+    JAOS_LOG_SUMMARY,
+    JAOS_LOG_PROGRESS,
+    JAOS_LOG_DETAIL,
 } jaos_log_level;
 
-/* ------------------------------------------------------------------------- */
-/* Problem data                                                              */
-/* ------------------------------------------------------------------------- */
-
-/* The problem JAOS works on is the bounded form
- *
- *     optimize   c'x + c0
- *     subject to rl <=  A x  <= ru        (row bounds)
- *                xl <=   x   <= xu        (column bounds)
- *
- * which subsumes equalities (rl == ru), ranged rows, fixed and free
- * variables. An absent bound is IEEE infinity of the right sign: use
- * jaos_infinity(), or any value v with isinf(v). */
-
-/* Positive IEEE infinity, for absent bounds. */
 JAOS_NODISCARD double jaos_infinity(void);
 
 typedef enum jaos_obj_sense {
@@ -101,30 +65,12 @@ typedef enum jaos_obj_sense {
     JAOS_MAXIMIZE = 1,
 } jaos_obj_sense;
 
-/* Opaque. One model is used by one thread at a time; distinct models are
- * fully independent. */
 typedef struct jaos_model jaos_model;
 
-/* Allocates an empty model into *out. Frees with jaos_model_free. */
 JAOS_NODISCARD jaos_status jaos_model_new(jaos_model **out);
 
-/* Frees a model and everything it owns. NULL is fine. */
 void jaos_model_free(jaos_model *m);
 
-/* Loads a complete problem, replacing whatever the model held. All data is
- * copied; the caller's arrays are never retained.
- *
- * The matrix arrives in compressed sparse column form: a_start[num_col + 1]
- * with a_start[0] == 0 and a_start[num_col] == num_nz; a_index holds row
- * indices, a_value the coefficients. Column entries need not be sorted;
- * JAOS sorts its copy. Explicit zeros are dropped. a_start may be NULL only
- * when num_nz == 0, meaning an all-zero matrix.
- *
- * Rejected as JAOS_ERR_INVALID_INPUT: NaN anywhere; non-finite costs,
- * offset or matrix values; row indices out of range; duplicate row indices
- * within a column; inconsistent a_start. Inconsistent bounds (xl > xu) are
- * NOT rejected — that is a legitimate, trivially infeasible model, and
- * deciding feasibility is the solver's job, not the loader's. */
 JAOS_NODISCARD jaos_status jaos_load_lp(jaos_model *m,
     int64_t num_col, int64_t num_row,
     jaos_obj_sense sense, double obj_offset,
@@ -134,28 +80,10 @@ JAOS_NODISCARD jaos_status jaos_load_lp(jaos_model *m,
     int64_t num_nz, const int64_t *a_start, const int64_t *a_index,
     const double *a_value);
 
-/* Dimension queries. NULL model reads as empty. */
 JAOS_NODISCARD int64_t jaos_num_col(const jaos_model *m);
 JAOS_NODISCARD int64_t jaos_num_row(const jaos_model *m);
 JAOS_NODISCARD int64_t jaos_num_nz(const jaos_model *m);
 
-/* ------------------------------------------------------------------------- */
-/* Reading and changing a loaded problem                                     */
-/* ------------------------------------------------------------------------- */
-
-/* Read back one cost or one pair of bounds. Either bound pointer may be NULL.
- *
- * These exist because the setters below do. A caller who built the model with
- * jaos_load_lp already knows what is in it, but one who read it from a file
- * does not — and telling that caller they may change a bound while giving them
- * no way to see the bound they are changing is not an API, it is a trap. The
- * first program to need them was JAOS's own: measuring what warm re-solve buys
- * means applying a branch-and-bound branching step to a Netlib instance, and a
- * branch is `x_j <= floor(x_j*)` only when floor(x_j*) is still above the
- * column's own lower bound. That could not be asked.
- *
- * The values are the model's own, exactly as loaded or last set: no scaling,
- * no substituted default, and an absent bound reads as an infinity. */
 JAOS_NODISCARD jaos_status jaos_col_cost(const jaos_model *m, int64_t col,
                                          double *cost);
 JAOS_NODISCARD jaos_status jaos_col_bounds(const jaos_model *m, int64_t col,
@@ -163,29 +91,6 @@ JAOS_NODISCARD jaos_status jaos_col_bounds(const jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_row_bounds(const jaos_model *m, int64_t row,
                                            double *lower, double *upper);
 
-/* Change one cost or one pair of bounds in place, leaving the rest of the
- * model as it stands. Costs must be finite. Bounds may be infinite but never
- * NaN, and `lower > upper` is accepted: that is a model with no feasible
- * point, which the solve reports as infeasible, not a call to refuse — the
- * same rule `jaos_load_lp` applies, so a model is buildable the same way by
- * either route.
- *
- * **Any of these discards the answer the model is holding.** That answer was
- * computed for the problem as it stood, and once a bound moves it describes a
- * different problem; leaving it readable would let a caller change one number
- * and read back the previous optimum with nothing to say it was stale.
- * `jaos_status_of` reads JAOS_SOLVE_NOT_RUN afterwards and `jaos_solution`
- * refuses, so the mistake surfaces at the call rather than as a number.
- *
- * Tolerances, budgets and logging settings are configuration and survive.
- *
- * **The basis survives too, and re-solving starts from it.** The answer stops
- * being true when a bound moves; the basis it was read off does not stop
- * being a basis, and for a small change it is usually near the new problem's.
- * Starting there is what the dual simplex is for — moving a bound leaves
- * every reduced cost where it was, so the basis is still dual feasible and
- * the method resumes from a point it can use, rather than from the slack
- * basis it would otherwise walk back to. See jaos_set_basis. */
 JAOS_NODISCARD jaos_status jaos_set_col_cost(jaos_model *m, int64_t col,
                                              double cost);
 JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
@@ -193,21 +98,6 @@ JAOS_NODISCARD jaos_status jaos_set_col_bounds(jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_set_row_bounds(jaos_model *m, int64_t row,
                                                double lower, double upper);
 
-/* The objective's sense and its constant term, read back and changed.
- *
- * These exist for the reason the three getters above do. A model read from
- * a file arrives with a sense and a constant the caller never typed, and a
- * caller who cannot ask which way the objective points cannot tell a maximum
- * of 5 from a minimum of 5. Until D283 jaos_load_lp was the only way to set
- * either, so flipping the sense of a loaded model meant rebuilding it from
- * scratch and losing the basis it held -- which is what the Python layer did.
- *
- * Both setters discard the answer, as every modification does (D66), and
- * neither touches the matrix, so the row-wise mirror and the scaling stay.
- * The basis survives both: flipping the sense leaves every basic variable
- * basic, and a basis that is no longer dual feasible is what the dual
- * simplex's phase 1 exists for. The constant must be finite, the rule
- * jaos_load_lp applies; a sense that is neither value of the enum is refused. */
 JAOS_NODISCARD jaos_status jaos_objective_sense(const jaos_model *m,
                                                 jaos_obj_sense *sense);
 JAOS_NODISCARD jaos_status jaos_objective_offset(const jaos_model *m,
@@ -217,44 +107,6 @@ JAOS_NODISCARD jaos_status jaos_set_objective_sense(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_objective_offset(jaos_model *m,
                                                      double offset);
 
-/* Names.
- *
- * Every row and every column has a name, whether or not anyone gave it
- * one. A row that was named -- by the file it was read from, or by
- * jaos_set_row_name -- is called that; one that was not is called by its
- * position, `R<i+1>`, and a column `C<j+1>`. The objective row is called
- * `COST` unless it was named. That rule is what every file this library
- * writes prints and what jaos_read_solution checks against, so a file and
- * the model agree on what a row is called either way (D284).
- *
- * The getters copy the name into `buf`, which holds `cap` bytes, and
- * refuse when it does not fit: JAOS_NAME_MAX + 1 bytes always suffice. A
- * setter given NULL or "" takes the name away, so the row is called by its
- * position again. A name may not be empty, longer than JAOS_NAME_MAX, or
- * hold whitespace or a control character, because every format here
- * separates fields by whitespace; anything else is accepted as given,
- * and it is the WRITERS that refuse what their format cannot spell:
- * jaos_write_lp a name outside the LP identifier rule or a reserved word,
- * both by name, pointing at jaos_write_mps.
- *
- * Uniqueness is not enforced by the setters, and that is deliberate: a
- * caller naming a hundred thousand columns one at a time must not pay a
- * lookup per call. The writers enforce it instead, refusing by name a
- * model in which two rows (the objective among them) or two columns are
- * called the same, because such a file reads back as a different model.
- * A positional name counts: a column named `C2` collides with the second
- * column when that one has no name of its own.
- *
- * A name rides with its row or column: it survives every add and delete
- * of other rows and columns, and every modification. jaos_load_lp and the
- * two readers replace the names with the file's, or with none.
- *
- * Renaming costs nothing; it is the lookup that pays. jaos_col_index and
- * jaos_row_index answer from a map built on the first call after any
- * rename, add, delete or load, so alternating a rename with a lookup
- * rebuilds it each time. A stored name is answered before a positional
- * one, and a name held by two rows answers the lower index. A name held
- * by nothing is JAOS_ERR_INVALID_INPUT with the name in the message. */
 #define JAOS_NAME_MAX 255
 
 JAOS_NODISCARD jaos_status jaos_col_name(const jaos_model *m, int64_t col,
@@ -274,330 +126,81 @@ JAOS_NODISCARD jaos_status jaos_col_index(jaos_model *m, const char *name,
 JAOS_NODISCARD jaos_status jaos_row_index(jaos_model *m, const char *name,
                                           int64_t *row);
 
-/* Integer columns (D288). A column marked integer takes integer values in
- * every answer, and a model with one goes through branch and bound when
- * it is solved: the dual simplex on each node's relaxation, Gomory cuts
- * at the root (D289) and a rounding heuristic at every node (D290).
- * Marking one discards the answer, as every modification does, and the
- * mark rides with its column through every add and delete. Both readers
- * set it from the file -- MPS's MARKER lines and its BV, LI and UI
- * bounds, LP's General and Binary sections -- and both writers print it
- * back. jaos_check_solution judges integrality against the same tolerance
- * as a bound.
- *
- * What a mixed-integer answer carries: the values, at integers where
- * they must be; the row activities of that point; and the duals, reduced
- * costs and basis of the relaxation that produced it, whose bounds are
- * the branching's and not the model's, which is what every solver
- * reports for a MIP and what jaos_check_solution's dual verdict is not
- * about. The exact proof and ranging are about that relaxation too. */
 JAOS_NODISCARD jaos_status jaos_set_col_integer(jaos_model *m, int64_t col,
                                                 bool is_integer);
 JAOS_NODISCARD jaos_status jaos_col_integer(const jaos_model *m, int64_t col,
                                             bool *is_integer);
 
-/* The relative gap that closes a branch and bound: the search stops, and
- * the answer is OPTIMAL, when no open node can beat the incumbent by more
- * than gap * (1 + |incumbent|). Default 1e-6; 0 restores it. A value that
- * is not finite and non-negative is refused. */
 JAOS_NODISCARD jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
 
-/* Two switches on the search (D289). The dive is off by default: on, after
- * a branch the child on the nearer side of the fraction is solved next
- * and its sibling goes to the open set, until a node is pruned or
- * integral. Over the MIP set it measured 1.125x the work of the plain
- * best-bound order, better on one instance and worse on six, which is
- * why it is off. The root gets rounds of Gomory mixed-integer cuts, each
- * round one cut per fractional integer column of the relaxation's basis,
- * added as rows of the private copy and kept for every node that binds
- * them (D306); `rounds`
- * 0 turns them off and a negative value restores the default of 1, which
- * measured 0.660x the plain tree's work over the MIP set with no
- * instance past 2x; two rounds read 0.609x with three instances past 2x,
- * and three broke one instance numerically. With a cut in the tree the
- * relaxation has more rows than the model, so the duals and statuses
- * jaos_solution publishes are those of the model's own rows and the
- * statuses may not form a basis of the model; jaos_mip_result says how
- * many cuts there were. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive(jaos_model *m, bool on);
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
                                                    int64_t rounds);
 
-/* Cuts below the root (D296): a node whose depth is at most `depth` gets
- * one round of Gomory mixed-integer cuts on its own relaxation before it
- * branches. A cut derived at a node is valid in that node's subtree and
- * nowhere else, since it is read over the node's bounds, so it is held in
- * a pool and is in the relaxation for exactly the nodes under it. 0 cuts
- * at the root only; 3 is the default, with jaos_set_mip_node_cut_cap's
- * four cuts per node (D301), and a negative value restores it.
- * D296 carries what each depth cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_depth(jaos_model *m,
                                                   int64_t depth);
 
-/* Whether a local cut leaves the relaxation once its slack is basic at a
- * node (D297). On, the default: a cut that does not bind at a node is not
- * carried under it, and two nodes that hold the same cuts share the rows
- * without a delete and an add between them. Off: every cut rides to every
- * node under it, which is D296's refused form. The root's cuts stay for
- * the whole tree either way. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on);
 
-/* How many cuts a node below the root may add in its round (D301): the
- * `cap` with the largest efficacy, violation over the cut's Euclidean
- * norm, the earlier on a tie, so the choice is the same on every machine.
- * 0 is no cap; a negative value restores the default. The root's rounds
- * are not capped. D301 carries what each cap cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_cap(jaos_model *m,
                                                      int64_t cap);
 
-/* Knapsack cover cuts at the root (D300), in rounds beside the Gomory
- * rounds: every model row whose columns are all binary is read, each
- * finite side, as a knapsack over literals x_j or 1 - x_j with positive
- * weights; the greedy cover the relaxation's point violates most per unit
- * of weight, extended by every heavier item, gives sum of the literals at
- * most the cover's size less one, a row of the private copy for the whole
- * tree. 0 turns them off; a negative value restores the default. D300
- * carries what each count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cover_rounds(jaos_model *m,
                                                      int64_t rounds);
 
-/* When the root's cut rounds end (D304): a round that moves the root's
- * bound by less than `fraction` times (1 + |bound|) is the last, whatever
- * rounds are left. 0 ends them only when a round adds nothing, the form
- * every earlier reading used; a negative value restores the default; NaN
- * and infinity are refused. D304 carries what each fraction cost over the
- * MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_stall(jaos_model *m,
                                                   double fraction);
 
-/* Where cuts below the root stop paying (D305): a node whose own round
- * moves its bound by less than `fraction` times (1 + |bound|) gets no
- * round at any node under it, and the root's whole cut phase is judged
- * the same way for the nodes under the root. A node that added no cut is
- * no evidence and passes its parent's verdict down. 0 never switches a
- * subtree off; a negative value restores the default; NaN and infinity
- * are refused. D305 carries what each fraction cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_stall(jaos_model *m,
                                                        double fraction);
 
-/* Whether the root's cuts may leave the relaxation below a node where
- * their slack is basic, the way a node's own cuts do under
- * jaos_set_mip_cut_drop (D306): 1 lets them leave, which is the default,
- * 0 keeps them as rows of every node, a negative value restores the
- * default. A root cut that left is gone for the nodes under that one and
- * still valid everywhere; D306 carries what each setting cost over the
- * MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_root_cut_drop(jaos_model *m, int on);
 
-/* Whether a cover cut is lifted (D307): 1 gives an item outside the cover
- * Balas's coefficient, h when it weighs at least as much as the cover's
- * h heaviest items together (Facets of the knapsack polytope, 1975),
- * which is at least the extended cover's 1 and never weaker; 0 keeps the
- * extended cover; a negative value restores the default. D307 carries
- * what each setting cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cover_lift(jaos_model *m, int on);
 
-/* Mixed-integer rounding cuts at the root (D309), in rounds beside the
- * other families: every model row, each finite side, with its columns
- * shifted to the bound nearer the point and scaled by one of a few
- * candidates, is rounded the way Marchand and Wolsey round a single row,
- * and the most violated scaling is a row of the private copy for the
- * whole tree. 0 turns them off; 6 is the default, and a negative value
- * restores it. D309 carries what each count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_mir_rounds(jaos_model *m,
                                                    int64_t rounds);
 
-/* How many times a dive may resume (D308), when the dive is on: the
- * sibling of each child the dive takes waits on a stack, and when a node
- * of the dive is pruned or integral the dive continues from the deepest
- * sibling waiting, up to `times` resumed nodes per dive (a sibling the
- * incumbent prunes unsolved spends none); then, and when the stack is
- * empty, what waits joins the open set and the search takes the best
- * bound again. 0 is D289's dive, every sibling into the open set at once;
- * a negative value restores the default. Nothing happens with the dive
- * off. D308 carries what each count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_backtrack(jaos_model *m,
                                                        int64_t times);
 
-/* How far a waiting sibling may sit above the best open node for the
- * dive to resume from it (D311), when the dive is on: a resume happens
- * only while the sibling's bound is within `fraction` times (1 + |best|)
- * of the best bound any open node has, the dive's own waiting siblings
- * included, so a dive that has fallen behind the rest of the tree gives
- * way. With a fraction set the resume count of
- * jaos_set_mip_dive_backtrack may be 0 for no count. 0 puts no bound on
- * the resume; a negative value restores the default; NaN and infinity
- * are refused. D311 carries what each fraction cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_gap(jaos_model *m,
                                                  double fraction);
 
-/* Whether a node inside the cut depth gets MIR cuts over its own bounds
- * beside its Gomory round (D310): 1 does, the cuts local to the node's
- * subtree, in the same round and under the same cap as the Gomory cuts;
- * 0 keeps the round Gomory's alone; a negative value restores the
- * default. D310 carries what it cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_node_mir(jaos_model *m, int on);
 
-/* How many other rows a MIR cut's aggregate may absorb before it is
- * rounded (D312), Marchand and Wolsey's aggregation: each step
- * substitutes out one continuous column that sits away from both its
- * bounds, using another row of the model, and the aggregate is rounded
- * after every step, so a row can yield `rows` + 1 cuts per side. 0, the
- * default, is the single-row form; a negative value restores it. Only
- * matters with jaos_set_mip_mir_rounds above 0. D312 carries what each
- * count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_mir_aggregate(jaos_model *m,
                                                       int64_t rows);
 
-/* A dive for a first incumbent at the root (D313): on a copy of the
- * root's relaxation as the cuts left it, the integer column nearest an
- * integer is fixed there and the relaxation is solved again, up to
- * `solves` times; a point that comes out with every integer column
- * integral is judged and taken like the rounding heuristic's, and counted
- * under `heuristic_points`. The search itself is unchanged: the dive
- * happens on a copy and only an incumbent can come out of it. 0 is off
- * and 50 is the default; a negative value restores it. Its solves are billed
- * and counted as `lp_solves`. D313 carries what each count cost over the
- * MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic(jaos_model *m,
                                                        int64_t solves);
 
-/* The deepest node the dive heuristic runs at, the root being 0 (D314):
- * every node at this depth or above gets its own dive on its own
- * relaxation, so a node's dive searches inside that node's bounds. 0 is
- * the root alone, which is the default; a negative value restores it.
- * Nothing happens with the dive heuristic itself off. D314 carries what
- * each depth cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model *m,
                                                              int64_t depth);
 
-/* RINS, relaxation induced neighbourhood search (D315, after Danna,
- * Rothberg and Le Pape, Mathematical Programming 102, 2005): at a
- * fractional node with an incumbent, every integer column the incumbent
- * and the node's relaxation already place at the same integer is fixed
- * there, and up to `solves` relaxations are solved on what is left, the
- * integer column nearest an integer fixed each time. A point that comes
- * out integral is judged and taken like the rounding heuristic's, and
- * counted under `heuristic_points`. It runs once per incumbent, at the
- * first fractional node after the incumbent moved. 0, the default, is
- * off; a negative value restores it. Its solves are billed and counted as
- * `lp_solves`. D315 carries what each budget cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves);
 
-/* The feasibility pump (D318, after Fischetti, Glover and Lodi, The
- * feasibility pump, Mathematical Programming 104, 2005): at the root, on a
- * copy of the relaxation as the cuts left it, the point is rounded and the
- * copy is re-solved for the point of the relaxation nearest that rounding
- * in L1, up to `rounds` times. It runs only while nothing has an answer
- * yet: this is the plain pump, which looks for a feasible point and not a
- * good one, so where the rounding heuristic or the dive already put an
- * incumbent at the root it could only cost. A point that comes back integral is judged
- * and taken like the rounding heuristic's, and counted under
- * `heuristic_points`. The distance is the binary pump's, one term per
- * column and no auxiliary variable, so a general integer column pulls on
- * it only while its rounding sits on one of its bounds. A rounding that
- * repeats is perturbed by moving its furthest columns to the other side,
- * which the paper does at random and this does by distance, so the pump is
- * the same on every machine. 0 is off and 20 is the default, the setting
- * that reaches every instance of the MIP set a larger one reaches; a
- * negative value restores it. Its solves are billed and counted as `lp_solves`. D318
- * carries what each count cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_feaspump(jaos_model *m,
                                                  int64_t rounds);
 
-/* The pump's general-integer distance (after Bertacco, Fischetti and Lodi,
- * A feasibility pump heuristic for general mixed-integer problems,
- * Discrete Optimization 4, 2007): every integer column whose bounds hold
- * more than two integers gets one auxiliary column and two rows on the
- * pump's private copy, so its distance to the rounding is exact wherever
- * the rounding sits, where the plain pump's distance sees such a column
- * only while its rounding is on a bound. Off, the plain distance, is the
- * default; a negative value restores it. Nothing happens with the pump
- * off, and a model whose integer columns are all binary is unchanged
- * either way. D320 carries what it cost over the MIP set: one first
- * incumbent moved, and the objective pump reaches that one without it. */
 JAOS_NODISCARD jaos_status jaos_set_mip_pump_general(jaos_model *m, int on);
 
-/* The objective feasibility pump (after Achterberg and Berthold,
- * Improving the feasibility pump, Discrete Optimization 4, 2007): each of
- * the pump's rounds minimizes (1 - a) times the distance plus a times the
- * model's own objective, the two scaled to comparable norms, and `a`
- * multiplies by `decay` each round, so early rounds pull toward good
- * points and late rounds toward feasible ones. `decay` is a fraction in
- * [0, 1): 0 is the plain pump and 0.5 is the default, the best of the
- * four decays swept and the largest that moves a first incumbent to the
- * root without moving another away from it; a negative value restores
- * it. Nothing happens with the pump off or on a model whose objective is
- * all zero. D321 carries what each decay cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_pump_obj(jaos_model *m, double decay);
 
-/* Whether the feasibility pump runs at the root even when something has
- * already put an incumbent there (D322). Off by default: the plain pump
- * of D318 looks for a feasible point, so where the rounding heuristic or
- * the dive already found one it can only cost. With the objective pump on
- * (jaos_set_mip_pump_obj) the pump looks for a good point instead, which
- * is what makes the question worth asking. `on` above 0 turns it on, 0
- * off, negative restores the default. Nothing happens with the pump off.
- * D322 carries what it cost over the MIP set. */
-/* A point the caller already has, handed to the tree before it runs
- * (D326). `col_value` holds num_col entries in the model's own columns;
- * a null pointer clears any point set before, which is not an error.
- *
- * It is taken at the root, before every heuristic, and it goes through
- * the same acceptance every heuristic point does: a point that is not
- * integral inside the integrality tolerance, or that sits outside a bound
- * or a row, is refused and the search runs as if none had been given. A
- * starting point the caller got wrong is never published as an answer.
- * The log says which of the two happened.
- *
- * What it buys is the pruning: the tree has a bound from node 1, so every
- * node whose relaxation cannot beat it is dropped unsolved.
- * `jaos_mip_result`'s `first_incumbent_node` stays 0, because no node
- * found this one. The copy a jaos_model_copy makes carries it, the way
- * the starting basis travels. */
-/* What a model is, counted (D327). Every field is read off the loaded
- * model in one pass and nothing here solves anything, so it costs one
- * walk of the matrix and is safe to ask before a solve or after one.
- *
- * The four row counts partition the rows and the four column counts
- * partition the columns, so each set sums to num_row and num_col. A
- * "ranged" row or column has two finite bounds that differ; a "fixed" one
- * has two that are equal; "free" has neither.
- *
- * `min_abs` and `max_abs` are over the matrix's nonzeros, and are 0 and 0
- * on a model with none. `obj_min_abs` and `obj_max_abs` are over the
- * nonzero costs, and are 0 and 0 when every cost is zero. The ratio of
- * the two matrix figures is what scaling exists to shrink, which is why
- * it is worth printing beside them. */
 typedef struct jaos_model_stats {
     int64_t num_row, num_col, num_nz;
-    int64_t integer_col;      /* columns marked integer                 */
-    int64_t binary_col;       /* of those, the ones whose bounds are
-                                 0 and 1 after rounding inward          */
+    int64_t integer_col;
+    int64_t binary_col;
     int64_t equality_row, ranged_row, one_sided_row, free_row;
     int64_t fixed_col, ranged_col, one_sided_col, free_col;
-    int64_t empty_row, empty_col;   /* no nonzero at all               */
-    int64_t obj_nz;           /* columns with a nonzero cost            */
+    int64_t empty_row, empty_col;
+    int64_t obj_nz;
     double  min_abs, max_abs;
     double  obj_min_abs, obj_max_abs;
 } jaos_model_stats;
 
-/* What presolve did on the last solve (D329). The three sizes are the
- * model the simplex actually ran on; the counts are how many of each
- * family fired, over every round. Everything is zero before a solve, and
- * zero after one built with presolve compiled out, which is what it did.
- *
- * `rounds` is the cascading loop's own count: a family that fires can
- * expose work for another, so the counts are totals over the rounds and
- * not per round.
- *
- * `duplicate_row`, `duplicate_col`, `dominated_col` and `tightened_bound`
- * are always zero today: those four families are deferred, each with an
- * executable reopen condition (`bench/refusals.txt`). They are in the
- * struct so that a caller reading this report does not have to change
- * when one of them lands. */
 typedef struct jaos_presolve_report {
-    int64_t num_row, num_col, num_nz;   /* what the simplex ran on */
+    int64_t num_row, num_col, num_nz;
     int64_t rounds;
     int64_t fixed_col;
     int64_t empty_row, empty_col;
@@ -618,94 +221,26 @@ JAOS_NODISCARD jaos_status jaos_model_statistics(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_mip_start(jaos_model *m,
                                               const double *col_value);
 
-/* An objective the caller does not care to beat (D326), in the model's
- * own sense. Every node whose relaxation cannot reach past it is dropped
- * unsolved, from node 1 and with no incumbent needed. An infinity removes
- * it, which is the default; a NaN is refused.
- *
- * This is a promise and not a hint: a cutoff tighter than the true
- * optimum makes the search end JAOS_SOLVE_INFEASIBLE, which is the honest
- * answer to "is there a solution better than this?" and not a defect. Use
- * jaos_set_mip_start instead when the point is one you actually have,
- * since that one is checked before it prunes anything. */
 JAOS_NODISCARD jaos_status jaos_set_mip_cutoff(jaos_model *m, double cutoff);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_pump_always(jaos_model *m, int on);
 
-/* Reduced-cost fixing at the root (D323): once the root relaxation is
- * solved and something holds an incumbent, an integer column resting at a
- * bound with a reduced cost d cannot move more than (incumbent - bound)/|d|
- * away from that bound without pushing the objective past the incumbent,
- * so the other bound is pulled in to the integer that reaches. Every
- * later node inherits the tightened bounds, and a column whose two bounds
- * meet is fixed and never branched on. The deduction is the root's alone
- * and is made once. On by default; `on` above 0 turns it on, 0 off,
- * negative restores the default. jaos_mip_result reports how many bounds
- * it moved. D323 carries what it cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_rcfix(jaos_model *m, int on);
 
-/* Bound propagation at each node (D324): before a node's relaxation is
- * solved, each of the model's rows is read over the node's own column
- * bounds, and a row whose smallest possible activity already exceeds its
- * upper bound (or whose largest falls below its lower) proves the node
- * infeasible with no solve at all. Where the row does not prove that, it
- * still bounds each of its columns, and an integer column's bound is
- * pulled in to the integer that reaches. `rounds` is how many passes over
- * the rows a node may make, a pass stopping early when nothing moved; 0 is
- * off and a negative value restores the default. Only integer columns are
- * written back, so nothing leaks from one node to another. jaos_mip_result
- * reports how many bounds it moved. D324 carries what it cost over the MIP
- * set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_propagate(jaos_model *m,
                                                   int64_t rounds);
 
-/* The deepest node bound propagation runs at, the root being 0 (D324);
- * negative, the default, is every node. The root's own deductions are
- * made over the model's own bounds, so they hold for every integer point
- * of the model and the whole tree inherits them; a deeper node's hold in
- * its subtree alone and are rebuilt at each node. Setting this to 0 is
- * therefore not "less propagation at the root" but "the free half of it":
- * one pass at the root that every node under it keeps. A negative value
- * restores the default. Nothing happens with jaos_set_mip_propagate at
- * 0. D324 carries what each depth cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_propagate_depth(jaos_model *m,
                                                         int64_t depth);
 
-/* How far a node's own bound may fall away from its parent's, as a
- * fraction of (1 + |parent's bound|), for the dive to go on into one of
- * its children (D316); 0, the default, puts no bound on it. A negative
- * value restores the default. Nothing happens with the dive off. D316
- * carries what each fraction cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_degrade(jaos_model *m,
                                                      double frac);
 
-/* The rounding heuristic (D290): at every node whose relaxation is
- * fractional, the integer columns are rounded to the nearest integer and
- * the point is kept as the incumbent when it is inside every bound and
- * every row to the primal tolerance and beats what is held. On by
- * default. A point it found carries the duals and statuses of the
- * relaxation it was rounded from, which jaos_mip_result counts under
- * `heuristic_points`. */
 JAOS_NODISCARD jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on);
 
-/* A budget on the tree itself (D291): the branch and bound stops before
- * solving its `nodes`-th node past the limit and reports
- * JAOS_SOLVE_NODE_LIMIT, keeping the incumbent it has for
- * jaos_mip_incumbent. 0 removes the limit; a negative value is refused.
- * Read between nodes, like the work limit; an LP ignores it. */
 JAOS_NODISCARD jaos_status jaos_set_mip_node_limit(jaos_model *m,
                                                    int64_t nodes);
 
-/* Which column a fractional node branches on (D292). Pseudocost branching
- * scores each fractional integer column by the objective gain a unit move
- * in each direction has cost so far in this tree; a column never branched
- * on takes the average of those that have, and in a tree with no history
- * yet the score is the fraction alone, which is the most-fractional rule.
- * The product of the two directions wins, lowest index on a tie, so the
- * choice is the same on every machine (D8). Most-fractional branching
- * takes the column farthest from an integer. Pseudocost is the default;
- * D292 carries what each cost over the MIP set. A value outside the enum
- * is refused. */
 typedef enum jaos_branching {
     JAOS_BRANCH_PSEUDOCOST = 0,
     JAOS_BRANCH_MOST_FRACTIONAL,
@@ -714,39 +249,15 @@ typedef enum jaos_branching {
 JAOS_NODISCARD jaos_status jaos_set_mip_branching(jaos_model *m,
                                                   jaos_branching rule);
 
-/* How many branches in each direction a column needs before its pseudocost
- * is trusted (D293). Below that, at most a few candidates per node have
- * their two children solved on the spot -- strong branching -- and the
- * gains seen initialise the pseudocosts, so a column's first branch is judged
- * by its own children and not by the mean of the others. 0 never probes,
- * and 0 is the default: over the MIP set the probes cost more work than
- * the smaller trees saved at every setting from 1 to 8 (D293, refused). A
- * negative value restores 0; the probes are counted as `lp_solves` and
- * their work is billed. */
 JAOS_NODISCARD jaos_status jaos_set_mip_reliability(jaos_model *m,
                                                     int64_t branches);
 
-/* A work cap on each strong-branching probe (D294), as a multiple of the
- * work the node's own relaxation took: a child solve that reaches it stops
- * there and teaches the pseudocost nothing, so a probe can cost at most
- * that much. 0 removes the cap; a negative value restores the default;
- * NaN and infinity are refused. D294 carries what each setting cost over
- * the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_probe_cap(jaos_model *m,
                                                   double multiple);
 
-/* Where strong branching probes (D298): at nodes whose depth is at most
- * `depth`, the root being depth 0. A negative value, the default, probes
- * at every depth; 0 probes at the root only. Nothing happens under
- * reliability 0. D298 carries what each depth cost over the MIP set. */
 JAOS_NODISCARD jaos_status jaos_set_mip_probe_depth(jaos_model *m,
                                                     int64_t depth);
 
-/* Which child a dive solves first (D295), when the dive is on. NEARER is
- * the side the fraction is closer to, D289's refused form; UP and DOWN are
- * fixed; PSEUDOCOST is the direction whose expected objective loss is the
- * smaller, the nearer side on a tie. A value outside the enum is refused;
- * NEARER is the default. */
 typedef enum jaos_dive_child {
     JAOS_DIVE_NEARER = 0,
     JAOS_DIVE_UP,
@@ -757,53 +268,26 @@ typedef enum jaos_dive_child {
 JAOS_NODISCARD jaos_status jaos_set_mip_dive_child(jaos_model *m,
                                                    jaos_dive_child rule);
 
-/* What the last branch and bound did. `bound` is the best objective any
- * open node could still reach when the search stopped, in the model's
- * own sense, and equals the incumbent when the answer is OPTIMAL;
- * `has_incumbent` says whether a stop on a budget left an integer point,
- * which jaos_mip_incumbent then reads. */
 typedef struct jaos_mip_report {
-    int64_t nodes;           /* relaxations solved, the root included  */
-    int64_t lp_solves;       /* the same count today; kept apart so a
-                                heuristic's solves can be told from the
-                                tree's when one exists                 */
+    int64_t nodes;
+    int64_t lp_solves;
     bool    has_incumbent;
-    double  incumbent;       /* its objective, when there is one       */
+    double  incumbent;
     double  bound;
-    int64_t cuts;            /* rows the cuts added, at the root (D289)
-                                and below it (D296)                    */
-    int64_t heuristic_points; /* incumbents the rounding found (D290)  */
-    int64_t first_incumbent_node; /* the node at which the first incumbent
-                                     appeared, 0 when none: what the
-                                     rounding buys under a budget (D290) */
-    int64_t fixed_cols;      /* column bounds reduced-cost fixing pulled in
-                                at the root (D323)                      */
-    int64_t tightened;       /* column bounds propagation pulled in over
-                                the whole tree (D324)                   */
+    int64_t cuts;
+    int64_t heuristic_points;
+    int64_t first_incumbent_node;
+    int64_t fixed_cols;
+    int64_t tightened;
 } jaos_mip_report;
 
 JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,
                                            jaos_mip_report *out);
 
-/* The best integer point a branch and bound found, whether or not it
- * proved it optimal: after a stop on a work or time limit, or an
- * interrupt, jaos_solution refuses (there is no proved answer) and this
- * is how the point is read. col_value receives num_col values; either
- * pointer may be NULL. Refused when no integer point was found. */
 JAOS_NODISCARD jaos_status jaos_mip_incumbent(const jaos_model *m,
                                               double *col_value,
                                               double *objective);
 
-/* A pool of the best integer points a branch and bound found (D299): every
- * integral relaxation and every feasible rounding is offered to it, and it
- * keeps the `size` best as distinct vectors, best first by objective, the
- * earlier one first on a tie. 1 is the default and keeps the incumbent
- * alone, so the search is the same with or without a pool and the pool's
- * first point is jaos_mip_incumbent's. A size below 1 is refused; a
- * negative value restores 1. jaos_mip_pool_count says how many points the
- * last solve left, whether or not it proved one optimal, and
- * jaos_mip_pool_solution reads the k-th best, 0 first, into num_col
- * values; either pointer may be NULL, and k out of range is refused. */
 JAOS_NODISCARD jaos_status jaos_set_mip_pool_size(jaos_model *m, int64_t size);
 JAOS_NODISCARD jaos_status jaos_mip_pool_count(const jaos_model *m,
                                                int64_t *count);
@@ -811,47 +295,14 @@ JAOS_NODISCARD jaos_status jaos_mip_pool_solution(const jaos_model *m,
                                                   int64_t k, double *col_value,
                                                   double *objective);
 
-/* The model's own name: the first word of an MPS file's NAME line, what
- * jaos_write_mps prints there, and "JAOS" until one is given. The same
- * rule as every other name; a load or a read replaces it. */
 JAOS_NODISCARD jaos_status jaos_model_name(const jaos_model *m,
                                            char *buf, int64_t cap);
 JAOS_NODISCARD jaos_status jaos_set_model_name(jaos_model *m,
                                                const char *name);
 
-/* A new model holding a copy of this one's problem, names, settings and
- * starting basis -- and not its answer, which belongs to the solve that
- * produced it; the copy reads JAOS_SOLVE_NOT_RUN until it is solved (D287).
- *
- * Settings travel whole, the callbacks and their user pointers included:
- * the copy is the caller's, and what they installed on the original is
- * what they would install on it. The starting basis travels because a
- * copy exists to be solved somewhere the original is not -- a
- * branch-and-bound child, a what-if beside the model it came from -- and
- * that is where a warm start is worth the most. Frees with
- * jaos_model_free like any other. */
 JAOS_NODISCARD jaos_status jaos_model_copy(const jaos_model *src,
                                            jaos_model **out);
 
-/* Read the matrix back: one column, one row, or one entry.
- *
- * `count` receives the number of entries. When `index` and `value` are not
- * NULL they receive the entries and must hold at least `count` of them, so
- * the intended use is two calls: the first with both arrays NULL to learn
- * the count, the second with arrays of that size. Entries come sorted
- * ascending by index -- a column by row, a row by column -- with no explicit
- * zeros, because that is the invariant the stored copy holds and the layout
- * jaos_load_lp would have to be given to produce the same model.
- *
- * A row is read off the row-wise mirror, the copy the solve itself builds
- * and keeps, and jaos_row_entries takes a non-const model for that reason:
- * the first call after a matrix change builds the mirror and every later
- * one reads it. Nothing is built that a solve would not have built, and a
- * column read builds nothing at all.
- *
- * jaos_coefficient answers 0.0 for an entry the model does not hold, which
- * is what that coefficient is. An index out of range is refused, never
- * answered with zero, on every one of the three. */
 JAOS_NODISCARD jaos_status jaos_col_entries(const jaos_model *m, int64_t col,
                                             int64_t *count, int64_t *index,
                                             double *value);
@@ -861,58 +312,9 @@ JAOS_NODISCARD jaos_status jaos_row_entries(jaos_model *m, int64_t row,
 JAOS_NODISCARD jaos_status jaos_coefficient(const jaos_model *m, int64_t row,
                                             int64_t col, double *value);
 
-/* Change one matrix entry, which may create it or remove it. Setting a
- * coefficient to exactly 0.0 deletes it, because the loaded model holds no
- * explicit zeros — writing one in would leave a model that no longer matches
- * what loading the same data would produce. Setting one where there was no
- * entry inserts it. The value must be finite.
- *
- * Costs more than changing a bound: the row-wise mirror and the scaling are
- * both computed from the matrix, so both are discarded and rebuilt on the
- * next solve. Changing many entries before solving once pays that once. */
 JAOS_NODISCARD jaos_status jaos_set_coefficient(jaos_model *m, int64_t row,
                                                 int64_t col, double value);
 
-/* Grow or shrink the problem itself.
- *
- * New columns and rows are appended, so existing indices never move: the
- * columns added by a call occupy jaos_num_col() .. jaos_num_col() + num_new - 1
- * as it stood before it, and likewise for rows. The matrix argument follows
- * jaos_load_lp exactly — the same layout, the same validation, the same
- * dropping of explicit zeros — except that jaos_add_cols describes the new
- * columns down (row indices into the *existing* rows) and jaos_add_rows
- * describes the new rows across (column indices into the existing columns).
- * Either may be empty: num_nz == 0 adds columns with no coefficients, which is
- * what a column generation scheme wants before it knows them.
- *
- * Deletion takes a set of indices, not one index, and that is not a
- * convenience. Deleting renumbers everything after what was deleted, so a
- * caller removing three rows one at a time has to track the shift itself and
- * will eventually get it wrong. Given the whole set, JAOS renumbers once. What
- * survives keeps its relative order and is renumbered densely from zero.
- * Repeated or out-of-range indices are refused rather than tolerated: a
- * repeated index is a caller who has already lost track.
- *
- * **All four discard the answer**, for the reason the setters above do, and
- * all four discard the row-wise mirror and the scaling, because all four
- * change the matrix.
- *
- * **The starting basis survives exactly when what is left is still a basis.**
- * There is one rule and it is the same one jaos_set_basis enforces: a model
- * with n rows needs n basic variables. New rows arrive basic, which is where
- * a slack basis puts them and which keeps the count right by construction, so
- * adding rows keeps the basis — that is the case that matters, since a basis
- * made primal infeasible by a new constraint is precisely what the dual
- * simplex is best at resuming from. New columns arrive nonbasic at a bound,
- * which also keeps the count. Deleting normally does not: remove a row whose
- * activity was not basic, or a column that was, and the count no longer works
- * out, so the basis is dropped and the next solve runs cold.
- *
- * A new column with no finite bound drops the basis too. A nonbasic variable
- * with no bounds rests pinned at zero and this solver cannot always price it
- * back off — the same refusal jaos_set_basis's consumer already makes, and
- * keeping a basis known to be unusable would only move the cost to the solve.
- */
 JAOS_NODISCARD jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
     const double *col_cost, const double *col_lower, const double *col_upper,
     int64_t num_nz, const int64_t *a_start, const int64_t *a_index,
@@ -928,194 +330,25 @@ JAOS_NODISCARD jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
 JAOS_NODISCARD jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
                                             const int64_t *rows);
 
-/* ------------------------------------------------------------------------- */
-/* File readers                                                              */
-/* ------------------------------------------------------------------------- */
-
-/* Both readers accept a gzip-compressed file wherever they accept a plain
- * one. The choice is made on the first two bytes, so the name does not
- * matter and no separate call is needed. A gzip file whose checksum or
- * length does not match its contents is refused, never parsed.
- * docs/format-support.md, "Compressed input". */
-
-/* Reads an MPS file (fixed or free layout) into the model, replacing its
- * contents. On failure the model's problem data is left as it was and
- * jaos_model_error() carries a message with the offending line number.
- * Dialect decisions are documented in docs/format-support.md. Integer
- * markers and integer bound types mark integer columns (D288). */
 JAOS_NODISCARD jaos_status jaos_read_mps(jaos_model *m, const char *path);
 
-/* Reads a CPLEX-style LP-format file into the model, replacing its
- * contents. Same error contract as jaos_read_mps. Ranged constraints,
- * constants inside constraints and integer sections are recognized and
- * rejected; see docs/format-support.md for the dialect. */
 JAOS_NODISCARD jaos_status jaos_read_lp(jaos_model *m, const char *path);
 
-/* ------------------------------------------------------------------------- */
-/* File writers                                                              */
-/* ------------------------------------------------------------------------- */
-
-/* Writes the model to `path`, replacing whatever was there.
- *
- * **What JAOS writes, JAOS reads back as the same model.** Values are
- * written to enough digits to be exact, and the one construction the MPS
- * reader rebuilds by arithmetic — a ranged row — is checked against what
- * the reader will make of it before it goes out. Where the format cannot
- * express what the model holds, the call fails with
- * JAOS_ERR_INVALID_INPUT, jaos_model_error() names the row or column, and
- * no file is left behind. A failed write removes the partial file.
- *
- * Rows and columns are written under their names, which are the file's
- * where the model came from one and positional -- `C<j+1>`, `R<i+1>`,
- * `COST` -- where it did not (D284). Reading the file back gives the same
- * indices and the same names, because both formats list rows and columns
- * in index order. Two rows or two columns called the same are refused by
- * name, since the file would read back as a different model.
- *
- * MPS is written in free layout, which jaos_read_mps autodetects. It has
- * three refusals, all of them about bounds.
- *
- * Two are shapes MPS has no form for: a row whose lower bound is above its
- * upper one, and a bound sitting at an infinity of the wrong sign.
- *
- * The third is the ranged row that neither RANGES form reconstructs. The
- * reader rebuilds a ranged row by arithmetic — its `G` form gives
- * [b, b + |r|] and its `L` form [b - |r|, b] — so the writer computes what
- * the reader will make of both and refuses the row when neither returns the
- * pair exactly. It is rare and it is real: the refusal only ever fires on
- * rows whose two bounds are unrelated, never on the shapes real data has,
- * and no form the writer accepted has ever reconstructed wrong
- * (bench/measurements/02-138/ranges.txt owns the counts).
- *
- * The number written for each value is the shortest of 15, 16 or 17
- * significant digits that reads back as the same double, so files stay
- * readable without becoming approximate. Numbers are written under an
- * explicit "C" locale: the host application's locale cannot corrupt the
- * file, which is the rule jaos_read_mps already applies to parsing. */
 JAOS_NODISCARD jaos_status jaos_write_mps(jaos_model *m, const char *path);
 
-/* Writes the model as a CPLEX-style LP file, in the dialect jaos_read_lp
- * accepts. Same contract as jaos_write_mps, and one more refusal, because
- * the dialect is narrower than MPS: a free row, which has no spelling in
- * the format. It is reported with the row named and a pointer to
- * jaos_write_mps, which has no such limit. Two refusals this comment once
- * listed are gone: a ranged row is written as the two-sided form (D239),
- * and a row with no coefficients as a zero term the reader drops (D276).
- *
- * The objective names every column, including the ones costing nothing. LP
- * format has no COLUMNS section, so the reader numbers a column where its
- * name first appears; listing only the costed columns would renumber the
- * rest by wherever their first coefficient sits, and the file would read
- * back as a different model without failing. docs/format-support.md has the
- * dialect and what share of the gate survives it (D226). */
 JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
 
-/* Writes the last solve's answer to `path`. For an optimum: the objective,
- * then every column with its value, reduced cost and basis status, then
- * every row with its activity, dual and basis status. For an INFEASIBLE
- * answer: the certificate jaos_certificate hands out, one multiplier per
- * row. For an UNBOUNDED one: the ray jaos_unbounded_ray hands out, one
- * direction per column. The status line says which, and the format is
- * JAOS's own, one record per line, documented in docs/format-support.md
- * (D282, D285).
- *
- * Available only when the last solve left one of those three, under the
- * same rule as jaos_solution, jaos_certificate and jaos_unbounded_ray and
- * for their reason: a solve that stopped on a budget has no answer to write
- * down, and a file of zeros does not read as missing. Otherwise
- * JAOS_ERR_INVALID_INPUT, with jaos_model_error() naming the status the
- * solve actually reached -- or saying that an INFEASIBLE or UNBOUNDED solve
- * left no certificate, which an inverted box does.
- *
- * Refused as well when the answer holds a value no file can carry. An
- * objective is a sum and can overflow, and a model whose bounds reach 1e300
- * solves to an optimum with an infinity or a NaN in it. Writing one would
- * print a word whose spelling belongs to the host libc, so the file would
- * not be reproducible; the call fails instead and jaos_model_error() names
- * the row or the column.
- *
- * Names are the model's, the same ones jaos_write_mps and jaos_write_lp
- * print, so a solution file and a model file written from the same model
- * refer to the same rows and columns.
- *
- * jaos_read_solution reads an optimum back and jaos_read_certificate a
- * certificate; jaos_solution_file_status says which a file holds. They are
- * declared below rather than here, because the first needs
- * jaos_basis_status and that type is declared with the basis calls. */
 JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
                                                const char *path);
 
-/* Detail message for the model's last failed operation, or "" when the last
- * operation succeeded. Static storage inside the model; never NULL. */
 JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
 
-/* ------------------------------------------------------------------------- */
-/* Solving                                                                   */
-/* ------------------------------------------------------------------------- */
-
-/* Budgets. Both default to unlimited.
- *
- * The work limit is counted in deterministic work units and is reproducible
- * across machines; the time limit is wall-clock and is not — where it cuts
- * depends on the machine. That is why they are separate settings rather than
- * one "limit" (DECISIONS.md, D8). The clock never influences which pivot is
- * chosen; it only decides whether to stop at a checkpoint.
- *
- * Both are resumable. A solve that stops at either leaves the basis it stopped
- * on where the next solve will find it, so raising the limit and calling
- * jaos_solve again continues from there instead of starting over. There is no
- * answer to read in between — the run did not produce one — and jaos_solution
- * says so. jaos_basis does hand out the basis it stopped on (D330), which is
- * a starting point and not an answer. See jaos_set_basis. */
 JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
 JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 
-/* The two tolerances a caller owns. Both default to 1e-7; passing 0.0
- * restores that default.
- *
- * The primal tolerance is how far a variable may sit outside its bounds and
- * still count as feasible. The dual tolerance is how far a reduced cost may
- * sit on the wrong side of zero. Together they say how much precision the
- * data deserves — measured inputs and exact ones do not want the same answer,
- * and the solver has no way to know which it was given.
- *
- * **These two, and nothing about how the problem is solved.** Which pricing
- * rule, when a carried weight stops being worth keeping, when to refactorize,
- * whether a sparse or a dense path is cheaper: those are the solver's to
- * decide and are not settings. Nobody linking this library can be expected to
- * know whether their model wants one or the other, and an option that asks
- * hands back a problem that belongs here.
- *
- * Both act in the scaled space the solver works in, not in the units of the
- * model as written; docs/tolerances.md says what that means for a coefficient
- * range. A value that is not finite and non-negative is rejected rather than
- * clamped, because a solver that quietly substitutes its own number reports
- * success for a run its caller cannot reason about.
- *
- * D8 still holds: a tolerance changes the answer identically on every
- * machine. */
 JAOS_NODISCARD jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol);
 JAOS_NODISCARD jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol);
 
-/* Where the solver's output goes, and how much of it there is.
- *
- * There is no default destination. A library that writes to stdout because
- * nobody told it not to cannot be embedded in a server, a GUI or another
- * library, so JAOS says nothing at all until a callback is installed —
- * setting a level without one changes nothing.
- *
- * `line` is a complete message with no trailing newline, valid only for the
- * duration of the call: copy it if it must outlive that. `user` is handed
- * back untouched. The callback must not call into JAOS on the same model.
- *
- * **Logging never changes an answer.** No message is produced by computing
- * anything the solve did not already compute, no output is emitted from a
- * decision point, and the level is not readable by the solver's arithmetic.
- * A model solved at JAOS_LOG_DETAIL returns the same bits as the same model
- * solved silently, which is D8 and is checked over all 139 reference
- * instances rather than assumed.
- *
- * Passing NULL for `cb` turns output off again. */
 typedef void (*jaos_log_fn)(void *user, jaos_log_level level, const char *line);
 
 JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,
@@ -1123,63 +356,18 @@ JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_set_log_level(jaos_model *m,
                                               jaos_log_level level);
 
-/* ------------------------------------------------------------------------- */
-/* Watching a solve, and stopping one                                        */
-/* ------------------------------------------------------------------------- */
-
 typedef enum jaos_callback_action {
     JAOS_CALLBACK_CONTINUE = 0,
     JAOS_CALLBACK_STOP,
 } jaos_callback_action;
 
-/* What the solve can say about itself while it is still running.
- *
- * There is no objective here, and its absence is the design. A dual simplex
- * carries a point that is not feasible until it finishes, so any objective it
- * could report mid-solve is a number about a point the solver does not vouch
- * for — and this library does not hand back numbers it will not stand behind
- * (D20). What it does watch is the total primal infeasibility, which is the
- * measure its own progress and stall detection are written in, so that is
- * what a watcher gets: the real one, not a plausible one. */
 typedef struct jaos_progress {
     int64_t iterations;
     int64_t work_units;
-    /* The best total reached so far. The first call comes before anything has
-     * been priced, so it reports the infinity this starts at — that is not a
-     * placeholder, it is the true answer to "how close is it" before the
-     * question has been asked once. */
+
     double primal_infeasibility;
 } jaos_progress;
 
-/* Called during a solve, and its return value decides whether the solve goes
- * on. `user` is handed back untouched. Like the log callback it must not call
- * into JAOS on the same model — the solver is holding a factorization, a
- * scaling and a basis derived from the model as it stood, and changing the
- * model underneath them leaves the two disagreeing with nothing to notice it.
- *
- * **A callback may look, and it may ask the solve to stop. It may not steer
- * one.** Which column prices, when to refactorize, whether a weight is worth
- * carrying: those are the method, and D64's line puts the method on this side
- * of the wall. A caller cannot know the answers and being asked for them is a
- * problem handed back.
- *
- * **What this does to determinism, exactly.** Asking is paced by iteration
- * count and never by a clock, so *when* the question is put is itself
- * reproducible; and given the same sequence of answers the solve is
- * bit-identical, because nothing else about it depends on the callback
- * existing. What the caller decides is the caller's, and if they decide on a
- * clock then their stopping point moves — which is already true of
- * jaos_set_time_limit, so this generalises a precedent rather than breaking a
- * rule. A callback that always returns CONTINUE returns the same bits as no
- * callback at all, over all 139 reference instances.
- *
- * **Stopping is not answering.** The solve ends as JAOS_SOLVE_INTERRUPTED,
- * jaos_solution refuses, and there is nothing to read in between. It keeps
- * the basis it stopped on, exactly as a budget stop does, so calling
- * jaos_solve again continues from there rather than starting over.
- *
- * Passing NULL for `cb` means nobody is asked and the solve runs to its own
- * end. */
 typedef jaos_callback_action (*jaos_progress_fn)(const jaos_progress *p,
                                                  void *user);
 
@@ -1187,22 +375,13 @@ JAOS_NODISCARD jaos_status jaos_set_progress_callback(jaos_model *m,
                                                       jaos_progress_fn cb,
                                                       void *user);
 
-/* Told every time the branch and bound takes a new incumbent (D291), with
- * the point and where the search stands. `col_value` holds num_col values,
- * integral where the model says so, and is valid during the call only.
- * The rule is the progress callback's: look, or ask the search to stop,
- * and never call into JAOS on this model from inside. A stop keeps the
- * incumbent and ends the solve as JAOS_SOLVE_INTERRUPTED, so
- * jaos_mip_incumbent reads what was found. The search is bit-identical
- * for the same sequence of answers, since nothing else about it depends
- * on the callback existing. */
 typedef struct jaos_incumbent {
-    int64_t node;            /* the node it was found at, 1 for the root */
-    double  objective;       /* the model's own sense                     */
-    double  bound;           /* the best any open node could still reach  */
+    int64_t node;
+    double  objective;
+    double  bound;
     const double *col_value;
     int64_t num_col;
-    bool    by_rounding;     /* the heuristic's, not a relaxation's       */
+    bool    by_rounding;
 } jaos_incumbent;
 
 typedef jaos_callback_action (*jaos_incumbent_fn)(const jaos_incumbent *inc,
@@ -1212,322 +391,54 @@ JAOS_NODISCARD jaos_status jaos_set_incumbent_callback(jaos_model *m,
                                                        jaos_incumbent_fn cb,
                                                        void *user);
 
-/* Solves the model. The outcome is reported by jaos_solve_status, which the
- * return value does not duplicate: JAOS_OK means the solve ran, not that it
- * found an optimum. */
 JAOS_NODISCARD jaos_status jaos_solve(jaos_model *m);
 
 JAOS_NODISCARD jaos_solve_status jaos_status_of(const jaos_model *m);
 
-/* Objective value of the solution held by the model, including the constant
- * term, into *out. Returns JAOS_ERR_INVALID_INPUT when no optimum is
- * available, rather than a number that cannot be told apart from a genuine
- * objective of zero. */
 JAOS_NODISCARD jaos_status jaos_objective(const jaos_model *m, double *out);
 
-/* Copies the solution into caller-provided buffers; any of them may be NULL.
- * col_value and col_dual hold num_col entries, row_activity and row_dual
- * num_row each. The library never hands out pointers into its own storage,
- * so there are no lifetimes to track.
- *
- * Available only when the last solve found an optimum, under the same rule
- * as jaos_objective: any other outcome returns JAOS_ERR_INVALID_INPUT,
- * because a buffer of zeros cannot be told apart from an answer that is
- * genuinely zero. */
 JAOS_NODISCARD jaos_status jaos_solution(const jaos_model *m,
     double *col_value, double *row_activity, double *row_dual,
     double *col_dual);
 
-/* Where each variable rests in the basis behind the reported solution.
- *
- * A basic variable's value comes out of the factorization and may sit
- * anywhere between its bounds; a nonbasic one is pinned to a bound, and that
- * pinning is what makes a basis determine a point at all. The difference is
- * not recoverable from the values: a basic variable that happens to land
- * exactly on a bound reads identically to a nonbasic one resting there, and
- * only one of the two is a constraint the optimum is actually held by. That
- * is why this is reported rather than left to be inferred.
- *
- * A row is described by its activity, so JAOS_BASIS_AT_LOWER on row i means
- * A_i x rests on rl_i. */
 typedef enum jaos_basis_status {
     JAOS_BASIS_BASIC = 0,
     JAOS_BASIS_AT_LOWER,
     JAOS_BASIS_AT_UPPER,
-    JAOS_BASIS_FREE,   /* nonbasic at zero, both bounds infinite */
+    JAOS_BASIS_FREE,
 } jaos_basis_status;
 
-/* Copies the basis into caller-provided buffers; either may be NULL.
- * col_status holds num_col entries, row_status num_row.
- *
- * Available whenever the last solve left a basis, which is a wider rule than
- * jaos_solution's (D330). An optimum leaves one. So does INFEASIBLE — the
- * basis the dual simplex stopped on, holding the row it could not repair —
- * and so does UNBOUNDED, and so does a work, time or interrupt stop, whose
- * basis is the point the run reached. What is refused is every state with no
- * basis behind it: a solve that never ran, one abandoned for numerical
- * reasons, an inverted box, a verdict presolve reached with no simplex at
- * all, a mixed-integer solve that found no proved incumbent, and one whose
- * proved incumbent rests on a node still holding a cut, whose statuses do
- * not describe this model's rows. The refusal is not a test on the contents,
- * because a buffer of zeros does not read as missing — it reads as a
- * solution in which everything is basic.
- *
- * Exactly num_row of the num_col + num_row statuses are basic on every
- * answer this call gives out, a nonbasic status names a bound the variable
- * has, and a column whose two bounds are equal is named at the one its
- * reduced cost points into, so the statuses are a basis of this model as
- * loaded and the ranging calls below read them as one (D257, D258).
- *
- * A basis from a non-optimal solve is a basis and not an answer. It names no
- * point the model satisfies, and nothing here claims one: jaos_solution
- * still refuses, and the ranging calls, which read an optimum's basis as an
- * optimum's, still refuse too. What it is good for is warm-starting another
- * model from it and inspecting what the refusal rests on. */
 JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 
-/* Where the next solve starts. Both arrays are required, sized as above —
- * half a basis does not say which variables are basic, so there is nothing
- * useful to do with one.
- *
- * **A solve sets this for itself.** Nothing needs to be called for a re-solve
- * to be warm: change a bound and solve again, and the previous basis is where
- * the second solve begins. This function is for the cases that route cannot
- * reach — a basis carried over from another model, one saved to a file and
- * read back, or the one a branch-and-bound node hands to its children.
- *
- * A solve that stopped at a work or time limit sets it too, which is what
- * makes those budgets resumable: solve, raise the limit, solve again, and the
- * second call continues rather than starting over. So does one that ended
- * INFEASIBLE or UNBOUNDED — the model is answered, but the next model that
- * differs from it by one bound has no closer place to begin. A solve
- * abandoned for numerical reasons is the exception and leaves the previous
- * basis untouched: it cannot corrupt an answer, but it is the one state this
- * solver does not vouch for, and offering it would be recommending it.
- *
- * Refused as JAOS_ERR_INVALID_INPUT: a value that is not one of the four
- * statuses, and any count of basic variables other than num_row. Those are
- * structural, and nothing that happens later can make a wrong count right.
- *
- * Two things are deliberately *not* refused, because a basis stored across a
- * modification meets both and must keep working. A nonbasic status may name a
- * bound the variable no longer has — jaos_set_col_bounds can retire it — and
- * the basic columns may be linearly dependent. The solve repairs each: a
- * status with no bound behind it is moved to the other bound, or to free; a
- * singular basis has logicals put back into it until it factors. Both cost
- * iterations and neither costs correctness.
- *
- * A warm start is a starting point and never a claim about the answer. The
- * solve that follows proves optimality from scratch, so a basis that is
- * wrong, stale or hostile costs time and cannot produce a wrong verdict.
- * That sentence was measured false once (D146: 26 wrong optima from 80
- * hostile bases) and is enforced now rather than assumed (D148): the solve
- * reads its own settled dual violation before publishing, an uncertified
- * warm start is retried once from the slack basis, and an uncertified cold
- * start reports JAOS_SOLVE_NUMERICAL_ERROR instead of an answer.
- *
- * What it does change is which optimum is reported when a model has more than
- * one: two runs from different starting bases can stop at different vertices,
- * both optimal and both with the same objective. Determinism is unaffected —
- * the same starting basis gives the same answer on every machine and every run
- * (D8) — but "solve twice and compare the bits" is a statement about a
- * sequence of calls, not about the model.
- *
- * Dropped by anything that loads a problem, since the indices then refer to a
- * different model. Kept by every modification, which is the point of it. */
 JAOS_NODISCARD jaos_status jaos_set_basis(jaos_model *m,
     const jaos_basis_status *col_status, const jaos_basis_status *row_status);
 
-/* Forgets the starting basis, so the next solve begins where a first solve
- * would. NULL is fine, and so is a model that never had one.
- *
- * Without this, warm starting would be a one-way door: a model that has been
- * solved once could never be solved from scratch again, and "what would this
- * model do cold" would stop being a question its own library could answer.
- * Three callers want it — one reproducing a result exactly, one escaping a
- * warm start that turned out to be a bad one, and one timing the two against
- * each other. JAOS's own acceptance gate is the third: it solves every
- * reference instance twice and requires the two runs to agree bit for bit,
- * which is a statement about the solver only if both runs start in the same
- * place.
- *
- * Clearing is not `jaos_set_basis` with nulls. Passing one null there is half
- * a basis and is refused, and a call that means "none" should not have to be
- * spelled as a special case of a call that means "this one". */
 void jaos_clear_basis(jaos_model *m);
 
-/* Reads a file jaos_write_solution wrote, back into caller arrays.
- *
- * Every output pointer is optional; pass NULL for anything not wanted.
- * `objective` receives one value. `col_value`, `col_dual` and `col_status`
- * receive num_col values each; `row_activity`, `row_dual` and `row_status`
- * receive num_row. The model is not modified -- only its error message is.
- *
- * **The model decides the shape, and a file that does not fit is refused
- * rather than read.** The counts in the file must equal this model's, and
- * each record's name must be the name this model gives that index -- its
- * own, or the positional one (D284) -- so a name that does not match means
- * the file describes a different model, or this one renamed since. Records
- * are taken in index order; nothing is searched by name.
- *
- * Only `status optimal` is read here; a file holding a certificate is
- * refused with a message pointing at jaos_read_certificate. A number that
- * is not finite is refused because the writer will not produce one.
- *
- * It installs nothing. To warm-start from a file, read the statuses and
- * pass them to jaos_set_basis above; that keeps reading a file and changing
- * a model two separate decisions, which is the same separation
- * jaos_clear_basis exists for.
- *
- * JAOS_ERR_IO when the file cannot be opened, JAOS_ERR_INVALID_INPUT for
- * anything the format does not allow, with jaos_model_error() naming the
- * line and what was wrong with it. */
 JAOS_NODISCARD jaos_status jaos_read_solution(jaos_model *m,
     const char *path, double *objective,
     double *col_value, double *col_dual, jaos_basis_status *col_status,
     double *row_activity, double *row_dual, jaos_basis_status *row_status);
 
-/* Reads a certificate jaos_write_solution wrote for an INFEASIBLE or an
- * UNBOUNDED answer (D285). `status` receives which; `row_ray` receives
- * num_row multipliers when the file is infeasible and `col_ray` num_col
- * directions when it is unbounded, and whichever does not apply is left
- * untouched. Every output is optional. The shape rule and the name rule are
- * jaos_read_solution's, and a file holding an optimum is refused with a
- * message pointing there.
- *
- * What comes back is what jaos_check_certificate or jaos_check_ray judges
- * from the model alone, so a certificate written by one program can be
- * verified by another that holds nothing but the model and this file. */
 JAOS_NODISCARD jaos_status jaos_read_certificate(jaos_model *m,
     const char *path, jaos_solve_status *status,
     double *row_ray, double *col_ray);
 
-/* The basis out of a solution file of either kind (D332), for
- * jaos_set_basis. col_status receives num_col statuses and row_status
- * num_row; either may be NULL. The shape rule and the name rule are
- * jaos_read_solution's.
- *
- * A certificate file carries a basis since D332, because a solve that ends
- * INFEASIBLE or UNBOUNDED stops on one and jaos_basis hands it out (D330).
- * What that buys is a warm start across processes: write the file, change
- * one bound, and the next run starts where the last one stopped instead of
- * from the slack basis. An optimum's file has carried its basis all along,
- * on the same records as its values, and this call reads either without
- * the caller having to know which it holds.
- *
- * Refused with JAOS_ERR_INVALID_INPUT when the file carries no basis: one
- * written for a verdict presolve reached with no simplex at all, or one
- * written before D332. */
 JAOS_NODISCARD jaos_status jaos_read_basis(jaos_model *m, const char *path,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 
-/* The basis in the MPS basis file format, which every solver in the field
- * reads and writes and JAOS's own solution file is not (D338). That is the
- * whole point of these two: a basis JAOS found can start another solver's
- * run, and a basis another solver found can start JAOS's.
- *
- * The format is the classic one. A `NAME` line, then one card per variable
- * that is not in its default state, then `ENDATA`. The defaults are every
- * column nonbasic at its lower bound and every row's logical basic, so a
- * slack basis writes no cards at all. The four cards:
- *
- *   XU col row   the column is basic and that row rests on its upper bound
- *   XL col row   the column is basic and that row rests on its lower bound
- *   UL col       the column is nonbasic at its upper bound
- *   LL col       the column is nonbasic at its lower bound, which is the
- *                default, so JAOS never writes one and always reads one
- *
- * A row is described by its activity here, exactly as jaos_basis describes
- * it, so `XU` names a row whose A_i x rests on ru_i.
- *
- * The pairing in the two-name cards is not a constraint the caller has to
- * satisfy. A basis has exactly num_row basic variables, so the basic
- * columns and the nonbasic rows are equal in number and pair off, and the
- * reader below rebuilds the same basis from any order of them.
- *
- * JAOS_BASIS_FREE has no card of its own and needs none. A nonbasic
- * variable with both bounds infinite rests at zero and nowhere else, so it
- * is written as the default and read back as FREE from the bounds it has.
- * The round trip is exact for that reason and not by luck.
- *
- * jaos_write_mps_basis writes whatever jaos_basis would hand out, so its
- * availability rule is jaos_basis's: an optimum, a refusal, an
- * unboundedness and a budget stop all have one, and a solve that never ran
- * does not. It refuses two columns or two rows with the same name, for the
- * reason every writer here does -- no reader could tell them apart -- and
- * leaves no file behind when it refuses.
- *
- * jaos_read_mps_basis fills the caller's arrays; either may be NULL. Names
- * are looked up the way jaos_col_index looks them up, so a positional name
- * works where the model has none of its own. A card naming something the
- * model does not have, a second card for one variable, and a card naming a
- * bound the variable does not have are all refused with the line named,
- * and a refused read leaves the caller's arrays untouched. What comes back
- * goes to jaos_set_basis, which is where a warm start begins.
- *
- * The basic count is not among the checks and needs no check. Only XU and
- * XL make a column basic, each one makes one row nonbasic in the same
- * card, and a second card for either side is refused, so any file that
- * reads at all leaves exactly num_row variables basic.
- *
- * The file says nothing about which model it belongs to beyond the names,
- * so a basis of a different model is caught by the names and by the count
- * and not before. That is the format's own limit, and every solver that
- * reads it has the same one. */
 JAOS_NODISCARD jaos_status jaos_write_mps_basis(jaos_model *m,
     const char *path);
 JAOS_NODISCARD jaos_status jaos_read_mps_basis(jaos_model *m,
     const char *path, jaos_basis_status *col_status,
     jaos_basis_status *row_status);
 
-/* The point file: the smallest thing that can carry an answer between two
- * programs (D342). One `NAME VALUE` line per column, in any order, `#` to
- * end of line for a comment, and nothing else in it.
- *
- * It exists because JAOS's own solution file is JAOS's own, and the point
- * of shipping an independent checker is that it can judge somebody else's
- * answer. Two lines of awk turn most solvers' output into one of these,
- * which is the design goal: the format is deliberately poorer than
- * jaos_write_solution's so that producing one is not a project. What it
- * buys is jaos_check_solution over a point this library did not compute,
- * the primal half of what jaos_verify_basis does for a basis (D339).
- *
- * **Every column must appear exactly once**, and that is the strict rule.
- * A column the file does not name is refused with its name, because
- * defaulting it to zero is how a wrong answer gets judged feasible. A
- * second line for one column is refused too, and so is a name the model
- * does not carry. Names are looked up the way jaos_col_index looks them
- * up, so a positional name works where the model has none of its own.
- *
- * jaos_read_duals is the same file shape over the rows, for the dual half
- * of the checker's report. It is separate because the primal half stands
- * on its own: jaos_check_solution takes a NULL row_dual and reports what
- * it can.
- *
- * jaos_write_point writes the last solve's point in the same format, so
- * what JAOS writes it reads back. The availability rule is
- * jaos_solution's and is not restated: an optimum has a point and nothing
- * else does. A path ending in `.gz` is compressed, like every other
- * writer here (D340). */
 JAOS_NODISCARD jaos_status jaos_write_point(jaos_model *m, const char *path);
 
-/* The same file from values the caller has (D344), which is what makes
- * the format useful for a point that is not the answer: one of
- * jaos_mip_pool_solution's, a mixed-integer incumbent a budget stop left,
- * or a point from somewhere else entirely. `col_value` holds num_col
- * values and is copied, not kept. The refusals are the same -- two
- * columns of a name, and a value no file can carry -- and no solve is
- * needed, because nothing here reads one. */
 JAOS_NODISCARD jaos_status jaos_write_point_values(jaos_model *m,
     const char *path, const double *col_value);
 
-/* The row multipliers in the same shape (D348), so the pair
- * jaos_read_point and jaos_read_duals reads is a pair this library
- * writes. jaos_write_duals takes the last optimum's, under
- * jaos_solution's rule; jaos_write_dual_values takes an array and needs
- * no solve. Both refuse two rows of a name and a multiplier no file can
- * carry, and a `.gz` path compresses. */
 JAOS_NODISCARD jaos_status jaos_write_duals(jaos_model *m, const char *path);
 JAOS_NODISCARD jaos_status jaos_write_dual_values(jaos_model *m,
     const char *path, const double *row_dual);
@@ -1536,295 +447,77 @@ JAOS_NODISCARD jaos_status jaos_read_point(jaos_model *m, const char *path,
 JAOS_NODISCARD jaos_status jaos_read_duals(jaos_model *m, const char *path,
                                            double *row_dual);
 
-/* Which of the three a solution file holds, read from the whole file, so
- * a file that would be refused by the reader for its kind is refused here
- * too. This is how a caller decides between jaos_read_solution and
- * jaos_read_certificate without knowing the file's format. The model is
- * needed for the shape check and is not modified. */
 JAOS_NODISCARD jaos_status jaos_solution_file_status(jaos_model *m,
     const char *path, jaos_solve_status *status);
 
-/* Work units consumed by the last solve. */
 JAOS_NODISCARD int64_t jaos_work_units(const jaos_model *m);
 
-/* Simplex iterations performed by the last solve. */
 JAOS_NODISCARD int64_t jaos_iterations(const jaos_model *m);
 
-/* Seconds the last solve took, 0 if none has run. Wall clock, monotonic, and
- * excluding the read that loaded the model — the same span the work counter
- * covers, so the two describe one thing.
- *
- * **This is the only number JAOS reports that is not reproducible**, and it is
- * offered anyway because it answers a question the other two cannot. Work
- * units are identical on every machine and in every run, which is what makes
- * them a regression test; they are also biased, by a factor that is not
- * constant, against exactly the work that costs the most real time. A change
- * that halves the units and doubles the seconds has happened here. So the two
- * are read together, and neither on its own.
- *
- * The consequence for a caller who records results: **do not put this in a
- * file you diff against later.** JAOS keeps its own acceptance records free of
- * wall-clock numbers for that reason — a baseline that changes on every run
- * cannot detect a regression — and keeps its competitive timings in a
- * different place that says which machine produced them. */
 JAOS_NODISCARD double jaos_solve_time(const jaos_model *m);
 
-/* ------------------------------------------------------------------------- */
-/* Independent solution checker                                              */
-/* ------------------------------------------------------------------------- */
-
-/* Verdict of jaos_check_solution. Violations are raw magnitudes, not
- * pass/fail: the booleans compare them against the tolerance given. */
 typedef struct jaos_check_report {
-    double max_col_violation;   /* worst breach of a column bound          */
-    double max_row_violation;   /* worst breach of a row (activity) bound  */
+    double max_col_violation;
+    double max_row_violation;
     double max_row_violation_relative;
-                                /* the same breach as a fraction of what
-                                   the row carries — sum of |a_ij x_j|.
-                                   Reported only; no verdict reads it     */
-    double max_dual_violation;  /* worst breach of a dual sign condition,
-                                   including complementary slackness       */
-    double primal_objective;    /* c'x + c0, in the model's own sense      */
-    double dual_objective;      /* meaningful only when duals were given   */
-    double objective_gap;       /* |primal - dual|
-                                   / (1 + |primal| + |dual|)              */
-    /* The two halves the gap is the difference of. P - D is a sum over
-       every row and column of w_v (v - bound_v); these accumulate the
-       non-negative terms and the magnitudes of the negative ones
-       separately, in the objective's own units. A negative term needs a
-       primal violation, so on an exactly feasible point gap_negative is
-       zero and gap_positive alone bounds the suboptimality:
-       P - P* <= gap_positive — but only when gap_certified below says the
-       sum it came from was complete. When gap_negative is not zero the two
-       cancel, and a small objective_gap no longer says the point is nearly
-       optimal, which the gap on its own cannot show. Both decide nothing. */
+
+    double max_dual_violation;
+    double primal_objective;
+    double dual_objective;
+    double objective_gap;
+
     double gap_positive;
     double gap_negative;
 
-    /* The largest multiplier whose term that sum could not take, and how
-       many there were.
-
-       A multiplier whose sign points at an infinite bound has no w * bound
-       to contribute: the term is minus infinity, because the dual objective
-       of a variable free in the improving direction is unbounded below.
-       Dropping it silently leaves dual_objective describing a *different*
-       problem — one where that variable had a finite bound — so the bound
-       above stops holding for the problem that was asked about.
-
-       That is not hypothetical. Two variables and one constraint are enough
-       to build a point that is arbitrarily suboptimal and on which every
-       number in this report reads zero, including gap_positive (D47). This
-       pair is what makes that case visible from outside.
-
-       Neither decides anything, and that is deliberate: deciding would need
-       a threshold on the multiplier, and what makes a dropped term cost
-       anything is the distance the variable would travel, which is a
-       property of the whole polytope and not of the column. No test on the
-       multiplier alone separates the harmful case from the harmless one —
-       measured, in D47. So the caller is given the fact and its size. */
     double max_dropped_multiplier;
     int64_t dropped_terms;
 
-    /* How much better the objective provably gets, from the dropped terms
-       alone. A lower bound on P - P*, in the objective's own units, and a
-       certificate rather than an estimate: it is |w| times a distance the
-       point can actually travel, along a direction every point of which is
-       feasible. Zero means nothing was certified, which is emphatically not
-       the same as nothing being wrong.
-
-       The direction is one column moving on its own with every other
-       variable held where it is. That is why no factorization is needed and
-       why the checker keeps owing the solver nothing: the simplex direction
-       lets the basic variables absorb the move and travels further, but
-       computing it needs B^-1 a_j. Travelling less far certifies less
-       suboptimality, and a smaller lower bound is still a lower bound.
-
-       Infinity means the objective improves without limit along a feasible
-       ray, which is a proof that the model is unbounded rather than that this
-       point is suboptimal.
-
-       **A zero here says almost nothing, and the reason is structural.** A
-       column moving alone is stopped by the first row that is tight, and a
-       vertex is what having tight rows means — so at any vertex, which is
-       where every simplex answer sits, this is essentially zero however
-       wrong the point is. Measured: on four answers this solver is known to
-       get wrong by 1.04e-3, it reads between 4e-20 and 3e-31, the same as on
-       the correct ones (D73). A positive value is worth acting on; a small
-       one is not evidence of anything.
-
-       Rows contribute nothing here. A row's activity cannot be moved on its
-       own, so there is no single-entity direction to measure along, and what
-       a dropped row multiplier is worth is the part that would need the
-       factorization.
-
-       The library decides nothing on it. The gate does: `bench/run` holds
-       every solve to an absolute bar on this figure (D185). D73 had found
-       an earlier reading that could not tell a wrong answer from a right
-       one; the bar is what settled that this one can.                       */
     double certified_suboptimality;
 
-    /* Columns that could move without limit — no row ever stops them — but
-       whose rate of improvement this checker calls zero.
-
-       Counted rather than folded into the value above, because the two are
-       different kinds of statement. With a finite step the product is
-       self-limiting: a multiplier that is really roundoff certifies a
-       roundoff-sized suboptimality, which is why the number above needs no
-       threshold to be safe. With an infinite step the product is infinite for
-       any nonzero multiplier at all, so it stops certifying anything and
-       becomes the question that has no local answer — is this multiplier
-       real? Five instances of JAOS's own reference set land here, every one
-       of them matching a published finite optimum.
-
-       A nonzero count means: there is a direction along which this model may
-       be unbounded, and this report cannot tell you whether it is.          */
     int64_t unquantified_rays;
 
-    /* gap_positive as a fraction of the objective it bounds: an absolute
-       bound means nothing without the magnitude beside it, since 1e-4 on an
-       objective of 3e2 and 1e-4 on one of 3e-4 are different claims.
-
-       This is the number that catches a point far from optimal while every
-       sign condition holds, which is the case D47 built and D87 could not
-       reach. It is only as strong as gap_certified says: where a term was
-       dropped it bounds nothing. */
     double relative_suboptimality;
 
-    bool primal_feasible;       /* violations within tolerance             */
-    /* Sign conditions, and the gap over bounds THE MODEL DECLARED.
+    bool primal_feasible;
 
-       That restriction is deliberate. The checker bounds variables the model
-       left unbounded by what the rows imply, which is sound — every feasible
-       point satisfies an implied bound, so it moves neither the feasible
-       region nor the optimum — but slack: nothing puts the variable on such
-       a bound, so its term survives at an optimum and measures the bound's
-       looseness rather than the point's error. Feeding that into the verdict
-       rejects correct answers, measured (D87, D91). The suboptimality bound
-       above uses every term; this uses the ones that must vanish.          */
     bool dual_feasible;
-    bool checked_duals;         /* false when row_dual was NULL            */
-    /* No term was dropped, so gap_positive really is a bound on P - P*.
-       False does not mean the answer is wrong — most dropped multipliers
-       are roundoff — it means this report does not prove it right.        */
+    bool checked_duals;
+
     bool gap_certified;
-    /* The largest distance of an integer column's value from the nearest
-       integer (D288); 0 when the model has none. primal_feasible requires
-       it within tol, like a bound. Appended last, so a caller compiled
-       against the previous layout reads every earlier field where it was. */
+
     double max_integrality_violation;
 } jaos_check_report;
 
-/* Judges a claimed solution against the model as loaded — original space,
- * no scaling, independent of any solver bookkeeping.
- *
- * col_value[num_col] is required. row_dual[num_row] is optional; without it
- * only primal feasibility is checked.
- *
- * Dual convention: reduced costs are d = c - A'y. For minimization, at an
- * optimum: y_i >= 0 where the row is at its lower bound, y_i <= 0 at its
- * upper, y_i == 0 strictly inside; d_j likewise for columns. For
- * maximization every sign flips. Fixed rows and columns (equal bounds)
- * accept any multiplier sign.
- *
- * tol is absolute where it measures a residual — the primal violations
- * above are magnitudes in the model's own units, and tol is compared
- * against them directly. It is scaled where it decides whether a value
- * rests on a bound: a row activity is a sum, and how precisely a sum can be
- * placed is set by the terms that went into it, not by the total they came
- * to. That window is tol times the sum of the magnitudes of the row's terms
- * (times max(1, |x_j|) for a column). The objective gap is compared as a
- * relative quantity. docs/tolerances.md carries every formula; DECISIONS.md
- * D23 carries why the two are not the same kind of test. */
 JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
     const double *col_value, const double *row_dual, double tol,
     jaos_check_report *out);
 
-/* The infeasibility certificate behind the last solve's
- * JAOS_SOLVE_INFEASIBLE: a vector y of num_row values such that, for
- * every x inside the column bounds whose row activities lie inside the
- * row bounds, the identity y'(Ax) = (A'y)'x cannot hold — the smallest
- * the left side can be still exceeds the largest the right side can be.
- * jaos_check_certificate verifies exactly that from the model alone.
- *
- * Available whether the simplex refused a row or presolve did: a ray
- * proved on a presolve-reduced model is lifted back through the
- * reductions into this model's own rows, and a reduction that proves
- * infeasibility by itself seeds one from the bound it refused. The one
- * refusal left is a model whose own bounds are inverted, which has no
- * ray to offer: the bounds are the proof. row_ray receives num_row
- * values. */
 JAOS_NODISCARD jaos_status jaos_certificate(const jaos_model *m,
                                             double *row_ray);
 
-/* Verdict of jaos_check_certificate. The proof is a difference of two
- * sums, so both halves are published beside it: from the difference
- * alone, a small gap between two large halves and a genuinely small
- * quantity read the same. */
 typedef struct jaos_certificate_report {
-    double sup_columns;  /* sum over columns j of the largest (A'y)_j x_j
-                            the column's own bounds allow; +infinity when
-                            a needed bound side is infinite, and the
-                            proof dies with it                           */
-    double inf_rows;     /* sum over rows i of the smallest y_i (Ax)_i
-                            the row's own bounds allow; -infinity when a
-                            needed side is infinite                      */
-    double gap;          /* inf_rows - sup_columns; > 0 is the proof     */
-    bool certified;      /* gap > tol * (1 + |sup_columns| + |inf_rows|) */
+    double sup_columns;
+    double inf_rows;
+    double gap;
+    bool certified;
 } jaos_certificate_report;
 
-/* Judges a claimed infeasibility certificate against the model as it was
- * loaded — original space, model bounds only, no solver bookkeeping. A
- * ray that leans on a bound the model does not have makes one of the two
- * sums infinite and is rejected, whatever produced it. tol plays the
- * same role as the objective gap's in jaos_check_solution: the gap is
- * judged relative to the size of the two halves it is a difference of.
- * Each column's (A'y)_j is itself a sum, placeable no more finely than
- * its terms allow, so below tol times the sum of their magnitudes it
- * counts as zero — the same scaled rule jaos_check_solution documents
- * above. */
 JAOS_NODISCARD jaos_status jaos_check_certificate(const jaos_model *m,
     const double *row_ray, double tol, jaos_certificate_report *out);
 
-/* The ray behind the last solve's JAOS_SOLVE_UNBOUNDED: a direction d
- * over the structural columns such that moving any feasible point along
- * it stays feasible forever and improves the objective at a fixed rate.
- * jaos_check_ray verifies exactly that from the model alone.
- *
- * Available whether the solve proved the ray or presolve did: a ray on a
- * presolve-reduced model is lifted back into this model's own columns,
- * and the one reduction that proves unboundedness by itself, a column
- * with no live entry whose cost runs off an open side, seeds one.
- * col_ray receives num_col values. */
 JAOS_NODISCARD jaos_status jaos_unbounded_ray(const jaos_model *m,
                                               double *col_ray);
 
-/* Verdict of jaos_check_ray. */
 typedef struct jaos_ray_report {
-    double rate;            /* c'd, in the model's own sense: certifying
-                               needs it improving — negative when
-                               minimizing, positive when maximizing     */
-    double max_col_escape;  /* the largest |d_j| that pushes past a
-                               finite column bound side; 0 when clean   */
-    double max_row_escape;  /* the largest |(Ad)_i| past its own traffic
-                               floor that pushes past a finite row
-                               side; 0 when clean                       */
-    bool certified;         /* both escapes zero, and the rate clears
-                               tol against the cost terms' own size     */
+    double rate;
+    double max_col_escape;
+    double max_row_escape;
+    bool certified;
 } jaos_ray_report;
 
-/* Judges a claimed unbounded ray against the model as it was loaded —
- * original space, model bounds only, no solver bookkeeping. d_j may
- * only point past an infinite bound side; each row's movement (Ad)_i is
- * a sum and counts only above tol times the magnitudes that formed it,
- * the same scaled rule as everywhere in this header. */
 JAOS_NODISCARD jaos_status jaos_check_ray(const jaos_model *m,
     const double *col_ray, double tol, jaos_ray_report *out);
 
-/* --- Diagnosing an infeasible model ----------------------------------- */
-
-/* Which sides of a bound belong to an irreducible infeasible subsystem.
- * A row's two bounds are two constraints, and so are a column's; an IIS
- * may hold either one without the other. The values combine as bits. */
 typedef enum jaos_iis_side {
     JAOS_IIS_NONE  = 0,
     JAOS_IIS_LOWER = 1,
@@ -1832,326 +525,87 @@ typedef enum jaos_iis_side {
     JAOS_IIS_BOTH  = 3,
 } jaos_iis_side;
 
-/* What jaos_iis did, beside the answer. */
 typedef struct jaos_iis_report {
-    int64_t members;         /* bound sides in the IIS, rows and columns
-                                together                                 */
-    int64_t candidates;      /* sides the deletion filter started from   */
-    int64_t solves;          /* re-solves the filters ran, on a private
-                                copy of the model                        */
-    int64_t work_units;      /* their total, in jaos_work_units' unit;
-                                not billed to the model                  */
-    bool from_certificate;   /* the candidates were the sides the
-                                certificate leans on; false when the
-                                filter had to start from every finite
-                                side of the model                        */
+    int64_t members;
+    int64_t candidates;
+    int64_t solves;
+    int64_t work_units;
+    bool from_certificate;
 } jaos_iis_report;
 
-/* An irreducible infeasible subsystem of the last solve's INFEASIBLE
- * model: a set of bound sides, rows' and columns', that is infeasible on
- * its own and becomes feasible when any one of them is dropped. Every
- * other side of the model may be relaxed to its infinity and the
- * subsystem stays infeasible, so the sides named are where to look.
- * row_side receives num_row values and col_side num_col; either may be
- * NULL. A model may have several IISs; this call finds one, the same
- * one on every machine and every run.
- *
- * Chinneck and Dravnieks's sensitivity filter followed by their deletion
- * filter (ORSA Journal on Computing 3(2), 1991): the certificate's
- * support first, which is an infeasible subsystem already, then one
- * warm re-solve per candidate side to ask whether the rest is still
- * infeasible without it. The re-solves run on a private copy with the
- * objective removed, so the caller's model, answer, certificate and
- * basis are untouched; the copy carries the caller's limits and
- * tolerances and the progress callback, so a watcher can stop it, and
- * not the log callback. A re-solve that stops on a budget, an
- * interruption or a numerical failure cannot decide its side and the
- * call returns JAOS_ERR_NUMERICAL with the model's error text saying
- * which. The cost is stated, not billed: one solve to confirm the
- * candidates and one per candidate, and the report says how many and
- * what they cost. */
 JAOS_NODISCARD jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
                                     jaos_iis_side *col_side,
                                     jaos_iis_report *out);
 
-/* The subsystem as a model of its own (D343). A list of sides says which
- * constraints fight; a caller who wants to LOOK at them wants a model --
- * something to write to a file, open in an editor, hand to another solver
- * or solve again. `*out` receives a new model the caller frees with
- * jaos_model_free.
- *
- * The two arrays are jaos_iis's own output and are read and not checked
- * against the model's answer: what this builds is the subsystem those two
- * arrays describe, whether or not jaos_iis produced them.
- *
- * What it builds, and each step is what "subsystem" means. Every cost is
- * zeroed and the objective constant with it, because a subsystem is a
- * feasibility question and an objective could only turn it into an
- * unbounded one. A side that is not a member goes to the infinity that
- * relaxes it. A row left with no member side is deleted, since a row
- * relaxed on both ends constrains nothing, and so is a column left with
- * no entries and no bound of its own.
- *
- * So the result is infeasible, and its own jaos_solve says so. Nothing
- * here asserts that -- it is a property of the arrays that came in, and
- * the thing to do with it is solve the model and see.
- *
- * Row and column names survive, so a member of the subsystem is
- * recognisable in the file by the name it had in the original. Indices do
- * not: what was row 40 may be row 2 here. */
 JAOS_NODISCARD jaos_status jaos_iis_model(const jaos_model *m,
     const jaos_iis_side *row_side, const jaos_iis_side *col_side,
     jaos_model **out);
 
-/* Which bounds a feasibility relaxation may move. */
 typedef enum jaos_relax_scope {
-    JAOS_RELAX_ROWS = 1,   /* row bounds only                  */
-    JAOS_RELAX_COLS = 2,   /* column bounds only               */
-    JAOS_RELAX_BOTH = 3,   /* both, weighed against each other */
+    JAOS_RELAX_ROWS = 1,
+    JAOS_RELAX_COLS = 2,
+    JAOS_RELAX_BOTH = 3,
 } jaos_relax_scope;
 
-/* What jaos_feasrelax found. */
 typedef struct jaos_relax_report {
-    double  total;        /* the smallest total violation: the sum of every
-                             move's size, and 0 on a model that is already
-                             feasible                                      */
-    int64_t rows_moved;   /* rows whose bound had to move                  */
-    int64_t cols_moved;   /* and columns                                   */
-    int64_t at_row;       /* the single largest move's row, or -1 when the
-                             largest is a column's or nothing moved        */
-    int64_t at_col;       /* and its column, or -1                         */
-    double  largest;      /* how far that one has to move                  */
-    int64_t work_units;   /* what the relaxation cost, in jaos_work_units'
-                             unit; not billed to the model                 */
-    jaos_solve_status status;  /* what the elastic solve answered          */
+    double  total;
+    int64_t rows_moved;
+    int64_t cols_moved;
+    int64_t at_row;
+    int64_t at_col;
+    double  largest;
+    int64_t work_units;
+    jaos_solve_status status;
 } jaos_relax_report;
 
-/* The smallest change to the bounds that makes the model feasible (D331).
- *
- * An IIS says WHERE a model contradicts itself. This says HOW MUCH has to
- * be given up to stop the contradiction, and on which sides. Neither
- * replaces the other: an IIS can be ten rows nobody is allowed to move,
- * and a relaxation can name one row that has to move by 3.
- *
- * row_move receives num_row values and col_move num_col; either may be
- * NULL. A value is signed and names one side: below zero, that row's or
- * column's LOWER bound has to come down by that much; above zero, its
- * UPPER bound has to go up by it; zero, it does not move. Adding every
- * move to the bound it names gives a model with a feasible point, and no
- * other set of moves has a smaller total.
- *
- * "Smallest" is the total, the sum of the sizes — the L1 measure, which is
- * what keeps the relaxation a linear program. It is not the smallest
- * NUMBER of bounds moved: that problem is NP-hard and is not what this
- * call answers. A model with several relaxations of the same total gets
- * one of them, the same one on every machine and every run (D8).
- *
- * `scope` says which bounds may move. Rows only leaves every column bound
- * as the caller wrote it, which is what to ask for when the columns are
- * physical limits; columns only does the reverse; both weighs them against
- * each other at the same price per unit.
- *
- * An integer column stays integer, so a relaxation of a mixed-integer
- * model answers about that model and not about its relaxation, and the
- * call costs a tree.
- *
- * The work runs on a private copy, so the caller's model, answer,
- * certificate and basis are untouched; the copy carries the caller's
- * limits, tolerances and progress callback, and not the log callback. The
- * cost is stated rather than billed, and the report carries it.
- *
- * Two models have no relaxation here and both say so the same way: the
- * call returns JAOS_ERR_NUMERICAL and the report's `status` reads
- * JAOS_SOLVE_INFEASIBLE. One is an inverted box, a lower bound above its
- * upper: that is a contradiction between two of the caller's own numbers
- * on one row, the elastic form moves that row's two ends together and
- * cannot open it, and no scope helps. The other is a scope narrower than
- * the contradiction, which only JAOS_RELAX_COLS can reach — the rows keep
- * their bounds there, so `x0 + x1 = 5` beside `x0 + x1 = 7` has no
- * relaxation over the columns while it has one over the rows. Which of the
- * two it is is read from the scope. A budget stop is reported the same way.
- *
- * `largest` is the biggest of every move's size, and the moves it compares
- * are not all in one unit: a row's is in the units of A_i x and a column's
- * in the units of x_j. Both are in the model's original space, and
- * `at_row` and `at_col` say which kind won. */
 JAOS_NODISCARD jaos_status jaos_feasrelax(jaos_model *m,
                                           jaos_relax_scope scope,
                                           double *row_move, double *col_move,
                                           jaos_relax_report *out);
 
-/* --- Sensitivity and ranging ------------------------------------------ */
-
-/* How far one number in the model may move, everything else held, before
- * the basis behind the last optimum stops being optimal. The three calls
- * below answer that for every cost, every row bound and every column
- * bound at once, each interval containing the number's current value. An
- * end that is not limited reads +-jaos_infinity(); a degenerate basis
- * reports intervals of zero width on the side a tie closes, which is the
- * truthful answer and not a failure.
- *
- * All three factor the published basis on the model as loaded, so they
- * need what jaos_basis needs: the last solve found an optimum. The
- * intervals are about the basis and not about the answer: at a model with
- * more than one optimal basis, another basis can carry the same optimum
- * further, and the answer to "how far can this cost move before the
- * optimal VALUES change" is the union over those bases, which is not
- * computed here. Reproducible bit for bit, like everything else (D8).
- *
- * The cost is stated rather than billed, since jaos_work_units belongs to
- * the solve: one factorization of the basis per call, then for cost
- * ranging one BTRAN and one row price per basic structural column, and
- * for either bound ranging one FTRAN per nonbasic variable. On a model of
- * a hundred thousand rows a full cost ranging is comparable to the solve. */
-
-/* Cost ranging: for every column j, the interval col_cost[j] may take.
- * Both arrays take num_col values; either may be NULL. A fixed column's
- * cost decides nothing and reads unlimited both ways. */
 JAOS_NODISCARD jaos_status jaos_cost_ranging(jaos_model *m,
                                              double *lower, double *upper);
 
-/* Right-hand-side ranging: for every row, the interval each of its two
- * bounds may take -- [lower_lo, lower_hi] for row_lower and
- * [upper_lo, upper_hi] for row_upper. All four arrays take num_row values;
- * any may be NULL. A bound the row's activity does not rest on may close
- * in on the activity and no further; the bound it rests on moves the
- * basic variables with it and is limited by their own bounds. */
 JAOS_NODISCARD jaos_status jaos_rhs_ranging(jaos_model *m,
     double *lower_lo, double *lower_hi, double *upper_lo, double *upper_hi);
 
-/* The same for every column's own bounds, num_col values each. */
 JAOS_NODISCARD jaos_status jaos_bound_ranging(jaos_model *m,
     double *lower_lo, double *lower_hi, double *upper_lo, double *upper_hi);
 
-/* --- Exact verification of a final basis ------------------------------ */
-
-/* What jaos_verify concluded. REFUSED is not a failure: it is the honest
- * answer when the numbers the proof needs do not fit, and the report says
- * how far outside they were. */
 typedef enum jaos_proof {
-    JAOS_PROOF_OPTIMAL = 0,  /* proved, with no tolerance anywhere    */
-    JAOS_PROOF_BROKEN,       /* the basis does not certify the answer */
-    JAOS_PROOF_REFUSED,      /* the arithmetic does not fit           */
+    JAOS_PROOF_OPTIMAL = 0,
+    JAOS_PROOF_BROKEN,
+    JAOS_PROOF_REFUSED,
 } jaos_proof;
 
-/* Which of the checks a BROKEN verdict came from. They run in this order and
- * the first to fail is the one reported, so a basis can fail more than one. */
 typedef enum jaos_proof_stage {
     JAOS_PROOF_STAGE_NONE = 0,
-    JAOS_PROOF_STAGE_RANK,    /* the basis has no transversal          */
-    JAOS_PROOF_STAGE_PRIMAL,  /* a basic value is outside its bounds   */
-    JAOS_PROOF_STAGE_DUAL,    /* a reduced cost points out of the model */
+    JAOS_PROOF_STAGE_RANK,
+    JAOS_PROOF_STAGE_PRIMAL,
+    JAOS_PROOF_STAGE_DUAL,
 } jaos_proof_stage;
 
-/* What jaos_verify did, beside the verdict. */
 typedef struct jaos_verify_report {
     jaos_proof status;
-    jaos_proof_stage stage;  /* on BROKEN, which check said so             */
-    double  bound_bits;      /* what the proof needs, read before any of it
-                                is attempted: the Hadamard bound of the
-                                scaled basis plus that of its largest block */
-    double  capacity_bits;   /* what the arithmetic holds                  */
-    int64_t blocks;          /* strongly connected components of the basis */
-    int64_t largest_block;   /* rows in the biggest one                    */
-    int64_t at_row;          /* on BROKEN, the row that breaks it, or -1   */
-    int64_t at_col;          /* and the column, or -1                      */
-    double  violation;       /* on BROKEN, how far out it is. The only
-                                rounded number in the report: what decided
-                                the verdict was an exact comparison, and
-                                this is what the caller is told afterwards */
-    int64_t bytes_held;      /* the largest single block table allocated   */
-    int64_t terms;           /* integer products formed; the cost scales
-                                with this                                  */
+    jaos_proof_stage stage;
+    double  bound_bits;
+    double  capacity_bits;
+    int64_t blocks;
+    int64_t largest_block;
+    int64_t at_row;
+    int64_t at_col;
+    double  violation;
+    int64_t bytes_held;
+    int64_t terms;
 } jaos_verify_report;
 
-/* Proves, or refuses to prove, that the last solve's published basis
- * certifies its answer. Nothing here compares against a tolerance.
- *
- * The basis is rebuilt over the integers -- each row scaled by the power of
- * two that clears its mantissas, which is exact -- permuted to block
- * triangular form by a maximum transversal and the strongly connected
- * components, and each block eliminated by Bareiss's fraction-free method.
- * The basic values and the duals come out as exact rationals, and the
- * verdict is OPTIMAL when every basic value lies inside its bounds and every
- * nonbasic reduced cost points into the model.
- *
- * REFUSED comes before the work, not during it: one pass over the basis
- * bounds every number the proof would hold, and `bound_bits` against
- * `capacity_bits` is the whole test. A basis past it is refused with nothing
- * allocated. It can also come during, when the bound was loose enough to
- * admit a basis the arithmetic then could not hold; `terms` says how far it
- * got. Measured over the gate: the bound admits 36 of the 110 instances that
- * have a basis to read, and it is an upper bound and a loose one, so more
- * than 36 may prove (D273, D274).
- *
- * BROKEN names the first row or column that fails, in the order the checks
- * run: the basic values against their bounds, then the reduced costs.
- *
- * Reproducible bit for bit, like everything else (D8): every loop runs in
- * index order and no tie is broken by an address. The cost is stated rather
- * than billed to jaos_work_units, and it is not small -- an elimination on a
- * block of k rows holds k*(k+1) numbers and forms about k**3 products of
- * them. */
 JAOS_NODISCARD jaos_status jaos_verify(jaos_model *m,
                                        jaos_verify_report *out);
 
-/* The same proof over a basis the caller hands in, with no solve at all
- * (D339). This is what makes JAOS a checker of somebody else's answer and
- * not only of its own: read a model, read the basis another solver
- * stopped on -- jaos_read_mps_basis reads the format the field writes it
- * in -- and this says, over the rationals and with no tolerance anywhere,
- * whether that basis is an optimal basis of that model.
- *
- * col_status holds num_col statuses and row_status num_row, and both are
- * required. Refused as JAOS_ERR_INVALID_INPUT for a value that is not one
- * of the four and for any count of basic variables other than num_row,
- * which are jaos_set_basis's two structural checks and are refused here
- * for the same reason: a basis of the wrong size is not a basis, and
- * nothing later can make it one.
- *
- * The three verdicts are jaos_verify's and mean the same things. OPTIMAL
- * proves the basis certifies an optimum of this model. BROKEN names the
- * first basic value outside its bounds or the first reduced cost pointing
- * out of the model, which is what a wrong answer from another solver
- * looks like from here. REFUSED is the limb budget and is not a verdict
- * about the basis.
- *
- * The model is not solved and its own state is not touched: a model that
- * never solved stays one, jaos_solution keeps refusing, and the basis the
- * next solve starts from is whatever jaos_set_basis last said. What a
- * proof does leave behind is the exact values it derived, readable
- * through jaos_exact_col_value and the two beside it, so "what does that
- * basis actually give" has an exact answer as well as a verdict.
- *
- * Proving a basis optimal is not the same as being told an objective
- * value. Nothing here reads a number the other solver reported; the
- * verdict comes from the model and the basis alone. */
 JAOS_NODISCARD jaos_status jaos_verify_basis(jaos_model *m,
     const jaos_basis_status *col_status,
     const jaos_basis_status *row_status, jaos_verify_report *out);
 
-/* What a proved basis says the answer IS, exactly (D286).
- *
- * After a jaos_verify that returned JAOS_PROOF_OPTIMAL, every column's
- * value, every row's dual and the objective are on the model as decimal
- * rationals -- "1/3", "-7/2", "29" -- with no rounding anywhere: a basic
- * value is what the exact elimination solved, a nonbasic one is the bound
- * its status names, a dual is the exact multiplier, and the objective is
- * c'x + c0 summed over those. The duals carry the model's own sign
- * convention, the one jaos_check_solution documents.
- *
- * `*out` points into the model's storage and stays valid until the next
- * solve, verify, load or modification, all of which drop the values; a
- * getter after that refuses rather than answering from a stale proof, and
- * so does one before any proof. The objective alone can be absent beside
- * present values: its sum can outgrow the limb budget on a model whose
- * values fitted, and then jaos_exact_objective refuses with a message
- * saying so.
- *
- * This is an exact answer for the bases the proof reaches and not an
- * exact solver: the simplex found the basis in floating point, the proof
- * shows it optimal with no tolerance, and these are its coordinates.
- * SPECS.md section 5 says how many of the reference bases that is. */
 JAOS_NODISCARD jaos_status jaos_exact_col_value(const jaos_model *m,
                                                 int64_t col,
                                                 const char **out);
@@ -2161,118 +615,29 @@ JAOS_NODISCARD jaos_status jaos_exact_row_dual(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_exact_objective(const jaos_model *m,
                                                 const char **out);
 
-/* What deriving an exact infeasibility certificate cost, and whether it
- * fitted. This call derives and does not judge, so there is no verdict
- * here: whether the multipliers certify is jaos_check_certificate's
- * answer, or jaos_check_proof's over the rationals. */
 typedef struct jaos_exact_ray_report {
-    bool    derived;         /* the multipliers are on the model         */
-    double  bound_bits;      /* what the derivation needs, read before any
-                                of it is attempted, the same a-priori
-                                bound jaos_verify uses                    */
-    double  capacity_bits;   /* what the arithmetic holds                 */
-    int64_t blocks;          /* strongly connected components of the basis */
-    int64_t largest_block;   /* rows in the biggest one                   */
-    int64_t at_row;          /* the row whose own logical the ray leaves
-                                the basis on, or -1 when a structural
-                                column holds that position                */
-    int64_t bytes_held;      /* the largest single block table allocated  */
-    int64_t terms;           /* integer products formed                   */
+    bool    derived;
+    double  bound_bits;
+    double  capacity_bits;
+    int64_t blocks;
+    int64_t largest_block;
+    int64_t at_row;
+    int64_t bytes_held;
+    int64_t terms;
 } jaos_exact_ray_report;
 
-/* The Farkas multipliers behind the last INFEASIBLE answer, exactly
- * (D333). One decimal rational per row, on the model, read back with
- * jaos_exact_row_multiplier.
- *
- * jaos_certificate publishes the same vector in doubles, and the
- * difference is rounding twice: once in the triangular solve that formed
- * it and once in the unscaling. That rounding is measurable — 18 of the
- * 29 reference infeasibilities certify with no tolerance at all and
- * eleven do not, every failure a single column whose (A'y)_j sits a
- * rounding away from zero (D328). This solves the same system over the
- * rationals instead, from the basis the refusal stopped on, which
- * jaos_basis publishes since D330.
- *
- * Needs an INFEASIBLE answer that has both a published ray and that
- * basis: a verdict presolve reached with no simplex has no basis to solve
- * against, and an inverted box has no ray. REFUSED comes before the work,
- * the same way it does for the proof: `bound_bits` against
- * `capacity_bits` is read before a limb is allocated, and `derived` is
- * false with JAOS_OK returned, because "the arithmetic does not fit" is
- * an answer and not a failure.
- *
- * It derives and does not judge, deliberately. Hand the multipliers to
- * jaos_check_certificate at a tolerance of zero, or write them into a
- * proof file with jaos_write_proof and let jaos_check_proof judge them
- * over the rationals; both re-derive everything from the model and share
- * no code with this. So a wrong answer here cannot become a proof.
- *
- * Reproducible bit for bit, like everything else (D8). Dropped by
- * anything that drops the answer, and by the next jaos_verify. Not billed
- * to jaos_work_units; the report carries the cost. */
 JAOS_NODISCARD jaos_status jaos_exact_certificate(jaos_model *m,
                                                   jaos_exact_ray_report *out);
 JAOS_NODISCARD jaos_status jaos_exact_row_multiplier(const jaos_model *m,
                                                      int64_t row,
                                                      const char **out);
 
-/* The unbounded direction behind the last UNBOUNDED answer, exactly
- * (D336). One decimal rational per structural column, on the model, read
- * back with jaos_exact_col_direction.
- *
- * The symmetric half of jaos_exact_certificate and the same argument. The
- * simplex proves unboundedness on a column whose ratio test finds no
- * blocking row, and the direction is that column at 1 with -B^-1 A_q over
- * the basics; jaos_unbounded_ray publishes it solved in floating point and
- * unscaled, so it is rounded twice. This solves the same system over the
- * rationals from the basis the solve stopped on. The primal system rather
- * than the transpose one is the only difference of substance: this ray
- * lives in the column space where the Farkas multipliers live in the row
- * space.
- *
- * Same rules as the certificate's: it needs the published ray and the
- * basis behind it, REFUSED is read before any of the work and returns
- * JAOS_OK with `derived` false, and it derives without judging — hand the
- * direction to jaos_check_ray at a tolerance of zero, or let
- * jaos_check_proof judge the file jaos_write_proof writes. `at_row` is
- * always -1 here: a direction names a column and not a row. */
 JAOS_NODISCARD jaos_status jaos_exact_unbounded_ray(
     jaos_model *m, jaos_exact_ray_report *out);
 JAOS_NODISCARD jaos_status jaos_exact_col_direction(const jaos_model *m,
                                                     int64_t col,
                                                     const char **out);
 
-/* The exact optimality proof, on disk (D325).
- *
- * jaos_write_proof writes what a jaos_verify that returned
- * JAOS_PROOF_OPTIMAL left: every column's exact value and every row's
- * exact dual as decimal rationals, with the exact objective. Without such
- * a proof on the model it refuses, the same rule the exact getters apply,
- * because a file of zeros does not read as missing. A proof whose values
- * fitted but whose objective did not is refused too: a file with no
- * objective in it cannot be checked.
- *
- * jaos_check_proof reads one back and judges it FROM THE MODEL ALONE. It
- * reads no basis, because the file carries none. It re-derives the three
- * conditions that make a point optimal for a linear program: the point is
- * inside every bound and every row, every reduced cost points into the
- * model from the side the point rests on, and anything strictly inside
- * its bounds carries a zero multiplier. Those three together are
- * sufficient, so a file that passes is proved optimal rather than merely
- * consistent with somebody else's basis.
- *
- * Every comparison is over the rationals. There is no tolerance here and
- * no bar to argue about, which is what separates this from
- * jaos_check_solution.
- *
- * Returns JAOS_OK when the file was read and judged, and the verdict is
- * in the report; JAOS_ERR_INVALID_INPUT for a file that is not a proof or
- * is not this model's; JAOS_ERR_IO when it cannot be read; and
- * JAOS_ERR_NUMERICAL when a product or a sum outgrew JM_EXACT_LIMBS,
- * which is an honest "cannot judge" and not a verdict. */
-/* Which of the three a proof file claims (D328). The optimum's proof is
- * D325's; the other two carry the same vectors jaos_certificate and
- * jaos_unbounded_ray publish, written as exact rationals. */
 typedef enum {
     JAOS_PROOF_FILE_OPTIMAL = 0,
     JAOS_PROOF_FILE_INFEASIBLE,
@@ -2280,41 +645,17 @@ typedef enum {
 } jaos_proof_kind;
 
 typedef struct jaos_proof_report {
-    bool    primal;      /* every column and every row activity inside its
-                            own bounds, exactly                          */
-    bool    dual;        /* every multiplier points into the model from
-                            the side its quantity rests on, and anything
-                            strictly inside carries zero                 */
-    bool    objective;   /* c'x + c0 is what the file claims             */
-    int64_t bad_row;     /* the first row that failed a test, or -1      */
+    bool    primal;
+    bool    dual;
+    bool    objective;
+    int64_t bad_row;
     int64_t bad_col;
-    int64_t terms;       /* exact products formed: what the cost scales
-                            with, and how far a refused check got        */
-    /* Which claim the file made, and whether it holds. For an optimum,
-     * `certified` is the three booleans above together. For the other two
-     * kinds those three are false and mean nothing, and `certified` is
-     * the whole verdict; `bad_col` or `bad_row` names where it failed
-     * (D328). */
+    int64_t terms;
+
     jaos_proof_kind kind;
     bool    certified;
 } jaos_proof_report;
 
-/* jaos_write_proof writes whichever of the three the last solve left. An
- * optimum needs a jaos_verify that returned JAOS_PROOF_OPTIMAL, since its
- * coordinates are the proof. An INFEASIBLE or an UNBOUNDED answer needs
- * no verify at all (D328): the certificate is a vector, every double in
- * it is already an exact rational, and what is uncertain is not the
- * number but whether it certifies -- which is exactly what the checker
- * decides.
- *
- * The exact check of a certificate has no tolerance and so no near miss.
- * jaos_check_certificate ignores a term below its own traffic, because a
- * sum of doubles cannot place a zero more finely than that;
- * jaos_check_proof cannot and does not. A multiplier that is a rounding
- * away from zero on a column with no finite bound on the side it points
- * at makes the supremum infinite, and the file is refused. So the two
- * checkers can disagree, the exact one is the strict one, and D328
- * carries how often they do over the reference infeasibles. */
 JAOS_NODISCARD jaos_status jaos_write_proof(jaos_model *m, const char *path);
 JAOS_NODISCARD jaos_status jaos_check_proof(jaos_model *m, const char *path,
                                             jaos_proof_report *out);
@@ -2323,4 +664,4 @@ JAOS_NODISCARD jaos_status jaos_check_proof(jaos_model *m, const char *path,
 }
 #endif
 
-#endif /* JAOS_H */
+#endif

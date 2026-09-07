@@ -4,10 +4,6 @@
 #include <stdckdint.h>
 #include <stdlib.h>
 
-/* All array allocations in JAOS go through these two, so an index-arithmetic
- * overflow can never silently turn into a short allocation. This is the C23
- * <stdckdint.h> payoff (DECISIONS.md, D1). */
-
 void *jm_alloc_array(int64_t n, size_t elsize)
 {
     if (n < 0)
@@ -16,7 +12,7 @@ void *jm_alloc_array(int64_t n, size_t elsize)
     if (ckd_mul(&total, (size_t)n, elsize))
         return nullptr;
     if (total == 0)
-        total = 1; /* uniform rule: success is always non-NULL */
+        total = 1;
     return malloc(total);
 }
 

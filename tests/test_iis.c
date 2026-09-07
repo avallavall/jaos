@@ -1,9 +1,5 @@
-/* Irreducible infeasible subsystems (D264): models whose IIS is worked by
- * hand, and the solver as the oracle -- the sides named, kept alone, are
- * infeasible, and dropping any one of them is feasible. The oracle is
- * what makes "irreducible" a checked word rather than a claimed one. */
 #include "jaos.h"
-#include "jaos_internal.h"    /* the matrix, which the API does not read back */
+#include "jaos_internal.h"
 #include "unity.h"
 
 #include <math.h>
@@ -13,8 +9,6 @@
 void setUp(void) {}
 void tearDown(void) {}
 
-/* A copy of `m` with only the named sides kept, no objective, and one
- * side less when `drop_row`/`drop_col` and `drop_side` name one. */
 static jaos_model *subsystem(const jaos_model *m, const jaos_iis_side *rs,
                              const jaos_iis_side *cs, int64_t drop_row,
                              int64_t drop_col, jaos_iis_side drop_side)
@@ -61,8 +55,6 @@ static jaos_model *subsystem(const jaos_model *m, const jaos_iis_side *rs,
     return s;
 }
 
-/* The oracle: the named sides alone are infeasible, and every one of
- * them is needed. */
 static void assert_irreducible(const jaos_model *m, const jaos_iis_side *rs,
                                const jaos_iis_side *cs)
 {
@@ -94,8 +86,6 @@ static void assert_irreducible(const jaos_model *m, const jaos_iis_side *rs,
         }
 }
 
-/* x >= 1 as a row, x <= 0 as a row, x >= 0 as its own bound: the IIS is
- * the two rows, one side each, and the column bound is not in it. */
 static jaos_model *make_two_rows(void)
 {
     const double c[]  = {1.0};
@@ -120,7 +110,7 @@ static void test_nothing_to_find_without_an_infeasible_answer(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_iis(m, rs, cs, &rep));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_iis(nullptr, rs, cs, &rep));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_iis(m, rs, cs, nullptr));
-    /* A feasible model has none either. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 1, -INFINITY, 5.0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -132,11 +122,7 @@ static void test_nothing_to_find_without_an_infeasible_answer(void)
 static void test_two_rows_and_the_column_bound_is_not_a_member(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
-    /* Positive test. The off-by-one build shuffles every postsolve restore
-     * index, so both the certificate's support and the filter's counts
-     * move; the sides this asks for are a claim about a correct replay.
-     * The wrong-dual build rewrites only a singleton row's dual on an
-     * OPTIMAL replay, and no verdict here reads a dual, so it runs. */
+
     TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
                         "build");
 #else
@@ -151,15 +137,12 @@ static void test_two_rows_and_the_column_bound_is_not_a_member(void)
     TEST_ASSERT_EQUAL_INT(JAOS_IIS_NONE, cs[0]);
     TEST_ASSERT_EQUAL_INT64(2, rep.members);
     TEST_ASSERT_TRUE(rep.from_certificate);
-    /* The support is exactly the answer here, so the filter confirms it
-     * once and asks once per candidate. */
+
     TEST_ASSERT_EQUAL_INT64(2, rep.candidates);
     TEST_ASSERT_EQUAL_INT64(3, rep.solves);
     TEST_ASSERT_TRUE(rep.work_units >= 0);
     assert_irreducible(m, rs, cs);
 
-    /* The caller's model is untouched: same verdict, same certificate,
-     * same bounds, and the work of the last solve is still the solve's. */
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     double y[2];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
@@ -168,15 +151,13 @@ static void test_two_rows_and_the_column_bound_is_not_a_member(void)
     TEST_ASSERT_TRUE(lo == 1.0 && up == INFINITY);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
     TEST_ASSERT_TRUE(lo == 0.0 && up == INFINITY);
-    /* Either output array may be left out. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, nullptr, nullptr, &rep));
     TEST_ASSERT_EQUAL_INT64(2, rep.members);
     jaos_model_free(m);
 #endif
 }
 
-/* x >= 1 as a row against x <= 0 as the column's own upper bound: a
- * member on each side of the model. */
 static void test_a_column_bound_can_be_a_member(void)
 {
     const double c[]  = {0.0};
@@ -202,9 +183,6 @@ static void test_a_column_bound_can_be_a_member(void)
     jaos_model_free(m);
 }
 
-/* An inverted box has no certificate (jaos.h), and its two sides are the
- * IIS. An EMPTY row inverted the same way is infeasible on its lower
- * side alone: 0 >= 1 needs no upper bound to fail. */
 static void test_an_inverted_box_is_its_own_iis(void)
 {
     const double c[]  = {1.0, 1.0};
@@ -233,7 +211,6 @@ static void test_an_inverted_box_is_its_own_iis(void)
     assert_irreducible(m, rs, cs);
     jaos_model_free(m);
 
-    /* The empty inverted row. */
     const double c2[]  = {1.0};
     const double cl2[] = {0.0}, cu2[] = {1.0};
     const double rl2[] = {1.0}, ru2[] = {0.0};
@@ -252,10 +229,6 @@ static void test_an_inverted_box_is_its_own_iis(void)
     jaos_model_free(m);
 }
 
-/* Two infeasible subsystems that share nothing: x0 pinned above 1 and
- * below 0 by rows 0 and 1, x1 the same by rows 2 and 3, plus a feasible
- * coupling row. The answer is ONE of the two, whole, and nothing else;
- * the walk is in index order, so it is the first. */
 static void test_a_model_with_two_iis_reports_one(void)
 {
     const double c[]  = {1.0, 1.0};
@@ -288,15 +261,10 @@ static void test_a_model_with_two_iis_reports_one(void)
     jaos_model_free(m);
 }
 
-/* A subsystem the certificate over-covers. Three rows on two columns:
- *   x0 + x1 >= 4, x0 <= 1, x1 <= 1, both columns in [0, 10].
- * The ray leans on all three rows and possibly on the column bounds,
- * which are slack; the filter must drop what is not needed. */
 static void test_the_deletion_filter_drops_what_the_ray_over_covers(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
-    /* Positive test, same reason as
-     * test_two_rows_and_the_column_bound_is_not_a_member. */
+
     TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
                         "build");
 #else
@@ -330,13 +298,9 @@ static void test_the_deletion_filter_drops_what_the_ray_over_covers(void)
 #endif
 }
 
-/* Maximised, with an objective that would be unbounded were the model
- * feasible: the copy has no objective, so the filter never sees it. */
 static void test_the_objective_does_not_reach_the_filter(void)
 {
-    /* max x with x >= 1 and x <= 0 as rows: relaxing the cap leaves a
-     * feasible model whose objective runs off, and the filter must read
-     * that as feasible, which it can only do with the objective gone. */
+
     const double c[]  = {1.0};
     const double cl[] = {0.0}, cu[] = {INFINITY};
     const double rl[] = {1.0, -INFINITY}, ru[] = {INFINITY, 0.0};
@@ -358,12 +322,6 @@ static void test_the_objective_does_not_reach_the_filter(void)
     jaos_model_free(m);
 }
 
-/* A budget no re-solve can meet is reported, not worked around. The
- * model is one presolve's families leave alone -- every row has two
- * entries and every column three, nothing is forcing and nothing is
- * fixed -- so the simplex has to pivot in every build, and a limit of
- * one unit stops it before it decides. The infeasibility is that the
- * three caps sum to 2(x0 + x1 + x2) <= 3 against x0 + x1 + x2 >= 5. */
 static void test_a_budget_stop_is_reported(void)
 {
     const double c[]  = {0.0, 0.0, 0.0};
@@ -398,7 +356,7 @@ static void test_a_budget_stop_is_reported(void)
     TEST_ASSERT_TRUE(strstr(jaos_model_error(m), "work limit") != nullptr);
     TEST_ASSERT_EQUAL_INT64(1, rep2.solves);
     TEST_ASSERT_EQUAL_INT64(0, rep2.members);
-    /* The caller's own answer was not touched by the stop either. */
+
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     jaos_model_free(m);
 }
@@ -431,13 +389,6 @@ static void test_the_answer_is_reproducible(void)
     jaos_model_free(m);
 }
 
-
-/* ------------------------------------ the subsystem as a model (D343) */
-
-/* The claim, and the only check that can settle it: the model that comes
- * out is infeasible. Everything else here -- the zeroed costs, the
- * relaxed sides, the dropped rows -- is machinery, and a mistake in any
- * of it shows up as a model that reads OPTIMAL or UNBOUNDED. */
 static void test_the_subsystem_is_a_model_and_it_is_infeasible(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
@@ -457,21 +408,16 @@ static void test_the_subsystem_is_a_model_and_it_is_infeasible(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(sub));
 
-    /* Both rows are members here, so neither is dropped, and the column
-     * has no member side so its bounds come out free. */
     TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(sub));
     TEST_ASSERT_EQUAL_INT64(1, jaos_num_col(sub));
     double lo, up;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(sub, 0, &lo, &up));
     TEST_ASSERT_TRUE(lo == -INFINITY && up == INFINITY);
-    /* And the cost is zero, because a subsystem is a feasibility
-     * question: with the original cost this model could read UNBOUNDED
-     * instead once its bounds were relaxed. */
+
     double c = 1.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(sub, 0, &c));
     TEST_ASSERT_TRUE(c == 0.0);
 
-    /* The caller's model is untouched. */
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
     TEST_ASSERT_TRUE(lo == 0.0 && up == INFINITY);
@@ -481,16 +427,13 @@ static void test_the_subsystem_is_a_model_and_it_is_infeasible(void)
 #endif
 }
 
-/* A row nothing points at goes, and its name goes with it: what is left
- * carries the names it had, so a member is recognisable in the file. */
 static void test_the_subsystem_drops_what_is_not_a_member(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
     TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
                         "build");
 #else
-    /* Three rows: x >= 1 and x <= 0 fight, and y <= 5 is a bystander.
-     * The bystander's row and its column both leave. */
+
     const double cost[2] = {1.0, 1.0};
     const double cl[2] = {-INFINITY, -INFINITY};
     const double cu[2] = {INFINITY, INFINITY};
@@ -536,9 +479,6 @@ static void test_the_subsystem_drops_what_is_not_a_member(void)
 #endif
 }
 
-/* The control the two above need: a subsystem built from arrays that name
- * one side too few is FEASIBLE, which is what makes "it is infeasible" a
- * statement about the arrays rather than about the builder. */
 static void test_a_subsystem_missing_a_member_is_feasible(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
@@ -563,7 +503,6 @@ static void test_a_subsystem_missing_a_member_is_feasible(void)
 #endif
 }
 
-/* Bad arguments, and a side that is not one of the four. */
 static void test_the_subsystem_builder_rejects_bad_arguments(void)
 {
     jaos_model *m = make_two_rows();
@@ -582,8 +521,6 @@ static void test_the_subsystem_builder_rejects_bad_arguments(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
                           jaos_iis_model(m, junk, cs, &sub));
 
-    /* The control: the same call with the four real values is taken, and
-     * it needs no solve, since the arrays are the whole input. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
     TEST_ASSERT_NOT_NULL(sub);
     jaos_model_free(sub);

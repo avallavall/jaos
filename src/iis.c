@@ -1,30 +1,3 @@
-/* An irreducible infeasible subsystem of the last INFEASIBLE model (D264).
- *
- * The members are bound SIDES: a row's lower or upper bound, a column's
- * lower or upper bound. A subsystem is a choice of sides kept, every
- * other side set to the infinity that relaxes it. It is an IIS when it is
- * infeasible on its own and keeping any one side less makes it feasible.
- *
- * Two filters from Chinneck and Dravnieks, ORSA Journal on Computing 3(2),
- * 1991, run one after the other. The sensitivity filter reads the Farkas
- * ray the solve published: a row side enters where its multiplier points
- * at it (y_i > 0 the lower, y_i < 0 the upper), a column side where
- * (A'y)_j points at it (positive the upper, negative the lower). Those
- * are the sides the certificate's own proof leans on, the sign rule
- * jaos_check_certificate reads it by without its floor, so the set is an infeasible
- * subsystem already and usually a small one. The deletion filter then
- * walks it in index order, rows before columns and lower before upper:
- * relax one side, re-solve warm; still infeasible, the side is out for
- * good; feasible, it is a member and goes back. What is left is an IIS.
- * The walk decides which IIS a model with several has, and a fixed walk
- * is what makes the answer reproducible (D8).
- *
- * Every solve runs on a private copy of the model with zero costs, so
- * feasibility is the only question a solve can answer (UNBOUNDED cannot
- * arise) and the caller's model, answer, certificate and basis are
- * untouched. Nothing here is billed to jaos_work_units; the report
- * carries the total. */
-
 #include "jaos_internal.h"
 
 #include <math.h>
@@ -33,17 +6,14 @@
 
 typedef struct {
     const jaos_model *m;
-    jaos_model *c;              /* the private copy, zero costs */
+    jaos_model *c;
     int64_t nrow, ncol;
-    unsigned char *rs;          /* [nrow] sides kept, JAOS_IIS_* bits */
-    unsigned char *cs;          /* [ncol] the same for columns */
+    unsigned char *rs;
+    unsigned char *cs;
     int64_t solves;
     int64_t work;
 } iis;
 
-/* A side is present when it constrains: a lower bound above -inf, an
- * upper bound below +inf. A lower bound of +inf is present, and inverted
- * against any upper; jaos_load_lp accepts that model on purpose. */
 static unsigned char sides_present(double lower, double upper)
 {
     unsigned char s = JAOS_IIS_NONE;
@@ -62,7 +32,6 @@ static int64_t count_sides(const unsigned char *s, int64_t n)
     return k;
 }
 
-/* The copy's bounds for one row or column, from the sides it keeps. */
 static jaos_status apply_row(iis *g, int64_t i)
 {
     const double lo = g->rs[i] & JAOS_IIS_LOWER ? g->m->row_lower[i] : -INFINITY;
@@ -77,10 +46,6 @@ static jaos_status apply_col(iis *g, int64_t j)
     return jaos_set_col_bounds(g->c, j, lo, up);
 }
 
-/* One re-solve of the copy, warm from wherever the last one stopped.
- * INFEASIBLE and OPTIMAL are the two answers the filter can use; a
- * budget stop, an interruption or a numerical failure is neither, and
- * the filter cannot decide the side it was asked about. */
 static jaos_status resolve(iis *g, jaos_model *m, jaos_solve_status *st)
 {
     const jaos_status rc = jaos_solve(g->c);
@@ -101,8 +66,6 @@ static jaos_status resolve(iis *g, jaos_model *m, jaos_solve_status *st)
     return JAOS_OK;
 }
 
-/* Every present side, which is the whole model: the candidate set when
- * the certificate's support is not usable. */
 static void mark_every_side(iis *g)
 {
     for (int64_t i = 0; i < g->nrow; i++)
@@ -111,18 +74,6 @@ static void mark_every_side(iis *g)
         g->cs[j] = sides_present(g->m->col_lower[j], g->m->col_upper[j]);
 }
 
-/* The sensitivity filter: the sides the certificate leans on, by the
- * sign rule jaos_check_certificate reads a ray with. (A'y)_j is summed
- * in double, in column order, and never in long double: the checker's
- * wider sum is a checker's privilege, and a published set may not
- * depend on a type whose width differs by machine (D8, D34; the review
- * of D264 measured seven of the 29 reference IISs changing with it).
- * The checker's floor, tol times the column's own traffic, is not
- * applied here: it would be a constant to sweep, a side that is only
- * roundoff costs one re-solve and the deletion filter removes it, and a
- * support that is not a proof falls back to every side. A side the ray
- * points at that the model has not got cannot be a member and is
- * skipped. */
 static void mark_support(iis *g, const double *y)
 {
     const jaos_model *m = g->m;
@@ -147,11 +98,6 @@ static void mark_support(iis *g, const double *y)
     }
 }
 
-/* The copy: the caller's matrix, zero costs, and the bounds the kept
- * sides give. The caller's limits and tolerances go with it, so one
- * re-solve may cost what the caller allows one solve; so does the
- * progress callback, so a watcher can stop the filter. The log callback
- * does not: the re-solves are this call's own business. */
 static jaos_status make_copy(iis *g, jaos_model *m)
 {
     const int64_t nr = g->nrow, nc = g->ncol;
@@ -198,8 +144,6 @@ out:
     return rc;
 }
 
-/* The deletion filter over the kept sides, in the fixed order the file
- * comment states. */
 static jaos_status delete_filter(iis *g, jaos_model *m)
 {
     static const unsigned char order[2] = {JAOS_IIS_LOWER, JAOS_IIS_UPPER};
@@ -267,10 +211,6 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
     if (g.rs == nullptr || g.cs == nullptr || y == nullptr)
         goto out;
 
-    /* The candidates. An inverted box is refused by the solve before any
-     * ray exists (D259) and has none to read, and its two sides are an
-     * infeasible subsystem by themselves. Otherwise the certificate's
-     * support; failing both, every side there is. */
     bool from_cert = false;
     bool found = false;
     for (int64_t i = 0; i < g.nrow && !found; i++)
@@ -295,11 +235,6 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
     if (rc != JAOS_OK)
         goto out;
 
-    /* The candidates must be infeasible on their own, or the deletion
-     * filter has nothing to reduce. A support that is not -- a ray the
-     * copy's own tolerance reads differently -- falls back to the whole
-     * model once; the whole model re-solving feasible is the original
-     * verdict failing to repeat, which is reported and not repaired. */
     jaos_solve_status st;
     rc = resolve(&g, m, &st);
     if (rc != JAOS_OK)
@@ -349,29 +284,6 @@ out:
     return rc;
 }
 
-/* --------------------------------------------------------------------- */
-/* The subsystem as a model of its own (D343)                             */
-/* --------------------------------------------------------------------- */
-
-/* An IIS printed as a list of sides says which constraints fight. A
- * caller who wants to LOOK at them wants a model: something to open in an
- * editor, hand to another solver, or solve again. This builds one, over
- * the public API and nothing else, so what it does is what any caller
- * could have done with the same two arrays.
- *
- * Four steps, and each is what "subsystem" means:
- *   - every cost is zeroed, and the objective constant with it, because a
- *     subsystem is a feasibility question and an objective could only
- *     turn it into an unbounded one;
- *   - a side that is not a member goes to the infinity that relaxes it;
- *   - a row with no member side is deleted, since a relaxed row on both
- *     ends constrains nothing;
- *   - a column left with no entries and no finite bound is deleted too,
- *     for the same reason. That one runs after the rows go, because a
- *     column's entries are what the row deletion removes.
- *
- * What comes out is infeasible, and its own `jaos_solve` says so. That is
- * the check worth running on it, and the test does. */
 jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
                            const jaos_iis_side *col_side, jaos_model **out)
 {
@@ -393,7 +305,6 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
     int64_t *drop = nullptr;
     int64_t ndrop = 0;
 
-    /* A feasibility question and nothing else. */
     st = jaos_set_objective_offset(c, 0.0);
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
         st = jaos_set_col_cost(c, j, 0.0);
@@ -413,8 +324,6 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
         st = jaos_set_col_bounds(c, j, lo, up);
     }
 
-    /* The rows that constrain nothing. Collected first and deleted in one
-     * call, because a deletion renumbers everything after it. */
     if (st == JAOS_OK) {
         drop = jm_alloc_array(m->num_row, sizeof *drop);
         if (drop == nullptr)
@@ -430,8 +339,6 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
         drop = nullptr;
     }
 
-    /* Then the columns nothing is left to say about: no entry in any
-     * surviving row and no bound of their own. */
     if (st == JAOS_OK) {
         const int64_t ncol = c->num_col;
         drop = jm_alloc_array(ncol, sizeof *drop);

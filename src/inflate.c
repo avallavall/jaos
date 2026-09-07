@@ -1,20 +1,4 @@
-/* Reading a compressed instance: gzip (RFC 1952) over DEFLATE (RFC 1951).
- *
- * Written here because JAOS links nothing but libc and libm, and a
- * dependency on zlib would buy one file format at the cost of the rule
- * (SPECS.md, "premises"). The decoder is integer arithmetic end to end, so
- * it keeps D8's bit-identical guarantee without needing anything from it.
- *
- * jm_slurp returns the bytes of a file: inflated when the file starts with
- * the gzip magic, verbatim when it does not. Both format readers go through
- * it, so `.gz` costs each of them one call.
- *
- * Canonical Huffman decoding follows RFC 1951 section 3.2.2 directly. The
- * count of codes per length plus the symbols in canonical order is enough to
- * walk a code bit by bit, and builds no lookup table.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
@@ -24,21 +8,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --------------------------------------------------------------------- */
-/* Bits, least-significant first, as DEFLATE packs them                    */
-/* --------------------------------------------------------------------- */
-
 typedef struct {
     const unsigned char *in;
     int64_t len;
-    int64_t pos;    /* next byte not yet in buf */
-    uint32_t buf;   /* bits held, the next one in the low bit */
-    int cnt;        /* how many of them are valid */
-    bool over;      /* a read ran past the end of the input */
+    int64_t pos;
+    uint32_t buf;
+    int cnt;
+    bool over;
 } bits;
 
-/* n <= 16 at every call site, so cnt never exceeds 23 and the shift below
- * stays inside uint32_t. */
 static uint32_t bits_get(bits *b, int n)
 {
     if (n == 0)
@@ -57,7 +35,6 @@ static uint32_t bits_get(bits *b, int n)
     return v;
 }
 
-/* Drops the partial byte. A stored block starts on a byte boundary. */
 static void bits_align(bits *b)
 {
     int drop = b->cnt % 8;
@@ -65,28 +42,18 @@ static void bits_align(bits *b)
     b->cnt -= drop;
 }
 
-/* Where the whole bytes resume, which is where the gzip trailer sits. */
 static int64_t bits_byte_pos(const bits *b)
 {
     return b->pos - b->cnt / 8;
 }
 
-/* --------------------------------------------------------------------- */
-/* Canonical Huffman                                                       */
-/* --------------------------------------------------------------------- */
-
 #define HUFF_MAXSYM 288
 
 typedef struct {
-    int16_t count[16];             /* codes of each length, index 0 unused */
-    int16_t symbol[HUFF_MAXSYM];   /* symbols, canonical order */
+    int16_t count[16];
+    int16_t symbol[HUFF_MAXSYM];
 } huff;
 
-/* Builds from one length per symbol. Rejects an over-subscribed set, which
- * is what a bit flipped inside a dynamic header produces. An incomplete set
- * is accepted: RFC 1951 allows one for the distance tree of a block that
- * emits no match, and a code it fails to cover fails the decode below rather
- * than decoding to something. */
 static bool huff_build(huff *h, const unsigned char *lengths, int n)
 {
     for (int i = 0; i < 16; i++)
@@ -94,14 +61,14 @@ static bool huff_build(huff *h, const unsigned char *lengths, int n)
     for (int i = 0; i < n; i++)
         h->count[lengths[i]]++;
     if (h->count[0] == n)
-        return false;              /* no code at all */
+        return false;
 
     int left = 1;
     for (int len = 1; len <= 15; len++) {
         left <<= 1;
         left -= h->count[len];
         if (left < 0)
-            return false;          /* more codes than the length can carry */
+            return false;
     }
 
     int16_t offs[16];
@@ -115,8 +82,6 @@ static bool huff_build(huff *h, const unsigned char *lengths, int n)
     return true;
 }
 
-/* Returns the symbol, or -1 on a code no length covers and on running out of
- * input. */
 static int huff_decode(bits *b, const huff *h)
 {
     int code = 0, first = 0, index = 0;
@@ -134,10 +99,6 @@ static int huff_decode(bits *b, const huff *h)
     return -1;
 }
 
-/* --------------------------------------------------------------------- */
-/* The output, grown as it goes                                            */
-/* --------------------------------------------------------------------- */
-
 typedef struct {
     char *buf;
     int64_t len, cap;
@@ -151,11 +112,6 @@ static bool sink_put(sink *s, unsigned char c)
     return true;
 }
 
-/* --------------------------------------------------------------------- */
-/* DEFLATE                                                                 */
-/* --------------------------------------------------------------------- */
-
-/* RFC 1951 section 3.2.5: what each length and distance code stands for. */
 static const int16_t len_base[29] = {
     3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51,
     59, 67, 83, 99, 115, 131, 163, 195, 227, 258
@@ -173,7 +129,6 @@ static const unsigned char dist_extra[30] = {
     10, 11, 11, 12, 12, 13, 13
 };
 
-/* The order the code-length code lengths arrive in, RFC 1951 section 3.2.7. */
 static const unsigned char clen_order[19] = {
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
 };
@@ -194,7 +149,7 @@ static jaos_status inflate_codes(jaos_model *m, bits *b, sink *s,
             continue;
         }
         if (sym == 256)
-            return JAOS_OK;        /* end of block */
+            return JAOS_OK;
 
         sym -= 257;
         if (sym >= 29)
@@ -210,8 +165,6 @@ static jaos_status inflate_codes(jaos_model *m, bits *b, sink *s,
         if (back > s->len)
             BAD("compressed input: back-reference reaches before the start");
 
-        /* One byte at a time on purpose: DEFLATE lets the copy overlap
-         * itself, which is how a run of one repeated byte is encoded. */
         for (int64_t k = 0; k < length; k++)
             if (!sink_put(s, (unsigned char)s->buf[s->len - back]))
                 return JAOS_ERR_OUT_OF_MEMORY;
@@ -237,8 +190,6 @@ static jaos_status inflate_stored(jaos_model *m, bits *b, sink *s)
     return JAOS_OK;
 }
 
-/* The fixed tables of RFC 1951 section 3.2.6, built from their lengths so
- * one decoder serves both block types. */
 static void fixed_trees(huff *lit, huff *dist)
 {
     unsigned char ll[288], dl[30];
@@ -314,12 +265,6 @@ static jaos_status inflate_dynamic(jaos_model *m, bits *b, sink *s)
     if (!huff_build(&lit, lengths, nlit))
         BAD("compressed input: literal/length code set is not a Huffman code");
 
-    /* A block that emits no match needs no distance code, and an encoder is
-     * allowed to declare none. zlib always declares one, so this branch is
-     * invisible to a corpus compressed by gzip; refusing it would refuse a
-     * legal file from some other encoder. Every count stays zero, so a
-     * distance code that does turn up decodes to nothing and the block is
-     * refused there. */
     bool any_dist = false;
     for (int k = 0; k < ndist; k++)
         if (lengths[nlit + k] != 0)
@@ -365,13 +310,6 @@ static jaos_status inflate_raw(jaos_model *m, bits *b, sink *s)
     }
 }
 
-/* --------------------------------------------------------------------- */
-/* gzip container                                                          */
-/* --------------------------------------------------------------------- */
-
-/* CRC-32 as RFC 1952 defines it. The table is built per call: 2048 integer
- * operations against a whole instance file, and no mutable file-scope state
- * to reason about. */
 static uint32_t crc32_of(const char *p, int64_t n)
 {
     uint32_t tab[256];
@@ -399,9 +337,6 @@ static uint32_t le32(const unsigned char *p)
 #define GZ_FCOMMENT 0x10u
 #define GZ_RESERVED 0xe0u
 
-/* Inflates every member of a gzip file into one buffer. Concatenated members
- * are a valid gzip file and some writers produce them, so stopping at the
- * first one would read an instance short and say nothing. */
 static jaos_status gunzip(jaos_model *m, const unsigned char *in, int64_t n,
                           sink *s)
 {
@@ -445,10 +380,7 @@ static jaos_status gunzip(jaos_model *m, const unsigned char *in, int64_t n,
             p += 2;
             if (p > n)
                 BAD("compressed input: gzip header ends inside FHCRC");
-            /* The header carries its own checksum when the flag is set, and
-             * the trailer's covers only the data. Without this, a header
-             * damaged in its length fields would be followed rather than
-             * refused. */
+
             uint32_t head_crc = crc32_of((const char *)(in + at),
                                          p - 2 - at) & 0xffffu;
             uint32_t want = (uint32_t)in[p - 2] |
@@ -470,8 +402,7 @@ static jaos_status gunzip(jaos_model *m, const unsigned char *in, int64_t n,
         uint32_t want_crc = le32(in + end);
         uint32_t want_size = le32(in + end + 4);
         int64_t got_size = s->len - member_start;
-        /* A member may be empty, and then s->buf is still NULL: adding an
-         * offset to it would be undefined even though the offset is zero. */
+
         const char *body = s->buf != nullptr ? s->buf + member_start : "";
         if (crc32_of(body, got_size) != want_crc)
             BAD("compressed input: gzip checksum does not match the data");
@@ -482,9 +413,8 @@ static jaos_status gunzip(jaos_model *m, const unsigned char *in, int64_t n,
         if (at >= n)
             return JAOS_OK;
         if (n - at >= 2 && in[at] == 0x1fu && in[at + 1] == 0x8bu)
-            continue;              /* a second member */
-        /* Some writers pad with zeros and gzip itself ignores that. Anything
-         * else after the last member means the file is not what it claims. */
+            continue;
+
         for (int64_t k = at; k < n; k++)
             if (in[k] != 0u)
                 BAD("compressed input: %" PRId64 " unexpected bytes after the "
@@ -494,10 +424,6 @@ static jaos_status gunzip(jaos_model *m, const unsigned char *in, int64_t n,
 }
 
 #undef BAD
-
-/* --------------------------------------------------------------------- */
-/* What the format readers call                                            */
-/* --------------------------------------------------------------------- */
 
 jaos_status jm_slurp(jaos_model *m, const char *path,
                      char **out, int64_t *out_len)

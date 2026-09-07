@@ -1,275 +1,172 @@
-# SPECS — what JAOS is built to be
+# SPECS — everything JAOS must have
 
-A mathematical-programming solver written from scratch in C23, competitive
-with the serious open solvers and usable as a library by someone who did not
-write it.
+JAOS is a linear and mixed-integer programming solver written from scratch in
+C23. No dependencies, Apache 2.0, Linux/GCC. This file is the whole target:
+one row per feature, with where it stands. **done**, **partial** (says what
+is missing), **missing**, or **out of scope**. A row changes status when its
+feature lands; nothing else changes here.
 
-This file is the target and the present state, in the present tense. It says
-what exists, what is partial and what is missing. It does not say why, and it
-does not say how anything got here: `DECISIONS.md` owns the why and the
-measurements, `CHANGELOG.md` owns what landed when, `TODO.md` owns what is
-next. A number appears here only with the record that owns it beside it.
-Nothing is in scope that is not on this page.
+Two rules hold on every commit. The answer is bit-identical on every machine
+and every run. An independent checker, sharing no code with the solver,
+judges every answer against the model as loaded.
 
-The core value, unchanged since M1: a correct answer, bit-identical on every
-machine and every run, proved by a checker that had no access to the solver
-that produced it.
+`docs/feature-matrix.md` puts these rows beside HiGHS, SoPlex, Clp, SCIP,
+Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 
-## Premises
-
-Non-negotiable, and they shape everything below.
-
-- **No external code.** Two exceptions, both closed and neither extended:
-  netlib's `emps` as a dev-time instance converter, fetched and checksummed
-  and never redistributed; and Unity for the test suite. Papers, theses and
-  textbooks are the only other input — never another solver's source.
-- **Bit-identical results on every machine and every run.** No clock decides
-  anything, no iteration order depends on an address, no reassociated
-  floating point, no unseeded randomness.
-- **Every number needs a measurement on both sides.** A tolerance, a
-  threshold, an interval. Fitting a constant to one instance is how this
-  project loses weeks.
-- **Deterministic work units are the unit of cost, and every run also
-  reports wall-clock time.** The units make regressions detectable across
-  machines; the seconds say whether the units bought anything. Seconds are
-  development numbers and are labelled as such — they never enter a baseline.
-
-Two decisions taken on 2026-08-13 fix how the premises apply as the project
-grows:
-
-- **The first two premises are absolute, with no exceptions.** Everything
-  planned from here is costed under them. A barrier method needs a sparse
-  Cholesky factorization: it is written here, and it is deterministic. Reading
-  compressed input needs an inflate written here, or the feature stays absent
-  — and it was written here, in `src/inflate.c` (D240).
-  Any parallelism is deterministic by design rather than by luck. A feature
-  that cannot be built under these two rules is not built. This makes each
-  feature two to five times more expensive than it is elsewhere, and it is
-  accepted deliberately.
-
-- **The goal is the best open solver that returns identical results on every
-  machine and ships its own independent checker.** Not matching Gurobi, which
-  is not reachable. Gurobi's documentation states it is deterministic on one
-  machine but not across machines, and none of the solvers in
-  `docs/feature-matrix.md` ships a checker. Breadth of features serves that
-  goal; it does not replace it.
-
-Status is **done**, **partial** or **missing**. "Partial" always says what is
-missing.
-
----
-
-## 0. The target, and where JAOS stands against it
-
-The sections below say what JAOS has. `docs/feature-matrix.md` is the other
-half: the feature list the field is measured on, with JAOS, HiGHS, SoPlex,
-Clp, SCIP, Gurobi and Hexaly side by side. It is written from what the field
-offers, not from what JAOS has, so most of it is empty for JAOS on purpose.
-
-**Read it at the close of every phase.** A phase that moved no cell on that
-page improved the code and not the product.
-
-**JAOS is an LP and MIP solver.** The matrix has ten sections and JAOS is
-present in nine; the one it is absent from entirely is parallelism. The
-mixed-integer section was empty at 0.2.0 and section 4's MILP row says what
-filled it since.
-
-**Three things JAOS has that the field mostly does not.** Bit-identical
-results across machines, which Gurobi explicitly does not promise. An
-independent checker of the solver's own answer, shipped with the solver, which
-none of the others ship — SCIP ships `viprchk`, which verifies a certificate
-SCIP emits and is a different object. A budget counted in reproducible work
-units rather than seconds.
-
-**Since 2026-09-07 the checker reaches beyond JAOS's own answers.**
-`jaos_verify_basis` proves a basis the caller hands in, over the rationals
-and with no solve at all (D339); `jaos check --point` judges a point file
-another program wrote (D342); a basis arrives in the format the field
-exchanges one in (D338). None of the others exposes its verifier to an
-answer it did not produce, which is a sharper claim than "ships a
-checker".
-
-**One place where JAOS is behind where it believed it was ahead.** SoPlex
-solves LPs exactly over the rationals and SCIP emits a VIPR certificate an
-external program verifies in exact arithmetic. JAOS's checker is a
-floating-point checker judging against tolerances. It is not a proof. Section
-5 lists exact rational verification as done since D274, and `jaos_verify`
-proves 30 of the 110 gate bases outright, so what is missing against that
-line is now a matter of reach rather than of existence: 74 bases are refused
-because the numbers a proof needs do not fit in the limbs there are.
-
-**And one thing the matrix claimed for JAOS and had wrong until 2026-09-04.**
-The IIS was listed as Gurobi's alone among the open solvers. HiGHS ships
-`Highs::getIis` and SCIP 10.0 an IIS Finder, both before that page was first
-written. JAOS has one; it is not distinctive.
-
-**The current milestone is M2, and it is about speed.** Its success criterion
-is a time ratio (section 8), and only the presolve and solving rows change
-when it closes.
-
----
-
-## 1. Reading a problem
+## 1. Problem classes
 
 | | status | |
 |---|---|---|
-| Fixed MPS | **done** | `OBJNAME` picks which free row is the objective, and the rest stay free rows; without it the first `N` row is, as in every file that omits the section (D280, `bench/measurements/02-185/`) |
-| Free MPS, autodetected | **done** | |
-| `RANGES` with per-row-type semantics | **done** | |
-| All `BOUNDS` types, `OBJSENSE`, objective constant | **done** | |
-| Unsupported constructs rejected with a line number | **done** | SOS by name and any unrecognised section by name, each with its line number; never silently skipped |
-| LP format | **partial** | CPLEX-style core. A ranged row reads as one row with two ends (D239); a constant inside a constraint expression folds into the right-hand side, both ends of a two-sided row shifting by it (D278, `bench/measurements/02-183/`); a bound may be written value-first either way round (D281, `bench/measurements/02-186/`). **Missing:** everything outside the subset `docs/format-support.md` lists |
-| Locale-independent number parsing | **done** | own, because `strtod` under a comma-decimal locale corrupts instances |
-| Direct load from CSC arrays | **done** | `jaos_load_lp` |
-| Compressed input (`.gz`) | **done** | gzip over DEFLATE, written here in `src/inflate.c`; both readers detect it from the file itself, not from the name |
-| Compressed output (`.gz`) | **done** | the other half, `src/deflate.c`, written here for the same reason (D340). Every writer takes it through one rule -- a path ending in `.gz` is compressed -- so `jaos_write_mps`, `jaos_write_lp`, `jaos_write_solution` and `jaos_write_mps_basis` all have it from one change to the shared open and close, and `jaos convert in.mps out.lp.gz` follows. Fixed Huffman over a greedy LZ77, no dynamic tables: **139 of 139 gate instances accepted by the system `gzip -t`, all 139 giving back the plain write byte for byte under `gzip -dc`, and JAOS reading its own back to the same answer on 94 of 94 netlib instances** (`bench/measurements/02-217/`). The size is 1.3387x `gzip -9`'s and about a fifth of the plain text either way; the whole of that gap is the fixed tables, and the trade is deliberate. The gzip header carries no clock, so the same input gives the same bytes on every machine and every run |
+| Linear programming | **done** | |
+| Mixed-integer linear | **partial** | missing: SOS, indicator, semi-continuous (§4) |
+| Convex quadratic (QP) | **missing** | |
+| Quadratically constrained, second-order cone | **missing** | |
+| Mixed-integer quadratic | **missing** | |
+| Nonlinear, mixed-integer nonlinear | **out of scope** | |
+| Constraint programming, black-box | **out of scope** | |
 
-## 2. Holding and changing a problem
+## 2. LP algorithms
 
 | | status | |
 |---|---|---|
-| Dimension and nonzero queries | **done** | |
-| Read a bound, a cost, the objective's sense and constant, or a matrix entry back | **done** | `jaos_col_cost`, `jaos_col_bounds`, `jaos_row_bounds`; `jaos_objective_sense`, `jaos_objective_offset`; the matrix by column, by row or by entry with `jaos_col_entries`, `jaos_row_entries`, `jaos_coefficient`, a row read off the row-wise mirror the solve builds and keeps, so a read derives nothing a solve would not (D283) |
-| Add or delete rows and columns after load | **done** | `jaos_add_rows`, `jaos_add_cols`, `jaos_delete_rows`, `jaos_delete_cols`. Additions append, so existing indices never move; deletion takes a set (D77) |
-| Change a bound, a cost, or the objective's sense and constant | **done** | `jaos_set_col_cost`, `jaos_set_col_bounds`, `jaos_set_row_bounds`; each discards the answer the model holds (D66). `jaos_set_objective_sense` and `jaos_set_objective_offset` do the same and keep the basis, so a model flipped from a minimum to a maximum re-solves warm (D283) |
-| Change a coefficient | **done** | `jaos_set_coefficient`; zero deletes the entry, a new index inserts one, both derived copies are rebuilt (D67) |
-| Copy a model | **done** | `jaos_model_copy`: the problem, names, settings and starting basis into a new model, and not the answer, which belongs to the solve that produced it; the copy reads `JAOS_SOLVE_NOT_RUN` (D287) |
-| Row, column and objective names | **done** | Every row and column has a name: the file's, `jaos_set_row_name`'s or `jaos_set_col_name`'s where one was given, and its position -- `R<i+1>`, `C<j+1>`, `COST` -- where none was. `jaos_row_name`, `jaos_col_name` and `jaos_objective_name` read them; `jaos_row_index` and `jaos_col_index` resolve one, positional names included, from a map built on the first lookup after a change. Both readers keep the file's names and both writers print them, so a file converted between the formats keeps its names and the CLI prints a row as the file called it; the solution file carries them and its reader checks them. A name rides with its row or column through every add and delete. Uniqueness is enforced by the writers rather than the setters, so naming a hundred thousand columns costs no lookup per call (D284) |
-| Re-solve warm from the previous basis | **done** | automatic: an optimum leaves its basis on the model, a modification keeps it, a load drops it. `jaos_clear_basis` asks for a cold solve (D68) |
-| Load a starting basis | **done** | `jaos_set_basis`, the write side of `jaos_basis`. A wrong basis costs iterations and never the answer, and since D335 that holds for a basis it cannot get anywhere from either: a warm start that reaches no answer is thrown away whole and the solve restarts once, cold, the same route D148 wrote for an uncertified warm point. `klein2` answers INFEASIBLE in 262 iterations cold and tripped the internal iteration guard after 106201 warm from its own infeasible basis; it answers now, though the warm attempt is still paid for before the retry begins |
-| Exchange a basis in the MPS basis format | **done** | `jaos_write_mps_basis` and `jaos_read_mps_basis`, the format every solver in the field exchanges a basis in (D338); `jaos solve --write-basis BAS` and `--basis BAS`, and both Python layers. The four classic cards, `XU`, `XL`, `UL` and `LL`, with the format's own defaults -- every column nonbasic at its lower bound, every row's logical basic -- so a slack basis writes an empty file. A row is described by its activity, exactly as `jaos_basis` describes it. `JAOS_BASIS_FREE` has no card and needs none: a nonbasic variable with both bounds infinite rests at zero and nowhere else, so it is written as the default and read back as FREE from the bounds, which makes the round trip exact rather than lucky. The basic count needs no check either, and the argument is in `src/write.c`: only `XU` and `XL` make a column basic, each makes one row nonbasic in the same card, and a second card for either side is refused, so any file that reads at all leaves exactly `num_row` basics. What it buys is that a basis JAOS found starts another solver's run, a basis another solver found starts JAOS's, and D339 can prove one that arrives in a file |
-| Resume from where a work or time limit stopped | **done** | the basis a stopped solve reached is where the next one starts; a numerical failure is the one outcome that leaves none (D70). Across processes too since D332: a certificate file carries the basis behind it, `jaos_read_basis` reads it out of a file of either kind and `jaos solve --start` takes either, so a refusal resumes after the process that found it has gone |
+| Dual simplex | **done** | steepest-edge pricing, Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, Bland fallback on a stall |
+| Primal simplex | **partial** | Dantzig pricing, composite phase 1, Harris ratio test; behind a development switch. Missing: Devex pricing, caller-selectable |
+| Barrier (interior point) | **missing** | needs a deterministic sparse Cholesky written here |
+| Crossover from an interior point | **missing** | |
+| First-order method (PDLP) | **missing** | |
+| Concurrent solve, deterministic | **missing** | |
+| GPU | **out of scope** | |
 
-## 3. Solving
+## 3. Preparing and handling the model
 
 | | status | |
 |---|---|---|
-| Dual simplex | **done** | steepest-edge pricing [8], Harris two-pass ratio test with bound flipping [7][19], dual phase 1 by artificial bounds [21], Bland fallback on a detected stall (D26). The right-hand side and the refinement residual are Neumaier-compensated sums (D168, D171). The dense ratio-test branch enumerates its candidates from a maintained nonbasic set (D93) |
-| Sparse LU, Markowitz threshold pivoting | **done** | [4][6][20], Forrest-Tomlin updates [5], singular-basis repair |
-| Stability trigger on the triangular solves | **done** | the pivot element is computed twice each iteration, by BTRAN and by FTRAN; past `LU_AGREE_TOL` the pivot is declined unbilled and the factorization rebuilt (D86) |
-| Scaling | **done** | Curtis-Reid [11]; geometric-mean equilibration exists as an internal alternative mode, not a caller option |
-| Hyper-sparsity in the triangular solves | **partial** | [9]: both solves report their pattern (D38, D43, D44), and both of BTRAN's triangular passes compute only their reachable slots (D36, D253). **Missing:** FTRAN's passes still traverse every slot — they skip the arithmetic of zero slots and bill per nonzero, so work units cannot see the traversal, only an instruction count can |
-| Presolve | **partial** | six families behind a cascading round loop: empty rows and columns, singleton rows, cost-0 singleton columns (D95), fixed columns, forcing and redundant rows, the implied free column singleton (D105, D106). Every cap and window is measured (`docs/tolerances.md`). `EXTRA_CFLAGS=-DJAOS_NO_PRESOLVE` compiles it out and reproduces the pre-presolve baselines bit for bit (D96). **Missing:** duplicate rows and columns and dominated columns, deferred with an executable reopen condition (D101), which `make refusals` runs and which reports **zero** removable rows and columns on all 15 plato instances (D242); bound tightening, refused and reopening with a crossover (D97); dual fixing, measured and refused at 0.67% of netlib's and 1.09% of `plato-fome`'s live columns against 02-154's 5% bar, on a counter arm calibrated to a known answer (D246). `grow22` and `grow7` cost more with presolve on than off, which is **closed and refused** rather than open: D112 measured it on the candidate rule's own counter and `bench/refusals.txt` carries the reopen condition. `greenbeb` is a different item, closed by D108, and this row listed it with the other two by mistake until 2026-09-04 (D269). The published basis had broken `jaos.h`'s row-count promise on 46 of netlib's 188 solves (D167) until every postsolve status was decided from the reduction's structure (D257). Worth, presolve on over off: work 0.810x standard, 0.651x Kennington, 0.084x infeasible (D103), and D106 a further 0.9527x on the standard set |
-| Primal simplex | **partial** | Dantzig pricing, sharing `pivot()` and the pricing row with the dual, behind `cfg.force_primal`, a development switch and not an option (D188). A composite short-step phase 1 works from any given basis (D190). The entering column stops at its own bound (D189). A pivot must stand above one ulp of its own column's largest entry, not an absolute floor (D207). Harris's two-pass ratio test in primal form, at a width of half `primal_tol` (D212, D213). Reach on the standard set: **the three-way split lives in `bench/results/primal.txt`'s own summary line and is not restated here**, because a count restated in this file drifts with every campaign and this row's did — it read 77 / 11 / 6 against the file's 73 / 16 / 5 for four campaigns (D269). None of the three trips an internal guard (D193, D205, D212, D218, D245, D249, D250, D251). Phase 1 refuses a basis whose own infeasibility doubles, which is what moved one instance from the overrun column to the disagreeing one (D218). Most of that campaign's iterations belong to the dual's settling re-entry rather than to the primal, so the agreement count does not mean what it reads as; `make primal` prints the three-way split itself and the record's own `iterations by method` line is where the figures live, because a percentage restated here drifts with every campaign (D194, D197, D204). It declares an unbounded ray it meets in phase 2, on the same D19 proof the dual's verdict already used, and refuses there only while a borrowed cost is outstanding (D241). The shared lent-bound verdict both methods finish through also proves a ray that needs several columns at once, by moving every held column together at unit rate; a subset or unequal-rate ray still reaches the refusal, which says both directions were tried (D247). **Missing:** Devex pricing — `TODO.md` section 0 stage 5, blocked on a paywalled source. Blocks crossover, which blocks D97 |
-| Crash basis | **missing** | [12]; measured and refused: it destroys the exact starting steepest-edge weights of the slack basis. Reopens when pricing stops starting from exact weights (`TODO.md` refusals) |
-| Partial and multiple pricing | **measured and refused** | [1]: both built and swept. The leaving-row sweep's units are the cheapest in the solver, and every scheme for scanning it less often pays in trajectory and in wrong answers (D82, D84) |
-| Barrier and crossover | **missing** | not optional at large scale. Crossover is what D97's ideal design needs at postsolve (`bench/measurements/02-88/`). Crossover as published starts from an interior point and JAOS has none; where the starting point comes from is undecided (`docs/research/primal-simplex.md` §5) |
-| MILP: branch and bound, cuts, heuristics | **partial** | Branch and bound, `src/mip.c`: integer columns through `jaos_set_col_integer` and both readers, the Land-Doig scheme over the dual simplex, one private copy re-bounded per node and warm from its parent, best bound first with creation order breaking ties, so the tree is the same on every machine; `jaos_mip_result`, `jaos_mip_incumbent`, `jaos_set_mip_gap`; the checker judges integrality like a bound (D288). One round of Gomory mixed-integer cuts at the root, read off the tableau `src/ranging.c` exports as `jm_tableau`, kept as rows of the private copy for the whole tree: **0.660x the plain tree's work** over the MIP set, no instance past 2x; `jaos_set_mip_cut_rounds` and `--cut-rounds` (D289, `bench/measurements/02-189/`). Measured on `bench/miplib.manifest`, 17 MIPLIB 3 instances under the runner's `-e mip` until D302 and 24 since (the seven the D301 tree finishes inside 120 s joined, chosen by nothing the cuts were tuned on; `bench/measurements/02-200/`), with its own baseline that keeps the node count; not a gate set. A dive from each selected node is behind `jaos_set_mip_dive` and `--dive` and is off: 1.125x, refused (D289, `bench/refusals.txt`). A rounding heuristic at every fractional node, on by default behind `jaos_set_mip_heuristics` and `--no-heuristics`: it cannot shrink a best-bound tree and moved no node count, costs 1.0177x in work, and moves the first incumbent earlier on 8 of 17 and later on none, `stein45` from node 25450 to 40; `jaos_mip_result` reports `heuristic_points` and `first_incumbent_node` (D290, `bench/measurements/02-190/`). The tree logs its start, root, progress, incumbents and end through the log callback. A node limit, `jaos_set_mip_node_limit` and `--node-limit`, stops it as `JAOS_SOLVE_NODE_LIMIT` with the incumbent kept, and `jaos_set_incumbent_callback` is told of every new incumbent with the point and the bound and may stop the search (D291). Pseudocost branching by default, `jaos_set_mip_branching` and `--branching` switching to most-fractional: **0.722x the most-fractional tree's work** over the MIP set, better on 10 and worse on 2, none past 2x, and the fraction breaks a tie so a zero objective does not degrade the rule to lowest index; an integer column's fractional bounds are rounded inward before the root (D292, `bench/measurements/02-191/`). Strong branching until a column is reliable exists behind `jaos_set_mip_reliability` and `--reliability` and is off: at every setting from 1 to 8 the probes cost more work than the smaller trees saved, 0.971x at best with two instances past 2x (D293, refused, `bench/measurements/02-192/`). A work cap on each probe exists behind `jaos_set_mip_probe_cap` and `--probe-cap` and is off: a capped probe pays and teaches nothing, and every cap read worse than none, 1.228x at 0.5 against 0.971x uncapped (D294, refused, `bench/measurements/02-193/`). The dive's first child is chosen by `jaos_set_mip_dive_child` and `--dive-child`, nearer, up, down or the pseudocost side: none reads at or under 0.95x with the dive on, 0.991x at best, so the dive stays off (D295, `bench/measurements/02-194/`). Gomory cuts below the root exist behind `jaos_set_mip_cut_depth` and `--cut-depth` and were off until D301: a node's cuts are valid in its subtree and ride as rows with every node under it, the trees shrink on most instances and the rows carried cost more, 1.056x at depth 1 and 2.440x at every node (D296, refused, `bench/measurements/02-195/`). A local cut leaves the relaxation once its slack is basic at a node, `jaos_set_mip_cut_drop` and `--no-cut-drop` to keep it, and two nodes holding the same cuts share the rows: cuts to depth 2 read **0.802x** with the drop against 1.260x without, one instance past 2x (`misc03` 2.053x), so the depth stayed 0 (D297, `bench/measurements/02-196/`). Strong branching at the root only, `jaos_set_mip_probe_depth` and `--probe-depth`: 0.987x with two instances past 2x, refused, and both clauses of D293's reopen condition are measured (D298, `bench/measurements/02-197/`). A solution pool, `jaos_set_mip_pool_size`, `jaos_mip_pool_count`, `jaos_mip_pool_solution` and `--pool-size`, keeps the best distinct integer points the tree meets, best first, with the search unchanged; Python `mip_pool()` at both layers (D299). Knapsack cover cuts at the root, `jaos_set_mip_cover_rounds` and `--cover-rounds`, four rounds beside the Gomory round by default: every all-binary row, each finite side, as a knapsack over literals, the greedy extended cover the point violates; **0.745x the work** over the MIP set, better on 7 and worse on 1, none past 2x, `mod010` closing at the root, and the baseline rewritten (D300, `bench/measurements/02-198/`). Cuts below the root are on since D301: depth 3, with `jaos_set_mip_node_cut_cap` and `--node-cut-cap` keeping the four most efficacious cuts of a node's round, violation over the cut's norm; **0.835x the work** on the D300 baseline, better on 7 and worse on 6, none past 2x, 0.934x without `egout`, and the baseline rewritten; the surface is not smooth and the pair is worth re-reading on a larger set (D301, `bench/measurements/02-199/`). Re-read on the 24 (D303, `bench/measurements/02-201/`): both defaults hold over the set, 1.125x with the covers off and 1.059x with the node cuts off, and lose over the seven instances they were not tuned on, 0.642x with both off, `bell5` paying twelve times its work for the node cuts and `p0282` eight and a half for the covers; they stand by the set's rule and rest on the 17. Four cut switches measured on the 24 in one batch (D304 to D307, `bench/measurements/02-202/`): the root's cuts leave the relaxation below a node where their slack is basic, like a node's own, `jaos_set_mip_root_cut_drop` and `--root-cut-drop` / `--no-root-cut-drop`, **0.799x the work** over the 24, 13 better, 2 worse, none past 2x, 0.881x over the 17 and 0.630x over the seven, on by default and the baseline rewritten (D306); a node whose cut round moved its bound by less than a fraction gets no round under it, `jaos_set_mip_node_cut_stall` and `--node-cut-stall`, 0.816x alone at 0.02 and never under the bar beside the drop, `bell5` unfinished in every combination, so off (D305, refused beside the drop); the root's rounds ending after one that moved the bound by less than a fraction, `jaos_set_mip_cut_stall` and `--cut-stall`, 1.007x at best, off (D304, refused); and Balas's lifted covers, `jaos_set_mip_cover_lift` and `--cover-lift` / `--no-cover-lift`, 1.005x with `l152lav` past 2x, off (D307, refused). A cover's excess over its capacity is judged against the primal tolerance's margin since D307, so a rounded sum cannot make a cover of a set that fits. A third cut family, mixed-integer rounding on the model's rows at the root, `jaos_set_mip_mir_rounds` and `--mir-rounds`, six rounds by default: every row and finite side shifted to the bounds nearer the point, scaled by a few candidates and rounded as Marchand and Wolsey round a single row, the most violated scaling kept; **0.719x the work** over the 24, 6 better, 1 worse, none past 2x, 0.847x over the 17 and 0.482x over the seven, `gen` closing in 7 nodes from 589, and the baseline rewritten; a side whose right-hand side cannot be computed to `MIP_MIR_ROUND` gets no cut, and "no cuts at all" is `--cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0` (D309, `bench/measurements/02-203/`). A backtracking dive, `jaos_set_mip_dive_backtrack` and `--dive-backtrack`, resumes from the deepest sibling the dive left up to N times per dive, the published bound reading the waiting siblings too: 0.992x at sixteen with two past 2x and 1.170x unbounded, refused, so D289's refusal holds with its reopen condition fully measured (D308). MIR cuts at a node over its own bounds, `jaos_set_mip_node_mir` and `--node-mir`, are measured and off: 0.991x at the default cap with two instances past 2x, and the same shape at every cap and depth, 0.843x to 1.023x over the 17 against 1.33x to 1.56x over the seven (D310, refused, `bench/measurements/02-204/`). A dive resume bounded by the gap, `jaos_set_mip_dive_gap` and `--dive-gap`, resumes only while the waiting sibling is within a fraction of the best open bound: 1.067x at its tightest and worse above, refused, so D289's reopen condition is measured in all three forms (D311). The aggregated form of MIR exists behind `jaos_set_mip_mir_aggregate` and `--mir-aggregate` and is off: a row substitutes a continuous column out with another row before the rounding, N times, and the aggregate is rounded after each step; 1.140x the work over the 24 at three steps, `bell5` unfinished in every arm and `gen` past 2x, 1.030x over the 17 against 1.523x over the seven, and the aggregate's coefficients carry their own magnitude so a side the sum cannot place gets no cut (D312, refused, `bench/measurements/02-205/`). A dive heuristic at the root, `jaos_set_mip_dive_heuristic` and `--dive-heuristic`, fifty re-solves by default: on a copy of the root's relaxation as the cuts left it, the integer column nearest an integer is fixed there and the relaxation is solved again, and an integral point is judged like every other heuristic point; **1.032x the work** over the 24, none past 2x, no node count moved, and the first incumbent earlier on 6 of 24 and later on none, `rgn` from node 205 to 1, with the baseline rewritten (D313, `02-205/`). The dive heuristic runs below the root behind `jaos_set_mip_dive_heuristic_depth` and `--dive-heuristic-depth` and is off: 1.049x the work over the 24 at depth 1, 1.144x at 2 and 1.356x at 4 with four past 2x, with the first incumbent earlier on 4, 5 and 8 instances and later on none, which is a worse rate than D290's 8 of 17 for 1.8% or D313's 6 of 24 for 3.2% (D314, refused, `bench/measurements/02-206/`). RINS, `jaos_set_mip_rins` and `--rins`, fixes the integer columns an incumbent and a node's relaxation already agree on and runs D313's dive on the rest, once per incumbent: 1.008x the work, but a point on one instance of the 24 and no first incumbent moved, because D313's root dive reaches them first (D315, refused, `02-206/`). A dive resume decided by the child's own bound against its parent's, `jaos_set_mip_dive_degrade` and `--dive-degrade`: 1.048x at best against the plain dive, refused, and D289's three named forms are all measured now; the plain dive reads 0.934x over the 23 it finishes with none past 2x, and `bell5` alone, unfinished at the cap, stands between it and D289's reopen condition (D316, `02-206/`). The feasibility pump, `jaos_set_mip_feaspump` and `--feaspump`, twenty rounds by default: the root relaxation's point is rounded, the copy is re-solved for the point nearest that rounding in L1, and the pair repeats, a repeated rounding perturbed by distance rather than at random so the pump is bit-identical everywhere (Fischetti, Glover and Lodi, Mathematical Programming 104, 2005). **1.026x the work** over the 24, no node count moved, every instance finished, none past 2x, and the first incumbent at node 1 on six instances and later on none, `egout` from node 5203; it runs only while nothing has an answer yet, and the baseline is rewritten (D318, `bench/measurements/02-208/`). The dive is closed (D317, `02-207/`): seven forms are measured and `bell5` finishes under none, its open set growing without stop where best-bound order peaks and falls. The objective pump, `jaos_set_mip_pump_obj` and `--pump-obj`, a decay of 0.5 by default: each round blends the model's own objective into the distance at a weight that decays per round (Achterberg and Berthold, Discrete Optimization 4, 2007); **0.984x the plain pump's work** over the 24, 2 better and 0 worse on unchanged trees because the blended re-solves are shorter, none past 2x, `gt2`'s first incumbent from node 382 to 1 and none later, and the baseline rewritten (D321, `bench/measurements/02-209/`). The pump's general-integer distance, `jaos_set_mip_pump_general` and `--pump-general`, one auxiliary column and two rows per general integer column on the pump's copy (Bertacco, Fischetti and Lodi, Discrete Optimization 4, 2007), is measured and off: 1.007x alone with `gt2` alone moved at 1.163x its work, and 0.990x beside the objective pump, which reaches `gt2` without it (D320, refused, `02-209/`). Three switches measured in one batch and all off (`bench/measurements/02-210/`): the pump run past D318's guard, `jaos_set_mip_pump_always` and `--pump-always`, 1.051x with `gen` at 3.083x and **the first incumbent moved on none of the 24**, so the guard holds for the objective pump too (D322, refused); reduced-cost fixing at the root, `jaos_set_mip_rcfix` and `--rcfix`, an integer column at a bound having its far bound pulled in to the furthest integer its reduced cost allows once the root has an incumbent, the deduction going into the tree's own `ilo` and `ihi`, 1.010x with `p0282` at 0.519x against `gt2` at 2.492x out of the same mechanism (D323, refused); and bound propagation at a node, `jaos_set_mip_propagate`, `--propagate N`, `jaos_set_mip_propagate_depth` and `--propagate-depth D`, the model's rows read over the node's own bounds to prove it infeasible with no solve and to pull in the integer bounds they imply, 1.093x, 1.104x and 1.074x at one, two and four passes at every node with `bell5` unfinished, and 1.051x at the root alone where the deduction holds for the whole tree and is kept for nothing (D324, refused). `jaos_mip_result` reports `fixed_cols` and `tightened`. What the three share is the finding: a bound tightening that is valid makes this set's trees bigger, and the scan is not what costs -- root propagation moves a bound on 6 of the 24 and the other 18 read exactly 1.000x. A proved incumbent publishes a basis of the MODEL since D334: its statuses were the node LP's truncated to the caller's rows, which keeps the basic a binding cut paid for and drops the row it paid on, so the count read one too high per binding cut and the duals were taken over a row set the caller has not got -- **5 of the 24 published a basis of the right size before, 24 of 24 after**. The repair is one LP: the integer columns fixed at the incumbent, the cuts dropped, and what is left solved, whose optimum is the incumbent's because a valid cut removes no integer-feasible point; it runs only where the count is broken and costs 1.001163x the work over the set with no tree moving (D334, `bench/measurements/02-212/`, `02-214/`). **Missing:** a sweep of the four cut constants beyond the rounds, which are held [14][15][16][17][18] |
+| Presolve | **partial** | empty rows and columns, singleton rows, cost-0 singleton columns, fixed columns, forcing and redundant rows, implied free column singletons. Missing: duplicate rows and columns, dominated columns, bound tightening, dual fixing (each measured once and refused, `bench/refusals.txt`) |
+| Postsolve to the caller's indices, statuses and duals | **done** | |
+| Scaling | **done** | Curtis-Reid, powers of two |
+| Sparse LU, Markowitz pivoting, Forrest-Tomlin update | **done** | |
+| Hyper-sparse triangular solves | **partial** | BTRAN yes. Missing: FTRAN still traverses every slot |
+| Modify bounds, costs, coefficients, objective sense and constant | **done** | each reads back |
+| Add and delete rows and columns | **done** | |
+| Copy a model | **done** | |
+| Row, column and objective names | **done** | |
+| Warm start from the previous basis | **done** | |
+| Read and write a basis in the MPS basis format | **done** | |
+| Resume after a limit, in-process and from a file | **done** | |
+| Model statistics | **done** | `jaos_model_statistics`, `jaos stats` |
+| Presolve statistics | **done** | |
 
-| The tree's two caller inputs | **done** | `jaos_set_mip_start` hands the branch and bound an integer point before it runs and `jaos_set_mip_cutoff` an objective it need not beat; `jaos solve --mip-start SOLUTION --cutoff V`, and both at both Python layers. Neither moves a default: with neither set the tree is what it was. The point goes through `rounded_point`, the same acceptance every heuristic point gets, so one the caller got wrong is refused and the search runs without it rather than publishing it; `first_incumbent_node` stays 0 because no node found it. The cutoff both prunes (a node that cannot reach past it is dropped unsolved, from node 1 and with no incumbent needed) and gates what may become the incumbent, which is what makes a cutoff tighter than the optimum end the search `JAOS_SOLVE_INFEASIBLE` -- the honest answer to "is there a solution better than this?" -- instead of publishing a point that does not satisfy it. The point lives on the model and not in `jm_config`, because `jaos_model_copy` copies the configuration as one object and a pointer inside it would be freed twice; the copy takes it deeply, the way the starting basis travels (D326) |
-| Deterministic parallelism | **missing** | [10][13] |
-
-Citation numbers are the bibliography in `docs/archive/PLAN.md`.
-Implementation works from those and their kin only — never another solver's
-source (D12).
-
-## 4. Controlling a solve
-
-**What is controllable is the contract, not the method.** A caller sets what
-depends on their problem and which the solver cannot know: how much precision
-their data deserves, how long they will wait, where log lines go. How the
-problem is solved is the solver's to decide (D64).
+## 4. Mixed-integer machinery
 
 | | status | |
 |---|---|---|
-| Work limit, time limit | **done** | |
-| Set the primal and dual tolerances | **done** | `jaos_set_primal_tolerance`, `jaos_set_dual_tolerance`; 0 restores the default |
-| Logging and verbosity | **done** | `jaos_set_log_callback`, `jaos_set_log_level`; four levels, silent until a callback is installed (D65) |
-| Callbacks | **done** | `jaos_set_progress_callback`; a watcher may look and may stop a solve, never steer one. Asked on a fixed iteration count, so *when* it is asked is reproducible; a stop is `JAOS_SOLVE_INTERRUPTED` and keeps its basis (D79). Phase 1 of the primal offers it too (D200) |
-| Choose the algorithm | **out of scope** | the solver picks (D64) |
-| Turn scaling off or pick the mode | **out of scope** | same, and it is a method question |
+| Branch and bound | **done** | best bound first, one private copy per node warm from its parent |
+| Pseudocost branching | **done** | most-fractional as an option |
+| Strong branching | **partial** | exists behind a switch and is off: measured worse |
+| Gomory, knapsack cover and MIR cuts | **done** | at the root and to depth 3, dropped when the slack goes basic |
+| Clique cuts | **missing** | |
+| Flow cover, zero-half, lifted cover cuts | **missing** | lifted covers exist behind a switch and are off |
+| Rounding heuristic, root dive, feasibility pump | **done** | |
+| RINS, local branching, other improvement heuristics | **partial** | RINS exists behind a switch and is off |
+| Solution pool | **done** | |
+| MIP start and cutoff | **done** | |
+| Node limit, incumbent callback | **done** | |
+| Bound propagation, reduced-cost fixing | **partial** | both exist behind switches and are off |
+| MIP presolve: probing, clique table, coefficient tightening | **missing** | |
+| Semi-continuous variables | **missing** | |
+| SOS1 and SOS2 constraints | **missing** | |
+| Indicator constraints | **missing** | |
+| Symmetry detection | **missing** | |
+| Conflict analysis | **missing** | |
+| Deterministic parallel tree search | **missing** | |
 
-## 5. Reading an answer
-
-| | status | |
-|---|---|---|
-| Status, objective, values, activities, duals, reduced costs | **done** | the objective is `obj_offset` plus a compensated sum of `c_j x_j` over the published values, on the model that publishes them. It is the correctly rounded exact objective of the published point on 110 of 110, worst 0.493 ulp (D173, `bench/measurements/02-83/`); this number is finished and is not to be reopened. `jaos_check_solution`'s own objective is the same on 110 of 110, worst 0.493 ulp on `ship08l` and 0.476 on `cre-a` (D262, `bench/measurements/02-169/`) |
-| Where every variable rests in the basis | **done** | `jaos_basis`, available after every answer that stopped on a basis and not only after an optimum: INFEASIBLE, UNBOUNDED and a work, time or interrupt stop hand out the basis the solve stopped on, which is a starting point and not an answer, while `jaos_solution` and the ranging calls still refuse. A verdict reached with no simplex at all publishes none -- an inverted box, a presolve family's own proof -- and 19 of the 29 pinned infeasibles publish one against 10 that do not; the availability is a flag, because a buffer of zeros reads as a basis in which everything is basic (D330, `bench/measurements/02-212/`). Exactly `num_row` basics on every gate solve, 188 of 188 netlib and 32 of 32 Kennington, and no published reduced cost contradicts its status (worst 4.09e-10): every postsolve status is decided from the reduction's structure, never from an equality test on a rounded value, and where the structure says a value rests on a bound the bound is published (D257, `bench/measurements/02-166/`); a column the caller fixed is named at the bound its reduced cost points into, in the simplex and at postsolve, so the statuses are dual feasible as a set (D258). A nonbasic status names a bound the model declared: a column left resting on one the solve lent itself is walked off it before the answer is published, which takes the published answers carrying such a status from 1717 to 0 over 200000 small models and lands `finnis`'s objective on the netlib reference to 3e-8 (D261, `bench/measurements/02-168/`). Before that 46 netlib solves broke the count and five instances carried a reduced cost their status forbids (D167, D170). `build_warm_basis` repairs a mapped count short by at most `WARM_REPAIR_MAX_SHORT` and falls back to cold beyond that; a long count is refused (D151, D186) |
-| Iterations and work units | **done** | |
-| Solve time | **done** | `jaos_solve_time`, seconds of the last solve. The only number JAOS reports that is not reproducible, and the header says so |
-| Independent solution checker | **done** | it bounds unbounded variables by what the rows imply, propagated to a fixed point, and reads the verdict off only the terms from bounds the model declared (D87, D91). 64 of 110 accepted answers are certified (D91). The gate holds every solve to an absolute suboptimality bar, `RSUB_CEILING` (D185). Every walk in the file — row activities, their scale, the objective, the dual objective and both gap halves, the reduced cost, `implied_bounds`'s row ranges, and both certificate checkers — is a Neumaier sum over Dekker's exact products in `double`, and none of them uses `long double`: that type is 64 mantissa bits on x86-64 and 113 on aarch64, and what this file computes is printed into `bench/results/`, so it would not be the same on two machines. The primal walk went first: against exact arithmetic the worst-row figures that disagree go from 75 of 110 to 37, with none newly disagreeing (D270, `bench/measurements/02-175/`). The dual half is the half that DECIDES — a bound `implied_bounds` tightens sets the sign condition's window, which reaches `dual_feasible` — and it is done too (D277, `bench/measurements/02-182/`) |
-| A certified lower bound on suboptimality | **partial** | `certified_suboptimality` is sound and never overclaims. **Missing:** on its own it cannot separate a wrong vertex from a right one (D73); the gate's absolute bar is what makes it a verdict (D185) |
-| Sensitivity and ranging | **done** | `jaos_cost_ranging`, `jaos_rhs_ranging`, `jaos_bound_ranging`: for every cost, every row bound and every column bound, the interval it may take with the basis behind the last optimum staying optimal, the textbook ratio tests on that basis refactored over the model as loaded (D258). Presolve has no half in it: the published basis is a basis of the caller's model since D257, so no range is mapped back through a reduction. The solver is the oracle in `tests/test_ranging.c`: a number moved just inside its range re-solves warm for nothing, just outside it the re-solve pivots or the model is infeasible. Ranges 94 of 94 netlib and 16 of 16 Kennington instances with no refusal and no failed check, once no column is published on a bound the solve lent it (D261, `bench/measurements/02-168/`). Not billed to `jaos_work_units`; the cost is stated in `jaos.h` |
-| Presolve statistics | **done** | `jaos_presolve_result` fills a `jaos_presolve_report`: the three sizes the simplex actually ran on, the cascading loop's round count, and each family's count. The counters existed since D95 and were logged only, so they died with the presolve object; they live on the model now, as a plain struct with no pointer in it. They are stored before the outcome branches, because three outcomes -- SOLVED, INFEASIBLE and UNBOUNDED -- return without reaching the end, and those are the cases where a caller most wants to know what fired since no simplex ran. `jaos solve` prints four lines where presolve fired and none where it did not; `presolve_report()` at both Python layers. `duplicate_row`, `duplicate_col`, `dominated_col` and `tightened_bound` are always zero and are in the struct on purpose: they are the deferred families, and a caller should not have to change when one lands. Tested on both arms -- the default build and `-DJAOS_NO_PRESOLVE` -- because a one-sided test passes on a report that is always empty (D329) |
-| Model statistics | **done** | `jaos_model_statistics` fills a `jaos_model_stats` in one pass over the loaded model: the three sizes, the row kinds (equality, ranged, one-sided, free), the column kinds (fixed, ranged, one-sided, free), the integer and binary counts, the empty rows and columns, the objective's nonzero count, and the smallest and largest magnitude in the matrix and in the objective. `jaos stats FILE` prints them one `name value` per line and solves nothing, which makes it the one analysis subcommand with no verdict. "Binary" is what the tree would see -- the bounds rounded inward to integers being exactly 0 and 1, D292's rule. The empty row count comes from marking what the column pass touched, so a read-only call leaves no allocation behind. What the tests check is the two partitions, in C, from `tests/cli.sh` and from Python: a count that is printed is not evidence the walk saw every row, and a sum that closes is (D327) |
-| The optimum's proof as a file | **done** | `jaos_write_proof` writes what a `jaos_verify` that returned `JAOS_PROOF_OPTIMAL` left -- every column's exact value and every row's exact dual as decimal rationals, with the exact objective -- and `jaos_check_proof` judges one **from the model alone**. The file carries no basis and the checker reads none: it re-derives primal feasibility, dual feasibility and complementary slackness, which together are sufficient, so a file that passes is proved optimal and not merely consistent with a basis somebody else chose. Both sign tests are made against where the quantity rests rather than against a declared status, which is what lets the status out of the file. Every comparison is over the rationals, so there is no tolerance in this path and no bar to argue about; the model's doubles are exact rationals, so the activities and reduced costs it forms are exact too. The file has no decimal point in it, which makes it the one reader and writer here that needs no locale handling. A product or sum past `JM_EXACT_LIMBS` ends the check as `JAOS_ERR_NUMERICAL` with the term count reached, the honest "cannot judge", under the same ceiling D273 and D274 measured. `jaos verify FILE --proof PATH` and `jaos check FILE --proof PATH`; `write_proof` and `check_proof` at both Python layers. `jm_rational_from_decimal` is the inverse of `jm_rational_decimal`, and the whole string must be the number, so `1/3x` is a refusal and not a prefix parse. `tests/test_verify.c` proves the round trip on a model whose answer is 1/3 with a dual of 1/3 and an objective of 5/6, then edits the written file one field at a time and confirms each edit is refused, putting the file back at the end so every refusal was the edit (D325). **All three outcomes since D328**: `proof infeasible` carries one `ray` record per row with the Farkas multiplier and `proof unbounded` one per column with the direction, the same vectors `jaos_certificate` and `jaos_unbounded_ray` publish, written exactly. A certificate needs no `jaos_verify` at all, because it is a vector the solve already published and every double in it is already an exact rational; what is uncertain is whether it certifies, which is what the checker decides. For an infeasibility that is: every `(A'y)_j` and every `y_i` has a finite bound on the side it points at, and the infimum over the row bounds is strictly above the supremum over the box. For an unboundedness: nothing moves toward a finite bound and `c'd` strictly improves. `jaos solve FILE --proof PATH` writes whichever the answer left and `jaos check FILE --proof PATH` judges any of the three; `jaos_proof_report` carries `kind` and `certified`. **Measured** (`bench/measurements/02-211/`): **18 of the 29 pinned infeasibles certify exactly** and 11 do not, every failure a column whose `(A'y)_j` is a rounding away from zero with no finite bound on that side -- the term `jaos_check_certificate` ignores by design (D254), which is why it reads 28 of 29 at 1e-7 and this reads 18 at nothing; and over the 94 netlib instances **28 proofs hold and 0 are broken**, the other 66 refused a priori by `jaos_verify` before a limb is allocated. The 28 of 28 is the stronger reading: `jaos_verify` and `jaos_check_proof` share no code, one proving a basis by exact elimination and the other re-deriving optimality from the model with no basis at all, and they agree every time (D328) |
-| Infeasibility and unboundedness certificates | **done** | `jaos_certificate` publishes the Farkas ray behind INFEASIBLE (D254), `jaos_unbounded_ray` the direction behind UNBOUNDED from all three simplex proof sites (D255), and `jaos_check_certificate` / `jaos_check_ray` verify both from the model alone, in the original space. A ray proved on a presolve-reduced model is lifted back through the reductions, and each presolve proof site seeds its own from the bound it refused (D256): 28 of the 29 reference infeasibles certify at 1e-7 under the default build and `gran` at 1e-9, because a site-seeded ray carries presolve's own eight-ulp margin (`bench/measurements/02-165/`). A model whose own bounds are inverted publishes no ray: the bounds are the proof, and the accessor refuses. **The ray is derivable exactly since D333**: `jaos_exact_certificate` solves the same system the proof solves for the duals, at the right-hand side the refusal points at, from the basis D330 publishes, and leaves one decimal rational per row for `jaos_exact_row_multiplier` and for the proof file. That takes the file from 18 of 29 certifying with no tolerance to **25 of 29**, and the sharper reading is that all 12 derivations the a-priori bound admits certify while the seven it refuses keep the doubles, so nothing is lost; the ten instances presolve settles need none, since a site-seeded ray is exact by construction. It derives and does not judge, and `jaos_check_proof` shares no code with it (`bench/measurements/02-213/`). **The unbounded direction is derivable the same way since D336**, `jaos_exact_unbounded_ray` and `jaos_exact_col_direction`, solving the primal system where the certificate solves the transpose one, so all three outcomes a solve can prove carry an exact certificate. It sums over every nonbasic column rather than assuming a single entering one, because the lent-bound verdict proves a ray by moving several columns together (D247); the version that assumed one produced a vector that was not a ray, and a hand oracle caught it, since the gate has no unbounded instance for a campaign to cover |
-| Irreducible infeasible subsystem | **done** | `jaos_iis`: for an INFEASIBLE answer, the bound sides (a row's or a column's lower or upper bound) that are infeasible on their own and all needed. Chinneck and Dravnieks's sensitivity filter over the published certificate, then their deletion filter, one warm re-solve per candidate side on a private zero-cost copy, so the model's answer, certificate and basis stay as they are; reached from Python on `Model` and `Problem`. The solver is the oracle: on 28 of the 29 reference infeasibles the members alone re-solve INFEASIBLE and each one dropped re-solves OPTIMAL, and all 29 reproduce. `cplex2`, infeasible by less than the feasibility tolerance, keeps three of its 232 members a cold re-solve does not need, which is what a tolerance-judged filter can do; the fixpoint pass that would drop them is refused on cost (D264, `bench/measurements/02-171/`). Cost stated in the report, not billed |
-| The subsystem as a model | **done** | `jaos_iis_model` builds the subsystem the two arrays name as a model of its own (D343), and `jaos iis FILE --write OUT` writes it, MPS or LP and a `.gz` if asked; `iis_model` at both Python layers. Four steps, each of them what "subsystem" means: every cost zeroed, because a subsystem is a feasibility question and an objective could only turn it into an unbounded one; every non-member side to the infinity that relaxes it; every row with no member side deleted; and every column left with no entries and no bound of its own deleted after them. Names survive and indices do not, so a member is recognisable by what it was called. **All 29 reference infeasibilities have theirs written out and solved again, and all 29 read INFEASIBLE** (`bench/measurements/02-218/`), which is the one check that settles it; the subsystems are 1165 rows of 24131 and 4090 columns of 40069 over the set. The test's control is a subsystem with one member dropped, which is feasible, so "it is infeasible" is a statement about the arrays and not about the builder. Irreducible is `jaos_iis`'s claim (D264) and not this one |
-| Feasibility relaxation | **done** | `jaos_feasrelax`: the smallest total change to the bounds that makes the model feasible, one signed move per row and per column, over rows, columns or both. An IIS says where a model contradicts itself and this says how much has to be given up to stop it; neither replaces the other. The elastic form -- every bound side in scope getting a nonnegative column of its own, the objective the sum of them -- makes the answer the smallest TOTAL violation, the L1 one, which is what keeps it a linear program; it is not the smallest NUMBER of bounds moved, which is NP-hard. An integer column stays integer. The work runs on a private copy carrying the caller's limits, tolerances and progress callback, so the model's answer, certificate and basis stay as they are, and the cost is reported rather than billed. The solver is the oracle: all 29 pinned infeasibles have a relaxation and 27 of the moved models read OPTIMAL. The other two are judged on a residual rather than a verdict -- the relaxation run a second time on the moved model leaves 1.003e-8 of an original 0.0262 on `gran` and exactly zero on `gosh` -- because a relaxation of the smallest total leaves every relaxed constraint exactly on its boundary, and a solver with a feasibility tolerance can read a face as empty. The other side is measured too: all 94 feasible
-standard instances report a total of exactly 0 with no bound named, which
-is what puts evidence under the exact comparison the move test makes. An
-inverted box has no relaxation in this form and the report says so rather than answering something. `jaos relax FILE [--rows | --cols]` and `feasrelax()` at both Python layers (D331, `bench/measurements/02-212/`) |
-| Exact rational verification of a final basis | **done** | `jaos_verify` takes the basis the last solve published and proves, with no tolerance anywhere, that it certifies the answer -- or names the row or column that breaks it, or refuses with the bits it would have needed. The basis is rebuilt over the integers (each row scaled by the power of two that clears its mantissas, exact), permuted to block triangular form by a maximum transversal and the strongly connected components, and each block eliminated by Bareiss's fraction-free method; the basic values and duals come out as exact rationals. **30 of the 110 gate bases prove, 74 are refused a priori and 6 are disproved** (D274, `bench/measurements/02-179/`). The bound admitted exactly the 36 D273 predicted, instance for instance, from two instruments written separately. The six disproved are the result rather than a defect: five have one nonbasic reduced cost of exactly the wrong sign and `sierra` one basic value exactly outside its bound, every figure five orders or more below `PRIMAL_TOL` and `DUAL_TOL`, so the published answers are right and the bases are optimal only to a tolerance -- which is what a floating-point simplex promises and what nothing here could tell apart before. Cost follows the largest block and not the model: `pds-02` is 2953 rows in 2931 blocks at 0.02 s, `sc205` is 205 rows with one block of 184 at 7.34 s and 17.1 MiB. Blocks buy memory and time, not width: the answer's denominator is `det B` either way. The refusal is not a guarantee, and `jaos.h` says so -- the bound covers the matrix minors and not the right-hand side column an elimination carries, so a basis that passes it can still run out of limbs during the work, which is a refusal too. Reproducible bit for bit: the bound is a running integer product, never `log2`, because `log2` is not pinned across C libraries and this number decides a verdict (D8). Not billed to `jaos_work_units`; the cost is stated in the header. The arithmetic underneath: `src/exact.c` carries exact integers and rationals on 32-bit limbs, with no allocation and no external library: D11 excludes GMP, and `-Wpedantic -Werror` excludes `__int128` because ISO C has no such type. Every finite double converts exactly, including subnormals and both extremes; an operation that runs out of limbs returns false rather than wrapping, which is the only failure a verifier may have. `tests/test_exact.c` judges it against `uint64_t` and `int64_t` where C's own integers are exact, and against the double round trip, which must return the same bits for every finite double (D266). A second type sits beside the rationals for the case that never divides: a dyadic `m * 2^e`, which every double is and which sums and products stay inside, so `jm_exact_evaluate` walks a whole model without a gcd. Measured over the gate (D267, `bench/measurements/02-173/`): 110 published points evaluated exactly, **none exhausting the limb budget**, every objective agreeing with `jaos_check_solution`'s to the ulp, and 75 of 110 worst-row violations differing at all — every one of those 75 differences at 1e-11 or below, which moves no verdict against a 1e-7 bar. `ken-13` costs 0.02 s. A walk that cannot finish writes NaN rather than the half-filled struct that reads as a clean point, and the conversion back to a double rounds once even when the result is subnormal (D268). The budget question that row carried is answered, and it took three readings to answer honestly. The Hadamard bound on `log2 |det B|` is one pass over the basis before a limb is allocated: 97 of 110 gate bases fit as one block (D271, `bench/measurements/02-176/`), and block triangular form -- a maximum transversal then the strongly connected components, both deterministic -- takes that to 110 of 110 (D272, `bench/measurements/02-177/`), with `ken-11` and `ken-13` coming out fully triangular. Both figures count the basis entries as if they were integers, and Bareiss needs a matrix that is one; scaling a row to make it integral costs 53 to 72 bits. **Measured over the same 110 bases, the largest block once integral fits in 4096 bits on 86, and 85 also fit a dense elimination's memory and time** (D273, `bench/measurements/02-178/`). Both refusals are a priori and neither allocates a limb. `pilot87` wants 2556 limbs and a 21 GiB block, so it is not reachable by widening the capacity constant. The review of the verifier found eleven defects and two of them were wrong answers: a bound comparison that ran out of limbs read as "inside the bound", certifying a value it never compared, and a basis proved rank deficient was reported as a shortage of limbs (D274) |
-| Exact rational values of a proved basis | **done** | After a `JAOS_PROOF_OPTIMAL`, every column's value, every row's dual and the objective are on the model as decimal rationals with no rounding anywhere -- `jaos_exact_col_value`, `jaos_exact_row_dual`, `jaos_exact_objective`; `jaos verify --values` prints them under the names and Python returns `fractions.Fraction`. Dropped by anything that drops the answer. An exact answer for the bases the proof reaches, which is 30 of the 110 gate bases, and not an exact solver (D286) |
-| Exact rational proof of a basis from outside | **done** | `jaos_verify_basis` runs the same proof over a basis the caller hands in, with no solve at all (D339). Everything the proof does is a statement about a model and a basis, and none of it reads a number a solve produced, so the two entry points share one body and neither tells it which basis it got. What that makes JAOS is an independent exact checker of **another solver's** answer: read a model, read the basis the other solver stopped on -- `jaos_read_mps_basis` reads the format it writes one in (D338) -- and get, over the rationals with no tolerance anywhere, whether that basis is an optimal basis of that model; then `jaos_write_proof` writes the coordinates and `jaos_check_proof`, which shares no code with the prover, judges the file. `jaos verify FILE --basis BAS` and `verify_basis` at both Python layers. Two things it deliberately does not do: it does not touch `solve_status`, so a model that never solved stays one and `jaos_solution` keeps refusing, because proving somebody else's basis optimal does not make it this solver's answer; and it reads no number the other solver reported, not its objective and not its point. The two structural checks are `jaos_set_basis`'s and refused for the same reason. The three verdicts are `jaos_verify`'s, and REFUSED is the limb budget rather than anything about the basis |
-
-## 6. Writing
+## 5. Parallelism
 
 | | status | |
 |---|---|---|
-| Write MPS | **done** | `jaos_write_mps`, free layout. Three refusals: a row whose lower bound is above its upper one and a bound at an infinity of the wrong sign, which MPS has no form for, and a ranged row that neither RANGES form reconstructs exactly, which the writer checks before it writes. No gate instance reaches any of them (D226) |
-| Write LP | **partial** | `jaos_write_lp`, the dialect `jaos_read_lp` accepts. A ranged row is written as the two-sided form and read back as one row with two ends (D239). A row with no coefficients is written as a zero term against column 0, which the reader drops on the way back in, so it round-trips as the empty row it was. Under the model's own names, which it writes since D284, **104 of the 139 gate instances round-trip through it, 35 are refused, 0 differ** (`bench/measurements/02-188/lpcover.txt`): 34 for a name the LP scanner cannot read back -- one starting with a digit or a `.`, or holding `*`, `+` or `-` -- and 1 for a free row. It was 138 / 1 / 0 while the writer printed `C1..Cn` (D276, `02-181/`), which no scanner refuses, and 104 / 35 / 0 before that for the empty row (D265, `02-172`). **Missing:** a name LP cannot spell, refused by name and pointing at `jaos_write_mps`, which takes every name; and a free row, refused the same way. `jaos convert --positional` takes every name off the model first, which is the escape hatch for the first of those: over the same 139 the writer goes from 104 to **138**, and the one left is `greenbea`'s free row, which no renaming reaches (D346, `bench/measurements/02-219/`). Neither closes with a reader change: a leading digit is a number to every LP reader, and a constraint with no bound on either side is not a constraint |
-| Read a solution file | **done** | `jaos_read_solution` for an optimum and `jaos_read_certificate` for a certificate, with `jaos_solution_file_status` saying which a file holds and `jaos_read_basis` taking the basis out of either kind (D332); one reader behind the four, the inverse of the writer and the only reader of a JAOS-invented format. The model decides the shape and a file that does not fit is refused rather than read; fourteen refusal classes for an optimum and ten for a certificate, each with its own message, are pinned in `tests/test_write.c`. Neither installs anything, so a warm start from a file is a read and then a `jaos_set_basis` (D282, `bench/measurements/02-187/`; D285) |
-| Write a solution file | **done** | `jaos_write_solution`, JAOS's own line-oriented format (`docs/format-support.md`). An optimum carries the point and the basis; an infeasible or unbounded answer carries its certificate, one `ray` record per row or per column, which `jaos_check_certificate` or `jaos_check_ray` judges from the model alone and `jaos check` does judge (D285), and since D332 the basis the solve stopped on as well, one `basis col` or `basis row` record each, which is what lets a refusal resume in another process. That section is left out where there is no basis and its absence is not an error; half of one is refused, since half a basis says which variables are basic about half the model. Refused when the solve left none of the three, the rule `jaos_solution`, `jaos_certificate` and `jaos_unbounded_ray` already apply, and when a value in the answer is not finite: an objective that overflowed would print a word the host libc spells, and the file would not be reproducible (D226) |
-| The point file | **done** | The smallest thing that can carry an answer between two programs (D342). `jaos_write_duals` and `jaos_write_dual_values` write the row multipliers in the same shape (D348), so both halves of `check --point P --duals D` come out of this library. `jaos_write_point_values` writes the same file from values the caller has, so a solution pool entry or an incumbent a budget stop left can be written and not only a proved optimum, and `jaos solve --pool-out PREFIX` writes one file per pool entry, best first (D344): one `NAME VALUE` line per column, in any order, `#` to end of line for a comment, and nothing else. `jaos_read_point`, `jaos_read_duals` for the row multipliers in the same shape, `jaos_write_point` so what JAOS writes it reads back; `jaos check FILE --point POINT [--duals DUALS]` and `jaos solve --write-point PT`, both Python layers. It exists because the independent checker could only read JAOS's own solution file, which nothing else writes, and a checker that judges only its own solver's answers is a self-test. The format is deliberately poorer than `jaos_write_solution`'s: two lines of awk turn most solvers' output into one. **Every column must appear exactly once**, and that is the one strict rule -- a column the file does not name is refused with its name rather than defaulted to zero, because a zero nobody wrote is how a wrong answer gets judged feasible. The duals are separate because the primal half of `jaos_check_solution` stands on its own, and the report says which half ran on its `checked_duals` line. This is the primal half of what D339 does for a basis: both take an answer this library did not compute, one judged against tolerances and one proved exactly |
-| Comparing and inspecting a model | **done** | `jaos diff A B` says whether two files describe the same model and where they first do not, which `cmp` cannot: a model converted to another format is the same model in different bytes (D349). It compares the three sizes, the sense and the constant, every bound, cost and integrality mark, every coefficient and every name as the model gives it, exactly; a size that differs stops the walk, since every index after it means something else. Exit 0 the same model, 1 not. `jaos show FILE --row NAME` prints one row -- index, bounds, entry count, one `term NAME VALUE` line per nonzero naming the column -- and `--col NAME` a column with its cost and integrality mark, terms named by row (D350). Neither solves anything. What they are for is the question every format change here ends in and no other command reaches without a solve |
+| Parallel LP solve | **missing** | |
+| Parallel MIP solve | **missing** | |
+| Deterministic under parallelism | **required** | the same tree and the same answer at any thread count |
 
-**What JAOS writes, JAOS reads back as the same model**, and that is the
-contract all three are built to rather than a property they happen to have.
-Values carry the shortest of 15, 16 or 17 significant digits that reads back
-as the same double; the one construction the MPS reader rebuilds by
-arithmetic, a ranged row, is checked against what the reader will make of it
-before it is written; a format that cannot express a row or a column refuses
-and names it; and a refused write removes the partial file. `tests/test_write.c`
-checks the round trip field by field with `==`, and 139 of 139 gate instances
-round-trip exactly (D226, `bench/measurements/02-138/`).
-
-## 7. Using it from another language
+## 6. Correctness and verification
 
 | | status | |
 |---|---|---|
-| C API | **done** | `include/jaos.h`, the only header |
-| Python | **done** | `python/jaos.py`: a ctypes wrapper covering every call in `jaos.h` (`make shared`), and a modeling layer on top — `Problem`, variables, expressions, constraints from ordinary comparisons, warm re-solve when only bounds, costs or the objective's sense and constant moved. Standard library only, so it needs no compiler, no header and no package index at install time — the same no-dependency rule the C library holds. The four certificate calls and their checkers are reached too, `Model.certificate` / `unbounded_ray` / `check_certificate` / `check_ray` and the same pair on `Problem`, and so are the three ranging calls, `cost_ranging` / `rhs_ranging` / `bound_ranging` on both (D258). A `Problem` whose objective changes sense or constant after a solve goes through the C setters and re-solves warm (D283). `make python-test` prints the test count; defect shapes armed in `bench/measurements/02-155/` (D243) and `bench/measurements/02-158/` |
-| Command line | **done** | `cli/jaos.c`, `make cli`, over the public header only, so it can do exactly what the library can. `jaos help COMMAND` prints one command's piece of the usage text, which is one string per command since D345; `jaos solve FILE --check` runs the independent checker on the answer in the same run and prints its report and a `check_ok` line, so reaching the checker no longer needs a file round trip; the exit code stays the solve's, because a checker that could change it would make `solve` two commands (D347). that also puts ISO C's 4095-byte literal limit out of reach structurally, after three repairs to it in one day. `jaos solve FILE` prints one fact per line and every line but `time` is byte-identical between runs; the exit code is the verdict, 0 to 5. `jaos convert IN OUT` picks the writer by the output name and passes a refused write on with the library's message. `jaos check FILE SOLUTION` runs the independent checker on a solution file, `jaos iis FILE` prints the irreducible infeasible subsystem, `jaos relax FILE` the smallest change to the bounds that makes it feasible and `--apply OUT` the model with those moves in it, `jaos verify FILE` the exact rational proof and `jaos ranging FILE` the three ranging tables; each prints one field per line and nothing that moves between runs, and each exit code is the verdict. Ctrl-C stops a solve through the progress callback. `tests/cli.sh` runs under `make test` on `tests/data/` alone, 318 checks (`docs/cli.md`) |
-| Installing it | **done** | `make install` and `make uninstall` (D341): the header, `libjaos.a`, `libjaos.so`, the `jaos` tool and a generated `jaos.pc`, under `PREFIX` (default `/usr/local`) with `DESTDIR` staging and the four directory variables overridable. The pkg-config file is generated rather than checked in, because it carries the caller's prefix and a version whose one owner is `JAOS_VERSION_STRING` in `include/jaos.h`; the Makefile reads it out of the header. `uninstall` removes files and never a directory. `tests/install.sh` is in `make test`: it stages an install, compiles a program that reaches JAOS through the installed header alone -- no `-Iinclude` and no path into the source tree -- links it both ways, runs both, checks the tool and the version in `jaos.pc`, then uninstalls and checks nothing is left. That is what stops the target from rotting, and nothing else in this tree compiles a program that reaches JAOS the way an outside one does |
-| Anything else | **missing** | |
+| Bit-identical across machines | **done** | |
+| Independent checker shipped with the solver | **done** | judges against the original, unscaled model |
+| Exact rational proof of the final basis | **done** | reaches the bases whose numbers fit the limb budget |
+| Exact rational values of a proved basis | **done** | |
+| Proof file, written and checked from the model alone | **done** | optimal, infeasible and unbounded |
+| Certified bound on suboptimality | **partial** | sound; alone it cannot separate a wrong vertex from a right one |
+| Infeasibility and unboundedness certificates, floating and exact | **done** | |
+| Irreducible infeasible subsystem | **done** | |
+| The IIS written out as a model | **done** | |
+| Feasibility relaxation | **done** | |
+| Prove a basis another solver produced | **done** | |
+| Check a point another solver produced | **done** | |
+| Exact solving with no tolerances | **missing** | |
 
----
+## 7. Input and output
 
-## 8. The bars it has to clear
+| | status | |
+|---|---|---|
+| Read fixed and free MPS | **done** | `OBJNAME`, `RANGES`, all bound types, `MARKER` for integers |
+| Read LP | **partial** | CPLEX-style core. Missing: the constructs `docs/format-support.md` lists as unsupported |
+| Read and write gzip | **done** | inflate and deflate written here |
+| Direct load from arrays | **done** | |
+| Write MPS | **done** | |
+| Write LP | **partial** | refuses a name LP cannot spell and a free row; `convert --positional` is the escape |
+| Own solution file, written and read | **done** | |
+| Point and duals files | **done** | the smallest exchange format; `check --point` |
+| Read other solvers' solution files | **missing** | |
+| Reject unsupported constructs with a line number | **done** | |
+| `diff` and `show` commands | **done** | |
+| SOS, indicator and semi-continuous in MPS and LP | **missing** | |
+| Other formats (`.nl`, OSiL, QPLIB) | **missing** | |
 
-| | status |
-|---|---|
-| Netlib standard set, 94 instances: optimal, objective within tolerance, checker green | **green at HEAD** — 94 solved, 94 objectives match Koch within `1e-6 * max(\|ref\|, 1)`, 94/94 checker ok, 94 deterministic, baseline `0 regressed, 0 improved, 0 new` (`bench/results/netlib.txt`). The four instances D173 found off the optimum inside that window are closed (D184) |
-| Kennington subset, 16 instances | **green at HEAD** — 16 solved, 16 objectives ok, 16/16 checker ok (`bench/results/netlib-kennington.txt`) |
-| Netlib infeasible subset, 29 instances: refused, no false optima | **pass** (`bench/results/netlib-infeas.txt`) |
-| Determinism across two solves and across runs, all 139 | **pass** — the second solve clears the basis first, or it would be a warm re-solve (D68) |
-| Warm re-solve against cold, one branching step per instance | **pass**; `disagreed=0, rejected=0` on both sets. The ratio lives in `bench/results/warm.txt` and `warm-kennington.txt`, never here (D92, D151) |
-| Full suite clean under ASan and UBSan | **pass** |
-| Reader robustness under fuzzing | **pass** |
-| Competitive gap at rung **P0** vs **HiGHS 1.15.1** | **3.60x slower**, on 1.78x the iterations and 2.02x the cost of one, faster on 1 of 17 (`bench/compare/results/P0.txt`, taken 2026-08-30) |
-| Competitive gap at rung **P0** vs **SoPlex 8.0.3** | **1.12x slower**, on **0.73x the iterations** and 1.52x the cost of one, faster on 10 of 21 (same record) |
-| Competitive gap at rung **P0** vs **Clp 1.17.11** | **2.96x slower**, on 1.56x the iterations and 1.90x the cost of one, faster on 1 of 14 (same record) |
-| Direction of the gap since 2026-08-17 | **wider on all three**: 3.15x → 3.60x, 0.95x → 1.12x, 2.57x → 2.96x. Consistent with D184 paying 1.0339x netlib and 1.0976x Kennington in work to remove four wrong answers, and with nothing since buying it back. No performance work has landed in that window |
-| Rungs T1–T3, which price presolve and algorithm choice | presolve is worth 1.42x to HiGHS and 1.14x to SoPlex; free algorithm choice is worth nothing, on identical iteration counts (D81) |
-| MIPLIB 2017 easy subset | not started |
-| MIPLIB 2017 benchmark subset | not started |
+## 8. Using it from another language
 
-P0 is each solver's own presolve on, the dual forced, no crash basis, one
-thread (D104). `bench/compare/README.md` owns the per-instance decomposition
-and the historical rungs.
+| | status | |
+|---|---|---|
+| C API, one header | **done** | |
+| Command-line tool | **done** | `docs/cli.md` |
+| Python: ctypes wrapper and modeling layer | **done** | standard library only |
+| Python package installable with pip | **missing** | |
+| Julia | **missing** | |
+| Java, .NET | **missing** | |
+| R, MATLAB | **missing** | |
+| Modelling-system links (JuMP, Pyomo, AMPL, GAMS) | **missing** | |
+| `make install` and pkg-config | **done** | |
+| CMake package | **missing** | |
+| Windows and macOS builds | **missing** | |
 
-**The diagnosis has been stable for weeks and the current reading sharpens
-it: the algorithm is competitive and the iteration is not.** Against SoPlex
-JAOS takes **0.73x the iterations** — fewer than SoPlex needs — and still
-loses on total time. All three rivals disagree about the iteration count
-(1.78x, 0.73x, 1.56x) and agree about the cost of one (2.02x, 1.52x, 1.90x).
-That agreement is a property of JAOS and not of any one rival (D83), and it
-says where the work is: making an iteration cheaper, not making fewer of them.
+## 9. Controlling a solve
 
-**Run `make compare COMPARE_ARGS='-t P0'`, never bare `make compare`.** The
-bare form defaults to rung T0, which was taken when JAOS had no presolve;
-against a presolving JAOS it puts presolve on one side only, reports a
-flattering number, and overwrites T0's stored record on the way. It read
-2.52x against HiGHS on 2026-08-30 where the honest rung reads 3.60x.
+| | status | |
+|---|---|---|
+| Work limit and time limit | **done** | |
+| Primal and dual tolerances | **done** | |
+| Logging with levels | **done** | |
+| Progress callback that can stop | **done** | |
+| Choose the algorithm | **missing** | |
+| Options as name-value strings, parameter file | **missing** | |
+| Steering callbacks: user cuts, lazy constraints, branching | **missing** | |
+| Thread count | **missing** | |
+| Sensitivity and ranging | **done** | |
+
+## 10. Licence and distribution
+
+| | status | |
+|---|---|---|
+| Apache 2.0, free for commercial use, no dependencies | **done** | |
+
+## The bars
+
+- Netlib: 94 standard, 16 Kennington, 29 infeasible. Every answer checked,
+  every objective against the Koch reference, two solves identical.
+  `make netlib netlib-infeas netlib-kennington J=12`; results in
+  `bench/results/`, baselines in `bench/*.baseline`.
+- MIPLIB 3: 24 instances to the catalogue optimum. `make miplib`.
+- Speed against HiGHS, SoPlex and Clp: `bench/compare/results/P0.txt`,
+  `make compare COMPARE_ARGS='-t P0'`.
+- MIPLIB 2017 easy and benchmark subsets: not started.

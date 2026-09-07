@@ -1,32 +1,4 @@
-/* MPS, LP and solution writers, and the solution format's reader.
- *
- * The reader is here and not in a file of its own because it is the exact
- * inverse of the writer forty lines above it: the same generated names, the
- * same four status words, the same "format 1" line. Split across two files
- * they drift, and nothing would notice until a file written by one version
- * failed to read in another (D282).
- *
- * One contract shapes all three: a file JAOS writes is a file JAOS reads
- * back as the same model. Where a format cannot express what the model
- * holds, the writer refuses and names the row or the column. It never
- * writes a file that would read back as something else, and a failed write
- * removes the partial file rather than leaving it to be found later.
- *
- * Numbers are written under an explicit "C" locale, for the same reason the
- * readers parse under one: a host application running under a comma-decimal
- * locale would otherwise write "1,5" and produce files nothing can read.
- *
- * Rows and columns are written under the model's names (D284): the file's
- * where the model came from one, and positional -- `C<j+1>`, `R<i+1>`,
- * `COST` -- where nobody named them. That round-trips because both formats
- * list rows and columns in index order and both readers assign indices in
- * the order names appear. What can break it is two rows or two columns
- * called the same, which no reader can tell apart, so every writer here
- * refuses that by name before it opens the file; and, for LP, a name the
- * dialect's scanner would not read back as one token, refused the same way.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
@@ -41,16 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --------------------------------------------------------------------- */
-/* Names and numbers                                                     */
-/* --------------------------------------------------------------------- */
-
-/* A name is at most JAOS_NAME_MAX bytes, and a positional one far fewer. */
 constexpr int NAME_LEN = JAOS_NAME_MAX + 1;
 constexpr int NUM_LEN = 32;
 
-/* The model's name for column j (row i), into the caller's NAME_LEN
- * buffer: its own, or its position (src/model.c). */
 static void col_name(const jaos_model *m, char *buf, int64_t j)
 {
     char tmp[JM_NAME_BUF];
@@ -65,14 +30,6 @@ static void row_name(const jaos_model *m, char *buf, int64_t i)
     memcpy(buf, s, strlen(s) + 1);
 }
 
-/* "%.17g" of a finite double always reads back as that double: that is the
- * IEEE-754 round-trip guarantee, and it is what makes the round trip exact
- * rather than close. Fifteen digits covers most real data and keeps the
- * file readable, so the shorter forms are tried first and kept only when
- * they read back exactly.
- *
- * The caller guarantees `v` is finite. The "C" locale must be active: both
- * the printing and the check that follows it depend on the decimal point. */
 static void wr_num(char *buf, double v)
 {
     for (int prec = 15; prec <= 16; prec++) {
@@ -81,45 +38,26 @@ static void wr_num(char *buf, double v)
             return;
     }
     snprintf(buf, NUM_LEN, "%.17g", v);
-    /* The guarantee the round trip rests on, and the only path here that is
-     * not checked by the loop above. A load-bearing invariant is an assert
-     * in this project (D216, D224); this one catches a libc whose printf is
-     * not correctly rounded. Measured over random bit patterns, one-ulp
-     * walks from 1.0, small rationals and decimal fractions, and it has
-     * never fired: bench/measurements/02-138/digits.txt owns the counts
-     * (D226). */
+
     assert(strtod(buf, nullptr) == v);
 }
-
-/* --------------------------------------------------------------------- */
-/* The writer                                                            */
-/* --------------------------------------------------------------------- */
 
 typedef struct {
     FILE *f;
     jaos_model *m;
     jaos_status st;
-    /* Set when the path ends in `.gz` (D340). The whole file is then
-     * built in memory and compressed at the close, so `f` is a memory
-     * stream and `gz_buf` is what it writes into. */
+
     bool gz;
     char *gz_buf;
     size_t gz_len;
 } wr;
 
-/* Whether a path names a file to compress. The rule is the name and not a
- * flag, because the readers decide by the file's first two bytes and a
- * caller who writes `model.mps.gz` means one thing by it. Every writer
- * here shares this, so `jaos convert in.mps out.lp.gz` needs no case of
- * its own. */
 static bool path_is_gz(const char *path)
 {
     const size_t n = strlen(path);
     return n >= 3 && strcmp(path + n - 3, ".gz") == 0;
 }
 
-/* Every refusal funnels here: the first one wins, so a later check cannot
- * overwrite the message that says what is actually wrong. */
 static void wr_fail(wr *w, jaos_status st, const char *fmt, ...)
 {
     if (w->st != JAOS_OK)
@@ -131,14 +69,6 @@ static void wr_fail(wr *w, jaos_status st, const char *fmt, ...)
     va_end(ap);
 }
 
-/* Installs the "C" locale, then opens the file. That order matters twice.
- *
- * `newlocale` allocates and can fail, and a writer that carries on without
- * the C locale is worse off than a reader that does: `wr_num` would print
- * "1,5" AND check it back with `strtod` under the same locale, so the check
- * passes and the file is written with JAOS_OK. So a locale failure is a
- * failure here, and it happens before `fopen(path, "w")` has truncated
- * whatever the caller had at that path. */
 static bool wr_open(wr *w, const char *path, locale_t *prev, locale_t *cloc)
 {
     *cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
@@ -155,10 +85,7 @@ static bool wr_open(wr *w, const char *path, locale_t *prev, locale_t *cloc)
                 "cannot switch to the C locale needed to write '%s'", path);
         return false;
     }
-    /* A compressed path opens a memory stream instead, and the real file
-     * is not touched until the close has something to put in it. That is
-     * strictly better than the plain path, where `fopen(path, "w")`
-     * truncates before the first check that can still fail. */
+
     w->gz = path_is_gz(path);
     w->f = w->gz ? open_memstream(&w->gz_buf, &w->gz_len) : fopen(path, "w");
     if (w->f == nullptr) {
@@ -171,9 +98,6 @@ static bool wr_open(wr *w, const char *path, locale_t *prev, locale_t *cloc)
     return true;
 }
 
-/* Closes the stream, restores the locale, and removes the file when
- * anything went wrong. A stream error can surface only at fclose, which is
- * where a full disk usually appears, so both are checked. */
 static jaos_status wr_close(wr *w, const char *path, locale_t prev,
                             locale_t cloc)
 {
@@ -186,10 +110,6 @@ static jaos_status wr_close(wr *w, const char *path, locale_t prev,
         freelocale(cloc);
     }
 
-    /* The compression and the one write of the real file (D340). It comes
-     * after the locale is restored, since nothing below formats a number,
-     * and after the stream is closed, since that is what makes the buffer
-     * whole. */
     if (w->gz && w->st == JAOS_OK) {
         char *packed = nullptr;
         int64_t packed_n = 0;
@@ -222,11 +142,6 @@ static jaos_status wr_close(wr *w, const char *path, locale_t prev,
     return w->st;
 }
 
-/* Two rows, the objective among them, or two columns called the same
- * would read back as one, so no writer here writes them. Checked before
- * the file is opened, in one pass per side over a map of what has been
- * seen. A positional name takes part: a column named `C2` collides with
- * an unnamed second column. */
 static void names_unique(wr *w)
 {
     const jaos_model *m = w->m;
@@ -265,30 +180,19 @@ static void names_unique(wr *w)
     jm_nmap_free(&seen);
 }
 
-/* --------------------------------------------------------------------- */
-/* MPS                                                                   */
-/* --------------------------------------------------------------------- */
-
-/* A ranged row is the one thing the MPS reader rebuilds by arithmetic
- * rather than by assignment, so it is the one thing that can come back
- * different. Its `G` form recovers the lower bound exactly and computes the
- * upper; its `L` form does the opposite. Both are tried, and the one that
- * reproduces the pair exactly is used. When neither does, the row is
- * refused: writing it would produce a file that reads back as a different
- * model, which is what this file exists to prevent. */
 static bool range_form(double rl, double ru, char *type, double *rhs,
                        double *rng)
 {
     double d = ru - rl;
     if (!isfinite(d))
         return false;
-    if (rl + fabs(d) == ru) {          /* reader: rl = b, ru = b + |r| */
+    if (rl + fabs(d) == ru) {
         *type = 'G';
         *rhs = rl;
         *rng = d;
         return true;
     }
-    if (ru - fabs(d) == rl) {          /* reader: rl = b - |r|, ru = b */
+    if (ru - fabs(d) == rl) {
         *type = 'L';
         *rhs = ru;
         *rng = d;
@@ -297,26 +201,19 @@ static bool range_form(double rl, double ru, char *type, double *rhs,
     return false;
 }
 
-/* Row i as the reader's four-way row type, plus the RHS and RANGES values
- * that reconstruct its bounds. `*rng` stays NAN when the row needs no
- * RANGES entry. */
 static void mps_row_kind(wr *w, int64_t i, char *type, double *rhs,
                          double *rng)
 {
     const double rl = w->m->row_lower[i], ru = w->m->row_upper[i];
     char name[NAME_LEN];
     row_name(w->m, name, i);
-    /* Set on every path including the two refusals, because `type` comes
-     * from jm_alloc_array, which is malloc. Leaving it to the caller's
-     * `w->st == JAOS_OK` guards would make three separate loop conditions
-     * load-bearing for initialisation, and neither ASan nor UBSan reports a
-     * read of uninitialised malloc memory. */
+
     *type = 'N';
     *rng = NAN;
     *rhs = 0.0;
 
     if (rl == -INFINITY && ru == INFINITY) {
-        *type = 'N';                       /* a free row, kept as one */
+        *type = 'N';
         return;
     }
     if (rl == ru) {
@@ -347,10 +244,7 @@ static void mps_row_kind(wr *w, int64_t i, char *type, double *rhs,
                     name);
         return;
     }
-    /* What is left is a lower bound above the upper one. That is a
-     * legitimate model — jaos_set_row_bounds accepts it and the solve
-     * reports infeasible — and MPS cannot say it: every RANGES form yields
-     * an interval with its lower bound first. */
+
     wr_fail(w, JAOS_ERR_INVALID_INPUT,
             "row '%s' has its lower bound above its upper bound, which MPS "
             "cannot express", name);
@@ -361,10 +255,6 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    /* Nothing is opened until every check below has passed. `fopen(path,
-     * "w")` truncates, and `wr_close` removes the file on failure, so
-     * opening first would make a refused write destroy whatever the caller
-     * already had at that path. */
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
     const char *obj = jm_obj_name(m);
@@ -375,8 +265,6 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
     if (type == nullptr || rhs == nullptr || rng == nullptr)
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
 
-    /* Every row and every column is classified before the file is opened,
-     * so a refusal touches nothing on disk at all. */
     for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++)
         mps_row_kind(w, i, &type[i], &rhs[i], &rng[i]);
 
@@ -391,10 +279,6 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         }
     }
 
-    /* The names. Two the same are refused for every format; MPS has one
-     * more, because the reader takes a second field of 'MARKER' in COLUMNS
-     * as an integer marker, so a row called that would not read back as a
-     * row. */
     if (w->st == JAOS_OK)
         names_unique(w);
     for (int64_t i = -1; w->st == JAOS_OK && i < m->num_row; i++) {
@@ -429,15 +313,10 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             fprintf(w->f, " %c  %s\n", type[i], rn);
         }
 
-        /* Column entries must be contiguous, and every column must appear
-         * or the round trip loses the ones with no coefficients. A column
-         * with nothing to say gets its objective entry written anyway. */
         fprintf(w->f, "COLUMNS\n");
         bool in_int = false;
         for (int64_t j = 0; j < m->num_col; j++) {
-            /* Integer columns sit between MARKER lines (D288): one pair
-             * per run of them, opened before the first and closed after
-             * the last. */
+
             const bool is_int = m->col_integer != nullptr && m->col_integer[j];
             if (is_int != in_int) {
                 fprintf(w->f, "    MARKER    'MARKER'   %s\n",
@@ -470,8 +349,6 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         if (in_int)
             fprintf(w->f, "    MARKER    'MARKER'   'INTEND'\n");
 
-        /* The objective constant travels as an RHS entry on the objective
-         * row, negated: the reader stores `-v` (docs/format-support.md). */
         fprintf(w->f, "RHS\n");
         if (m->obj_offset != 0.0) {
             wr_num(num, -m->obj_offset);
@@ -479,7 +356,7 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         }
         for (int64_t i = 0; i < m->num_row; i++) {
             if (type[i] == 'N' || rhs[i] == 0.0)
-                continue;      /* a row never named in RHS defaults to 0 */
+                continue;
             row_name(m, rn, i);
             wr_num(num, rhs[i]);
             fprintf(w->f, "    RHS       %-9s %s\n", rn, num);
@@ -494,16 +371,12 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             fprintf(w->f, "    RNG       %-9s %s\n", rn, num);
         }
 
-        /* Bound forms are chosen so the reader's negative-UP wart never
-         * fires. It drops a lower bound that was never set explicitly, so
-         * every UP written here is preceded by an LO or an MI: by an LO
-         * even at the default zero, when the upper bound is negative. */
         fprintf(w->f, "BOUNDS\n");
         for (int64_t j = 0; j < m->num_col; j++) {
             const double cl = m->col_lower[j], cu = m->col_upper[j];
             col_name(m, nm, j);
             if (cl == 0.0 && cu == INFINITY)
-                continue;                          /* the reader's default */
+                continue;
             if (cl == -INFINITY && cu == INFINITY) {
                 fprintf(w->f, " FR BND       %s\n", nm);
                 continue;
@@ -534,12 +407,6 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
     return wr_close(w, path, prev, cloc);
 }
 
-/* --------------------------------------------------------------------- */
-/* LP                                                                    */
-/* --------------------------------------------------------------------- */
-
-/* The reader wraps expressions freely, so the width is chosen for whoever
- * opens the file rather than for the parser. */
 constexpr int LP_WRAP = 72;
 
 static void lp_term(wr *w, int *col, bool *first, double coef,
@@ -566,24 +433,17 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    /* The dialect is written row by row and the model is held column by
-     * column, so the row-wise mirror is what makes this possible at all. */
     jaos_status rs = jm_model_ensure_rowwise(m);
     if (rs != JAOS_OK) {
         jm_set_err(m, "out of memory building the row-wise copy");
         return rs;
     }
 
-    /* Nothing is opened until every check below has passed, for the reason
-     * jaos_write_mps gives. */
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
 
     char nm[NAME_LEN], rn[NAME_LEN], num[NUM_LEN];
 
-    /* Three things this dialect cannot say, all checked before the file is
-     * opened. docs/format-support.md lists them; jaos_write_mps has none of
-     * them, which is why every message here points at it. */
     for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
         const double rl = m->row_lower[i], ru = m->row_upper[i];
         row_name(m, rn, i);
@@ -609,11 +469,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                     "express", nm);
     }
 
-    /* The names: two the same, as every writer refuses, and one the LP
-     * scanner would not read back as one token -- a name starting with a
-     * digit, holding a `-` or a `:`, or spelling a keyword. MPS takes
-     * every name this library holds, which is why the message points
-     * there. The objective's name is a label like any other. */
     if (w->st == JAOS_OK)
         names_unique(w);
     for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
@@ -642,16 +497,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
         fprintf(w->f, "%s\n",
                 m->sense == JAOS_MAXIMIZE ? "Maximize" : "Minimize");
 
-        /* Every column, including the ones costing nothing, and in index
-         * order. LP format has no COLUMNS section: the reader numbers a
-         * column where its name FIRST appears in the token stream, so
-         * listing only the costed ones here would renumber every other
-         * column by where its first coefficient happens to sit. That is
-         * silent: the file is valid and describes a different model. Most of
-         * the gate did exactly that before this loop stopped skipping, and
-         * bench/measurements/02-138/lpcover.txt owns the count (D226). A
-         * zero term is also what lets LP name a column that appears in no
-         * row at all. */
         fprintf(w->f, " %s:", jm_obj_name(m));
         int col = (int)strlen(jm_obj_name(m)) + 2;
         bool first = true;
@@ -669,8 +514,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
         fprintf(w->f, "Subject To\n");
         for (int64_t i = 0; i < m->num_row; i++) {
             const double rl = m->row_lower[i], ru = m->row_upper[i];
-            /* Ranged: two finite ends that differ. Written as the two-sided
-             * form, whose left bound sits between the label and the terms. */
+
             const bool ranged = rl != ru && rl != -INFINITY && ru != INFINITY;
             char lonum[NUM_LEN];
             row_name(m, rn, i);
@@ -687,17 +531,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                 lp_term(w, &col, &first, m->ar_value[k], nm);
             }
             if (m->ar_start[i] == m->ar_start[i + 1]) {
-                /* A row with no coefficients. LP has no form for a
-                 * constraint with an empty body, but a term whose
-                 * coefficient is zero is an ordinary term, and the reader
-                 * drops explicit zeros on the way back in (`model.c` keeps
-                 * the matrix free of them), so `0 x1 >= 5` round-trips to
-                 * the empty row it came from. Column 0 every time: a fixed
-                 * rule, not a choice the data can influence.
-                 *
-                 * This was refused as unwritable until D276 measured the
-                 * round trip. It is 34 of the 35 gate instances the LP
-                 * writer used to turn away. */
+
                 col_name(m, nm, 0);
                 lp_term(w, &col, &first, 0.0, nm);
             }
@@ -712,8 +546,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             }
         }
 
-        /* One statement per column is all the reader needs: later
-         * statements override earlier ones component-wise. */
         fprintf(w->f, "Bounds\n");
         for (int64_t j = 0; j < m->num_col; j++) {
             const double cl = m->col_lower[j], cu = m->col_upper[j];
@@ -739,8 +571,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             }
         }
 
-        /* Integer columns under General (D288); their bounds are already
-         * above, so a binary one round-trips as General with [0, 1]. */
         if (m->col_integer != nullptr) {
             bool any = false;
             for (int64_t j = 0; j < m->num_col; j++)
@@ -761,10 +591,6 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
     return wr_close(w, path, prev, cloc);
 }
 
-/* --------------------------------------------------------------------- */
-/* Solution                                                              */
-/* --------------------------------------------------------------------- */
-
 static const char *basis_word(jaos_basis_status s)
 {
     switch (s) {
@@ -776,9 +602,6 @@ static const char *basis_word(jaos_basis_status s)
     return "unknown";
 }
 
-/* The three words a file's status line may carry, and the three the reader
- * accepts: the outcomes that carry an answer, `optimal` with a point and a
- * basis and the other two with a certificate (D285). */
 static const char *status_word(jaos_solve_status s)
 {
     switch (s) {
@@ -793,11 +616,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* What the last solve left to write down: an optimum with its point
-     * and basis, or a certificate. The rule jaos_solution, jaos_certificate
-     * and jaos_unbounded_ray apply, for their reason: a solve that left
-     * none of the three has nothing to write, and a file of zeros does not
-     * read as missing. */
+
     const jaos_solve_status ss = m->solve_status;
     const bool optimal = ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr &&
         m->sol_col_status != nullptr && m->sol_redcost != nullptr &&
@@ -821,19 +640,6 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     wr *w = &ww;
     char nm[NAME_LEN], a[NUM_LEN], b[NUM_LEN];
 
-    /* wr_num's caller guarantees a finite value. The two model writers
-     * discharge that from the model's own invariants: every setter and
-     * every loader rejects a non-finite cost, bound or coefficient. The
-     * answer arrays carry no such invariant. `jm_objective_value`
-     * publishes a non-finite objective deliberately when the sum overflows,
-     * and a model whose bounds reach 1e300 solves to OPTIMAL with an
-     * infinity or a NaN in any of the four arrays; a certificate is a
-     * vector the solve computed and is checked the same way.
-     *
-     * Writing one would abort wr_num's assert on a build that has asserts,
-     * and print a libc-dependent "nan" or "-nan" on one that does not,
-     * which is a file this project's first rule says must not exist. So it
-     * is refused by name, before anything is opened (D226). */
     if (optimal) {
         if (!isfinite(m->objective))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
@@ -870,9 +676,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
                         nm);
         }
     }
-    /* Records are positional and the reader would take a repeated name in
-     * its stride, so this refusal is for the person reading the file, and
-     * for one rule across the three writers. */
+
     if (w->st == JAOS_OK)
         names_unique(w);
     if (w->st != JAOS_OK)
@@ -910,9 +714,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
                     basis_word(m->sol_row_status[i]));
         }
     } else if (infeasible) {
-        /* The Farkas certificate, one entry per row: jaos_certificate's
-         * vector, which jaos_check_certificate judges from the model
-         * alone. */
+
         fprintf(w->f, "# ray <row name> <multiplier>\n");
         for (int64_t i = 0; i < m->num_row; i++) {
             row_name(m, nm, i);
@@ -920,8 +722,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
             fprintf(w->f, "ray %s %s\n", nm, a);
         }
     } else {
-        /* The unbounded ray, one entry per column: jaos_unbounded_ray's
-         * vector, which jaos_check_ray judges from the model alone. */
+
         fprintf(w->f, "# ray <column name> <direction>\n");
         for (int64_t j = 0; j < m->num_col; j++) {
             col_name(m, nm, j);
@@ -929,13 +730,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
             fprintf(w->f, "ray %s %s\n", nm, a);
         }
     }
-    /* The basis the solve stopped on, beside the ray (D332). An optimal
-     * record already carries it on its own lines. A certificate did not
-     * carry it at all until the basis behind a refusal became readable
-     * (D330), and what it buys is a warm start across processes: solve,
-     * change one bound, solve again from the file. The section is left
-     * out where there is no basis -- a verdict presolve reached with no
-     * simplex, an inverted box -- and the reader takes its absence. */
+
     if (!optimal && m->sol_basis_ok) {
         fprintf(w->f, "# basis col|row <name> <status>\n");
         for (int64_t j = 0; j < m->num_col; j++) {
@@ -954,12 +749,6 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     return wr_close(w, path, prev, cloc);
 }
 
-/* --------------------------------------------------------------------- */
-/* The solution reader                                                    */
-/* --------------------------------------------------------------------- */
-
-/* The inverse of `basis_word`. Returns false on a word that is not one of
- * the four. */
 static bool basis_of_word(const char *w, jaos_basis_status *out)
 {
     if (strcmp(w, "basic") == 0)      { *out = JAOS_BASIS_BASIC;    return true; }
@@ -969,7 +758,6 @@ static bool basis_of_word(const char *w, jaos_basis_status *out)
     return false;
 }
 
-/* The inverse of `status_word`. */
 static bool status_of_word(const char *w, jaos_solve_status *out)
 {
     if (strcmp(w, "optimal") == 0)    { *out = JAOS_SOLVE_OPTIMAL;    return true; }
@@ -978,10 +766,6 @@ static bool status_of_word(const char *w, jaos_solve_status *out)
     return false;
 }
 
-/* One finite number, parsed under the caller's already-installed "C"
- * locale. Rejects what `strtod` leaves behind, so `1.5x` is an error and
- * not 1.5, and rejects an infinity or a NaN: the writer refuses to write
- * one (D226), so a file holding one was not written by this library. */
 static bool rd_num(const char *tok, double *out)
 {
     char *end = nullptr;
@@ -993,7 +777,6 @@ static bool rd_num(const char *tok, double *out)
     return true;
 }
 
-/* Where a read puts what it finds. Every pointer is optional. */
 typedef struct {
     jaos_solve_status status;
     double objective;
@@ -1001,22 +784,14 @@ typedef struct {
     jaos_basis_status *col_status;
     double *row_activity, *row_dual;
     jaos_basis_status *row_status;
-    double *row_ray;         /* on infeasible, num_row entries */
-    double *col_ray;         /* on unbounded, num_col entries  */
-    /* The basis a certificate file carries beside its ray (D332). It is
-     * optional in the format, so a file written before it existed still
-     * reads; `have_basis` says whether these were filled. */
-    jaos_basis_status *cert_col_status;   /* num_col entries */
-    jaos_basis_status *cert_row_status;   /* num_row entries */
+    double *row_ray;
+    double *col_ray;
+
+    jaos_basis_status *cert_col_status;
+    jaos_basis_status *cert_row_status;
     bool have_basis;
 } sol_read;
 
-/* The one reader behind the three public calls: the whole file, every
- * record checked against the model and against the status the file
- * declared, so a `col` record in an infeasible file or a `ray` record in
- * an optimal one is refused rather than taken. `want_optimal` is +1 when
- * the caller can only take an optimum, -1 when only a certificate, and 0
- * for either; the refusal names the call that reads the other kind. */
 static jaos_status read_solution_file(jaos_model *m, const char *path,
                                       int want_optimal, sol_read *o)
 {
@@ -1026,9 +801,6 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
         return JAOS_ERR_IO;
     }
 
-    /* The same locale rule the model readers follow, and for the same
-     * reason: a host application under a comma-decimal locale would read
-     * "1.5" as 1. */
     locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
     locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
 
@@ -1056,16 +828,14 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
              p != nullptr && nt < 8; p = strtok(nullptr, " \t\r\n"))
             tok[nt++] = p;
         if (nt == 0 || tok[0][0] == '#')
-            continue;   /* blank, or one of the writer's comment lines */
+            continue;
 
         if (strcmp(tok[0], "status") == 0) {
             if (nt != 2)
                 RD_FAIL("line %" PRId64 ": 'status' takes one word", lno);
             if (have_status)
                 RD_FAIL("line %" PRId64 ": a second 'status' line", lno);
-            /* Only the three outcomes with something to write are ever
-             * written (D226, D285), so only those are read. A file saying
-             * anything else was not written by this library. */
+
             if (!status_of_word(tok[1], &ss))
                 RD_FAIL("line %" PRId64 ": status is '%s'; only 'optimal', "
                         "'infeasible' and 'unbounded' are written and read",
@@ -1099,8 +869,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
             const long long v = strtoll(tok[1], &end, 10);
             if (end == tok[1] || *end != '\0' || errno != 0 || v < 0)
                 RD_FAIL("line %" PRId64 ": '%s' is not a count", lno, tok[1]);
-            /* The model decides the shape. A file from another model is
-             * refused here rather than read into the wrong arrays. */
+
             const int64_t want = is_col ? m->num_col : m->num_row;
             if ((int64_t)v != want)
                 RD_FAIL("line %" PRId64 ": the file has %lld %s and this "
@@ -1127,10 +896,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
             if (k >= lim)
                 RD_FAIL("line %" PRId64 ": more '%s' records than the count "
                         "says", lno, tok[0]);
-            /* Records are positional; the name is checked, not searched.
-             * It must be the name this model gives that index -- its own
-             * or the positional one (D284) -- so a mismatch means the file
-             * describes a different model, or this one renamed since. */
+
             if (is_col)
                 col_name(m, nm, k);
             else
@@ -1162,10 +928,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                 seen_row++;
             }
         } else if (strcmp(tok[0], "ray") == 0) {
-            /* A certificate entry: over the rows of an infeasible file,
-             * over the columns of an unbounded one, in index order and
-             * under the model's names, the same rule as the records
-             * above. */
+
             if (!have_status)
                 RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
             if (ss == JAOS_SOLVE_OPTIMAL)
@@ -1200,13 +963,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
             }
             seen_ray++;
         } else if (strcmp(tok[0], "basis") == 0) {
-            /* The basis behind a certificate (D332): `basis col NAME WORD`
-             * and `basis row NAME WORD`, columns before rows and each in
-             * index order under the model's own names, the same rule as
-             * every record above. An optimal file has no such lines --
-             * its `col` and `row` records already carry the status -- and
-             * a certificate file written before D332 has none either, so
-             * the section is optional and its absence is not an error. */
+
             if (!have_status)
                 RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
             if (ss == JAOS_SOLVE_OPTIMAL)
@@ -1283,11 +1040,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                     "carries %" PRId64, lim,
                     ss == JAOS_SOLVE_INFEASIBLE ? "rows" : "columns",
                     seen_ray);
-        /* Half a basis says which variables are basic about half the
-         * model, which is nothing, so the section is all of it or none
-         * of it (D332). Absent is not an error: the writer omits it on a
-         * verdict presolve reached with no simplex, and every file
-         * written before D332 has none. */
+
         if (seen_bcol != 0 || seen_brow != 0) {
             if (seen_bcol != ncol || seen_brow != nrow)
                 RD_FAIL("the file carries %" PRId64 " of %" PRId64 " column "
@@ -1348,11 +1101,7 @@ jaos_status jaos_read_basis(jaos_model *m, const char *path,
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* Either kind of file, because either kind can carry a basis (D332):
-     * an optimum's is on its own `col` and `row` records and a
-     * certificate's on its `basis` ones. The two sets of pointers below
-     * are the same two arrays; only one of them is ever written, since a
-     * file declares one status. */
+
     sol_read o = {.col_status = col_status, .row_status = row_status,
                   .cert_col_status = col_status,
                   .cert_row_status = row_status};
@@ -1379,25 +1128,6 @@ jaos_status jaos_solution_file_status(jaos_model *m, const char *path,
     return st;
 }
 
-/* --------------------------------------------------------------------- */
-/* The MPS basis file                                                     */
-/* --------------------------------------------------------------------- */
-
-/* The reader is beside the writer for D282's reason: it is the exact
- * inverse of it, and split across two files they drift.
- *
- * The format's own defaults do most of the work. Every column starts
- * nonbasic at its lower bound and every row's logical starts basic, so a
- * slack basis is an empty file and a solved one carries a card per
- * departure. That is what makes these files small, and it is also why the
- * reader has to seed the arrays with the defaults before it reads a line.
- */
-
-/* Two columns, or two rows, called the same would read back as one. This
- * is not `names_unique`: that one puts the objective and the rows in a
- * single space because an MPS ROWS section does, and here a column and a
- * row may share a name, since the two never occupy the same field of a
- * card. */
 static void basis_names_unique(wr *w)
 {
     const jaos_model *m = w->m;
@@ -1437,9 +1167,6 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
     if (cs == nullptr || rs == nullptr)
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
 
-    /* The availability rule is jaos_basis's and is not restated here:
-     * whatever it hands out is what this writes, and whatever it refuses
-     * this refuses with the message it set. */
     if (w->st == JAOS_OK) {
         const jaos_status bst = jaos_basis(m, cs, rs);
         if (bst != JAOS_OK) {
@@ -1448,13 +1175,7 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
             return bst;
         }
     }
-    /* Exactly num_row basic variables is what jaos_basis promises (D257),
-     * and it is checked rather than assumed, for the reason
-     * `vbasis_build` checks it: the pairing below walks the basic columns
-     * against the nonbasic rows, and a count that is one out walks off
-     * the end of the row array. An assert would say so in a dev build and
-     * segfault in a release one, which is what the off-by-one fault build
-     * demonstrated. */
+
     if (w->st == JAOS_OK) {
         int64_t basic = 0;
         for (int64_t j = 0; j < m->num_col; j++)
@@ -1483,18 +1204,12 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
         fprintf(w->f, "NAME          %s\n",
                 m->model_name != nullptr ? m->model_name : "JAOS");
 
-        /* A basis has exactly num_row basic variables, so the basic
-         * columns and the nonbasic rows are equal in number (jaos_basis
-         * promises the count, D257). They are paired in index order,
-         * which is a choice the format leaves open and which makes the
-         * file reproducible: the same basis writes the same bytes. */
         int64_t i = 0;
         for (int64_t j = 0; j < m->num_col; j++) {
             if (cs[j] == JAOS_BASIS_BASIC) {
                 while (i < m->num_row && rs[i] == JAOS_BASIS_BASIC)
                     i++;
-                /* Unreachable now that the count is checked above, which
-                 * is exactly what makes it worth asserting (D216, D224). */
+
                 assert(i < m->num_row);
                 col_name(m, nm, j);
                 row_name(m, rn, i);
@@ -1505,8 +1220,7 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
                 col_name(m, nm, j);
                 fprintf(w->f, " UL %s\n", nm);
             }
-            /* AT_LOWER is the default and FREE reads back as FREE from
-             * the bounds, so neither writes a card. */
+
         }
         fprintf(w->f, "ENDATA\n");
     }
@@ -1516,12 +1230,6 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
     return wr_close(w, path, prev, cloc);
 }
 
-/* The status a nonbasic variable rests in, given the bounds it has. A
- * variable with neither bound rests at zero, which is what FREE means; one
- * with a lower bound rests there. This is the reader's whole treatment of
- * FREE, and it is exact rather than a guess: the writer emits no card for
- * either, so the bounds are the only thing that separates them and they
- * separate them completely. */
 static jaos_basis_status nonbasic_at_lower(double lo, double up)
 {
     return (lo == -INFINITY && up == INFINITY) ? JAOS_BASIS_FREE
@@ -1547,13 +1255,9 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
     int64_t lno = 0;
     bool ended = false;
 
-    /* The arrays are the reader's own, not the caller's: a refusal on the
-     * last line must not leave half a basis in the caller's buffers. */
     jaos_basis_status *cs = jm_alloc_array(m->num_col, sizeof *cs);
     jaos_basis_status *rs = jm_alloc_array(m->num_row, sizeof *rs);
-    /* One flag per variable, so a second card for one of them is caught
-     * rather than silently taken. The default state is not a card, so an
-     * unflagged slot is untouched and not "seen". */
+
     bool *cseen = jm_calloc_array(m->num_col, sizeof *cseen);
     bool *rseen = jm_calloc_array(m->num_row, sizeof *rseen);
     if (cs == nullptr || rs == nullptr || cseen == nullptr ||
@@ -1575,8 +1279,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
         if (ended)
             BAS_FAIL("line %" PRId64 ": content after 'ENDATA'", lno);
         if (line[0] == '*')
-            continue;   /* an MPS comment, and what this writer's first
-                         * line is */
+            continue;
 
         char *tok[8];
         int nt = 0;
@@ -1591,8 +1294,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
             continue;
         }
         if (strcmp(tok[0], "NAME") == 0)
-            continue;   /* the file's own name for the model, which says
-                         * nothing about whether it is this model */
+            continue;
 
         const bool two = strcmp(tok[0], "XU") == 0 ||
                          strcmp(tok[0], "XL") == 0;
@@ -1624,12 +1326,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
                          tok[2]);
             rseen[i] = true;
             cs[j] = JAOS_BASIS_BASIC;
-            /* A row with no bound on the named side is refused rather
-             * than moved to the other one. jaos_set_basis repairs a
-             * status whose bound was retired since the basis was taken,
-             * and that is a different thing from a file that never made
-             * sense: here nothing has changed underneath, so a card
-             * naming a bound the row does not have is a wrong file. */
+
             if (tok[0][1] == 'U') {
                 if (m->row_upper[i] == INFINITY)
                     BAS_FAIL("line %" PRId64 ": row '%s' has no upper bound "
@@ -1658,14 +1355,6 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
     if (!ended)
         BAS_FAIL("line %" PRId64 ": the file ends without 'ENDATA'", lno);
 
-    /* The basic count needs no check, and the argument is worth writing
-     * down because the obvious reading is that it does. Only XU and XL
-     * make a column basic, each one makes exactly one row nonbasic in the
-     * same card, and the two seen-flags refuse a second card for either
-     * side. So the count of basic columns equals the count of nonbasic
-     * rows, whatever the file says, and the total is num_row for every
-     * file that gets this far. That makes it an invariant rather than a
-     * validation, which in this project is an assert (D216, D224). */
 #ifndef NDEBUG
     {
         int64_t basic = 0;
@@ -1696,28 +1385,6 @@ done:
     return st;
 }
 
-/* --------------------------------------------------------------------- */
-/* The point file                                                         */
-/* --------------------------------------------------------------------- */
-
-/* The smallest thing that can carry an answer between programs: one
- * `NAME VALUE` line per column, in any order, `#` to end of line for a
- * comment (D342).
- *
- * It exists because JAOS's own solution file is JAOS's own, and the point
- * of shipping an independent checker is that it can judge somebody else's
- * answer. Two lines of awk turn most solvers' output into this, which is
- * the whole design goal: the format is deliberately poorer than
- * jaos_write_solution's so that producing one is not a project.
- *
- * **Every column must appear exactly once, and that is the one strict
- * rule.** A missing column defaulting to zero is how a wrong answer gets
- * judged feasible, so it is an error with the column named.
- */
-
-/* Reads NAME VALUE lines into `out`, one per column (`is_col`) or one per
- * row. Every entity must appear exactly once; the seen-map is what says
- * so and what names the one that did not. */
 static jaos_status read_named_values(jaos_model *m, const char *path,
                                      bool is_col, double *out)
 {
@@ -1729,8 +1396,6 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
         return JAOS_ERR_IO;
     }
 
-    /* The same locale rule every reader here follows: a host application
-     * under a comma-decimal locale would read "1.5" as 1. */
     locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
     locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
 
@@ -1784,8 +1449,6 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
         seen++;
     }
 
-    /* A column with no line is the failure this format exists to catch.
-     * Defaulting it to zero would judge a point the file never named. */
     if (seen != n)
         for (int64_t k = 0; k < n; k++)
             if (!got[k]) {
@@ -1838,18 +1501,12 @@ jaos_status jaos_write_point_values(jaos_model *m, const char *path,
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
 
-    /* Copied rather than written from, because the caller's array may be
-     * the model's own storage -- jaos_mip_pool_solution fills one -- and
-     * nothing here should depend on which. */
     double *x = jm_alloc_array(m->num_col, sizeof *x);
     if (x == nullptr)
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
     else if (m->num_col > 0)
         memcpy(x, col_value, (size_t)m->num_col * sizeof *x);
 
-    /* Two columns of a name would read back as one, so the same refusal
-     * every writer here makes. The rows take no part: this file has
-     * column names in it and nothing else. */
     if (w->st == JAOS_OK) {
         jm_nmap seen = {0};
         char nm[NAME_LEN];
@@ -1866,9 +1523,6 @@ jaos_status jaos_write_point_values(jaos_model *m, const char *path,
         jm_nmap_free(&seen);
     }
 
-    /* A value no file can carry is refused before anything is opened, the
-     * rule jaos_write_solution follows and for the same reason: the
-     * spelling of an infinity belongs to the host libc. */
     for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
         if (!isfinite(x[j])) {
             char nm[NAME_LEN];
@@ -1902,11 +1556,7 @@ jaos_status jaos_write_point(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* The point rule is jaos_solution's and is not restated: an optimum
-     * has one and nothing else does. A mixed-integer incumbent that was
-     * never proved is not an answer this writes, for the reason
-     * jaos_solution refuses it -- and jaos_write_point_values is the call
-     * for writing one that is not an answer. */
+
     double *x = jm_alloc_array(m->num_col, sizeof *x);
     if (x == nullptr) {
         jm_set_err(m, "out of memory");
@@ -1919,10 +1569,6 @@ jaos_status jaos_write_point(jaos_model *m, const char *path)
     return st;
 }
 
-/* The row multipliers in the same shape (D348), so the pair `jaos check
- * --point P --duals D` reads is a pair this library writes. It is
- * jaos_write_point_values over the rows, and the two are not shared
- * because what differs is every name in them. */
 jaos_status jaos_write_dual_values(jaos_model *m, const char *path,
                                    const double *row_dual)
 {

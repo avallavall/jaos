@@ -1,40 +1,3 @@
-/* The exact optimality proof, written to a file and judged from the model
- * alone (D325).
- *
- * D285 gave an infeasible and an unbounded answer a certificate that can
- * leave the process that found it. An optimum had no such thing: the
- * solution file carries a point and duals judged to a tolerance, and the
- * exact rational proof `jaos_verify` computes stayed inside the model.
- * This file is that proof on disk.
- *
- * What it holds is the coordinates: every column's exact value and every
- * row's exact dual, as decimal rationals, plus the exact objective. What
- * it does NOT hold is a basis, and that is deliberate. The checker never
- * reads one. It reads the model and the file and re-derives the three
- * conditions that make a point optimal for a linear program:
- *
- *   1. the point is primal feasible -- every column inside its bounds and
- *      every row activity inside its own,
- *   2. the duals are dual feasible -- every reduced cost points into the
- *      model from the side the point rests on,
- *   3. the two are complementary -- a row or column strictly inside its
- *      bounds carries a zero multiplier.
- *
- * Together those three are sufficient, so a file that passes is proved
- * optimal and not merely consistent with a basis somebody else chose.
- * Every comparison is over the rationals, so nothing here has a tolerance
- * and there is no bar to argue about.
- *
- * The one thing that can stop it is the limb budget: a product or a sum
- * that does not fit in JM_EXACT_LIMBS ends the check as
- * JAOS_ERR_NUMERICAL, which is the honest "cannot judge" and not a
- * verdict. That is the same ceiling the proof that wrote the file ran
- * under (D273, D274).
- *
- * The file has no decimal point anywhere -- every number is an integer or
- * a ratio of two -- so unlike every other reader and writer here it needs
- * no locale handling at all. */
-
 #include "jaos.h"
 #include "jaos_internal.h"
 
@@ -44,18 +7,8 @@
 #include <math.h>
 #include <string.h>
 
-/* A line of the file: the longest record is `col <name> <value> <status>`,
- * and a value is at most two magnitudes and a slash. */
 #define PROOF_LINE 4096
 
-/* ------------------------------------------------------------------ */
-/* The writer                                                          */
-/* ------------------------------------------------------------------ */
-
-/* A double as the exact rational it already is, in the same decimal-ratio
- * spelling jm_rational_decimal gives an exact value (D328). The caller
- * frees it; nullptr is out of limbs or out of memory, and every finite
- * double fits, so in practice it is out of memory. */
 static char *rational_of_double(double v)
 {
     jm_rational r;
@@ -64,8 +17,6 @@ static char *rational_of_double(double v)
     return jm_rational_decimal(&r);
 }
 
-/* One `ray` record per row or per column, the vector written as exact
- * rationals. Returns false on an I/O or memory failure. */
 static bool write_ray(FILE *f, const jaos_model *m, const double *v,
                       bool per_row)
 {
@@ -89,19 +40,14 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    /* Which of the three the last solve left. An optimum's proof is its
-     * coordinates and needs a jaos_verify; a certificate is a vector the
-     * solve already published, and every double in it is exact, so it
-     * needs no verify at all (D328). */
+
     const jaos_solve_status ss = m->solve_status;
     const bool infeasible = ss == JAOS_SOLVE_INFEASIBLE && m->farkas_ok &&
         m->sol_farkas != nullptr;
     const bool unbounded = ss == JAOS_SOLVE_UNBOUNDED && m->ray_ok &&
         m->sol_ray != nullptr;
     if (!infeasible && !unbounded) {
-        /* The proof is what jaos_verify left, under the same rule the
-         * exact getters apply: no proof, no file. A file of zeros does not
-         * read as missing, so it is refused by name instead. */
+
         if (m->exact_col == nullptr || m->exact_dual == nullptr) {
             jm_set_err(m, "no exact proof to write: call jaos_verify and get "
                           "JAOS_PROOF_OPTIMAL first, or solve to an "
@@ -132,14 +78,7 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
     fprintf(f, "columns %" PRId64 "\n", m->num_col);
     fprintf(f, "rows %" PRId64 "\n", m->num_row);
     if (infeasible) {
-        /* The Farkas multipliers, one per row. Two vectors can be here
-         * and the exact one wins (D333): `jaos_exact_certificate` solves
-         * the basis's own system over the rationals, while `sol_farkas`
-         * is that solution rounded twice, in the triangular solve and in
-         * the unscaling. Both are written exactly -- a double is a
-         * rational -- and what differs is which number the file states.
-         * Without a derivation the published doubles are what there is,
-         * which is what D328 wrote and what 18 of the 29 certify on. */
+
         fprintf(f, "# ray <row name> <exact multiplier>\n");
         if (m->exact_farkas != nullptr) {
             for (int64_t i = 0; i < m->num_row; i++) {
@@ -151,8 +90,7 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
             goto io_error;
         }
     } else if (unbounded) {
-        /* The derived direction wins over the published doubles, the same
-         * rule the certificate follows (D333, D336). */
+
         fprintf(f, "# ray <column name> <exact direction>\n");
         if (m->exact_uray != nullptr) {
             for (int64_t j = 0; j < m->num_col; j++) {
@@ -196,35 +134,22 @@ io_error:
     return JAOS_ERR_IO;
 }
 
-/* ------------------------------------------------------------------ */
-/* The checker                                                         */
-/* ------------------------------------------------------------------ */
-
-/* Every rational operation the walk makes goes through these two, so a
- * budget failure is caught once and turns the whole check into
- * JAOS_ERR_NUMERICAL instead of a verdict. */
 #define RQ(expr) do { if (!(expr)) goto no_limbs; } while (0)
 
-/* The sign a multiplier must have, given where its own quantity rests
- * between its bounds, in minimize form. Returns -1 for "must be <= 0",
- * +1 for "must be >= 0", 0 for "must be 0" and 2 for "any sign", which is
- * what a fixed pair of bounds allows. Both bounds are the model's own
- * doubles and the value is exact, so every comparison here is exact. */
 static int required_sign(const jm_rational *v, double lo, double hi,
                          const jm_rational *rlo, const jm_rational *rhi)
 {
     const bool at_lo = lo > -INFINITY && jm_rational_cmp(v, rlo) == 0;
     const bool at_hi = hi < INFINITY && jm_rational_cmp(v, rhi) == 0;
     if (at_lo && at_hi)
-        return 2;                /* fixed: any multiplier is admissible */
+        return 2;
     if (at_lo)
         return 1;
     if (at_hi)
         return -1;
-    return 0;                    /* strictly inside, or free */
+    return 0;
 }
 
-/* Whether a quantity sits inside its bounds. Exact. */
 static bool within(const jm_rational *v, double lo, double hi,
                    const jm_rational *rlo, const jm_rational *rhi)
 {
@@ -235,8 +160,6 @@ static bool within(const jm_rational *v, double lo, double hi,
     return true;
 }
 
-/* One whitespace-delimited token, advancing `*p`. Returns nullptr at the
- * end of the line. */
 static char *tok(char **p)
 {
     char *s = *p;
@@ -388,11 +311,7 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             }
             *seen = true;
         } else if (strcmp(k, "ray") == 0) {
-            /* A certificate's own record (D328): one per row for an
-             * infeasibility, one per column for an unboundedness. It goes
-             * into the same two arrays -- `y` carries the Farkas
-             * multipliers, `x` the ray's direction -- so the parser needs
-             * no third one. */
+
             if (!saw_proof || kind == JAOS_PROOF_FILE_OPTIMAL) {
                 jm_set_err(m, "%s:%lld: a 'ray' record needs a file that "
                               "claims an infeasibility or an unboundedness",
@@ -462,10 +381,7 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         rc = JAOS_ERR_INVALID_INPUT;
         goto done;
     }
-    /* Which half must be complete depends on the claim: an optimum needs
-     * both, a Farkas certificate the rows alone, a ray the columns alone.
-     * The half a claim does not use stays at zero, which is what the
-     * checks below read for a multiplier that is not there. */
+
     const bool need_col = kind != JAOS_PROOF_FILE_INFEASIBLE;
     const bool need_row = kind != JAOS_PROOF_FILE_UNBOUNDED;
     for (int64_t j = 0; need_col && j < nc; j++)
@@ -483,8 +399,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             goto done;
         }
 
-    /* Everything parsed. From here the model decides, and nothing the file
-     * said about a basis or a status is read, because none was written. */
     if (jm_model_ensure_rowwise(m) != JAOS_OK)
         goto done;
 
@@ -493,20 +407,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
     jm_rational_set_zero(&lo);
     jm_rational_set_zero(&hi);
 
-    /* A Farkas certificate, exactly (D328). y is admissible when every
-     * column's (A'y)_j has a finite bound on the side it points at and
-     * every row's y_i has one on its own side; then the supremum of y'Ax
-     * over the box and the infimum of y'(row activity) over the row
-     * bounds are both finite, and y proves the model infeasible exactly
-     * when the second is STRICTLY above the first.
-     *
-     * There is no tolerance here and so no near miss.
-     * jaos_check_certificate skips a term below its own traffic, because
-     * a sum of doubles cannot place a zero more finely; this walk cannot,
-     * and a multiplier that is a rounding away from zero on a column with
-     * no bound on that side makes the supremum infinite and refuses the
-     * file. The two checkers can disagree, and this one is the strict
-     * one. */
     if (kind == JAOS_PROOF_FILE_INFEASIBLE) {
         jm_rational sup, inf;
         jm_rational_set_zero(&sup);
@@ -559,11 +459,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         goto done;
     }
 
-    /* An unbounded ray, exactly (D328). d is admissible when no column
-     * moves toward a finite bound and no row activity does either, and it
-     * proves the model unbounded exactly when c'd improves the objective
-     * in the model's own sense -- strictly, since a rate of zero is a
-     * direction that goes nowhere. */
     if (kind == JAOS_PROOF_FILE_UNBOUNDED) {
         bool escapes = false;
         for (int64_t j = 0; j < nc; j++) {
@@ -611,19 +506,16 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             int32_t rate = jm_rational_sign(&acc);
             if (maximize)
                 rate = -rate;
-            out->certified = rate < 0;   /* the minimize form improves */
+            out->certified = rate < 0;
         }
         out->terms = terms;
         rc = JAOS_OK;
         goto done;
     }
 
-    /* 1. The columns, inside their own bounds. */
     bool primal = true;
     for (int64_t j = 0; j < nc; j++) {
-        /* An infinite bound is never converted: jm_rational holds no
-         * infinity, and `within` and `required_sign` read the double
-         * first and the rational only where it is finite. */
+
         if (isfinite(m->col_lower[j]))
             RQ(jm_rational_from_double(&lo, m->col_lower[j]));
         if (isfinite(m->col_upper[j]))
@@ -636,7 +528,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         }
     }
 
-    /* 2. The rows: the activity is exact, and so is the comparison. */
     for (int64_t i = 0; primal && i < nr; i++) {
         jm_rational_set_zero(&acc);
         for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
@@ -657,11 +548,7 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
             out->bad_row = i;
             break;
         }
-        /* 3. The row's own multiplier, judged by where the activity
-         * actually rests: at the lower bound it may only push up, at the
-         * upper only down, and strictly inside it must be zero. That is
-         * dual feasibility and complementary slackness in one test, and it
-         * needs no basis status to make it. */
+
         const int want = required_sign(&acc, m->row_lower[i],
                                        m->row_upper[i], &lo, &hi);
         if (want != 2) {
@@ -676,8 +563,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         }
     }
 
-    /* 4. The reduced costs: d_j = c_j - sum_i a_ij y_i, over the column's
-     * own entries, and the same test against where x_j rests. */
     for (int64_t j = 0; j < nc; j++) {
         RQ(jm_rational_from_double(&acc, m->col_cost[j]));
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
@@ -711,9 +596,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
 dual_failed:
     out->primal = primal;
 
-    /* 5. The objective the file claims is the one the point has:
-     * c'x + c0, over the model as loaded, in the model's own sense --
-     * the same value jaos_objective reports. */
     RQ(jm_rational_from_double(&acc, m->obj_offset));
     for (int64_t j = 0; j < nc; j++) {
         if (m->col_cost[j] == 0.0 || jm_rational_is_zero(&x[j]))

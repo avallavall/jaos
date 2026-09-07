@@ -1,18 +1,4 @@
-/* MPS reader, fixed and free layouts.
- *
- * Both layouts are read with one whitespace tokenizer: a section header is a
- * line whose first character is not blank, data lines start with blank, '*'
- * opens a comment. This reads every instance whose names contain no spaces —
- * all of Netlib and MIPLIB — and the true fixed-layout edge (names with
- * embedded blanks) is rejected rather than misread. Dialect decisions live
- * in docs/format-support.md; every rejection carries the line number.
- *
- * Numbers are parsed under an explicit "C" locale (uselocale) so a host
- * application running under a comma-decimal locale cannot corrupt instances
- * (D8 extends to parsing), and Fortran-style 'D' exponents are accepted.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
@@ -26,13 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --------------------------------------------------------------------- */
-/* Tokens and numbers                                                    */
-/* --------------------------------------------------------------------- */
-
 constexpr int MAXTOK = 16;
 
-/* Splits in place; strips CR/LF. Returns token count, or -1 on overflow. */
 static int split(char *line, char *tok[])
 {
     int n = 0;
@@ -60,8 +41,6 @@ static void upcase(char *s)
         *s = (char)toupper((unsigned char)*s);
 }
 
-/* Finite double from an MPS token; accepts Fortran 'D' exponents. Assumes
- * the "C" locale is active (the reader guarantees it). */
 static bool parse_num(const char *t, double *out)
 {
     char buf[64];
@@ -78,15 +57,10 @@ static bool parse_num(const char *t, double *out)
     return true;
 }
 
-/* --------------------------------------------------------------------- */
-/* Reader                                                                */
-/* --------------------------------------------------------------------- */
-
 enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
                S_RANGES,
                S_BOUNDS };
 
-/* The objective row's value in the row map. Real rows are >= 0. */
 #define OBJ_ROW (-1)
 
 typedef struct {
@@ -97,52 +71,39 @@ typedef struct {
     double obj_offset;
     bool obj_offset_seen;
 
-    jm_nmap rmap;                      /* row name -> index, or OBJ_ROW */
-    char *rtype;                    /* per real row: L, G, E or N (free) */
-    double *rhs;                    /* default 0 */
-    double *range;                  /* NAN = no range */
-    uint8_t *rflag;                 /* bit0: rhs seen, bit1: range seen */
+    jm_nmap rmap;
+    char *rtype;
+    double *rhs;
+    double *range;
+    uint8_t *rflag;
     int64_t nrow;
     int64_t rtype_cap, rhs_cap, range_cap, rflag_cap;
     bool have_obj;
 
-    /* OBJNAME names which free row is the objective. `nullptr` means the
-     * section was absent and the first N row takes the job, which is the
-     * rule every file that omits one is written to (D280). Owned here and
-     * freed with everything else, because the token it is copied from
-     * points into the line buffer and the next line overwrites it. */
     char *objname;
-    /* The objective row's own name as ROWS gave it, handed to the model at
-     * the end; nullptr until the row is met. */
+
     char *objrow;
-    /* NAME's first word, likewise. */
+
     char *modelname;
 
-    /* Integer columns (D288): inside a 'MARKER' 'INTORG' .. 'INTEND' pair
-     * every new column is integer; BV, LI and UI bounds mark one too.
-     * `cint` is grown beside the columns and handed to the model. */
     bool in_intorg;
     bool *cint;
     int64_t cint_cap;
     bool any_int;
 
-    jm_nmap cmap;                      /* column name -> index */
+    jm_nmap cmap;
     double *cost, *cl, *cu;
-    uint8_t *cflag;                 /* bit0: lower set, bit1: obj coef seen */
+    uint8_t *cflag;
     int64_t ncol;
     int64_t cost_cap, cl_cap, cu_cap, cflag_cap;
 
-    /* matrix, CSC built incrementally (columns arrive contiguously) */
     int64_t *as, *ai;
     double *av;
     int64_t nnz;
     int64_t as_cap, ai_cap, av_cap;
 
-    /* duplicate (row, col) detection: stamp = col index + 1; allocated
-     * zeroed when COLUMNS starts, once nrow is final */
     int64_t *rowstamp;
 
-    /* first-seen set names for RHS / RANGES / BOUNDS */
     char rhs_set[64], rng_set[64], bnd_set[64];
 } rd;
 
@@ -168,7 +129,6 @@ static void rd_free(rd *r)
     free(r->cint);
 }
 
-/* OBJNAME's row name, copied. Returns false only out of memory. */
 static bool set_objname(rd *r, const char *name)
 {
     const size_t len = strlen(name) + 1;
@@ -198,24 +158,17 @@ static jaos_status rd_rows_line(rd *r, char **tok, int nt)
         FAIL("line %" PRId64 ": unknown row type '%s'", r->lno, tok[0]);
     if (jm_nmap_get(&r->rmap, tok[1], &dummy))
         FAIL("line %" PRId64 ": duplicate row name '%s'", r->lno, tok[1]);
-    /* The name is kept on the model (D284), so it has to be one the model
-     * accepts: a token has no whitespace, so this is the length and the
-     * control characters. */
+
     if (!jm_name_ok(tok[1]))
         FAIL("line %" PRId64 ": row name '%s' is longer than %d bytes or "
              "holds a control character", r->lno, tok[1], JAOS_NAME_MAX);
 
     char t = tok[0][0];
-    /* Which N row is the objective. Without an OBJNAME section it is the
-     * first, which is the rule every file that omits one is written to.
-     * With one it is the row that section named, and every other N row is
-     * an ordinary free row -- including the ones that come BEFORE it, which
-     * is why this cannot be decided by position (D280). */
+
     const bool is_obj = t == 'N' && !r->have_obj &&
         (r->objname == nullptr || strcmp(tok[1], r->objname) == 0);
     if (is_obj) {
-        /* The objective is not a matrix row. Its name goes to the model
-         * as the objective's, so a file written back carries it. */
+
         if (!jm_nmap_insert(&r->rmap, tok[1], OBJ_ROW))
             FAIL_OOM();
         r->objrow = jm_name_copy(tok[1]);
@@ -244,8 +197,6 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
 {
     jaos_status st = JAOS_OK;
 
-    /* Integer markers (D288): the columns between INTORG and INTEND are
-     * integer. The marker's own name, tok[0], is not a column. */
     if (nt >= 2 && strcmp(tok[1], "'MARKER'") == 0) {
         for (int i = 2; i < nt; i++) {
             if (strcmp(tok[i], "'INTORG'") == 0) {
@@ -264,7 +215,6 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
         FAIL("line %" PRId64 ": COLUMNS entry needs a column name and "
              "(row, value) pairs", r->lno);
 
-    /* Continuation of the current column, or a new one. */
     int64_t j;
     if (r->ncol > 0 &&
         strcmp(tok[0], r->cmap.pool + r->cmap.off[r->cmap.n - 1]) == 0) {
@@ -328,7 +278,6 @@ done:
     return st;
 }
 
-/* Shared by RHS and RANGES: set name, then (row, value) pairs. */
 static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
 {
     jaos_status st = JAOS_OK;
@@ -341,7 +290,7 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
     if (set[0] == '\0')
         snprintf(set, 64, "%s", tok[0]);
     else if (strcmp(set, tok[0]) != 0)
-        return JAOS_OK; /* alternate set: first-seen wins, rest skipped */
+        return JAOS_OK;
 
     for (int i = 1; i + 1 < nt; i += 2) {
         double v;
@@ -356,7 +305,7 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
             if (r->obj_offset_seen)
                 FAIL("line %" PRId64 ": duplicate objective RHS", r->lno);
             r->obj_offset_seen = true;
-            /* RHS on the objective row is the negated constant. */
+
             r->obj_offset = -v;
             continue;
         }
@@ -389,8 +338,7 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
                        strcmp(type, "FX") == 0;
     bool no_value    = strcmp(type, "FR") == 0 || strcmp(type, "MI") == 0 ||
                        strcmp(type, "PL") == 0;
-    /* The integer bound types (D288): BV is [0, 1] and integer, LI and UI
-     * an integer column's lower or upper bound. */
+
     const bool int_type = strcmp(type, "BV") == 0 || strcmp(type, "LI") == 0 ||
                           strcmp(type, "UI") == 0;
     if (strcmp(type, "LI") == 0 || strcmp(type, "UI") == 0)
@@ -409,7 +357,7 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
     if (r->bnd_set[0] == '\0')
         snprintf(r->bnd_set, sizeof r->bnd_set, "%s", tok[1]);
     else if (strcmp(r->bnd_set, tok[1]) != 0)
-        return JAOS_OK; /* alternate set skipped */
+        return JAOS_OK;
 
     int64_t j;
     if (!jm_nmap_get(&r->cmap, tok[2], &j))
@@ -436,9 +384,7 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
     }
 
     if (strcmp(type, "UP") == 0) {
-        /* Classic MPS wart: a negative upper bound on a column whose lower
-         * bound was never set explicitly drops that lower bound to -inf.
-         * Documented in docs/format-support.md. */
+
         if (v < 0.0 && (r->cflag[j] & 1u) == 0)
             r->cl[j] = -INFINITY;
         r->cu[j] = v;
@@ -456,7 +402,7 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
     } else if (strcmp(type, "MI") == 0) {
         r->cl[j] = -INFINITY;
         r->cflag[j] |= 1u;
-    } else { /* PL */
+    } else {
         r->cu[j] = INFINITY;
     }
 done:
@@ -468,9 +414,6 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    /* Read through jm_slurp so a `.gz` instance costs this reader nothing
-     * but the call, then hand the bytes back to getline through fmemopen:
-     * the line loop below is unchanged by compression. */
     char *src = nullptr;
     int64_t srclen = 0;
     jaos_status open_st = jm_slurp(m, path, &src, &srclen);
@@ -483,8 +426,6 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         return JAOS_ERR_OUT_OF_MEMORY;
     }
 
-    /* Numbers must parse identically whatever locale the host application
-     * set: switch this thread to "C" for the duration of the read. */
     locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
     locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
 
@@ -522,10 +463,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             objsense_pending = false;
             objname_pending = false;
             if (strcmp(kw, "NAME") == 0) {
-                /* The first word after NAME is the model's name (D284). A
-                 * fixed-layout file may put spaces in it; only the first
-                 * word is kept, because a name with whitespace has no
-                 * spelling in anything this library writes. */
+
                 free(r->modelname);
                 r->modelname = nullptr;
                 if (nt >= 2 && jm_name_ok(tok[1])) {
@@ -550,8 +488,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 }
                 sec = S_OBJSENSE;
             } else if (strcmp(kw, "OBJNAME") == 0) {
-                /* The same two spellings the OBJSENSE section has: the name
-                 * on the header line, or on the line after it. */
+
                 if (sec >= S_ROWS)
                     FAIL("line %" PRId64 ": OBJNAME after ROWS; it says which "
                          "free row to read as the objective, so it has to "
@@ -573,8 +510,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             } else if (strcmp(kw, "COLUMNS") == 0) {
                 if (sec != S_ROWS)
                     FAIL("line %" PRId64 ": COLUMNS must follow ROWS", r->lno);
-                /* Every row is known by here, so this is the first moment a
-                 * name that matches nothing can be reported (D280). */
+
                 if (r->objname != nullptr && !r->have_obj)
                     FAIL("line %" PRId64 ": OBJNAME names '%s', and ROWS has "
                          "no free row by that name", r->lno, r->objname);
@@ -655,8 +591,6 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     if (!ended)
         FAIL("missing ENDATA");
 
-    /* Assemble row bounds from type + rhs + range, then hand everything to
-     * the one validating loader. Range semantics per docs/format-support.md. */
     {
         double *rl = jm_alloc_array(r->nrow, sizeof(double));
         double *ru = jm_alloc_array(r->nrow, sizeof(double));
@@ -688,7 +622,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                     ru[i] = b;
                 }
                 break;
-            default: /* additional N rows stay free */
+            default:
                 rl[i] = -INFINITY;
                 ru[i] = INFINITY;
                 break;
@@ -708,9 +642,6 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             goto done;
         }
 
-        /* The file's names, onto the model (D284). The row map's objective
-         * entry carries OBJ_ROW and is skipped as out of range; the
-         * objective's own name travels separately. */
         char **cn = jm_nmap_to_names(&r->cmap, r->ncol);
         char **rn = jm_nmap_to_names(&r->rmap, r->nrow);
         if (cn == nullptr || rn == nullptr) {
@@ -725,7 +656,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         free(m->model_name);
         m->model_name = r->modelname;
         r->modelname = nullptr;
-        /* The integer marks, only when there is one (D288). */
+
         free(m->col_integer);
         m->col_integer = nullptr;
         if (r->any_int && r->ncol > 0) {

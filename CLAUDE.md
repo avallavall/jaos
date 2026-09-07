@@ -1,205 +1,61 @@
 # JAOS — Just Another Optimization Solver
 
-A mathematical-programming solver written from scratch in C23. No external
-dependencies, Apache 2.0, Linux/GCC only.
+An LP and MIP solver in C23. No dependencies, Apache 2.0, Linux/GCC 14 only.
+Built and tested under WSL; the Windows side has no compiler.
 
-## The record — five documents, and where a statement goes
+## The record is three files
 
-The design is written down. Do not reconstruct it from the code.
+- `SPECS.md` — the complete list of features JAOS must have, one row each,
+  with a status: done, partial (says what is missing), missing, out of scope.
+  It is closed. A row changes status when its feature lands. Nothing else
+  goes in it.
+- `TODO.md` — the backlog for the current milestone. Rows taken from SPECS.
+  Delete a line in the same commit that lands it. When the file is empty,
+  pick the next rows from SPECS and fill it again.
+- `bench/refusals.txt` — ideas that were built, measured and found worse.
+  One line each with what would make it worth trying again. Read it before
+  trying a performance idea.
 
-- `SPECS.md` — what JAOS is built to be, and where every feature stands
-- `TODO.md` — what is open, in the order it should happen
-- `DECISIONS.md` — closed decisions and the measurement that closed each.
-  Append-only; number one past the last, never renumber. A refusal is a
-  closed decision, and the most valuable kind of entry this file has.
-- `CHANGELOG.md` — what changed and what it cost, 2–6 lines per entry
-- `docs/` — tolerances, work units, scaling, format support: the contracts
-  behind every constant in the code
-- `bench/` — the gate (`README.md`), the cross-solver comparison
-  (`compare/`), and raw measurement records (`measurements/<id>/`)
+There is no changelog, no decisions file and no session log. Git history is
+the log. Old decisions (`D<n>` in docs) are in `git show 2d3c56b:DECISIONS.md`.
+Code carries no comments. `docs/` holds the constants (`tolerances.md`), the
+formats, the CLI reference and the comparison with other solvers.
 
-A statement lives in exactly one of them; the others point at it. A measured
-number has one owner — never restate a derived total.
+## The loop
 
-There is no `.planning/` and no GSD in this repository (retired 2026-08-13,
-D98). If a `/gsd-*` command is invoked here, say so and point at `TODO.md`.
-`PLAN.md` stays archived at `docs/archive/PLAN.md` only because 88 comments
-cite it by section number; never plan from it.
+1. Take items from `TODO.md`. Build them as a batch. Every feature reaches:
+   the C API in `include/jaos.h`, a test in `tests/`, the CLI in `cli/jaos.c`
+   with a check in `tests/cli.sh`, and `python/jaos.py` at both layers with a
+   test in `python/test_jaos.py`. Update `docs/cli.md` or
+   `docs/format-support.md` when a command or a format changes.
+2. `make test && make sanitize`. `make python-test` when `python/` changed.
+3. Only when solver internals changed (`simplex.c`, `lu.c`, `presolve.c`,
+   `scale.c`, `mip.c`): `make netlib netlib-infeas netlib-kennington J=12`.
+   Read `bench/results/*.txt` against the baselines; no instance may regress.
+   `make miplib` when `mip.c` changed. Rewrite a baseline only with its
+   `*-baseline` target and only after reading the diff.
+4. Update the SPECS row, delete the TODO line, commit, push.
 
-## The loop — every change goes through this
+Commits and pushes are at Claude's discretion. No reviewer agents, no
+instruction counts, no record checker.
 
-1. **Finish every source edit first.** A campaign is only valid for the tree
-   that produced it; even a comment edit mid-run invalidates it.
-2. `make test && make sanitize` under WSL. **If `tests/` or a block guarded by
-   a build flag changed, `make configs` instead** — it is all five
-   configurations with `make clean` between them, and it is the only thing
-   that reads the reference build and the two fault builds honestly. `make`
-   does not track a change in `EXTRA_CFLAGS`, so running them by hand after a
-   plain `make test` re-runs the plain binaries and exits 0. Three of the five
-   were broken for a whole session that way (D154), and the same shape once
-   before (D-10).
-3. **If solver internals changed: `numerics-reviewer` on the diff, before any
-   campaign.** A finding after the campaign costs the campaign. Every finding
-   gets a disposition: fixed, refused with the reason, or carried with a
-   destination.
-4. **All three sets, every time**: `make netlib netlib-infeas
-   netlib-kennington J=12`. Read the per-instance diff against the committed
-   baselines with the `jaos-measure` scripts, never the summary line alone.
-   Digests prove correctness and no-ops; work units are the cost; a time
-   ratio only where units cannot see the change (`J=1`, minimum over
-   alternating rounds, geometric mean — and this host repeats to 6.27%, D93).
-5. **Land it**: commit; a `CHANGELOG.md` entry; a `DECISIONS.md` entry if a
-   measurement closed a question; the `SPECS.md` row if a feature moved; any
-   new constant carries its sweep beside it in the source and in
-   `docs/tolerances.md`; raw readings that decided a verdict go to
-   `bench/measurements/<id>/` so the verdict is re-derivable.
-6. **Baselines are rewritten only by the `*-baseline` targets**, deliberately,
-   after the change is read and accepted — never as a side effect, and never
-   while the gate is red.
-7. Cross the item off `TODO.md` in the same commit — and check TODO's
-   refusals table: if the change satisfies a reopen condition, that question
-   is live again. A refusal's premise can expire (D24 did, caught by D94).
+## Rules
 
-A verdict that accepts or rejects a candidate is judged by `jaos-measurer` in
-a context that did not produce the numbers. Phase 1's two most valuable
-findings came from these independent re-reads and from nowhere else.
+- Bit-identical results on every machine and every run. No clock decides
+  anything, no iteration order depends on an address, no reassociated
+  floating point, no unseeded randomness. `-ffp-contract=off` is load-bearing.
+- No dependencies and no code read from other solvers. Papers and textbooks
+  only. Unity in `tests/vendor/` is the one exception.
+- A new constant goes in `docs/tolerances.md` with the measurement that set it.
+- Work units are the cost. Seconds never go in `bench/results/` or a baseline.
 
-**Which loop, by what changed.** The full loop is for solver internals. Two
-lighter ones exist, and using the full loop on a bench tool is how a session
-spends an hour of campaigns on a record format:
-
-| what changed | what runs |
-|---|---|
-| `src/` or `include/`, any code | all seven steps, `numerics-reviewer` included |
-| `bench/*.c`, `cli/`, `tests/cli.sh`, `tools/`, `docs/`, the four documents, the Makefile | `make configs`, then the three sets once; digests must be byte-identical unless the change is to a campaign's own record format |
-| comments only | `python3 tools/strip-comments.py ORIG NEW` must print `IDENTICAL CODE` (no code token moved), then `make test` (which runs `record-check`) and the three sets once; every digest and work figure byte-identical |
-
-**The record is checked with the code.** `make test` runs `make record-check`
-(`tools/record-check.py`): every cited decision exists, every constant in
-`docs/tolerances.md` matches the source, every `SPECS.md` label is present
-tense and every `partial` row says what is missing, and `docs/claims.txt`
-lists what the record says does not exist — the line that fails when it does.
-**Add a line there for every feature you mark `missing`.** A refusal goes in
-`bench/refusals.txt` with what would reopen it and, where one exists, the
-script that re-tests it; `make refusals` runs those at a milestone boundary.
-
-**A change is judged on five things.** Solution digests for correctness,
-work units for determinism, **an instruction count** (`tools/icount.sh -r
-<ref> <instances>`, deterministic to the instruction inside the solver,
-D206) for what units cannot see, **a miss count** (`tools/icount.sh -m`,
-deterministic to the miss, D225) where instructions have the wrong sign, and
-a same-instance time ratio only where neither count is readable. Seconds on
-this host repeat to 6.27%, so "inside the noise" was never a measurement.
-
-**Which of the two counts is the arbiter depends on the mechanism, and
-getting that backwards manufactures a wrong refusal.** Instructions judge a
-change that does LESS work. Misses judge a change whose whole mechanism is
-memory-level — layout, blocking, ordering — because those move real load
-addresses while adding instructions, so the instruction count reports such a
-change as worse while it is faster (D225).
-
-**The miss count is blind to software prefetching**, and that is measured:
-Valgrind's cache model does not simulate prefetch instructions, so a build
-with eight scattered prefetches per iteration reads within 0.061% of one
-with none
-(D231, `bench/measurements/02-144/`). D225 named prefetching first among the
-cases it covers and that part of it is wrong. A prefetch change has no
-readable metric on this host, which is why one is refused.
-
-## Build and test — WSL only
-
-The Windows side has no compiler. GCC 14 minimum.
+## WSL
 
 ```
-wsl -d Ubuntu-24.04 -- bash /mnt/c/path/to/script.sh
+wsl -d Ubuntu-24.04 -- bash -c "cd /mnt/c/Users/vall-/Desktop/projectes/jaos && make test"
 ```
 
-`make test` · `make sanitize` (ASan+UBSan) · `make all`
-
-The campaigns, and **all of them take `J=N` — pass it or they run sequentially
-and cost minutes instead of seconds** (D57). Times below are `J=12`:
-
-`make netlib` (~85 s) · `make netlib-infeas` (~10 s) ·
-`make netlib-kennington` (~8 min) · `make warm` (~2 min) ·
-`make warm-kennington` (~4 min) · `make miplib` (~4 min, most of it `l152lav`) ·
-`make compare` · `make pgo`
-
-The three `netlib*` targets are the gate. `warm*` measures what warm
-re-solving buys and is not a gate: it reports a ratio, not a verdict. `miplib` is
-the MIP set (D289, D302): 24 MIPLIB 3 instances against `bench/miplib.baseline`,
-which carries the node count; not a gate, run it whenever `src/mip.c` or
-anything under it changes, and rewrite its baseline with `miplib-baseline`
-only after the tree's change is read and accepted.
-
-Two traps. **`$?` does not survive Git Bash → WSL** — echoing it inside the
-`wsl … bash -c '…'` string does not rescue it, because it is expanded before
-it reaches WSL. **Write the commands to a script file and run that**; inside a
-script `$?` is correct. The same fix covers the second trap, heredocs through
-the Bash tool eating backslashes. Simpler still: invoke `wsl` from the
-PowerShell tool, which does no path rewriting — but then PowerShell is the
-outer shell, so put any pipeline inside WSL (`bash -c "… | grep …"`). `/tmp`
-does not persist between `wsl` invocations.
-
-## Rules that are not obvious from the code
-
-- **Bit-identical results on every machine and every run.** No clock may
-  decide anything, no iteration order may depend on an address, no
-  reassociating floating point, no unseeded randomness. `-ffp-contract=off`
-  in the Makefile is load-bearing, not decoration.
-- **Every number needs a measurement on both sides.** A tolerance, a
-  threshold, an interval. Fitting a constant to one instance is how this
-  project loses weeks.
-- **No dependencies, and no code read from other solvers.** Papers, theses
-  and textbooks only. Two exceptions exist, both closed and neither extended:
-  netlib's `emps` as a dev-time converter, and Unity for the test suite.
-  The rule reaches the tooling too: read a third-party skill's `scripts/`
-  before it runs once — `skill-authoring` carries the procedure.
-- **Work units are the unit of cost, and every run also reports its time.**
-  The units make regressions detectable across machines and go in the
-  record; the seconds say whether the units bought anything, and **never
-  enter `bench/results/*.txt` or a baseline** — a baseline that changes every
-  run cannot detect a regression.
-- **A change is judged on five things** (D45, D206, D225): solution digests
-  for correctness, work units for determinism, an instruction count for what
-  units cannot see, a miss count where instructions have the wrong sign, and
-  a same-instance time ratio only where neither count is readable.
-
-## The skills, and the moment each one is for
-
-Load these at the moment named, not when the work is already finished.
-
-| at this moment | load |
-|---|---|
-| before running or believing any campaign | `jaos-measure` |
-| before changing a tolerance, or diagnosing a wrong answer | `fp-numerics` |
-| before instrumenting an instance | `jaos-debug` |
-| before adding or changing a test, or a checker predicate | `jaos-testing` |
-| before writing a landed change up, and before claiming a document is current | `jaos-record` |
-| before planning performance work on the algorithm | `sparse-simplex-perf` |
-| before optimising C, or proposing a compiler flag | `c-perf` |
-| before creating or editing a skill or an agent | `skill-authoring` |
-
-The two performance skills are not interchangeable. `sparse-simplex-perf` is
-the factor-of-N question — what the solver does. `c-perf` is the percentage
-question — how the C does it, once the algorithm is settled.
-
-The three subagents, each for work better done in a context that is not this
-one — nothing spawns them automatically; the loop's steps 3 and the verdict
-line above are where they run:
-
-| | |
-|---|---|
-| `jaos-measurer` | runs every set on a finished candidate and returns ACCEPT / REJECT / INCONCLUSIVE with the per-instance evidence |
-| `numerics-reviewer` | reviews a diff for the defect classes tests do not catch — borrowed scratch, reproducibility, tolerance space, repairs that hide a residue |
-| `literature-scout` | finds and verifies published technique, with citations checked against the publisher |
-
-## Working habits
-
-- **Measure before repairing.** Every failure in this project that looked
-  like a tolerance turned out to be something else.
-- **A green result is not a proof.** When changing a checker or a predicate,
-  build the case it must reject and confirm it does.
-- **Report a geometric mean of per-instance ratios**, never a sum over a set:
-  two instances are 74% of the standard set's total (D46).
-- Commits are at Claude's discretion; **pushes always need explicit
-  approval**.
+Put a long command sequence in a script file and run the file. `$?` does not
+survive the Git Bash to WSL boundary. Push from Windows: the remote's SSH
+alias exists only there. Never `git add -A`; `bench/measurements/02-31/` is
+untracked on purpose. Stage explicit paths.

@@ -1,72 +1,8 @@
-/* Netlib acceptance runner.
- *
- * Reads bench/netlib.manifest, solves each instance it names, and judges the
- * result against three things that did not come from this solver: the
- * dimensions the file should load with, the reference optimum, and the
- * independent checker. Then it solves the same model a second time and
- * requires the two runs to agree bit for bit (D8).
- *
- * This is the acceptance gate as a program. It is a bench tool, not a
- * product: it is not built by `make all`, links against the library like any
- * other consumer, and prints data rather than verdicts about speed.
- *
- * It shows the time each instance took, and **no wall-clock number reaches
- * the record file or the baseline** — those stay deterministic, because a
- * baseline that changes on every run cannot detect a regression. The seconds
- * go to the console, where they answer the question the work counter cannot:
- * whether the units a change removed were units that cost anything (D45).
- *
- * Usage: run [-d DIR] [-m MANIFEST] [-o FILE] [-b FILE] [-w FILE]
- *            [-e optimal|infeasible|noref|mip] [-j N] [instance ...]
- *   -d DIR       where the .mps files are (default bench/instances)
- *   -m MANIFEST  manifest to read (default bench/netlib.manifest)
- *   -o FILE      write the table here as well as to stdout
- *   -b FILE      compare every instance against this baseline
- *   -w FILE      write a baseline from this run
- *   -e WHAT      what the set expects: a verified optimum (default), or
- *                INFEASIBLE for netlib's infeasible subset, where the
- *                verdict is the reference and a reported optimum is the
- *                failure being looked for; NOREF for a set with no
- *                published optimum; MIP for an integer set (D289), scored
- *                on the manifest's optimum, the checker's primal verdict
- *                with integrality, and two cold searches agreeing
- *   -j N         solve up to N instances at once, one process each
- *   instance     run only these; default is every instance in the manifest
- *
- * `-j` is safe because everything this file records is an integer the solver
- * computed: work units, iterations, digests, verdicts. None of them depends
- * on what else the machine was doing, and the instances do not depend on each
- * other, so the record is reassembled in manifest order and comes out
- * byte-identical to a sequential run. That equivalence is the acceptance test
- * for the flag and is checked by running both and diffing.
- *
- * **The seconds are the one thing `-j` does invalidate**, and it says so on
- * the console when N > 1. Concurrent solves contend for memory bandwidth and
- * cache, so each instance's time is inflated by an amount nobody measured.
- * A time ratio (D45) has to come from a sequential run.
- *
- * Exit status is zero only when every instance run met every condition the
- * gate asks of it, and nothing regressed against the baseline if one was
- * given. That is why -o exists rather than a `| tee`: a pipeline reports the
- * exit status of tee, so a gate that failed would come back successful, and
- * a gate nobody can fail is not a gate.
- *
- * The baseline exists because the gate alone cannot fail informatively while
- * M1 is open. Its verdict is all-or-nothing, so it reads NOT MET for a run
- * that fixed one instance and broke two exactly as it does for a run that
- * changed nothing — the summary counts even come out identical when the
- * gains and losses happen to cancel. Comparing each instance against what it
- * did last time is what turns that silence into a message.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-/* `-std=c23` is strict ISO, which hides clock_gettime. */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos.h"
-/* jaos_model's presolve_num_row/col/nz only — see the Makefile's -Isrc
- * comment for why this runner, and not a caller, may reach past jaos.h
- * (D-13). Nothing else in jaos_internal.h is used here. */
+
 #include "jaos_internal.h"
 
 #include <math.h>
@@ -78,14 +14,8 @@
 #include <time.h>
 #include <unistd.h>
 
-/* The table goes to stdout as it is produced, and to the record file if one
- * was asked for. Both, or the caller has to choose between watching a long
- * run and keeping its result. */
 static FILE *g_record = nullptr;
 
-/* Set in a `-j` worker, which owns neither stream: its line goes to a file
- * the parent reassembles in manifest order. Nothing else in this file knows
- * it is running under `-j`. */
 static bool g_muted = false;
 
 [[gnu::format(printf, 1, 2)]]
@@ -107,18 +37,6 @@ static void emit(const char *fmt, ...)
     }
 }
 
-/* Seconds, and where they are allowed to go.
- *
- * The record this tool writes carries no wall-clock number and must not: a
- * baseline that changes on every run cannot detect a regression, which is
- * the one thing it exists to do. But a run that never shows its time hides
- * the other half of every performance question, because the work counter is
- * optimistic by a factor that is not constant (D45).
- *
- * So the time goes to the console and nowhere else. `stamp` prefixes each
- * instance's line on stdout only, and `emit` writes the line itself to both
- * stdout and the record — so the record file comes out byte-identical to
- * what it was before this existed. */
 static double now_seconds(void)
 {
     struct timespec t;
@@ -133,14 +51,7 @@ static char g_slowest[64] = "";
 static void stamp(const char *name, double secs)
 {
     if (!g_muted) {
-        /* Six decimals, not three. At millisecond resolution the fast half of
-         * the standard set is unreadable: a solve under 500 us prints 0.000
-         * and carries no ratio at all, and the ones that do print land on so
-         * few distinct values that a ratio between two runs reads exactly
-         * 1.0000x for reasons that have nothing to do with the solver. The
-         * clock is CLOCK_MONOTONIC, which supplies nanoseconds, so the
-         * precision was being discarded here rather than missing. Console
-         * only — printf, never emit, so no record and no baseline sees it. */
+
         printf("[%10.6fs] ", secs);
         fflush(stdout);
     }
@@ -151,28 +62,14 @@ static void stamp(const char *name, double secs)
     }
 }
 
-/* The gate's acceptance rule for an objective (PLAN 2.6). */
 static bool objective_accepted(double got, double ref)
 {
     double scale = fabs(ref) > 1.0 ? fabs(ref) : 1.0;
     return fabs(got - ref) <= 1e-6 * scale;
 }
 
-/* The checker's tolerance in original space (PLAN 2.6). */
 constexpr double CHECK_TOL = 1e-6;
 
-/* FNV-1a over the raw bytes of the answer. Two solves of one model must
- * produce identical bits, so the digest is taken of the bytes and not of
- * anything rounded on the way. It covers x and y; the published basis gets
- * its own hash beside it (`basis=`), separate on purpose — the two move for
- * different reasons and a reader diffing a record needs to see which one
- * did. The old objection to hashing the basis at all — that a published
- * basis breaking the row-count promise is a live defect a hash would pin —
- * expired in two steps: Kennington publishes a valid basis on every solve
- * (D139), and netlib's 48-solve residue is measured, named and deliberately
- * pinned (D140, D141), so a future repair moves the record visibly instead
- * of invisibly. The determinism check re-solves cold, so both solves
- * publish comparable bases and `det` now covers them too. */
 static uint64_t digest(const double *v, int64_t n, uint64_t h)
 {
     const unsigned char *p = (const unsigned char *)v;
@@ -183,11 +80,6 @@ static uint64_t digest(const double *v, int64_t n, uint64_t h)
     return h;
 }
 
-/* The published basis, one byte per status, columns then rows. Read off the
- * model's own arrays the way this file already reads presolve_num_* — it is
- * in-tree tooling, not a consumer. Null arrays (a verdict with no answer)
- * hash to the seed, which never collides with a real basis's hash in
- * practice and never arises on the optimal path that prints it. */
 static uint64_t basis_digest(const jaos_model *m, uint64_t h)
 {
     if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
@@ -208,9 +100,7 @@ typedef struct {
     int64_t rows, cols;
     double reference;
     char source[16];
-    /* The objective constant the file carries and JAOS applies, which both
-     * published reference sets leave out. See the manifest header: the two
-     * conventions differ on exactly one instance of this set. */
+
     double objconst;
 } entry;
 
@@ -219,125 +109,23 @@ typedef struct {
     int64_t shape_ok, failed;
 } tally;
 
-/* What one instance did, separated from how it is judged.
- *
- * The separation is the point. The gate's own verdict is all-or-nothing and
- * stays NOT MET until every instance passes every condition, which means
- * that for the whole of M1 it reports the same word whatever happens
- * underneath it. A run where one instance started solving and another
- * started failing scores exactly like the run before it — that is not a
- * hypothetical, it is how ten commits of regressions reached main with the
- * summary line unchanged. Judging each instance against what it did last
- * time is what makes the difference visible. */
 typedef struct {
     char name[64];
-    char status[24];    /* "optimal", "infeasible", "SOLVE-ERROR", ... */
-    bool solved;        /* reached a verified optimum */
+    char status[24];
+    bool solved;
     bool shape, objective, checker, det;
     long long iters, work;
-    /* Nodes of a branch and bound (D289); 0 on an LP set, where the
-     * baseline does not carry the column. */
+
     long long nodes;
-    /* The suboptimality this answer carries as a fraction of its own
-     * objective. Tracked here because `checker` cannot see it: the whole of
-     * D47 is that such a term makes `gap_positive` stop being a bound while
-     * every verdict stays green, and D82 is the receipt — a change that
-     * published a wrong answer on `pilot` passed this gate. */
+
     double rsub;
 } outcome;
 
-/* How much more work an instance may do than it did at baseline before that
- * counts as a regression in its own right. Correctness is a predicate and
- * regresses visibly; cost is a number and degrades quietly, which is the
- * more dangerous of the two. An instance that still reaches the same optimum
- * after eighty times the iterations has not kept working — it has become a
- * work-limit failure on any caller with a budget. */
 constexpr double WORK_REGRESSION_FACTOR = 2.0;
 
-/* The same idea for the one correctness quantity no predicate covers: how
- * far from optimal this answer may be, as a fraction of its own objective
- * (D47, D88, D91).
- *
- * **Why this needs watching at all.** The checker cannot judge a dropped term
- * — D47 measured that no local test on a reduced cost separates the harmful
- * case from the harmless one, because what makes one expensive is the
- * distance the variable travels and that is a property of the polytope. So
- * `checker` stays green while the guarantee behind it quietly stops holding.
- * D82 is what that costs: partial pricing published an answer out of
- * tolerance on `pilot` with every checker number green, and this gate passed
- * it. Watching the quantity *change* needs none of the judgement the checker
- * cannot make.
- *
- * **This watches the bound rather than the dropped term, and that is the D91
- * change.** With the implied bounds propagated, the dropped terms fall to
- * arithmetic noise — the largest over the standard set is 3e-08 and most sit
- * near 1e-16 — so there is little left there to watch. What carries the
- * information now is `relative_suboptimality`, which is a real quantity on
- * every answer.
- *
- * **Both constants are measured.** The quantity is deterministic, so a factor
- * of 2 is conservative by construction rather than by luck. The case it has
- * to catch is `pilot` going from **6.9e-05** at the intervals where it is
- * right to **5.02e-03** at the three where it is wrong — a factor of **73**,
- * which clears 2.0 with thirty-six times to spare. 6.9e-05 is also the worst
- * value anywhere in the gate, so nothing legitimate sits near the bad case.
- *
- * **The floor was 1e-9, and at that value it watched 4 solves out of 110**
- * (D177, `bench/measurements/02-89/`). It excluded the whole Kennington set,
- * whose worst is 4.18e-14, and 90 of the 94 standard instances. Its stated
- * reason was that ratios mean nothing below it. The record refutes that:
- * D171 moved 88 of 94 digests, and it moved `rsub` on 73 instances by at
- * most 1.688x up and 0.594x down, down to 4.84e-19. Not one of them would
- * have fired at any floor, including no floor at all.
- *
- * **1e-16 is where the knee is, measured on that same change.** Among the
- * instances a floor of 1e-16 watches, the worst legitimate move is 1.078x,
- * which leaves 1.86x of headroom under the factor of 2. One decade lower the
- * worst move is 1.688x and the headroom is 1.18x. The value also sits at the
- * objective's own last bit: `rsub` divides by `1 + |primal_obj|`, so below
- * about eps the numerator is the rounding of the number under it. Coverage
- * goes from 4 solves to 84.
- *
- * The floor still has a job. Three baselines read exactly 0, and against a
- * zero baseline every positive value is an infinite ratio. */
 constexpr double RSUB_REGRESSION_FACTOR = 2.0;
 constexpr double RSUB_FLOOR = 1e-16;
 
-/* And the same quantity against a bar that does not move.
- *
- * **The two constants above have their zero point in the baseline, and that
- * was the whole defect.** They report a suboptimality bound that GETS worse.
- * A bound that was already bad when the baseline was written reads as
- * permanently fine, so `pilot` published a point 2.31e-05 above the optimum
- * for as long as anyone had been looking and no predicate here said a word
- * (D173, D177). This one asks a question the baseline cannot answer: is the
- * bound acceptable at all?
- *
- * **1e-6 is placed on 123 solves across five sets, not on netlib alone**
- * (D185, `bench/measurements/02-97/`), which is what `TODO.md` said this
- * needed — one instance separating cleanly on one set is not a threshold.
- *
- *      set          instances   worst rsub
- *      netlib          94       1.4e-07   (pilot)
- *      Kennington      16       4.18e-14
- *      plato-pds        8       9.91e-15
- *      plato-fome       4       1.15e-13
- *      plato-nug        1       4.14e-12
- *
- * Nothing anywhere reaches it: 7.1x of headroom above the worst, and every
- * set except netlib sits below 1.2e-13. **And it catches the case it exists
- * for**: `pilot` before D184 read 6.91e-05, which is 69x past this bar.
- *
- * It could not have been placed before D184. With `DUAL_TOL` at 1e-7 the two
- * instances that would fire were `pilot` and `pilot87`, and a bar that turns
- * the gate red on what is already wrong is a decision about those answers
- * rather than about this predicate. D184 fixed both, and that is what freed
- * this.
- *
- * Reported only when it fires, and deliberately: a field on every line would
- * change the record's format on all 123 and turn every later baseline diff
- * into a format diff (D-13). `rsub=` is already on every line, so the data is
- * there and this is the rule applied to it. */
 constexpr double RSUB_CEILING = 1e-6;
 
 constexpr int MAX_INSTANCES = 512;
@@ -356,9 +144,6 @@ static const outcome *baseline_find(const char *name)
     return nullptr;
 }
 
-/* One line per instance: name, status, four predicates as 0/1, then the two
- * cost numbers. Fixed fields rather than the table format, because this file
- * is read by a program and the table is read by a person. */
 static bool baseline_load(const char *path)
 {
     FILE *f = fopen(path, "r");
@@ -372,11 +157,7 @@ static bool baseline_load(const char *path)
         outcome o;
         memset(&o, 0, sizeof o);
         int solved = 0, shape = 0, obj = 0, chk = 0, det = 0;
-        /* A baseline written before the dropped term was tracked has nine
-         * fields. It is read rather than refused, and its drop reads as -1,
-         * which the comparison takes as "nothing to compare against" — an
-         * older baseline should cost the reader that one check, not the
-         * whole run. */
+
         o.rsub = -1.0;
         int got = sscanf(line, "%63s %23s %d %d %d %d %d %lld %lld %lf %lld",
                          o.name, o.status, &solved, &shape, &obj, &chk, &det,
@@ -394,9 +175,6 @@ static bool baseline_load(const char *path)
     return true;
 }
 
-/* `noref` is passed rather than read off `g_expect`, which is declared below
- * this point — and passing it is the better shape anyway: what the header says
- * is an argument about this file, not ambient state the writer reaches for. */
 static bool baseline_write(const char *path, bool noref, bool mip)
 {
     FILE *f = fopen(path, "w");
@@ -404,34 +182,25 @@ static bool baseline_write(const char *path, bool noref, bool mip)
         fprintf(stderr, "cannot write %s\n", path);
         return false;
     }
-    /* The header named `make netlib-baseline` for every set. That was already
-     * wrong for the Kennington and infeasible baselines and is wrong for three
-     * more since the fourth set landed — it tells a reader to run a command
-     * that would rewrite a different file. The runner is not told which target
-     * invoked it, so it names the shape instead of guessing one. */
+
     fprintf(f, "# What each instance did, as of this run. Regenerated only on\n"
                "# purpose, by the `*-baseline` target that writes this file,\n"
                "# after a change whose effect on these numbers has been read\n"
                "# and accepted. A quiet update here is a regression nobody\n"
                "# will ever be told about.\n");
     if (noref)
-        /* Without this the `objective` column is a row of zeroes, which reads
-         * as "wrong on every instance" and records the opposite of what it
-         * means. */
+
         fprintf(f, "#\n"
                    "# This set has no published optimum, so the `objective`\n"
                    "# column is 0 throughout and means NOT VERIFIED, never\n"
                    "# wrong. Run with `-e noref`; see TODO.md section 4.\n");
-    /* The node column exists on a MIP set only: an LP baseline is read by
-     * older readers as ten fields, and a column every LP set would carry
-     * as 0 is a format change for nothing. */
+
     fprintf(f, "#\n"
                "# name status solved shape objective checker det iters work "
                "dropped%s\n", mip ? " nodes" : "");
     for (int i = 0; i < g_ngot; i++) {
         const outcome *o = &g_got[i];
-        /* The dropped term at full precision, because it is compared as a
-         * number and a rounded one would make a ratio out of the rounding. */
+
         fprintf(f, "%-12s %-12s %d %d %d %d %d %lld %lld %.17g",
                 o->name, o->status, o->solved ? 1 : 0, o->shape ? 1 : 0,
                 o->objective ? 1 : 0, o->checker ? 1 : 0, o->det ? 1 : 0,
@@ -464,52 +233,25 @@ static void record(const char *name, const char *status, bool solved,
     o->rsub = rsub;
 }
 
-/* The node count of the outcome just recorded (D289). */
 static void record_nodes(long long nodes)
 {
     if (g_ngot > 0)
         g_got[g_ngot - 1].nodes = nodes;
 }
 
-/* What the gate expects an instance to come back as. The standard and
- * Kennington sets are solved to a verified optimum; the infeasible set asks
- * a different question entirely — that JAOS says a model with no feasible
- * point has none, and never hands back an optimum for one. There is no
- * reference objective for those and nothing for the checker to judge, so
- * running them under the optimum rule would score every correct answer as a
- * failure.
- *
- * EXPECT_OPTIMAL_NOREF is the fourth set (TODO.md §4). Those models are solved
- * to an optimum like the first two, but nobody has published an exact optimal
- * value for them the way Koch did for netlib, and none is invented here. Every
- * other guarantee still holds and is still checked — shape, the checker's own
- * verdict, determinism, the digest and the work units — so what this mode
- * removes is one external cross-check, not the gate. The `objective` predicate
- * is recorded false throughout, meaning "not verified" rather than "wrong",
- * and the console prints `objective=none` so the two cannot be confused. */
 typedef enum {
     EXPECT_OPTIMAL, EXPECT_INFEASIBLE, EXPECT_OPTIMAL_NOREF,
-    /* A mixed-integer set (D289): solved to the manifest's optimum, the
-     * checker's primal verdict with integrality in it, and two cold
-     * searches agreeing; see run_one_mip. */
+
     EXPECT_MIP
 } expectation;
 
 static expectation g_expect = EXPECT_OPTIMAL;
 
-/* An instance whose only job is to be refused. Shape still has to hold — a
- * reader that dropped the rows making it infeasible would "pass" for the
- * wrong reason — and the answer still has to be reproducible (D8), so the
- * model is solved twice and the two runs must agree. */
-/* Builds "<dir>/<name>.mps", and says so rather than truncating. A path cut
- * short names a different file, and a gate that judges a file nobody asked
- * for is worse than one that stops. Assembled by hand instead of with
- * snprintf so that the bound is checked here rather than inferred. */
 static bool instance_path(char *buf, size_t cap, const char *dir,
                           const char *name)
 {
     size_t dl = strlen(dir), nl = strlen(name);
-    if (dl + nl + 6 > cap)      /* '/' + ".mps" + NUL */
+    if (dl + nl + 6 > cap)
         return false;
     memcpy(buf, dir, dl);
     buf[dl] = '/';
@@ -567,12 +309,6 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     int64_t iters = jaos_iterations(m), work = jaos_work_units(m);
     bool refused = (ss == JAOS_SOLVE_INFEASIBLE);
 
-    /* Determinism over the verdict itself. The basis is cleared for the same
-     * reason it is in the optimal path, and not because it makes a difference
-     * here: a solve that ends INFEASIBLE publishes no basis, so there is
-     * nothing for the second one to resume from. It is written anyway, so that
-     * the day a stopping point does get published for a non-optimal outcome
-     * this check does not quietly stop measuring what it says it measures. */
     jaos_clear_basis(m);
     st = jaos_solve(m);
     bool det = (st == JAOS_OK && jaos_status_of(m) == ss &&
@@ -580,18 +316,12 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     if (det)
         t->deterministic++;
     if (refused)
-        t->solved++;   /* "did what was asked of it" */
+        t->solved++;
     else
         t->failed++;
 
     stamp(e->name, dt);
-    /* presolve= is emitted unconditionally, including on a build with
-     * JAOS_NO_PRESOLVE defined -- there it reports the original dimensions
-     * on both sides of the arrow, since presolve_num_row/col/nz default to
-     * the model's own whenever nothing fired (D-13). A field on one build
-     * and not the other would turn the negative control's own diff into a
-     * format diff, which is the one instrument this phase cannot afford to
-     * blunt. */
+
     emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld work=%lld"
          " presolve=%lld/%lld/%lld->%lld/%lld/%lld"
          " expected=infeasible verdict=%s det=%s%s\n",
@@ -610,15 +340,6 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     return shape && refused && det;
 }
 
-/* One mixed-integer instance (D289). What the gate asks of it: the shape,
- * the reference optimum from the manifest, the checker's primal verdict
- * with integrality in it, and two cold searches agreeing node for node
- * and bit for bit. The dual verdict is not asked: the duals a MIP answer
- * carries are its final relaxation's, whose bounds are the branching's
- * (jaos.h), and the suboptimality bound is that relaxation's too. The
- * tree's size goes in the record as `nodes=` and `cuts=` and the baseline
- * keeps the node count, so a search that changed shows as a moved number
- * even when the answer did not move. */
 static bool run_one_mip(const entry *e, const char *dir, tally *t)
 {
     char path[512];
@@ -715,9 +436,6 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     d1 = digest(y, nr, d1);
     const uint64_t b1 = basis_digest(m, 1469598103934665603u);
 
-    /* The second search is cold, like the LP path's second solve: the
-     * basis is cleared so the root starts from nothing, and the whole
-     * tree has to come out the same. */
     jaos_clear_basis(m);
     st = jaos_solve(m);
     double obj2 = 0.0;
@@ -767,8 +485,6 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     return shape && obj_ok && check_ok && det;
 }
 
-/* One instance, start to finish. Returns false if anything the gate asks for
- * did not hold. */
 static bool run_one(const entry *e, const char *dir, tally *t)
 {
     if (g_expect == EXPECT_INFEASIBLE)
@@ -802,8 +518,6 @@ static bool run_one(const entry *e, const char *dir, tally *t)
         return false;
     }
 
-    /* The shape is external ground truth too: a reader that dropped a row
-     * would otherwise go unnoticed until the objective happened to move. */
     int64_t nr = jaos_num_row(m), nc = jaos_num_col(m);
     bool shape = (nr == e->rows && nc == e->cols);
     if (shape)
@@ -846,9 +560,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     double obj = 0.0;
     (void)jaos_objective(m, &obj);
     double expected = e->reference + e->objconst;
-    /* Whether an external optimum exists to score against at all. Kept as its
-     * own name rather than tested inline three times below, because the
-     * verdict, the tally and the printed field all have to agree about it. */
+
     const bool scored = (g_expect != EXPECT_OPTIMAL_NOREF);
     bool obj_ok = scored && objective_accepted(obj, expected);
     if (obj_ok)
@@ -873,17 +585,6 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     d1 = digest(y, nr, d1);
     const uint64_t b1 = basis_digest(m, 1469598103934665603u);
 
-    /* Second solve of the same model, in the same process. Same input, same
-     * parameters, same answer — every bit of it (D8).
-     *
-     * The basis is cleared first, and that is what makes the two runs the
-     * same input rather than two different ones. A solve that finds an optimum
-     * leaves its basis on the model for the next one to start from, so without
-     * this the second solve resumes from the first's answer, reaches the same
-     * optimum in no iterations and reports different work — which is a warm
-     * re-solve behaving correctly and says nothing at all about determinism.
-     * All ninety-four instances said DIVERGED the first time warm starting
-     * landed, and every one of them was still optimal. */
     jaos_clear_basis(m);
     st = jaos_solve(m);
     double obj2 = 0.0;
@@ -896,35 +597,14 @@ static bool run_one(const entry *e, const char *dir, tally *t)
         jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK) {
         d2 = digest(x, nc, 1469598103934665603u);
         d2 = digest(y, nr, d2);
-        /* The basis is part of the answer and part of the claim: two cold
-         * solves of one model must publish the same statuses bit for bit,
-         * or `det` says so. */
+
         det = (d1 == d2) && (b1 == basis_digest(m, 1469598103934665603u));
     }
     if (det)
         t->deterministic++;
 
-    /* `rowrel` and `Q`/`N` decide nothing and are recorded anyway. The first
-     * is the row residue against what the row carries (D24). The second pair
-     * is the gap split by sign: the gap is |Q - N|, so a small one can be
-     * two large halves cancelling, and the record is where that would show
-     * up across ninety-four instances rather than on the one somebody
-     * thought to look at. */
     stamp(e->name, dt);
-    /* `drop` is the largest multiplier the duality identity could not take,
-     * and `cert` whether it took all of them. Neither decides anything here
-     * — the gate's verdict is unchanged by both — and they are recorded for
-     * the reason the gap's two halves are: this is the file where a property
-     * shows itself across ninety-four instances rather than on the one
-     * somebody thought to look at. What they say is whether `Q` is the bound
-     * on suboptimality it is documented as being (D47). */
-    /* presolve= is emitted unconditionally, including on a build with
-     * JAOS_NO_PRESOLVE defined -- there it reports the original dimensions
-     * on both sides of the arrow, since presolve_num_row/col/nz default to
-     * the model's own whenever nothing fired (D-13). A field on one build
-     * and not the other would turn the negative control's own diff into a
-     * format diff, which is the one instrument this phase cannot afford to
-     * blunt. */
+
     emit("%-12s optimal    rows=%lld cols=%lld shape=%s iters=%lld "
             "work=%lld presolve=%lld/%lld/%lld->%lld/%lld/%lld"
             " obj=%.17g ref=%.17g[%s] objective=%s checker=%s"
@@ -948,9 +628,6 @@ static bool run_one(const entry *e, const char *dir, tally *t)
             det ? "ok" : "DIVERGED", (unsigned long long)d1,
             (unsigned long long)b1);
 
-    /* The absolute bar. Unlike everything below it in compare_to_baseline,
-     * this asks nothing of the baseline, so an instance that has always been
-     * this far from optimal fails here on the first run. */
     const bool subopt_ok = rep.relative_suboptimality <= RSUB_CEILING;
     if (!subopt_ok)
         emit("%-12s OVER-CEILING suboptimality bound %.3g is past %.3g, "
@@ -964,17 +641,10 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     free(x);
     free(y);
     jaos_model_free(m);
-    /* `obj_ok` is false for the whole of a NOREF run, so it cannot be part of
-     * the verdict there — it would fail every instance. Everything else is
-     * asked exactly as it is for the other two sets, `subopt_ok` included:
-     * the bound it reads needs no reference optimum, so a set without one is
-     * judged on it exactly as netlib is. */
+
     return shape && (!scored || obj_ok) && check_ok && det && subopt_ok;
 }
 
-/* Every instance this run against what it did at baseline. Returns the
- * number of regressions; improvements are reported too, because a baseline
- * that only ever tightens is one nobody will remember to loosen. */
 static int64_t compare_to_baseline(bool full_run)
 {
     int64_t regressed = 0, improved = 0, fresh = 0;
@@ -991,9 +661,6 @@ static int64_t compare_to_baseline(bool full_run)
             continue;
         }
 
-        /* Each predicate on its own. A single line saying "worse" would
-         * lose which of them moved, and which one moved is the whole
-         * content of the message. */
         struct { const char *what; bool was, now; } p[] = {
             {"solved",    b->solved,    g->solved},
             {"shape",     b->shape,     g->shape},
@@ -1013,9 +680,6 @@ static int64_t compare_to_baseline(bool full_run)
             }
         }
 
-        /* Cost, but only where it is still doing the work it used to: an
-         * instance that stopped solving has already been counted above, and
-         * the iterations it did not finish are not a second finding. */
         if (b->solved && g->solved && b->work > 0 &&
             (double)g->work > (double)b->work * WORK_REGRESSION_FACTOR) {
             emit("%-12s REGRESSED    work: %lld -> %lld (%.1fx), "
@@ -1025,20 +689,11 @@ static int64_t compare_to_baseline(bool full_run)
             regressed++;
         }
 
-        /* The tree's size, on a MIP set. Said whenever it moved, because a
-         * search that changed with the answer unmoved is exactly what the
-         * digest cannot show; not counted, since the work above judges what
-         * the change cost. */
         if (b->solved && g->solved && b->nodes > 0 && g->nodes != b->nodes)
             emit("%-12s changed      nodes: %lld -> %lld (work %.2fx)\n",
                  g->name, b->nodes, g->nodes,
                  b->work > 0 ? (double)g->work / (double)b->work : 0.0);
 
-        /* And the guarantee behind the `checker` predicate, which the
-         * predicate itself cannot report on. Same shape as work above and for
-         * the same reason: it degrades quietly. A baseline written before this
-         * was tracked carries -1 and is skipped rather than compared against a
-         * number that was never there. */
         if (b->solved && g->solved && b->rsub >= 0.0 &&
             g->rsub > RSUB_FLOOR &&
             g->rsub > b->rsub * RSUB_REGRESSION_FACTOR) {
@@ -1050,9 +705,6 @@ static int64_t compare_to_baseline(bool full_run)
         }
     }
 
-    /* Only when the whole set was asked for. Naming instances on the command
-     * line is how a single one gets looked at, and answering that with
-     * ninety-three lines about the ones not named would bury the answer. */
     if (full_run) {
         for (int i = 0; i < g_nbase; i++) {
             bool seen = false;
@@ -1069,19 +721,6 @@ static int64_t compare_to_baseline(bool full_run)
     return regressed;
 }
 
-/* One instance per process, N of them at a time.
- *
- * The instances are independent and every number this file records is an
- * integer the solver computed, so running them concurrently changes the
- * record in no way at all — which is the claim, and it is checked by diffing
- * a `-j N` record against a `-j 1` one rather than by asserting it here.
- *
- * Each worker writes two files: the line it would have printed, and the
- * bookkeeping the parent cannot see across a process boundary — its tally,
- * its verdict, and the outcome the baseline comparison needs. The parent
- * reads them back in manifest order, so the console, the record and the
- * baseline all come out in the order they came out in before this existed. */
-
 static bool worker_path(char *buf, size_t cap, const char *dir, int k,
                         const char *ext)
 {
@@ -1092,10 +731,7 @@ static bool worker_path(char *buf, size_t cap, const char *dir, int k,
 [[noreturn]]
 static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
 {
-    /* The parent's record file is inherited open. It is not this process's to
-     * write or to close — closing it would flush a copy of its buffer into
-     * the file — so it is dropped without ceremony and `_exit` at the end
-     * skips every stream this process did not open. */
+
     g_record = nullptr;
     g_muted = true;
     g_ngot = 0;
@@ -1137,9 +773,6 @@ static void run_worker(const entry *e, const char *dir, const char *tmp, int k)
     _exit(0);
 }
 
-/* Reads back what one worker left. Returns false if it left nothing usable,
- * which the caller reports as that instance failing — a worker that died is
- * not an instance that passed. */
 static bool collect_worker(const entry *e, const char *tmp, int k, tally *t,
                            bool *ok_out)
 {
@@ -1219,9 +852,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
     int running = 0, launched = 0, reaped = 0;
     while (reaped < nsel) {
         while (running < jobs && launched < nsel) {
-            /* Nothing of the parent's may still be sitting in a buffer when
-             * the address space is copied, or a worker exiting flushes a
-             * duplicate of it. */
+
             fflush(stdout);
             if (g_record != nullptr)
                 fflush(g_record);
@@ -1349,9 +980,6 @@ int main(int argc, char **argv)
             break;
     }
 
-    /* A baseline that was asked for and is not there is a hard error, not a
-     * comparison quietly skipped: the whole value of the check is that it
-     * cannot be passed by not happening. */
     bool have_baseline = false;
     if (baseline != nullptr) {
         have_baseline = baseline_load(baseline);
@@ -1379,23 +1007,6 @@ int main(int argc, char **argv)
     memset(&t, 0, sizeof t);
     bool all_ok = true;
 
-    /* The whole manifest is read before the first instance is solved, and
-     * the file is closed before any of them runs.
-     *
-     * This used to parse one line, solve that instance, then parse the next,
-     * holding the file open across the entire run — minutes on this set,
-     * where ken-18 alone is half an hour. Anything that rewrites the
-     * manifest in that window shifts every byte offset after the edit, so
-     * the next fgets returns a line that straddles two real ones, sscanf
-     * still finds seven fields in it, and the run continues against a
-     * reference no line of the file ever carried. That happened: sctap2 was
-     * judged against 1725.0461628571429 where the manifest says
-     * 1724.807142857143, reported OUT-OF-TOLERANCE, and would have been
-     * written into the baseline as a regression that never occurred.
-     *
-     * The gate is the thing that decides whether the solver is right. It
-     * does not get to depend on nobody having touched a file for the last
-     * half hour. */
     static entry manifest_entries[MAX_INSTANCES];
     int n_entries = 0;
     {
@@ -1418,19 +1029,6 @@ int main(int argc, char **argv)
     }
     fclose(mf);
 
-    /* The manifest and the `-e` flag both say whether a reference optimum
-     * exists, and neither is allowed to be the only voice.
-     *
-     * Get it wrong one way and a set with no reference is scored against 0.0,
-     * so every correct answer reads OUT-OF-TOLERANCE. Get it wrong the other
-     * way and a set that does have Koch's exact optima stops being compared
-     * against them, with nothing in the output saying the check went away —
-     * which is the failure that matters, because it is silent.
-     *
-     * Refused here rather than per instance: a whole run taken under the wrong
-     * rule is not a finding about an instance. This is also the case the mode
-     * has to reject, and it is exercised by
-     * `bench/measurements/02-22/reject-case.sh`. */
     for (int k = 0; k < n_entries; k++) {
         const entry *e = &manifest_entries[k];
         const bool noref = strcmp(e->source, "none") == 0;
@@ -1471,10 +1069,7 @@ int main(int argc, char **argv)
                 (long long)t.shape_ok, (long long)t.deterministic,
                 (long long)t.failed);
     else if (g_expect == EXPECT_OPTIMAL_NOREF)
-        /* No "objective ok" field, deliberately. Printing it as 0 would read
-         * as ninety-four wrong answers, and printing it as the instance count
-         * would claim a check that never ran. The absent field is the
-         * accurate report. */
+
         emit("\n%lld instances: %lld solved, %lld shape ok,"
                 " %lld checker ok, %lld deterministic, %lld failed"
                 "  (no reference optimum: objective unverified)\n",
@@ -1491,38 +1086,22 @@ int main(int argc, char **argv)
                 (long long)t.failed);
     emit("gate: %s\n", all_ok && t.instances > 0 ? "PASS" : "NOT MET");
 
-    /* Console only — see `stamp`. printf rather than emit, so the record
-     * file and the baseline never see a second. */
     if (t.instances > 0) {
         printf("time: %.6fs over %lld instances, slowest %s at %.6fs\n",
                g_total_secs, (long long)t.instances,
                g_slowest[0] ? g_slowest : "-", g_slowest_secs);
-        /* Said every time rather than left to be remembered. These seconds
-         * are the sum of what each solve took while N of them were competing
-         * for the same caches and the same memory bandwidth, so they are
-         * inflated by an amount this program cannot know. The record above
-         * them is unaffected — it is integers — but a time ratio (D45) taken
-         * from this run would be measuring the scheduler. */
+
         if (jobs > 1 && n_selected > 1)
             printf("time: INFLATED -- %d solves ran at once. For a time"
                    " ratio, rerun with -j 1.\n", jobs);
         fflush(stdout);
     }
 
-    /* Two independent verdicts, and they answer different questions. The
-     * gate asks whether M1 is finished, and will say NOT MET every time
-     * until it is. The baseline asks whether this change made anything
-     * worse, which is the question that has an answer today. */
     int64_t regressed = 0;
     if (have_baseline)
         regressed = compare_to_baseline(i >= argc);
     else
-        /* Said out loud, and into the record file, because the alternative
-         * is a results file that looks exactly like a checked one. That is
-         * not hypothetical either: the record committed alongside the first
-         * baseline was from a different build than the baseline was, and
-         * nothing about the file said so. A run that compared against
-         * nothing should be readable as such a year later. */
+
         emit("\nbaseline: NOT COMPARED (no baseline given)\n");
 
     if (write_baseline != nullptr &&
@@ -1536,9 +1115,6 @@ int main(int argc, char **argv)
     if (g_record != nullptr)
         fclose(g_record);
 
-    /* A manifest with no instance lines is not an empty run, it is a set
-     * nobody has pinned yet. Saying so beats a bare NOT MET on zero of
-     * zero, which reads like a bug in the runner. */
     if (t.instances == 0) {
         fprintf(stderr,
                 "%s lists no instances: nothing was run.\n"

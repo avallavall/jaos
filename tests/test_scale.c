@@ -1,10 +1,4 @@
-/* Scaling tests. The property that matters is the scaled magnitude
- * rho_i * |a_ij| * gamma_j, not the individual factors: the normal-equation
- * system is singular along (r+k, c-k), and that freedom cancels in the
- * product.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 #include "jaos_internal.h"
 #include "unity.h"
@@ -43,7 +37,6 @@ static jaos_model *build(int64_t nc, int64_t nr, const int64_t *as,
     return m;
 }
 
-/* Worst ratio between scaled magnitudes across all nonzeros. */
 static double spread(const jaos_model *m)
 {
     double lo = HUGE_VAL, hi = 0.0;
@@ -70,9 +63,6 @@ static void assert_all_powers_of_two(const jaos_model *m)
     }
 }
 
-/* A = diag(2^10, 2^-5) * ones(2,2) * diag(1, 2^-3): an exactly recoverable
- * scaling, so the residual of the least-squares system reaches zero and
- * every scaled magnitude must come out at exactly 1. */
 static void test_curtis_reid_recovers_exact_power_of_two_scaling(void)
 {
     const int64_t as[] = {0, 2, 4};
@@ -99,7 +89,7 @@ static void test_scaling_leaves_the_matrix_untouched(void)
     jaos_model *m = build(2, 2, as, ai, av, 4);
 
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_CURTIS_REID));
-    /* The stored matrix is the authority the checker judges against. */
+
     TEST_ASSERT_EQUAL_DOUBLE(1024.0, m->a_value[0]);
     TEST_ASSERT_EQUAL_DOUBLE(0.03125, m->a_value[1]);
     TEST_ASSERT_EQUAL_DOUBLE(128.0, m->a_value[2]);
@@ -122,8 +112,6 @@ static void test_already_scaled_matrix_is_left_alone(void)
     jaos_model_free(m);
 }
 
-/* Badly conditioned and not exactly recoverable: both modes must still cut
- * the spread hard. */
 static void test_both_modes_reduce_a_nasty_spread(void)
 {
     const int64_t as[] = {0, 3, 6, 9};
@@ -167,12 +155,10 @@ static void test_none_mode_is_identity(void)
     jaos_model_free(m);
 }
 
-/* An empty column and an empty row must not produce NaN or a zero factor;
- * they carry no information, so they stay at 1. */
 static void test_empty_row_and_column_stay_at_one(void)
 {
-    const int64_t as[] = {0, 1, 1};       /* column 1 is empty */
-    const int64_t ai[] = {0};             /* row 1 is empty    */
+    const int64_t as[] = {0, 1, 1};
+    const int64_t ai[] = {0};
     const double  av[] = {8.0};
     jaos_model *m = build(2, 2, as, ai, av, 1);
 
@@ -205,7 +191,7 @@ static void test_repeated_scaling_is_bit_identical(void)
         r0[i] = m->row_scale[i];
         c0[i] = m->col_scale[i];
     }
-    /* Recomputing from the same input must land on the same bits (D8). */
+
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_CURTIS_REID));
     for (int i = 0; i < 3; i++) {
         TEST_ASSERT_EQUAL_MEMORY(&r0[i], &m->row_scale[i], sizeof(double));
@@ -230,7 +216,7 @@ static void test_load_invalidates_scaling(void)
         jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, one, zero, inf2, zero, inf2,
                      4, as, ai, av));
     TEST_ASSERT_FALSE(m->scale_valid);
-    /* jm_scaled_abs must fall back to the raw magnitude. */
+
     TEST_ASSERT_EQUAL_DOUBLE(1024.0, jm_scaled_abs(m, 0, 0));
     jaos_model_free(m);
 }
@@ -249,10 +235,6 @@ static void test_scale_rejects_bad_arguments(void)
     jaos_model_free(m);
 }
 
-/* Extreme but perfectly finite magnitudes. Forming sqrt(min*max) as a
- * product overflows here, and the fallout — a factor of 0 or inf, then a
- * platform-dependent conversion of +-inf to int — used to leave the
- * geometric mode silently doing nothing at all. */
 static void test_extreme_magnitudes_do_not_overflow(void)
 {
     const int64_t as[] = {0, 2, 4};
@@ -268,31 +250,19 @@ static void test_extreme_magnitudes_do_not_overflow(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, md));
         assert_all_powers_of_two(m);
 
-        /* Every factor stays a usable finite positive number... */
         for (int64_t i = 0; i < 2; i++) {
             TEST_ASSERT_TRUE(isfinite(m->row_scale[i]) && m->row_scale[i] > 0);
             TEST_ASSERT_TRUE(isfinite(m->col_scale[i]) && m->col_scale[i] > 0);
         }
-        /* ...and the spread genuinely shrinks rather than staying put. */
+
         TEST_ASSERT_TRUE(spread(m) < before);
 
-        /* This matrix needs more exponent range than JAOS expresses, and
-         * that has to be visible rather than passed off as success — on
-         * the flag, not on the error string, which stays reserved for
-         * failures. */
         TEST_ASSERT_TRUE(m->scale_clamped);
         TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
         jaos_model_free(m);
     }
 }
 
-/* The underflow side of the same product: min*max going to zero produced
- * an infinite factor, and a row that then never got scaled at all.
- *
- * These magnitudes do need more exponent range than JAOS expresses
- * (log2(1e-170) is about -565, past the +-512 limit), so the clamp firing
- * is correct here. What must not happen is the old outcome: a factor of
- * inf, and the tiny row left exactly as it was. */
 static void test_underflowing_product_still_scales_the_row(void)
 {
     const int64_t as[] = {0, 2, 4};
@@ -304,18 +274,16 @@ static void test_underflowing_product_still_scales_the_row(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_GEOMETRIC));
     assert_all_powers_of_two(m);
 
-    /* Row 0 holds the tiny entries; it must have been lifted. */
     TEST_ASSERT_TRUE(m->row_scale[0] > 1.0);
     for (int64_t j = 0; j < 2; j++)
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             TEST_ASSERT_TRUE(isfinite(jm_scaled_abs(m, j, k)));
     TEST_ASSERT_TRUE(spread(m) < before);
-    /* Partly corrected, and saying so. */
+
     TEST_ASSERT_TRUE(m->scale_clamped);
     jaos_model_free(m);
 }
 
-/* An ordinary matrix must not raise the clamp flag. */
 static void test_ordinary_matrix_is_not_reported_as_clamped(void)
 {
     const int64_t as[] = {0, 2, 4};

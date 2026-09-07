@@ -1,72 +1,4 @@
-/* What warm re-solve buys, measured on the reference instances.
- *
- * D68 built it and showed it changes nothing: all 139 answers unmoved. That
- * is the safety claim and it is not the interesting one. This program asks
- * the other question — when the model moves a little, does starting from the
- * previous basis cost less than starting from the slack basis? — and it is
- * the only thing entitled to answer it.
- *
- * ## The perturbation is one branch-and-bound branching step
- *
- * Not an arbitrary nudge with a size somebody chose. A branch is what warm
- * re-solve exists for: it is the workload that made the dual simplex the
- * method of choice for re-solving in the first place, it is what phase 7's
- * branch and bound will do millions of times, and its size is set by the
- * model's own numbers rather than by a constant fitted here.
- *
- * The rule, and it is deterministic because nothing in this repository may
- * depend on a clock or on unseeded randomness (D8): take the lowest-indexed
- * structural column whose optimal value is not within FRAC_TOL of an integer,
- * and branch **down** — `x_j <= floor(x_j*)` — when that leaves the column a
- * box, or **up** — `x_j >= ceil(x_j*)` — when it does not. Down first, so the
- * choice never depends on anything but the model.
- *
- * The previous optimum is cut off by construction: x_j* is strictly between
- * floor and ceil, so it satisfies neither new bound. There is real work to do
- * and both starts have to do it.
- *
- * ## What is compared, and against what
- *
- * Each instance is solved three times. Once from a fresh load, which is the
- * basis every later comparison is anchored to and which the branch is chosen
- * from. Then, after the branch, **warm** — resuming from the basis the first
- * solve left on the model — and **cold**, the same perturbed model after
- * jaos_clear_basis, which is the answer JAOS would have given before D68.
- * Warm and cold are the two numbers; the first solve is not one of them.
- *
- * Both must agree, and agreement is the gate rather than the speed: same
- * verdict, objectives within tolerance, and **both** answers put through the
- * independent checker. A warm start is a starting point and never a claim, so
- * a disagreement here is a defect and not a trade-off.
- *
- * Checking both is not symmetry for its own sake. This program used to judge
- * the warm answer alone, on the reasoning that cold is the reference and the
- * gate already checks cold answers — and the gate checks them on the models as
- * *loaded*, which is the one case a branch has moved away from. So the
- * perturbed model's cold solve was the only published answer in this
- * repository that nothing judged, and it was wrong: `pilot87` published
- * OPTIMAL on a point the checker refuses, and the campaign reported the pair
- * as agreeing because it had only looked at the other one (D92).
- *
- * ## How the ratios are reported
- *
- * A geometric mean of per-instance ratios, never a sum over the set (D46).
- * Work is reported as a plain ratio; iterations are reported as
- * `(warm + 1) / (cold + 1)`, because a warm re-solve reaching the optimum in
- * **no** iterations is exactly the outcome this feature exists to produce and
- * a geometric mean cannot hold a zero. The count of those is printed beside
- * it, so the shift is visible rather than hidden inside the mean.
- *
- * Seconds are printed and go nowhere else, under the same rule as the gate's:
- * they answer whether the units bought anything, and they never enter a file
- * anything is judged against (D45, D17). With -j they are inflated by
- * contention and say so.
- *
- * Usage: warm [-d DIR] [-m MANIFEST] [-o FILE] [-j N] [instance ...]
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-/* `-std=c23` is strict ISO, which hides clock_gettime. */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos.h"
@@ -83,11 +15,6 @@
 constexpr int MAX_INSTANCES = 256;
 constexpr double CHECK_TOL = 1e-6;
 
-/* How far from an integer a value has to be before branching on it is worth
- * anything. Well below any tolerance the solver itself uses, because the only
- * job here is to avoid branching on a value that is an integer with rounding
- * on it — where floor and ceil would sit either side of nothing and the
- * "branch" would fix the column at the value it already had. */
 constexpr double FRAC_TOL = 1e-6;
 
 typedef struct {
@@ -96,11 +23,11 @@ typedef struct {
 } entry;
 
 typedef enum {
-    WARM_OK = 0,        /* both solved and agreed                        */
-    WARM_SKIPPED,       /* nothing to branch on, or no first optimum     */
-    WARM_DISAGREE,      /* warm and cold reached different answers       */
-    WARM_REJECTED,      /* the checker refused one of the two answers    */
-    WARM_ERROR,         /* read or solve failed                          */
+    WARM_OK = 0,
+    WARM_SKIPPED,
+    WARM_DISAGREE,
+    WARM_REJECTED,
+    WARM_ERROR,
 } verdict;
 
 static const char *verdict_str(verdict v)
@@ -118,24 +45,15 @@ static const char *verdict_str(verdict v)
 typedef struct {
     char name[64];
     int verdict;
-    int status_w, status_c;      /* jaos_solve_status, as ints        */
-    long long col;               /* branched column, -1 for none      */
-    int up;                      /* 1 branched up, 0 branched down    */
+    int status_w, status_c;
+    long long col;
+    int up;
     double bound;
     long long iters_w, iters_c, work_w, work_c;
-    /* Whether the independent checker accepted each answer, recorded per side
-     * rather than folded into the verdict: "the pair was refused" does not say
-     * which half to go and look at, and on `pilot87` the answer is the one
-     * nobody suspected. 1 accepted, 0 refused, -1 not applicable — the status
-     * was not OPTIMAL, so there was no claim to judge. */
+
     int check_w, check_c;
     double obj_w, obj_c;
-    /* What the anchor solve reached, before the branch. Recorded for one
-     * reason: without it, "warm took one iteration" is not evidence. A branch
-     * that failed to cut anything off would leave the previous point still
-     * optimal, warm would have nothing to do, and the ratio would measure a
-     * perturbation that never happened. The objective moving is what says the
-     * work was real. */
+
     double obj_0;
     double secs_w, secs_c;
     char note[64];
@@ -148,8 +66,6 @@ static double now_seconds(void)
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
-/* Builds "<dir>/<name>.mps", and says so rather than truncating: a path cut
- * short names a different file. Same rule as the gate's runner. */
 static bool instance_path(char *buf, size_t cap, const char *dir,
                           const char *name)
 {
@@ -163,14 +79,6 @@ static bool instance_path(char *buf, size_t cap, const char *dir,
     return true;
 }
 
-/* The branching step. Returns the column, or -1 when the optimum has no
- * fractional structural value that can be branched on at all.
- *
- * `floor(x*) >= lower` is what makes a downward branch a branch rather than
- * an empty model: a column whose own lower bound is fractional can have an
- * optimal value above it whose floor is below it, and fixing that would
- * measure infeasibility detection instead of warm starting. The upward branch
- * is tried on the same terms before the column is passed over. */
 static int64_t pick_branch(const jaos_model *m, const double *x, bool *up,
                            double *bound)
 {
@@ -206,10 +114,6 @@ static void fail(result *r, verdict v, const char *note)
     snprintf(r->note, sizeof r->note, "%s", note);
 }
 
-/* The answer the model is holding, through the independent checker. Returns 1
- * accepted, 0 refused, and -1 when the status carries no claim to judge.
- *
- * `x` and `y` are the caller's, because it may want to keep the point. */
 static int verified(jaos_model *m, int status, double *x, double *y)
 {
     if (status != (int)JAOS_SOLVE_OPTIMAL)
@@ -221,8 +125,6 @@ static int verified(jaos_model *m, int status, double *x, double *y)
     return (rep.primal_feasible && rep.dual_feasible) ? 1 : 0;
 }
 
-/* Everything one instance contributes, measured. Never judges: the caller
- * prints and the summary counts. */
 static void measure_one(const entry *e, const char *dir, result *r)
 {
     memset(r, 0, sizeof *r);
@@ -257,8 +159,6 @@ static void measure_one(const entry *e, const char *dir, result *r)
         goto done;
     }
 
-    /* The anchor solve. Its cost is not one of the two numbers being
-     * compared — it is where the basis and the branch both come from. */
     if (jaos_solve(m) != JAOS_OK) {
         fail(r, WARM_ERROR, "first solve failed");
         goto done;
@@ -296,7 +196,6 @@ static void measure_one(const entry *e, const char *dir, result *r)
         goto done;
     }
 
-    /* Warm: the basis from the anchor solve is still on the model. */
     double t0 = now_seconds();
     st = jaos_solve(m);
     r->secs_w = now_seconds() - t0;
@@ -311,8 +210,6 @@ static void measure_one(const entry *e, const char *dir, result *r)
 
     r->check_w = verified(m, r->status_w, x, y);
 
-    /* Cold: the same perturbed model, with nothing carried into it. This is
-     * the answer JAOS gave before there was a warm start at all. */
     jaos_clear_basis(m);
     t0 = now_seconds();
     st = jaos_solve(m);
@@ -336,8 +233,7 @@ static void measure_one(const entry *e, const char *dir, result *r)
         fail(r, WARM_DISAGREE, "different objectives");
         goto done;
     }
-    /* Which side was refused is named, because it decides where to look and
-     * the answer has been the unexpected one: on `pilot87` it is cold. */
+
     if (r->check_w == 0 || r->check_c == 0) {
         const char *which = r->check_w == 0
                                 ? (r->check_c == 0 ? "both" : "the-warm")
@@ -354,10 +250,6 @@ done:
     free(y);
     jaos_model_free(m);
 }
-
-/* --------------------------------------------------------------------- */
-/* Output                                                                */
-/* --------------------------------------------------------------------- */
 
 static FILE *g_record = nullptr;
 
@@ -400,18 +292,12 @@ static void print_result(const result *r)
          check_str(r->check_w), check_str(r->check_c), r->note);
 }
 
-/* Seconds to the console only, never to the record: a file that changes on
- * every run cannot detect anything (D17). */
 static void stamp(const result *r)
 {
     if (r->verdict == (int)WARM_OK)
         printf("      %-12s warm %.3f s, cold %.3f s\n", r->name, r->secs_w,
                r->secs_c);
 }
-
-/* --------------------------------------------------------------------- */
-/* Running them                                                          */
-/* --------------------------------------------------------------------- */
 
 static bool worker_path(char *buf, size_t cap, const char *tmp, int k)
 {
@@ -447,18 +333,7 @@ static bool read_result(const char *p, result *r)
                    &r->iters_w, &r->iters_c, &r->work_w, &r->work_c,
                    &r->obj_w, &r->obj_c, &r->obj_0, &r->secs_w, &r->secs_c);
     if (n == 18) {
-        /* To the end of the line, not to the first space. `%63s` stopped at
-         * one token, so every note this program writes with a space in it —
-         * "path too long", "first solve failed" — reached the summary as its
-         * first word under -j and read as a different failure from the one
-         * that happened.
-         *
-         * The buffer is the destination's size and the width matches it. It
-         * used to read 79 characters into this 64-byte field: `snprintf`
-         * truncated the excess safely, so no note ever came out wrong, but
-         * `-Wformat-truncation` refuses it at `-O2` and the file would not
-         * compile there. Invisible at the `-O3 -flto` the Makefile uses, and
-         * found from `bench/primal.c` inheriting the same lines. */
+
         char note[sizeof r->note];
         if (fscanf(f, " %63[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
@@ -488,9 +363,7 @@ static bool run_parallel(const entry *ents, const int *sel, int nsel,
     int running = 0, launched = 0, reaped = 0;
     while (reaped < nsel) {
         while (running < jobs && launched < nsel) {
-            /* Nothing of the parent's may still be sitting in a buffer when
-             * the address space is copied, or a worker exiting flushes a
-             * duplicate of it. */
+
             fflush(stdout);
             if (g_record != nullptr)
                 fflush(g_record);
@@ -657,9 +530,6 @@ int main(int argc, char **argv)
         stamp(&results[k]);
     }
 
-    /* The summary. Geometric means of per-instance ratios, never a sum over
-     * the set: two instances are 74% of this set's total work, so a sum
-     * reports what those two did and calls it what the change did (D46). */
     int measured = 0, skipped = 0, disagreed = 0, rejected = 0, errors = 0;
     int rej_warm = 0, rej_cold = 0;
     int instant = 0, worse_iters = 0, moved = 0;
@@ -699,10 +569,7 @@ int main(int argc, char **argv)
     emit("\n-- warm against cold --\n");
     emit("measured %d, skipped %d, disagreed %d, rejected %d, errors %d\n",
          measured, skipped, disagreed, rejected, errors);
-    /* Split, because the two are different defects. A refused warm answer says
-     * warm starting produced something cold would not have; a refused cold one
-     * says the solver publishes an unverifiable optimum on this model whatever
-     * it starts from, and warm starting is not involved at all. */
+
     if (rejected > 0)
         emit("  of those, warm refused %d, cold refused %d\n",
              rej_warm, rej_cold);
@@ -717,9 +584,7 @@ int main(int argc, char **argv)
              instant, measured);
         emit("took more iterations warm than cold:          %d of %d\n",
              worse_iters, measured);
-        /* The one number that says the perturbation was real. A branch that
-         * cut nothing off would leave every optimum where it was, and every
-         * ratio above would be measuring nothing. */
+
         emit("the branch moved the optimum:                 %d of %d\n",
              moved, measured);
     }

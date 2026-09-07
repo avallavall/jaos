@@ -1,10 +1,6 @@
-/* LP-format reader tests: two golden instances verified field by field,
- * plus one rejection per failure class.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
-#include "jaos_internal.h" /* white-box: the assembled model is inspected */
+#include "jaos_internal.h"
 #include "unity.h"
 
 #include <math.h>
@@ -26,16 +22,13 @@ static void test_g1_labels_relations_bounds(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g1.lp"));
     TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
 
-    /* Columns in order of appearance: x, y, z. Rows: c1, c2, c3. */
     TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
     TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
     TEST_ASSERT_EQUAL_INT64(7, jaos_num_nz(m));
     TEST_ASSERT_EQUAL_INT(JAOS_MINIMIZE, m->sense);
 
-    /* "+ 5" in the objective is a direct constant. */
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->obj_offset);
 
-    /* The labels are the names (D284): obj, c1..c3, x y z. */
     char nm[JAOS_NAME_MAX + 1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
     TEST_ASSERT_EQUAL_STRING("obj", nm);
@@ -47,7 +40,6 @@ static void test_g1_labels_relations_bounds(void)
     TEST_ASSERT_EQUAL_DOUBLE(2.0, m->col_cost[1]);
     TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->col_cost[2]);
 
-    /* c1 (-inf,10]; c2 [-3,inf); c3 [7,7]. */
     TEST_ASSERT_TRUE(isinf(m->row_lower[0]) && m->row_lower[0] < 0);
     TEST_ASSERT_EQUAL_DOUBLE(10.0, m->row_upper[0]);
     TEST_ASSERT_EQUAL_DOUBLE(-3.0, m->row_lower[1]);
@@ -55,7 +47,6 @@ static void test_g1_labels_relations_bounds(void)
     TEST_ASSERT_EQUAL_DOUBLE(7.0, m->row_lower[2]);
     TEST_ASSERT_EQUAL_DOUBLE(7.0, m->row_upper[2]);
 
-    /* x default [0,inf); y [-1,8]; z free. */
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
     TEST_ASSERT_TRUE(isinf(m->col_upper[0]));
     TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->col_lower[1]);
@@ -63,8 +54,6 @@ static void test_g1_labels_relations_bounds(void)
     TEST_ASSERT_TRUE(isinf(m->col_lower[2]) && m->col_lower[2] < 0);
     TEST_ASSERT_TRUE(isinf(m->col_upper[2]));
 
-    /* CSC: x hits c1,c2,c3 with 1,2,1; y hits c1,c2,c3 with 1,-1,1;
-     * z hits c3 with 1. */
     const int64_t want_start[] = {0, 3, 6, 7};
     const int64_t want_index[] = {0, 1, 2, 0, 1, 2, 2};
     const double  want_value[] = {1.0, 2.0, 1.0, 1.0, -1.0, 1.0, 1.0};
@@ -88,23 +77,19 @@ static void test_g2_maximize_exponents_summing_wrapping(void)
     TEST_ASSERT_EQUAL_INT(JAOS_MAXIMIZE, m->sense);
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->obj_offset);
 
-    /* 2.5e1 x1 + x1 sums to 26; glued 3x2 reads as 3 * x2. */
     TEST_ASSERT_EQUAL_DOUBLE(26.0, m->col_cost[0]);
     TEST_ASSERT_EQUAL_DOUBLE(3.0, m->col_cost[1]);
 
-    /* Wrapped constraint with =< gives (-inf,4]; second row [-1,inf). */
     TEST_ASSERT_TRUE(isinf(m->row_lower[0]) && m->row_lower[0] < 0);
     TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_upper[0]);
     TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->row_lower[1]);
     TEST_ASSERT_TRUE(isinf(m->row_upper[1]));
 
-    /* x1 default bounds; x2 [0, 1.5]. */
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
     TEST_ASSERT_TRUE(isinf(m->col_upper[0]));
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[1]);
     TEST_ASSERT_EQUAL_DOUBLE(1.5, m->col_upper[1]);
 
-    /* CSC: x1 in rows 0,1 (1,1); x2 in rows 0,1 (1,-1). */
     const int64_t want_start[] = {0, 2, 4};
     const int64_t want_index[] = {0, 1, 0, 1};
     const double  want_value[] = {1.0, 1.0, 1.0, -1.0};
@@ -115,9 +100,6 @@ static void test_g2_maximize_exponents_summing_wrapping(void)
         TEST_ASSERT_EQUAL_DOUBLE(want_value[k], m->a_value[k]);
     }
 
-    /* Names (D284): the columns carry the file's, the labelled second
-     * constraint carries its label, and the unlabelled first one is called
-     * by its position, as is the objective, which has no label here. */
     char nm[JAOS_NAME_MAX + 1];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, nm, sizeof nm));
     TEST_ASSERT_EQUAL_STRING("x1", nm);
@@ -137,11 +119,6 @@ static void test_g2_maximize_exponents_summing_wrapping(void)
     jaos_model_free(m);
 }
 
-/* A two-sided constraint is one row with two finite ends, not two rows.
- * Both directions name the same interval: "1 <= e <= 5" and "5 >= e >= 1".
- * A leading number is only the left bound when an operator follows it, so
- * the third row is the case that would break a naive lookahead — its 3 is a
- * coefficient. */
 static void test_a_ranged_constraint_is_one_row_with_two_ends(void)
 {
     jaos_model *m = fresh();
@@ -154,30 +131,11 @@ static void test_a_ranged_constraint_is_one_row_with_two_ends(void)
     TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[1]);
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[1]);
 
-    /* "3 x + y >= 2": the 3 is a coefficient and the row is one-sided. */
     TEST_ASSERT_EQUAL_DOUBLE(2.0, m->row_lower[2]);
     TEST_ASSERT_TRUE(isinf(m->row_upper[2]) && m->row_upper[2] > 0.0);
     jaos_model_free(m);
 }
 
-/* A constant inside a constraint expression moves to the other side, with
- * its sign flipped (D278). Four shapes, because each reaches the fold by a
- * different route through the parser:
- *
- *   c1  after the terms, one-sided        x + 5 <= 10   ->  x <= 5
- *   c2  BEFORE them, and negative        -3 + 2y >= 7   ->  2y >= 10
- *   c3  inside a range           3 <= x + y + 1 <= 8    ->  2 <= x+y <= 7
- *   c4  two of them, on an equality    x + 2 + 3 = 10   ->  x = 5
- *
- * c2 is the one worth reading. A signed number at the head of a constraint
- * is a left-hand bound only when a relation follows it; here a `+` follows,
- * so the parser pushes it back with the sign folded in and it arrives as an
- * ordinary constant term. c3 is the other: the constant sits between the
- * two ends of the range, so BOTH ends shift by it, and shifting only one
- * would silently widen or narrow the row.
- *
- * The objective's constants are unchanged and still land in the offset;
- * asserting that here is what keeps the two paths apart. */
 static void test_a_constant_in_a_constraint_folds_into_the_rhs(void)
 {
     jaos_model *m = fresh();
@@ -187,37 +145,22 @@ static void test_a_constant_in_a_constraint_folds_into_the_rhs(void)
     TEST_ASSERT_EQUAL_INT64(4, jaos_num_row(m));
     TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
 
-    /* c1: x + 5 <= 10 */
     TEST_ASSERT_TRUE(isinf(m->row_lower[0]) && m->row_lower[0] < 0.0);
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[0]);
 
-    /* c2: -3 + 2 y >= 7 */
     TEST_ASSERT_EQUAL_DOUBLE(10.0, m->row_lower[1]);
     TEST_ASSERT_TRUE(isinf(m->row_upper[1]) && m->row_upper[1] > 0.0);
 
-    /* c3: 3 <= x + y + 1 <= 8 -- both ends move by the same 1 */
     TEST_ASSERT_EQUAL_DOUBLE(2.0, m->row_lower[2]);
     TEST_ASSERT_EQUAL_DOUBLE(7.0, m->row_upper[2]);
 
-    /* c4: x + 2 + 3 = 10 */
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_lower[3]);
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[3]);
 
-    /* The objective's constant is still the offset and not a row. */
     TEST_ASSERT_EQUAL_DOUBLE(7.0, m->obj_offset);
     jaos_model_free(m);
 }
 
-/* A bound with the value first, written both ways round (D281).
- * `10 >= x` is `x <= 10` and `8 >= y >= 2` is `2 <= y <= 8`. The first
- * operator says which SIDE the leading value is, and the second must point
- * the same way -- `3 <= w >= 8` names two lower bounds and no interval, and
- * is refused in the same words a ranged constraint is.
- *
- * The `1 <= z <= 5` statement is in the same file on purpose: it is the
- * form that already worked, so a change that broke it while adding the
- * mirror shows here rather than in another test. `w free` is there for the
- * same reason. */
 static void test_a_bound_can_be_written_value_first_either_way(void)
 {
     jaos_model *m = fresh();
@@ -226,19 +169,15 @@ static void test_a_bound_can_be_written_value_first_either_way(void)
 
     TEST_ASSERT_EQUAL_INT64(4, jaos_num_col(m));
 
-    /* `10 >= x`: an upper bound, and the default lower bound stays. */
     TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
     TEST_ASSERT_EQUAL_DOUBLE(10.0, m->col_upper[0]);
 
-    /* `8 >= y >= 2`: the leading value is the UPPER one here. */
     TEST_ASSERT_EQUAL_DOUBLE(2.0, m->col_lower[1]);
     TEST_ASSERT_EQUAL_DOUBLE(8.0, m->col_upper[1]);
 
-    /* The control: the form that already worked, unchanged. */
     TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_lower[2]);
     TEST_ASSERT_EQUAL_DOUBLE(5.0, m->col_upper[2]);
 
-    /* And the other control. */
     TEST_ASSERT_TRUE(isinf(m->col_lower[3]) && m->col_lower[3] < 0.0);
     TEST_ASSERT_TRUE(isinf(m->col_upper[3]) && m->col_upper[3] > 0.0);
     jaos_model_free(m);
@@ -266,8 +205,7 @@ static void test_rejections_carry_line_numbers(void)
 {
     expect_reject("tests/data/el_int_unknown.lp", "line 6");
     expect_reject("tests/data/el_rangedir.lp", "line 4");
-    /* The line of the FIRST operator, which is where the pair goes wrong;
-     * the parser has already read past the second by the time it knows. */
+
     expect_reject("tests/data/el_bounddir.lp", "line 8");
     expect_reject("tests/data/el_unkbound.lp", "line 6");
     expect_reject("tests/data/el_badchar.lp", "line 4");

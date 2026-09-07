@@ -1,72 +1,4 @@
-/* JAOS command-line tool.
- *
- * Solves a model from a file, or converts one between the formats JAOS reads
- * and writes. It links the release archive the way any other consumer does:
- * the public header and nothing else, no -Isrc, nothing reached past jaos.h.
- * What it can do is exactly what the library offers, which is the point of
- * having it — a caller who wants to know what a file solves to should not
- * have to write a program first.
- *
- * Usage:
- *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
- *                   [--mip-start SOLUTION] [--cutoff V]
- *                   [--basis BAS] [--write-basis BAS]
- *                   [--write-point PT] [--pool-out PRE]
- *                   [--proof PATH]
- *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
- *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
- *                   [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]
- *                   [--root-cut-drop | --no-root-cut-drop]
- *                   [--cover-lift | --no-cover-lift] [--mir-rounds N]
- *                   [--dive] [--dive-child RULE] [--dive-backtrack N]
- *                   [--dive-gap F] [--node-mir | --no-node-mir]
- *                   [--mir-aggregate N] [--dive-heuristic N]
- *                   [--dive-heuristic-depth D] [--rins N] [--dive-degrade F]
- *                   [--feaspump N] [--pump-general 0|1] [--pump-obj F]
- *                   [--pump-always | --no-pump-always]
- *                   [--rcfix | --no-rcfix] [--propagate N]
- *                   [--propagate-depth D]
- *                   [--no-heuristics] [--node-limit N] [--branching RULE]
- *                   [--reliability N] [--probe-cap M] [--probe-depth D]
- *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
- *                   [--check] [--quiet]
- *   jaos convert IN OUT [--positional]
- *   jaos check FILE SOLUTION [--tol T]
- *   jaos check FILE --proof PROOF
- *   jaos check FILE --point POINT [--duals DUALS] [--tol T]
- *   jaos stats FILE
- *   jaos iis FILE [--write OUT] [--positional]
- *   jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
- *   jaos verify FILE [--values] [--proof PATH] [--basis BAS]
- *   jaos ranging FILE
- *   jaos --version
- *   jaos --help
- *
- * The four analysis commands each expose one library call a caller could
- * otherwise reach only from C or Python: the independent checker on a
- * solution file, the irreducible infeasible subsystem of an infeasible
- * model, the exact verifier of a published basis, and the three ranging
- * calls. Each prints one fact per line and nothing that moves between runs.
- *
- * `solve` prints one fact per line to stdout: `status`, `objective` (only
- * when the solve found one — jaos_objective refuses otherwise, and so does
- * this), `iterations`, `work_units`, then `time`. **Everything above the
- * `time` line is byte-identical between two runs of the same file with the
- * same options** (D8); the seconds are the one number JAOS reports that is
- * not reproducible, so they come last, where `head -n -1` or
- * `grep -v '^time '` removes them before a diff. A run cut short by
- * `--time-limit` or by Ctrl-C is the exception, because where a clock cuts
- * is not reproducible either.
- *
- * Exit status is the verdict, so a script can branch on it without parsing
- * anything: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or
- * interrupted, 4 numerical failure, 5 usage or I/O error. Every message that
- * is not a fact about the solve goes to stderr.
- *
- * docs/cli.md is the user-facing description of all of this.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 
 #include <errno.h>
@@ -78,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The exit codes, named once. */
 enum {
     EXIT_OPTIMAL    = 0,
     EXIT_INFEASIBLE = 1,
@@ -88,12 +19,6 @@ enum {
     EXIT_USAGE      = 5,
 };
 
-/* The usage text, one piece per command and the long one split by group
- * (D345). Two reasons it is not one string. ISO C only promises a
- * 4095-byte literal and GCC enforces it under `-Wpedantic -Werror`, which
- * this text has outgrown three times; and `jaos help VERB` prints one
- * command's piece, which a single string cannot do. The pieces are joined
- * by `print_usage`, which is the only thing that knows the order. */
 static const char U_SYNOPSIS[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
@@ -388,9 +313,6 @@ static const char U_FOOTER[] =
     "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
     "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
 
-/* One command's own piece, or nullptr when the word is not a command.
- * `solve` is four pieces and the rest are one, so the table carries four
- * slots and fills what it needs. */
 typedef struct { const char *name; const char *part[5]; } u_entry;
 
 static const u_entry U_TABLE[] = {
@@ -406,20 +328,12 @@ static const u_entry U_TABLE[] = {
     {"show",    {U_SHOW,    nullptr}},
 };
 
-/* The whole usage text, or one command's (D345). A command's own help is
- * the synopsis, that command's piece and the footer, which is what
- * somebody who typed `jaos help solve` asked for; without a command it is
- * every piece in the order the synopsis lists them. Returns false when
- * `verb` is not a command, so the caller can say so. */
 static bool print_usage(FILE *out, const char *verb)
 {
     if (verb == nullptr) {
         fputs(U_SYNOPSIS, out);
     } else {
-        /* One command's synopsis lines out of the block: the line that
-         * begins `  jaos <verb> ` and every indented continuation under
-         * it. Printing all forty would bury the six the reader asked
-         * for. */
+
         char want[64];
         snprintf(want, sizeof want, "  jaos %s", verb);
         const size_t n = strlen(want);
@@ -453,7 +367,6 @@ static bool print_usage(FILE *out, const char *verb)
     return found;
 }
 
-/* A usage error: the message, then the usage text, both on stderr. */
 [[gnu::format(printf, 1, 2)]]
 static int usage_error(const char *fmt, ...)
 {
@@ -467,8 +380,6 @@ static int usage_error(const char *fmt, ...)
     return EXIT_USAGE;
 }
 
-/* A failure the library reported: its message names the line, the row or
- * the column, so it is printed as it came. */
 static int library_error(const char *what, const char *path,
                          const jaos_model *m)
 {
@@ -477,14 +388,6 @@ static int library_error(const char *what, const char *path,
     return EXIT_USAGE;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Number parsing                                                            */
-/* ------------------------------------------------------------------------- */
-
-/* Both parsers take the whole string or nothing: "10abc" is not ten, and a
- * limit that silently read as ten would be a run the caller cannot reason
- * about. Leading whitespace is refused for the same reason — strtod would
- * take it, and nobody types it on purpose. */
 static bool parse_int64(const char *s, int64_t *out)
 {
     if (s == nullptr || *s == '\0' || *s == ' ' || *s == '\t')
@@ -511,21 +414,12 @@ static bool parse_double(const char *s, double *out)
     return true;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Files                                                                     */
-/* ------------------------------------------------------------------------- */
-
 static bool has_suffix(const char *s, const char *suffix)
 {
     size_t n = strlen(s), k = strlen(suffix);
     return n >= k && memcmp(s + n - k, suffix, k) == 0;
 }
 
-/* The reader is chosen by name, and only the LP names are listed: an MPS
- * file has been called .mps, .MPS, .sif and nothing at all, so anything
- * that is not LP goes to the MPS reader. Compression is not the name's
- * business — both readers look at the first two bytes (docs/format-support.md,
- * "Compressed input") — so `.lp.gz` only has to say that it is LP. */
 static bool is_lp_name(const char *path)
 {
     return has_suffix(path, ".lp") || has_suffix(path, ".lp.gz");
@@ -536,10 +430,6 @@ static jaos_status read_model(jaos_model *m, const char *path)
     return is_lp_name(path) ? jaos_read_lp(m, path) : jaos_read_mps(m, path);
 }
 
-/* Which writer a path names, or nullptr for a name neither does. `.gz`
- * says compress and says nothing about the format, so it is looked past
- * (D340) -- the library reads the same suffix and does the compressing,
- * and both `out.lp` and `out.lp.gz` go to the LP writer. */
 static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)
 {
     const bool gz = has_suffix(path, ".gz");
@@ -550,8 +440,6 @@ static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)
     return nullptr;
 }
 
-/* A fresh model with `path` read into it. Returns -1 with *out set, or the
- * exit code with the message already printed. */
 static int load(const char *path, jaos_model **out)
 {
     jaos_model *m = nullptr;
@@ -568,14 +456,6 @@ static int load(const char *path, jaos_model **out)
     return -1;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Printing                                                                  */
-/* ------------------------------------------------------------------------- */
-
-/* A double for stdout. %.17g reads back as the same bits, so two runs that
- * agree in bits agree in text. The infinities are spelled here rather than
- * left to printf, whose "inf" is the host libc's word and not a promise; a
- * NaN would be too, and none of the calls below can produce one. */
 typedef char numbuf[32];
 
 static const char *num(numbuf buf, double v)
@@ -607,10 +487,6 @@ static void print_bool(const char *key, bool v)
     printf("%s %s\n", key, yesno(v));
 }
 
-/* The checker's report, in the struct's own field names and its own
- * order, so it reads against jaos.h without a translation table. Shared
- * by `check` and by `solve --check` (D347), because two copies of
- * eighteen field names drift. */
 static void print_check_report(const jaos_check_report *rep)
 {
     print_num("max_col_violation", rep->max_col_violation);
@@ -633,20 +509,11 @@ static void print_check_report(const jaos_check_report *rep)
     print_bool("gap_certified", rep->gap_certified);
 }
 
-/* calloc that never returns NULL for a zero count: an empty model has zero
- * columns, and the calls below take a real pointer for zero values. */
 static void *zeroed(int64_t count, size_t size)
 {
     return calloc((size_t)(count > 0 ? count : 1), size);
 }
 
-/* ------------------------------------------------------------------------- */
-/* Callbacks                                                                 */
-/* ------------------------------------------------------------------------- */
-
-/* The solver's own log, one line per call, to stderr. stdout is for the
- * facts the tool prints, and the two must not mix: a reader diffing two
- * runs' stdout would otherwise see the log's timings move. */
 static void log_to_stderr(void *user, jaos_log_level level, const char *line)
 {
     (void)user;
@@ -654,13 +521,6 @@ static void log_to_stderr(void *user, jaos_log_level level, const char *line)
     fprintf(stderr, "%s\n", line);
 }
 
-/* Ctrl-C stops the solve instead of killing the process, so the tool can
- * still say `status interrupted` and exit 3 rather than vanish. The handler
- * only raises a flag; the progress callback, which the solver asks at points
- * paced by its own iteration count and never by a clock, reads it. A
- * callback that always says CONTINUE returns the same bits as none at all
- * (jaos.h, jaos_set_progress_callback), so installing it costs nothing a
- * diff can see. */
 static volatile sig_atomic_t g_interrupted = 0;
 
 static void on_sigint(int sig)
@@ -677,13 +537,6 @@ static jaos_callback_action stop_when_interrupted(const jaos_progress *p,
     return g_interrupted ? JAOS_CALLBACK_STOP : JAOS_CALLBACK_CONTINUE;
 }
 
-/* ------------------------------------------------------------------------- */
-/* solve                                                                     */
-/* ------------------------------------------------------------------------- */
-
-/* One word per outcome, so `awk '$1 == "status" {print $2}'` gets a token
- * and not a phrase. jaos_solve_status_str is for people; this is for the
- * scripts the exit code is also for. */
 static const char *status_word(jaos_solve_status s)
 {
     switch (s) {
@@ -700,9 +553,6 @@ static const char *status_word(jaos_solve_status s)
     return "unknown";
 }
 
-/* Every enumerator is mapped, and the compiler's -Wswitch is what keeps it
- * that way when one is appended. NOT_RUN after a solve that returned JAOS_OK
- * cannot happen, and if it did the tool has no answer, which is what 4 says. */
 static int exit_code_for(jaos_solve_status s)
 {
     switch (s) {
@@ -731,70 +581,63 @@ static bool parse_log_level(const char *s, jaos_log_level *out)
 struct solve_options {
     const char *file;
     const char *solution;
-    const char *start;       /* a solution file to warm-start from */
-    const char *basis;       /* an MPS basis file to warm-start from */
-    const char *write_basis; /* where to write the basis the solve left */
-    const char *write_point; /* where to write the point, one name a line */
-    const char *pool_out;    /* prefix for one point file per pool entry */
-    const char *write_duals; /* where to write the row multipliers */
-    bool check;              /* run the independent checker on the answer */
-    const char *mip_start;   /* a solution file whose point seeds the
-                                tree (D326)                          */
+    const char *start;
+    const char *basis;
+    const char *write_basis;
+    const char *write_point;
+    const char *pool_out;
+    const char *write_duals;
+    bool check;
+    const char *mip_start;
     bool has_cutoff;
     double cutoff;
-    const char *proof;       /* where to write the exact proof (D325,
-                                D328)                                */
-    int64_t work_limit;      /* 0: not given; the parser refuses <= 0 */
-    double time_limit;       /* 0: not given; the parser refuses <= 0 */
-    int64_t cut_rounds;      /* -1: not given (the library's default)     */
-    int64_t cut_depth;       /* -1: not given (the library's default)     */
-    int64_t cover_rounds;    /* -1: not given (the library's default)     */
-    int64_t node_cut_cap;    /* -1: not given (the library's default)     */
-    bool has_cut_stall, has_node_cut_stall;  /* doubles, so flags        */
+    const char *proof;
+    int64_t work_limit;
+    double time_limit;
+    int64_t cut_rounds;
+    int64_t cut_depth;
+    int64_t cover_rounds;
+    int64_t node_cut_cap;
+    bool has_cut_stall, has_node_cut_stall;
     double cut_stall, node_cut_stall;
-    int root_cut_drop;       /* -1: not given; else 0 or 1                */
-    int cover_lift;          /* -1: not given; else 0 or 1                */
-    int64_t mir_rounds;      /* -1: not given (the library's default)     */
-    int64_t dive_backtrack;  /* -1: not given (the library's default)     */
+    int root_cut_drop;
+    int cover_lift;
+    int64_t mir_rounds;
+    int64_t dive_backtrack;
     bool has_dive_gap;
     double dive_gap;
-    int node_mir;            /* -1: not given; else 0 or 1                */
-    int64_t mir_aggregate;   /* -1: not given (the library's default)     */
-    int64_t dive_heuristic;  /* -1: not given (the library's default)     */
-    int64_t dive_heuristic_depth; /* -1: not given                        */
-    int64_t rins;            /* -1: not given (the library's default)     */
-    int64_t feaspump;        /* -1: not given (the library's default)     */
-    int pump_general;        /* -1: not given; else 0 or 1                */
-    bool has_pump_obj;       /* the decay is a double, so a flag, not -1  */
-    int pump_always;         /* -1: not given; else 0 or 1                */
-    int rcfix;               /* -1: not given; else 0 or 1                */
-    int64_t propagate;       /* -1: not given                             */
-    int64_t propagate_depth; /* -2: not given (negative is a setting)     */
+    int node_mir;
+    int64_t mir_aggregate;
+    int64_t dive_heuristic;
+    int64_t dive_heuristic_depth;
+    int64_t rins;
+    int64_t feaspump;
+    int pump_general;
+    bool has_pump_obj;
+    int pump_always;
+    int rcfix;
+    int64_t propagate;
+    int64_t propagate_depth;
     double pump_obj;
     bool has_dive_degrade;
     double dive_degrade;
-    int64_t node_limit;      /* 0: not given; the parser refuses <= 0     */
-    int branching;           /* -1: not given; else a jaos_branching      */
-    int64_t reliability;     /* -1: not given (the library's default)     */
-    int dive_child;          /* -1: not given; else a jaos_dive_child     */
-    bool has_probe_cap;      /* the cap is a double, so a flag, not -1    */
+    int64_t node_limit;
+    int branching;
+    int64_t reliability;
+    int dive_child;
+    bool has_probe_cap;
     double probe_cap;
-    int64_t probe_depth;     /* -1: not given (every depth)               */
-    int64_t pool_size;       /* 0: not given; the parser refuses <= 0     */
+    int64_t probe_depth;
+    int64_t pool_size;
     bool no_cut_drop;
     bool dive, no_heuristics;
-    /* The tolerances carry a flag rather than a sentinel: any finite value
-     * is passed to the library, which is what refuses a negative one, and a
-     * sentinel below zero would have swallowed exactly that case. It did,
-     * once, in this file's first test run. */
+
     bool has_primal_tol, has_dual_tol;
     double primal_tol, dual_tol;
     jaos_log_level log_level;
     bool quiet;
 };
 
-/* Reads `argv[first..argc)` for `solve`. Returns EXIT_USAGE with the message
- * already printed, or -1 when the options parsed. */
 static int parse_solve_options(int argc, char **argv, int first,
                                struct solve_options *o)
 {
@@ -893,7 +736,7 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->no_heuristics = true;
             continue;
         }
-        /* Everything else takes a value. */
+
         if (i + 1 >= argc)
             return usage_error("%s needs a value", a);
         const char *v = argv[++i];
@@ -1103,9 +946,6 @@ static int cmd_solve(int argc, char **argv)
         return EXIT_USAGE;
     }
 
-    /* Settings first, so a value the library refuses is refused before the
-     * file is read: a tolerance error should not cost a two-minute load. The
-     * library's own message says which value and why. */
     if (o.work_limit > 0 && jaos_set_work_limit(m, o.work_limit) != JAOS_OK) {
         rc = library_error("set the work limit for", o.file, m);
         goto out;
@@ -1297,12 +1137,6 @@ static int cmd_solve(int argc, char **argv)
         goto out;
     }
 
-    /* A warm start from a solution file: read the statuses, hand them to
-     * the model, two separate calls as jaos.h wants them. The file must be
-     * this model's, which the reader checks by count and by name. Either
-     * kind of file will do since D332 -- an optimum's or a certificate's --
-     * so a run that ended INFEASIBLE can be resumed from where it stopped
-     * after one bound moved. */
     if (o.start != nullptr) {
         const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
         jaos_basis_status *cs = zeroed(nc, sizeof *cs);
@@ -1319,11 +1153,6 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
-    /* The same warm start out of an MPS basis file (D338), which is the
-     * format another solver's basis arrives in. It is the same two calls
-     * with a different reader, and the two flags are refused together
-     * because a solve begins in one place and being handed two is a
-     * question the caller has to answer. */
     if (o.basis != nullptr) {
         const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
         jaos_basis_status *cs = zeroed(nc, sizeof *cs);
@@ -1340,10 +1169,6 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
-    /* The tree's own two inputs (D326): a point the caller already has,
-     * and an objective they do not care to beat. The point is read out of
-     * a solution file the same reader --start uses, and the library
-     * checks it before it prunes anything. */
     if (o.mip_start != nullptr) {
         const int64_t nc = jaos_num_col(m);
         double *sx = zeroed(nc, sizeof *sx);
@@ -1366,9 +1191,7 @@ static int cmd_solve(int argc, char **argv)
 
     jaos_status st = jaos_solve(m);
     if (st != JAOS_OK) {
-        /* The solve did not run to an outcome. A numerical abandonment is
-         * the verdict's own code; anything else (memory, mostly) is the
-         * tool failing to do its job, which is what 5 means. */
+
         fprintf(stderr, "jaos: solve of %s failed: %s: %s\n", o.file,
                 jaos_status_str(st), jaos_model_error(m));
         rc = (st == JAOS_ERR_NUMERICAL) ? EXIT_NUMERICAL : EXIT_USAGE;
@@ -1380,19 +1203,13 @@ static int cmd_solve(int argc, char **argv)
 
     printf("status %s\n", status_word(ss));
     if (!o.quiet) {
-        /* Below status, one fact per line, in a fixed order. */
-        /* jaos_objective refuses when there is no optimum, and the refusal
-         * is the rule: no line rather than a number that cannot be told
-         * apart from a genuine objective. %.17g reads back as the same
-         * double, so two runs that agree in bits agree in text. */
+
         double obj = 0.0;
         if (jaos_objective(m, &obj) == JAOS_OK)
             printf("objective %.17g\n", obj);
         printf("iterations %" PRId64 "\n", jaos_iterations(m));
         printf("work_units %" PRId64 "\n", jaos_work_units(m));
-            /* What presolve removed (D329), only when it removed something:
-         * a line of zeros on a model presolve does not touch is noise,
-         * and a build with presolve compiled out prints nothing at all. */
+
         jaos_presolve_report prep;
         if (jaos_presolve_result(m, &prep) == JAOS_OK && prep.rounds > 0) {
             print_int("presolve_rows", prep.num_row);
@@ -1401,8 +1218,6 @@ static int cmd_solve(int argc, char **argv)
             print_int("presolve_rounds", prep.rounds);
         }
 
-    /* A mixed-integer solve says how big its tree was and what bound
-         * it reached (D288); a plain LP prints neither line. */
         jaos_mip_report mrep;
         if (jaos_mip_result(m, &mrep) == JAOS_OK && mrep.nodes > 0) {
             printf("nodes %" PRId64 "\n", mrep.nodes);
@@ -1412,37 +1227,28 @@ static int cmd_solve(int argc, char **argv)
             printf("fixed_cols %" PRId64 "\n", mrep.fixed_cols);
             printf("tightened %" PRId64 "\n", mrep.tightened);
             printf("bound %.17g\n", mrep.bound);
-            /* The pool's count, only when a pool was asked for (D299). */
+
             int64_t held = 0;
             if (o.pool_size > 0 && jaos_mip_pool_count(m, &held) == JAOS_OK)
                 printf("pool_points %" PRId64 "\n", held);
         }
-        /* Last, and the only line that moves between runs. */
+
         printf("time %.6f\n", jaos_solve_time(m));
     }
     fflush(stdout);
 
     if (o.solution != nullptr) {
-        /* An optimum, or the certificate behind an infeasible or unbounded
-         * verdict (D285). A solve that stopped on a budget has neither. */
+
         if (!solve_finished(ss)) {
             fprintf(stderr, "jaos: no solution file written: the solve "
                     "ended %s, which leaves no answer to write\n",
                     jaos_solve_status_str(ss));
         } else if (jaos_write_solution(m, o.solution) != JAOS_OK) {
-            /* The answer is fine and the file is not: the caller asked for
-             * a file and did not get one, which is an I/O failure whatever
-             * the solve said. */
+
             rc = library_error("write the solution file", o.solution, m);
         }
     }
 
-    /* The basis the solve stopped on, in the format the field exchanges
-     * (D338). The rule is jaos_basis's and is wider than --solution's: a
-     * refusal, an unboundedness and a budget stop all leave a basis worth
-     * writing, and only a solve with none at all does not. That case is
-     * said on stderr and leaves the exit code the answer's, because the
-     * answer is not what went wrong. */
     if (o.write_basis != nullptr) {
         const jaos_status bw = jaos_write_mps_basis(m, o.write_basis);
         if (bw == JAOS_ERR_INVALID_INPUT)
@@ -1452,9 +1258,6 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the basis file", o.write_basis, m);
     }
 
-    /* The point alone, one name a line (D342), which is the shape another
-     * program's checker takes. The rule is jaos_solution's, so a solve
-     * with no proved optimum writes nothing and says why. */
     if (o.write_point != nullptr) {
         const jaos_status pw = jaos_write_point(m, o.write_point);
         if (pw == JAOS_ERR_INVALID_INPUT)
@@ -1464,13 +1267,6 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the point file", o.write_point, m);
     }
 
-    /* The independent checker on the solve's own answer, in the same run
-     * (D347). It is the same report `jaos check FILE SOLUTION` prints and
-     * it saves the round trip through a file, which is the only thing
-     * that stood between a caller and checking every answer. The verdict
-     * goes on its own line rather than into the exit code, because the
-     * exit code is the solve's and a checker that could change it would
-     * make `solve` two commands. */
     if (o.check) {
         if (ss != JAOS_SOLVE_OPTIMAL) {
             fprintf(stderr, "jaos: nothing to check: the solve ended %s, "
@@ -1498,8 +1294,6 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
-    /* The row multipliers in the point file's shape (D348), so the pair
-     * `jaos check --point P --duals D` reads is a pair this tool writes. */
     if (o.write_duals != nullptr) {
         const jaos_status dw = jaos_write_duals(m, o.write_duals);
         if (dw == JAOS_ERR_INVALID_INPUT)
@@ -1509,11 +1303,6 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the duals file", o.write_duals, m);
     }
 
-    /* The whole pool, one point file per entry (D344): `PREFIX-0.pt` is
-     * the best, `PREFIX-1.pt` the next, in the order jaos_mip_pool_count
-     * hands them out. It is the pool's own rule that decides how many
-     * there are, so a run with no pool asked for writes the one point the
-     * search proved and a plain LP writes none at all. */
     if (o.pool_out != nullptr) {
         int64_t npool = 0;
         if (jaos_mip_pool_count(m, &npool) != JAOS_OK)
@@ -1550,11 +1339,6 @@ static int cmd_solve(int argc, char **argv)
         free(px);
     }
 
-    /* The exact proof (D325, D328). An optimum's proof is its coordinates
-     * and needs a jaos_verify first; a certificate is a vector the solve
-     * already published and needs none. A verify that refuses is not a
-     * failure of the solve, so it is said on stderr and the exit code
-     * stays the answer's. */
     if (o.proof != nullptr) {
         if (!solve_finished(ss)) {
             fprintf(stderr, "jaos: no proof written: the solve ended %s\n",
@@ -1585,14 +1369,6 @@ out:
     return rc;
 }
 
-/* ------------------------------------------------------------------------- */
-/* convert                                                                   */
-/* ------------------------------------------------------------------------- */
-
-/* Takes every name off the model, so every row and column is called by
- * its position and the writers print `R<i+1>`, `C<j+1>` and `COST`
- * (D346). No new library call is needed: a setter given NULL takes the
- * name away, and that is the whole of it. */
 static jaos_status drop_names(jaos_model *m)
 {
     jaos_status st = jaos_set_objective_name(m, nullptr);
@@ -1625,8 +1401,6 @@ static int cmd_convert(int argc, char **argv)
     if (in == nullptr || out == nullptr)
         return usage_error("convert takes exactly IN and OUT");
 
-    /* The writer is chosen by OUT's name, and it is chosen before the read:
-     * a typo in the output name should fail before the input is loaded. */
     jaos_status (*write)(jaos_model *, const char *) = writer_for(out);
     if (write == nullptr)
         return usage_error("convert writes .mps or .lp, either with a .gz "
@@ -1644,25 +1418,13 @@ static int cmd_convert(int argc, char **argv)
     else if (positional && drop_names(m) != JAOS_OK)
         rc = library_error("rename the rows and columns of", in, m);
     else if (write(m, out) != JAOS_OK)
-        /* A refused write names the row or column the format cannot
-         * express, and leaves no file behind (jaos.h, jaos_write_mps). */
+
         rc = library_error("write", out, m);
 
     jaos_model_free(m);
     return rc;
 }
 
-/* ------------------------------------------------------------------------- */
-/* The analysis commands                                                     */
-/* ------------------------------------------------------------------------- */
-
-/* The solve the three solve-based commands begin with, and its status line.
- * No budgets and no log: these commands print a report about an answer, and
- * the answer has to be complete for the report to mean anything. Ctrl-C is
- * still honoured, for the reason `solve` honours it, and jaos_iis carries
- * the callback into its own re-solves. Returns -1 when the solve ran to an
- * outcome (whatever it was, in *ss), or the exit code with the message
- * printed. */
 static int solve_for_report(jaos_model *m, const char *path,
                             jaos_solve_status *ss)
 {
@@ -1682,9 +1444,6 @@ static int solve_for_report(jaos_model *m, const char *path,
     return -1;
 }
 
-/* A solve that stopped before an outcome decides nothing about the model,
- * so no report can be made from it and no verdict code fits: it is the
- * tool failing to finish, which is 5. */
 static bool solve_finished(jaos_solve_status ss)
 {
     return ss == JAOS_SOLVE_OPTIMAL || ss == JAOS_SOLVE_INFEASIBLE ||
@@ -1698,17 +1457,11 @@ static int unfinished(const char *path, jaos_solve_status ss)
     return EXIT_USAGE;
 }
 
-/* check FILE SOLUTION [--tol T]: the independent checker, on a solution
- * file, against the model as loaded. The file's column values and row duals
- * are what it judges; the reduced costs, activities and statuses in the
- * file are not read, because the checker recomputes what it needs from the
- * model and takes nothing else on trust. */
 static int cmd_check(int argc, char **argv)
 {
     const char *file = nullptr, *solution = nullptr, *proof = nullptr;
     const char *point = nullptr, *duals = nullptr;
-    /* The binding's default, and the solver's own feasibility tolerance;
-     * bench/run judges the gate at 1e-6 and says so beside its constant. */
+
     double tol = 1e-7;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
@@ -1746,9 +1499,7 @@ static int cmd_check(int argc, char **argv)
     if (solution == nullptr && proof == nullptr && point == nullptr)
         return usage_error("check needs FILE and SOLUTION, or FILE and one "
                            "of --proof PROOF or --point POINT");
-    /* One answer at a time. Each of the three is a different object with
-     * a different checker behind it, and being handed two is a question
-     * the caller has to answer. */
+
     if ((solution != nullptr) + (proof != nullptr) + (point != nullptr) > 1)
         return usage_error("check judges a solution file, a proof file or a "
                            "point file, and one at a time");
@@ -1757,22 +1508,15 @@ static int cmd_check(int argc, char **argv)
                            "is no --point here");
 
     jaos_model *m = nullptr;
-    /* Declared before the proof branch below, because its `goto out`
-     * would otherwise jump over their initialisation. */
+
     double *x = nullptr, *y = nullptr;
-    /* What the report is about, for the failure message, and the duals
-     * the checker gets: NULL where none were read, which is what makes
-     * `checked_duals` false rather than making a zero vector look like a
-     * dual solution. */
+
     const char *judged = nullptr;
     const double *yp = nullptr;
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
 
-    /* An exact proof (D325): judged from the model alone, over the
-     * rationals, with no tolerance and no basis read. Three lines and a
-     * verdict; the exit code is 0 when all three hold. */
     if (proof != nullptr) {
         jaos_proof_report pr;
         memset(&pr, 0, sizeof pr);
@@ -1783,8 +1527,7 @@ static int cmd_check(int argc, char **argv)
                     jaos_model_error(m));
             goto out;
         }
-        /* An optimum's proof has three parts and says which failed;
-         * a certificate has one verdict and a place (D328). */
+
         printf("claims %s\n",
                pr.kind == JAOS_PROOF_FILE_INFEASIBLE ? "infeasible"
                : pr.kind == JAOS_PROOF_FILE_UNBOUNDED ? "unbounded"
@@ -1814,12 +1557,6 @@ static int cmd_check(int argc, char **argv)
         goto out;
     }
 
-    /* A point file: one `NAME VALUE` line per column and nothing else
-     * (D342), so it is what another solver's answer arrives in. The
-     * checker is the same one; what changes is where the numbers came
-     * from. `--duals` brings the row multipliers, in the same shape, and
-     * without it the dual half of the report does not run -- which the
-     * report says itself, on its `checked_duals` line. */
     if (point != nullptr) {
         if (jaos_read_point(m, point, x) != JAOS_OK) {
             rc = library_error("read", point, m);
@@ -1829,18 +1566,13 @@ static int cmd_check(int argc, char **argv)
             rc = library_error("read", duals, m);
             goto out;
         }
-        /* The file claims a point and claims nothing about the model, so
-         * this line says which reader ran and not what the answer is. */
+
         printf("status point\n");
         judged = point;
         yp = duals != nullptr ? y : nullptr;
         goto judge;
     }
 
-    /* The model decides the shape: a file for a different model is refused
-     * here by count or by name, and the message says which record. What
-     * the file claims -- an optimum, or a certificate that there is none --
-     * decides which checker judges it (D285); the first line says which. */
     jaos_solve_status kind;
     if (jaos_solution_file_status(m, solution, &kind) != JAOS_OK) {
         rc = library_error("read", solution, m);
@@ -1904,10 +1636,7 @@ judge:
     }
 
     print_check_report(&rep);
-    /* The verdict is over what was judged. Where no duals came in, the
-     * dual half did not run and `dual_feasible` is false because nothing
-     * set it, so folding it into the exit code would report a feasible
-     * point as a bad answer. */
+
     rc = (rep.primal_feasible && (rep.dual_feasible || !rep.checked_duals))
         ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
 
@@ -1918,8 +1647,6 @@ out:
     return rc;
 }
 
-/* A row's or a column's name as the model gives it: the file's, or the
- * positional one for a row nobody named. JAOS_NAME_MAX + 1 always fits. */
 typedef char namebuf[JAOS_NAME_MAX + 1];
 
 static const char *row_name(const jaos_model *m, int64_t i, namebuf buf)
@@ -1936,8 +1663,6 @@ static const char *col_name(const jaos_model *m, int64_t j, namebuf buf)
     return buf;
 }
 
-/* One line per bound side, so a member that is both sides of one row is two
- * lines and the line count equals `members`. */
 static void print_sides(const jaos_model *m, bool is_col,
                         const jaos_iis_side *side, int64_t n)
 {
@@ -1951,8 +1676,6 @@ static void print_sides(const jaos_model *m, bool is_col,
     }
 }
 
-/* iis FILE: solve, and on INFEASIBLE name one irreducible infeasible
- * subsystem. */
 static int cmd_iis(int argc, char **argv)
 {
     const char *file = nullptr, *write = nullptr;
@@ -1977,9 +1700,6 @@ static int cmd_iis(int argc, char **argv)
     if (file == nullptr)
         return usage_error("iis needs a file");
 
-    /* The writer is chosen before the model is read, the rule `convert`
-     * follows: a typo in the output should fail before a solve is paid
-     * for, and an IIS costs one solve per candidate. */
     jaos_status (*write_fn)(jaos_model *, const char *) = nullptr;
     if (write != nullptr) {
         write_fn = writer_for(write);
@@ -2023,8 +1743,7 @@ static int cmd_iis(int argc, char **argv)
     jaos_iis_report rep;
     memset(&rep, 0, sizeof rep);
     if (jaos_iis(m, rows, cols, &rep) != JAOS_OK) {
-        /* A re-solve that could not decide its side, or an interrupt: the
-         * message says which, and there is no partial subsystem to print. */
+
         rc = library_error("find an infeasible subsystem of", file, m);
         goto out;
     }
@@ -2038,9 +1757,6 @@ static int cmd_iis(int argc, char **argv)
     print_bool("from_certificate", rep.from_certificate);
     rc = EXIT_OPTIMAL;
 
-    /* The subsystem as a model (D343), for a caller who wants to open it
-     * rather than read a list of sides. It keeps the names, so a member
-     * is recognisable in the file by what it was called in the original. */
     if (write != nullptr) {
         jaos_model *sub = nullptr;
         if (jaos_iis_model(m, rows, cols, &sub) != JAOS_OK) {
@@ -2071,10 +1787,6 @@ out:
     return rc;
 }
 
-/* relax FILE [--rows|--cols]: the smallest total change to the bounds that
- * makes the model feasible, and which bounds it falls on. The model is not
- * solved first: a relaxation is a question about the model, and a feasible
- * one answers 0. */
 static int cmd_relax(int argc, char **argv)
 {
     const char *file = nullptr, *apply = nullptr;
@@ -2103,9 +1815,7 @@ static int cmd_relax(int argc, char **argv)
     }
     if (file == nullptr)
         return usage_error("relax needs a file");
-    /* The writer is chosen by the output's name and before the input is
-     * read, the rule `convert` follows: a typo in the output should fail
-     * before a solve is paid for. */
+
     jaos_status (*write)(jaos_model *, const char *) = nullptr;
     if (apply != nullptr) {
         write = writer_for(apply);
@@ -2140,9 +1850,7 @@ static int cmd_relax(int argc, char **argv)
     {
         numbuf b;
         namebuf nm;
-        /* One line per bound that has to move, named and signed, before
-         * the totals: the moves are the answer and the counts describe
-         * them. */
+
         for (int64_t i = 0; i < nr; i++)
             if (rm[i] != 0.0)
                 printf("row %s %s %s\n", row_name(m, i, nm),
@@ -2159,12 +1867,6 @@ static int cmd_relax(int argc, char **argv)
     print_int("work_units", rep.work_units);
     rc = EXIT_OPTIMAL;
 
-    /* The moves, applied and written out, so the answer can be solved and
-     * not only read. Each move is added to the bound it names, which is
-     * the arithmetic the report's own contract states, and the model that
-     * comes out has a feasible point. The objective is the caller's own:
-     * a relaxation says what feasibility costs in bounds, and what the
-     * relaxed model then optimises to is a question for a solve. */
     if (apply != nullptr) {
         for (int64_t i = 0; i < nr && rc == EXIT_OPTIMAL; i++) {
             if (rm[i] == 0.0)
@@ -2220,10 +1922,6 @@ static const char *stage_word(jaos_proof_stage s)
     return "unknown";
 }
 
-/* verify FILE: solve, and on OPTIMAL prove or refuse to prove the published
- * basis in exact arithmetic. The verdict is the exit code: 0 proved, 1 the
- * basis does not certify the answer, 3 refused because the numbers do not
- * fit. A refusal is not a failure, which is why it is not 5. */
 static int cmd_verify(int argc, char **argv)
 {
     const char *file = nullptr, *proof = nullptr, *basis = nullptr;
@@ -2260,10 +1958,6 @@ static int cmd_verify(int argc, char **argv)
     memset(&rep, 0, sizeof rep);
     jaos_solve_status ss;
 
-    /* A basis from a file, proved against the model with no solve at all
-     * (D339). This is the whole of `verify --basis`: the model is never
-     * solved, so the verdict is about the basis the caller brought and
-     * about nothing this solver did. */
     if (basis != nullptr) {
         const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
         jaos_basis_status *cs = zeroed(nc, sizeof *cs);
@@ -2289,11 +1983,7 @@ static int cmd_verify(int argc, char **argv)
         rc = unfinished(file, ss);
         goto out;
     }
-    /* An infeasible answer has no optimum to prove and does have a
-     * certificate to derive exactly (D333), so `verify` runs that
-     * instead: the same exact arithmetic on the same basis, at the
-     * right-hand side the refusal points at. `--proof` then writes the
-     * derived multipliers rather than the published doubles. */
+
     if (ss == JAOS_SOLVE_INFEASIBLE) {
         jaos_exact_ray_report rr;
         memset(&rr, 0, sizeof rr);
@@ -2321,14 +2011,11 @@ static int cmd_verify(int argc, char **argv)
             rc = library_error("write the proof of", file, m);
             goto out;
         }
-        /* The verdict is whether the arithmetic reached an answer, not
-         * whether the answer certifies: `jaos check FILE --proof PATH`
-         * is what judges that, from the model and with no tolerance. */
+
         rc = rr.derived ? EXIT_OPTIMAL : EXIT_NUMERICAL;
         goto out;
     }
-    /* And an unbounded answer has the symmetric derivation (D336): the
-     * same basis, the primal system rather than the transpose one. */
+
     if (ss == JAOS_SOLVE_UNBOUNDED) {
         jaos_exact_ray_report rr;
         memset(&rr, 0, sizeof rr);
@@ -2378,7 +2065,7 @@ report:
     print_int("blocks", rep.blocks);
     print_int("largest_block", rep.largest_block);
     if (rep.status == JAOS_PROOF_BROKEN) {
-        /* The place it breaks, only when it does: a -1 is not a row. */
+
         if (rep.at_row >= 0)
             print_int("at_row", rep.at_row);
         if (rep.at_col >= 0)
@@ -2388,9 +2075,6 @@ report:
     print_int("bytes_held", rep.bytes_held);
     print_int("terms", rep.terms);
 
-    /* What the proof proved, as exact rationals (D286): one line per
-     * column and per row, then the objective, only when asked for and only
-     * when there is a proof. Nothing here moves between runs. */
     if (values && rep.status == JAOS_PROOF_OPTIMAL) {
         namebuf nm;
         const char *v = nullptr;
@@ -2404,7 +2088,6 @@ report:
             printf("objective_exact %s\n", v);
     }
 
-    /* The proof on disk (D325), only where there is one to write. */
     if (proof != nullptr && rep.status == JAOS_PROOF_OPTIMAL) {
         if (jaos_write_proof(m, proof) != JAOS_OK) {
             rc = library_error("write the proof of", file, m);
@@ -2427,25 +2110,6 @@ out:
     return rc;
 }
 
-/* stats FILE: read it and print what the model is. It solves nothing, so
- * it is the one analysis subcommand with no verdict and no exit code but
- * 0; a file it cannot read is the usual load failure. */
-
-/* diff A B: whether two model files describe the same model, and the first
- * place they do not (D349).
- *
- * It exists because every format question in this repository ends in one:
- * a conversion, a relaxation, a subsystem, a compressed write. `cmp` says
- * two files differ and says nothing about the models, and two files that
- * differ byte for byte routinely hold the same model -- a different
- * format, a different name, a reordered section.
- *
- * What it compares is what a model IS: the three sizes, the sense and the
- * constant, every bound and cost, every coefficient, and every name as
- * the model gives it (a row nobody named is `R<i+1>` on both sides, D284).
- * Values are compared exactly, because "close" is not the question this
- * answers; a caller who wants a tolerance wants `check`.
- */
 static int cmd_diff(int argc, char **argv)
 {
     if (argc != 4)
@@ -2477,8 +2141,6 @@ static int cmd_diff(int argc, char **argv)
         DIFF("nonzeros %" PRId64 " %" PRId64 "\n",
              jaos_num_nz(a), jaos_num_nz(b));
 
-    /* A size that differs makes every index below mean something else, so
-     * the walk stops there rather than printing a difference per row. */
     if (diffs == 0) {
         jaos_obj_sense sa, sb;
         double oa = 0.0, ob = 0.0;
@@ -2522,8 +2184,7 @@ static int cmd_diff(int argc, char **argv)
                 DIFF("row_bounds %s %.17g %.17g %.17g %.17g\n",
                      n, la, ua, lb, ub);
         }
-        /* The matrix, entry by entry over the columns, which is the order
-         * both models hold it in. */
+
         for (int64_t j = 0; j < nca; j++) {
             int64_t ka = 0, kb = 0;
             if (jaos_col_entries(a, j, &ka, nullptr, nullptr) != JAOS_OK ||
@@ -2560,11 +2221,6 @@ static int cmd_diff(int argc, char **argv)
     return rc;
 }
 
-/* show FILE --row NAME | --col NAME: one row or one column, spelled out
- * (D350). `stats` counts a model and `diff` compares two; this is the one
- * that answers "what does this constraint actually say", which is the
- * question a wrong answer starts with and which no other command here
- * reaches without a solve. */
 static int cmd_show(int argc, char **argv)
 {
     const char *file = nullptr, *row = nullptr, *col = nullptr;
@@ -2646,8 +2302,7 @@ static int cmd_show(int argc, char **argv)
             print_bool("integer", isint);
     }
     print_int("entries", n);
-    /* One `term NAME VALUE` line per nonzero, naming the other side: a
-     * row's terms are named by column and a column's by row. */
+
     for (int64_t t = 0; t < n; t++)
         printf("term %s %.17g\n",
                row != nullptr ? col_name(m, ix[t], nm)
@@ -2702,9 +2357,6 @@ static int cmd_stats(int argc, char **argv)
     return EXIT_OPTIMAL;
 }
 
-/* ranging FILE: solve, and on OPTIMAL print how far every cost, row bound
- * and column bound may move before the basis stops being optimal. Three
- * blocks, each interval containing the number's current value. */
 static int cmd_ranging(int argc, char **argv)
 {
     if (argc != 3)
@@ -2734,8 +2386,7 @@ static int cmd_ranging(int argc, char **argv)
     }
 
     const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
-    /* Two arrays for costs, four each for the two bound rangings, laid
-     * end to end so there are three allocations to check and not ten. */
+
     cost = zeroed(2 * nc, sizeof *cost);
     rhs = zeroed(4 * nr, sizeof *rhs);
     bnd = zeroed(4 * nc, sizeof *bnd);
@@ -2784,10 +2435,6 @@ out:
     return rc;
 }
 
-/* ------------------------------------------------------------------------- */
-/* main                                                                      */
-/* ------------------------------------------------------------------------- */
-
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -2800,9 +2447,7 @@ int main(int argc, char **argv)
     }
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||
         strcmp(cmd, "help") == 0) {
-        /* `jaos help solve` prints solve's own piece and nothing else
-         * (D345). The whole text is over three hundred lines now, and
-         * most of it is about a command the reader is not using. */
+
         const char *verb = argc > 2 ? argv[2] : nullptr;
         if (argc > 3)
             return usage_error("help takes one command, and got '%s' and "

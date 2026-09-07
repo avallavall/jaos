@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# The command-line tool's own test. `make test` runs it after the C suite,
-# with the path of the binary as its one argument; it exits non-zero when any
-# check fails, so `make test` fails with it.
-#
-# Every input is under tests/data/ and nothing here reaches the network. What
-# is checked is the tool's contract (docs/cli.md), not the solver's: the exit
-# code per outcome, one fact per line, the reproducibility of stdout without
-# its time line, the reader picked by name, the writer picked by name, and a
-# refused write leaving no file behind. The solver's own answers are the C
-# suite's business.
-#
-# SPDX-License-Identifier: Apache-2.0
 set -u
 
 JAOS=${1:-build/cli/jaos}
@@ -22,8 +10,6 @@ trap 'rm -rf "$tmp"' EXIT
 pass() { echo "ok   $1"; }
 flunk() { echo "FAIL $1"; fail=1; }
 
-# expect_exit CODE NAME CMD... : the command must exit with CODE. Its output
-# is kept in $out and $err for the checks that follow.
 out=""
 err=""
 expect_exit() {
@@ -34,31 +20,19 @@ expect_exit() {
     else flunk "$name (exit $got, wanted $want)"; echo "$err" | sed 's/^/     /'; fi
 }
 
-# line_of PREFIX : the one line of $out starting with PREFIX, or nothing.
 line_of() { printf '%s\n' "$out" | grep "^$1 "; }
 
-# The positive analysis checks -- check, verify and ranging on a correct
-# answer -- are skipped under either presolve fault build, the rule the C
-# suite applies to every test that reads a postsolved answer. Those builds
-# corrupt the answer on purpose: the published basis comes out one long, and
-# a wrong count is what jaos_verify and the ranging calls refuse. `make test`
-# passes its EXTRA_CFLAGS in JAOS_CLI_TEST_FLAGS so this script can tell.
 faulty=0
 case "${JAOS_CLI_TEST_FLAGS:-}" in *JAOS_PRESOLVE_FAULT*) faulty=1 ;; esac
-# And the same trick for the build with presolve compiled out, which
-# reports no reduction because it made none (D329).
 nopresolve=0
 case "${JAOS_CLI_TEST_FLAGS:-}" in *JAOS_NO_PRESOLVE*) nopresolve=1 ;; esac
 [ "$faulty" -eq 1 ] && echo "note fault build: positive analysis checks skipped"
 
-# The binary must exist; without it every check below fails for one reason.
 if [ ! -x "$JAOS" ]; then
     echo "FAIL $JAOS is not an executable; build it with make cli"
     exit 1
 fi
 
-# ---------------------------------------------------------------- version
-# The string is jaos_version()'s, which is JAOS_VERSION_STRING in jaos.h.
 want=$(sed -n 's/^#define JAOS_VERSION_STRING "\([^"]*\)".*/\1/p' include/jaos.h)
 expect_exit 0 "--version exits 0" "$JAOS" --version
 [ -n "$want" ] && [ "$out" = "$want" ] \
@@ -70,8 +44,6 @@ printf '%s\n' "$out" | grep -q '^Usage:' \
     && pass "--help prints the usage" || flunk "--help printed no usage"
 full_help=$(printf '%s\n' "$out" | wc -l)
 
-# help COMMAND prints that command's own piece (D345): its synopsis lines,
-# its own text and the footer, and nothing about the other seven.
 for v in solve convert check iis relax verify stats ranging; do
     expect_exit 0 "help $v exits 0" "$JAOS" help "$v"
     printf '%s\n' "$out" | grep -q "^  jaos $v " \
@@ -81,8 +53,6 @@ for v in solve convert check iis relax verify stats ranging; do
         && pass "and is shorter than the whole text" \
         || flunk "help $v printed everything"
 done
-# The control: solve's text is in the full help and not in another
-# command's, so the filtering is doing something.
 "$JAOS" help convert | grep -q '^solve reads FILE' \
     && flunk "help convert printed solve's text" \
     || pass "help convert leaves solve's text out"
@@ -94,7 +64,6 @@ expect_exit 5 "help of an unknown command is a usage error" \
 expect_exit 5 "help of two commands is a usage error" \
     "$JAOS" help solve check
 
-# ------------------------------------------------------------------ usage
 expect_exit 5 "no arguments is a usage error" "$JAOS"
 expect_exit 5 "an unknown command is a usage error" "$JAOS" frobnicate
 expect_exit 5 "an unknown option is a usage error" \
@@ -117,12 +86,9 @@ expect_exit 5 "--log refuses an unknown level" \
     "$JAOS" solve "$DATA/solve1.mps" --log loud
 expect_exit 5 "a missing option value is a usage error" \
     "$JAOS" solve "$DATA/solve1.mps" --solution
-# The library refuses this one, and the tool passes the refusal on.
 expect_exit 5 "--primal-tol refuses a negative" \
     "$JAOS" solve "$DATA/solve1.mps" --primal-tol -1e-7
 
-# ------------------------------------------------------------------ solve
-# solve1.mps is optimal at 29 (the file's header works it out).
 expect_exit 0 "solve of an optimal model exits 0" "$JAOS" solve "$DATA/solve1.mps"
 [ "$(line_of status)" = "status optimal" ] \
     && pass "it prints 'status optimal'" \
@@ -135,10 +101,6 @@ for k in iterations work_units time; do
     [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
         || flunk "no $k line in: $out"
 done
-# Five facts, plus the four presolve lines where presolve fired
-# (D329). The rule is still one fact per line and nothing else, and
-# the count is stated for both builds rather than relaxed to "at
-# least five", which would stop catching a stray line.
 want=5
 [ "$nopresolve" -eq 0 ] && [ -n "$(line_of presolve_rounds)" ] && want=9
 [ "$(printf '%s\n' "$out" | wc -l)" -eq "$want" ] \
@@ -148,7 +110,6 @@ want=5
     && pass "time is the last line" || flunk "time is not the last line"
 mps_objective=$(line_of objective)
 
-# Two runs of the same file agree byte for byte once the time line is gone.
 "$JAOS" solve "$DATA/solve1.mps" | grep -v '^time ' > "$tmp/run1"
 "$JAOS" solve "$DATA/solve1.mps" | grep -v '^time ' > "$tmp/run2"
 cmp -s "$tmp/run1" "$tmp/run2" \
@@ -160,7 +121,6 @@ expect_exit 0 "--quiet exits 0" "$JAOS" solve --quiet "$DATA/solve1.mps"
     && pass "--quiet prints the status line only" \
     || flunk "--quiet printed: $out"
 
-# The log goes to stderr and changes nothing on stdout.
 "$JAOS" solve "$DATA/solve1.mps" --log detail 2>"$tmp/log" \
     | grep -v '^time ' > "$tmp/run3"
 [ -s "$tmp/log" ] && pass "--log detail writes to stderr" \
@@ -169,16 +129,11 @@ cmp -s "$tmp/run1" "$tmp/run3" \
     && pass "--log leaves stdout unchanged" \
     || { flunk "--log changed stdout"; diff "$tmp/run1" "$tmp/run3"; }
 
-# A gzip file is read by the same reader as its plain form.
 expect_exit 0 "a gzip MPS file solves" "$JAOS" solve "$DATA/solve1.mps.gz"
 [ "$(line_of objective)" = "$mps_objective" ] \
     && pass "the gzip file gives the same objective line" \
     || flunk "gzip objective '$(line_of objective)' vs '$mps_objective'"
 
-# A work limit of one unit stops the solve before its first iteration: the
-# simplex tests the budget at the top of every iteration, and the first
-# factorization has already cost more than one unit. Deterministic, so the
-# exit code and the status word are pinned; the counts are not.
 expect_exit 3 "a solve stopped by --work-limit exits 3" \
     "$JAOS" solve "$DATA/solve1.mps" --work-limit 1
 [ "$(line_of status)" = "status work_limit" ] \
@@ -188,8 +143,6 @@ expect_exit 3 "a solve stopped by --work-limit exits 3" \
     && pass "no objective line for a stopped solve" \
     || flunk "a stopped solve printed '$(line_of objective)'"
 
-# ------------------------------------------------------------- infeasible
-# t1.mps has no feasible point (tests/test_simplex.c says why).
 expect_exit 1 "an infeasible model exits 1" "$JAOS" solve "$DATA/t1.mps"
 [ "$(line_of status)" = "status infeasible" ] \
     && pass "it prints 'status infeasible'" \
@@ -198,7 +151,6 @@ expect_exit 1 "an infeasible model exits 1" "$JAOS" solve "$DATA/t1.mps"
     && pass "no objective line without an optimum" \
     || flunk "an infeasible solve printed '$(line_of objective)'"
 
-# --------------------------------------------------------------- solution
 expect_exit 0 "--solution on an optimum exits 0" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/a.sol"
 [ "$(head -n 1 "$tmp/a.sol" 2>/dev/null)" = "# JAOS solution file, format 1" ] \
@@ -213,7 +165,6 @@ expect_exit 1 "--solution on an infeasible model keeps exit 1" \
 grep -q '^status infeasible$' "$tmp/b.sol" 2>/dev/null \
     && pass "and writes the certificate (D285)" \
     || flunk "no certificate file for an infeasible model: $(head -n 3 "$tmp/b.sol" 2>&1)"
-# A solve cut by a budget has no answer of any kind, so no file.
 expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
     "$JAOS" solve "$DATA/solve1.mps" --work-limit 1 --solution "$tmp/w.sol"
 [ ! -e "$tmp/w.sol" ] && pass "and writes no file" \
@@ -224,10 +175,6 @@ expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
 expect_exit 5 "--solution to an unwritable path is an error" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/no/such/dir/c.sol"
 
-# A mixed-integer model solves by branch and bound and says so with a
-# nodes line and a bound line (D288); t4_int's optimum is 3.5, and its
-# relaxation is worth the same, so the marks are what the round trip
-# through convert has to carry.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
 [ "$(line_of objective)" = "objective 3.5" ] && pass "to its integer optimum" \
@@ -235,9 +182,6 @@ expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
 [ -n "$(line_of nodes)" ] && [ "$(line_of bound)" = "bound 3.5" ] \
     && pass "and prints its nodes and bound" \
     || flunk "MIP lines: $(line_of nodes) / $(line_of bound)"
-# The two switches of D289 through the command line: a cuts line beside
-# nodes, both switches accepted and the answer unmoved by either, and a
-# negative round count refused as a usage error.
 [ -n "$(line_of cuts)" ] && pass "and a cuts line" \
     || flunk "no cuts line: $(line_of cuts)"
 expect_exit 0 "no cuts and a dive still solve it" \
@@ -254,33 +198,24 @@ expect_exit 0 "and the rounding heuristic switches off" \
     || flunk "no-heuristics MIP: $(line_of objective) / $(line_of heuristic_points)"
 expect_exit 5 "a negative round count is a usage error" \
     "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds -1
-# Cuts below the root (D296): a depth accepted with the answer unmoved, a
-# negative depth a usage error.
 expect_exit 0 "cuts to depth 3 still solve it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 3
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "cut depth: $(line_of objective)"
 expect_exit 5 "--cut-depth refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-depth -1
-# Cover cuts (D300): a round accepted with the answer unmoved, a negative
-# count a usage error.
 expect_exit 0 "a round of cover cuts still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "cover rounds: $(line_of objective)"
 expect_exit 5 "--cover-rounds refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --cover-rounds -1
-# A cap on a node's cuts (D301): accepted with the answer unmoved, a
-# negative cap a usage error.
 expect_exit 0 "a node cut cap still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cut-depth 2 --node-cut-cap 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "node cut cap: $(line_of objective)"
 expect_exit 5 "--node-cut-cap refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-cut-cap -1
-# The two cut stalls (D304, D305), the root-cut drop (D306) and the lifted
-# cover (D307): each accepted with the answer unmoved, both spellings of
-# the two switches; a negative fraction and a word are usage errors.
 expect_exit 0 "a cut stall still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 3 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --cut-stall 0.01
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -305,8 +240,6 @@ expect_exit 0 "lifted covers still solve it" \
     || flunk "cover lift: $(line_of objective)"
 expect_exit 0 "and the extended cover by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-cover-lift
-# MIR cuts (D309) and the backtracking dive (D308): each accepted with the
-# answer unmoved; a negative count is a usage error.
 expect_exit 0 "a round of MIR cuts still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --mir-rounds 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -319,9 +252,6 @@ expect_exit 0 "a backtracking dive still solves it" \
     || flunk "dive backtrack: $(line_of objective)"
 expect_exit 5 "--dive-backtrack refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-backtrack -1
-# MIR cuts at the nodes (D310) and the dive's resume gap (D311): each
-# accepted with the answer unmoved, both spellings of the switch; a
-# negative fraction is a usage error.
 expect_exit 0 "MIR cuts at the nodes still solve it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 3 --node-mir
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -334,9 +264,6 @@ expect_exit 0 "a dive bounded by the gap still solves it" \
     || flunk "dive gap: $(line_of objective)"
 expect_exit 5 "--dive-gap refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-gap -1
-# The MIR aggregation (D312) and the dive heuristic (D313): each accepted
-# with the answer unmoved, and the dive heuristic puts the first incumbent
-# at the root; a negative count is a usage error either way.
 expect_exit 0 "an aggregated MIR round still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --cut-depth 0 --mir-rounds 2 --mir-aggregate 2
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -351,9 +278,6 @@ expect_exit 0 "the dive heuristic still solves it" \
     || flunk "dive heuristic: $(line_of objective) / $(line_of first_incumbent)"
 expect_exit 5 "--dive-heuristic refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive-heuristic -1
-# The dive heuristic below the root (D314), RINS (D315) and the dive's
-# degradation bound (D316): each accepted with the answer unmoved; a
-# negative value is a usage error for all three.
 expect_exit 0 "a dive at every node still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 5 --dive-heuristic-depth 20
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -372,13 +296,6 @@ expect_exit 0 "a dive bounded by the degradation still solves it" \
     || flunk "dive degrade: $(line_of objective)"
 expect_exit 5 "--dive-degrade refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-degrade -1
-# The feasibility pump (D318): the flag parses and the answer does not
-# move. Whether the pump finds a point on THIS model is not checked
-# here and must not be: -DJAOS_NO_PRESOLVE hands the tree a different
-# shape and the pump finds nothing on it at 5, 20 or 100 rounds,
-# which is a heuristic giving up and not a defect. The claim that the
-# pump moves the first incumbent to the root is in tests/test_mip.c,
-# on a model that test builds itself. A negative count is a usage
 # error.
 expect_exit 0 "the feasibility pump still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 0 --feaspump 5
@@ -386,10 +303,6 @@ expect_exit 0 "the feasibility pump still solves it" \
     || flunk "feaspump: $(line_of objective)"
 expect_exit 5 "--feaspump refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --feaspump -1
-# The pump's two extensions: the general-integer distance and the
-# objective pump each parse and leave the answer alone, for the reason
-# the pump's own check above gives; 2 is not a switch and a decay of 1
-# would never fade, so both are usage errors.
 expect_exit 0 "the general pump still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 0 --feaspump 5 --pump-general 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -402,14 +315,6 @@ expect_exit 5 "--pump-general refuses 2" \
     "$JAOS" solve "$DATA/nl_int.lp" --pump-general 2
 expect_exit 5 "--pump-obj refuses 1" \
     "$JAOS" solve "$DATA/nl_int.lp" --pump-obj 1
-# The pump's guard (D322), reduced-cost fixing (D323) and bound
-# propagation (D324): each parses and leaves the answer alone. What each
-# one FINDS on this model is not checked here, for the reason the pump's
-# own check above gives -- -DJAOS_NO_PRESOLVE hands the tree a different
-# shape, so a count of fixings or of tightened bounds is not the same
-# number in the five build configurations. Those counts are asserted in
-# tests/test_mip.c, on models that file builds itself. A negative pass
-# count is a usage error.
 expect_exit 0 "the pump past the guard still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --feaspump 5 --pump-always
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -432,9 +337,6 @@ expect_exit 0 "propagation at the root alone still solves it" \
     || flunk "propagate depth: $(line_of objective)"
 expect_exit 5 "--propagate refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --propagate -1
-# The slack-cut drop (D297), the probe depth (D298) and the pool (D299):
-# each accepted with the answer unmoved; a pool line only when asked for;
-# a pool of zero and a negative probe depth are usage errors.
 expect_exit 0 "slack cuts kept still solve it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 2 --no-cut-drop
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -454,8 +356,6 @@ expect_exit 0 "a pool of two still solves it" \
     || flunk "pool: $(line_of objective) / $(line_of pool_points)"
 expect_exit 5 "--pool-size refuses zero" \
     "$JAOS" solve "$DATA/nl_int.lp" --pool-size 0
-# --pool-out writes one point file per pool entry (D344), and each of them
-# is a point the checker takes.
 rm -f "$tmp"/pl-*.pt
 expect_exit 0 "--pool-out writes the pool" \
     "$JAOS" solve "$DATA/nl_int.lp" --pool-size 2 --pool-out "$tmp/pl"
@@ -470,18 +370,12 @@ expect_exit 0 "and the best one checks out" \
 [ "$(line_of primal_feasible)" = "primal_feasible yes" ] \
     && pass "as a feasible point" \
     || flunk "the pool point printed '$(line_of primal_feasible)'"
-# An LP has no integer point, so there is nothing to write and it says so
-# without changing the exit code.
 rm -f "$tmp"/lp-*.pt
 expect_exit 0 "--pool-out on an LP writes nothing" \
     "$JAOS" solve "$DATA/solve1.mps" --pool-out "$tmp/lp"
 [ -z "$(ls "$tmp"/lp-*.pt 2>/dev/null)" ] && pass "and leaves no files" \
     || flunk "an LP wrote pool files"
 [ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
-# A node limit (D291): nl_int.lp's root is fractional with the cuts off,
-# and the rounding finds the optimum there, so a limit of one node stops
-# as node_limit with exit 3 and an incumbent on the first node; zero is
-# refused.
 expect_exit 3 "a node limit stops the tree" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --node-limit 1
 [ "$(line_of status)" = "status node_limit" ] && [ "$(line_of nodes)" = "nodes 1" ] \
@@ -490,8 +384,6 @@ expect_exit 3 "a node limit stops the tree" \
     || flunk "node limit: $(line_of status) / $(line_of nodes) / $(line_of first_incumbent)"
 expect_exit 5 "--node-limit refuses zero" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-limit 0
-# The branching rule (D292): both names accepted and the answer unmoved,
-# an unknown name a usage error.
 expect_exit 0 "most-fractional branching still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching most-fractional
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -500,17 +392,12 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
-# Reliability (D293): zero never probes and still solves; a negative count
-# is a usage error.
 expect_exit 0 "reliability zero still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --reliability 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "reliability 0: $(line_of objective)"
 expect_exit 5 "--reliability refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --reliability -1
-# A work cap on each probe (D294) and the dive's child rule (D295): both
-# accepted with the answer unmoved; a negative cap and an unknown rule are
-# usage errors.
 expect_exit 0 "a capped probe still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --reliability 1 --probe-cap 0.5
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -534,9 +421,6 @@ expect_exit 0 "an LP model prints no nodes line" "$JAOS" solve "$DATA/solve1.mps
 [ -z "$(line_of nodes)" ] && pass "and it does not" || flunk "an LP printed nodes"
 fi
 
-# --start warm-starts from the basis a solution file carries: the model's
-# own optimum re-solves with no iteration at all, and the objective line
-# is the same. A file for another model, or a certificate, is refused.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--start from the model's own solution exits 0" \
     "$JAOS" solve "$DATA/solve1.mps" --start "$tmp/a.sol"
@@ -549,9 +433,6 @@ expect_exit 0 "--start from the model's own solution exits 0" \
 fi
 expect_exit 5 "--start with a file for another model exits 5" \
     "$JAOS" solve "$DATA/g2.lp" --start "$tmp/a.sol"
-# A certificate file carries the basis its refusal stopped on since D332,
-# so --start takes one and the model answers infeasible again, which is
-# exit 1. What is refused is a file with no basis in it at all.
 expect_exit 1 "--start from a certificate exits 1, the model's own verdict" \
     "$JAOS" solve "$DATA/t1.mps" --start "$tmp/b.sol"
 [ "$(line_of status)" = "status infeasible" ] \
@@ -561,9 +442,6 @@ grep -q '^basis ' "$tmp/b.sol" \
     && pass "the certificate file carries a basis section" \
     || flunk "no basis records in the certificate file"
 
-# solve --check runs the independent checker on the answer in the same
-# run (D347): the same report `check` prints, plus a check_ok line, and
-# the exit code stays the solve's.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "solve --check exits with the solve's code" \
     "$JAOS" solve "$DATA/solve1.mps" --check
@@ -573,8 +451,6 @@ expect_exit 0 "solve --check exits with the solve's code" \
 [ -n "$(line_of primal_feasible)" ] && [ -n "$(line_of gap_certified)" ] \
     && pass "and prints the checker's own report" \
     || flunk "solve --check printed no report"
-# The exit code is the solve's and not the checker's, which is what keeps
-# `solve` one command.
 expect_exit 1 "--check on an infeasible model still exits 1" \
     "$JAOS" solve "$DATA/t1.mps" --check
 [ -z "$(line_of check_ok)" ] && pass "and checks nothing, since there is no optimum" \
@@ -582,15 +458,6 @@ expect_exit 1 "--check on an infeasible model still exits 1" \
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
 fi
 
-# --write-basis and --basis, the MPS basis file (D338). The pair is
-# checked the same way --start is: write the optimum's basis, start a
-# second run from it, and require no iteration. The file's own shape is
-# checked too, because a reader that took anything would pass the trip.
-#
-# Skipped under either fault build, the rule every check that reads a
-# published basis follows: those builds publish one basic variable too
-# many on purpose, and the writer refuses a basis of the wrong size
-# rather than writing one, so there is no file to check.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--write-basis writes a basis file" \
     "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/a.bas"
@@ -612,15 +479,12 @@ expect_exit 5 "--basis with a file for another model exits 5" \
     "$JAOS" solve "$DATA/g2.lp" --basis "$tmp/a.bas"
 expect_exit 5 "--basis and --start together is a usage error" \
     "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/a.bas" --start "$tmp/a.sol"
-# An infeasible model stops on a basis too, so the file is written and the
-# exit code stays the answer's rather than becoming the writer's.
 expect_exit 1 "--write-basis after an infeasible answer exits 1" \
     "$JAOS" solve "$DATA/t1.mps" --write-basis "$tmp/b.bas"
 fi
 expect_exit 5 "--basis with a missing file exits 5" \
     "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/no-such.bas"
 
-# ---------------------------------------------------------------- convert
 expect_exit 0 "convert MPS to LP exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.lp"
 expect_exit 0 "the written LP solves" "$JAOS" solve "$tmp/solve1.lp"
@@ -635,7 +499,6 @@ expect_exit 0 "the written MPS solves" "$JAOS" solve "$tmp/solve1b.mps"
     && pass "and gives the same objective line" \
     || flunk "MPS objective '$(line_of objective)' vs '$mps_objective'"
 
-# The reader is picked by name: .lp and .lp.gz go to the LP reader.
 expect_exit 0 "an LP file solves" "$JAOS" solve "$DATA/g1.lp"
 lp_objective=$(line_of objective)
 expect_exit 0 "a gzip LP file solves" "$JAOS" solve "$DATA/g1.lp.gz"
@@ -648,9 +511,6 @@ expect_exit 0 "the MPS written from LP solves" "$JAOS" solve "$tmp/g1.mps"
     && pass "and gives the same objective line as the LP" \
     || flunk "MPS-from-LP objective '$(line_of objective)' vs '$lp_objective'"
 
-# A .gz after either extension compresses the output (D340). The file is
-# checked against the system's own gzip where there is one, which is the
-# claim that matters: a .gz JAOS writes is one anything reads.
 expect_exit 0 "convert to .mps.gz exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/z.mps.gz"
 expect_exit 0 "the compressed MPS solves" "$JAOS" solve "$tmp/z.mps.gz"
@@ -673,12 +533,6 @@ if command -v gzip >/dev/null 2>&1; then
         && pass "and it decompresses to the plain file byte for byte" \
         || flunk "gzip -dc of the .gz differs from the plain write"
 fi
-# The solution file and the basis file take the name as well. The basis
-# half is skipped under a fault build, which publishes no basis worth
-# writing; the rest of this block is about the container and not the
-# answer, so it runs everywhere.
-# --write-duals is the other half of the point file (D348), so both halves
-# of `check --point --duals` come out of this tool.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--write-point and --write-duals together" \
     "$JAOS" solve "$DATA/solve1.mps" --write-point "$tmp/wp.pt" \
@@ -702,9 +556,6 @@ expect_exit 0 "--write-basis takes one too" \
     || flunk "the .gz basis is missing"
 fi
 
-# --positional takes every name off first (D346), which is the escape
-# hatch for a name the LP dialect cannot spell. The control is that the
-# names really are gone and the model is not.
 expect_exit 0 "convert --positional exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/pos.lp" --positional
 grep -q 'C1' "$tmp/pos.lp" && pass "and the file uses positional names" \
@@ -715,8 +566,6 @@ expect_exit 0 "the positional LP solves" "$JAOS" solve "$tmp/pos.lp"
 [ "$(line_of objective)" = "$mps_objective" ] \
     && pass "to the same objective, so only the names were lost" \
     || flunk "positional objective '$(line_of objective)'"
-# Without it the same model keeps its names, which is what makes the
-# option do something.
 expect_exit 0 "convert without it keeps the names" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/named.lp"
 grep -q 'X1' "$tmp/named.lp" && pass "and X1 is in the file" \
@@ -731,10 +580,6 @@ expect_exit 5 "convert of an unreadable input is an error" \
     "$JAOS" convert "$DATA/e_badnum.mps" "$tmp/bad.lp"
 [ ! -e "$tmp/bad.lp" ] && pass "and leaves no file" || flunk "bad.lp was written"
 
-# The LP writer refuses a free row (docs/format-support.md, "What the LP
-# dialect cannot express"), names it, and leaves no file behind. t3_objname.mps
-# has one: its first N row is not the objective, so it loads as a free row.
-# The MPS writer takes the same model.
 expect_exit 5 "a refused LP write exits 5" \
     "$JAOS" convert "$DATA/t3_objname.mps" "$tmp/freerow.lp"
 printf '%s\n' "$err" | grep -q "free" && pass "and prints the writer's refusal" \
@@ -743,16 +588,10 @@ printf '%s\n' "$err" | grep -q "free" && pass "and prints the writer's refusal" 
     || flunk "a refused write left freerow.lp behind"
 expect_exit 0 "the same model converts to MPS" \
     "$JAOS" convert "$DATA/t3_objname.mps" "$tmp/freerow.mps"
-# A ranged row is not refused any more (D239): it writes as a two-sided row
-# and reads back.
 expect_exit 0 "a ranged row converts to LP" \
     "$JAOS" convert "$DATA/g_ranged.lp" "$tmp/ranged.lp"
 expect_exit 0 "and the written LP solves" "$JAOS" solve "$tmp/ranged.lp"
 
-
-# ------------------------------------------------------------------- diff
-# diff says whether two files describe the same model, which `cmp` cannot:
-# a model converted to another format is the same model in different bytes.
 expect_exit 0 "convert then diff exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/dd.lp"
 expect_exit 0 "diff of a model against its own conversion exits 0" \
@@ -763,7 +602,6 @@ expect_exit 0 "diff of a model against its own conversion exits 0" \
 cmp -s "$DATA/solve1.mps" "$tmp/dd.lp" \
     && flunk "the two files are byte-identical, so the test proves nothing" \
     || pass "and the two files are not byte-identical, so it proves something"
-# The case it must reject.
 expect_exit 1 "diff of two different models exits 1" \
     "$JAOS" diff "$DATA/solve1.mps" "$DATA/t1.mps"
 [ "$(line_of differences)" != "differences 0" ] \
@@ -774,7 +612,6 @@ expect_exit 5 "diff with one file is a usage error" \
 expect_exit 5 "diff of a missing file exits 5" \
     "$JAOS" diff "$DATA/solve1.mps" "$tmp/no-such.mps"
 
-# ------------------------------------------------------------------- show
 expect_exit 0 "show --row exits 0" \
     "$JAOS" show "$DATA/solve1.mps" --row DEMAND
 [ "$(line_of entries)" = "entries 3" ] && pass "and counts the row's terms" \
@@ -792,8 +629,6 @@ expect_exit 5 "show without --row or --col is a usage error" \
     "$JAOS" show "$DATA/solve1.mps"
 expect_exit 5 "show with both is a usage error" \
     "$JAOS" show "$DATA/solve1.mps" --row DEMAND --col X1
-# ------------------------------------------------------------------ check
-# a.sol is solve1's own answer, written above.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "check of a model's own solution exits 0" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol"
@@ -812,9 +647,6 @@ done
 cmp -s "$tmp/chk1" "$tmp/chk2" && pass "two check runs agree byte for byte" \
     || { flunk "two check runs differ"; diff "$tmp/chk1" "$tmp/chk2"; }
 
-# The same answer with X1 pushed to 400, past its bound of 100, is not
-# primal feasible, and it is the checker that says so, not the reader. The
-# record carries the file's own column name (D284).
 sed 's/^col X1 [^ ]* /col X1 400 /' "$tmp/a.sol" > "$tmp/bad.sol"
 grep -q '^col X1 400 ' "$tmp/bad.sol" || flunk "the tampered file was not built"
 expect_exit 1 "check of an infeasible answer exits 1" \
@@ -824,8 +656,6 @@ expect_exit 1 "check of an infeasible answer exits 1" \
     || flunk "check printed '$(line_of primal_feasible)'"
 fi
 
-# g2.lp has two columns and two rows; solve1's file has three of each, and
-# the reader refuses a file that does not fit the model.
 expect_exit 5 "check with a solution for another model exits 5" \
     "$JAOS" check "$DATA/g2.lp" "$tmp/a.sol"
 [ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
@@ -838,10 +668,6 @@ expect_exit 5 "check --tol refuses a word" \
 [ "$faulty" -eq 0 ] && expect_exit 0 "check --tol takes a number" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol 1e-6
 
-# The point file (D342): another solver's answer, in the shape two lines
-# of awk produce. Written here by solve --write-point, judged by
-# check --point, and both ways round -- a point that is not feasible has
-# to be refused, or the first half proves nothing.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--write-point writes a point file" \
     "$JAOS" solve "$DATA/solve1.mps" --write-point "$tmp/p.pt"
@@ -859,8 +685,6 @@ expect_exit 0 "check --point judges it" \
 [ "$(line_of checked_duals)" = "checked_duals no" ] \
     && pass "and says the duals were not checked" \
     || flunk "check --point printed '$(line_of checked_duals)'"
-# The duals out of the model's own solution file, which is what a caller
-# with another solver's answer would build the same way.
 awk '$1 == "row" { print $2, $4 }' "$tmp/a.sol" > "$tmp/p.du"
 expect_exit 0 "check --point --duals runs the dual half too" \
     "$JAOS" check "$DATA/solve1.mps" --point "$tmp/p.pt" --duals "$tmp/p.du"
@@ -870,15 +694,12 @@ expect_exit 0 "check --point --duals runs the dual half too" \
 [ "$(line_of dual_feasible)" = "dual_feasible yes" ] \
     && pass "and the answer is dual feasible" \
     || flunk "check --duals printed '$(line_of dual_feasible)'"
-# The case it must reject: every value moved off the answer.
 awk '!/^#/ { print $1, $2 + 5 }' "$tmp/p.pt" > "$tmp/bad.pt"
 expect_exit 1 "check --point of a point that is not feasible exits 1" \
     "$JAOS" check "$DATA/solve1.mps" --point "$tmp/bad.pt"
 [ "$(line_of primal_feasible)" = "primal_feasible no" ] \
     && pass "and says so" \
     || flunk "check of a bad point printed '$(line_of primal_feasible)'"
-# A file that names fewer columns than the model has is refused, not
-# completed with zeros.
 head -2 "$tmp/p.pt" > "$tmp/short.pt"
 expect_exit 5 "check --point of a short file exits 5" \
     "$JAOS" check "$DATA/solve1.mps" --point "$tmp/short.pt"
@@ -892,9 +713,6 @@ expect_exit 5 "check --duals without --point is a usage error" \
 expect_exit 5 "check --point with a missing file exits 5" \
     "$JAOS" check "$DATA/solve1.mps" --point "$tmp/no-such.pt"
 
-# An infeasible solve writes its certificate to the solution file, and
-# check judges that certificate from the model alone (D285). t1.mps is
-# infeasible; its file says so and carries one multiplier per row.
 expect_exit 1 "solve --solution on an infeasible model exits 1" \
     "$JAOS" solve "$DATA/t1.mps" --solution "$tmp/t1.sol"
 grep -q '^status infeasible$' "$tmp/t1.sol" \
@@ -914,8 +732,6 @@ for k in sup_columns inf_rows gap; do
     [ -n "$(line_of $k)" ] && pass "it prints a $k line" \
         || flunk "no $k line in: $out"
 done
-# The same certificate with every multiplier zeroed proves nothing, and it
-# is the checker that says so: the reader takes it.
 sed 's/^ray \([^ ]*\) .*/ray \1 0/' "$tmp/t1.sol" > "$tmp/t1zero.sol"
 expect_exit 1 "check of a zeroed certificate exits 1" \
     "$JAOS" check "$DATA/t1.mps" "$tmp/t1zero.sol"
@@ -924,7 +740,6 @@ expect_exit 1 "check of a zeroed certificate exits 1" \
 expect_exit 5 "check of a certificate against another model exits 5" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/t1.sol"
 
-# -------------------------------------------------------------------- iis
 expect_exit 0 "iis of an infeasible model exits 0" "$JAOS" iis "$DATA/t1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status infeasible" ] \
     && pass "its first line is the status" \
@@ -934,8 +749,6 @@ sides=$(printf '%s\n' "$out" | grep -c '^\(row\|col\) [^ ]* \(lower\|upper\)$')
 [ -n "$members" ] && [ "$members" -ge 1 ] && [ "$sides" -eq "$members" ] \
     && pass "one side line per member ($members)" \
     || flunk "members=$members but $sides side lines"
-# Sides are named as the file names them (D284): t1's rows are LIM1, LIM2
-# and EQ1 and its columns X1..X3, and nothing else may appear.
 [ "$(printf '%s\n' "$out" | grep -c '^\(row \(LIM1\|LIM2\|EQ1\)\|col X[123]\) \(lower\|upper\)$')" -eq "$sides" ] \
     && pass "every side carries the file's own name" \
     || flunk "a side is not named by the file: $(printf '%s\n' "$out" | grep '^\(row\|col\) ')"
@@ -952,7 +765,6 @@ expect_exit 1 "iis of an optimal model exits 1" "$JAOS" iis "$DATA/solve1.mps"
 [ "$out" = "status optimal" ] && pass "and prints only the status" \
     || flunk "iis of an optimal model printed: $out"
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
-# verify on an infeasible model derives the exact certificate (D333).
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "verify of an infeasible model exits 0" \
     "$JAOS" verify "$DATA/t1.mps" --proof "$tmp/t1.proof"
@@ -976,9 +788,6 @@ fi
 expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
 expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
 
-# iis --write writes the subsystem as a model (D343), and the check that
-# settles it is to solve the file: a subsystem that reads anything but
-# infeasible is not one.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "iis --write writes the subsystem" \
     "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.mps"
@@ -989,8 +798,6 @@ expect_exit 1 "and the file it wrote is infeasible" \
 [ "$(line_of status)" = "status infeasible" ] \
     && pass "which is what a subsystem has to be" \
     || flunk "the subsystem solved '$(line_of status)'"
-# It is smaller than the model it came from, which is the other half of
-# the word. t1.mps has three rows and one is a bystander.
 expect_exit 0 "iis --write to LP works too" \
     "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.lp"
 [ "$(line_of subsystem_rows)" = "subsystem_rows 2" ] \
@@ -998,8 +805,6 @@ expect_exit 0 "iis --write to LP works too" \
     || flunk "iis --write printed '$(line_of subsystem_rows)'"
 expect_exit 1 "and the LP it wrote is infeasible as well" \
     "$JAOS" solve "$tmp/sub.lp"
-# --positional reaches every command that writes a model, not just
-# convert (D346): the same escape hatch for the same LP dialect limit.
 expect_exit 0 "iis --write --positional exits 0" \
     "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sp.lp" --positional
 grep -q 'C1' "$tmp/sp.lp" && pass "and the subsystem uses positional names" \
@@ -1018,13 +823,11 @@ expect_exit 5 "iis --write to an unknown extension is a usage error" \
 expect_exit 5 "iis --write needs a path" "$JAOS" iis "$DATA/t1.mps" --write
 expect_exit 5 "iis refuses an unknown option" \
     "$JAOS" iis "$DATA/t1.mps" --bogus
-# A model that is not infeasible has no subsystem, so nothing is written.
 expect_exit 1 "iis --write on an optimal model exits 1" \
     "$JAOS" iis "$DATA/solve1.mps" --write "$tmp/none.mps"
 [ ! -e "$tmp/none.mps" ] && pass "and leaves no file" \
     || flunk "none.mps was written"
 
-# ------------------------------------------------------------------ relax
 expect_exit 0 "relax of an infeasible model exits 0" "$JAOS" relax "$DATA/t1.mps"
 for k in total rows_moved cols_moved largest work_units; do
     [ -n "$(line_of $k)" ] && pass "relax prints a $k line" \
@@ -1037,7 +840,6 @@ counted=$(( $(line_of rows_moved | cut -d' ' -f2) \
     || flunk "rows_moved+cols_moved is $counted and there are $moves lines"
 [ "$moves" -ge 1 ] && pass "an infeasible model needs at least one move" \
     || flunk "relax of an infeasible model moved nothing"
-# Named as the file names them, the rule every command here follows (D284).
 [ "$(printf '%s\n' "$out" | grep -c '^\(row \(LIM1\|LIM2\|EQ1\)\|col X[123]\) \(lower\|upper\) ')" -eq "$moves" ] \
     && pass "every move carries the file's own name" \
     || flunk "a move is not named by the file: $out"
@@ -1057,8 +859,6 @@ expect_exit 0 "relax --cols exits 0" "$JAOS" relax "$DATA/t1.mps" --cols
 [ "$(line_of rows_moved)" = "rows_moved 0" ] \
     && pass "and moves no row bound" \
     || flunk "relax --cols printed '$(line_of rows_moved)'"
-# --apply makes the answer actionable, and the oracle is the solver: the
-# written model must have a feasible point where the original had none.
 expect_exit 0 "relax --apply exits 0" \
     "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.mps"
 expect_exit 0 "and the model it wrote solves" \
@@ -1075,7 +875,6 @@ expect_exit 5 "relax of a missing file exits 5" "$JAOS" relax "$tmp/no-such.mps"
 expect_exit 5 "relax with an unknown option is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --both
 
-# ----------------------------------------------------------------- verify
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "verify of a small optimum exits 0" "$JAOS" verify "$DATA/solve1.mps"
 [ "$(line_of proof)" = "proof optimal" ] && pass "it prints 'proof optimal'" \
@@ -1093,8 +892,6 @@ done
 "$JAOS" verify "$DATA/solve1.mps" > "$tmp/ver2"
 cmp -s "$tmp/ver1" "$tmp/ver2" && pass "two verify runs agree byte for byte" \
     || { flunk "two verify runs differ"; diff "$tmp/ver1" "$tmp/ver2"; }
-# --values prints what the proof proved, exactly (D286): solve1's optimum
-# is X1=4, X2=3, X3=3 for 29, integers a rational spells without a slash.
 expect_exit 0 "verify --values exits 0 on a proved optimum" \
     "$JAOS" verify "$DATA/solve1.mps" --values
 [ "$(line_of 'x X1')" = "x X1 4" ] && [ "$(line_of 'x X2')" = "x X2 3" ] \
@@ -1115,9 +912,6 @@ fi
 expect_exit 5 "verify refuses an unknown option" \
     "$JAOS" verify "$DATA/solve1.mps" --bogus
 
-# An infeasible model has exact arithmetic of its own to run since D333,
-# so verify no longer refuses it; what still has none is an unbounded one.
-# An unbounded answer has its own exact derivation since D336.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "verify of an unbounded model exits 0" \
     "$JAOS" verify "$DATA/unbounded.mps" --proof "$tmp/u.proof"
@@ -1131,10 +925,6 @@ expect_exit 0 "the derived ray is judged and holds" \
 fi
 expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
 
-# verify --basis proves a basis from a file with no solve at all (D339).
-# The pair runs both ways round: the model's own basis is proved, and the
-# slack basis, which is legal and not optimal, is broken. Without the
-# second the first would pass on a verifier that proved everything.
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--write-basis then verify --basis exits 0" \
     "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/v.bas"
@@ -1162,13 +952,7 @@ expect_exit 5 "verify --basis needs a path" \
 expect_exit 5 "verify --basis with a missing file exits 5" \
     "$JAOS" verify "$DATA/solve1.mps" --basis "$tmp/no-such.bas"
 
-# ---------------------------------------------------------------- ranging
 if [ "$faulty" -eq 0 ]; then
-# The exact proof on disk (D325). verify --proof writes it, check --proof
-# judges it from the model alone with no tolerance and no basis read, and
-# a value moved by hand is refused. Under either presolve fault build the
-# proof itself may be refused, so the positive half is skipped there the
-# way every other positive analysis check is.
 if [ "$faulty" -eq 0 ]; then
   P="$tmp/g1.proof"
   expect_exit 0 "verify --proof writes a proof file" \
@@ -1186,15 +970,11 @@ if [ "$faulty" -eq 0 ]; then
       || flunk "dual: $(line_of dual)"
   [ "$(line_of objective)" = "objective ok" ] && pass "objective ok" \
       || flunk "objective: $(line_of objective)"
-  # The case it must reject: one value moved by a whole unit.
   sed -i "s/^col z 8$/col z 7/" "$P"
   expect_exit 1 "check --proof refuses a moved value" \
       "$JAOS" check "$DATA/g1.lp" --proof "$P"
   [ "$(line_of proof)" = "proof broken" ] && pass "and says so" \
       || flunk "verdict: $(line_of proof)"
-  # A certificate is a proof too, and needs no verify (D328): the
-  # solve publishes the ray and every double in it is already an
-  # exact rational. bgdbg1 is one whose certificate holds exactly.
   Q="$tmp/inf.proof"
   expect_exit 1 "solve --proof writes an infeasible certificate" \
       "$JAOS" solve bench/instances-infeas/bgdbg1.mps --proof "$Q"
@@ -1213,13 +993,6 @@ expect_exit 5 "check refuses a solution and a proof at once" \
     "$JAOS" check "$DATA/g1.lp" some.sol --proof some.proof
 expect_exit 5 "check refuses --proof with no path" \
     "$JAOS" check "$DATA/g1.lp" --proof
-# stats (D327): it solves nothing, so it runs under every build. The two
-# partitions are what is checked, because a count that is merely printed
-# is not evidence that the walk saw every row and every column.
-# What presolve removed (D329). afiro loses two singleton rows, so the
-# four lines are there under the default build and gone under
-# -DJAOS_NO_PRESOLVE, where nothing fires at all. Both arms are checked,
-# because a report that is always absent would pass a one-sided test.
 expect_exit 0 "solve prints what presolve removed" \
     "$JAOS" solve bench/instances/afiro.mps
 if [ "$nopresolve" -eq 1 ]; then
@@ -1245,9 +1018,6 @@ ck=$(( $(line_of fixed_columns | cut -d" " -f2) + $(line_of ranged_columns | cut
     || flunk "integers: $(line_of integer_columns)"
 expect_exit 5 "stats takes one file" \
     "$JAOS" stats "$DATA/g_int.lp" "$DATA/g1.lp"
-# The tree's two inputs (D326): the cutoff parses, and one nothing can
-# beat ends the search with no answer. g_int.lp MINIMIZES, so the cutoff
-# nothing reaches is the very negative one.
 expect_exit 0 "--cutoff parses" \
     "$JAOS" solve "$DATA/g_int.lp" --cutoff 1e9
 expect_exit 1 "a cutoff nothing beats ends infeasible" \
@@ -1258,8 +1028,6 @@ expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
     && pass "its first line is the status" \
     || flunk "ranging began with '$(printf '%s\n' "$out" | head -n 1)'"
-# solve1 has three columns and three rows: three lines per block, with the
-# right number of fields on each.
 [ "$(printf '%s\n' "$out" | grep -c '^cost X[123] [^ ]* [^ ]*$')" -eq 3 ] \
     && pass "three cost lines of two numbers, named by the file" \
     || flunk "cost lines: $(printf '%s\n' "$out" | grep '^cost')"
@@ -1274,8 +1042,6 @@ expect_exit 0 "ranging of an optimum exits 0" "$JAOS" ranging "$DATA/solve1.mps"
     || flunk "ranging printed $(printf '%s\n' "$out" | wc -l) lines"
 printf '%s\n' "$out" | grep -qi 'nan' && flunk "ranging printed a NaN" \
     || pass "no NaN in the intervals"
-# Every interval contains the number it is about (jaos.h): the cost interval
-# of column X1 holds its cost of 2, and an unlimited end reads inf or -inf.
 printf '%s\n' "$out" | awk '$1 == "cost" && $2 == "X1" {
     lo = ($3 == "-inf") ? -1e300 : $3 + 0; hi = ($4 == "inf") ? 1e300 : $4 + 0;
     found = 1; exit !(lo <= 2 && 2 <= hi) } END { if (!found) exit 1 }' \
@@ -1292,7 +1058,6 @@ expect_exit 5 "ranging of an infeasible model exits 5" "$JAOS" ranging "$DATA/t1
 expect_exit 5 "ranging with two files is a usage error" \
     "$JAOS" ranging "$DATA/solve1.mps" "$DATA/t1.mps"
 
-# ------------------------------------------------------------------ done
 if [ "$fail" -ne 0 ]; then
     echo "tests/cli.sh: FAILED"
     exit 1

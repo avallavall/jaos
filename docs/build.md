@@ -4,7 +4,7 @@
 target, because every flag that measured a gain is already in the default.
 Each candidate flag ran over the whole standard set. A flag was only kept if
 every verdict, iteration count and solution digest stayed the same. Timing:
-minimum of three runs, geometric mean of per-instance ratios (D62).
+minimum of three runs, geometric mean of per-instance ratios.
 
 | flag | vs the level below | verdict |
 |---|---|---|

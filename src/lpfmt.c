@@ -1,28 +1,4 @@
-/* LP-format reader, CPLEX-style core dialect.
- *
- * Unlike MPS, the LP format is not line-oriented: expressions wrap lines
- * freely, so this is a token-stream parser. Grammar accepted:
- *
- *   file       := sense objective subject constraint* [bounds] end
- *   sense      := MIN[IMIZE|IMUM] | MAX[IMIZE|IMUM]
- *   objective  := [label ':'] expr?
- *   subject    := SUBJECT TO | SUCH THAT | ST | S.T.
- *   constraint := [label ':'] expr relop rhs
- *               | [label ':'] l relop expr relop u    (both relops alike)
- *   expr       := [+|-] term (( '+' | '-' ) term)*
- *   term       := number name | name | number      (bare number: obj only)
- *   relop      := '<=' | '<' | '=<' | '>=' | '>' | '=>' | '='
- *   bounds     := (v relop name [relop v]) | (name relop v) | (name FREE)
- *                 -- both relops of a two-sided form point the same way
- *
- * Rejected loudly: SOS and semi-continuous sections (integer sections are
- * read since D288),
- * constants inside constraints, bounds on unknown
- * variables. Repeated variables inside one expression sum, as algebra says
- * they should. Dialect notes live in docs/format-support.md.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/* SPDX-License-Identifier: Apache-2.0 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
@@ -55,33 +31,28 @@ typedef struct {
     char *buf;
     int64_t len, pos, line;
 
-    token tok;      /* current token */
-    token pushed;   /* single-slot pushback */
+    token tok;
+    token pushed;
     bool has_pushed;
 
-    /* columns */
     jm_nmap cmap;
     double *cost, *cl, *cu;
     int64_t ncol, cost_cap, cl_cap, cu_cap;
 
-    /* rows, built row-wise as constraints arrive; transposed at the end */
-    int64_t *rs;                 /* [nrow+1] entry start per row */
+    int64_t *rs;
     double *rlb, *rub;
     int64_t nrow, rs_cap, rlb_cap, rub_cap;
-    /* the labels, nullptr where a constraint had none, and the objective's;
-     * handed to the model at the end (D284) */
+
     char **rname;
     int64_t rname_cap;
     char *oname;
 
-    /* integer marks from General / Binary, [ncint] valid (D288) */
     bool *cint;
     int64_t cint_cap, ncint;
-    int64_t *ei;                 /* entry column index */
-    double *ev;                  /* entry value */
+    int64_t *ei;
+    double *ev;
     int64_t nent, ei_cap, ev_cap;
 
-    /* duplicate merge within one expression: stamp/slot per column */
     int64_t *stamp, *slot;
     int64_t stamp_cap, slot_cap;
 
@@ -94,16 +65,6 @@ typedef struct {
 #define FAIL_OOM()  do { st = JAOS_ERR_OUT_OF_MEMORY; \
     jm_set_err(p->m, "out of memory while reading LP"); goto done; } while (0)
 
-/* --------------------------------------------------------------------- */
-/* Scanner                                                               */
-/* --------------------------------------------------------------------- */
-
-/* The characters a name may hold beyond letters, digits, `_` and `.`: the
- * CPLEX LP set, which is what the files other solvers write carry. What is
- * left out is what the scanner reads as something else -- the operators,
- * `:`, whitespace, `\` -- and `[`, `]`, `*` and `^`, which CPLEX reserves
- * for the quadratic forms this dialect rejects. A name still may not start
- * with a digit or a `.`, because that is a number (D284). */
 static bool name_symbol(char c)
 {
     return strchr("!\"#$%&()/,;?@`'{}|~", c) != nullptr && c != '\0';
@@ -130,7 +91,6 @@ static jaos_status lx_next(lp *p)
         return JAOS_OK;
     }
 
-    /* skip whitespace and '\' comments */
     for (;;) {
         char c = p->pos < p->len ? p->buf[p->pos] : '\0';
         if (c == '\n') {
@@ -186,9 +146,7 @@ static jaos_status lx_next(lp *p)
     }
 
     if (isdigit((unsigned char)c) || c == '.') {
-        /* number: digits [. digits] [e|E [+|-] digits], where the exponent
-         * is consumed only if digits actually follow — "2ex" is the number
-         * 2 followed by the name "ex". */
+
         int64_t s = p->pos;
         while (p->pos < p->len && isdigit((unsigned char)p->buf[p->pos]))
             p->pos++;
@@ -252,7 +210,6 @@ static bool tok_is(const lp *p, const char *kw)
     return p->tok.t == T_NAME && strcasecmp(p->tok.text, kw) == 0;
 }
 
-/* Keywords that may not be used as variable names. */
 static bool is_reserved(const char *s)
 {
     static const char *kws[] = {
@@ -273,9 +230,6 @@ static bool at_reserved(const lp *p)
     return p->tok.t == T_NAME && is_reserved(p->tok.text);
 }
 
-/* What the LP writer may print as a name: exactly what this scanner reads
- * back as one T_NAME token that is not a keyword. Kept here, beside the
- * scanner, so the two cannot disagree. */
 bool jm_lp_name_ok(const char *s)
 {
     if (s == nullptr || !name_start(s[0]))
@@ -286,10 +240,6 @@ bool jm_lp_name_ok(const char *s)
             return false;
     return n <= NAME_MAX_LEN && !is_reserved(s);
 }
-
-/* --------------------------------------------------------------------- */
-/* Model assembly helpers                                                */
-/* --------------------------------------------------------------------- */
 
 static bool get_or_create_col(lp *p, const char *name, int64_t *out)
 {
@@ -314,20 +264,11 @@ static bool get_or_create_col(lp *p, const char *name, int64_t *out)
     return true;
 }
 
-/* Parses one linear expression. row < 0 accumulates into the objective
- * (bare constants allowed); row >= 0 appends entries for that row, merging
- * repeated variables. Afterwards p->tok is the first token past the
- * expression. Zero terms is acceptable only for the objective. */
 static jaos_status parse_expr(lp *p, int64_t row, double *konst)
 {
     jaos_status st = JAOS_OK;
     bool any = false;
 
-    /* What the bare numbers in the expression added up to. The objective
-     * folds them into `obj_offset` here; a constraint's caller folds them
-     * into the right-hand side, which is the only place they can go (D278).
-     * Summed in the order the file lists them, which is what makes two
-     * readings of one file agree (D8). */
     if (konst != nullptr)
         *konst = 0.0;
 
@@ -341,7 +282,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         } else if (any) {
-            break; /* no separator: the expression is over */
+            break;
         }
 
         double coef = sign;
@@ -360,7 +301,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             if (row < 0) {
                 p->cost[j] += coef;
             } else if (p->stamp[j] == row + 1) {
-                p->ev[p->slot[j]] += coef; /* repeated variable: sum */
+                p->ev[p->slot[j]] += coef;
             } else {
                 if (!JM_GROW(p->ei, p->ei_cap, p->nent + 1) ||
                     !JM_GROW(p->ev, p->ev_cap, p->nent + 1))
@@ -374,12 +315,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         } else if (have_num) {
-            /* A bare number. In the objective it is the offset; in a
-             * constraint it moves to the other side of the relation, with
-             * its sign flipped, which is what the caller does with what
-             * this collects. Refused until D278, which is a refusal the
-             * reader never needed: `3x + 5 <= 10` and `3x <= 5` are the
-             * same constraint and nothing about the first is ambiguous. */
+
             if (row >= 0)
                 *konst += coef;
             else
@@ -388,7 +324,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             FAIL("line %" PRId64 ": expected a term after the sign",
                  p->tok.line);
         } else {
-            break; /* nothing consumed: empty expression */
+            break;
         }
         any = true;
     }
@@ -399,7 +335,6 @@ done:
     return st;
 }
 
-/* Bound value: [+|-] (number | INF[INITY]). Consumes past the value. */
 static jaos_status parse_bound_value(lp *p, double *out)
 {
     jaos_status st = JAOS_OK;
@@ -421,10 +356,6 @@ done:
     return st;
 }
 
-/* --------------------------------------------------------------------- */
-/* Reader                                                                */
-/* --------------------------------------------------------------------- */
-
 static jaos_status parse(lp *p)
 {
     jaos_status st = JAOS_OK;
@@ -433,7 +364,6 @@ static jaos_status parse(lp *p)
     if ((st = lx_next(p)) != JAOS_OK)
         goto done;
 
-    /* objective sense */
     if (tok_is(p, "minimize") || tok_is(p, "minimum") || tok_is(p, "min"))
         p->sense = JAOS_MINIMIZE;
     else if (tok_is(p, "maximize") || tok_is(p, "maximum") ||
@@ -444,7 +374,6 @@ static jaos_status parse(lp *p)
     if ((st = lx_next(p)) != JAOS_OK)
         goto done;
 
-    /* objective: optional label, optional expression */
     if (p->tok.t == T_NAME && !at_reserved(p)) {
         token saved = p->tok;
         if ((st = lx_next(p)) != JAOS_OK)
@@ -462,7 +391,6 @@ static jaos_status parse(lp *p)
     if ((st = parse_expr(p, -1, nullptr)) != JAOS_OK)
         goto done;
 
-    /* SUBJECT TO | SUCH THAT | ST | S.T. */
     if (tok_is(p, "subject") || tok_is(p, "such")) {
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
@@ -474,14 +402,12 @@ static jaos_status parse(lp *p)
     if ((st = lx_next(p)) != JAOS_OK)
         goto done;
 
-    /* constraints */
     for (;;) {
         if (p->tok.t == T_EOF)
             FAIL("missing End");
         if (at_reserved(p))
             break;
 
-        /* optional label, kept as the row's name */
         char *label = nullptr;
         if (p->tok.t == T_NAME) {
             token saved = p->tok;
@@ -512,12 +438,6 @@ static jaos_status parse(lp *p)
         p->rname[row] = label;
         p->nrow++;
 
-        /* The two-sided form "l <= expr <= u". A leading signed number is
-         * the left bound ONLY when a relational operator follows it: in
-         * "3 x + 2 y <= 5" the same number is a coefficient. So the number is
-         * read, the next token decides, and where it does not decide for a
-         * range the number is pushed back with its sign folded in, which is
-         * what `parse_expr` would have made of the pair anyway. */
         bool ranged = false;
         toktype lo_rel = T_EOF;
         double lo_val = 0.0;
@@ -551,8 +471,7 @@ static jaos_status parse(lp *p)
             goto done;
 
         toktype rel = p->tok.t;
-        /* The operator's own line: by the time a ranged mismatch is found the
-         * stream has read past the right-hand side and on to the next line. */
+
         const int64_t rel_line = p->tok.line;
         if (rel != T_LE && rel != T_GE && rel != T_EQ)
             FAIL("line %" PRId64 ": expected <=, >= or = after the "
@@ -577,23 +496,15 @@ static jaos_status parse(lp *p)
             FAIL("line %" PRId64 ": a third bound on one constraint",
                  p->tok.line);
 
-        /* A constant inside the expression moves to the other side, so
-         * every bound this row gets shifts by it -- BOTH ends of a ranged
-         * row, because the constant sits between them (D278). Subtracted
-         * once here rather than at each use, so the two ends of a range
-         * cannot be shifted by different amounts. */
         rhs -= konst;
         lo_val -= konst;
 
         if (ranged) {
-            /* Both operators must point the same way, so the pair really is
-             * an interval: "3 <= x >= 8" says nothing. */
+
             if (rel == T_EQ || (lo_rel == T_LE) != (rel == T_LE))
                 FAIL("line %" PRId64 ": the two operators of a ranged "
                      "constraint must point the same way", rel_line);
-            /* "l <= expr <= u" gives [l, u]; ">=" mirrors it. An inverted
-             * pair is legal input to jaos.h and is left for the solve to
-             * report infeasible, exactly as MPS RANGES leaves it. */
+
             p->rlb[row] = lo_rel == T_LE ? lo_val : rhs;
             p->rub[row] = lo_rel == T_LE ? rhs : lo_val;
         } else {
@@ -602,7 +513,6 @@ static jaos_status parse(lp *p)
         }
     }
 
-    /* bounds */
     if (tok_is(p, "bounds") || tok_is(p, "bound")) {
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
@@ -613,7 +523,7 @@ static jaos_status parse(lp *p)
                 break;
 
             if (p->tok.t == T_NAME && !at_reserved(p)) {
-                /* name relop value | name = value | name FREE */
+
                 if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
                     FAIL("line %" PRId64 ": bound on unknown variable '%s'",
                          p->tok.line, p->tok.text);
@@ -644,13 +554,7 @@ static jaos_status parse(lp *p)
                     FAIL("line %" PRId64 ": malformed bound", p->tok.line);
                 }
             } else {
-                /* value relop name [relop value], and the mirror of it.
-                 * `10 >= x >= 2` is `2 <= x <= 10` written the other way
-                 * round and says the same thing (D281). What the first
-                 * operator decides is which SIDE the leading value is, and
-                 * the second must point the same way -- `3 <= x >= 8` names
-                 * two lower bounds and no interval, the same fault the
-                 * ranged constraint above refuses in the same words. */
+
                 double first;
                 if ((st = parse_bound_value(p, &first)) != JAOS_OK)
                     goto done;
@@ -692,10 +596,6 @@ static jaos_status parse(lp *p)
         }
     }
 
-    /* The integer sections (D288): General (Generals, Gen, Integer,
-     * Integers) lists integer variables, Binary (Binaries, Bin) integer
-     * ones bounded to [0, 1]. Names until the next keyword, each a
-     * variable the file has met, in any order and any number of times. */
     while (tok_is(p, "general") || tok_is(p, "generals") ||
            tok_is(p, "gen") || tok_is(p, "integer") ||
            tok_is(p, "integers") || tok_is(p, "binary") ||
@@ -723,7 +623,6 @@ static jaos_status parse(lp *p)
         }
     }
 
-    /* remaining sections: recognized, rejected */
     if (tok_is(p, "semi") || tok_is(p, "semis"))
         FAIL("line %" PRId64 ": semi-continuous variables are not supported",
              p->tok.line);
@@ -738,9 +637,8 @@ static jaos_status parse(lp *p)
     if (p->tok.t != T_EOF)
         FAIL("line %" PRId64 ": content after End", p->tok.line);
 
-    /* transpose the row-wise entries into CSC and load */
     {
-        /* a constraint-free file leaves rs unallocated */
+
         if (!JM_GROW(p->rs, p->rs_cap, p->nrow + 1))
             FAIL_OOM();
         p->rs[p->nrow] = p->nent;
@@ -778,11 +676,6 @@ static jaos_status parse(lp *p)
             goto done;
         }
 
-        /* The file's names, onto the model (D284): every column has one,
-         * a constraint has one where it was labelled, the objective where
-         * it was. The row array may be shorter than the row count when the
-         * last constraints had no label and nothing grew it; the model
-         * reads it by row, so it is grown to the count. */
         if (!JM_GROW(p->rname, p->rname_cap, p->nrow))
             FAIL_OOM();
         char **cn = jm_nmap_to_names(&p->cmap, p->ncol);
@@ -794,7 +687,7 @@ static jaos_status parse(lp *p)
             free(p->rname);
         p->rname = nullptr;
         p->oname = nullptr;
-        /* The integer marks, when a section named any (D288). */
+
         free(p->m->col_integer);
         p->m->col_integer = nullptr;
         if (p->ncint > 0) {
@@ -821,13 +714,10 @@ jaos_status jaos_read_lp(jaos_model *m, const char *path)
     p->line = 1;
     p->sense = JAOS_MINIMIZE;
 
-    /* The whole file at once: token scanning needs free lookahead, and this
-     * is also what inflates a `.gz` instance. */
     jaos_status st = jm_slurp(m, path, &p->buf, &p->len);
     if (st != JAOS_OK)
         goto done;
 
-    /* Numbers must parse identically whatever locale the host set. */
     {
         locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
         locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
@@ -851,7 +741,7 @@ done:
     free(p->ev);
     free(p->stamp);
     free(p->slot);
-    /* On success both were handed to the model and are null here. */
+
     if (p->rname != nullptr)
         for (int64_t i = 0; i < p->nrow; i++)
             free(p->rname[i]);

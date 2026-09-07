@@ -72,12 +72,12 @@ bound flipping, dual phase 1 by artificial bounds and a Bland fallback.
 is not ● is that no caller can select it. `run_primal` and `run_primal_phase1`
 are in `src/simplex.c`, the tests reach them and `make primal` measures them.
 The only route in is `cfg.force_primal` in `src/jaos_internal.h`, a development
-switch and not public API (D64, D188). Devex pricing is what is missing
+switch and not public API. Devex pricing is what is missing
 (`TODO.md` §0 stage 5, blocked on a paywalled source), and it is Devex alone
 that still blocks crossover. Stage 7, the unboundedness verdict, landed on
 2026-09-01: the primal declares a ray it meets in phase 2 on the same D19
-proof the dual already used (D241), and the shared lent-bound verdict also
-proves a ray that needs several columns at once (D247).
+proof the dual already used, and the shared lent-bound verdict also
+proves a ray that needs several columns at once.
 
 **HiGHS's GPU row was ◐ on the claim that the PDLP work was "in progress
 rather than released". It is released.** HiGHS ships cuPDLP-C and a native
@@ -112,14 +112,14 @@ relaxation only.
 JAOS's presolve rows are ◐ as of phase 2: the reduced-model machinery, the
 postsolve stack and six reduction families have landed, and what is left is
 counted rather than guessed — duplicate rows, duplicate columns and dominated
-columns are deferred at 0.15% of these 139 models (D101), doubleton
+columns are deferred at 0.15% of these 139 models, doubleton
 equalities and 99.7% of them sit behind the bound tightening D97 refused, and
 the implied free column singleton reaches equality rows only, which is a
-third of what its counter reads (D106). `TODO.md` §1 and §3 own the
+third of what its counter reads. `TODO.md` §1 and §3 own the
 remainder. Two later measurements belong here: `make refusals` re-runs D101's
 reopen condition and finds zero removable rows and columns on all 15 plato
-instances (D242), and dual fixing was measured and refused at 0.67% of
-netlib's and 1.09% of fome's live columns against a 5% bar (D246). Before
+instances, and dual fixing was measured and refused at 0.67% of
+netlib's and 1.09% of fome's live columns against a 5% bar. Before
 phase 2 both rows were ○.
 
 **Postsolve moved from ◐ to ● on 2026-09-04, and it was a bookkeeping error
@@ -148,7 +148,7 @@ on a work-unit measurement.
 | Solution pool | ● | ○ | — | — | ● | ● | ● |
 | Deterministic parallel tree search | ○ | ◐ | — | — | ● | ● | ? |
 
-**The solution pool moved from ○ to ● on 2026-09-06 (D299).**
+**The solution pool moved from ○ to ● on 2026-09-06.**
 `jaos_set_mip_pool_size` keeps the best distinct integer points a branch
 and bound meets, best first, and `jaos_mip_pool_solution` reads them; the
 default of 1 is the incumbent alone, so the search is unchanged.
@@ -190,9 +190,9 @@ including the row where the field is ahead.
 | **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | **Check a point another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
-**The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 (D331) and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
+**The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
 
-**The IIS-as-a-model row is new on 2026-09-07 (D343)** and its other
+**The IIS-as-a-model row is new on 2026-09-07** and its other
 columns are `?`, not `○`: HiGHS, SCIP and Gurobi all have an IIS, and
 whether each can write the subsystem out as a model rather than as a list
 was not re-read for this row. SoPlex and Clp have no IIS at all, which is
@@ -200,7 +200,7 @@ what the `—` says. JAOS's is `jaos_iis_model` and `jaos iis --write OUT`,
 and all 29 reference infeasibilities have theirs written and solved again
 to INFEASIBLE (`bench/measurements/02-218/`).
 
-**The row after it is new on 2026-09-07 (D342) and is the tolerance-judged
+**The row after it is new on 2026-09-07 and is the tolerance-judged
 half of the one above it.** A point file is one `NAME VALUE` line per
 column and nothing else, so `jaos check FILE --point POINT` runs the
 independent checker on an answer this library did not compute; `--duals`
@@ -208,12 +208,12 @@ brings the multipliers for the dual half. The others ship no checker to
 point at anything, which is the same `○` the "independent checker" row
 carries and for the same reason.
 
-**The row above it is new on 2026-09-07 (D339) and its six `○`s are
+**The row above it is new on 2026-09-07 and its six `○`s are
 meant.**
 `jaos_verify_basis` runs the exact proof over a basis the caller hands in,
 with no solve at all, so JAOS reads a model, reads the basis another
 solver stopped on -- `jaos_read_mps_basis` reads the format the field
-writes one in (D338) -- and says over the rationals whether that basis is
+writes one in -- and says over the rationals whether that basis is
 an optimal basis of that model. None of the others exposes its own
 verifier to a basis it did not produce: SoPlex and SCIP solve exactly and
 SCIP emits a VIPR certificate its own `viprchk` checks, which is a
@@ -223,7 +223,7 @@ than a restatement of the checker row above.
 
 Three rows carry most of the meaning.
 
-**Exact rational LP solutions moved from ○ to ◐ on 2026-09-05 (D286).**
+**Exact rational LP solutions moved from ○ to ◐ on 2026-09-05.**
 After `jaos_verify` proves a basis, every column's value, every row's dual
 and the objective are on the model as exact rationals, and `jaos verify
 --values` prints them. It is ◐ because it is an exact answer for the bases
@@ -233,7 +233,7 @@ point, and where the proof is refused there are no values. SoPlex and SCIP
 solve over the rationals; JAOS proves and reports what a floating-point
 basis is, exactly.
 
-**The machine-checkable certificate reached ● on 2026-09-07 (D325).**
+**The machine-checkable certificate reached ● on 2026-09-07.**
 `jaos_write_proof` writes the exact rational proof to a file and
 `jaos_check_proof` judges one from the model alone, over the rationals,
 with no tolerance and **no basis read**: the file carries none, and the
@@ -260,7 +260,7 @@ exactly, and every one of the 28 optimum proofs that exists passes the
 file checker, which shares no code with the prover that made it.
 
 **It moved from ○ to ◐ on 2026-09-05
-(D285).** The solution file now carries the Farkas certificate of an
+.** The solution file now carries the Farkas certificate of an
 infeasible answer and the ray of an unbounded one, and `jaos check` judges
 either from the model and the file alone, so a verdict can leave the
 process that found it and be checked by another. It is ◐ and not ● because
@@ -288,7 +288,7 @@ infeasibles the members alone re-solve INFEASIBLE and each one dropped
 re-solves OPTIMAL, and all 29 reproduce. The 29th is `cplex2`, infeasible by
 less than the feasibility tolerance, which keeps three of its 232 members a cold
 re-solve does not need; the fixpoint pass that would drop them is refused on
-cost (D264, `bench/measurements/02-171/`).
+cost.
 
 **Cross-machine bit-identity.** Gurobi's own documentation states it is
 deterministic on the same machine but not between different machines, and that
@@ -306,7 +306,7 @@ over the rationals since version 2.1 and added precision boosting in 6.0; SCIP
 certificate that an external program verifies in exact rational arithmetic.
 `SPECS.md` lists exact rational verification as **partial** — the arithmetic
 landed at D266 and `jm_exact_evaluate` walks a published point with no
-rounding (D267) — and the verifier is what is still missing. This is what
+rounding — and the verifier is what is still missing. This is what
 that line is missing against.
 
 ## 7. Input and output
@@ -323,7 +323,7 @@ that line is missing against.
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
 | Reject unsupported constructs with a line number | ● | ? | ? | ? | ? | ? | ? |
 
-**The compressed-output row is new on 2026-09-07 (D340) and its six other
+**The compressed-output row is new on 2026-09-07 and its six other
 columns are `?` rather than `○`.** Every writer here compresses when the
 path ends in `.gz`, over an encoder written in this repository for the
 reason the decoder was. The rivals' documentation was not re-read for this
@@ -335,19 +335,19 @@ gate instances and `gzip -dc` returns the plain write byte for byte, at
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
 
-The three writer rows moved from ○ on 2026-08-31 (D226). Write LP is ◐ because
+The three writer rows moved from ○ on 2026-08-31. Write LP is ◐ because
 the dialect is narrower than a model: a free row is refused by name, and the
 message points at `jaos_write_mps`, which has no such limit. A ranged row is
 **not** refused — D239 writes it as the two-sided form and reads it back as
 one row with two ends — and a row with no coefficients is written as a zero
-term and read back as the empty row it was (D276). What JAOS writes it reads
+term and read back as the empty row it was. What JAOS writes it reads
 back as the same model, checked field by field and name by name: 139 of 139
 gate instances through MPS, and **104 of 139 through LP with 35 refused and
-0 differing** (D284, `bench/measurements/02-188/lpcover.txt`). 34 of the 35
+0 differing**. 34 of the 35
 are a name the LP scanner cannot read back -- Netlib names start with digits
 and hold `*` and `-` -- and the writer refuses them by name rather than
 rename them, pointing at MPS. It was 138 and 1 while the writer printed
-positional names (D276, `02-181/`), which no scanner refuses.
+positional names, which no scanner refuses.
 
 **Since D346 the caller can ask for that.** `jaos convert IN OUT
 --positional` takes every name off the model first, and the same 139 read
@@ -378,7 +378,7 @@ and this page has not measured that.
 | AMPL, GAMS and similar modelling systems | ○ | ● | ○ | ● | ● | ● | ● |
 | `make install` with a pkg-config file | ● | ? | ? | ? | ? | — | — |
 
-**The install row is new on 2026-09-07 (D341).** `make install` puts the
+**The install row is new on 2026-09-07.** `make install` puts the
 header, both library forms, the tool and a generated `jaos.pc` under
 `PREFIX`, with `DESTDIR` staging, and `tests/install.sh` compiles a
 program against the installed tree on every `make test`. The four open
@@ -446,10 +446,10 @@ the project's actual distinguishing feature.
 
 **Since 2026-09-07 the second of those reaches further than JAOS's own
 answers.** `jaos_verify_basis` proves a basis the caller hands in, over
-the rationals with no tolerance and with no solve at all (D339), and
+the rationals with no tolerance and with no solve at all, and
 `jaos check --point` runs the floating-point checker on a point file
-another program wrote (D342). A basis arrives in the format the field
-exchanges one in (D338), and a point in two lines of awk. None of the
+another program wrote. A basis arrives in the format the field
+exchanges one in, and a point in two lines of awk. None of the
 others exposes its verifier to an answer it did not produce, and that is
 a sharper claim than "ships a checker".
 
@@ -466,10 +466,10 @@ arithmetic is here since D266 and the verifier is not — and this page says
 what it is missing against.
 
 **That sentence was written before 2026-09-07, and six new rows arrived
-that day.** Exchanging a basis in the MPS basis format (D338), proving a
-basis another solver produced (D339), checking a point another solver
-produced (D342), writing compressed output (D340), writing the IIS out as
-a model (D343), and installing with a pkg-config file (D341). Four of the
+that day.** Exchanging a basis in the MPS basis format, proving a
+basis another solver produced, checking a point another solver
+produced, writing compressed output, writing the IIS out as
+a model, and installing with a pkg-config file. Four of the
 six are the same kind of cell: **JAOS's own machinery pointed at somebody
 else's answer**. The checker and the exact verifier were the project's
 distinguishing features already; what changed is that neither is now
@@ -481,8 +481,8 @@ M2 is about speed, not features. Of everything on this page, only the presolve
 and postsolve rows change when M2 closes, and they are at ◐ already rather
 than at ○. Nor do they reach ●: the families left are deferred or refused with
 a measurement — duplicate rows and columns and dominated columns deferred
-(D101, re-tested at D242), bound tightening refused (D97), dual fixing
-measured and refused (D246).
+, bound tightening refused, dual fixing
+measured and refused.
 The measured gap at rung P0 is 3.60x HiGHS, 1.12x SoPlex and 2.96x Clp
 (`bench/compare/results/P0.txt`, 2026-08-30), and closing it moves no cell
 here at all. P0 is the rung to read: T0 was taken before JAOS had a
@@ -502,10 +502,10 @@ barrier method and the MIP section are large pieces of work and are correctly
 not scheduled yet.
 
 **That answer was taken up and all three cells moved.**
-Compressed input is present (D240) and so is Python (D243), both under the
+Compressed input is present and so is Python, both under the
 premise that keeps every dependency out: the inflate is written here and the
 binding is ctypes over the standard library. **Sensitivity and ranging landed
-on 2026-09-03 (D258)**, and it was not the small job this paragraph implied — it
+on 2026-09-03**, and it was not the small job this paragraph implied — it
 needs the basis and a factorization of it. The published basis has the
 promised count on every gate solve since D257, and D258 ranges over that
 basis refactored on the model as loaded, so the presolve half this paragraph
@@ -516,8 +516,8 @@ feared does not exist.
 ## Sources
 
 Cells for HiGHS, SoPlex, Clp, SCIP, Gurobi and Hexaly were taken from public
-documentation on the date above. JAOS's own cells come from `SPECS.md`,
-`DECISIONS.md` and the measured results in `bench/`.
+documentation on the date above. JAOS's own cells come from `SPECS.md`
+and the measured results in `bench/`.
 
 - HiGHS solver capabilities and parallelism: <https://ergo-code.github.io/HiGHS/dev/solvers/> and <https://ergo-code.github.io/HiGHS/stable/parallel/>
 - HiGHS 2026 development, QP and GPU PDLP: <https://highs.dev/assets/HiGHS_Newsletter_26_0.pdf>
@@ -533,6 +533,5 @@ documentation on the date above. JAOS's own cells come from `SPECS.md`,
 - VIPR certificate format: <https://github.com/scipopt/vipr>
 - Hexaly Optimizer model types: <https://www.hexaly.com/hexaly-optimizer> and <https://www.hexaly.com/docs/last/modelingprinciples/index.html>
 
-No solver's source code was read to produce this page. That rule (D2, D11, D12,
-D15) applies to implementation, and it is respected here: everything above comes
+No solver's source code was read to produce this page. That rule applies to implementation, and it is respected here: everything above comes
 from documentation a user can read.

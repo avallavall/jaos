@@ -1,13 +1,13 @@
 # Work units
 
-The currency of the reproducible budget (D16). A work unit is counted in
+The currency of the reproducible budget. A work unit is counted in
 the kernels, never derived from a clock, so the same model consumes the
 same number of units on every machine — which is what makes
 `jaos_set_work_limit` mean something a wall-clock limit cannot.
 
 Read `jaos_work_units` after a solve to see what it cost.
 
-**A budget that stops can be started again (D70).** A solve cut off by a work
+**A budget that stops can be started again.** A solve cut off by a work
 or time limit keeps the basis it stopped on, so raising the limit and calling
 `jaos_solve` again continues from there instead of walking back from the slack
 basis. There is no answer to read in between — the run did not produce one, and
@@ -17,7 +17,7 @@ thing to have built a deterministic counter for.
 
 ## The weights
 
-Defined in `src/jaos_internal.h`. Drafts until calibrated (PLAN.md 2.7);
+Defined in `src/jaos_internal.h`. Drafts until calibrated;
 the definition becomes public contract at 1.0, and after that the ratios
 change only at a major version.
 
@@ -42,10 +42,10 @@ promise a run far cheaper than the one it buys.
 Everything below is in `src/lu.c`, `src/presolve.c` and `src/simplex.c`.
 Nothing else counts.
 
-**Presolve is one-way, and this is the door (D-14, 02-02).** A work figure
+**Presolve is one-way, and this is the door.** A work figure
 read before presolve existed and one read after are not comparable on any
 model presolve actually reduces — the model a solve billed then is not the
-model a solve bills now. Every historical figure in `DECISIONS.md` and every
+model a solve bills now. Every historical figure and every
 figure in the three committed baselines was taken before this paragraph
 existed, on every one of the 26 standard-set instances 02-01's own reduction
 already touches. Read them as figures about two different problems, because
@@ -63,7 +63,7 @@ the range is what the round reads to decide whether there is a reduction at
 all (02-04). A round that finds nothing therefore still bills the whole live
 matrix once, which is the honest figure — that scan is the work.
 
-The implied free column singleton (D106) pays that range charge like every
+The implied free column singleton pays that range charge like every
 other reader of a row's activity, and then pays it a **second** time when it
 fires: the substitution walks the row again to push the eliminated column's
 cost onto every other live column in it. Two passes over the same row, billed
@@ -76,7 +76,7 @@ continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
 before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total
 for the whole solve and not two — the reason D-14 exists at all: an
 inflated or omitted total is compared against the same budget that decides
-where a solve stops, and phase 1 (D93's amendment) is the standing example
+where a solve stops, and phase 1 is the standing example
 of what that costs when it goes silently wrong. Nothing else in
 `src/presolve.c` bills anything; see "What is outside the budget" below for
 what that leaves.
@@ -102,7 +102,7 @@ two-pass over them charges two.
 **Ratio test and bookkeeping**: building the candidate set charges one per
 variable it looked at — the nonbasic ones when the pricing row is read
 densely, because that scan walks the nonbasic set and never reaches a basic
-variable at all (D93), and the size of its pattern when it is not (D40). The
+variable at all, and the size of its pattern when it is not. The
 dual update charges by the same rule and arrives at a different number: its
 dense form still walks the whole range, reading every variable's status to
 find out whether it has a cost to step, so every variable is one it looked
@@ -110,9 +110,9 @@ at. Two charges that no longer match, from the same rule applied to two
 loops, one of which was taught to skip. The dual update also sweeps every
 variable on the first iteration after anything rewrites a reduced cost
 outside a pivot, because that sweep is repairing rather than stepping
-(D41). The
+. The
 steepest-edge weight update charges one per row, the exact weight that feeds
-it charges one per slot it adds up rather than one per row (D42), and each
+it charges one per slot it adds up rather than one per row, and each
 swap attempted while settling up charges two per row.
 
 **The primal phase 1** bills four things, all by the same rule as everything
@@ -153,7 +153,7 @@ including one large enough to cost more than the scan it replaces.
 
 **Ending a solve** is the largest single charge most solves make outside
 the iterations themselves, and it is worth knowing about before choosing a
-work limit. Optimality is not accepted on carried values (D20), so when the
+work limit. Optimality is not accepted on carried values, so when the
 loop believes it is finished the point is recomputed from a fresh
 factorization and priced again: one full `JM_WORK_FACTOR` plus its
 eliminations, plus the two triangular solves and the pricing pass that
@@ -191,7 +191,7 @@ densely it also records part of a pattern it then discards — bounded by a
 quarter of the variables, and unbilled for the same reason the clear is.
 
 **Presolve's own bookkeeping is not billed, and neither is building the
-reduced model (D-14, 02-02).** The classification pass that decides which
+reduced model.** The classification pass that decides which
 column is fixed reads every column once regardless of whether it fires —
 an O(rows + cols) floor per round, the same shape the two fixed factorization
 and update costs above rest on, but with no rate chosen for it: this phase's
@@ -208,7 +208,7 @@ nothing for it.
 
 **The nonbasic bitmap's words are not billed either.** The dense candidate
 scan reads one machine word per 64 variables to find the bits that are set,
-and only the bits it finds are charged (D93). A word is not a variable, the
+and only the bits it finds are charged. A word is not a variable, the
 rule above is one per variable looked at, and a second currency for the
 skipping would need a rate — which is a number with no measurement on either
 side of it. The consequence is worth stating rather than leaving to be
@@ -226,7 +226,7 @@ whether it skips it or not. On the Kennington set that single charge is 27%
 of everything billed.
 
 **The clock is never involved.** A time limit is read at most once every 64
-iterations and can only stop a solve; it can never choose a pivot (D8).
+iterations and can only stop a solve; it can never choose a pivot.
 That separation is why the two budgets are separate calls with separate
 meanings, and why only one of them is reproducible.
 
