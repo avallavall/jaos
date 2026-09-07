@@ -56,6 +56,9 @@ typedef struct {
     int64_t *st_col;
     double *st_w;
     int64_t nsos, sos_cap, sos_start_cap, nsosm, sosm_cap, sosw_cap;
+    int64_t *ind_col;
+    int *ind_val;
+    int64_t ind_cap, indv_cap, nind;
     int64_t *ei;
     double *ev;
     int64_t nent, ei_cap, ev_cap;
@@ -444,7 +447,16 @@ static jaos_status parse(lp *p)
         p->rs[row] = p->nent;
         p->rname[row] = label;
         p->nrow++;
+        if (!JM_GROW(p->ind_col, p->ind_cap, row + 1) ||
+            !JM_GROW(p->ind_val, p->indv_cap, row + 1))
+            FAIL_OOM();
+        for (int64_t r = p->nind; r <= row; r++) {
+            p->ind_col[r] = -1;
+            p->ind_val[r] = 0;
+        }
+        p->nind = row + 1;
 
+    body:
         bool ranged = false;
         toktype lo_rel = T_EOF;
         double lo_val = 0.0;
@@ -499,6 +511,29 @@ static jaos_status parse(lp *p)
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
 
+        if (p->tok.t == T_MINUS) {
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (p->tok.t != T_GE)
+                FAIL("line %" PRId64 ": expected '->' after the indicator",
+                     p->tok.line);
+            if (p->ind_col[row] >= 0)
+                FAIL("line %" PRId64 ": a second '->' on one constraint",
+                     p->tok.line);
+            if (ranged || rel != T_EQ || konst != 0.0 ||
+                p->nent != p->rs[row] + 1 || p->ev[p->rs[row]] != 1.0 ||
+                (rhs != 0.0 && rhs != 1.0))
+                FAIL("line %" PRId64 ": an indicator is 'variable = 0 ->' or "
+                     "'variable = 1 ->'", rel_line);
+            const int64_t z = p->ei[p->rs[row]];
+            p->ind_col[row] = z;
+            p->ind_val[row] = rhs == 1.0 ? 1 : 0;
+            p->nent = p->rs[row];
+            p->stamp[z] = 0;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            goto body;
+        }
         if (p->tok.t == T_LE || p->tok.t == T_GE)
             FAIL("line %" PRId64 ": a third bound on one constraint",
                  p->tok.line);
@@ -743,6 +778,13 @@ static jaos_status parse(lp *p)
                          "a weight", p->tok.line, (long long)(k + 1));
     }
 
+    for (int64_t i = 0; i < p->nind && i < p->nrow; i++) {
+        const int64_t z = p->ind_col[i];
+        if (z >= 0 && !(z < p->ncint && p->cint[z]))
+            FAIL("line %" PRId64 ": the indicator variable of constraint %lld "
+                 "must be declared General or Binary", p->tok.line,
+                 (long long)(i + 1));
+    }
     if (!tok_is(p, "end"))
         FAIL("line %" PRId64 ": expected End", p->tok.line);
     if ((st = lx_next(p)) != JAOS_OK)
@@ -828,6 +870,11 @@ static jaos_status parse(lp *p)
                                    p->st_w + b)) != JAOS_OK)
                 goto done;
         }
+        for (int64_t i = 0; i < p->nind && i < p->nrow; i++)
+            if (p->ind_col[i] >= 0 &&
+                (st = jaos_set_row_indicator(p->m, i, p->ind_col[i],
+                                             p->ind_val[i])) != JAOS_OK)
+                goto done;
     }
 
 done:
@@ -884,5 +931,7 @@ done:
     free(p->st_start);
     free(p->st_col);
     free(p->st_w);
+    free(p->ind_col);
+    free(p->ind_val);
     return st;
 }

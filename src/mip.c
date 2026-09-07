@@ -112,6 +112,31 @@ static inline bool semi_broken(const jaos_model *m, int64_t j, double x)
            x < m->col_lower[j] - MIP_INT_TOL;
 }
 
+static inline bool ind_inactive(const jaos_model *m, const double *x,
+                                int64_t i)
+{
+    if (m->row_ind_col == nullptr || m->row_ind_col[i] < 0)
+        return false;
+    return fabs(x[m->row_ind_col[i]] - (double)m->row_ind_val[i]) > 0.5;
+}
+
+static int64_t indicator_violated(const jaos_model *m, const double *x)
+{
+    if (m->row_ind_col == nullptr)
+        return -1;
+    const double tol = jm_primal_tolerance(m);
+    for (int64_t i = 0; i < m->num_row; i++) {
+        if (m->row_ind_col[i] < 0 || ind_inactive(m, x, i))
+            continue;
+        double act = 0.0;
+        for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++)
+            act += m->ar_value[k] * x[m->ar_index[k]];
+        if (act < m->row_lower[i] - tol || act > m->row_upper[i] + tol)
+            return m->row_ind_col[i];
+    }
+    return -1;
+}
+
 static void cutbuf_free(cutbuf *cb)
 {
     free(cb->start); free(cb->idx); free(cb->val); free(cb->lo); free(cb->eff);
@@ -406,6 +431,16 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
             st = jaos_set_col_bounds(lp, j, ilo[j], ihi[j]);
     for (int64_t k = 0; st == JAOS_OK && n != nullptr && k < n->nfix; k++)
         st = jaos_set_col_bounds(lp, n->col[k], n->lo[k], n->hi[k]);
+    if (m->row_ind_col != nullptr)
+        for (int64_t i = 0; st == JAOS_OK && i < m->num_row; i++) {
+            const int64_t j = m->row_ind_col[i];
+            if (j < 0)
+                continue;
+            const bool on = lp->col_lower[j] == lp->col_upper[j] &&
+                            lp->col_lower[j] == (double)m->row_ind_val[i];
+            st = jaos_set_row_bounds(lp, i, on ? m->row_lower[i] : -INFINITY,
+                                     on ? m->row_upper[i] : INFINITY);
+        }
     if (st == JAOS_OK && n != nullptr)
         st = jaos_set_basis(lp, n->cs, n->rs);
     return st;
@@ -482,6 +517,16 @@ static bool republish_at_the_incumbent(jaos_model *m, const double *point,
                 goto out;
         }
     fin->num_sos = 0;
+    if (m->row_ind_col != nullptr) {
+        for (int64_t i = 0; i < nr; i++)
+            if (m->row_ind_col[i] >= 0 && ind_inactive(m, point, i) &&
+                jaos_set_row_bounds(fin, i, -INFINITY, INFINITY) != JAOS_OK)
+                goto out;
+        free(fin->row_ind_col);
+        fin->row_ind_col = nullptr;
+        free(fin->row_ind_val);
+        fin->row_ind_val = nullptr;
+    }
 
     fin->cfg.log_cb = nullptr;
 
@@ -1661,7 +1706,8 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
             ra[m->a_index[k]] += m->a_value[k] * v;
     }
     for (int64_t i = 0; i < nr; i++)
-        if (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol)
+        if (!ind_inactive(m, xr, i) &&
+            (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol))
             return false;
     if (sos_violated(m, xr, 0, nullptr, nullptr) >= 0)
         return false;
@@ -1780,6 +1826,8 @@ static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
         for (int64_t i = 0; i < nr; i++) {
             const double rlo = m->row_lower[i], rhi = m->row_upper[i];
             if (rlo == -INFINITY && rhi == INFINITY)
+                continue;
+            if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
                 continue;
 
             double smin = 0.0, smax = 0.0;
@@ -2010,6 +2058,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
     m->sol_basis_ok = false;
 
+    if (m->row_ind_col != nullptr && jm_model_ensure_rowwise(m) != JAOS_OK)
+        goto done;
     if (jaos_model_copy(m, &lp) != JAOS_OK)
         goto done;
     free(lp->col_integer);
@@ -2017,6 +2067,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     free(lp->col_semi);
     lp->col_semi = nullptr;
     lp->num_sos = 0;
+    free(lp->row_ind_col);
+    lp->row_ind_col = nullptr;
+    free(lp->row_ind_val);
+    lp->row_ind_val = nullptr;
     lp->cfg.log_cb = nullptr;
     jaos_clear_basis(lp);
 
@@ -2652,7 +2706,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         int64_t sos_first = -1, sos_last = -1;
         const int64_t sos = branch < 0
             ? sos_violated(m, x, 0, &sos_first, &sos_last) : -1;
-        if (branch < 0 && sos < 0) {
+        const int64_t ind = branch < 0 && sos < 0 ? indicator_violated(m, x)
+                                                   : -1;
+        if (branch < 0 && sos < 0 && ind < 0) {
             if (!incumbent_take(&inc, lp, nr, key))
                 goto done;
             if (first_inc == 0)
@@ -2754,6 +2810,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             ucol[0] = branch;
             ulo[0] = sc ? sc_lo : ceil(v);
             uhi[0] = lp->col_upper[branch];
+        } else if (ind >= 0) {
+            fcol[0] = ind;
+            flo[0] = lp->col_lower[ind];
+            fhi[0] = 0.0;
+            ucol[0] = ind;
+            ulo[0] = 1.0;
+            uhi[0] = lp->col_upper[ind];
         } else {
             const int64_t b = m->sos_start[sos], e = m->sos_start[sos + 1];
             const int64_t n = e - b;

@@ -2143,6 +2143,44 @@ static void test_a_semicontinuous_column_round_trips_through_both_formats(void)
     jaos_model_free(a);
 }
 
+static void test_an_indicator_row_round_trips_through_both_formats(void)
+{
+    const double cost[] = {-1.0, 3.0};
+    const double cl[]   = {0.0, 0.0};
+    const double cu[]   = {10.0, 1.0};
+    const double rl[]   = {-INFINITY, 1.0};
+    const double ru[]   = {2.0, INFINITY};
+    const int64_t as[]  = {0, 2, 3};
+    const int64_t ai[]  = {0, 1, 1};
+    const double  av[]  = {1.0, 1.0, 1.0};
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     3, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(a, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(a, 0, 1, 1));
+
+    const char *paths[2] = {TMP_MPS, TMP_LP};
+    for (int k = 0; k < 2; k++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_write_mps(a, paths[k])
+                                              : jaos_write_lp(a, paths[k]));
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_read_mps(b, paths[k])
+                                              : jaos_read_lp(b, paths[k]));
+        TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+        assert_same_model(a, b);
+        int64_t zc = -2;
+        int zv = -2;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(b, 0, &zc, &zv));
+        TEST_ASSERT_TRUE(zc == 1 && zv == 1);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(b, 1, &zc, &zv));
+        TEST_ASSERT_TRUE(zc == -1);
+        jaos_model_free(b);
+        remove(paths[k]);
+    }
+    jaos_model_free(a);
+}
+
 static void test_special_ordered_sets_round_trip_through_both_formats(void)
 {
     const double cost[] = {-1.0, -1.0, -1.0};
@@ -2263,5 +2301,6 @@ int main(void)
     RUN_TEST(test_a_point_file_uses_positional_names);
     RUN_TEST(test_a_semicontinuous_column_round_trips_through_both_formats);
     RUN_TEST(test_special_ordered_sets_round_trip_through_both_formats);
+    RUN_TEST(test_an_indicator_row_round_trips_through_both_formats);
     return UNITY_END();
 }

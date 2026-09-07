@@ -141,6 +141,11 @@ JAOS_NODISCARD jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
                                         const int64_t *cols,
                                         const double *weights);
 JAOS_NODISCARD int64_t jaos_num_sos(const jaos_model *m);
+
+JAOS_NODISCARD jaos_status jaos_set_row_indicator(jaos_model *m, int64_t row,
+                                                  int64_t col, int value);
+JAOS_NODISCARD jaos_status jaos_row_indicator(const jaos_model *m, int64_t row,
+                                              int64_t *col, int *value);
 JAOS_NODISCARD jaos_status jaos_sos(const jaos_model *m, int64_t k, int *type,
                                     int64_t *n, int64_t *cols, double *weights);
 

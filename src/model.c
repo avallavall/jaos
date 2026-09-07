@@ -57,6 +57,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->model_name);
     free(m->col_integer);
     free(m->col_semi);
+    free(m->row_ind_col);
+    free(m->row_ind_val);
     free(m->sos_type);
     free(m->sos_start);
     free(m->sos_col);
@@ -873,6 +875,61 @@ jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
     m->sos_start[m->num_sos + 1] = base + n;
     m->num_sos++;
     model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_row_indicator(jaos_model *m, int64_t i, int64_t col,
+                                   int value)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    if (col < 0) {
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            m->row_ind_col[i] = -1;
+            model_answer_is_stale(m);
+        }
+        return JAOS_OK;
+    }
+    if (col >= m->num_col) {
+        jm_set_err(m, "indicator column %lld is not a column of the model",
+                   (long long)col);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (value != 0 && value != 1) {
+        jm_set_err(m, "an indicator fires at 0 or at 1");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (m->col_integer == nullptr || !m->col_integer[col]) {
+        jm_set_err(m, "the indicator column must be marked integer first");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (m->row_ind_col == nullptr) {
+        m->row_ind_col = jm_alloc_array(m->num_row, sizeof(int64_t));
+        m->row_ind_val = jm_calloc_array(m->num_row, sizeof(int));
+        if (m->row_ind_col == nullptr || m->row_ind_val == nullptr) {
+            free(m->row_ind_col); m->row_ind_col = nullptr;
+            free(m->row_ind_val); m->row_ind_val = nullptr;
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t r = 0; r < m->num_row; r++)
+            m->row_ind_col[r] = -1;
+    }
+    m->row_ind_col[i] = col;
+    m->row_ind_val[i] = value;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+jaos_status jaos_row_indicator(const jaos_model *m, int64_t i, int64_t *col,
+                               int *value)
+{
+    if (m == nullptr || i < 0 || i >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    const bool has = m->row_ind_col != nullptr && m->row_ind_col[i] >= 0;
+    if (col != nullptr)
+        *col = has ? m->row_ind_col[i] : -1;
+    if (value != nullptr)
+        *value = has ? m->row_ind_val[i] : 0;
     return JAOS_OK;
 }
 
@@ -2191,6 +2248,24 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
             free(arriving);
         }
     }
+    if (m->row_ind_col != nullptr) {
+        int64_t *ic = realloc(m->row_ind_col, (size_t)nrow * sizeof *ic);
+        int *iv = ic ? realloc(m->row_ind_val, (size_t)nrow * sizeof *iv)
+                     : nullptr;
+        if (ic != nullptr)
+            m->row_ind_col = ic;
+        if (iv != nullptr)
+            m->row_ind_val = iv;
+        if (ic == nullptr || iv == nullptr) {
+            free(m->row_ind_col); m->row_ind_col = nullptr;
+            free(m->row_ind_val); m->row_ind_val = nullptr;
+        } else {
+            for (int64_t i = m->num_row; i < nrow; i++) {
+                m->row_ind_col[i] = -1;
+                m->row_ind_val[i] = 0;
+            }
+        }
+    }
     m->num_row = nrow;
     m->num_nz  = nnz;
 
@@ -2214,7 +2289,7 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
     if (keep == nullptr)
         return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
     int64_t *newidx = nullptr;
-    if (m->num_sos > 0) {
+    if (m->num_sos > 0 || m->row_ind_col != nullptr) {
         newidx = malloc((size_t)m->num_col * sizeof *newidx);
         if (newidx == nullptr) {
             free(keep);
@@ -2301,6 +2376,14 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
         }
         m->sos_start[nsets] = pos;
         m->num_sos = nsets;
+    }
+    if (m->row_ind_col != nullptr && newidx != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            newidx[j] = keep[j] ? at++ : -1;
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (m->row_ind_col[i] >= 0)
+                m->row_ind_col[i] = newidx[m->row_ind_col[i]];
     }
     free(newidx);
     free(keep);
@@ -2389,6 +2472,15 @@ jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
                 m->start_row_status[at++] = m->start_row_status[i];
     }
     names_compact(m->row_name, keep, m->num_row);
+    if (m->row_ind_col != nullptr) {
+        int64_t at = 0;
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (keep[i]) {
+                m->row_ind_col[at] = m->row_ind_col[i];
+                m->row_ind_val[at] = m->row_ind_val[i];
+                at++;
+            }
+    }
     free(keep);
 
     free(m->row_lower); free(m->row_upper);
@@ -2506,6 +2598,17 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
             goto oom;
         memcpy(m->col_semi, src->col_semi,
                (size_t)src->num_col * sizeof *m->col_semi);
+    }
+    if (src->row_ind_col != nullptr) {
+        const size_t nr = (size_t)(src->num_row > 0 ? src->num_row : 1);
+        m->row_ind_col = malloc(nr * sizeof *m->row_ind_col);
+        m->row_ind_val = malloc(nr * sizeof *m->row_ind_val);
+        if (m->row_ind_col == nullptr || m->row_ind_val == nullptr)
+            goto oom;
+        memcpy(m->row_ind_col, src->row_ind_col,
+               (size_t)src->num_row * sizeof *m->row_ind_col);
+        memcpy(m->row_ind_val, src->row_ind_val,
+               (size_t)src->num_row * sizeof *m->row_ind_val);
     }
     if (src->num_sos > 0) {
         const int64_t nz = src->sos_start[src->num_sos];

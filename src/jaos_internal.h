@@ -174,6 +174,9 @@ struct jaos_model {
     bool *col_integer;
     bool *col_semi;
 
+    int64_t *row_ind_col;
+    int *row_ind_val;
+
     int64_t num_sos;
     int *sos_type;
     int64_t *sos_start;

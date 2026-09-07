@@ -392,6 +392,10 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+expect_exit 0 "an indicator LP file solves through the tree" \
+    "$JAOS" solve "$DATA/g_ind.lp"
+[ "$(line_of objective)" = "objective 10" ] && pass "to 10, the row switched off" \
+    || flunk "indicator: $(line_of objective)"
 expect_exit 0 "an SOS2 LP file solves through the tree" \
     "$JAOS" solve "$DATA/g_sos.lp"
 [ "$(line_of objective)" = "objective 2" ] && pass "to 2, two adjacent members" \

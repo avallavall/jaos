@@ -2281,6 +2281,74 @@ static void test_a_semicontinuous_column_rests_at_zero_or_above_its_floor(void)
 #endif
 }
 
+static jaos_model *indicator_model(void)
+{
+    const double cost[] = {-1.0, 3.0};
+    const double cl[]   = {0.0, 0.0};
+    const double cu[]   = {10.0, 1.0};
+    const double rl[]   = {-INFINITY};
+    const double ru[]   = {2.0};
+    const int64_t as[]  = {0, 1, 1};
+    const int64_t ai[]  = {0};
+    const double  av[]  = {1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    return m;
+}
+
+static void test_an_indicator_row_holds_only_while_its_column_says_so(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    jaos_model *m = indicator_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_row_indicator(m, 0, 0, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_row_indicator(m, 0, 1, 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_row_indicator(m, 3, 1, 1));
+    int64_t zc = 5;
+    int zv = 5;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(m, 0, &zc, &zv));
+    TEST_ASSERT_TRUE(zc == -1 && zv == 0);
+
+    const double want_obj[3] = {-10.0, -7.0, -2.0};
+    const double want_x[3] = {10.0, 10.0, 2.0};
+    const double want_z[3] = {0.0, 1.0, 0.0};
+    for (int pass = 0; pass < 3; pass++) {
+        if (pass < 2)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 1, 1 - pass));
+        else
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, -1, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[2], y[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, want_obj[pass], obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, want_x[pass], x[0]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, want_z[pass], x[1]);
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+        TEST_ASSERT_TRUE(rep.primal_feasible);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 1, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(m, 0, &zc, &zv));
+    TEST_ASSERT_TRUE(zc == 1 && zv == 1);
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(c, 0, &zc, &zv));
+    TEST_ASSERT_TRUE(zc == 1 && zv == 1);
+    const int64_t del[] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(c, 1, del));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(c, 0, &zc, &zv));
+    TEST_ASSERT_TRUE(zc == 0 && zv == 1);
+    jaos_model_free(c);
+    jaos_model_free(m);
+#endif
+}
+
 static jaos_model *three_unit_columns(void)
 {
     const double cost[] = {-1.0, -1.0, -1.0};
@@ -2425,5 +2493,6 @@ int main(void)
     RUN_TEST(test_a_starting_point_and_a_cutoff);
     RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
     RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
+    RUN_TEST(test_an_indicator_row_holds_only_while_its_column_says_so);
     return UNITY_END();
 }

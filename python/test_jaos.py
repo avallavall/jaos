@@ -1259,6 +1259,25 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_an_indicator_row_holds_only_while_its_variable_says_so(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=10, name="x")
+        z = p.add_var(binary=True, name="z")
+        p.maximize(x - 3 * z)
+        c = p.add_indicator(z, 1, x <= 2, name="c1")
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 10.0, places=9)
+        self.assertEqual((x.value, z.value), (10.0, 0.0))
+        self.assertEqual(p._m.row_indicator(c._i), (z._i, 1))
+        q = jaos.Problem()
+        x = q.add_var(ub=10, name="x")
+        z = q.add_var(binary=True, name="z")
+        q.maximize(x - 3 * z)
+        q.add_indicator(z, 0, x <= 2)
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(q.objective_value, 7.0, places=9)
+        self.assertEqual((x.value, z.value), (10.0, 1.0))
+
     def test_special_ordered_sets_limit_the_nonzero_members(self):
         for sos_type, want in ((1, 1.0), (2, 2.0)):
             p = jaos.Problem()

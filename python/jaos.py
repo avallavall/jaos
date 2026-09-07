@@ -493,6 +493,8 @@ _sig("jaos_set_col_semicontinuous", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_semicontinuous", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_add_sos", ctypes.c_int, _VP, ctypes.c_int, _I64, _P(_I64), _P(_D))
 _sig("jaos_num_sos", _I64, _VP)
+_sig("jaos_set_row_indicator", ctypes.c_int, _VP, _I64, _I64, ctypes.c_int)
+_sig("jaos_row_indicator", ctypes.c_int, _VP, _I64, _P(_I64), _P(ctypes.c_int))
 _sig("jaos_sos", ctypes.c_int, _VP, _I64, _P(ctypes.c_int), _P(_I64),
      _P(_I64), _P(_D))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
@@ -1029,6 +1031,21 @@ class Model:
 
     def num_sos(self):
         return int(_lib.jaos_num_sos(self._handle()))
+
+    def set_row_indicator(self, row, col, value=1):
+        """Row `row` holds only while integer column `col` equals `value`
+        (0 or 1); `col=None` makes it an ordinary row again."""
+        self._check(_lib.jaos_set_row_indicator(
+            self._handle(), int(row), -1 if col is None else int(col),
+            int(value)))
+
+    def row_indicator(self, row):
+        """(column, value) of the row's indicator, or (None, 0)."""
+        c = _I64()
+        v = ctypes.c_int()
+        self._check(_lib.jaos_row_indicator(self._handle(), int(row),
+                                            ctypes.byref(c), ctypes.byref(v)))
+        return (None if c.value < 0 else int(c.value)), int(v.value)
 
     def sos(self, k):
         """(type, columns, weights) of set `k`, members in weight order."""
@@ -2362,6 +2379,7 @@ class Problem:
         self._vars = []
         self._cons = []
         self._sos = []
+        self._ind = []
         self._obj = {}
         self._obj_c = 0.0
         self._sense = ObjSense.MINIMIZE
@@ -2474,6 +2492,16 @@ class Problem:
         self._sense = sense
         return self
 
+    def add_indicator(self, indicator, value, cons, name=None):
+        """`cons` holds only while the integer variable `indicator` equals
+        `value` (0 or 1):  p.add_indicator(z, 1, x + y <= 5)."""
+        if indicator._p is not self:
+            raise ValueError(f"{indicator.name} belongs to a different "
+                             f"Problem")
+        c = self.add(cons, name)
+        self._ind.append((c, indicator, int(value)))
+        return c
+
     def add_sos(self, sos_type, variables, weights=None):
         """A special ordered set over `variables`: type 1 lets one be
         nonzero, type 2 two adjacent ones. `weights` orders them; by default
@@ -2550,6 +2578,8 @@ class Problem:
                 self._m.set_col_semicontinuous(v._i, True)
         for t, vs, ws in self._sos:
             self._m.add_sos(t, [v._i for v in vs], ws)
+        for c, z, v in self._ind:
+            self._m.set_row_indicator(c._i, z._i, v)
         for c in self._cons:
             self._m.set_row_name(c._i, c.name)
         self._dirty_var_bounds.clear()

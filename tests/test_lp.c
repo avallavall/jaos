@@ -247,6 +247,20 @@ static void test_a_semicontinuous_section_marks_the_columns(void)
     jaos_model_free(m);
 }
 
+static void test_an_indicator_arrow_marks_the_row(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_ind.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    int64_t zc = -2;
+    int zv = -2;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(m, 0, &zc, &zv));
+    TEST_ASSERT_TRUE(zc == 1 && zv == 1);
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, m->row_upper[0]);
+    jaos_model_free(m);
+}
+
 static void test_an_sos_section_builds_the_sets(void)
 {
     jaos_model *m = fresh();
@@ -283,5 +297,6 @@ int main(void)
     RUN_TEST(test_failed_read_preserves_previous_model);
     RUN_TEST(test_a_semicontinuous_section_marks_the_columns);
     RUN_TEST(test_an_sos_section_builds_the_sets);
+    RUN_TEST(test_an_indicator_arrow_marks_the_row);
     return UNITY_END();
 }

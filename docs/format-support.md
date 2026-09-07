@@ -105,6 +105,9 @@ header is a line whose first character is non-blank, `*` opens a comment.
   member be nonzero, type 2 two members adjacent in weight order. Weights
   within a set must be distinct. The writer prints every set the same way,
   named `SOS1`, `SOS2`, ...
+- **INDICATORS section**: after SOS. One line `IF row column value` per
+  indicator: the row holds only while the integer column equals the value,
+  0 or 1, and is free otherwise. The writer prints the same lines.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
   per run of integer columns.
@@ -183,6 +186,9 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   column under `General`, its bounds already above. **`Semi-continuous`**
   (`Semi`, `Semis`, `Semi-continuous`): names of variables that rest at zero
   or inside their bounds; the writer prints them under `Semi-continuous`.
+- **Indicator constraints**: `name: z = 1 -> x + y <= 5`; the row holds
+  only while the integer variable `z` equals the value, 0 or 1. The writer
+  prints the same arrow.
 - **`SOS`**: one set per line, `name: S1:: x:1 y:2` or `S2:: x:1 y:2 z:3`;
   the name is optional and `S1`/`S2` is the type. The writer prints every
   set as `SOSk: S1:: ...`.

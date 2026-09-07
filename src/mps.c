@@ -59,7 +59,7 @@ static bool parse_num(const char *t, double *out)
 
 enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
                S_RANGES,
-               S_BOUNDS, S_SOS };
+               S_BOUNDS, S_SOS, S_INDICATORS };
 
 #define OBJ_ROW (-1)
 
@@ -99,6 +99,10 @@ typedef struct {
     int64_t *st_col;
     double *st_w;
     int64_t nsos, sos_cap, sos_start_cap, nsosm, sosm_cap, sosw_cap;
+
+    int64_t *ind_row, *ind_col;
+    int *ind_val;
+    int64_t nind, indr_cap, indc_cap, indv_cap;
 
     jm_nmap cmap;
     double *cost, *cl, *cu;
@@ -141,6 +145,9 @@ static void rd_free(rd *r)
     free(r->st_start);
     free(r->st_col);
     free(r->st_w);
+    free(r->ind_row);
+    free(r->ind_col);
+    free(r->ind_val);
 }
 
 
@@ -437,6 +444,36 @@ done:
     return st;
 }
 
+static jaos_status rd_indicator_line(rd *r, char **tok, int nt)
+{
+    jaos_status st = JAOS_OK;
+    if (nt != 4)
+        FAIL("line %" PRId64 ": an indicator line is 'IF row column value'",
+             r->lno);
+    upcase(tok[0]);
+    if (strcmp(tok[0], "IF") != 0)
+        FAIL("line %" PRId64 ": an indicator line starts with IF", r->lno);
+    int64_t i, j;
+    if (!jm_nmap_get(&r->rmap, tok[1], &i) || i == OBJ_ROW)
+        FAIL("line %" PRId64 ": unknown row '%s'", r->lno, tok[1]);
+    if (!jm_nmap_get(&r->cmap, tok[2], &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[2]);
+    double v = 0.0;
+    if (!parse_num(tok[3], &v) || (v != 0.0 && v != 1.0))
+        FAIL("line %" PRId64 ": an indicator fires at 0 or at 1, not '%s'",
+             r->lno, tok[3]);
+    if (!JM_GROW(r->ind_row, r->indr_cap, r->nind + 1) ||
+        !JM_GROW(r->ind_col, r->indc_cap, r->nind + 1) ||
+        !JM_GROW(r->ind_val, r->indv_cap, r->nind + 1))
+        FAIL_OOM();
+    r->ind_row[r->nind] = i;
+    r->ind_col[r->nind] = j;
+    r->ind_val[r->nind] = v == 1.0 ? 1 : 0;
+    r->nind++;
+done:
+    return st;
+}
+
 static jaos_status rd_sos_line(rd *r, char **tok, int nt)
 {
     jaos_status st = JAOS_OK;
@@ -617,6 +654,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (sec < S_COLUMNS)
                     FAIL("line %" PRId64 ": SOS before COLUMNS", r->lno);
                 sec = S_SOS;
+            } else if (strcmp(kw, "INDICATORS") == 0) {
+                if (sec < S_COLUMNS)
+                    FAIL("line %" PRId64 ": INDICATORS before COLUMNS", r->lno);
+                sec = S_INDICATORS;
             } else if (strcmp(kw, "ENDATA") == 0) {
                 ended = true;
             } else {
@@ -674,6 +715,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             if ((st = rd_sos_line(r, tok, nt)) != JAOS_OK)
                 goto done;
             break;
+        case S_INDICATORS:
+            if ((st = rd_indicator_line(r, tok, nt)) != JAOS_OK)
+                goto done;
+            break;
         default:
             FAIL("line %" PRId64 ": data outside any section", r->lno);
         }
@@ -681,6 +726,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
 
     if (!ended)
         FAIL("missing ENDATA");
+    for (int64_t k = 0; k < r->nind; k++)
+        if (!r->cint[r->ind_col[k]])
+            FAIL("indicator %lld names a column that is not integer",
+                 (long long)(k + 1));
     for (int64_t k = 0; k < r->nsos; k++) {
         const int64_t b = r->st_start[k], e = r->st_start[k + 1];
         if (e == b)
@@ -778,6 +827,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                                    r->st_w + b)) != JAOS_OK)
                 goto done;
         }
+        for (int64_t k = 0; k < r->nind; k++)
+            if ((st = jaos_set_row_indicator(m, r->ind_row[k], r->ind_col[k],
+                                             r->ind_val[k])) != JAOS_OK)
+                goto done;
     }
 
 done:

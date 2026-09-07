@@ -1,0 +1,17 @@
+NAME ind
+ROWS
+ N obj
+ L c1
+COLUMNS
+    x obj -1 c1 1
+    MARKER 'MARKER' 'INTORG'
+    z obj 3
+    MARKER 'MARKER' 'INTEND'
+RHS
+    RHS c1 2
+BOUNDS
+ UP BND x 10
+ UP BND z 1
+INDICATORS
+ IF c1 z 1
+ENDATA

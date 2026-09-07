@@ -430,6 +430,22 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
                 }
             }
         }
+        if (m->row_ind_col != nullptr) {
+            bool any = false;
+            for (int64_t i = 0; i < m->num_row; i++)
+                any |= m->row_ind_col[i] >= 0;
+            if (any) {
+                fprintf(w->f, "INDICATORS\n");
+                for (int64_t i = 0; i < m->num_row; i++) {
+                    if (m->row_ind_col[i] < 0)
+                        continue;
+                    row_name(m, rn, i);
+                    col_name(m, nm, m->row_ind_col[i]);
+                    fprintf(w->f, " IF %-9s %-9s %d\n", rn, nm,
+                            m->row_ind_val[i]);
+                }
+            }
+        }
 
         fprintf(w->f, "ENDATA\n");
     }
@@ -553,6 +569,12 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             row_name(m, rn, i);
             fprintf(w->f, " %s:", rn);
             col = (int)strlen(rn) + 2;
+            if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+                char zn[JAOS_NAME_MAX + 1];
+                col_name(m, zn, m->row_ind_col[i]);
+                fprintf(w->f, " %s = %d ->", zn, m->row_ind_val[i]);
+                col += (int)strlen(zn) + 8;
+            }
             if (ranged) {
                 wr_num(lonum, rl);
                 fprintf(w->f, " %s <=", lonum);

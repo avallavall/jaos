@@ -18,7 +18,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Linear programming | **done** | |
-| Mixed-integer linear | **partial** | missing: indicator constraints (§4) |
+| Mixed-integer linear | **done** | integer, binary and semi-continuous columns, SOS1/SOS2, indicator constraints |
 | Convex quadratic (QP) | **missing** | |
 | Quadratically constrained, second-order cone | **missing** | |
 | Mixed-integer quadratic | **missing** | |
@@ -75,7 +75,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | MIP presolve: probing, clique table, coefficient tightening | **missing** | |
 | Semi-continuous variables | **done** | `jaos_set_col_semicontinuous`; MPS `SC` and `SI`, LP `Semi-continuous`, both writers; the tree relaxes the floor to zero and branches on the zero side; the checker accepts zero |
 | SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_num_sos`, `jaos_sos`; MPS `SOS` section and LP `SOS` section, both writers; the tree branches on the weighted split and the checker counts the excess nonzeros as an integrality violation; Python `add_sos` at both layers |
-| Indicator constraints | **missing** | |
+| Indicator constraints | **done** | `jaos_set_row_indicator`, `jaos_row_indicator`: a row that holds only while a binary column equals 0 or 1. The tree keeps the row free until the column is fixed by branching and branches on the column when the point breaks it; the checker ignores an inactive row. LP `z = 1 ->`, MPS `INDICATORS`, both writers, Python `add_indicator` |
 | Symmetry detection | **missing** | |
 | Conflict analysis | **missing** | |
 | Deterministic parallel tree search | **missing** | |
@@ -121,7 +121,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Read other solvers' solution files | **missing** | |
 | Reject unsupported constructs with a line number | **done** | |
 | `diff` and `show` commands | **done** | |
-| Indicator constraints in LP | **missing** | |
+| Indicator constraints in MPS and LP | **done** | |
 | Other formats (`.nl`, OSiL, QPLIB) | **missing** | |
 
 ## 8. Using it from another language

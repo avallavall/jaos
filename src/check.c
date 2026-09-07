@@ -390,6 +390,10 @@ jaos_status jaos_check_solution(const jaos_model *m,
     for (int64_t i = 0; i < m->num_row; i++) {
         double viol = interval_violation(act[i], m->row_lower[i],
                                          m->row_upper[i]);
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0 &&
+            fabs(col_value[m->row_ind_col[i]] - (double)m->row_ind_val[i]) >
+                0.5)
+            viol = 0.0;
         row_viol = max2(row_viol, viol);
 
         row_viol_rel = max2(row_viol_rel,
@@ -446,13 +450,20 @@ jaos_status jaos_check_solution(const jaos_model *m,
         const bool implied = icl != nullptr && icu != nullptr &&
                              rlo != nullptr && rloc != nullptr &&
                              rup != nullptr && rupc != nullptr &&
-                             rli != nullptr && rui != nullptr;
+                             rli != nullptr && rui != nullptr &&
+                             m->row_ind_col == nullptr;
         if (implied)
             implied_bounds(m, icl, icu, rlo, rloc, rup, rupc, rli, rui);
 
         for (int64_t i = 0; i < m->num_row; i++) {
             double rl = m->row_lower[i], ru = m->row_upper[i];
             bool rl_imp = false, ru_imp = false;
+            if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0 &&
+                fabs(col_value[m->row_ind_col[i]] -
+                     (double)m->row_ind_val[i]) > 0.5) {
+                rl = -INFINITY;
+                ru = INFINITY;
+            }
             if (implied) {
                 if (!isfinite(rl) && rli[i] == 0) {
                     rl = acc_value(rlo[i], rloc[i]);
