@@ -2578,11 +2578,20 @@ static void test_the_basis_agrees_with_the_values_it_came_with(void)
     jaos_model_free(m);
 }
 
-/* No optimum, no basis — and the reason is sharper here than it is for the
+/* No simplex, no basis — and the reason is sharper here than it is for the
  * values. A buffer of zeros does not read as absent: it reads as a solution
  * in which every variable is basic, which is not something a simplex can
- * report at all. */
-static void test_the_basis_is_refused_when_there_is_no_optimum(void)
+ * report at all.
+ *
+ * A basis is available after a refusal since D330, so what this pins is
+ * the other side of that rule: a model with no solve behind it, and a
+ * verdict reached without one. The row below asks for more than its own
+ * columns can give, which is one forcing-row test, so under the default
+ * build presolve settles it and there is nothing to publish. The
+ * reference build has no presolve and its simplex answers, so it asserts
+ * a basis with exactly num_row basics -- a one-sided test would pass on a
+ * call that always refuses. */
+static void test_the_basis_is_refused_where_no_simplex_ran(void)
 {
     jaos_basis_status cs[2], rs[1];
     jaos_model *m = fresh();
@@ -2600,7 +2609,15 @@ static void test_the_basis_is_refused_when_there_is_no_optimum(void)
                      2, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    int64_t basic = 0;
+    for (int64_t j = 0; j < 2; j++) basic += cs[j] == JAOS_BASIS_BASIC;
+    basic += rs[0] == JAOS_BASIS_BASIC;
+    TEST_ASSERT_EQUAL_INT64(1, basic);
+#else
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+#endif
     jaos_model_free(m);
 }
 
@@ -3499,12 +3516,22 @@ static void test_a_budget_stop_can_be_resumed(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
     TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
 
-    /* No answer to read, and no basis behind one: a stopping point is not a
-     * solution and must not be readable through the call that publishes one. */
+    /* No answer to read: a stopping point is not a solution, and the call
+     * that publishes one still says so. The basis behind it IS readable
+     * since D330 -- it is a starting point and not an answer, and exactly
+     * num_row of the statuses are basic. */
     double obj = 0.0;
     jaos_basis_status cs[2], rs[3];
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    {
+        int64_t basic = 0;
+        for (int64_t j = 0; j < jaos_num_col(m); j++)
+            basic += cs[j] == JAOS_BASIS_BASIC;
+        for (int64_t i = 0; i < jaos_num_row(m); i++)
+            basic += rs[i] == JAOS_BASIS_BASIC;
+        TEST_ASSERT_EQUAL_INT64(jaos_num_row(m), basic);
+    }
     /* It is kept where the next solve looks, which is somewhere else. */
     TEST_ASSERT_NOT_NULL(m->start_col_status);
 
@@ -4690,7 +4717,7 @@ int main(void)
     RUN_TEST(test_queries_before_a_solve);
     RUN_TEST(test_the_basis_names_which_rows_hold_the_optimum);
     RUN_TEST(test_the_basis_agrees_with_the_values_it_came_with);
-    RUN_TEST(test_the_basis_is_refused_when_there_is_no_optimum);
+    RUN_TEST(test_the_basis_is_refused_where_no_simplex_ran);
     RUN_TEST(test_re_solving_an_unchanged_model_costs_no_iterations);
     RUN_TEST(test_a_warm_re_solve_agrees_with_a_cold_one);
     RUN_TEST(test_a_basis_handed_in_must_be_a_basis);

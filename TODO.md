@@ -26,26 +26,75 @@ a one-sided test passes on a report that is always empty. `tests/cli.sh`'s
 fires rather than relaxed to "at least five", which would stop catching a
 stray line.
 
-**What is next, and the first item is BLOCKED on a precondition nobody had
-noticed.** D328's eleven would close with an exact Farkas ray derived from
-the final basis. Step two of that is already available: `src/verify.c`'s
-`solve_system` takes a `.transpose` flag, and the row index the ray
-belongs to can be recovered as the argmax of `B'y` computed in doubles, so
-no solver change is needed to do the exact solve. **Step one is not
-available: an INFEASIBLE solve publishes no basis at all** — `jaos_basis`
-refuses after one, checked on `bgetam`, `klein2` and `vol1`. So the work
-is really two items, and the first is its own feature:
+**2026-09-07, the day batch, thirteenth round: the basis behind a
+refusal, the feasibility relaxation, and the basis in a certificate file
+(D330, D331, D332).** `jaos_basis` answers after INFEASIBLE, UNBOUNDED and
+a budget stop; `jaos_feasrelax` and `jaos relax` say what the smallest
+change to the bounds is that makes a model feasible; and a certificate
+file carries the basis, so `jaos solve --start` resumes a refusal in
+another process. **Three things worth carrying forward.**
 
-1. **Publish the final basis on an INFEASIBLE answer**, lifted through
-   presolve. That is D257's territory, the half where the published basis
-   broke `jaos.h`'s row-count promise on 46 of netlib's 188 solves until
-   every postsolve status was decided from the reduction's structure. It
-   is worth having on its own — a caller can then warm-start from an
-   infeasible solve and inspect what proved it — and it wants a session
-   that can give postsolve full attention.
-2. **Then the exact ray**, which is the cheap half.
+The availability of a basis is a FLAG and not a test on the arrays.
+`JAOS_BASIS_BASIC` is 0, so a buffer of zeros reads as a basis in which
+everything is basic, and the two verdicts presolve reaches with no simplex
+publish exactly those zeros. 19 of the 29 infeasibles have a basis and 10
+do not.
 
-After those, the seven held constants.
+The relaxation is judged by re-solving the moved model, never by a value.
+27 of 29 read OPTIMAL that way; the oracle's own first two attempts were
+wrong before it read 27 (the caller's objective made a feasible answer
+read UNBOUNDED, and a multiplicative slack term added 1e-13 to a move of
+1e-7 and moved nothing). What settled the last two is a residual and not a
+verdict: the relaxation run a second time on the moved model leaves
+1.003e-8 of an original 0.0262 on `gran` and exactly zero on `gosh`.
+
+A postsolve branch nobody read was wrong. The non-optimal branch built the
+basis and had a singleton row leave it with nothing entering, so the count
+was short of `num_row`. It was invisible because the arrays were zeroed
+one statement later. It pairs now, the way D257's OPTIMAL replay pairs it.
+
+**A standing defect this batch found and did not cause.** `klein2`
+answers INFEASIBLE cold in 262 iterations. Warm from its own infeasible
+basis it trips the internal iteration guard after 106201 iterations, 83680
+pivots declined on factorization disagreement, and the message calls
+itself a JAOS defect. Reached identically by two `jaos_solve` calls on one
+model with no file involved
+(`bench/measurements/02-212/klein2-double-solve.py`), so the path is as
+old as remembering a refusal's basis. It is the only one of the 19 whose
+warm re-solve costs more than its cold one. **Not diagnosed. Next session
+that touches the dual's stalling should start here**, because it is a
+small model with a reproducer that takes two lines.
+
+**A second standing defect, found by `numerics-reviewer` on this batch's
+own diff and older than it.** A MIP's proved incumbent publishes a basis
+with MORE than `num_row` basics whenever the node that proved it still
+held a binding cut. `incumbent_take` (`src/mip.c`) copies the node LP's
+statuses truncated to the caller's own rows, which drops a cut row's
+status but not the basic it paid for, so the count is one too high per
+binding cut. Cuts are on by default, so this is the ordinary case rather
+than a corner. It predates D330 -- `jaos_basis` gated on OPTIMAL and
+handed out the same vector -- and both `jaos_cost_ranging` and
+`jaos_verify` already refuse such a vector on their own count checks,
+which is how it stayed invisible. **D330 does not repair it**: it makes
+`sol_basis_ok` counted rather than claimed at that site, so the call
+refuses instead of handing out a truncation, and the header says so. The
+repair is the exchange `node_child` already does -- a cut whose slack is
+basic leaves with its row -- applied to the incumbent's copy, and it wants
+the session that next touches `src/mip.c`.
+
+**What is next**, in order:
+
+1. **The exact Farkas ray**, which is now unblocked. D328's eleven would
+   close with a ray derived from the final basis, and the basis is
+   published now. `src/verify.c`'s `solve_system` takes a `.transpose`
+   flag, and the row index the ray belongs to is the argmax of `B'y`
+   computed in doubles, so no solver change is needed to do the exact
+   solve. What it wants is the setup `jaos_verify` does inline — build,
+   scale, transversal, Tarjan, the a-priori bound — factored out so two
+   callers can share it.
+2. **`klein2`'s warm stall** above.
+3. **The MIP incumbent's basis count** above.
+4. After those, the seven held constants.
 
 **2026-09-07, the day batch, eleventh round: the proof file carries a
 certificate, and two independent checkers agree 28 times out of 28

@@ -500,9 +500,17 @@ expect_exit 0 "--start from the model's own solution exits 0" \
 fi
 expect_exit 5 "--start with a file for another model exits 5" \
     "$JAOS" solve "$DATA/g2.lp" --start "$tmp/a.sol"
-expect_exit 5 "--start from a certificate exits 5" \
+# A certificate file carries the basis its refusal stopped on since D332,
+# so --start takes one and the model answers infeasible again, which is
+# exit 1. What is refused is a file with no basis in it at all.
+expect_exit 1 "--start from a certificate exits 1, the model's own verdict" \
     "$JAOS" solve "$DATA/t1.mps" --start "$tmp/b.sol"
-[ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
+[ "$(line_of status)" = "status infeasible" ] \
+    && pass "and the warm run reaches the same verdict" \
+    || flunk "warm from a certificate printed '$(line_of status)'"
+grep -q '^basis ' "$tmp/b.sol" \
+    && pass "the certificate file carries a basis section" \
+    || flunk "no basis records in the certificate file"
 
 # ---------------------------------------------------------------- convert
 expect_exit 0 "convert MPS to LP exits 0" \
@@ -667,6 +675,44 @@ expect_exit 1 "iis of an optimal model exits 1" "$JAOS" iis "$DATA/solve1.mps"
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
 expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
 expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
+
+# ------------------------------------------------------------------ relax
+expect_exit 0 "relax of an infeasible model exits 0" "$JAOS" relax "$DATA/t1.mps"
+for k in total rows_moved cols_moved largest work_units; do
+    [ -n "$(line_of $k)" ] && pass "relax prints a $k line" \
+        || flunk "no $k line in: $out"
+done
+moves=$(printf '%s\n' "$out" | grep -c '^\(row\|col\) [^ ]* \(lower\|upper\) ')
+counted=$(( $(line_of rows_moved | cut -d' ' -f2) \
+          + $(line_of cols_moved | cut -d' ' -f2) ))
+[ "$moves" -eq "$counted" ] && pass "one move line per counted move ($moves)" \
+    || flunk "rows_moved+cols_moved is $counted and there are $moves lines"
+[ "$moves" -ge 1 ] && pass "an infeasible model needs at least one move" \
+    || flunk "relax of an infeasible model moved nothing"
+# Named as the file names them, the rule every command here follows (D284).
+[ "$(printf '%s\n' "$out" | grep -c '^\(row \(LIM1\|LIM2\|EQ1\)\|col X[123]\) \(lower\|upper\) ')" -eq "$moves" ] \
+    && pass "every move carries the file's own name" \
+    || flunk "a move is not named by the file: $out"
+"$JAOS" relax "$DATA/t1.mps" > "$tmp/relax1"
+"$JAOS" relax "$DATA/t1.mps" > "$tmp/relax2"
+cmp -s "$tmp/relax1" "$tmp/relax2" && pass "two relax runs agree byte for byte" \
+    || { flunk "two relax runs differ"; diff "$tmp/relax1" "$tmp/relax2"; }
+
+expect_exit 0 "relax of a feasible model exits 0" "$JAOS" relax "$DATA/solve1.mps"
+[ "$(line_of total)" = "total 0" ] && pass "and its total is 0" \
+    || flunk "relax of a feasible model printed '$(line_of total)'"
+expect_exit 0 "relax --rows exits 0" "$JAOS" relax "$DATA/t1.mps" --rows
+[ "$(line_of cols_moved)" = "cols_moved 0" ] \
+    && pass "and moves no column bound" \
+    || flunk "relax --rows printed '$(line_of cols_moved)'"
+expect_exit 0 "relax --cols exits 0" "$JAOS" relax "$DATA/t1.mps" --cols
+[ "$(line_of rows_moved)" = "rows_moved 0" ] \
+    && pass "and moves no row bound" \
+    || flunk "relax --cols printed '$(line_of rows_moved)'"
+expect_exit 5 "relax without a file is a usage error" "$JAOS" relax
+expect_exit 5 "relax of a missing file exits 5" "$JAOS" relax "$tmp/no-such.mps"
+expect_exit 5 "relax with an unknown option is a usage error" \
+    "$JAOS" relax "$DATA/t1.mps" --both
 
 # ----------------------------------------------------------------- verify
 if [ "$faulty" -eq 0 ]; then

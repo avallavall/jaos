@@ -2135,7 +2135,18 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
             return JAOS_OK;
         }
         /* Arena-keyed corrections: FREE_COL_SINGLETON's column is FREE, and
-         * SINGLETON_ROW's row takes its structural tightening direction. */
+         * SINGLETON_ROW's row takes its structural tightening direction.
+         *
+         * The count is what makes these a basis and not a list of statuses
+         * (D257, D330). Before the loop it is exactly `orig->num_row`: the
+         * reduced solve leaves `red->num_row` basics among the survivors
+         * and every removed row arrives basic, which is the rest of them.
+         * So each correction below has to trade one basic for one, and
+         * that is why a singleton row may only leave the basis in exchange
+         * for its own column entering it -- the same pairing the OPTIMAL
+         * replay makes, on the structure alone, since this branch has no
+         * values or reduced costs to read. A column already basic keeps
+         * the row's own logical basic. */
         for (int64_t r = 0; r < p->arena_len; r++) {
             const jm_presolve_rec *rec = &p->arena[r];
             if (rec->tag == JM_PS_FREE_COL_SINGLETON) {
@@ -2144,18 +2155,53 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
                 orig->sol_col_status[rec->index2] = JAOS_BASIS_BASIC;
                 orig->sol_row_status[rec->index] = JAOS_BASIS_AT_LOWER;
             } else if (rec->tag == JM_PS_SINGLETON_ROW) {
-                orig->sol_row_status[rec->index] =
-                    rec->row_tightens_hi ? JAOS_BASIS_AT_UPPER :
-                    rec->row_tightens_lo ? JAOS_BASIS_AT_LOWER :
-                                            JAOS_BASIS_BASIC;
+                const int64_t i = ps_restore_index(rec->index, orig->num_row);
+                const int64_t j = rec->index2;
+                const bool tightens =
+                    rec->row_tightens_hi || rec->row_tightens_lo;
+                if (tightens &&
+                    orig->sol_col_status[j] != JAOS_BASIS_BASIC) {
+                    orig->sol_row_status[i] = rec->row_tightens_hi
+                        ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+                    orig->sol_col_status[j] = JAOS_BASIS_BASIC;
+                } else {
+                    orig->sol_row_status[i] = JAOS_BASIS_BASIC;
+                }
             }
         }
+#if !defined(NDEBUG) && !defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+        /* Only where the reduced solve published one: on a numerical
+         * failure red->start_* still holds whatever basis was mapped in,
+         * and the count of a caller's basis is not this branch's to
+         * promise.
+         *
+         * Skipped under JAOS_PRESOLVE_FAULT_OFFBYONE, which is the build
+         * whose whole purpose is to make `ps_restore_index` return the
+         * wrong row: the pairing above then takes a basic away from one
+         * row and gives it to a column of another, the count breaks, and
+         * that is the fault doing its job rather than a defect here. The
+         * dual fault build is not skipped, because it moves a multiplier
+         * and a reduced cost and never a status or an index, so it cannot
+         * reach this count. */
+        if (red->sol_basis_ok) {
+            int64_t nb = 0;
+            for (int64_t j = 0; j < orig->num_col; j++)
+                nb += (orig->sol_col_status[j] == JAOS_BASIS_BASIC);
+            for (int64_t i = 0; i < orig->num_row; i++)
+                nb += (orig->sol_row_status[i] == JAOS_BASIS_BASIC);
+            assert(nb == orig->num_row);
+        }
+#endif
 
         free(rowc);
         /* NUMERICAL_ERROR gets no warm memory (D148): red->start_* still
-         * holds the condemned basis jm_presolve_run mapped in. */
-        if (red->solve_status != JAOS_SOLVE_NUMERICAL_ERROR)
+         * holds the condemned basis jm_presolve_run mapped in, and it is
+         * not published either -- publish() cleared the reduced model's
+         * own flag for the same reason. */
+        if (red->solve_status != JAOS_SOLVE_NUMERICAL_ERROR) {
             (void)jm_model_remember_basis(orig);
+            orig->sol_basis_ok = red->sol_basis_ok;
+        }
         return JAOS_OK;
     }
 
@@ -2211,6 +2257,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
 
     jm_model_publish_objective(orig);
     (void)jm_model_remember_basis(orig);
+    orig->sol_basis_ok = true;
     return JAOS_OK;
 }
 
@@ -2264,6 +2311,14 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
 
     jm_model_publish_objective(orig);
     (void)jm_model_remember_basis(orig);
+    /* Counted rather than claimed, unlike the replay above. This path
+     * starts from an all-BASIC memset and the comment beside it says the
+     * count can come out over by one, on a frozen row that survives with
+     * every column gone and that nothing else writes a status for. None
+     * of the 139 gate instances reaches this function (`TODO.md`), so no
+     * campaign would notice; asking is what keeps `jaos_basis`'s promise
+     * true where no measurement stands behind it. */
+    orig->sol_basis_ok = jm_model_basis_count_ok(orig);
     return JAOS_OK;
 }
 

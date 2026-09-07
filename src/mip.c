@@ -2493,6 +2493,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_first_inc = 0;
     m->mip_bound = 0.0;
     m->mip_has_incumbent = false;
+    /* At entry, so the two solve entry points agree: `jm_dual_simplex`
+     * clears the flag before it runs, and a tree that fails on an
+     * allocation before it publishes would otherwise leave the previous
+     * solve's basis readable (D330). */
+    m->sol_basis_ok = false;
 
     if (jaos_model_copy(m, &lp) != JAOS_OK)
         goto done;
@@ -3369,6 +3374,12 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     /* Publish. */
     rc = JAOS_OK;
     m->solve_status = outcome;
+    /* Only the incumbent's basis crosses back (below), and only when the
+     * tree proved it. Every other outcome leaves the tree's own node
+     * bases behind on the private copy, and none of them is a basis of
+     * the model the caller holds (D330). Already false from entry;
+     * repeated because the publish block is where it turns on. */
+    m->sol_basis_ok = false;
     m->solve_work = work;
     m->solve_iters = iters;
     m->solve_time = now_seconds() - t0;
@@ -3426,6 +3437,18 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             memcpy(m->sol_row_status, inc.rs, (size_t)nr * sizeof *m->sol_row_status);
         }
         jm_model_publish_objective(m);
+        /* Counted rather than claimed, and the count really does fail
+         * here. `incumbent_take` copies the node LP's statuses truncated
+         * to the caller's own rows, so a cut row's status is dropped
+         * while the basic it paid for is not: a proved node still
+         * holding a binding cut publishes one basic too many per cut.
+         * That is older than D330 -- `jaos_basis` handed the same vector
+         * out after a MIP optimum before it -- and `jaos_ranging` and
+         * `jaos_verify` each refuse such a vector on their own count
+         * check. Carried in `TODO.md`; until it is repaired the flag
+         * says what is true, so no caller is told a truncation is a
+         * basis. */
+        m->sol_basis_ok = jm_model_basis_count_ok(m);
     }
 
 done:

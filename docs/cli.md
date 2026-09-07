@@ -36,6 +36,7 @@ jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos stats FILE
 jaos iis FILE
+jaos relax FILE [--rows | --cols]
 jaos verify FILE [--values] [--proof PATH]
 jaos ranging FILE
 jaos --version
@@ -122,7 +123,7 @@ prints the same facts as the same model solved silently.
 | option | what it does |
 |---|---|
 | `--solution OUT` | writes the solution file to `OUT`: the optimum when the solve found one, and the certificate when it proved the model infeasible or unbounded (D285). A solve that stopped on a budget or an interrupt has no answer to write; no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
-| `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model's optimum: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. A file for another model, or one holding a certificate, is refused with the library's message and exit 5. |
+| `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. Either kind of file will do since D332 -- an optimum's, or a certificate's, which carries the basis the refusal stopped on -- so a run that ended INFEASIBLE resumes after one bound moves. A file for another model, or one carrying no basis at all, is refused with the library's message and exit 5. |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
 | `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs (D326). It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
 | `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed (D326). It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
@@ -398,6 +399,49 @@ Exit 0 when a subsystem was printed. When the model is optimal or unbounded
 the tool prints its status line, says on stderr that there is nothing to
 find, and exits 1. Exit 5 on an error, including a re-solve that could not
 decide its side.
+
+## `relax`
+
+`relax FILE` reads the model and answers a different question from `iis`:
+not where it contradicts itself, but how much has to be given up to stop
+the contradiction. It prints one line per bound that has to move, signed
+and named, then the totals:
+
+```
+row LIM2 upper 2.5
+total 2.5
+rows_moved 1
+cols_moved 0
+largest 2.5
+work_units 8890
+```
+
+A move below zero says that bound's lower side has to come down by that
+much; above zero, its upper side has to go up by it. Add every move to the
+bound it names and the model has a feasible point, and no other set of
+moves has a smaller total. A feasible model prints no move line and a
+total of 0.
+
+"Smallest" is the total, the sum of the sizes. It is not the smallest
+number of bounds moved, which is a different and much harder problem.
+
+| option | what it does |
+|---|---|
+| `--rows` | only row bounds may move |
+| `--cols` | only column bounds may move |
+
+Without either, both may move and they are weighed against each other at
+the same price per unit. Rows only is what to ask for when the column
+bounds are physical limits; columns only is the reverse.
+
+The model itself is never solved. An elastic copy is, carrying this
+command's own limits and tolerances, and `work_units` is what that cost.
+The answer is the same on every machine and every run.
+
+Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
+lower bound above its upper is a contradiction between two of the file's
+own numbers on one row, and no amount of moving that row's two ends
+together opens it -- or when the copy did not finish.
 
 ## `verify`
 

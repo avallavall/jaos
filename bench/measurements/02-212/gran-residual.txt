@@ -1,0 +1,2 @@
+gran   first total=0.026192626694502726      residual after the moves=1.0029892738607173e-08   ratio=3.83e-07
+gosh   first total=0.039980000000000127      residual after the moves=0                        ratio=0

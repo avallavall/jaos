@@ -1,0 +1,28 @@
+air03        basis REFUSED: the count is not 124  (0.1s)
+bell3a       basis REFUSED: the count is not 123  (8.4s)
+bell5        basis REFUSED: the count is not 91  (13.1s)
+blend2       basis REFUSED: the count is not 274  (2.7s)
+dcmulti      basis REFUSED: the count is not 290  (0.7s)
+egout        basis REFUSED: the count is not 98  (0.4s)
+enigma       basis of 21 basics for 21 rows  (0.1s)
+flugpl       basis of 18 basics for 18 rows  (0.0s)
+gen          basis REFUSED: the count is not 780  (0.0s)
+gt2          basis REFUSED: the count is not 29  (0.1s)
+khb05250     basis REFUSED: the count is not 101  (0.1s)
+l152lav      basis of 97 basics for 97 rows  (64.0s)
+lseu         basis REFUSED: the count is not 28  (0.4s)
+misc03       basis REFUSED: the count is not 96  (0.5s)
+misc06       basis REFUSED: the count is not 820  (1.2s)
+misc07       basis of 212 basics for 212 rows  (29.8s)
+mod008       basis REFUSED: the count is not 6  (0.4s)
+mod010       basis REFUSED: the count is not 146  (0.0s)
+p0033        basis REFUSED: the count is not 16  (0.0s)
+p0201        basis REFUSED: the count is not 133  (0.7s)
+p0282        basis REFUSED: the count is not 241  (2.7s)
+rgn          basis REFUSED: the count is not 24  (0.6s)
+stein27      basis REFUSED: the count is not 118  (0.4s)
+stein45      basis of 331 basics for 331 rows  (15.7s)
+
+proved incumbents publishing a basis of the right size: 5
+publishing one of the wrong size, and so refused       : 19
+not measured (no file, or not solved to optimality)    : 0

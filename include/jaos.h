@@ -1064,8 +1064,9 @@ JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
  * Both are resumable. A solve that stops at either leaves the basis it stopped
  * on where the next solve will find it, so raising the limit and calling
  * jaos_solve again continues from there instead of starting over. There is no
- * answer to read in between — the run did not produce one — and jaos_basis
- * says so, because a stopping point is not a solution. See jaos_set_basis. */
+ * answer to read in between — the run did not produce one — and jaos_solution
+ * says so. jaos_basis does hand out the basis it stopped on (D330), which is
+ * a starting point and not an answer. See jaos_set_basis. */
 JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
 JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 
@@ -1259,14 +1260,30 @@ typedef enum jaos_basis_status {
 /* Copies the basis into caller-provided buffers; either may be NULL.
  * col_status holds num_col entries, row_status num_row.
  *
- * Available only when the last solve found an optimum, under the same rule
- * as jaos_solution and for a sharper version of the same reason: a buffer of
- * zeros does not read as missing, it reads as a solution in which everything
- * is basic. Exactly num_row of the num_col + num_row statuses are basic, a
- * nonbasic status names a bound the variable has, and a column whose two
- * bounds are equal is named at the one its reduced cost points into, so the
- * statuses are a basis of this model as loaded and the ranging calls below
- * read them as one (D257, D258). */
+ * Available whenever the last solve left a basis, which is a wider rule than
+ * jaos_solution's (D330). An optimum leaves one. So does INFEASIBLE — the
+ * basis the dual simplex stopped on, holding the row it could not repair —
+ * and so does UNBOUNDED, and so does a work, time or interrupt stop, whose
+ * basis is the point the run reached. What is refused is every state with no
+ * basis behind it: a solve that never ran, one abandoned for numerical
+ * reasons, an inverted box, a verdict presolve reached with no simplex at
+ * all, a mixed-integer solve that found no proved incumbent, and one whose
+ * proved incumbent rests on a node still holding a cut, whose statuses do
+ * not describe this model's rows. The refusal is not a test on the contents,
+ * because a buffer of zeros does not read as missing — it reads as a
+ * solution in which everything is basic.
+ *
+ * Exactly num_row of the num_col + num_row statuses are basic on every
+ * answer this call gives out, a nonbasic status names a bound the variable
+ * has, and a column whose two bounds are equal is named at the one its
+ * reduced cost points into, so the statuses are a basis of this model as
+ * loaded and the ranging calls below read them as one (D257, D258).
+ *
+ * A basis from a non-optimal solve is a basis and not an answer. It names no
+ * point the model satisfies, and nothing here claims one: jaos_solution
+ * still refuses, and the ranging calls, which read an optimum's basis as an
+ * optimum's, still refuse too. What it is good for is warm-starting another
+ * model from it and inspecting what the refusal rests on. */
 JAOS_NODISCARD jaos_status jaos_basis(const jaos_model *m,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 
@@ -1385,6 +1402,25 @@ JAOS_NODISCARD jaos_status jaos_read_solution(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_read_certificate(jaos_model *m,
     const char *path, jaos_solve_status *status,
     double *row_ray, double *col_ray);
+
+/* The basis out of a solution file of either kind (D332), for
+ * jaos_set_basis. col_status receives num_col statuses and row_status
+ * num_row; either may be NULL. The shape rule and the name rule are
+ * jaos_read_solution's.
+ *
+ * A certificate file carries a basis since D332, because a solve that ends
+ * INFEASIBLE or UNBOUNDED stops on one and jaos_basis hands it out (D330).
+ * What that buys is a warm start across processes: write the file, change
+ * one bound, and the next run starts where the last one stopped instead of
+ * from the slack basis. An optimum's file has carried its basis all along,
+ * on the same records as its values, and this call reads either without
+ * the caller having to know which it holds.
+ *
+ * Refused with JAOS_ERR_INVALID_INPUT when the file carries no basis: one
+ * written for a verdict presolve reached with no simplex at all, or one
+ * written before D332. */
+JAOS_NODISCARD jaos_status jaos_read_basis(jaos_model *m, const char *path,
+    jaos_basis_status *col_status, jaos_basis_status *row_status);
 
 /* Which of the three a solution file holds, read from the whole file, so
  * a file that would be refused by the reader for its kind is refused here
@@ -1723,6 +1759,83 @@ typedef struct jaos_iis_report {
 JAOS_NODISCARD jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
                                     jaos_iis_side *col_side,
                                     jaos_iis_report *out);
+
+/* Which bounds a feasibility relaxation may move. */
+typedef enum jaos_relax_scope {
+    JAOS_RELAX_ROWS = 1,   /* row bounds only                  */
+    JAOS_RELAX_COLS = 2,   /* column bounds only               */
+    JAOS_RELAX_BOTH = 3,   /* both, weighed against each other */
+} jaos_relax_scope;
+
+/* What jaos_feasrelax found. */
+typedef struct jaos_relax_report {
+    double  total;        /* the smallest total violation: the sum of every
+                             move's size, and 0 on a model that is already
+                             feasible                                      */
+    int64_t rows_moved;   /* rows whose bound had to move                  */
+    int64_t cols_moved;   /* and columns                                   */
+    int64_t at_row;       /* the single largest move's row, or -1 when the
+                             largest is a column's or nothing moved        */
+    int64_t at_col;       /* and its column, or -1                         */
+    double  largest;      /* how far that one has to move                  */
+    int64_t work_units;   /* what the relaxation cost, in jaos_work_units'
+                             unit; not billed to the model                 */
+    jaos_solve_status status;  /* what the elastic solve answered          */
+} jaos_relax_report;
+
+/* The smallest change to the bounds that makes the model feasible (D331).
+ *
+ * An IIS says WHERE a model contradicts itself. This says HOW MUCH has to
+ * be given up to stop the contradiction, and on which sides. Neither
+ * replaces the other: an IIS can be ten rows nobody is allowed to move,
+ * and a relaxation can name one row that has to move by 3.
+ *
+ * row_move receives num_row values and col_move num_col; either may be
+ * NULL. A value is signed and names one side: below zero, that row's or
+ * column's LOWER bound has to come down by that much; above zero, its
+ * UPPER bound has to go up by it; zero, it does not move. Adding every
+ * move to the bound it names gives a model with a feasible point, and no
+ * other set of moves has a smaller total.
+ *
+ * "Smallest" is the total, the sum of the sizes — the L1 measure, which is
+ * what keeps the relaxation a linear program. It is not the smallest
+ * NUMBER of bounds moved: that problem is NP-hard and is not what this
+ * call answers. A model with several relaxations of the same total gets
+ * one of them, the same one on every machine and every run (D8).
+ *
+ * `scope` says which bounds may move. Rows only leaves every column bound
+ * as the caller wrote it, which is what to ask for when the columns are
+ * physical limits; columns only does the reverse; both weighs them against
+ * each other at the same price per unit.
+ *
+ * An integer column stays integer, so a relaxation of a mixed-integer
+ * model answers about that model and not about its relaxation, and the
+ * call costs a tree.
+ *
+ * The work runs on a private copy, so the caller's model, answer,
+ * certificate and basis are untouched; the copy carries the caller's
+ * limits, tolerances and progress callback, and not the log callback. The
+ * cost is stated rather than billed, and the report carries it.
+ *
+ * Two models have no relaxation here and both say so the same way: the
+ * call returns JAOS_ERR_NUMERICAL and the report's `status` reads
+ * JAOS_SOLVE_INFEASIBLE. One is an inverted box, a lower bound above its
+ * upper: that is a contradiction between two of the caller's own numbers
+ * on one row, the elastic form moves that row's two ends together and
+ * cannot open it, and no scope helps. The other is a scope narrower than
+ * the contradiction, which only JAOS_RELAX_COLS can reach — the rows keep
+ * their bounds there, so `x0 + x1 = 5` beside `x0 + x1 = 7` has no
+ * relaxation over the columns while it has one over the rows. Which of the
+ * two it is is read from the scope. A budget stop is reported the same way.
+ *
+ * `largest` is the biggest of every move's size, and the moves it compares
+ * are not all in one unit: a row's is in the units of A_i x and a column's
+ * in the units of x_j. Both are in the model's original space, and
+ * `at_row` and `at_col` say which kind won. */
+JAOS_NODISCARD jaos_status jaos_feasrelax(jaos_model *m,
+                                          jaos_relax_scope scope,
+                                          double *row_move, double *col_move,
+                                          jaos_relax_report *out);
 
 /* --- Sensitivity and ranging ------------------------------------------ */
 

@@ -4414,11 +4414,16 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
             m->ray_ok = true;
         }
 
-        /* The basis is written, kept, and only then cleared. Kept because a
-         * budget stop, infeasible or unbounded all leave a good basis for
-         * the next solve. Cleared because `jaos_basis` publishes the basis
-         * behind an answer and there is no answer. A numerical failure is
-         * the one outcome left out. */
+        /* The basis is written and kept. Kept because a budget stop,
+         * infeasible or unbounded all leave a good basis for the next
+         * solve. Published as well since D330: the basis a refusal stops
+         * on is what proves the refusal, and a caller had no way to read
+         * it -- an infeasible solve's basis names the row the dual
+         * simplex could not repair, and a stopped solve's is the point
+         * the run reached. A numerical failure is the one outcome left
+         * out, and its arrays are cleared instead: it is the one state
+         * this solver does not vouch for, so offering it would be
+         * recommending it. */
         if (status == JAOS_SOLVE_WORK_LIMIT ||
             status == JAOS_SOLVE_TIME_LIMIT ||
             status == JAOS_SOLVE_INTERRUPTED ||
@@ -4430,11 +4435,13 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
                 m->sol_row_status[i] =
                     published_status(s->status[m->num_col + i]);
             (void)jm_model_remember_basis(m);
+            m->sol_basis_ok = true;
+        } else {
+            memset(m->sol_col_status, 0,
+                   (size_t)m->num_col * sizeof *m->sol_col_status);
+            memset(m->sol_row_status, 0,
+                   (size_t)m->num_row * sizeof *m->sol_row_status);
         }
-        memset(m->sol_col_status, 0,
-               (size_t)m->num_col * sizeof *m->sol_col_status);
-        memset(m->sol_row_status, 0,
-               (size_t)m->num_row * sizeof *m->sol_row_status);
         m->solve_work = s->work.units;
         /* Seconds never enter a baseline (D17). */
         m->solve_time = elapsed_seconds(s);
@@ -4505,6 +4512,7 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
 
     /* Where the next solve will start. The failure is swallowed on purpose. */
     (void)jm_model_remember_basis(m);
+    m->sol_basis_ok = true;
 
 #if !defined(JAOS_NO_PRESOLVE)
     /* m is the reduced model whenever p->outcome is REDUCED; here the
@@ -4591,6 +4599,9 @@ jaos_status jm_dual_simplex(jaos_model *m)
      * when the lift completed (D256). */
     m->farkas_ok = false;
     m->ray_ok = false;
+    /* And the basis (D330): only a basis this solve mapped back onto the
+     * caller's rows and columns may turn it on. */
+    m->sol_basis_ok = false;
 
     {
         bool is_row = false;

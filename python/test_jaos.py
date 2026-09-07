@@ -1903,6 +1903,74 @@ class TestCertificateFile(unittest.TestCase):
             self.assertTrue(m.check_ray(ray).certified)
 
 
+class TestFeasibilityRelaxation(unittest.TestCase):
+    """D331. The oracle is the solver: the moves are applied to a problem
+    built again with the moved bound, and that one has to be feasible. A
+    total that is right but not achievable passes a check on a number and
+    fails this one."""
+
+    def asks_too_much(self, row_lo=30.0, ub=10.0):
+        p = jaos.Problem()
+        x = p.add_var(lb=0.0, ub=ub, name="x")
+        y = p.add_var(lb=0.0, ub=ub, name="y")
+        p.add(x + y >= row_lo, "big")
+        p.minimize(x + y)
+        return p
+
+    def test_the_smallest_total_and_the_bound_it_falls_on(self):
+        p = self.asks_too_much()
+        r = p.feasrelax()
+        self.assertAlmostEqual(r.report.total, 10.0, places=9)
+        self.assertEqual([(c.name, mv) for c, mv in r.row_move],
+                         [("big", -10.0)])
+        self.assertEqual(r.col_move, [])
+        # The moved problem is feasible, which is the whole claim.
+        moved = self.asks_too_much(row_lo=30.0 + r.row_move[0][1])
+        self.assertIs(moved.solve(), jaos.SolveStatus.OPTIMAL)
+
+    def test_the_scope_decides_which_bound_moves(self):
+        p = self.asks_too_much()
+        rows = p.feasrelax(jaos.RelaxScope.ROWS)
+        self.assertEqual(rows.report.cols_moved, 0)
+        self.assertEqual(rows.report.rows_moved, 1)
+        cols = p.feasrelax(jaos.RelaxScope.COLS)
+        self.assertEqual(cols.report.rows_moved, 0)
+        self.assertEqual(cols.report.cols_moved, 1)
+        self.assertAlmostEqual(rows.report.total, cols.report.total, places=9)
+
+    def test_a_feasible_problem_moves_nothing(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0.0, ub=10.0)
+        p.add(x >= 3.0)
+        p.minimize(x)
+        r = p.feasrelax()
+        self.assertEqual(r.report.total, 0.0)
+        self.assertEqual(r.row_move, [])
+        self.assertEqual(r.col_move, [])
+        self.assertEqual(r.report.at_row, -1)
+        self.assertEqual(r.report.at_col, -1)
+
+    def test_the_model_layer_answers_and_leaves_the_model_unsolved(self):
+        with jaos.Model() as m:
+            m.read_mps(data("t1.mps"))
+            r = m.feasrelax()
+            self.assertGreater(r.report.total, 0.0)
+            self.assertEqual(len(r.row_move), m.num_row)
+            self.assertEqual(len(r.col_move), m.num_col)
+            # The caller's model is not solved and not billed.
+            self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
+            self.assertGreater(r.report.work_units, 0)
+
+    def test_a_model_with_no_relaxation_raises(self):
+        with jaos.Model() as m:
+            # A lower bound above its upper: the two ends move together
+            # and the elastic form cannot open them.
+            m.load(1, 1, [0.0], [5.0], [3.0], [0.0], [jaos.INFINITY],
+                   [0, 1], [0], [1.0])
+            with self.assertRaises(jaos.JaosError):
+                m.feasrelax()
+
+
 class TestSolutionFileRoundTrip(unittest.TestCase):
     """jaos_read_solution through the binding. The accepting case alone
     would also pass if every list came back empty, so the shape and the
@@ -1956,6 +2024,37 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 m.solve()
                 with self.assertRaises(Exception):
                     m.read_solution(path)
+
+    def test_a_certificate_file_carries_a_basis_and_read_basis_takes_it(self):
+        """D332: either kind of file, read by the one call."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cert = os.path.join(tmp, "cert.sol")
+            opt = os.path.join(tmp, "opt.sol")
+            # x + y <= 1 beside x + y >= 2: no presolve family reads two
+            # rows at once, so the simplex answers and there is a basis.
+            p = jaos.Problem()
+            x = p.add_var(lb=0, name="x")
+            y = p.add_var(lb=0, name="y")
+            p.add(x + y <= 1)
+            p.add(x + y >= 2)
+            p.minimize(x + y)
+            self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+            p.write_solution(cert)
+            with open(cert) as f:
+                lines = [ln for ln in f if ln.startswith("basis ")]
+            self.assertEqual(len(lines), 4)
+            b = p.read_basis(cert)
+            self.assertEqual(len(b.col_status), 2)
+            self.assertEqual(len(b.row_status), 2)
+            self.assertEqual(sum(st is jaos.BasisStatus.BASIC
+                                 for st in b.col_status + b.row_status), 2)
+
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                m.write_solution(opt)
+                self.assertEqual(len(m.read_basis(opt).row_status),
+                                 m.num_row)
 
     def test_a_problem_reads_its_own_solution_file_back(self):
         with tempfile.TemporaryDirectory() as tmp:

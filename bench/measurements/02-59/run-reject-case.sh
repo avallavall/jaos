@@ -30,6 +30,7 @@ head = "static double ps_published(double v)"
 assert s.count(head) == 1
 s = s.replace(head, "#ifdef JAOS_DIAG\nstatic int dg_pub;\n#endif\n" + head)
 anchor = """    (void)jm_model_remember_basis(orig);
+    orig->sol_basis_ok = true;
     return JAOS_OK;
 }
 

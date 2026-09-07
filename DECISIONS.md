@@ -337,6 +337,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D327](#d327--what-a-model-is-counted-jaosmodelstatistics-and-jaos-stats)** — What a model is, counted: `jaos_model_statistics` and `jaos stats`
 - **[D328](#d328--certificates-in-the-proof-file-too-checked-with-no-tolerance-18-of-29-infeasibilities-hold-exactly-and-all-28-optimum-proofs-do)** — Certificates in the proof file too, checked with no tolerance: 18 of 29 infeasibilities hold exactly, and all 28 optimum proofs do
 - **[D329](#d329--what-presolve-removed-reported-to-the-caller-and-not-only-to-the-log-jaospresolveresult)** — What presolve removed, reported to the caller and not only to the log: `jaos_presolve_result`
+- **[D330](#d330--the-basis-behind-a-refusal-is-published-19-of-the-29-infeasible-answers-have-one-and-10-are-reached-inside-presolve)** — The basis behind a refusal is published: 19 of the 29 infeasible answers have one, and 10 are reached inside presolve
+- **[D331](#d331--the-smallest-change-to-the-bounds-that-makes-a-model-feasible-jaosfeasrelax-and-jaos-relax)** — The smallest change to the bounds that makes a model feasible: `jaos_feasrelax` and `jaos relax`
+- **[D332](#d332--the-certificate-file-carries-its-basis-so-a-refusal-resumes-across-processes)** — The certificate file carries its basis, so a refusal resumes across processes
 
 ---
 
@@ -23131,3 +23134,211 @@ one-sided test would pass on a report that is always empty. `tests/cli.sh`
 checks both arms too, and its "five lines, one fact each" contract is
 stated as nine where presolve fires rather than relaxed to "at least
 five", which would stop catching a stray line.
+
+## D330 — The basis behind a refusal is published: 19 of the 29 infeasible answers have one, and 10 are reached inside presolve
+
+**What it is.** `jaos_basis` answered only after an optimum. It answers
+after INFEASIBLE and UNBOUNDED now, and after a work, time or interrupt
+stop. The basis was already there: `publish()` wrote the statuses, handed
+them to `jm_model_remember_basis` so the next solve could start from them,
+and then zeroed the arrays. The zeroing is what is gone. Nothing else in
+the solve changed, and no solution digest or work figure moved.
+
+**Why a flag and not a test on the contents.** Zeroed arrays do not read
+as missing. `JAOS_BASIS_BASIC` is 0, so a buffer of zeros reads as a basis
+in which every column and every row is basic, which is why the call cannot
+simply hand back whatever the arrays hold. `sol_basis_ok` is the
+availability, set false on every solve entry and true only where a simplex
+ran and its final basis was mapped back onto the caller's rows and
+columns.
+
+**Three routes reach INFEASIBLE and only one of them has a basis.** The
+dual simplex refusing a row has one. An inverted box, a lower bound above
+its upper, is decided before presolve and before any simplex, and has
+none. A presolve family proving infeasibility from one row's own bounds
+has none either. Measured over the 29 pinned infeasible instances
+(`bench/measurements/02-212/`): **19 publish a basis and 10 do not**, and
+the ten are exactly the ones presolve settles.
+
+**The count is the promise and the postsolve branch did not keep it.**
+`jaos.h` says exactly `num_row` of the `num_col + num_row` statuses are
+basic. On the reduced path the non-optimal branch built the statuses from
+the reduced solve's remembered basis, gave every removed row a basic
+logical and every removed column a nonbasic status, which totals
+`num_row`, and then applied three arena-keyed corrections. Two of them
+traded one basic for one. The third did not: a singleton row that tightens
+went nonbasic with nothing entering the basis in its place. It pairs now,
+the way the OPTIMAL replay pairs it (D257) -- the row leaves the basis only
+in exchange for its own column entering -- and a debug-build count asserts
+`num_row` at the end of the branch.
+
+**What it does not change.** `jaos_solution` still refuses without an
+optimum, and so do the three ranging calls: a basis from a refusal names
+no point the model satisfies, and nothing here claims one. A numerical
+failure still publishes nothing, for D148's reason -- it is the one state
+this solver does not vouch for, and offering it would be recommending it.
+
+**A second standing defect, found by `numerics-reviewer` on this
+decision's own diff, older than it, and measured at 19 of 24.** A MIP's
+proved incumbent publishes a basis with MORE than `num_row` basics.
+`incumbent_take` copies the node LP's statuses truncated to the caller's
+own rows, and the node LP carries the cut rows, so a cut row's status is
+dropped while the basic it paid for is not: one basic too many per cut
+that binds at the proving node. Cuts are on by default, so it is the
+ordinary case. Counted over `bench/miplib.manifest`
+(`bench/measurements/02-212/mip-basis-count.txt`): **5 of the 24
+instances publish a basis of the right size and 19 do not**, the five
+being `enigma`, `flugpl`, `l152lav`, `misc07` and `stein45`.
+
+It predates this decision -- `jaos_basis` gated on OPTIMAL and handed the
+same vector out -- and it stayed invisible because both consumers refuse
+it on their own count checks, `jaos_cost_ranging` returning
+`JAOS_ERR_NUMERICAL` and `jaos_verify` returning false. **This decision
+does not repair it and does not hide it**: `sol_basis_ok` is counted
+rather than claimed at that site, by `jm_model_basis_count_ok`, so the
+call refuses instead of handing out a truncation, and `jaos.h`'s refusal
+list names the case. A repair has to make a basis of the model alone out
+of one over the model plus its cuts, which is a pivot and not a copy, and
+it belongs to the session that next opens `src/mip.c`. `jm_postsolve_solved`
+asks the same question for the same reason: its own comment says its count
+can come out over by one on a frozen row, and no gate instance reaches it.
+
+**A standing defect this made visible, and it is older than this
+decision.** `klein2` answers INFEASIBLE in 262 iterations from a cold
+start. Solving it a second time on the same model, which starts from the
+basis the first solve remembered, trips the internal iteration guard after
+106201 iterations with 83680 pivots declined on factorization
+disagreement. That path has existed since a refusal first remembered its
+basis; this decision only makes the same starting basis reachable from a
+file (D332). Reproduced in
+`bench/measurements/02-212/klein2-double-solve.py` and carried in
+`TODO.md`.
+
+## D331 — The smallest change to the bounds that makes a model feasible: `jaos_feasrelax` and `jaos relax`
+
+**What it is.** An IIS says WHERE a model contradicts itself (D264). This
+says HOW MUCH has to be given up to stop the contradiction, and on which
+sides. `jaos_feasrelax` fills one signed move per row and per column:
+below zero that bound's lower side comes down by so much, above zero its
+upper side goes up, zero it does not move. `jaos relax FILE [--rows |
+--cols]` prints the moves that are not zero, then the total, the two
+counts, the largest single move and what it cost. Both Python layers carry
+`feasrelax()`.
+
+**The formulation, and what "smallest" means.** A row `rl <= a'x <= ru` in
+scope becomes `rl <= a'x + s - t <= ru` with `s, t >= 0`; a column's two
+bounds get the same treatment through a row of their own, because a bound
+is not a row and there is nothing to add a column to. The objective is the
+sum of every `s` and `t`, minimized, and the caller's own objective is
+dropped: the question is what feasibility costs, not what it costs at an
+optimum. So the answer is the smallest TOTAL violation, the L1 one, which
+is what keeps the relaxation a linear program. It is **not** the smallest
+NUMBER of bounds moved; that problem is NP-hard and is not what this
+answers.
+
+**Judged by an oracle and not by a value.** A total that is right but not
+achievable passes any check on a number. Every case applies the moves the
+call reported and asks the solver whether what is left has a feasible
+point. The unit tests do it on models small enough to say the smallest
+total by hand; `bench/measurements/02-212/relax-oracle.txt` does it over
+the 29 pinned infeasible instances. **All 29 have a relaxation and 27 of
+the moved models read OPTIMAL.**
+
+**The oracle itself was wrong twice before it read 27, and both were the
+oracle's fault.** Solving the moved model with the caller's objective can
+answer UNBOUNDED, which says the feasible set is not empty -- the question
+asked -- while reading as a failure; `cplex1` is that case, and the
+objective is zeroed now, so OPTIMAL and INFEASIBLE mean feasible and not.
+The second was a slack term meant to separate "the relaxation is wrong"
+from "the relaxation is exactly tight", since a relaxation of the smallest
+total leaves every relaxed constraint exactly on its boundary and a solver
+with a feasibility tolerance can read a face as empty. It was
+multiplicative, so on a move of 1e-7 it added 1e-13, and it moved nothing:
+27 of 29 either way.
+
+**What settles the other two is a residual and not a verdict**
+(`gran-residual.txt`). The instrument is the relaxation itself, run a
+second time on the moved model: a relaxation that is right leaves a
+residual at the tolerance and one that is wrong leaves a residual the size
+of what it got wrong. `gran`, which reads INFEASIBLE after its moves,
+leaves **1.003e-8 against an original total of 0.0262**, a ratio of
+3.8e-7; `gosh`, whose moved solve fails numerically, leaves **exactly
+zero**. So both relaxations are right and what the two verdicts report is
+the moved model sitting on its own boundary. `gran`'s 588 moves are real
+rather than roundoff -- 566 of them are above 1e-9 and the largest is
+1.7e-3 (`gran-moves.txt`) -- which is why it is the instance that lands
+exactly there.
+
+**"Did this bound move?" is an exact comparison against zero, and that
+is measured on both sides.** `numerics-reviewer` raised it: an elastic
+column that is nonbasic at its lower bound publishes exactly `0.0`, since
+the value IS the bound, but one left basic at a degenerate zero is an
+FTRAN result of order eps and would be reported as a bound that moves on
+a model needing nothing moved. Refusing a tolerance because it would be
+"a threshold nobody swept" puts a threshold of exactly zero in its place,
+which is equally unswept -- and every measurement above ran on the 29
+infeasible instances, where every genuine move is large. **The 94
+standard instances are all feasible and every one of them reports `total
+0` with both counts zero** (`relax-feasible.txt`), so the strict test
+holds over the whole feasible set and no floor is added. A floor with an
+owner exists if one is ever needed: the copy already carries the caller's
+`primal_tol`, which is the tolerance the elastic solve holds these
+columns to.
+
+**Scope is the caller's, and there is no weight.** Rows only, columns
+only, or both at the same price per unit. A per-side weight would be a
+vector of constants nobody has swept, and a caller who wants one can scale
+their own model; this offers the three choices the question has and not a
+knob.
+
+**What has no relaxation, and says so.** An inverted box is a
+contradiction between two of the caller's own numbers on one row, and `s`
+and `t` move that row's two ends together and cannot open it. The elastic
+solve answers INFEASIBLE, the report repeats it and the call returns
+`JAOS_ERR_NUMERICAL`. The bounds are the diagnosis in that case, the way
+they are for the certificate (D256).
+
+**An integer column stays integer.** A relaxation of a mixed-integer model
+answers about that model and not about its relaxation, and the call costs
+a tree. The elastic columns are continuous, which is what makes the
+violation a size rather than a count.
+
+## D332 — The certificate file carries its basis, so a refusal resumes across processes
+
+**What it is.** A solution file written for an INFEASIBLE or an UNBOUNDED
+answer carried the ray and nothing else. It carries the basis as well now,
+one `basis col NAME WORD` and one `basis row NAME WORD` per column and
+row, in index order under the model's own names -- the same rule every
+other record in the format follows (D284). `jaos_read_basis` reads a basis
+out of a file of either kind, and `jaos solve --start` takes either.
+
+**What it buys.** A refusal was resumable only inside one process: the
+basis lived on the model and there was no way to write it down. Now a run
+that ends INFEASIBLE can be written out, one bound changed, and the next
+run started where the last one stopped. Measured over the 29 pinned
+infeasible instances (`bench/measurements/02-212/`): 19 write a basis, the
+same 19 D330 publishes one for, and **18 of those re-solve in no more
+iterations warm than cold** -- `bgprtr` 25 to 1, `gosh` 25171 to 27,
+`bgetam` 15 to 2.
+
+**The nineteenth is `klein2`, and it is D330's standing defect and not
+this format's.** Starting from its own infeasible basis trips the
+iteration guard, and it does so through a second `jaos_solve` on one model
+just as it does through the file. The file route reaches an existing path;
+it did not make one.
+
+**The section is optional and its absence is not an error.** A file
+written for a verdict presolve reached with no simplex carries no basis,
+because there is none (D330), and so does every file written before this
+decision. `jaos_read_basis` refuses such a file by name rather than
+handing back a buffer of zeros, which would read as a basis in which
+everything is basic. Half a basis is refused too: the reader takes all of
+the section or none of it, since half of one says which variables are
+basic about half the model, which is nothing.
+
+**No new status word.** The format still writes and reads the three
+outcomes that have something to say (D226, D285). A work or time stop
+leaves a basis and no answer, and writing one would need a fourth kind of
+file; the caller who wants that reads `jaos_basis` and carries the
+statuses themselves. What this decision adds is a section to two records
+that already exist.

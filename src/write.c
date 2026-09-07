@@ -877,6 +877,26 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
             fprintf(w->f, "ray %s %s\n", nm, a);
         }
     }
+    /* The basis the solve stopped on, beside the ray (D332). An optimal
+     * record already carries it on its own lines. A certificate did not
+     * carry it at all until the basis behind a refusal became readable
+     * (D330), and what it buys is a warm start across processes: solve,
+     * change one bound, solve again from the file. The section is left
+     * out where there is no basis -- a verdict presolve reached with no
+     * simplex, an inverted box -- and the reader takes its absence. */
+    if (!optimal && m->sol_basis_ok) {
+        fprintf(w->f, "# basis col|row <name> <status>\n");
+        for (int64_t j = 0; j < m->num_col; j++) {
+            col_name(m, nm, j);
+            fprintf(w->f, "basis col %s %s\n", nm,
+                    basis_word(m->sol_col_status[j]));
+        }
+        for (int64_t i = 0; i < m->num_row; i++) {
+            row_name(m, nm, i);
+            fprintf(w->f, "basis row %s %s\n", nm,
+                    basis_word(m->sol_row_status[i]));
+        }
+    }
 
     fprintf(w->f, "end\n");
     return wr_close(w, path, prev, cloc);
@@ -931,6 +951,12 @@ typedef struct {
     jaos_basis_status *row_status;
     double *row_ray;         /* on infeasible, num_row entries */
     double *col_ray;         /* on unbounded, num_col entries  */
+    /* The basis a certificate file carries beside its ray (D332). It is
+     * optional in the format, so a file written before it existed still
+     * reads; `have_basis` says whether these were filled. */
+    jaos_basis_status *cert_col_status;   /* num_col entries */
+    jaos_basis_status *cert_row_status;   /* num_row entries */
+    bool have_basis;
 } sol_read;
 
 /* The one reader behind the three public calls: the whole file, every
@@ -958,7 +984,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
     char *line = nullptr;
     size_t lsz = 0;
     int64_t lno = 0, ncol = -1, nrow = -1, seen_col = 0, seen_row = 0,
-            seen_ray = 0;
+            seen_ray = 0, seen_bcol = 0, seen_brow = 0;
     bool have_status = false, have_obj = false, ended = false;
     jaos_solve_status ss = JAOS_SOLVE_NOT_RUN;
     double obj = 0.0;
@@ -1121,6 +1147,59 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                 if (o->col_ray != nullptr) o->col_ray[seen_ray] = v;
             }
             seen_ray++;
+        } else if (strcmp(tok[0], "basis") == 0) {
+            /* The basis behind a certificate (D332): `basis col NAME WORD`
+             * and `basis row NAME WORD`, columns before rows and each in
+             * index order under the model's own names, the same rule as
+             * every record above. An optimal file has no such lines --
+             * its `col` and `row` records already carry the status -- and
+             * a certificate file written before D332 has none either, so
+             * the section is optional and its absence is not an error. */
+            if (!have_status)
+                RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
+            if (ss == JAOS_SOLVE_OPTIMAL)
+                RD_FAIL("line %" PRId64 ": a 'basis' record in a file whose "
+                        "status is 'optimal'; its 'col' and 'row' records "
+                        "carry the basis", lno);
+            if (ncol < 0 || nrow < 0)
+                RD_FAIL("line %" PRId64 ": a record before both counts", lno);
+            if (nt != 4)
+                RD_FAIL("line %" PRId64 ": a 'basis' record takes 'col' or "
+                        "'row', a name and a status", lno);
+            bool is_col;
+            if (strcmp(tok[1], "col") == 0)
+                is_col = true;
+            else if (strcmp(tok[1], "row") == 0)
+                is_col = false;
+            else
+                RD_FAIL("line %" PRId64 ": a 'basis' record is over 'col' or "
+                        "'row' and says '%s'", lno, tok[1]);
+            const int64_t k = is_col ? seen_bcol : seen_brow;
+            const int64_t lim = is_col ? ncol : nrow;
+            if (k >= lim)
+                RD_FAIL("line %" PRId64 ": more 'basis %s' records than the "
+                        "count says", lno, tok[1]);
+            if (is_col)
+                col_name(m, nm, k);
+            else
+                row_name(m, nm, k);
+            if (strcmp(tok[2], nm) != 0)
+                RD_FAIL("line %" PRId64 ": expected '%s' here and the file "
+                        "says '%s'; records are in index order and named "
+                        "as the model names them", lno, nm, tok[2]);
+            jaos_basis_status bs;
+            if (!basis_of_word(tok[3], &bs))
+                RD_FAIL("line %" PRId64 ": '%s' is not a basis status", lno,
+                        tok[3]);
+            if (is_col) {
+                if (o->cert_col_status != nullptr)
+                    o->cert_col_status[k] = bs;
+                seen_bcol++;
+            } else {
+                if (o->cert_row_status != nullptr)
+                    o->cert_row_status[k] = bs;
+                seen_brow++;
+            }
         } else if (strcmp(tok[0], "end") == 0) {
             if (nt != 1)
                 RD_FAIL("line %" PRId64 ": 'end' takes nothing", lno);
@@ -1152,6 +1231,19 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                     "carries %" PRId64, lim,
                     ss == JAOS_SOLVE_INFEASIBLE ? "rows" : "columns",
                     seen_ray);
+        /* Half a basis says which variables are basic about half the
+         * model, which is nothing, so the section is all of it or none
+         * of it (D332). Absent is not an error: the writer omits it on a
+         * verdict presolve reached with no simplex, and every file
+         * written before D332 has none. */
+        if (seen_bcol != 0 || seen_brow != 0) {
+            if (seen_bcol != ncol || seen_brow != nrow)
+                RD_FAIL("the file carries %" PRId64 " of %" PRId64 " column "
+                        "and %" PRId64 " of %" PRId64 " row basis records, "
+                        "and a basis is all of it or none",
+                        seen_bcol, ncol, seen_brow, nrow);
+            o->have_basis = true;
+        }
     }
 
     o->status = ss;
@@ -1196,6 +1288,31 @@ jaos_status jaos_read_certificate(jaos_model *m, const char *path,
     if (st == JAOS_OK && status != nullptr)
         *status = o.status;
     return st;
+}
+
+jaos_status jaos_read_basis(jaos_model *m, const char *path,
+                            jaos_basis_status *col_status,
+                            jaos_basis_status *row_status)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    /* Either kind of file, because either kind can carry a basis (D332):
+     * an optimum's is on its own `col` and `row` records and a
+     * certificate's on its `basis` ones. The two sets of pointers below
+     * are the same two arrays; only one of them is ever written, since a
+     * file declares one status. */
+    sol_read o = {.col_status = col_status, .row_status = row_status,
+                  .cert_col_status = col_status,
+                  .cert_row_status = row_status};
+    const jaos_status st = read_solution_file(m, path, 0, &o);
+    if (st != JAOS_OK)
+        return st;
+    if (o.status != JAOS_SOLVE_OPTIMAL && !o.have_basis) {
+        jm_set_err(m, "the file's status is '%s' and it carries no basis",
+                   status_word(o.status));
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    return JAOS_OK;
 }
 
 jaos_status jaos_solution_file_status(jaos_model *m, const char *path,

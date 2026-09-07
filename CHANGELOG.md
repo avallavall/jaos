@@ -9,7 +9,48 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **The basis behind a refusal is readable.** `jaos_basis` answers after
+  INFEASIBLE, UNBOUNDED and a work, time or interrupt stop, not only after
+  an optimum. The basis was already written and already remembered for the
+  next solve; the arrays were zeroed straight afterwards and are not any
+  more. 19 of the 29 pinned infeasible instances publish one and 10 reach
+  their verdict inside presolve with no simplex, so they have none. The
+  reduced path's non-optimal branch now pairs a singleton row leaving the
+  basis with its own column entering, which is what keeps the count at
+  `num_row` (D330, `bench/measurements/02-212/`).
+- **`jaos_feasrelax` and `jaos relax`**: the smallest total change to the
+  bounds that makes a model feasible, one signed move per row and per
+  column, over rows, columns or both. An elastic copy is solved and the
+  caller's model is never touched. All 29 pinned infeasible instances have a
+  relaxation and 27 of the moved models re-solve OPTIMAL; the other two are
+  judged on the violation their own moves leave, 1.003e-8 of an original
+  0.0262 on `gran` and exactly zero on `gosh`. On the other side, all 94
+  feasible standard instances report a total of exactly 0 with no bound
+  named (D331, `bench/measurements/02-212/`).
+- **A certificate file carries its basis**, so a refusal resumes across
+  processes: write the file, change a bound, and `jaos solve --start` picks
+  up where the last run stopped. 18 of the 19 files that carry a basis
+  re-solve in no more iterations warm than cold — `gosh` 25171 to 27.
+  `jaos_read_basis` reads a basis out of a file of either kind (D332).
+
+### Fixed
+
+- **`jaos_basis` no longer hands out a vector that is not a basis after a
+  mixed-integer solve.** A proved incumbent's statuses are the node LP's
+  truncated to the caller's rows, so every cut binding at that node leaves
+  one basic too many: 19 of the 24 MIPLIB instances, measured. The
+  availability is counted rather than claimed now, so the call refuses; the
+  underlying truncation predates this batch and is carried in `TODO.md`.
+  Found by `numerics-reviewer` on this batch's own diff (D330,
+  `bench/measurements/02-212/mip-basis-count.txt`).
+
+### Found, not fixed
+
+- `klein2` re-solved from its own infeasible basis trips the internal
+  iteration guard, through a second `jaos_solve` on one model just as
+  through a file. Older than this batch; carried in `TODO.md`.
 
 ## [0.3.0] — 2026-09-07
 

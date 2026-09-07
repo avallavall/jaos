@@ -292,6 +292,14 @@ struct jaos_model {
     double *sol_redcost;     /* [num_col] reduced costs      */
     jaos_basis_status *sol_col_status;  /* [num_col] where each column rests */
     jaos_basis_status *sol_row_status;  /* [num_row] and each row activity   */
+    /* Whether those two hold a basis of the model as loaded (D330). Zeroed
+     * arrays do not read as missing -- they read as a solution in which
+     * everything is basic -- so the availability is a flag and not a test
+     * on the contents. False on every solve entry. True only where a
+     * simplex ran and its final basis was mapped back, which leaves out an
+     * inverted box and a verdict presolve reached with no solve at all:
+     * neither has a basis to name. */
+    bool sol_basis_ok;
     /* The Farkas ray behind INFEASIBLE, in the caller's units (D254).
      * `farkas_ok` is the availability: false on every solve entry, true
      * once a ray stands on this model's own rows — the dual's refusal
@@ -561,6 +569,10 @@ JAOS_NODISCARD jaos_status jm_model_ensure_solution_arrays(jaos_model *m);
 /* Keeps the basis just published as the one the next solve starts from.
  * A model with no published basis is left alone and reports success. */
 JAOS_NODISCARD jaos_status jm_model_remember_basis(jaos_model *m);
+/* Whether the published statuses hold exactly num_row basics, which is what
+ * makes them a basis rather than a list (D330). Asked by the two publishing
+ * sites that cannot prove the count instead. */
+JAOS_NODISCARD bool jm_model_basis_count_ok(const jaos_model *m);
 
 /* Sets m->objective from m's own published solution, with a compensated sum
  * (D169). Every publication path ends here. */

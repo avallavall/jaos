@@ -475,6 +475,7 @@ static void model_answer_is_stale(jaos_model *m)
     free(m->sol_redcost);    m->sol_redcost = nullptr;
     free(m->sol_col_status); m->sol_col_status = nullptr;
     free(m->sol_row_status); m->sol_row_status = nullptr;
+    m->sol_basis_ok = false;
     free(m->sol_farkas);     m->sol_farkas = nullptr;
     m->farkas_ok = false;
     free(m->sol_ray);        m->sol_ray = nullptr;
@@ -1420,7 +1421,16 @@ jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr)
+    /* Not the same rule as jaos_solution (D330). A solve that ended
+     * without an optimum has no answer, and it can still have a basis:
+     * the one the dual simplex stopped on with a row it could not
+     * repair, or the one a budget ran out at. `sol_basis_ok` is the
+     * availability, because zeroed arrays read as "everything basic"
+     * rather than as missing, and the two verdicts presolve reaches with
+     * no simplex at all -- an inverted box, a site's own bound -- publish
+     * exactly those zeros. */
+    if (!m->sol_basis_ok || m->sol_col_status == nullptr ||
+        m->sol_row_status == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
     if (col_status)
@@ -1496,6 +1506,28 @@ static jaos_status store_basis(jaos_model *m, const jaos_basis_status *col,
         memcpy(m->start_row_status, row,
                (size_t)m->num_row * sizeof *m->start_row_status);
     return JAOS_OK;
+}
+
+/* Whether the published statuses are a basis of this model: exactly
+ * num_row of the num_col + num_row of them basic (D330). One pass, on the
+ * publication path and unbilled, like every other sol_* write.
+ *
+ * Two of the four sites that publish a basis prove the count instead of
+ * counting it, and they do not call this: the simplex's own is nrow basics
+ * by construction, and the OPTIMAL replay's is D257's, measured over 188
+ * netlib and 32 Kennington solves and asserted in debug builds. The other
+ * two have no such evidence, and one of them was over by the cuts a proved
+ * node still held (TODO.md), so they ask. */
+bool jm_model_basis_count_ok(const jaos_model *m)
+{
+    if (m->sol_col_status == nullptr || m->sol_row_status == nullptr)
+        return false;
+    int64_t basic = 0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        basic += m->sol_col_status[j] == JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < m->num_row; i++)
+        basic += m->sol_row_status[i] == JAOS_BASIS_BASIC;
+    return basic == m->num_row;
 }
 
 jaos_status jm_model_remember_basis(jaos_model *m)

@@ -1,0 +1,33 @@
+bgdbg1     moved=17    total=352.37738091538097       sum=352.37738091538097       exact=OPTIMAL     slack=OPTIMAL
+bgetam     moved=6     total=54.3253599893904         sum=54.3253599893904         exact=OPTIMAL     slack=OPTIMAL
+bgindy     moved=1     total=30760                    sum=30760                    exact=OPTIMAL     slack=OPTIMAL
+bgprtr     moved=2     total=19.153535353535354       sum=19.153535353535354       exact=OPTIMAL     slack=OPTIMAL
+box1       moved=1     total=1                        sum=1                        exact=OPTIMAL     slack=OPTIMAL
+ceria3d    moved=2     total=0.25                     sum=0.25                     exact=OPTIMAL     slack=OPTIMAL
+chemcom    moved=16    total=9824                     sum=9824                     exact=OPTIMAL     slack=OPTIMAL
+cplex1     moved=211   total=3208650.6345129153       sum=3208650.6345129153       exact=OPTIMAL     slack=OPTIMAL
+cplex2     moved=1     total=9.9931840342620394e-10   sum=9.9931840342620394e-10   exact=OPTIMAL     slack=OPTIMAL
+ex72a      moved=1     total=1                        sum=1                        exact=OPTIMAL     slack=OPTIMAL
+ex73a      moved=1     total=1                        sum=1                        exact=OPTIMAL     slack=OPTIMAL
+forest6    moved=1     total=799.05507812500002       sum=799.05507812500002       exact=OPTIMAL     slack=OPTIMAL
+galenet    moved=1     total=28                       sum=28                       exact=OPTIMAL     slack=OPTIMAL
+gosh       moved=1     total=0.039980000000000127     sum=0.039980000000000127     exact=RAISED      slack=RAISED
+gran       moved=588   total=0.026192626694502726     sum=0.026192947734238057     exact=INFEASIBLE  slack=INFEASIBLE
+greenbea   moved=5     total=368                      sum=368                      exact=OPTIMAL     slack=OPTIMAL
+itest2     moved=2     total=4.4666666666666668       sum=4.4666666666666668       exact=OPTIMAL     slack=OPTIMAL
+itest6     moved=4     total=204500                   sum=204500                   exact=OPTIMAL     slack=OPTIMAL
+klein1     moved=1     total=3.5554884160123583       sum=3.5554884160123583       exact=OPTIMAL     slack=OPTIMAL
+klein2     moved=7     total=129.39394461855281       sum=129.39394461855281       exact=OPTIMAL     slack=OPTIMAL
+klein3     moved=36    total=228.77850334489477       sum=228.77850334492018       exact=OPTIMAL     slack=OPTIMAL
+mondou2    moved=10    total=10171                    sum=10171                    exact=OPTIMAL     slack=OPTIMAL
+pang       moved=1     total=0.24160243515642596      sum=0.24160243515642596      exact=OPTIMAL     slack=OPTIMAL
+pilot4i    moved=1     total=0.47369941392781867      sum=0.47369941392781867      exact=OPTIMAL     slack=OPTIMAL
+qual       moved=1     total=0.015992532123342083     sum=0.015992532123342083     exact=OPTIMAL     slack=OPTIMAL
+reactor    moved=1     total=1                        sum=1                        exact=OPTIMAL     slack=OPTIMAL
+refinery   moved=7     total=12.182076975441017       sum=12.182076975441017       exact=OPTIMAL     slack=OPTIMAL
+vol1       moved=1     total=0.034180753957734004     sum=0.034180753957734004     exact=OPTIMAL     slack=OPTIMAL
+woodinfe   moved=2     total=15                       sum=15                       exact=OPTIMAL     slack=OPTIMAL
+
+feasible with the moves applied exactly            : 27 of 29
+feasible with one part in a million of slack on top: 27 of 29
+largest relative gap between the reported total and the moves it lists: 3.12845e-07 on gran

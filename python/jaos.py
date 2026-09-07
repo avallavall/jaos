@@ -67,6 +67,7 @@ __all__ = [
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
     "IISSide", "IISReport", "IIS",
+    "RelaxScope", "RelaxReport", "Relaxation",
     "Proof", "ProofStage", "VerifyReport", "MipReport",
 ]
 
@@ -400,6 +401,31 @@ IISReport = namedtuple("IISReport", [f for f, _ in _IISReport._fields_])
 IIS = namedtuple("IIS", "row_side col_side report")
 
 
+class RelaxScope(enum.IntEnum):
+    """Which bounds a feasibility relaxation may move (jaos_relax_scope)."""
+    ROWS = 1
+    COLS = 2
+    BOTH = 3
+
+
+class _RelaxReport(ctypes.Structure):
+    """jaos_relax_report, field for field."""
+    _fields_ = [
+        ("total", _D),
+        ("rows_moved", ctypes.c_int64),
+        ("cols_moved", ctypes.c_int64),
+        ("at_row", ctypes.c_int64),
+        ("at_col", ctypes.c_int64),
+        ("largest", _D),
+        ("work_units", ctypes.c_int64),
+        ("status", ctypes.c_int),
+    ]
+
+
+RelaxReport = namedtuple("RelaxReport", [f for f, _ in _RelaxReport._fields_])
+Relaxation = namedtuple("Relaxation", "row_move col_move report")
+
+
 class Proof(enum.IntEnum):
     """What jaos_verify concluded (jaos_proof). REFUSED is not a failure:
     it is the honest answer when the numbers a proof needs do not fit, and
@@ -559,6 +585,8 @@ _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
 _sig("jaos_read_certificate", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(_D), _P(_D))
 _sig("jaos_solution_file_status", ctypes.c_int, _VP, _CS, _P(ctypes.c_int))
+_sig("jaos_read_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
+     _P(ctypes.c_int))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
@@ -594,6 +622,8 @@ _sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
 _sig("jaos_iis", ctypes.c_int, _VP, _P(ctypes.c_int), _P(ctypes.c_int),
      _P(_IISReport))
+_sig("jaos_feasrelax", ctypes.c_int, _VP, ctypes.c_int, _P(_D), _P(_D),
+     _P(_RelaxReport))
 _sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
@@ -789,6 +819,18 @@ class Model:
                          list(rd[:nr]), list(cd[:nc])),
                 Basis([BasisStatus(v) for v in cs[:nc]],
                       [BasisStatus(v) for v in rs[:nr]]))
+
+    def read_basis(self, path):
+        """The `Basis` out of a solution file of either kind: an optimum's,
+        which has carried one all along, or a certificate's, which carries
+        one since D332. Nothing is installed -- pass it to set_basis() to
+        warm-start from it. Raises when the file carries no basis."""
+        nc, nr = self.num_col, self.num_row
+        cs = (ctypes.c_int * max(nc, 1))()
+        rs = (ctypes.c_int * max(nr, 1))()
+        self._check(_lib.jaos_read_basis(self._handle(), _path(path), cs, rs))
+        return Basis([BasisStatus(v) for v in cs[:nc]],
+                     [BasisStatus(v) for v in rs[:nr]])
 
     def solution_file_status(self, path):
         """Which of the three a solution file holds: OPTIMAL, INFEASIBLE or
@@ -1712,6 +1754,31 @@ class Model:
                    IISReport(*(getattr(rep, f)
                                for f, _ in _IISReport._fields_)))
 
+    def feasrelax(self, scope=RelaxScope.BOTH):
+        """The smallest total change to the bounds that makes this model
+        feasible: a `Relaxation` of one signed move per row, one per
+        column, and a `RelaxReport`. A move below zero says that bound's
+        LOWER side has to come down by that much, above zero that its
+        UPPER side has to go up by it, zero that it does not move. Adding
+        every move to the bound it names gives a model with a feasible
+        point, and no other set of moves has a smaller total.
+
+        `scope` is a `RelaxScope` and says which bounds may move. The work
+        runs on a private copy, so this model's answer, certificate and
+        basis stay as they are, and nothing needs to have been solved
+        first: a feasible model answers 0. Raises when the model has no
+        relaxation at all -- a lower bound above its upper -- or the copy
+        did not finish (jaos_feasrelax in jaos.h)."""
+        nr, nc = self.num_row, self.num_col
+        rm = (_D * max(nr, 1))()
+        cm = (_D * max(nc, 1))()
+        rep = _RelaxReport()
+        self._check(_lib.jaos_feasrelax(self._handle(), int(scope), rm, cm,
+                                        ctypes.byref(rep)))
+        return Relaxation(list(rm[:nr]), list(cm[:nc]),
+                          RelaxReport(*(getattr(rep, f)
+                                        for f, _ in _RelaxReport._fields_)))
+
     def verify(self):
         """Prove, or refuse to prove, that the basis behind the last
         optimum certifies its answer. Returns a `VerifyReport` whose
@@ -2329,9 +2396,10 @@ class Problem:
         self._structural = False
         self._loaded = True
 
-    def solve(self):
-        """Loads what changed, runs the solve, returns the outcome."""
-        self._sol = None
+    def _load_changes(self):
+        """Puts everything the problem has changed onto the model. Every
+        call that reaches the library through this layer goes through it
+        first, so the model the library sees is the problem as written."""
         if not self._loaded or self._structural:
             self._build_and_load()
         else:
@@ -2350,6 +2418,11 @@ class Problem:
             self._dirty_costs.clear()
             self._dirty_var_bounds.clear()
             self._dirty_row_bounds.clear()
+
+    def solve(self):
+        """Loads what changed, runs the solve, returns the outcome."""
+        self._sol = None
+        self._load_changes()
         return self._m.solve()
 
     def _solution(self):
@@ -2414,6 +2487,24 @@ class Problem:
         bounds = [(v, s) for v, s in zip(self._vars, found.col_side)
                   if s != IISSide.NONE]
         return IIS(cons, bounds, found.report)
+
+    def feasrelax(self, scope=RelaxScope.BOTH):
+        """The smallest total change to the bounds that makes this problem
+        feasible, in this layer's own terms: a list of (Constraint, move)
+        and a list of (Var, move), the bounds that actually move only, and
+        the `RelaxReport` behind them. A move below zero is that bound's
+        lower side coming down, above zero its upper side going up.
+
+        Nothing needs solving first and nothing is solved: the work runs on
+        an elastic copy, and a feasible problem answers 0. What the problem
+        has changed since its last solve is loaded first, so the relaxation
+        is about the problem as written."""
+        self._load_changes()
+        found = self._m.feasrelax(scope)
+        cons = [(c, v) for c, v in zip(self._cons, found.row_move) if v != 0.0]
+        bounds = [(x, v) for x, v in zip(self._vars, found.col_move)
+                  if v != 0.0]
+        return Relaxation(cons, bounds, found.report)
 
     def _settled(self):
         if self._pending():
@@ -2801,7 +2892,13 @@ class Problem:
     def read_solution(self, path):
         """Reads back a file write_solution wrote; see Model.read_solution."""
         return self._m.read_solution(path)
-        return self
+
+    def read_basis(self, path):
+        """The basis out of a solution file of either kind; see
+        Model.read_basis."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.read_basis(path)
 
     @property
     def work_units(self):

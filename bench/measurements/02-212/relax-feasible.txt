@@ -1,0 +1,3 @@
+
+feasible instances relaxing to nothing: 94
+feasible instances naming a move      : 0

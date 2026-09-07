@@ -2289,9 +2289,19 @@ static void test_empty_row_reports_infeasible(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
 
-    /* jaos_basis refuses to publish a basis behind a refusal. */
+    /* A verdict presolve reached by itself has no basis to publish (D330):
+     * no simplex ran, and a buffer of zeros would read as a basis in which
+     * everything is basic. The reference build has no presolve, and there
+     * its simplex answers this model and does leave one -- asserted rather
+     * than skipped, because a one-sided test passes on a call that always
+     * refuses. */
     jaos_basis_status cs[1], rs[1];
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, rs[0]);
+#else
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
+#endif
 
     jaos_model_free(m);
 }

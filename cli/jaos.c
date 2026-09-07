@@ -33,6 +33,7 @@
  *   jaos check FILE --proof PROOF
  *   jaos stats FILE
  *   jaos iis FILE
+ *   jaos relax FILE [--rows | --cols]
  *   jaos verify FILE [--values] [--proof PATH]
  *   jaos ranging FILE
  *   jaos --version
@@ -112,6 +113,7 @@ static const char USAGE[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos stats FILE\n"
     "  jaos iis FILE\n"
+    "  jaos relax FILE [--rows | --cols]\n"
     "  jaos verify FILE [--values] [--proof PATH]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
@@ -122,7 +124,8 @@ static const char USAGE[] =
     "  work_units and time. Every line but time is reproducible.\n"
     "  --solution OUT   write the answer: the optimum, or the certificate\n"
     "                   of an infeasible or unbounded model\n"
-    "  --start SOLUTION warm-start from the basis in a solution file\n"
+    "  --start SOLUTION warm-start from the basis in a solution file, an\n"
+    "                   optimum's or a certificate's\n"
     "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
     "                   file before it runs; refused, and the search goes\n"
     "                   on without it, when the point is not feasible\n"
@@ -232,6 +235,16 @@ static const char USAGE2[] =
     "  infeasible subsystem: `row I lower|upper` and `col J lower|upper`\n"
     "  lines, then the counts. Exit 0 with an IIS, 1 when the model is not\n"
     "  infeasible.\n"
+    "relax reads FILE and prints the smallest total change to the bounds\n"
+    "  that makes it feasible: one `row NAME lower|upper V` or\n"
+    "  `col NAME lower|upper V` line per bound that has to move, signed,\n"
+    "  then the total, the two counts, the largest single move and what it\n"
+    "  cost. A feasible model prints no move and a total of 0. The work\n"
+    "  runs on an elastic copy and the model itself is never solved.\n"
+    "  --rows           only row bounds may move\n"
+    "  --cols           only column bounds may move\n"
+    "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
+    "  (a lower bound above its upper) or the copy did not finish.\n"
     "verify solves FILE and proves, or refuses to prove, its optimal basis\n"
     "  in exact arithmetic. Exit 0 proved, 1 the basis does not certify the\n"
     "  answer, 3 refused because the numbers do not fit.\n"
@@ -1043,15 +1056,17 @@ static int cmd_solve(int argc, char **argv)
 
     /* A warm start from a solution file: read the statuses, hand them to
      * the model, two separate calls as jaos.h wants them. The file must be
-     * this model's, which the reader checks by count and by name. */
+     * this model's, which the reader checks by count and by name. Either
+     * kind of file will do since D332 -- an optimum's or a certificate's --
+     * so a run that ended INFEASIBLE can be resumed from where it stopped
+     * after one bound moved. */
     if (o.start != nullptr) {
         const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
         jaos_basis_status *cs = zeroed(nc, sizeof *cs);
         jaos_basis_status *rs = zeroed(nr, sizeof *rs);
         jaos_status rd = JAOS_ERR_OUT_OF_MEMORY;
         if (cs != nullptr && rs != nullptr &&
-            (rd = jaos_read_solution(m, o.start, nullptr, nullptr, nullptr,
-                                     cs, nullptr, nullptr, rs)) == JAOS_OK)
+            (rd = jaos_read_basis(m, o.start, cs, rs)) == JAOS_OK)
             rd = jaos_set_basis(m, cs, rs);
         free(cs);
         free(rs);
@@ -1563,6 +1578,83 @@ out:
     return rc;
 }
 
+/* relax FILE [--rows|--cols]: the smallest total change to the bounds that
+ * makes the model feasible, and which bounds it falls on. The model is not
+ * solved first: a relaxation is a question about the model, and a feasible
+ * one answers 0. */
+static int cmd_relax(int argc, char **argv)
+{
+    const char *file = nullptr;
+    jaos_relax_scope scope = JAOS_RELAX_BOTH;
+    for (int i = 2; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--rows") == 0) {
+            scope = JAOS_RELAX_ROWS;
+        } else if (strcmp(a, "--cols") == 0) {
+            scope = JAOS_RELAX_COLS;
+        } else if (a[0] == '-' && a[1] != '\0') {
+            return usage_error("unknown option '%s'", a);
+        } else if (file != nullptr) {
+            return usage_error("relax takes one file, and got '%s' and '%s'",
+                               file, a);
+        } else {
+            file = a;
+        }
+    }
+    if (file == nullptr)
+        return usage_error("relax needs a file");
+
+    jaos_model *m = nullptr;
+    double *rm = nullptr, *cm = nullptr;
+    int rc = load(file, &m);
+    if (rc >= 0)
+        return rc;
+
+    const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+    rm = zeroed(nr, sizeof *rm);
+    cm = zeroed(nc, sizeof *cm);
+    if (rm == nullptr || cm == nullptr) {
+        fputs("jaos: out of memory\n", stderr);
+        rc = EXIT_USAGE;
+        goto out;
+    }
+
+    jaos_relax_report rep;
+    memset(&rep, 0, sizeof rep);
+    if (jaos_feasrelax(m, scope, rm, cm, &rep) != JAOS_OK) {
+        rc = library_error("relax", file, m);
+        goto out;
+    }
+
+    {
+        numbuf b;
+        namebuf nm;
+        /* One line per bound that has to move, named and signed, before
+         * the totals: the moves are the answer and the counts describe
+         * them. */
+        for (int64_t i = 0; i < nr; i++)
+            if (rm[i] != 0.0)
+                printf("row %s %s %s\n", row_name(m, i, nm),
+                       rm[i] < 0.0 ? "lower" : "upper", num(b, rm[i]));
+        for (int64_t j = 0; j < nc; j++)
+            if (cm[j] != 0.0)
+                printf("col %s %s %s\n", col_name(m, j, nm),
+                       cm[j] < 0.0 ? "lower" : "upper", num(b, cm[j]));
+    }
+    print_num("total", rep.total);
+    print_int("rows_moved", rep.rows_moved);
+    print_int("cols_moved", rep.cols_moved);
+    print_num("largest", rep.largest);
+    print_int("work_units", rep.work_units);
+    rc = EXIT_OPTIMAL;
+
+out:
+    free(rm);
+    free(cm);
+    jaos_model_free(m);
+    return rc;
+}
+
 static const char *stage_word(jaos_proof_stage s)
 {
     switch (s) {
@@ -1843,6 +1935,8 @@ int main(int argc, char **argv)
         return cmd_stats(argc, argv);
     if (strcmp(cmd, "iis") == 0)
         return cmd_iis(argc, argv);
+    if (strcmp(cmd, "relax") == 0)
+        return cmd_relax(argc, argv);
     if (strcmp(cmd, "verify") == 0)
         return cmd_verify(argc, argv);
     if (strcmp(cmd, "ranging") == 0)

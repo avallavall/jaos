@@ -184,6 +184,9 @@ including the row where the field is ahead.
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
+| Feasibility relaxation of an infeasible model | ● | ? | ? | ? | ? | ? | ? |
+
+**The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 (D331) and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
 
 Three rows carry most of the meaning.
 

@@ -302,21 +302,45 @@ rows 3
 ray LIM1 0
 ray LIM2 -1
 ray EQ1 1
+# basis col|row <name> <status>
+basis col X1 basic
+basis col X2 lower
+basis col X3 lower
+basis row LIM1 basic
+basis row LIM2 lower
+basis row EQ1 lower
 end
 ```
 
-**`jaos_read_solution` reads an optimum back** (D282) and
-**`jaos_read_certificate` a certificate**, with `jaos_solution_file_status`
-saying which a file holds so a caller need not know. One reader serves all
-three and the model decides the shape: the counts in the file must equal
+**A certificate carries the basis the solve stopped on too** (D332). An
+optimum's file has always carried its basis, on the same `col` and `row`
+records as its values; a certificate's had nowhere to put one until the
+basis behind a refusal became readable (D330). The `basis` records are
+columns before rows, each in index order under the model's own names, and
+`<status>` is one of the same four words. What they buy is a warm start
+across processes: write the file, change a bound, and `jaos solve --start`
+picks up where the last run stopped instead of at the slack basis.
+
+The section is optional and its absence is not an error. A file written
+for a verdict presolve reached with no simplex carries no basis, because
+there is none, and so does every file written before D332. Half a basis is
+refused: the reader takes all of the section or none of it, since half of
+one says which variables are basic about half the model, which is nothing.
+
+**`jaos_read_solution` reads an optimum back** (D282),
+**`jaos_read_certificate` a certificate**, and **`jaos_read_basis` the
+basis out of a file of either kind** (D332), with
+`jaos_solution_file_status` saying which a file holds so a caller need not
+know. One reader serves all four and the model decides the shape: the counts in the file must equal
 the model's, and each record's name must be the name the model gives that
 index -- its own, or the positional one -- so a name that does not match
 means the file describes a different model, or this one renamed since.
 Records are taken in index order and nothing is searched by name. A record
 that contradicts the status line -- a `col` in a certificate, a `ray` in an
-optimum, an `objective` in either certificate -- is refused, and so is a
+optimum, an `objective` in either certificate, a `basis` in an optimum
+whose `col` and `row` records already carry one -- is refused, and so is a
 status nobody writes. Only finite numbers are accepted, because only those
-are ever written. Every output is optional. Neither reader installs
+are ever written. Every output is optional. No reader installs
 anything: to warm-start from a file, read the statuses and hand them to
 `jaos_set_basis`; to judge a certificate, hand the ray to
 `jaos_check_certificate` or `jaos_check_ray`, which is what `jaos check`

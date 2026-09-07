@@ -76,7 +76,9 @@ switches and off; `SPECS.md` names each one with its reading.
 **After the answer.** The independent checker verifies every answer against
 the original, unscaled model. Sensitivity and ranging for every cost, row
 bound and column bound. A Farkas certificate behind an infeasible answer and
-a ray behind an unbounded one. An irreducible infeasible subsystem. An exact
+a ray behind an unbounded one. An irreducible infeasible subsystem, which
+says where a model contradicts itself, and a feasibility relaxation, which
+says how much has to be given up to stop it and on which bounds. An exact
 rational proof that the final basis is optimal, and the exact values of that
 basis.
 
@@ -85,15 +87,18 @@ objective's sense or constant, or whole rows and columns added or deleted;
 every one of those reads back, the matrix by column, by row or by entry. A
 re-solve starts from the previous basis. A callback can watch a solve and
 stop it, and a stopped solve keeps its basis, so raising the limit continues
-from where it stopped.
+from where it stopped. So does a refused one: the basis behind an infeasible
+or unbounded answer is readable and goes into the solution file, so a
+refusal can be picked up again in another process.
 
 **Command line.** `make cli` builds `jaos`. `jaos solve model.mps` prints
 the status, the objective, the counts and the time, one per line, and every
 line but the time is byte-identical between runs; the exit code is the
 verdict. `jaos convert` moves between formats, `jaos check` judges a solution
 file, `jaos stats` counts what a model is, `jaos iis` names an infeasible
-subsystem, `jaos verify` runs the exact proof, `jaos ranging` prints the
-ranges. `solve --proof` and `verify --proof` write the answer's exact proof
+subsystem, `jaos relax` says what the smallest change to the bounds is
+that would make it feasible, `jaos verify` runs the exact proof, and
+`jaos ranging` prints the ranges. `solve --proof` and `verify --proof` write the answer's exact proof
 to a file, and `check --proof` judges one back from the model alone, over
 the rationals and with no tolerance. Every branch-and-bound switch is a
 flag, and every one of them has a measurement behind it.

@@ -1334,6 +1334,120 @@ static void test_an_infeasibility_certificate_round_trips(void)
     jaos_model_free(m);
 }
 
+/* x + y <= 1 beside x + y >= 2, both columns open above. No presolve
+ * family reads two rows at once and bound tightening is refused (D97),
+ * so the dual simplex is what answers this and there is a basis to
+ * write down. build_infeasible above is the other case on purpose: one
+ * forcing-row test settles it and no simplex runs. */
+static jaos_model *build_infeasible_by_simplex(void)
+{
+    const double cost[] = {1.0, 1.0}, cl[] = {0.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, 2.0}, ru[] = {1.0, INFINITY};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    return m;
+}
+
+/* D332: a certificate file carries the basis the solve stopped on, and
+ * jaos_read_basis reads it back. What it buys is a warm start across
+ * processes, so the test finishes by installing it. */
+static void test_a_certificate_file_carries_its_basis(void)
+{
+    jaos_model *m = build_infeasible_by_simplex();
+    jaos_basis_status want_c[2], want_r[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, want_c, want_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+
+    FILE *f = fopen(TMP_SOL, "r");
+    TEST_ASSERT_NOT_NULL(f);
+    char line[256];
+    int basis_lines = 0;
+    while (fgets(line, sizeof line, f) != nullptr)
+        if (strncmp(line, "basis ", 6) == 0)
+            basis_lines++;
+    fclose(f);
+    TEST_ASSERT_EQUAL_INT(4, basis_lines);   /* two columns and two rows */
+
+    jaos_basis_status got_c[2] = {(jaos_basis_status)-1,
+                                  (jaos_basis_status)-1};
+    jaos_basis_status got_r[2] = {(jaos_basis_status)-1,
+                                  (jaos_basis_status)-1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_basis(m, TMP_SOL, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(want_c, got_c, sizeof want_c);
+    TEST_ASSERT_EQUAL_MEMORY(want_r, got_r, sizeof want_r);
+
+    /* Either output may be NULL, like every other reader here. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_basis(m, TMP_SOL, nullptr, nullptr));
+
+    /* And it is a basis the library takes: the whole point of writing it
+     * is that another process can start from it. */
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(c, got_c, got_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(c, 0, -INFINITY, 3.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(c));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(c));
+    jaos_model_free(c);
+
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+/* An optimum's file has carried its basis all along, on its own records,
+ * and the same reader gets it. */
+static void test_read_basis_takes_an_optimum_file_too(void)
+{
+    jaos_model *m = fresh();
+    const double cost[] = {1.0}, cl[] = {0.0}, cu[] = {5.0};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_basis_status want_c[1], want_r[1], got_c[1], got_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, want_c, want_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_basis(m, TMP_SOL, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(want_c, got_c, sizeof want_c);
+    TEST_ASSERT_EQUAL_MEMORY(want_r, got_r, sizeof want_r);
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
+/* A certificate a presolve family proved by itself has no basis behind
+ * it, so its file carries none and the reader says so rather than
+ * handing back a buffer of zeros, which would read as a basis in which
+ * everything is basic. */
+static void test_read_basis_refuses_a_file_that_carries_none(void)
+{
+    jaos_model *m = build_infeasible();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, TMP_SOL));
+    jaos_basis_status got_c[1], got_r[1];
+    const jaos_status rd = jaos_read_basis(m, TMP_SOL, got_c, got_r);
+#if defined(JAOS_NO_PRESOLVE)
+    /* Without presolve the simplex answers this one and the file does
+     * carry a basis. The reference build asserts its own answer, because
+     * a one-sided test passes on a reader that always refuses. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, rd);
+#else
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, rd);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no basis"));
+#endif
+    remove(TMP_SOL);
+    jaos_model_free(m);
+}
+
 static void test_an_unbounded_ray_round_trips(void)
 {
     jaos_model *m = build_unbounded();
@@ -1509,6 +1623,9 @@ int main(void)
     RUN_TEST(test_mps_refuses_the_row_name_its_reader_takes_for_a_marker);
     RUN_TEST(test_a_solution_file_carries_the_names_and_is_checked_on_them);
     RUN_TEST(test_an_infeasibility_certificate_round_trips);
+    RUN_TEST(test_a_certificate_file_carries_its_basis);
+    RUN_TEST(test_read_basis_takes_an_optimum_file_too);
+    RUN_TEST(test_read_basis_refuses_a_file_that_carries_none);
     RUN_TEST(test_an_unbounded_ray_round_trips);
     RUN_TEST(test_the_certificate_reader_refuses_what_is_not_one);
     RUN_TEST(test_a_solve_with_no_certificate_writes_nothing);
