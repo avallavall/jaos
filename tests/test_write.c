@@ -20,6 +20,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -2153,6 +2154,255 @@ static void test_a_refused_compressed_write_leaves_nothing(void)
     TEST_ASSERT_FALSE(file_exists(path));
     jaos_model_free(m);
 }
+
+/* --------------------------------------------------------------------- */
+/* The point file (D342)                                                  */
+/* --------------------------------------------------------------------- */
+
+static const char *TMP_PT = "build/tw_tmp.pt";
+
+/* Writes `text` to TMP_PT, for the tests that feed the reader a file no
+ * writer here would produce. */
+static void put_pt(const char *text)
+{
+    FILE *f = fopen(TMP_PT, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs(text, f);
+    TEST_ASSERT_EQUAL_INT(0, fclose(f));
+}
+
+/* The contract, and the only statement that cannot be vacuous: the values
+ * that come back are the values that went out, compared exactly. */
+static void test_a_point_file_round_trips(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const int64_t nc = m->num_col;
+    double *want = jm_alloc_array(nc, sizeof *want);
+    double *got = jm_alloc_array(nc, sizeof *got);
+    TEST_ASSERT_NOT_NULL(want);
+    TEST_ASSERT_NOT_NULL(got);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, want, nullptr, nullptr, nullptr));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_point(m, TMP_PT));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, TMP_PT, got));
+    for (int64_t j = 0; j < nc; j++)
+        SAME_D(want[j], got[j]);
+
+    /* And the checker takes what came back and calls it feasible, which
+     * is the point of having the file at all. */
+    jaos_check_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, got, nullptr, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_FALSE(rep.checked_duals);
+
+    free(want);
+    free(got);
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
+/* A file another program wrote: any order, comments, blank lines, extra
+ * whitespace and a trailing comment on a data line. All of it reads,
+ * because the format exists to be easy to produce. */
+static void test_the_point_reader_takes_a_file_written_by_hand(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    const int64_t nc = m->num_col;
+    TEST_ASSERT_EQUAL_INT64(3, nc);
+
+    put_pt("# somebody else's answer\n"
+           "\n"
+           "   X3   3   \n"
+           "X1 4    # the first one\n"
+           "\tX2\t3\n");
+    double x[3] = {0.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, TMP_PT, x));
+    SAME_D(4.0, x[0]);
+    SAME_D(3.0, x[1]);
+    SAME_D(3.0, x[2]);
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
+/* Each refusal on its own. The missing-column one is the reason this
+ * format has a strict rule at all: a column defaulted to zero is how a
+ * wrong answer gets judged feasible. */
+static void test_each_point_reader_guard_fires_on_its_own(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    const struct { const char *text; const char *want; } bad[] = {
+        {"X1 4\nX2 3\n",                  "does not name"},
+        {"X1 4\nX2 3\nX3 3\nX3 1\n",      "a second value"},
+        {"X1 4\nX2 3\nnosuch 1\n",        "no column is named"},
+        {"X1 4\nX2 3\nX3\n",              "1 field"},
+        {"X1 4\nX2 3\nX3 3 3\n",          "3 fields"},
+        {"X1 4\nX2 3\nX3 nan\n",          "not a finite number"},
+        {"X1 4\nX2 3\nX3 inf\n",          "not a finite number"},
+        {"X1 4\nX2 3\nX3 three\n",        "not a finite number"},
+    };
+    double x[3];
+    for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+        put_pt(bad[k].text);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_ERR_INVALID_INPUT,
+            jaos_read_point(m, TMP_PT, x), bad[k].text);
+        TEST_ASSERT_NOT_NULL_MESSAGE(
+            strstr(jaos_model_error(m), bad[k].want), jaos_model_error(m));
+    }
+    /* The control: the same file with the one thing fixed reads. */
+    put_pt("X1 4\nX2 3\nX3 3\n");
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, TMP_PT, x));
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
+/* The duals are the same file shape over the rows, and the checker's
+ * dual half runs only when they came in. Both halves are asserted,
+ * because a reader that ignored the file would pass the first. */
+static void test_the_dual_half_runs_only_with_a_duals_file(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const int64_t nc = m->num_col, nr = m->num_row;
+    double *x = jm_alloc_array(nc, sizeof *x);
+    double *y = jm_alloc_array(nr, sizeof *y);
+    double *back = jm_alloc_array(nr, sizeof *back);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(y);
+    TEST_ASSERT_NOT_NULL(back);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, x, nullptr, y, nullptr));
+
+    /* The duals file is written by hand here, since nothing writes one:
+     * one row name and one multiplier a line, from the answer. */
+    {
+        FILE *f = fopen(TMP_PT, "w");
+        TEST_ASSERT_NOT_NULL(f);
+        char nm[JAOS_NAME_MAX + 1];
+        for (int64_t i = 0; i < nr; i++) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, i, nm, sizeof nm));
+            fprintf(f, "%s %.17g\n", nm, y[i]);
+        }
+        TEST_ASSERT_EQUAL_INT(0, fclose(f));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_duals(m, TMP_PT, back));
+    for (int64_t i = 0; i < nr; i++)
+        SAME_D(y[i], back[i]);
+
+    jaos_check_report with, without;
+    memset(&with, 0, sizeof with);
+    memset(&without, 0, sizeof without);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, x, back, 1e-7, &with));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_solution(m, x, nullptr, 1e-7, &without));
+    TEST_ASSERT_TRUE(with.checked_duals);
+    TEST_ASSERT_FALSE(without.checked_duals);
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
+    !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    /* Whether the duals hold is a statement about the answer, and both
+     * fault builds publish one that does not on purpose. What this test
+     * is about -- that the file round-trips and that the dual half runs
+     * only when a file came in -- is asserted in every build above. */
+    TEST_ASSERT_TRUE(with.dual_feasible);
+#endif
+
+    /* A row name in a point file, or a column name in a duals file, is
+     * the other side's name and is refused. */
+    put_pt("X1 1\nX2 1\nX3 1\n");
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_duals(m, TMP_PT, back));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no row is named"));
+
+    free(x);
+    free(y);
+    free(back);
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
+/* The writer's own refusals: no answer to write, a name no file can tell
+ * apart, and a value no file can carry. Each leaves nothing behind. */
+static void test_the_point_writer_refuses_what_it_cannot_write(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    /* Whether a refusal left a file behind is only readable from a clean
+     * path, and a test above that aborts on an assertion never reaches
+     * its own remove(). */
+    remove(TMP_PT);
+    /* Nothing solved yet. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_point(m, TMP_PT));
+    TEST_ASSERT_FALSE(file_exists(TMP_PT));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_point(m, TMP_PT));
+    remove(TMP_PT);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "dup"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "dup"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_point(m, TMP_PT));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "both named"));
+    TEST_ASSERT_FALSE(file_exists(TMP_PT));
+
+    /* Bad arguments. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_point(nullptr, TMP_PT));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_point(m, nullptr));
+    double x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_point(nullptr, TMP_PT, x));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_point(m, nullptr, x));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_point(m, TMP_PT, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO,
+        jaos_read_point(m, "build/no_such_dir/x.pt", x));
+    jaos_model_free(m);
+}
+
+/* A positional name works where the model named nothing, the way every
+ * other reader here takes one (D284) -- and the writer prints it, so a
+ * model with no names of its own still round-trips. */
+static void test_a_point_file_uses_positional_names(void)
+{
+    const double cost[] = {1.0, 1.0}, cl[] = {0.0, 0.0};
+    const double cu[] = {5.0, 5.0};
+    const double rl[] = {3.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_point(m, TMP_PT));
+    const char *text = slurp(TMP_PT);
+    TEST_ASSERT_NOT_NULL(text);
+    TEST_ASSERT_NOT_NULL(strstr(text, "C1 "));
+    TEST_ASSERT_NOT_NULL(strstr(text, "C2 "));
+
+    double x[2] = {-1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, TMP_PT, x));
+    double want[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, want, nullptr, nullptr, nullptr));
+    SAME_D(want[0], x[0]);
+    SAME_D(want[1], x[1]);
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -2213,5 +2463,11 @@ int main(void)
     RUN_TEST(test_a_plain_name_still_writes_text);
     RUN_TEST(test_the_answer_writers_take_a_gz_name);
     RUN_TEST(test_a_refused_compressed_write_leaves_nothing);
+    RUN_TEST(test_a_point_file_round_trips);
+    RUN_TEST(test_the_point_reader_takes_a_file_written_by_hand);
+    RUN_TEST(test_each_point_reader_guard_fires_on_its_own);
+    RUN_TEST(test_the_dual_half_runs_only_with_a_duals_file);
+    RUN_TEST(test_the_point_writer_refuses_what_it_cannot_write);
+    RUN_TEST(test_a_point_file_uses_positional_names);
     return UNITY_END();
 }

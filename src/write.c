@@ -1695,3 +1695,209 @@ done:
     fclose(f);
     return st;
 }
+
+/* --------------------------------------------------------------------- */
+/* The point file                                                         */
+/* --------------------------------------------------------------------- */
+
+/* The smallest thing that can carry an answer between programs: one
+ * `NAME VALUE` line per column, in any order, `#` to end of line for a
+ * comment (D342).
+ *
+ * It exists because JAOS's own solution file is JAOS's own, and the point
+ * of shipping an independent checker is that it can judge somebody else's
+ * answer. Two lines of awk turn most solvers' output into this, which is
+ * the whole design goal: the format is deliberately poorer than
+ * jaos_write_solution's so that producing one is not a project.
+ *
+ * **Every column must appear exactly once, and that is the one strict
+ * rule.** A missing column defaulting to zero is how a wrong answer gets
+ * judged feasible, so it is an error with the column named.
+ */
+
+/* Reads NAME VALUE lines into `out`, one per column (`is_col`) or one per
+ * row. Every entity must appear exactly once; the seen-map is what says
+ * so and what names the one that did not. */
+static jaos_status read_named_values(jaos_model *m, const char *path,
+                                     bool is_col, double *out)
+{
+    const int64_t n = is_col ? m->num_col : m->num_row;
+
+    FILE *f = fopen(path, "r");
+    if (f == nullptr) {
+        jm_set_err(m, "cannot open '%s' for reading", path);
+        return JAOS_ERR_IO;
+    }
+
+    /* The same locale rule every reader here follows: a host application
+     * under a comma-decimal locale would read "1.5" as 1. */
+    locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+    locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+
+    jaos_status st = JAOS_OK;
+    char *line = nullptr;
+    size_t lsz = 0;
+    int64_t lno = 0, seen = 0;
+    bool *got = jm_calloc_array(n, sizeof *got);
+    if (got == nullptr) {
+        jm_set_err(m, "out of memory");
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+
+#define PT_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
+    jm_set_err(m, __VA_ARGS__); goto done; } while (0)
+
+    while (getline(&line, &lsz, f) >= 0) {
+        lno++;
+        char *hash = strchr(line, '#');
+        if (hash != nullptr)
+            *hash = '\0';
+
+        char *tok[4];
+        int nt = 0;
+        for (char *p = strtok(line, " \t\r\n");
+             p != nullptr && nt < 4; p = strtok(nullptr, " \t\r\n"))
+            tok[nt++] = p;
+        if (nt == 0)
+            continue;
+        if (nt != 2)
+            PT_FAIL("line %" PRId64 ": a record is a name and one number, "
+                    "and this line has %d field%s", lno, nt,
+                    nt == 1 ? "" : "s");
+
+        int64_t k = 0;
+        const jaos_status fk = is_col ? jaos_col_index(m, tok[0], &k)
+                                      : jaos_row_index(m, tok[0], &k);
+        if (fk != JAOS_OK)
+            PT_FAIL("line %" PRId64 ": no %s is named '%s'", lno,
+                    is_col ? "column" : "row", tok[0]);
+        if (got[k])
+            PT_FAIL("line %" PRId64 ": a second value for '%s'", lno, tok[0]);
+
+        double v = 0.0;
+        if (!rd_num(tok[1], &v))
+            PT_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
+                    tok[1]);
+        out[k] = v;
+        got[k] = true;
+        seen++;
+    }
+
+    /* A column with no line is the failure this format exists to catch.
+     * Defaulting it to zero would judge a point the file never named. */
+    if (seen != n)
+        for (int64_t k = 0; k < n; k++)
+            if (!got[k]) {
+                char nm[NAME_LEN];
+                if (is_col)
+                    col_name(m, nm, k);
+                else
+                    row_name(m, nm, k);
+                PT_FAIL("the file names %" PRId64 " of the model's %" PRId64
+                        " %ss; '%s' is the first it does not name",
+                        seen, n, is_col ? "column" : "row", nm);
+            }
+
+    m->err[0] = '\0';
+
+#undef PT_FAIL
+done:
+    free(line);
+    free(got);
+    if (cloc) {
+        uselocale(prev);
+        freelocale(cloc);
+    }
+    fclose(f);
+    return st;
+}
+
+jaos_status jaos_read_point(jaos_model *m, const char *path,
+                            double *col_value)
+{
+    if (m == nullptr || path == nullptr || col_value == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    return read_named_values(m, path, true, col_value);
+}
+
+jaos_status jaos_read_duals(jaos_model *m, const char *path, double *row_dual)
+{
+    if (m == nullptr || path == nullptr || row_dual == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    return read_named_values(m, path, false, row_dual);
+}
+
+jaos_status jaos_write_point(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+
+    double *x = jm_alloc_array(m->num_col, sizeof *x);
+    if (x == nullptr)
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+    if (w->st == JAOS_OK) {
+        /* The point rule is jaos_solution's and is not restated: an
+         * optimum has one and nothing else does. A mixed-integer
+         * incumbent that was never proved is not an answer this writes,
+         * for the reason jaos_solution refuses it. */
+        const jaos_status ps = jaos_solution(m, x, nullptr, nullptr, nullptr);
+        if (ps != JAOS_OK) {
+            free(x);
+            return ps;
+        }
+    }
+
+    /* Two columns of a name would read back as one, so the same refusal
+     * every writer here makes. The rows take no part: this file has
+     * column names in it and nothing else. */
+    if (w->st == JAOS_OK) {
+        jm_nmap seen = {0};
+        char nm[NAME_LEN];
+        int64_t prior;
+        for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+            col_name(m, nm, j);
+            if (jm_nmap_get(&seen, nm, &prior))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "columns %" PRId64 " and %" PRId64 " are both named "
+                        "'%s', which no file can tell apart", prior, j, nm);
+            else if (!jm_nmap_insert(&seen, nm, j))
+                wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        }
+        jm_nmap_free(&seen);
+    }
+
+    /* A value no file can carry is refused before anything is opened, the
+     * rule jaos_write_solution follows and for the same reason: the
+     * spelling of an infinity belongs to the host libc. */
+    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+        if (!isfinite(x[j])) {
+            char nm[NAME_LEN];
+            col_name(m, nm, j);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' holds a value no file can carry", nm);
+        }
+    }
+
+    locale_t prev = (locale_t)0, cloc = (locale_t)0;
+    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+        free(x);
+        return w->st;
+    }
+
+    {
+        char nm[NAME_LEN], num[NUM_LEN];
+        fprintf(w->f, "# written by JAOS %s\n", JAOS_VERSION_STRING);
+        for (int64_t j = 0; j < m->num_col; j++) {
+            col_name(m, nm, j);
+            wr_num(num, x[j]);
+            fprintf(w->f, "%-9s %s\n", nm, num);
+        }
+    }
+
+    free(x);
+    return wr_close(w, path, prev, cloc);
+}

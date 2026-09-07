@@ -609,6 +609,9 @@ _sig("jaos_read_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
 _sig("jaos_write_mps_basis", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_mps_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(ctypes.c_int))
+_sig("jaos_write_point", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_point", ctypes.c_int, _VP, _CS, _P(_D))
+_sig("jaos_read_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
@@ -880,6 +883,34 @@ class Model:
             self._handle(), _path(path), cs, rs))
         return Basis([BasisStatus(v) for v in cs[:nc]],
                      [BasisStatus(v) for v in rs[:nr]])
+
+    def write_point(self, path):
+        """Writes the last optimum's point as a point file: one
+        `NAME VALUE` line per column and nothing else (D342). The
+        availability rule is solution()'s."""
+        self._check(_lib.jaos_write_point(self._handle(), _path(path)))
+
+    def read_point(self, path):
+        """The list of column values in a point file, in index order.
+
+        The file is what another solver's answer arrives in: one
+        `NAME VALUE` line per column, in any order, `#` for a comment.
+        Every column must appear exactly once -- a missing one is an
+        error with its name, because defaulting it to zero is how a wrong
+        answer gets judged feasible. Pass the result to check_solution()."""
+        nc = self.num_col
+        x = (_D * max(nc, 1))()
+        self._check(_lib.jaos_read_point(self._handle(), _path(path), x))
+        return list(x[:nc])
+
+    def read_duals(self, path):
+        """The row multipliers in a file of the same shape, in index
+        order: the other half of read_point(), for the dual half of the
+        checker's report."""
+        nr = self.num_row
+        y = (_D * max(nr, 1))()
+        self._check(_lib.jaos_read_duals(self._handle(), _path(path), y))
+        return list(y[:nr])
 
     def solution_file_status(self, path):
         """Which of the three a solution file holds: OPTIMAL, INFEASIBLE or
@@ -3075,6 +3106,25 @@ class Problem:
         if self._pending():
             self._build_and_load()
         return self._m.read_mps_basis(path)
+
+    def write_point(self, path):
+        """Writes the answer's point as a point file; see
+        Model.write_point."""
+        self._m.write_point(path)
+
+    def read_point(self, path):
+        """The column values in a point file, in the order the variables
+        were added; see Model.read_point."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.read_point(path)
+
+    def read_duals(self, path):
+        """The row multipliers in a file of the same shape, in the order
+        the constraints were added; see Model.read_duals."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.read_duals(path)
 
     @property
     def work_units(self):

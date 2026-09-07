@@ -691,6 +691,60 @@ expect_exit 5 "check --tol refuses a word" \
 [ "$faulty" -eq 0 ] && expect_exit 0 "check --tol takes a number" \
     "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --tol 1e-6
 
+# The point file (D342): another solver's answer, in the shape two lines
+# of awk produce. Written here by solve --write-point, judged by
+# check --point, and both ways round -- a point that is not feasible has
+# to be refused, or the first half proves nothing.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--write-point writes a point file" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-point "$tmp/p.pt"
+[ "$(grep -cv '^#' "$tmp/p.pt")" -eq 3 ] \
+    && pass "one line per column and nothing else" \
+    || flunk "the point file has $(grep -cv '^#' "$tmp/p.pt") records"
+expect_exit 0 "check --point judges it" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/p.pt"
+[ "$(printf '%s\n' "$out" | head -n 1)" = "status point" ] \
+    && pass "and says which reader ran" \
+    || flunk "check --point began with '$(printf '%s\n' "$out" | head -n 1)'"
+[ "$(line_of primal_feasible)" = "primal_feasible yes" ] \
+    && pass "and calls the point feasible" \
+    || flunk "check --point printed '$(line_of primal_feasible)'"
+[ "$(line_of checked_duals)" = "checked_duals no" ] \
+    && pass "and says the duals were not checked" \
+    || flunk "check --point printed '$(line_of checked_duals)'"
+# The duals out of the model's own solution file, which is what a caller
+# with another solver's answer would build the same way.
+awk '$1 == "row" { print $2, $4 }' "$tmp/a.sol" > "$tmp/p.du"
+expect_exit 0 "check --point --duals runs the dual half too" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/p.pt" --duals "$tmp/p.du"
+[ "$(line_of checked_duals)" = "checked_duals yes" ] \
+    && pass "and says so" \
+    || flunk "check --duals printed '$(line_of checked_duals)'"
+[ "$(line_of dual_feasible)" = "dual_feasible yes" ] \
+    && pass "and the answer is dual feasible" \
+    || flunk "check --duals printed '$(line_of dual_feasible)'"
+# The case it must reject: every value moved off the answer.
+awk '!/^#/ { print $1, $2 + 5 }' "$tmp/p.pt" > "$tmp/bad.pt"
+expect_exit 1 "check --point of a point that is not feasible exits 1" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/bad.pt"
+[ "$(line_of primal_feasible)" = "primal_feasible no" ] \
+    && pass "and says so" \
+    || flunk "check of a bad point printed '$(line_of primal_feasible)'"
+# A file that names fewer columns than the model has is refused, not
+# completed with zeros.
+head -2 "$tmp/p.pt" > "$tmp/short.pt"
+expect_exit 5 "check --point of a short file exits 5" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/short.pt"
+[ -n "$err" ] && pass "and names what is missing" \
+    || flunk "no message on stderr"
+fi
+expect_exit 5 "check --point and a solution file together is a usage error" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --point "$tmp/p.pt"
+expect_exit 5 "check --duals without --point is a usage error" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" --duals "$tmp/p.du"
+expect_exit 5 "check --point with a missing file exits 5" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/no-such.pt"
+
 # An infeasible solve writes its certificate to the solution file, and
 # check judges that certificate from the model alone (D285). t1.mps is
 # infeasible; its file says so and carries one multiplier per row.

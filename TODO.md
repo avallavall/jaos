@@ -7,6 +7,47 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, sixteenth round: the library can be
+installed, and the checker judges another solver's point (D341, D342).**
+
+`make install` and `make uninstall` put the header, both library forms,
+the `jaos` tool and a generated `jaos.pc` under `PREFIX`, with `DESTDIR`
+staging. And a point file -- one `NAME VALUE` line per column and nothing
+else -- lets `jaos check FILE --point POINT` run the independent checker
+on an answer this library did not compute.
+
+**Three things worth carrying forward.**
+
+**The install gap was invisible because every consumer was inside the
+tree.** SPECS.md says JAOS is "usable as a library by someone who did not
+write it" and nothing had ever compiled against it from outside. The test
+is the deliverable here, not the target: `tests/install.sh` compiles a
+program that reaches JAOS through the installed header alone, with no
+`-Iinclude` and no path into the source tree, and it is in `make test`
+because the rot it catches is silent -- a source file added to the
+library and not to the install rule fails at a consumer's link and
+nowhere else.
+
+**A generated pkg-config file, not a checked-in one.** It carries the
+caller's prefix and the version, and the version already has an owner in
+`JAOS_VERSION_STRING`. A checked-in `jaos.pc` would be a second copy of a
+number this project has a rule about, and it would be wrong the first
+time either moved. The Makefile reads it out of the header and the test
+compares the two.
+
+**The point file's strict rule is the whole feature.** Every column must
+appear exactly once; a column the file does not name is refused with its
+name rather than defaulted to zero, because a zero nobody wrote is how a
+wrong answer gets judged feasible. The format is deliberately poorer than
+`jaos_write_solution`'s so that producing one is two lines of awk, and
+that is the trade: a richer format is a better record and a worse bridge.
+
+**Together with D339 this is the pair.** A basis from outside is proved
+exactly; a point from outside is judged against tolerances.
+`docs/feature-matrix.md` section 6 carries both rows, and both are the
+distinctive kind of cell -- not "JAOS has a checker" but "JAOS's checker
+takes somebody else's answer".
+
 **2026-09-07, the day batch, fifteenth round: a basis crosses the fence,
 in both directions (D338, D339, D340).** JAOS reads and writes the MPS
 basis file, proves a basis it did not produce, and compresses anything it

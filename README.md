@@ -235,6 +235,23 @@ sets, and every set takes `J=N` to run N instances at a time. `bench/fetch.sh`
 downloads the instances and checks them against pinned sha256 hashes; they
 never enter this repository.
 
+### Installing
+
+```
+make install                        # /usr/local
+make install PREFIX=$HOME/.local    # anywhere
+make install DESTDIR=/tmp/stage     # a staging root, for a package
+make uninstall                      # removes exactly what install put there
+```
+
+It installs the header, both library forms, the command-line tool and a
+pkg-config file, so an outside program builds with
+`cc $(pkg-config --cflags jaos) prog.c $(pkg-config --libs jaos)`. `DESTDIR`
+is prefixed to every path and compiled into nothing; `PREFIX` is, through
+`jaos.pc`. `make test` runs `tests/install.sh`, which stages an install,
+compiles a program that reaches JAOS through the installed header alone,
+runs it, and uninstalls.
+
 `make` builds with `-O3 -flto -g -DNDEBUG`, and every flag that measured a
 gain is already in that default. Profile-guided optimisation, `make pgo`, is
 worth 1.112x on top and is not the default because it needs the fetched

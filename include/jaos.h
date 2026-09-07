@@ -1481,6 +1481,41 @@ JAOS_NODISCARD jaos_status jaos_read_mps_basis(jaos_model *m,
     const char *path, jaos_basis_status *col_status,
     jaos_basis_status *row_status);
 
+/* The point file: the smallest thing that can carry an answer between two
+ * programs (D342). One `NAME VALUE` line per column, in any order, `#` to
+ * end of line for a comment, and nothing else in it.
+ *
+ * It exists because JAOS's own solution file is JAOS's own, and the point
+ * of shipping an independent checker is that it can judge somebody else's
+ * answer. Two lines of awk turn most solvers' output into one of these,
+ * which is the design goal: the format is deliberately poorer than
+ * jaos_write_solution's so that producing one is not a project. What it
+ * buys is jaos_check_solution over a point this library did not compute,
+ * the primal half of what jaos_verify_basis does for a basis (D339).
+ *
+ * **Every column must appear exactly once**, and that is the strict rule.
+ * A column the file does not name is refused with its name, because
+ * defaulting it to zero is how a wrong answer gets judged feasible. A
+ * second line for one column is refused too, and so is a name the model
+ * does not carry. Names are looked up the way jaos_col_index looks them
+ * up, so a positional name works where the model has none of its own.
+ *
+ * jaos_read_duals is the same file shape over the rows, for the dual half
+ * of the checker's report. It is separate because the primal half stands
+ * on its own: jaos_check_solution takes a NULL row_dual and reports what
+ * it can.
+ *
+ * jaos_write_point writes the last solve's point in the same format, so
+ * what JAOS writes it reads back. The availability rule is
+ * jaos_solution's and is not restated: an optimum has a point and nothing
+ * else does. A path ending in `.gz` is compressed, like every other
+ * writer here (D340). */
+JAOS_NODISCARD jaos_status jaos_write_point(jaos_model *m, const char *path);
+JAOS_NODISCARD jaos_status jaos_read_point(jaos_model *m, const char *path,
+                                           double *col_value);
+JAOS_NODISCARD jaos_status jaos_read_duals(jaos_model *m, const char *path,
+                                           double *row_dual);
+
 /* Which of the three a solution file holds, read from the whole file, so
  * a file that would be refused by the reader for its kind is refused here
  * too. This is how a caller decides between jaos_read_solution and

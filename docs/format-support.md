@@ -499,3 +499,43 @@ same field.
 
 Names are looked up the way `jaos_col_index` looks them up, so a positional
 name works where the model has none of its own.
+
+### The point file
+
+`jaos_write_point`, `jaos_read_point` and `jaos_read_duals` (D342). The
+smallest thing that can carry an answer between two programs, and it exists
+so the independent checker can judge **somebody else's**: JAOS's own
+solution file is JAOS's own, and nothing else writes one.
+
+```
+# written by JAOS 0.3.0
+X1        4
+X2        3
+X3        3
+```
+
+One `NAME VALUE` line per column, in any order. `#` starts a comment and
+runs to the end of the line, wherever it appears. Blank lines are skipped,
+and the fields are separated by any whitespace. Numbers are parsed under an
+explicit "C" locale, like every other reader here, and must be finite.
+
+**Every column must appear exactly once, and that is the one strict rule.**
+A column the file does not name is refused with its name, because a value
+nobody wrote is how a wrong answer gets judged feasible. A second line for
+one column is refused, and so is a name the model does not carry. Names are
+looked up the way `jaos_col_index` looks them up, so a positional name
+works where the model has none of its own.
+
+`jaos_read_duals` reads the same shape over the rows, for the dual half of
+`jaos_check_solution`'s report. It is a separate call because the primal
+half stands on its own: the checker takes a NULL `row_dual` and says so on
+its `checked_duals` line.
+
+The format is deliberately poorer than the solution file's. Two lines of
+awk turn most solvers' output into one of these, and that is what it is
+for; a richer format would be a better record and a worse bridge.
+
+The writer's availability rule is `jaos_solution`'s and is not restated
+here: an optimum has a point and nothing else does. It refuses two columns
+of a name and a value no file can carry, for the reasons every writer here
+does, and a `.gz` name compresses it (D340).

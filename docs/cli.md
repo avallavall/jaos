@@ -12,7 +12,7 @@ compiles it and runs its test, `tests/cli.sh`.
 
 ```
 jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
-                [--basis BAS] [--write-basis BAS]
+                [--basis BAS] [--write-basis BAS] [--write-point PT]
                 [--work-limit N] [--time-limit SECONDS]
                 [--primal-tol T] [--dual-tol T]
                 [--mip-start SOLUTION] [--cutoff V]
@@ -35,6 +35,7 @@ jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
 jaos convert IN OUT
 jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
+jaos check FILE --point POINT [--duals DUALS] [--tol T]
 jaos stats FILE
 jaos iis FILE
 jaos relax FILE [--rows | --cols] [--apply OUT]
@@ -127,6 +128,7 @@ prints the same facts as the same model solved silently.
 | `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. Either kind of file will do since D332 -- an optimum's, or a certificate's, which carries the basis the refusal stopped on -- so a run that ended INFEASIBLE resumes after one bound moves. A file for another model, or one carrying no basis at all, is refused with the library's message and exit 5. |
 | `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file (D338): the format every solver in the field writes a basis in, so `BAS` may be another solver's. It is read and handed to the model before the solve, exactly as `--start` does with JAOS's own file. Not with `--start`: a solve begins in one place, and being handed two is a question the caller has to answer. A file whose names or count do not fit this model is refused with the library's message and exit 5. |
 | `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed (D340). |
+| `--write-point PT` | writes the optimum's point to `PT` as a point file: one `NAME VALUE` line per column and nothing else (D342). It is the shape another program's checker takes, and the shape `check --point` reads back. The rule is `--solution`'s: an optimum has a point and nothing else does, and a solve without one writes no file and says why on stderr. |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
 | `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs (D326). It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
 | `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed (D326). It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
@@ -317,6 +319,41 @@ other than the model's own, and the tool exits 5 with the library's
 message. From an optimum it reads the values and the row duals; the reduced
 costs, activities and basis statuses in the file are not used, because the
 checker recomputes what it needs from the model.
+
+### `check FILE --point POINT [--duals DUALS]`
+
+**A point file is another solver's answer** (D342): one `NAME VALUE` line
+per column, in any order, `#` to end of line for a comment, and nothing
+else in it. Two lines of awk turn most solvers' output into one, which is
+the whole point of a format this poor. `check --point` runs the same
+independent checker on it and prints the same report.
+
+```
+$ jaos check model.mps --point other-solver.txt
+status point
+max_col_violation 0
+...
+primal_feasible yes
+dual_feasible no
+checked_duals no
+gap_certified no
+```
+
+The first line is `status point`, which says which reader ran rather than
+what the answer is: a point file claims a point and claims nothing about
+the model.
+
+**`--duals DUALS` brings the row multipliers**, in a file of the same
+shape over the row names. Without it the dual half of the report does not
+run, `checked_duals` reads `no`, and the exit code is the primal half
+alone -- 0 when the point is feasible, 1 when it is not. With it the
+whole report runs and the verdict is `primal_feasible && dual_feasible`,
+as for a solution file.
+
+**Every column must appear exactly once.** A column the file does not
+name is refused with its name and exit 5, because a value nobody wrote is
+how a wrong answer gets judged feasible. `solve --write-point` writes one
+of these, so the round trip is checkable.
 
 ### `check FILE --proof PROOF`
 

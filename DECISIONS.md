@@ -348,6 +348,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D338](#d338--a-basis-leaves-and-enters-in-the-format-the-field-exchanges-one-in)** — A basis leaves and enters in the format the field exchanges one in
 - **[D339](#d339--the-exact-proof-runs-on-a-basis-from-outside-so-jaos-checks-somebody-elses-answer)** — The exact proof runs on a basis from outside, so JAOS checks somebody else's answer
 - **[D340](#d340--a-gz-this-library-writes-is-one-anything-reads-139-of-139-against-the-system-gzip)** — A `.gz` this library writes is one anything reads: 139 of 139 against the system gzip
+- **[D341](#d341--a-library-nobody-can-install-is-a-library-nobody-outside-the-repository-can-use)** — A library nobody can install is a library nobody outside the repository can use
+- **[D342](#d342--the-point-file-the-checker-judges-another-solvers-answer-not-only-its-own)** — The point file: the checker judges another solver's answer, not only its own
 
 ---
 
@@ -23788,3 +23790,100 @@ file in memory and touches the path once, at the end, so a refusal never
 opens it at all. The plain path still calls `fopen(path, "w")` first,
 which truncates before the checks that can still fail; it removes the
 file afterwards, which is the older and weaker guarantee.
+
+## D341 — A library nobody can install is a library nobody outside the repository can use
+
+**The question nobody had asked.** JAOS builds a static library, a shared
+one, a public header and a command-line tool, and there was no way to put
+any of them anywhere. Every consumer of this code was a consumer inside
+this working tree. That is not a small gap for a library whose stated goal
+is to be "usable as a library by someone who did not write it".
+
+**What landed.** `make install` and `make uninstall`, with the three
+variables the convention expects and nothing else:
+
+| | |
+|---|---|
+| `PREFIX` | where it goes, `/usr/local` by default. Compiled into `jaos.pc` |
+| `DESTDIR` | prefixed to every path and compiled into nothing, which is what packaging expects |
+| `BINDIR`, `LIBDIR`, `INCLUDEDIR`, `PKGCONFIGDIR` | the four, each overridable |
+
+It installs `jaos.h`, `libjaos.a`, `libjaos.so`, the `jaos` tool and a
+`jaos.pc`, so an outside program builds with `cc $(pkg-config --cflags
+jaos) prog.c $(pkg-config --libs jaos)`.
+
+**The pkg-config file is generated and not checked in**, because it carries
+two things that live elsewhere: the caller's prefix, and the version.
+`JAOS_VERSION_STRING` in `include/jaos.h` is the version's one owner, and
+the Makefile reads it out of the header with `sed`. A checked-in `jaos.pc`
+would carry a second copy of a number this project already has a rule
+about (a number has one owner), and it would be wrong the first time
+either moved.
+
+**`uninstall` removes files and never a directory.** A directory under
+`/usr/local/lib` holds other people's files, and a build system that
+removes one has done something nobody asked for.
+
+**The test is the point, and it is in `make test`.** `tests/install.sh`
+stages an install into a temporary root, compiles a program that reaches
+JAOS through the installed header alone -- no `-Iinclude`, no path into
+the source tree -- links it both statically and dynamically, runs both,
+checks the tool runs, checks `jaos.pc` carries the header's version and
+the configured prefix, then uninstalls and checks nothing is left.
+
+That is what stops the target from rotting, and the rot is silent
+otherwise: a source file added to the library and not to the install rule
+fails at the consumer's link and nowhere else, and a header that grew an
+include of something private fails at the consumer's compile. Nothing else
+in this tree compiles a program that reaches JAOS the way an outside one
+does.
+
+**It runs five times under `make configs`** and costs a few file copies
+and one compile of a twenty-line program each time. That is the right
+price for the only check that the shipped artefact is shippable.
+
+## D342 — The point file: the checker judges another solver's answer, not only its own
+
+**The question.** JAOS ships an independent checker, and
+`docs/feature-matrix.md` says that is a real difference from the field.
+But the only thing it could read was JAOS's own solution file, which
+nothing else writes. A checker that can only judge its own solver's
+answers is a self-test.
+
+**What landed.** The smallest thing that can carry an answer between two
+programs: one `NAME VALUE` line per column, in any order, `#` to end of
+line for a comment, and nothing else in it. `jaos_read_point`,
+`jaos_read_duals` for the row multipliers in the same shape, and
+`jaos_write_point` so what JAOS writes it reads back. `jaos check FILE
+--point POINT [--duals DUALS]` and `jaos solve FILE --write-point PT`;
+both Python layers.
+
+**The format is deliberately poorer than `jaos_write_solution`'s.** Two
+lines of awk turn most solvers' output into one of these, and that is the
+whole design goal. A richer format would be a better record and a worse
+bridge.
+
+**One strict rule, and it is the reason the format has any.** Every column
+must appear exactly once. A column the file does not name is refused with
+its name rather than defaulted to zero, because a zero that nobody wrote
+is how a wrong answer gets judged feasible. A second line for one column
+is refused, and so is a name the model does not carry.
+
+**The duals are a separate file and a separate call.** The primal half of
+`jaos_check_solution` stands on its own -- it takes a NULL `row_dual` and
+reports what it can -- and most callers with somebody else's answer have
+the point and not the multipliers. The report says which half ran on its
+own `checked_duals` line, and the tool's exit code follows: with no duals
+the verdict is the primal half, because folding an unset `dual_feasible`
+into it would report a feasible point as a bad answer.
+
+**This is the primal half of what D339 does for a basis.** A basis proves
+optimality exactly; a point is judged against tolerances. Both take an
+answer this library did not compute. `docs/feature-matrix.md` carries the
+pair.
+
+**Measured on the tool's own test**: the model's own answer written and
+read back reads `primal_feasible yes`, the same answer with every value
+moved by 5 reads `primal_feasible no` and exits 1, and a file two lines
+short is refused with the missing column named. Without the second and
+third the first proves nothing.

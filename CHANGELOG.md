@@ -11,6 +11,20 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`make install`.** The header, both library forms, the tool and a
+  pkg-config file go where a compiler finds them; `PREFIX`, `DESTDIR` and
+  the four directory variables behave the way the convention says.
+  `tests/install.sh`, which `make test` runs, stages an install and
+  compiles a program that reaches JAOS through the installed header alone
+  (D341).
+
+- **The checker judges another solver's answer.** A point file is one
+  `NAME VALUE` line per column and nothing else, which two lines of awk
+  produce from most solvers' output. `jaos check FILE --point POINT
+  [--duals DUALS]` judges one, `jaos solve --write-point` writes one, and
+  every column must appear exactly once, because a column defaulted to
+  zero is how a wrong answer gets judged feasible (D342).
+
 - **A basis leaves and enters in the format the field exchanges one in.**
   `jaos_write_mps_basis` and `jaos_read_mps_basis` read and write the MPS
   basis file, the four classic cards over the format's own defaults, so a

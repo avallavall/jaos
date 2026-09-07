@@ -10,7 +10,7 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--mip-start SOLUTION] [--cutoff V]
- *                   [--basis BAS] [--write-basis BAS]
+ *                   [--basis BAS] [--write-basis BAS] [--write-point PT]
  *                   [--proof PATH]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
@@ -32,6 +32,7 @@
  *   jaos convert IN OUT
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos check FILE --proof PROOF
+ *   jaos check FILE --point POINT [--duals DUALS] [--tol T]
  *   jaos stats FILE
  *   jaos iis FILE
  *   jaos relax FILE [--rows | --cols] [--apply OUT]
@@ -90,7 +91,7 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--mip-start SOLUTION] [--cutoff V]\n"
-    "                  [--basis BAS] [--write-basis BAS]\n"
+    "                  [--basis BAS] [--write-basis BAS] [--write-point PT]\n"
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
@@ -113,6 +114,7 @@ static const char USAGE[] =
     "  jaos convert IN OUT\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos check FILE --proof PROOF\n"
+    "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
     "  jaos stats FILE\n"
     "  jaos iis FILE\n"
     "  jaos relax FILE [--rows | --cols] [--apply OUT]\n"
@@ -134,6 +136,9 @@ static const char USAGE[] =
     "  --write-basis BAS  write the basis the solve stopped on to BAS, in\n"
     "                   the same format. An optimum, a refusal, an\n"
     "                   unboundedness and a budget stop all leave one\n"
+    "  --write-point PT write the optimum's point to PT, one `NAME VALUE`\n"
+    "                   line per column and nothing else: the shape\n"
+    "                   another program's checker takes\n"
     "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
     "                   file before it runs; refused, and the search goes\n"
     "                   on without it, when the point is not feasible\n"
@@ -154,13 +159,16 @@ static const char USAGE[] =
     "  --node-cut-cap K at most K cuts per node below the root, the most\n"
     "                   efficacious kept (default 4; 0 for no cap)\n"
     "  --no-cut-drop    carry a node's cut to every node under it even once\n"
-    "                   its slack is basic (by default it is dropped there)\n"
+    "                   its slack is basic (by default it is dropped there)\n";
+
+/* The second piece, because ISO C only promises a 4095-byte literal. */
+static const char USAGE0B[] =
     "  --cut-stall F    end the root's cut rounds once one moves the bound by\n"
     "                   less than F of (1 + |bound|) (F >= 0; 0 never)\n"
     "  --node-cut-stall F  no cut round under a node whose round moved its\n"
     "                   bound by less than F of (1 + |bound|) (F >= 0; 0 never)\n";
 
-/* The second piece, because ISO C only promises a 4095-byte literal. */
+/* The third piece, for the same reason. */
 static const char USAGE1A[] =
     "  --root-cut-drop  let a root cut leave below a node where its slack is\n"
     "                   basic (the default); --no-root-cut-drop keeps every\n"
@@ -244,6 +252,14 @@ static const char USAGE2[] =
     "  with the independent checker and prints its report. --tol T is the\n"
     "  checker's tolerance (default 1e-7). Exit 0 when primal and dual\n"
     "  feasible, 1 otherwise.\n"
+    "  --point POINT    judge a point file instead: one `NAME VALUE` line\n"
+    "                   per column, in any order, `#` for a comment. It\n"
+    "                   is what another solver's answer arrives in, and\n"
+    "                   two lines of awk usually make one. Every column\n"
+    "                   must appear exactly once\n"
+    "  --duals FILE     the row multipliers, same shape, for the dual\n"
+    "                   half of the report; without it `checked_duals`\n"
+    "                   reads no and the verdict is the primal half\n"
     "iis solves FILE and, when it is infeasible, prints one irreducible\n"
     "  infeasible subsystem: `row I lower|upper` and `col J lower|upper`\n"
     "  lines, then the counts. Exit 0 with an IIS, 1 when the model is not\n"
@@ -262,6 +278,10 @@ static const char USAGE2[] =
     "                   read\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n"
+    "";
+
+/* The fifth piece, for the same reason. */
+static const char USAGE2B[] =
     "verify solves FILE and runs the exact arithmetic its answer allows.\n"
     "  On an optimum it proves, or refuses to prove, the published basis:\n"
     "  exit 0 proved, 1 the basis does not certify the answer, 3 refused\n"
@@ -315,9 +335,11 @@ static int usage_error(const char *fmt, ...)
     va_end(ap);
     fputs("\n\n", stderr);
     fputs(USAGE, stderr);
+    fputs(USAGE0B, stderr);
     fputs(USAGE1A, stderr);
     fputs(USAGE1B, stderr);
     fputs(USAGE2, stderr);
+    fputs(USAGE2B, stderr);
     return EXIT_USAGE;
 }
 
@@ -562,6 +584,7 @@ struct solve_options {
     const char *start;       /* a solution file to warm-start from */
     const char *basis;       /* an MPS basis file to warm-start from */
     const char *write_basis; /* where to write the basis the solve left */
+    const char *write_point; /* where to write the point, one name a line */
     const char *mip_start;   /* a solution file whose point seeds the
                                 tree (D326)                          */
     bool has_cutoff;
@@ -733,6 +756,8 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->basis = v;
         } else if (strcmp(a, "--write-basis") == 0) {
             o->write_basis = v;
+        } else if (strcmp(a, "--write-point") == 0) {
+            o->write_point = v;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -1266,6 +1291,18 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the basis file", o.write_basis, m);
     }
 
+    /* The point alone, one name a line (D342), which is the shape another
+     * program's checker takes. The rule is jaos_solution's, so a solve
+     * with no proved optimum writes nothing and says why. */
+    if (o.write_point != nullptr) {
+        const jaos_status pw = jaos_write_point(m, o.write_point);
+        if (pw == JAOS_ERR_INVALID_INPUT)
+            fprintf(stderr, "jaos: no point file written: %s\n",
+                    jaos_model_error(m));
+        else if (pw != JAOS_OK)
+            rc = library_error("write the point file", o.write_point, m);
+    }
+
     /* The exact proof (D325, D328). An optimum's proof is its coordinates
      * and needs a jaos_verify first; a certificate is a vector the solve
      * already published and needs none. A verify that refuses is not a
@@ -1390,6 +1427,7 @@ static int unfinished(const char *path, jaos_solve_status ss)
 static int cmd_check(int argc, char **argv)
 {
     const char *file = nullptr, *solution = nullptr, *proof = nullptr;
+    const char *point = nullptr, *duals = nullptr;
     /* The binding's default, and the solver's own feasibility tolerance;
      * bench/run judges the gate at 1e-6 and says so beside its constant. */
     double tol = 1e-7;
@@ -1399,6 +1437,14 @@ static int cmd_check(int argc, char **argv)
             if (i + 1 >= argc)
                 return usage_error("--proof needs a proof file");
             proof = argv[++i];
+        } else if (strcmp(a, "--point") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--point needs a point file");
+            point = argv[++i];
+        } else if (strcmp(a, "--duals") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--duals needs a file of row multipliers");
+            duals = argv[++i];
         } else if (strcmp(a, "--tol") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--tol needs a value");
@@ -1418,17 +1464,29 @@ static int cmd_check(int argc, char **argv)
     }
     if (file == nullptr)
         return usage_error("check needs FILE and SOLUTION");
-    if (solution == nullptr && proof == nullptr)
-        return usage_error("check needs FILE and SOLUTION, or FILE and "
-                           "--proof PROOF");
-    if (solution != nullptr && proof != nullptr)
-        return usage_error("check judges a solution file or a proof file, "
-                           "not both at once");
+    if (solution == nullptr && proof == nullptr && point == nullptr)
+        return usage_error("check needs FILE and SOLUTION, or FILE and one "
+                           "of --proof PROOF or --point POINT");
+    /* One answer at a time. Each of the three is a different object with
+     * a different checker behind it, and being handed two is a question
+     * the caller has to answer. */
+    if ((solution != nullptr) + (proof != nullptr) + (point != nullptr) > 1)
+        return usage_error("check judges a solution file, a proof file or a "
+                           "point file, and one at a time");
+    if (duals != nullptr && point == nullptr)
+        return usage_error("--duals is the other half of --point, and there "
+                           "is no --point here");
 
     jaos_model *m = nullptr;
     /* Declared before the proof branch below, because its `goto out`
      * would otherwise jump over their initialisation. */
     double *x = nullptr, *y = nullptr;
+    /* What the report is about, for the failure message, and the duals
+     * the checker gets: NULL where none were read, which is what makes
+     * `checked_duals` false rather than making a zero vector look like a
+     * dual solution. */
+    const char *judged = nullptr;
+    const double *yp = nullptr;
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
@@ -1475,6 +1533,29 @@ static int cmd_check(int argc, char **argv)
         fputs("jaos: out of memory\n", stderr);
         rc = EXIT_USAGE;
         goto out;
+    }
+
+    /* A point file: one `NAME VALUE` line per column and nothing else
+     * (D342), so it is what another solver's answer arrives in. The
+     * checker is the same one; what changes is where the numbers came
+     * from. `--duals` brings the row multipliers, in the same shape, and
+     * without it the dual half of the report does not run -- which the
+     * report says itself, on its `checked_duals` line. */
+    if (point != nullptr) {
+        if (jaos_read_point(m, point, x) != JAOS_OK) {
+            rc = library_error("read", point, m);
+            goto out;
+        }
+        if (duals != nullptr && jaos_read_duals(m, duals, y) != JAOS_OK) {
+            rc = library_error("read", duals, m);
+            goto out;
+        }
+        /* The file claims a point and claims nothing about the model, so
+         * this line says which reader ran and not what the answer is. */
+        printf("status point\n");
+        judged = point;
+        yp = duals != nullptr ? y : nullptr;
+        goto judge;
     }
 
     /* The model decides the shape: a file for a different model is refused
@@ -1532,11 +1613,14 @@ static int cmd_check(int argc, char **argv)
         rc = library_error("read", solution, m);
         goto out;
     }
+    judged = solution;
+    yp = y;
 
+judge:
     jaos_check_report rep;
     memset(&rep, 0, sizeof rep);
-    if (jaos_check_solution(m, x, y, tol, &rep) != JAOS_OK) {
-        rc = library_error("check", solution, m);
+    if (jaos_check_solution(m, x, yp, tol, &rep) != JAOS_OK) {
+        rc = library_error("check", judged, m);
         goto out;
     }
 
@@ -1560,8 +1644,12 @@ static int cmd_check(int argc, char **argv)
     print_bool("dual_feasible", rep.dual_feasible);
     print_bool("checked_duals", rep.checked_duals);
     print_bool("gap_certified", rep.gap_certified);
-    rc = (rep.primal_feasible && rep.dual_feasible) ? EXIT_OPTIMAL
-                                                    : EXIT_INFEASIBLE;
+    /* The verdict is over what was judged. Where no duals came in, the
+     * dual half did not run and `dual_feasible` is false because nothing
+     * set it, so folding it into the exit code would report a feasible
+     * point as a bad answer. */
+    rc = (rep.primal_feasible && (rep.dual_feasible || !rep.checked_duals))
+        ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
 
 out:
     free(x);
@@ -2162,9 +2250,11 @@ int main(int argc, char **argv)
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||
         strcmp(cmd, "help") == 0) {
         fputs(USAGE, stdout);
+        fputs(USAGE0B, stdout);
         fputs(USAGE1A, stdout);
         fputs(USAGE1B, stdout);
         fputs(USAGE2, stdout);
+        fputs(USAGE2B, stdout);
         return EXIT_OPTIMAL;
     }
     if (strcmp(cmd, "solve") == 0)

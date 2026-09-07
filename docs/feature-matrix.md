@@ -187,10 +187,20 @@ including the row where the field is ahead.
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
 | Feasibility relaxation of an infeasible model | ● | ? | ? | ? | ? | ? | ? |
 | **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
+| **Check a point another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
 **The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 (D331) and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
 
-**The last row is new on 2026-09-07 (D339) and its six `○`s are meant.**
+**The last row is new on 2026-09-07 (D342) and is the tolerance-judged
+half of the one above it.** A point file is one `NAME VALUE` line per
+column and nothing else, so `jaos check FILE --point POINT` runs the
+independent checker on an answer this library did not compute; `--duals`
+brings the multipliers for the dual half. The others ship no checker to
+point at anything, which is the same `○` the "independent checker" row
+carries and for the same reason.
+
+**The row above it is new on 2026-09-07 (D339) and its six `○`s are
+meant.**
 `jaos_verify_basis` runs the exact proof over a basis the caller hands in,
 with no solve at all, so JAOS reads a model, reads the basis another
 solver stopped on -- `jaos_read_mps_basis` reads the format the field
@@ -348,6 +358,15 @@ and this page has not measured that.
 | Java, .NET | ○ | ◐ | ○ | ○ | ◐ | ● | ● |
 | MATLAB, R | ○ | ◐ | ○ | ● | ● | ● | ? |
 | AMPL, GAMS and similar modelling systems | ○ | ● | ○ | ● | ● | ● | ● |
+| `make install` with a pkg-config file | ● | ? | ? | ? | ? | — | — |
+
+**The install row is new on 2026-09-07 (D341).** `make install` puts the
+header, both library forms, the tool and a generated `jaos.pc` under
+`PREFIX`, with `DESTDIR` staging, and `tests/install.sh` compiles a
+program against the installed tree on every `make test`. The four open
+solvers all ship a build system that installs; whether each ships a
+pkg-config file was not re-read for this row, so those are `?`. Gurobi
+and Hexaly ship binaries rather than a build, which is what the `—` says.
 
 ## 9. Controlling a solve
 

@@ -2158,6 +2158,58 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
             self.assertEqual(len(b.col_status), 1)
             self.assertEqual(len(b.row_status), 1)
 
+    def test_a_point_file_round_trips_at_both_layers(self):
+        """D342: the smallest thing that can carry an answer between two
+        programs, and what makes the checker usable on somebody else's."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.txt")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                want = m.solution().col_value
+                m.write_point(path)
+                got = m.read_point(path)
+                self.assertEqual(got, want)
+                rep = m.check_solution(got)
+                self.assertTrue(rep.primal_feasible)
+                self.assertFalse(rep.checked_duals)
+
+                # A file that names fewer columns than the model has is
+                # refused, not completed with zeros.
+                with open(path) as f:
+                    lines = [ln for ln in f if not ln.startswith("#")]
+                with open(path, "w") as f:
+                    f.writelines(lines[:-1])
+                with self.assertRaises(Exception):
+                    m.read_point(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "q.txt")
+            p = jaos.Problem()
+            x = p.add_var(lb=0, ub=10, name="x")
+            p.add(x >= 3)
+            p.minimize(x)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            p.write_point(path)
+            self.assertEqual(p.read_point(path), [3.0])
+
+    def test_a_duals_file_is_the_same_shape_over_the_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "d.txt")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                sol = m.solution()
+                with open(path, "w") as f:
+                    for i in range(m.num_row):
+                        f.write("%s %.17g\n"
+                                % (m.row_name(i), sol.row_dual[i]))
+                back = m.read_duals(path)
+                self.assertEqual(back, sol.row_dual)
+                rep = m.check_solution(sol.col_value, back)
+                self.assertTrue(rep.checked_duals)
+                self.assertTrue(rep.dual_feasible)
+
     def test_an_mps_basis_file_is_refused_when_it_is_wrong(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "bad.bas")
