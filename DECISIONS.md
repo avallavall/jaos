@@ -355,6 +355,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D345](#d345--the-usage-text-is-one-piece-per-command-and-jaos-help-command-prints-one)** — The usage text is one piece per command, and `jaos help COMMAND` prints one
 - **[D346](#d346--convert---positional-the-lp-dialects-34-name-refusals-become-0-and-the-one-that-is-left-is-not-a-name)** — `convert --positional`: the LP dialect's 34 name refusals become 0, and the one that is left is not a name
 - **[D347](#d347--solve---check-the-checker-runs-on-the-answer-in-the-same-process)** — `solve --check`: the checker runs on the answer in the same process
+- **[D348](#d348--the-duals-file-is-written-as-well-as-read-so-both-halves-of-the-checkers-input-come-from-here)** — The duals file is written as well as read, so both halves of the checker's input come from here
+- **[D349](#d349--jaos-diff-a-b-whether-two-files-are-the-same-model-which-cmp-cannot-say)** — `jaos diff A B`: whether two files are the same model, which `cmp` cannot say
+- **[D350](#d350--jaos-show-file---row-name-what-one-constraint-actually-says)** — `jaos show FILE --row NAME`: what one constraint actually says
 
 ---
 
@@ -24053,3 +24056,69 @@ about a point and a set of duals, and a solve that ended INFEASIBLE,
 UNBOUNDED or on a budget has none; that case is said on stderr and changes
 nothing. `jaos check FILE SOLUTION` already judges an infeasibility
 certificate, which is a different object with a different checker.
+
+## D348 — The duals file is written as well as read, so both halves of the checker's input come from here
+
+**The question.** D342 gave the point file a reader for the primal half and
+a reader for the dual half, and a writer for the primal half only. So
+`jaos check FILE --point P --duals D` needed a `D` the caller built by
+hand, usually with an awk over a solution file. A format this library reads
+and only half writes is a format that fails its own round-trip rule.
+
+**What landed.** `jaos_write_duals` writes the last optimum's row
+multipliers in the point file's shape, and `jaos_write_dual_values` writes
+an array the caller has, with no solve read. `jaos solve --write-duals D`,
+and both at both Python layers. The refusals are the point writer's: two
+rows of a name, and a multiplier no file can carry.
+
+**It is not shared with the point writer, and that is deliberate.** The two
+differ in every name inside them -- column against row, `num_col` against
+`num_row`, `jaos_col_index` against `jaos_row_index` -- and a shared
+version parameterised on all of that is longer than both and reads worse.
+
+## D349 — `jaos diff A B`: whether two files are the same model, which `cmp` cannot say
+
+**The question.** Every format question in this repository ends in one: a
+conversion, a relaxation applied, a subsystem written, a compressed write.
+`cmp` says two files differ and says nothing about the models, and two
+files that differ byte for byte routinely hold the same model -- a
+different format, a positional name, a reordered section. Answering it took
+a script, and every campaign that asked wrote its own.
+
+**What landed.** `jaos diff A B` reads both and prints one line per
+difference, then a `differences` count; exit 0 when they are the same
+model, 1 when they are not. It compares what a model IS: the three sizes,
+the sense and the constant, every bound, cost and integrality mark, every
+coefficient, and every name as the model gives it -- so a row nobody named
+is `R<i+1>` on both sides (D284) and compares equal to a file that names it
+that way.
+
+**Values are compared exactly.** "Close" is not the question this answers:
+a caller who wants a tolerance wants `check`, which judges a point against
+a model, not a model against a model.
+
+**A size that differs stops the walk.** Every index after it means
+something else, and a per-row difference report on two models of different
+shapes is noise rather than an answer.
+
+**The test carries the control that matters**: the two files it calls the
+same model are not byte-identical, asserted with `cmp`. Without that the
+test would pass on a `diff` that compared nothing.
+
+## D350 — `jaos show FILE --row NAME`: what one constraint actually says
+
+**The question.** `stats` counts a model, `diff` compares two, and neither
+answers "what does this row actually say", which is where a wrong answer
+starts. Reaching it took a solve and a debugger, or reading the MPS by
+hand and counting fields.
+
+**What landed.** `jaos show FILE --row NAME` prints the row's index, its
+two bounds, its entry count and one `term NAME VALUE` line per nonzero,
+naming the column. `--col NAME` prints a column the same way, with its cost
+and its integrality mark, and its terms named by row. It solves nothing,
+and a positional name works where the model named nothing.
+
+**The terms name the other side**, which is the whole reason to print them:
+a row's numbers are useless without the column each belongs to, and reading
+that off an MPS file means counting fields in the COLUMNS section, which is
+grouped by column and not by row.

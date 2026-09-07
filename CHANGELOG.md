@@ -11,6 +11,21 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`jaos diff A B`** says whether two files describe the same model and
+  where they first do not, which `cmp` cannot: a model converted to
+  another format is the same model in different bytes. Exit 0 the same, 1
+  not (D349).
+
+- **`jaos show FILE --row NAME`** prints one row: its bounds, its entry
+  count and one `term NAME VALUE` line per nonzero naming the column;
+  `--col NAME` does a column, with its cost and integrality mark. It
+  solves nothing (D350).
+
+- **The duals file is written as well as read.** `jaos_write_duals`,
+  `jaos_write_dual_values` and `jaos solve --write-duals D`, so both
+  halves of `check --point P --duals D` come out of this library instead
+  of one of them needing an awk (D348).
+
 - **`--positional` reaches every command that writes a model**, not
   `convert` alone: `iis --write` and `relax --apply` take it too, the same
   escape hatch for the same LP dialect limit (D346).

@@ -2405,6 +2405,53 @@ static void test_a_point_file_is_written_from_given_values(void)
     jaos_model_free(m);
 }
 
+/* The duals in the same shape (D348), so both halves of what the checker
+ * takes come out of this library. */
+static void test_a_duals_file_round_trips(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const int64_t nr = m->num_row;
+    double *want = jm_alloc_array(nr, sizeof *want);
+    double *got = jm_alloc_array(nr, sizeof *got);
+    TEST_ASSERT_NOT_NULL(want);
+    TEST_ASSERT_NOT_NULL(got);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, nullptr, nullptr, want, nullptr));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_duals(m, TMP_PT));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_duals(m, TMP_PT, got));
+    for (int64_t i = 0; i < nr; i++)
+        SAME_D(want[i], got[i]);
+
+    /* From values the caller has, with no solve read at all. */
+    for (int64_t i = 0; i < nr; i++)
+        want[i] = (double)i - 1.5;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_dual_values(m, TMP_PT, want));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_duals(m, TMP_PT, got));
+    for (int64_t i = 0; i < nr; i++)
+        SAME_D(want[i], got[i]);
+
+    /* The same refusals as the point writer's. */
+    want[0] = INFINITY;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_dual_values(m, TMP_PT, want));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no file can carry"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_duals(nullptr, TMP_PT));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_duals(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_dual_values(m, TMP_PT, nullptr));
+
+    free(want);
+    free(got);
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
 /* A positional name works where the model named nothing, the way every
  * other reader here takes one (D284) -- and the writer prints it, so a
  * model with no names of its own still round-trips. */
@@ -2502,6 +2549,7 @@ int main(void)
     RUN_TEST(test_the_dual_half_runs_only_with_a_duals_file);
     RUN_TEST(test_the_point_writer_refuses_what_it_cannot_write);
     RUN_TEST(test_a_point_file_is_written_from_given_values);
+    RUN_TEST(test_a_duals_file_round_trips);
     RUN_TEST(test_a_point_file_uses_positional_names);
     return UNITY_END();
 }

@@ -677,6 +677,20 @@ fi
 # half is skipped under a fault build, which publishes no basis worth
 # writing; the rest of this block is about the container and not the
 # answer, so it runs everywhere.
+# --write-duals is the other half of the point file (D348), so both halves
+# of `check --point --duals` come out of this tool.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--write-point and --write-duals together" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-point "$tmp/wp.pt" \
+    --write-duals "$tmp/wd.du"
+expect_exit 0 "and check reads both back" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/wp.pt" --duals "$tmp/wd.du"
+[ "$(line_of checked_duals)" = "checked_duals yes" ] \
+    && [ "$(line_of dual_feasible)" = "dual_feasible yes" ] \
+    && pass "with the dual half running and holding" \
+    || flunk "check printed '$(line_of checked_duals)' / '$(line_of dual_feasible)'"
+fi
+
 expect_exit 0 "--solution takes a .gz name" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/z.sol.gz"
 [ -s "$tmp/z.sol.gz" ] && pass "and the file is there" \
@@ -735,6 +749,49 @@ expect_exit 0 "a ranged row converts to LP" \
     "$JAOS" convert "$DATA/g_ranged.lp" "$tmp/ranged.lp"
 expect_exit 0 "and the written LP solves" "$JAOS" solve "$tmp/ranged.lp"
 
+
+# ------------------------------------------------------------------- diff
+# diff says whether two files describe the same model, which `cmp` cannot:
+# a model converted to another format is the same model in different bytes.
+expect_exit 0 "convert then diff exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/dd.lp"
+expect_exit 0 "diff of a model against its own conversion exits 0" \
+    "$JAOS" diff "$DATA/solve1.mps" "$tmp/dd.lp"
+[ "$(line_of differences)" = "differences 0" ] \
+    && pass "and reports no difference" \
+    || flunk "diff printed '$(line_of differences)'"
+cmp -s "$DATA/solve1.mps" "$tmp/dd.lp" \
+    && flunk "the two files are byte-identical, so the test proves nothing" \
+    || pass "and the two files are not byte-identical, so it proves something"
+# The case it must reject.
+expect_exit 1 "diff of two different models exits 1" \
+    "$JAOS" diff "$DATA/solve1.mps" "$DATA/t1.mps"
+[ "$(line_of differences)" != "differences 0" ] \
+    && pass "and says how many differences" \
+    || flunk "diff called two different models the same"
+expect_exit 5 "diff with one file is a usage error" \
+    "$JAOS" diff "$DATA/solve1.mps"
+expect_exit 5 "diff of a missing file exits 5" \
+    "$JAOS" diff "$DATA/solve1.mps" "$tmp/no-such.mps"
+
+# ------------------------------------------------------------------- show
+expect_exit 0 "show --row exits 0" \
+    "$JAOS" show "$DATA/solve1.mps" --row DEMAND
+[ "$(line_of entries)" = "entries 3" ] && pass "and counts the row's terms" \
+    || flunk "show --row printed '$(line_of entries)'"
+printf '%s\n' "$out" | grep -q '^term X1 ' \
+    && pass "and names them by column" || flunk "no 'term X1' line"
+expect_exit 0 "show --col exits 0" "$JAOS" show "$DATA/solve1.mps" --col X1
+[ -n "$(line_of cost)" ] && pass "and a column carries its cost" \
+    || flunk "show --col printed no cost"
+printf '%s\n' "$out" | grep -q '^term DEMAND ' \
+    && pass "and names its terms by row" || flunk "no 'term DEMAND' line"
+expect_exit 5 "show of a name nothing carries exits 5" \
+    "$JAOS" show "$DATA/solve1.mps" --row nosuch
+expect_exit 5 "show without --row or --col is a usage error" \
+    "$JAOS" show "$DATA/solve1.mps"
+expect_exit 5 "show with both is a usage error" \
+    "$JAOS" show "$DATA/solve1.mps" --row DEMAND --col X1
 # ------------------------------------------------------------------ check
 # a.sol is solve1's own answer, written above.
 if [ "$faulty" -eq 0 ]; then

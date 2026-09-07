@@ -124,6 +124,8 @@ static const char U_SYNOPSIS[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
     "  jaos stats FILE\n"
+    "  jaos diff A B\n"
+    "  jaos show FILE (--row NAME | --col NAME)\n"
     "  jaos iis FILE [--write OUT] [--positional]\n"
     "  jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]\n"
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
@@ -149,6 +151,9 @@ static const char U_SOLVE_A[] =
     "  --write-point PT write the optimum's point to PT, one `NAME VALUE`\n"
     "                   line per column and nothing else: the shape\n"
     "                   another program's checker takes\n"
+    "  --write-duals D  write the row multipliers to D, in the point\n"
+    "                   file's shape, so `check --point P --duals D` has\n"
+    "                   both halves without an awk in between\n"
     "  --pool-out PRE   write one point file per solution pool entry,\n"
     "                   PRE-0.pt best first. Use --pool-size K to keep\n"
     "                   more than the incumbent\n"
@@ -351,6 +356,24 @@ static const char U_STATS[] =
     "  smallest and largest magnitude in the matrix and in the\n"
     "  objective. It solves nothing. Exit 0.\n";
 
+static const char U_DIFF[] =
+    "diff reads A and B and says whether they describe the same model, and\n"
+    "  where they first do not: one line per difference, then a\n"
+    "  `differences` count. It compares the three sizes, the sense and the\n"
+    "  constant, every bound, cost and integrality mark, every coefficient\n"
+    "  and every name as the model gives it. Values are compared exactly:\n"
+    "  a caller who wants a tolerance wants `check`. A size that differs\n"
+    "  stops the walk, because every index after it means something else.\n"
+    "  Exit 0 when the two are the same model, 1 when they are not.\n";
+
+static const char U_SHOW[] =
+    "show FILE --row NAME prints one row: its index, its two bounds, its\n"
+    "  entry count, then one `term NAME VALUE` line per nonzero naming the\n"
+    "  column. --col NAME prints one column the same way, with its cost\n"
+    "  and its integrality mark, and its terms named by row. It solves\n"
+    "  nothing. A positional name works where the model named nothing.\n"
+    "  Exit 0, or 5 when no row or column carries the name.\n";
+
 static const char U_RANGING[] =
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
@@ -379,6 +402,8 @@ static const u_entry U_TABLE[] = {
     {"verify",  {U_VERIFY,  nullptr}},
     {"stats",   {U_STATS,   nullptr}},
     {"ranging", {U_RANGING, nullptr}},
+    {"diff",    {U_DIFF,    nullptr}},
+    {"show",    {U_SHOW,    nullptr}},
 };
 
 /* The whole usage text, or one command's (D345). A command's own help is
@@ -711,6 +736,7 @@ struct solve_options {
     const char *write_basis; /* where to write the basis the solve left */
     const char *write_point; /* where to write the point, one name a line */
     const char *pool_out;    /* prefix for one point file per pool entry */
+    const char *write_duals; /* where to write the row multipliers */
     bool check;              /* run the independent checker on the answer */
     const char *mip_start;   /* a solution file whose point seeds the
                                 tree (D326)                          */
@@ -891,6 +917,8 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->write_point = v;
         } else if (strcmp(a, "--pool-out") == 0) {
             o->pool_out = v;
+        } else if (strcmp(a, "--write-duals") == 0) {
+            o->write_duals = v;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -1468,6 +1496,17 @@ static int cmd_solve(int argc, char **argv)
             free(cx);
             free(cy);
         }
+    }
+
+    /* The row multipliers in the point file's shape (D348), so the pair
+     * `jaos check --point P --duals D` reads is a pair this tool writes. */
+    if (o.write_duals != nullptr) {
+        const jaos_status dw = jaos_write_duals(m, o.write_duals);
+        if (dw == JAOS_ERR_INVALID_INPUT)
+            fprintf(stderr, "jaos: no duals file written: %s\n",
+                    jaos_model_error(m));
+        else if (dw != JAOS_OK)
+            rc = library_error("write the duals file", o.write_duals, m);
     }
 
     /* The whole pool, one point file per entry (D344): `PREFIX-0.pt` is
@@ -2391,6 +2430,236 @@ out:
 /* stats FILE: read it and print what the model is. It solves nothing, so
  * it is the one analysis subcommand with no verdict and no exit code but
  * 0; a file it cannot read is the usual load failure. */
+
+/* diff A B: whether two model files describe the same model, and the first
+ * place they do not (D349).
+ *
+ * It exists because every format question in this repository ends in one:
+ * a conversion, a relaxation, a subsystem, a compressed write. `cmp` says
+ * two files differ and says nothing about the models, and two files that
+ * differ byte for byte routinely hold the same model -- a different
+ * format, a different name, a reordered section.
+ *
+ * What it compares is what a model IS: the three sizes, the sense and the
+ * constant, every bound and cost, every coefficient, and every name as
+ * the model gives it (a row nobody named is `R<i+1>` on both sides, D284).
+ * Values are compared exactly, because "close" is not the question this
+ * answers; a caller who wants a tolerance wants `check`.
+ */
+static int cmd_diff(int argc, char **argv)
+{
+    if (argc != 4)
+        return usage_error("diff takes exactly two files");
+    const char *pa = argv[2], *pb = argv[3];
+
+    jaos_model *a = nullptr, *b = nullptr;
+    int rc = load(pa, &a);
+    if (rc >= 0)
+        return rc;
+    rc = load(pb, &b);
+    if (rc >= 0) {
+        jaos_model_free(a);
+        return rc;
+    }
+
+    int64_t diffs = 0;
+    namebuf na, nb;
+    const int64_t nra = jaos_num_row(a), nrb = jaos_num_row(b);
+    const int64_t nca = jaos_num_col(a), ncb = jaos_num_col(b);
+
+#define DIFF(...) do { printf(__VA_ARGS__); diffs++; } while (0)
+
+    if (nra != nrb)
+        DIFF("rows %" PRId64 " %" PRId64 "\n", nra, nrb);
+    if (nca != ncb)
+        DIFF("columns %" PRId64 " %" PRId64 "\n", nca, ncb);
+    if (jaos_num_nz(a) != jaos_num_nz(b))
+        DIFF("nonzeros %" PRId64 " %" PRId64 "\n",
+             jaos_num_nz(a), jaos_num_nz(b));
+
+    /* A size that differs makes every index below mean something else, so
+     * the walk stops there rather than printing a difference per row. */
+    if (diffs == 0) {
+        jaos_obj_sense sa, sb;
+        double oa = 0.0, ob = 0.0;
+        if (jaos_objective_sense(a, &sa) == JAOS_OK &&
+            jaos_objective_sense(b, &sb) == JAOS_OK && sa != sb)
+            DIFF("sense %s %s\n", sa == JAOS_MAXIMIZE ? "maximize" : "minimize",
+                 sb == JAOS_MAXIMIZE ? "maximize" : "minimize");
+        if (jaos_objective_offset(a, &oa) == JAOS_OK &&
+            jaos_objective_offset(b, &ob) == JAOS_OK && oa != ob)
+            DIFF("offset %.17g %.17g\n", oa, ob);
+
+        for (int64_t j = 0; j < nca; j++) {
+            double ca = 0.0, cb = 0.0, la = 0.0, ua = 0.0, lb = 0.0, ub = 0.0;
+            if (jaos_col_cost(a, j, &ca) != JAOS_OK ||
+                jaos_col_cost(b, j, &cb) != JAOS_OK ||
+                jaos_col_bounds(a, j, &la, &ua) != JAOS_OK ||
+                jaos_col_bounds(b, j, &lb, &ub) != JAOS_OK)
+                break;
+            const char *n = col_name(a, j, na);
+            if (strcmp(n, col_name(b, j, nb)) != 0)
+                DIFF("col_name %" PRId64 " %s %s\n", j, na, nb);
+            if (ca != cb)
+                DIFF("cost %s %.17g %.17g\n", n, ca, cb);
+            if (la != lb || ua != ub)
+                DIFF("col_bounds %s %.17g %.17g %.17g %.17g\n",
+                     n, la, ua, lb, ub);
+            bool ia = false, ib = false;
+            if (jaos_col_integer(a, j, &ia) == JAOS_OK &&
+                jaos_col_integer(b, j, &ib) == JAOS_OK && ia != ib)
+                DIFF("integer %s %s %s\n", n, yesno(ia), yesno(ib));
+        }
+        for (int64_t i = 0; i < nra; i++) {
+            double la = 0.0, ua = 0.0, lb = 0.0, ub = 0.0;
+            if (jaos_row_bounds(a, i, &la, &ua) != JAOS_OK ||
+                jaos_row_bounds(b, i, &lb, &ub) != JAOS_OK)
+                break;
+            const char *n = row_name(a, i, na);
+            if (strcmp(n, row_name(b, i, nb)) != 0)
+                DIFF("row_name %" PRId64 " %s %s\n", i, na, nb);
+            if (la != lb || ua != ub)
+                DIFF("row_bounds %s %.17g %.17g %.17g %.17g\n",
+                     n, la, ua, lb, ub);
+        }
+        /* The matrix, entry by entry over the columns, which is the order
+         * both models hold it in. */
+        for (int64_t j = 0; j < nca; j++) {
+            int64_t ka = 0, kb = 0;
+            if (jaos_col_entries(a, j, &ka, nullptr, nullptr) != JAOS_OK ||
+                jaos_col_entries(b, j, &kb, nullptr, nullptr) != JAOS_OK)
+                break;
+            const char *n = col_name(a, j, na);
+            if (ka != kb) {
+                DIFF("col_entries %s %" PRId64 " %" PRId64 "\n", n, ka, kb);
+                continue;
+            }
+            int64_t *ix = zeroed(ka, sizeof *ix);
+            double *va = zeroed(ka, sizeof *va);
+            double *vb = zeroed(ka, sizeof *vb);
+            int64_t *jx = zeroed(ka, sizeof *jx);
+            if (ix != nullptr && va != nullptr && vb != nullptr &&
+                jx != nullptr &&
+                jaos_col_entries(a, j, &ka, ix, va) == JAOS_OK &&
+                jaos_col_entries(b, j, &kb, jx, vb) == JAOS_OK) {
+                for (int64_t k = 0; k < ka; k++)
+                    if (ix[k] != jx[k] || va[k] != vb[k])
+                        DIFF("entry %s %s %.17g %.17g\n", n,
+                             row_name(a, ix[k], nb), va[k], vb[k]);
+            }
+            free(ix); free(va); free(vb); free(jx);
+        }
+    }
+
+#undef DIFF
+
+    print_int("differences", diffs);
+    rc = diffs == 0 ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
+    jaos_model_free(a);
+    jaos_model_free(b);
+    return rc;
+}
+
+/* show FILE --row NAME | --col NAME: one row or one column, spelled out
+ * (D350). `stats` counts a model and `diff` compares two; this is the one
+ * that answers "what does this constraint actually say", which is the
+ * question a wrong answer starts with and which no other command here
+ * reaches without a solve. */
+static int cmd_show(int argc, char **argv)
+{
+    const char *file = nullptr, *row = nullptr, *col = nullptr;
+    for (int i = 2; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--row") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--row needs a name");
+            row = argv[++i];
+        } else if (strcmp(a, "--col") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--col needs a name");
+            col = argv[++i];
+        } else if (a[0] == '-') {
+            return usage_error("unknown option '%s'", a);
+        } else if (file == nullptr) {
+            file = a;
+        } else {
+            return usage_error("show takes one file, and got '%s' and '%s'",
+                               file, a);
+        }
+    }
+    if (file == nullptr)
+        return usage_error("show needs a file");
+    if ((row == nullptr) == (col == nullptr))
+        return usage_error("show takes one of --row NAME or --col NAME");
+
+    jaos_model *m = nullptr;
+    int rc = load(file, &m);
+    if (rc >= 0)
+        return rc;
+
+    namebuf nm;
+    int64_t k = 0, n = 0;
+    int64_t *ix = nullptr;
+    double *v = nullptr;
+    if ((row != nullptr ? jaos_row_index(m, row, &k)
+                        : jaos_col_index(m, col, &k)) != JAOS_OK) {
+        rc = library_error("find", row != nullptr ? row : col, m);
+        goto out;
+    }
+    if ((row != nullptr ? jaos_row_entries(m, k, &n, nullptr, nullptr)
+                        : jaos_col_entries(m, k, &n, nullptr, nullptr))
+            != JAOS_OK) {
+        rc = library_error("read", file, m);
+        goto out;
+    }
+    ix = zeroed(n, sizeof *ix);
+    v = zeroed(n, sizeof *v);
+    if (ix == nullptr || v == nullptr) {
+        fputs("jaos: out of memory\n", stderr);
+        rc = EXIT_USAGE;
+        goto out;
+    }
+    if ((row != nullptr ? jaos_row_entries(m, k, &n, ix, v)
+                        : jaos_col_entries(m, k, &n, ix, v)) != JAOS_OK) {
+        rc = library_error("read", file, m);
+        goto out;
+    }
+
+    printf("%s %s\n", row != nullptr ? "row" : "col",
+           row != nullptr ? row_name(m, k, nm) : col_name(m, k, nm));
+    print_int("index", k);
+    {
+        double lo = 0.0, hi = 0.0;
+        const jaos_status bs = row != nullptr ? jaos_row_bounds(m, k, &lo, &hi)
+                                              : jaos_col_bounds(m, k, &lo, &hi);
+        if (bs == JAOS_OK) {
+            print_num("lower", lo);
+            print_num("upper", hi);
+        }
+    }
+    if (col != nullptr) {
+        double c = 0.0;
+        bool isint = false;
+        if (jaos_col_cost(m, k, &c) == JAOS_OK)
+            print_num("cost", c);
+        if (jaos_col_integer(m, k, &isint) == JAOS_OK)
+            print_bool("integer", isint);
+    }
+    print_int("entries", n);
+    /* One `term NAME VALUE` line per nonzero, naming the other side: a
+     * row's terms are named by column and a column's by row. */
+    for (int64_t t = 0; t < n; t++)
+        printf("term %s %.17g\n",
+               row != nullptr ? col_name(m, ix[t], nm)
+                              : row_name(m, ix[t], nm), v[t]);
+    rc = EXIT_OPTIMAL;
+
+out:
+    free(ix);
+    free(v);
+    jaos_model_free(m);
+    return rc;
+}
 static int cmd_stats(int argc, char **argv)
 {
     if (argc != 3)
@@ -2546,6 +2815,10 @@ int main(int argc, char **argv)
         return cmd_solve(argc, argv);
     if (strcmp(cmd, "convert") == 0)
         return cmd_convert(argc, argv);
+    if (strcmp(cmd, "diff") == 0)
+        return cmd_diff(argc, argv);
+    if (strcmp(cmd, "show") == 0)
+        return cmd_show(argc, argv);
     if (strcmp(cmd, "check") == 0)
         return cmd_check(argc, argv);
     if (strcmp(cmd, "stats") == 0)

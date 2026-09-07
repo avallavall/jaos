@@ -38,6 +38,8 @@ jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos check FILE --point POINT [--duals DUALS] [--tol T]
 jaos stats FILE
+jaos diff A B
+jaos show FILE (--row NAME | --col NAME)
 jaos iis FILE [--write OUT] [--positional]
 jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
 jaos verify FILE [--values] [--proof PATH] [--basis BAS]
@@ -130,6 +132,7 @@ prints the same facts as the same model solved silently.
 | `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file (D338): the format every solver in the field writes a basis in, so `BAS` may be another solver's. It is read and handed to the model before the solve, exactly as `--start` does with JAOS's own file. Not with `--start`: a solve begins in one place, and being handed two is a question the caller has to answer. A file whose names or count do not fit this model is refused with the library's message and exit 5. |
 | `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed (D340). |
 | `--write-point PT` | writes the optimum's point to `PT` as a point file: one `NAME VALUE` line per column and nothing else (D342). It is the shape another program's checker takes, and the shape `check --point` reads back. The rule is `--solution`'s: an optimum has a point and nothing else does, and a solve without one writes no file and says why on stderr. |
+| `--write-duals D` | writes the row multipliers to `D` in the point file's shape (D348), so `check --point P --duals D` has both halves without an awk in between. The rule is `--write-point`'s. |
 | `--pool-out PRE` | writes one point file per solution pool entry (D344): `PRE-0.pt` is the best, `PRE-1.pt` the next, in the order the pool keeps them. `--pool-size K` is what makes the pool bigger than the incumbent. An LP has no integer point, so nothing is written and stderr says so without changing the exit code. Each file is one `check --point` reads back. |
 | `--check` | runs the independent checker on the answer and prints its eighteen-field report, then a `check_ok` line (D347). It is the report `check FILE SOLUTION` prints and it saves the round trip through a file. The exit code stays the solve's: a checker that could change it would make `solve` two commands with one name. It judges an optimum; a solve that ended otherwise has no point and no duals, which is said on stderr and changes nothing. |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
@@ -419,6 +422,64 @@ from zero with no finite bound on the side it points at. Both numbers are
 right and they answer different questions
 (`bench/measurements/02-211/`, D328).
 
+
+## `diff`
+
+`diff A B` reads both files and says whether they describe the same model
+(D349). It prints one line per difference, then a `differences` count; exit
+0 when the two are the same model, 1 when they are not.
+
+```
+$ jaos convert model.mps model.lp
+$ jaos diff model.mps model.lp
+differences 0
+$ jaos diff model.mps other.mps
+nonzeros 5 6
+differences 1
+```
+
+`cmp` cannot answer this. A model converted to another format is the same
+model in different bytes, and that is the case this command exists for.
+
+What it compares is what a model **is**: the three sizes, the sense and the
+objective constant, every bound, cost and integrality mark, every
+coefficient, and every name as the model gives it — so a row nobody named
+is `R<i+1>` on both sides (D284) and matches a file that spells it that
+way. Values are compared **exactly**; a caller who wants a tolerance wants
+`check`, which judges a point against a model rather than a model against a
+model.
+
+A size that differs stops the walk, because every index after it means
+something else and a per-row report on two models of different shapes is
+noise.
+
+## `show`
+
+`show FILE --row NAME` prints one row (D350). `stats` counts a model and
+`diff` compares two; this one answers "what does this constraint actually
+say", which is where a wrong answer starts.
+
+```
+$ jaos show model.mps --row DEMAND
+row DEMAND
+index 0
+lower 10
+upper inf
+entries 3
+term X1 1
+term X2 1
+term X3 1
+```
+
+`--col NAME` prints a column the same way, with its `cost` and `integer`
+lines, and its terms named by row. Exactly one of the two is required.
+
+The terms name the other side, which is the point: a row's numbers are
+useless without the column each belongs to, and an MPS file groups its
+entries by column, so reading one row off it means counting fields.
+
+It solves nothing, and a positional name works where the model named
+nothing. Exit 0, or 5 when no row or column carries the name.
 ## `iis`
 
 `iis FILE` solves the model. When the answer is infeasible, it finds one

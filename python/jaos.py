@@ -611,6 +611,8 @@ _sig("jaos_read_mps_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(ctypes.c_int))
 _sig("jaos_write_point", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_point_values", ctypes.c_int, _VP, _CS, _P(_D))
+_sig("jaos_write_duals", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_dual_values", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_point", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
@@ -911,6 +913,22 @@ class Model:
         x = (_D * max(nc, 1))(*[float(v) for v in col_value])
         self._check(_lib.jaos_write_point_values(
             self._handle(), _path(path), x))
+
+    def write_duals(self, path):
+        """The last optimum's row multipliers, in the point file's shape
+        (D348), so read_duals() reads back what this wrote."""
+        self._check(_lib.jaos_write_duals(self._handle(), _path(path)))
+
+    def write_dual_values(self, path, row_dual):
+        """The same file from multipliers the caller has; no solve is
+        needed."""
+        nr = self.num_row
+        if len(row_dual) != nr:
+            raise ValueError("a duals file needs %d values, and got %d"
+                             % (nr, len(row_dual)))
+        y = (_D * max(nr, 1))(*[float(v) for v in row_dual])
+        self._check(_lib.jaos_write_dual_values(
+            self._handle(), _path(path), y))
 
     def read_point(self, path):
         """The list of column values in a point file, in index order.
@@ -3179,6 +3197,18 @@ class Problem:
         if self._pending():
             self._build_and_load()
         self._m.write_point_values(path, col_value)
+
+    def write_duals(self, path):
+        """The answer's row multipliers as a duals file; see
+        Model.write_duals."""
+        self._m.write_duals(path)
+
+    def write_dual_values(self, path, row_dual):
+        """The same file from multipliers the caller has, in the order the
+        constraints were added; see Model.write_dual_values."""
+        if self._pending():
+            self._build_and_load()
+        self._m.write_dual_values(path, row_dual)
 
     def read_point(self, path):
         """The column values in a point file, in the order the variables

@@ -1521,6 +1521,16 @@ JAOS_NODISCARD jaos_status jaos_write_point(jaos_model *m, const char *path);
  * needed, because nothing here reads one. */
 JAOS_NODISCARD jaos_status jaos_write_point_values(jaos_model *m,
     const char *path, const double *col_value);
+
+/* The row multipliers in the same shape (D348), so the pair
+ * jaos_read_point and jaos_read_duals reads is a pair this library
+ * writes. jaos_write_duals takes the last optimum's, under
+ * jaos_solution's rule; jaos_write_dual_values takes an array and needs
+ * no solve. Both refuse two rows of a name and a multiplier no file can
+ * carry, and a `.gz` path compresses. */
+JAOS_NODISCARD jaos_status jaos_write_duals(jaos_model *m, const char *path);
+JAOS_NODISCARD jaos_status jaos_write_dual_values(jaos_model *m,
+    const char *path, const double *row_dual);
 JAOS_NODISCARD jaos_status jaos_read_point(jaos_model *m, const char *path,
                                            double *col_value);
 JAOS_NODISCARD jaos_status jaos_read_duals(jaos_model *m, const char *path,

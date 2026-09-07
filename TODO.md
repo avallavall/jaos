@@ -33,6 +33,31 @@ new, which is what a feature batch should look like.
 
 ## Where the last session stopped — 2026-09-07
 
+**2026-09-07, the day batch, twentieth round: two new commands and the
+duals file's missing half (D348, D349, D350).**
+
+`jaos diff A B` says whether two files describe the same model and where
+they first do not. `jaos show FILE --row NAME` prints one row's bounds and
+terms, `--col NAME` one column's. And `jaos_write_duals` gives the point
+file its other half, so both inputs `check --point P --duals D` takes come
+out of this library instead of one of them needing an awk.
+
+**Two things worth carrying forward.**
+
+**`cmp` was answering the wrong question and every campaign wrote its own
+script for the right one.** A model converted to another format is the
+same model in different bytes, and that comparison appears in every format
+question here: a conversion, a relaxation applied, a subsystem written, a
+compressed write. `diff`'s test carries the control that makes it mean
+something -- the two files it calls the same model are asserted NOT
+byte-identical.
+
+**A format read in two halves and written in one fails its own round-trip
+rule.** D342 shipped `jaos_read_point` and `jaos_read_duals` against
+`jaos_write_point` alone. Nothing caught it, because the rule is checked
+per writer and there was no writer to check. Worth looking for elsewhere:
+a reader with no writer is invisible to "what JAOS writes it reads back".
+
 **2026-09-07, the day batch, nineteenth round: `--positional` on every
 command that writes a model, and the record's own summary caught up.**
 

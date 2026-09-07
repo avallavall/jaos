@@ -2243,6 +2243,29 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     m.write_point_values(path, [1.0])
 
+    def test_the_duals_file_is_written_as_well_as_read(self):
+        """D348: both halves of `check --point --duals` come out of this
+        library now, with no awk in between."""
+        with tempfile.TemporaryDirectory() as tmp:
+            p = os.path.join(tmp, "p.txt")
+            d = os.path.join(tmp, "d.txt")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                sol = m.solution()
+                m.write_point(p)
+                m.write_duals(d)
+                self.assertEqual(m.read_point(p), sol.col_value)
+                self.assertEqual(m.read_duals(d), sol.row_dual)
+                rep = m.check_solution(m.read_point(p), m.read_duals(d))
+                self.assertTrue(rep.checked_duals)
+                self.assertTrue(rep.dual_feasible)
+                # And from values the caller has, with no solve involved.
+                m.write_dual_values(d, [0.0] * m.num_row)
+                self.assertEqual(m.read_duals(d), [0.0] * m.num_row)
+                with self.assertRaises(ValueError):
+                    m.write_dual_values(d, [0.0])
+
     def test_a_duals_file_is_the_same_shape_over_the_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "d.txt")

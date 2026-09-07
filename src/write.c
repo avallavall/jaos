@@ -1918,3 +1918,84 @@ jaos_status jaos_write_point(jaos_model *m, const char *path)
     free(x);
     return st;
 }
+
+/* The row multipliers in the same shape (D348), so the pair `jaos check
+ * --point P --duals D` reads is a pair this library writes. It is
+ * jaos_write_point_values over the rows, and the two are not shared
+ * because what differs is every name in them. */
+jaos_status jaos_write_dual_values(jaos_model *m, const char *path,
+                                   const double *row_dual)
+{
+    if (m == nullptr || path == nullptr ||
+        (row_dual == nullptr && m->num_row > 0))
+        return JAOS_ERR_INVALID_INPUT;
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+
+    double *y = jm_alloc_array(m->num_row, sizeof *y);
+    if (y == nullptr)
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+    else if (m->num_row > 0)
+        memcpy(y, row_dual, (size_t)m->num_row * sizeof *y);
+
+    if (w->st == JAOS_OK) {
+        jm_nmap seen = {0};
+        char nm[NAME_LEN];
+        int64_t prior;
+        for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+            row_name(m, nm, i);
+            if (jm_nmap_get(&seen, nm, &prior))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "rows %" PRId64 " and %" PRId64 " are both named "
+                        "'%s', which no file can tell apart", prior, i, nm);
+            else if (!jm_nmap_insert(&seen, nm, i))
+                wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        }
+        jm_nmap_free(&seen);
+    }
+
+    for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+        if (!isfinite(y[i])) {
+            char nm[NAME_LEN];
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' holds a multiplier no file can carry", nm);
+        }
+    }
+
+    locale_t prev = (locale_t)0, cloc = (locale_t)0;
+    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+        free(y);
+        return w->st;
+    }
+
+    {
+        char nm[NAME_LEN], num[NUM_LEN];
+        fprintf(w->f, "# written by JAOS %s\n", JAOS_VERSION_STRING);
+        for (int64_t i = 0; i < m->num_row; i++) {
+            row_name(m, nm, i);
+            wr_num(num, y[i]);
+            fprintf(w->f, "%-9s %s\n", nm, num);
+        }
+    }
+
+    free(y);
+    return wr_close(w, path, prev, cloc);
+}
+
+jaos_status jaos_write_duals(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    double *y = jm_alloc_array(m->num_row, sizeof *y);
+    if (y == nullptr) {
+        jm_set_err(m, "out of memory");
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    jaos_status st = jaos_solution(m, nullptr, nullptr, y, nullptr);
+    if (st == JAOS_OK)
+        st = jaos_write_dual_values(m, path, y);
+    free(y);
+    return st;
+}
