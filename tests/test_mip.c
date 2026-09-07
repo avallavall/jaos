@@ -2223,6 +2223,64 @@ static void test_a_proved_incumbent_publishes_a_basis_of_the_model(void)
     }
 }
 
+static void test_a_semicontinuous_column_rests_at_zero_or_above_its_floor(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    const double cost[] = {1.0, 5.0};
+    const double cl[]   = {2.0, 0.0};
+    const double cu[]   = {10.0, 1.0};
+    const double rl[]   = {1.0};
+    const double ru[]   = {INFINITY};
+    const int64_t as[]  = {0, 1, 2};
+    const int64_t ai[]  = {0, 0};
+    const double  av[]  = {1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(m, 0, true));
+
+    double obj = 0.0, x[2], y[1];
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 10.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_TRUE(x[0] == 0.0 && x[1] == 1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-9, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_col_violation);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 0.0, 10.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    bool semi = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(c, 0, &semi));
+    TEST_ASSERT_TRUE(semi);
+    jaos_model_free(c);
+    jaos_model_free(m);
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2276,5 +2334,6 @@ int main(void)
     RUN_TEST(test_reduced_cost_fixing_keeps_the_optimum);
     RUN_TEST(test_the_pump_may_run_where_an_incumbent_exists);
     RUN_TEST(test_a_starting_point_and_a_cutoff);
+    RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
     return UNITY_END();
 }

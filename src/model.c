@@ -56,6 +56,7 @@ static void model_release_arrays(jaos_model *m)
     jm_model_take_names(m, nullptr, nullptr, nullptr);
     free(m->model_name);
     free(m->col_integer);
+    free(m->col_semi);
     free(m->mip_start);
     free(m->mip_inc_x);
     free(m->mip_pool_x);
@@ -772,6 +773,38 @@ jaos_status jaos_col_integer(const jaos_model *m, int64_t j, bool *is_integer)
     if (m == nullptr || is_integer == nullptr || j < 0 || j >= m->num_col)
         return JAOS_ERR_INVALID_INPUT;
     *is_integer = m->col_integer != nullptr && m->col_integer[j];
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_col_semicontinuous(jaos_model *m, int64_t j, bool is_semi)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->col_semi == nullptr) {
+        if (!is_semi)
+            return JAOS_OK;
+        m->col_semi = jm_calloc_array(m->num_col, sizeof(bool));
+        if (m->col_semi == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (is_semi && m->col_integer == nullptr) {
+        m->col_integer = jm_calloc_array(m->num_col, sizeof(bool));
+        if (m->col_integer == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (m->col_semi[j] != is_semi) {
+        m->col_semi[j] = is_semi;
+        model_answer_is_stale(m);
+    }
+    return JAOS_OK;
+}
+
+jaos_status jaos_col_semicontinuous(const jaos_model *m, int64_t j,
+                                    bool *is_semi)
+{
+    if (m == nullptr || is_semi == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    *is_semi = m->col_semi != nullptr && m->col_semi[j];
     return JAOS_OK;
 }
 
@@ -1907,6 +1940,17 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
             p[j] = false;
         m->col_integer = p;
     }
+    if (m->col_semi != nullptr) {
+        bool *p = realloc(m->col_semi, (size_t)ncol * sizeof *p);
+        if (p == nullptr) {
+            free(arriving);
+            free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = m->num_col; j < ncol; j++)
+            p[j] = false;
+        m->col_semi = p;
+    }
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
     free(m->a_start);   free(m->a_index);   free(m->a_value);
@@ -2129,6 +2173,12 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
             if (keep[j])
                 m->col_integer[at++] = m->col_integer[j];
     }
+    if (m->col_semi != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (keep[j])
+                m->col_semi[at++] = m->col_semi[j];
+    }
     free(keep);
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -2324,6 +2374,14 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
             goto oom;
         memcpy(m->col_integer, src->col_integer,
                (size_t)src->num_col * sizeof *m->col_integer);
+    }
+    if (src->col_semi != nullptr) {
+        m->col_semi = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)
+                             * sizeof *m->col_semi);
+        if (m->col_semi == nullptr)
+            goto oom;
+        memcpy(m->col_semi, src->col_semi,
+               (size_t)src->num_col * sizeof *m->col_semi);
     }
 
     m->cfg = src->cfg;

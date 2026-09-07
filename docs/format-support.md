@@ -93,8 +93,12 @@ header is a line whose first character is non-blank, `*` opens a comment.
     the CPLEX/lp_solve convention.
   - RANGES on the objective or on an `N` row is an error.
 - **BOUNDS**: `UP LO FX FR MI PL` supported. `BV LI UI` mark the column
-  integer: `BV` is [0, 1], `LI` and `UI` set the bound. `SC SI`
-  (semi-continuous) are recognized and rejected.
+  integer: `BV` is [0, 1], `LI` and `UI` set the bound. `SC` marks the
+  column semi-continuous and sets its upper bound: the column rests at zero
+  or between its lower bound (from `LO`, else zero) and that value. `SI` is
+  the same and integer. The writer prints `LO` then `SC` or `SI` for such a
+  column, and refuses one with no finite upper bound, which the card cannot
+  express.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
   per run of integer columns.
@@ -170,7 +174,9 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   `Binary`, `Binaries`, `Bin`): names of variables the file has met, one per
   token until the next keyword; `Binary` also bounds them to [0, 1]. A name
   no variable carries is refused. The writer prints every integer
-  column under `General`, its bounds already above. `Semi-continuous` and
+  column under `General`, its bounds already above. **`Semi-continuous`**
+  (`Semi`, `Semis`, `Semi-continuous`): names of variables that rest at zero
+  or inside their bounds; the writer prints them under `Semi-continuous`.
   `SOS`: rejected.
 - **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
   `D` exponents here — they are not part of any LP dialect.

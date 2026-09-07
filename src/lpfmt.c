@@ -49,6 +49,8 @@ typedef struct {
 
     bool *cint;
     int64_t cint_cap, ncint;
+    bool *csemi;
+    int64_t csemi_cap, ncsemi;
     int64_t *ei;
     double *ev;
     int64_t nent, ei_cap, ev_cap;
@@ -623,9 +625,32 @@ static jaos_status parse(lp *p)
         }
     }
 
-    if (tok_is(p, "semi") || tok_is(p, "semis"))
-        FAIL("line %" PRId64 ": semi-continuous variables are not supported",
-             p->tok.line);
+    if (tok_is(p, "semi") || tok_is(p, "semis")) {
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+        if (p->tok.t == T_MINUS) {
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (!tok_is(p, "continuous"))
+                FAIL("line %" PRId64 ": expected 'continuous' after 'semi-'",
+                     p->tok.line);
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        }
+        while (p->tok.t == T_NAME && !at_reserved(p)) {
+            if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
+                FAIL("line %" PRId64 ": '%s' in a semi-continuous section is "
+                     "not a variable of the model", p->tok.line, p->tok.text);
+            if (!JM_GROW(p->csemi, p->csemi_cap, p->ncol))
+                FAIL_OOM();
+            for (int64_t k = p->ncsemi; k < p->ncol; k++)
+                p->csemi[k] = false;
+            p->ncsemi = p->ncol;
+            p->csemi[j] = true;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        }
+    }
     if (tok_is(p, "sos"))
         FAIL("line %" PRId64 ": SOS constraints are not supported",
              p->tok.line);
@@ -690,12 +715,22 @@ static jaos_status parse(lp *p)
 
         free(p->m->col_integer);
         p->m->col_integer = nullptr;
-        if (p->ncint > 0) {
+        free(p->m->col_semi);
+        p->m->col_semi = nullptr;
+        if (p->ncint > 0 || p->ncsemi > 0) {
             bool *ci = jm_calloc_array(p->ncol, sizeof(bool));
             if (ci == nullptr)
                 FAIL_OOM();
-            memcpy(ci, p->cint, (size_t)p->ncint * sizeof *ci);
+            if (p->ncint > 0)
+                memcpy(ci, p->cint, (size_t)p->ncint * sizeof *ci);
             p->m->col_integer = ci;
+        }
+        if (p->ncsemi > 0) {
+            bool *cs = jm_calloc_array(p->ncol, sizeof(bool));
+            if (cs == nullptr)
+                FAIL_OOM();
+            memcpy(cs, p->csemi, (size_t)p->ncsemi * sizeof *cs);
+            p->m->col_semi = cs;
         }
     }
 
@@ -748,5 +783,6 @@ done:
     free(p->rname);
     free(p->oname);
     free(p->cint);
+    free(p->csemi);
     return st;
 }

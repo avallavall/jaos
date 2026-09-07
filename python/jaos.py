@@ -489,6 +489,8 @@ _sig("jaos_col_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_row_index", ctypes.c_int, _VP, _CS, _P(_I64))
 _sig("jaos_set_col_integer", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
+_sig("jaos_set_col_semicontinuous", ctypes.c_int, _VP, _I64, ctypes.c_bool)
+_sig("jaos_col_semicontinuous", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
@@ -994,6 +996,18 @@ class Model:
         out = ctypes.c_bool()
         self._check(_lib.jaos_col_integer(self._handle(), int(col),
                                           ctypes.byref(out)))
+        return out.value
+
+    def set_col_semicontinuous(self, col, is_semi=True):
+        """Marks a column semi-continuous: it rests at zero or inside its
+        own bounds, and the model solves by branch and bound."""
+        self._check(_lib.jaos_set_col_semicontinuous(self._handle(),
+                                                     int(col), bool(is_semi)))
+
+    def col_semicontinuous(self, col):
+        out = ctypes.c_bool()
+        self._check(_lib.jaos_col_semicontinuous(self._handle(), int(col),
+                                                 ctypes.byref(out)))
         return out.value
 
     def set_mip_gap(self, gap):
@@ -2044,7 +2058,8 @@ class Var:
 
     __hash__ = object.__hash__
 
-    __slots__ = ("_p", "_i", "_lb", "_ub", "name", "integer")
+    __slots__ = ("_p", "_i", "_lb", "_ub", "name", "integer",
+                 "semicontinuous")
 
     def __init__(self, problem, index, lb, ub, name):
         self._p = problem
@@ -2343,7 +2358,7 @@ class Problem:
         return False
 
     def add_var(self, lb=0.0, ub=INFINITY, name=None, integer=False,
-                binary=False):
+                binary=False, semicontinuous=False):
         """A new variable, bounded below at zero unless said otherwise.
         `integer=True` marks it integer, and the problem then solves by
         branch and bound (D288); `binary=True` is integer in [0, 1]."""
@@ -2352,6 +2367,7 @@ class Problem:
         v = Var(self, len(self._vars), lb, ub,
                 name if name is not None else f"x{len(self._vars)}")
         v.integer = bool(integer)
+        v.semicontinuous = bool(semicontinuous)
         self._vars.append(v)
         self._touch_structure()
         return v
@@ -2481,6 +2497,8 @@ class Problem:
             self._m.set_col_name(v._i, v.name)
             if getattr(v, "integer", False):
                 self._m.set_col_integer(v._i, True)
+            if getattr(v, "semicontinuous", False):
+                self._m.set_col_semicontinuous(v._i, True)
         for c in self._cons:
             self._m.set_row_name(c._i, c.name)
         self._dirty_var_bounds.clear()

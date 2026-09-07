@@ -90,6 +90,9 @@ typedef struct {
     bool *cint;
     int64_t cint_cap;
     bool any_int;
+    bool *csemi;
+    int64_t csemi_cap;
+    bool any_semi;
 
     jm_nmap cmap;
     double *cost, *cl, *cu;
@@ -127,6 +130,7 @@ static void rd_free(rd *r)
     free(r->objrow);
     free(r->modelname);
     free(r->cint);
+    free(r->csemi);
 }
 
 static bool set_objname(rd *r, const char *name)
@@ -234,11 +238,13 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
             !JM_GROW(r->cu, r->cu_cap, j + 1) ||
             !JM_GROW(r->cflag, r->cflag_cap, j + 1) ||
             !JM_GROW(r->cint, r->cint_cap, j + 1) ||
+            !JM_GROW(r->csemi, r->csemi_cap, j + 1) ||
             !JM_GROW(r->as, r->as_cap, j + 2))
             FAIL_OOM();
         if (!jm_nmap_insert(&r->cmap, tok[0], j))
             FAIL_OOM();
         r->cint[j] = r->in_intorg;
+        r->csemi[j] = false;
         r->any_int |= r->in_intorg;
         r->cost[j] = 0.0;
         r->cl[j] = 0.0;
@@ -345,9 +351,9 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
         needs_value = true;
     if (strcmp(type, "BV") == 0)
         no_value = true;
-    if (strcmp(type, "SC") == 0 || strcmp(type, "SI") == 0)
-        FAIL("line %" PRId64 ": semi-continuous bound type '%s' is not "
-             "supported", r->lno, type);
+    const bool semi_type = strcmp(type, "SC") == 0 || strcmp(type, "SI") == 0;
+    if (semi_type)
+        needs_value = true;
     if (!needs_value && !no_value)
         FAIL("line %" PRId64 ": unknown bound type '%s'", r->lno, type);
     if (nt != (needs_value ? 4 : 3))
@@ -379,6 +385,17 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
             r->cflag[j] |= 1u;
         } else {
             r->cu[j] = v;
+        }
+        return JAOS_OK;
+    }
+
+    if (semi_type) {
+        r->csemi[j] = true;
+        r->any_semi = true;
+        r->cu[j] = v;
+        if (strcmp(type, "SI") == 0) {
+            r->cint[j] = true;
+            r->any_int = true;
         }
         return JAOS_OK;
     }
@@ -659,9 +676,15 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
 
         free(m->col_integer);
         m->col_integer = nullptr;
-        if (r->any_int && r->ncol > 0) {
+        free(m->col_semi);
+        m->col_semi = nullptr;
+        if ((r->any_int || r->any_semi) && r->ncol > 0) {
             m->col_integer = r->cint;
             r->cint = nullptr;
+        }
+        if (r->any_semi && r->ncol > 0) {
+            m->col_semi = r->csemi;
+            r->csemi = nullptr;
         }
     }
 

@@ -2101,6 +2101,48 @@ static void test_a_point_file_uses_positional_names(void)
     remove(TMP_PT);
     jaos_model_free(m);
 }
+static void test_a_semicontinuous_column_round_trips_through_both_formats(void)
+{
+    const double cost[] = {1.0, 5.0};
+    const double cl[]   = {2.0, 0.0};
+    const double cu[]   = {10.0, 1.0};
+    const double rl[]   = {1.0};
+    const double ru[]   = {INFINITY};
+    const int64_t as[]  = {0, 1, 2};
+    const int64_t ai[]  = {0, 0};
+    const double  av[]  = {1.0, 1.0};
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(a, 0, true));
+
+    const char *paths[2] = {TMP_MPS, TMP_LP};
+    for (int k = 0; k < 2; k++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_write_mps(a, paths[k])
+                                              : jaos_write_lp(a, paths[k]));
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_read_mps(b, paths[k])
+                                              : jaos_read_lp(b, paths[k]));
+        assert_same_model(a, b);
+        bool semi = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(b, 0, &semi));
+        TEST_ASSERT_TRUE(semi);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(b, 1, &semi));
+        TEST_ASSERT_FALSE(semi);
+        jaos_model_free(b);
+        remove(paths[k]);
+    }
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(a, 0, 2.0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(a, TMP_MPS));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(a), "C1"));
+    TEST_ASSERT_FALSE(file_exists(TMP_MPS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(a, TMP_LP));
+    remove(TMP_LP);
+    jaos_model_free(a);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2169,5 +2211,6 @@ int main(void)
     RUN_TEST(test_a_point_file_is_written_from_given_values);
     RUN_TEST(test_a_duals_file_round_trips);
     RUN_TEST(test_a_point_file_uses_positional_names);
+    RUN_TEST(test_a_semicontinuous_column_round_trips_through_both_formats);
     return UNITY_END();
 }

@@ -160,7 +160,6 @@ static void expect_reject(const char *path, const char *needle)
 
 static void test_rejections_carry_line_numbers(void)
 {
-    expect_reject("tests/data/e_sc.mps", "line 8");
     expect_reject("tests/data/e_badnum.mps", "line 6");
     expect_reject("tests/data/e_unknown_row.mps", "line 5");
     expect_reject("tests/data/e_recol.mps", "line 9");
@@ -169,7 +168,6 @@ static void test_rejections_carry_line_numbers(void)
 
 static void test_rejection_reasons_are_specific(void)
 {
-    expect_reject("tests/data/e_sc.mps", "semi-continuous");
     expect_reject("tests/data/e_badnum.mps", "bad number");
     expect_reject("tests/data/e_unknown_row.mps", "unknown row");
     expect_reject("tests/data/e_recol.mps", "contiguous");
@@ -204,6 +202,20 @@ static void test_failed_read_preserves_previous_model(void)
     jaos_model_free(m);
 }
 
+static void test_a_semicontinuous_bound_marks_the_column(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/e_sc.mps"));
+    bool semi = false, integer = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(m, 0, &semi));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 0, &integer));
+    TEST_ASSERT_TRUE(semi);
+    TEST_ASSERT_FALSE(integer);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->col_upper[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -215,5 +227,6 @@ int main(void)
     RUN_TEST(test_rejection_reasons_are_specific);
     RUN_TEST(test_missing_file_is_io_error);
     RUN_TEST(test_failed_read_preserves_previous_model);
+    RUN_TEST(test_a_semicontinuous_bound_marks_the_column);
     return UNITY_END();
 }

@@ -172,6 +172,7 @@ struct jaos_model {
     jm_nmap col_map, row_map;
 
     bool *col_integer;
+    bool *col_semi;
 
     int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
     int64_t mip_rcfix_n, mip_prop_n;

@@ -371,8 +371,12 @@ jaos_status jaos_check_solution(const jaos_model *m,
     double col_viol = 0.0, row_viol = 0.0, row_viol_rel = 0.0;
     double primal_obj = m->obj_offset, primal_objc = 0.0;
     for (int64_t j = 0; j < m->num_col; j++) {
-        col_viol = max2(col_viol, interval_violation(col_value[j],
-                                    m->col_lower[j], m->col_upper[j]));
+        double cv = interval_violation(col_value[j], m->col_lower[j],
+                                       m->col_upper[j]);
+        if (m->col_semi != nullptr && m->col_semi[j] &&
+            m->col_lower[j] > 0.0 && fabs(col_value[j]) < cv)
+            cv = fabs(col_value[j]);
+        col_viol = max2(col_viol, cv);
         const double c = m->col_cost[j], x = col_value[j];
 
         const double t = c * x;

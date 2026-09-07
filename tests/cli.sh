@@ -392,6 +392,10 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+expect_exit 0 "a semi-continuous LP file solves through the tree" \
+    "$JAOS" solve "$DATA/g_semi.lp"
+[ "$(line_of objective)" = "objective 2" ] && pass "to 2, the floor of x" \
+    || flunk "semi-continuous: $(line_of objective)"
 expect_exit 0 "--algorithm dual solves an LP" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm dual
 dual_obj="$(line_of objective)"

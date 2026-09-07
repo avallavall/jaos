@@ -101,6 +101,17 @@ typedef struct {
     int64_t cap_start, cap_lo, cap_idx, cap_val, cap_eff;
 } cutbuf;
 
+static inline bool semi_live(const jaos_model *m, int64_t j)
+{
+    return m->col_semi != nullptr && m->col_semi[j] && m->col_lower[j] > 0.0;
+}
+
+static inline bool semi_broken(const jaos_model *m, int64_t j, double x)
+{
+    return semi_live(m, j) && x > MIP_INT_TOL &&
+           x < m->col_lower[j] - MIP_INT_TOL;
+}
+
 static void cutbuf_free(cutbuf *cb)
 {
     free(cb->start); free(cb->idx); free(cb->val); free(cb->lo); free(cb->eff);
@@ -376,7 +387,7 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
             return JAOS_ERR_OUT_OF_MEMORY;
     }
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
-        if (m->col_integer[j])
+        if (m->col_integer[j] || semi_live(m, j))
             st = jaos_set_col_bounds(lp, j, ilo[j], ihi[j]);
     for (int64_t k = 0; st == JAOS_OK && n != nullptr && k < n->depth; k++)
         st = jaos_set_col_bounds(lp, n->col[k], n->lo[k], n->hi[k]);
@@ -446,10 +457,17 @@ static bool republish_at_the_incumbent(jaos_model *m, const double *point,
 
     free(fin->col_integer);
     fin->col_integer = nullptr;
+    free(fin->col_semi);
+    fin->col_semi = nullptr;
 
     fin->cfg.log_cb = nullptr;
 
     for (int64_t j = 0; j < nc; j++) {
+        if (semi_live(m, j) && point[j] < 0.5 * m->col_lower[j]) {
+            if (jaos_set_col_bounds(fin, j, 0.0, 0.0) != JAOS_OK)
+                goto out;
+            continue;
+        }
         if (m->col_integer == nullptr || !m->col_integer[j])
             continue;
 
@@ -491,7 +509,7 @@ bool jm_model_has_integer(const jaos_model *m)
     if (m->col_integer == nullptr)
         return false;
     for (int64_t j = 0; j < m->num_col; j++)
-        if (m->col_integer[j])
+        if (m->col_integer[j] || semi_live(m, j))
             return true;
     return false;
 }
@@ -501,9 +519,13 @@ static int64_t most_fractional(const jaos_model *m, const double *x)
     int64_t branch = -1;
     double worst = MIP_INT_TOL;
     for (int64_t j = 0; j < m->num_col; j++) {
-        if (!m->col_integer[j])
+        double f;
+        if (m->col_integer[j] && fabs(x[j] - round(x[j])) > MIP_INT_TOL)
+            f = fabs(x[j] - round(x[j]));
+        else if (semi_broken(m, j, x[j]))
+            f = fmin(x[j], m->col_lower[j] - x[j]) / m->col_lower[j];
+        else
             continue;
-        const double f = fabs(x[j] - round(x[j]));
         if (f > worst) {
             worst = f;
             branch = j;
@@ -537,11 +559,12 @@ static int64_t select_branch(const jaos_model *m, const double *x,
     int64_t branch = -1;
     double best = -1.0, best_away = -1.0;
     for (int64_t j = 0; j < nc; j++) {
-        if (!m->col_integer[j])
-            continue;
-        const double f = x[j] - floor(x[j]);
-        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL)
-            continue;
+        double f = m->col_integer[j] ? x[j] - floor(x[j]) : 0.0;
+        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL) {
+            if (!semi_broken(m, j, x[j]))
+                continue;
+            f = x[j] / m->col_lower[j];
+        }
         const double qd = f * pseudocost(j, 0, nc, pc_sum, pc_n);
         const double qu = (1.0 - f) * pseudocost(j, 1, nc, pc_sum, pc_n);
         const double score = (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) *
@@ -1561,7 +1584,16 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
     const double tol = jm_primal_tolerance(m);
     for (int64_t j = 0; j < nc; j++) {
         double v = m->col_integer[j] ? round(x[j]) : x[j];
-        if (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol)
+        const bool semi = semi_live(m, j);
+        if (semi && v < m->col_lower[j] - tol) {
+            const double l = m->col_lower[j];
+            if (v <= 0.5 * l)
+                v = 0.0;
+            else
+                v = m->col_integer[j] ? ceil(l) : l;
+        }
+        if (!(semi && v == 0.0) &&
+            (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol))
             return false;
         xr[j] = v;
     }
@@ -1954,7 +1986,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     for (int64_t j = 0; j < nc; j++) {
         ilo[j] = m->col_integer[j] ? ceil(m->col_lower[j]) : m->col_lower[j];
         ihi[j] = m->col_integer[j] ? floor(m->col_upper[j]) : m->col_upper[j];
-        if (m->col_integer[j] && ilo[j] > ihi[j])
+        if (semi_live(m, j))
+            ilo[j] = 0.0;
+        else if (m->col_integer[j] && ilo[j] > ihi[j])
             outcome = JAOS_SOLVE_INFEASIBLE;
     }
     if (jm_logging_at(m, JAOS_LOG_SUMMARY)) {
@@ -2627,17 +2661,26 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             child_rs = crs;
         }
         const double v = x[branch];
+        const bool sc = semi_broken(m, branch, v) &&
+                        !(m->col_integer[branch] &&
+                          v - floor(v) > MIP_INT_TOL &&
+                          v - floor(v) < 1.0 - MIP_INT_TOL);
+        const double sc_lo = !sc ? 0.0
+                           : m->col_integer[branch] ? ceil(m->col_lower[branch])
+                                                    : m->col_lower[branch];
+        const double f = sc ? v / m->col_lower[branch] : v - floor(v);
 
         const bool child_no_cuts = stalled || (nodes > 1 && cur->no_cuts);
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
                                  lp->sol_col_status, child_rs, branch,
-                                 lp->col_lower[branch], floor(v), key,
-                                 next_id++, v - floor(v), false, act, act_n,
+                                 lp->col_lower[branch], sc ? 0.0 : floor(v),
+                                 key, next_id++, f, false, act, act_n,
                                  child_no_cuts);
         bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
-                               lp->sol_col_status, child_rs, branch, ceil(v),
-                               lp->col_upper[branch], key, next_id++,
-                               ceil(v) - v, true, act, act_n, child_no_cuts);
+                               lp->sol_col_status, child_rs, branch,
+                               sc ? sc_lo : ceil(v), lp->col_upper[branch],
+                               key, next_id++, 1.0 - f, true, act, act_n,
+                               child_no_cuts);
         if (down == nullptr || up == nullptr) {
             node_free(down);
             node_free(up);
@@ -2647,7 +2690,6 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         const bool dive_here = dive &&
             (degrade <= 0.0 || cur == nullptr ||
              branch_key - cur->key <= degrade * (1.0 + fabs(cur->key)));
-        const double f = v - floor(v);
         bnode *first = f < 0.5 ? down : up;
         if (dive_child == JAOS_DIVE_UP) {
             first = up;

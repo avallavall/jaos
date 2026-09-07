@@ -131,6 +131,12 @@ JAOS_NODISCARD jaos_status jaos_set_col_integer(jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_col_integer(const jaos_model *m, int64_t col,
                                             bool *is_integer);
 
+JAOS_NODISCARD jaos_status jaos_set_col_semicontinuous(jaos_model *m,
+                                                       int64_t col,
+                                                       bool is_semi);
+JAOS_NODISCARD jaos_status jaos_col_semicontinuous(const jaos_model *m,
+                                                   int64_t col, bool *is_semi);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_dive(jaos_model *m, bool on);

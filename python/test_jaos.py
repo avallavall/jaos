@@ -1259,6 +1259,26 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_a_semicontinuous_variable_rests_at_zero_or_above_its_floor(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=2, ub=10, name="x", semicontinuous=True)
+        y = p.add_var(ub=1, name="y")
+        p.add(x + y >= 1)
+        p.minimize(x + 5 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 2.0, places=9)
+        self.assertEqual((x.value, y.value), (2.0, 0.0))
+        p.minimize(10 * x + 5 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 5.0, places=9)
+        self.assertEqual((x.value, y.value), (0.0, 1.0))
+        m = p._m
+        self.assertTrue(m.col_semicontinuous(0))
+        self.assertFalse(m.col_semicontinuous(1))
+        self.assertFalse(m.col_integer(0))
+        m.set_col_semicontinuous(0, False)
+        self.assertFalse(m.col_semicontinuous(0))
+
     def test_the_algorithm_is_a_caller_option(self):
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=5, name="x")

@@ -375,6 +375,26 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
         for (int64_t j = 0; j < m->num_col; j++) {
             const double cl = m->col_lower[j], cu = m->col_upper[j];
             col_name(m, nm, j);
+            if (m->col_semi != nullptr && m->col_semi[j]) {
+                if (cu == INFINITY) {
+                    wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                            "column %s is semi-continuous with no upper "
+                            "bound, which the MPS SC bound cannot express",
+                            nm);
+                    break;
+                }
+                if (cl == -INFINITY)
+                    fprintf(w->f, " MI BND       %s\n", nm);
+                else if (cl != 0.0) {
+                    wr_num(num, cl);
+                    fprintf(w->f, " LO BND       %-9s %s\n", nm, num);
+                }
+                wr_num(num, cu);
+                fprintf(w->f, " %s BND       %-9s %s\n",
+                        m->col_integer != nullptr && m->col_integer[j]
+                            ? "SI" : "SC", nm, num);
+                continue;
+            }
             if (cl == 0.0 && cu == INFINITY)
                 continue;
             if (cl == -INFINITY && cu == INFINITY) {
@@ -579,6 +599,19 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                 fprintf(w->f, "General\n");
                 for (int64_t j = 0; j < m->num_col; j++)
                     if (m->col_integer[j]) {
+                        col_name(m, nm, j);
+                        fprintf(w->f, " %s\n", nm);
+                    }
+            }
+        }
+        if (m->col_semi != nullptr) {
+            bool any = false;
+            for (int64_t j = 0; j < m->num_col; j++)
+                any |= m->col_semi[j];
+            if (any) {
+                fprintf(w->f, "Semi-continuous\n");
+                for (int64_t j = 0; j < m->num_col; j++)
+                    if (m->col_semi[j]) {
                         col_name(m, nm, j);
                         fprintf(w->f, " %s\n", nm);
                     }
