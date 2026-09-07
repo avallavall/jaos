@@ -714,6 +714,42 @@ class TestIIS(unittest.TestCase):
         with self.assertRaises(ValueError):
             p.iis()
 
+    def test_the_subsystem_comes_back_as_a_model(self):
+        """D343: and the check that settles it is that the model is
+        infeasible. The control is one member dropped, which makes it
+        feasible."""
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=2,
+                   col_cost=[1.0], col_lower=[0.0], col_upper=[jaos.INFINITY],
+                   row_lower=[1.0, -jaos.INFINITY],
+                   row_upper=[jaos.INFINITY, 0.0],
+                   a_start=[0, 2], a_index=[0, 1], a_value=[1.0, 1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            found = m.iis()
+            with m.iis_model(found) as sub:
+                self.assertIs(sub.solve(), jaos.SolveStatus.INFEASIBLE)
+                self.assertEqual(sub.num_row, 2)
+                self.assertEqual(sub.num_col, 1)
+
+            sides = list(found.row_side)
+            sides[0] = jaos.IISSide.NONE
+            with m.iis_model((sides, found.col_side)) as loose:
+                self.assertIs(loose.solve(), jaos.SolveStatus.OPTIMAL)
+
+            with self.assertRaises(ValueError):
+                m.iis_model(([jaos.IISSide.NONE], found.col_side))
+
+    def test_the_layer_reaches_the_subsystem_too(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=0.0)
+        y = p.add_var()
+        p.add(x + y >= 1)
+        p.add(y <= 0)
+        p.minimize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        with p.iis_model() as sub:
+            self.assertIs(sub.solve(), jaos.SolveStatus.INFEASIBLE)
+
 
 class TestVerify(unittest.TestCase):
     """jaos_verify through the binding.
@@ -2192,6 +2228,20 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             p.write_point(path)
             self.assertEqual(p.read_point(path), [3.0])
+
+    def test_a_point_file_is_written_from_given_values(self):
+        """D344: a point that is not the answer -- a pool entry, say --
+        and no solve is needed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "given.txt")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                with self.assertRaises(jaos.JaosError):
+                    m.write_point(path)      # nothing solved
+                m.write_point_values(path, [1.5, -2.0, 0.0])
+                self.assertEqual(m.read_point(path), [1.5, -2.0, 0.0])
+                with self.assertRaises(ValueError):
+                    m.write_point_values(path, [1.0])
 
     def test_a_duals_file_is_the_same_shape_over_the_rows(self):
         with tempfile.TemporaryDirectory() as tmp:

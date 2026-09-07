@@ -1828,28 +1828,24 @@ jaos_status jaos_read_duals(jaos_model *m, const char *path, double *row_dual)
     return read_named_values(m, path, false, row_dual);
 }
 
-jaos_status jaos_write_point(jaos_model *m, const char *path)
+jaos_status jaos_write_point_values(jaos_model *m, const char *path,
+                                    const double *col_value)
 {
-    if (m == nullptr || path == nullptr)
+    if (m == nullptr || path == nullptr ||
+        (col_value == nullptr && m->num_col > 0))
         return JAOS_ERR_INVALID_INPUT;
 
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
 
+    /* Copied rather than written from, because the caller's array may be
+     * the model's own storage -- jaos_mip_pool_solution fills one -- and
+     * nothing here should depend on which. */
     double *x = jm_alloc_array(m->num_col, sizeof *x);
     if (x == nullptr)
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
-    if (w->st == JAOS_OK) {
-        /* The point rule is jaos_solution's and is not restated: an
-         * optimum has one and nothing else does. A mixed-integer
-         * incumbent that was never proved is not an answer this writes,
-         * for the reason jaos_solution refuses it. */
-        const jaos_status ps = jaos_solution(m, x, nullptr, nullptr, nullptr);
-        if (ps != JAOS_OK) {
-            free(x);
-            return ps;
-        }
-    }
+    else if (m->num_col > 0)
+        memcpy(x, col_value, (size_t)m->num_col * sizeof *x);
 
     /* Two columns of a name would read back as one, so the same refusal
      * every writer here makes. The rows take no part: this file has
@@ -1900,4 +1896,25 @@ jaos_status jaos_write_point(jaos_model *m, const char *path)
 
     free(x);
     return wr_close(w, path, prev, cloc);
+}
+
+jaos_status jaos_write_point(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    /* The point rule is jaos_solution's and is not restated: an optimum
+     * has one and nothing else does. A mixed-integer incumbent that was
+     * never proved is not an answer this writes, for the reason
+     * jaos_solution refuses it -- and jaos_write_point_values is the call
+     * for writing one that is not an answer. */
+    double *x = jm_alloc_array(m->num_col, sizeof *x);
+    if (x == nullptr) {
+        jm_set_err(m, "out of memory");
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    jaos_status st = jaos_solution(m, x, nullptr, nullptr, nullptr);
+    if (st == JAOS_OK)
+        st = jaos_write_point_values(m, path, x);
+    free(x);
+    return st;
 }

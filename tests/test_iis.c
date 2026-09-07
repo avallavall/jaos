@@ -431,6 +431,164 @@ static void test_the_answer_is_reproducible(void)
     jaos_model_free(m);
 }
 
+
+/* ------------------------------------ the subsystem as a model (D343) */
+
+/* The claim, and the only check that can settle it: the model that comes
+ * out is infeasible. Everything else here -- the zeroed costs, the
+ * relaxed sides, the dropped rows -- is machinery, and a mistake in any
+ * of it shows up as a model that reads OPTIMAL or UNBOUNDED. */
+static void test_the_subsystem_is_a_model_and_it_is_infeasible(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
+                        "build");
+#else
+    jaos_model *m = make_two_rows();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_iis_side rs[2], cs[1];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, rs, cs, &rep));
+
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    TEST_ASSERT_NOT_NULL(sub);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(sub));
+
+    /* Both rows are members here, so neither is dropped, and the column
+     * has no member side so its bounds come out free. */
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(sub));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_col(sub));
+    double lo, up;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(sub, 0, &lo, &up));
+    TEST_ASSERT_TRUE(lo == -INFINITY && up == INFINITY);
+    /* And the cost is zero, because a subsystem is a feasibility
+     * question: with the original cost this model could read UNBOUNDED
+     * instead once its bounds were relaxed. */
+    double c = 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(sub, 0, &c));
+    TEST_ASSERT_TRUE(c == 0.0);
+
+    /* The caller's model is untouched. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_TRUE(lo == 0.0 && up == INFINITY);
+
+    jaos_model_free(sub);
+    jaos_model_free(m);
+#endif
+}
+
+/* A row nothing points at goes, and its name goes with it: what is left
+ * carries the names it had, so a member is recognisable in the file. */
+static void test_the_subsystem_drops_what_is_not_a_member(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
+                        "build");
+#else
+    /* Three rows: x >= 1 and x <= 0 fight, and y <= 5 is a bystander.
+     * The bystander's row and its column both leave. */
+    const double cost[2] = {1.0, 1.0};
+    const double cl[2] = {-INFINITY, -INFINITY};
+    const double cu[2] = {INFINITY, INFINITY};
+    const double rl[3] = {1.0, -INFINITY, -INFINITY};
+    const double ru[3] = {INFINITY, 0.0, 5.0};
+    const int64_t as[3] = {0, 2, 3};
+    const int64_t ai[3] = {0, 1, 2};
+    const double av[3] = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     3, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "lo"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "hi"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 2, "spare"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    jaos_iis_side rs[3], cs[2];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, rs, cs, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_IIS_NONE, rs[2]);
+
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(sub));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_col(sub));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(sub, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("lo", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(sub, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("hi", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(sub, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("x", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(sub));
+
+    jaos_model_free(sub);
+    jaos_model_free(m);
+#endif
+}
+
+/* The control the two above need: a subsystem built from arrays that name
+ * one side too few is FEASIBLE, which is what makes "it is infeasible" a
+ * statement about the arrays rather than about the builder. */
+static void test_a_subsystem_missing_a_member_is_feasible(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    TEST_IGNORE_MESSAGE("positive test — skipped under the fault-injection "
+                        "build");
+#else
+    jaos_model *m = make_two_rows();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_iis_side rs[2], cs[1];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, rs, cs, &rep));
+
+    const jaos_iis_side kept = rs[0];
+    rs[0] = JAOS_IIS_NONE;
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(sub));
+    jaos_model_free(sub);
+    rs[0] = kept;
+    jaos_model_free(m);
+#endif
+}
+
+/* Bad arguments, and a side that is not one of the four. */
+static void test_the_subsystem_builder_rejects_bad_arguments(void)
+{
+    jaos_model *m = make_two_rows();
+    jaos_iis_side rs[2] = {JAOS_IIS_LOWER, JAOS_IIS_UPPER};
+    jaos_iis_side cs[1] = {JAOS_IIS_NONE};
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_iis_model(nullptr, rs, cs, &sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_iis_model(m, nullptr, cs, &sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_iis_model(m, rs, nullptr, &sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_iis_model(m, rs, cs, nullptr));
+    const jaos_iis_side junk[2] = {(jaos_iis_side)7, JAOS_IIS_UPPER};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_iis_model(m, junk, cs, &sub));
+
+    /* The control: the same call with the four real values is taken, and
+     * it needs no solve, since the arrays are the whole input. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    TEST_ASSERT_NOT_NULL(sub);
+    jaos_model_free(sub);
+    jaos_model_free(m);
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -443,5 +601,9 @@ int main(void)
     RUN_TEST(test_the_objective_does_not_reach_the_filter);
     RUN_TEST(test_a_budget_stop_is_reported);
     RUN_TEST(test_the_answer_is_reproducible);
+    RUN_TEST(test_the_subsystem_is_a_model_and_it_is_infeasible);
+    RUN_TEST(test_the_subsystem_drops_what_is_not_a_member);
+    RUN_TEST(test_a_subsystem_missing_a_member_is_feasible);
+    RUN_TEST(test_the_subsystem_builder_rejects_bad_arguments);
     return UNITY_END();
 }

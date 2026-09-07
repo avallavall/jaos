@@ -1511,6 +1511,16 @@ JAOS_NODISCARD jaos_status jaos_read_mps_basis(jaos_model *m,
  * else does. A path ending in `.gz` is compressed, like every other
  * writer here (D340). */
 JAOS_NODISCARD jaos_status jaos_write_point(jaos_model *m, const char *path);
+
+/* The same file from values the caller has (D344), which is what makes
+ * the format useful for a point that is not the answer: one of
+ * jaos_mip_pool_solution's, a mixed-integer incumbent a budget stop left,
+ * or a point from somewhere else entirely. `col_value` holds num_col
+ * values and is copied, not kept. The refusals are the same -- two
+ * columns of a name, and a value no file can carry -- and no solve is
+ * needed, because nothing here reads one. */
+JAOS_NODISCARD jaos_status jaos_write_point_values(jaos_model *m,
+    const char *path, const double *col_value);
 JAOS_NODISCARD jaos_status jaos_read_point(jaos_model *m, const char *path,
                                            double *col_value);
 JAOS_NODISCARD jaos_status jaos_read_duals(jaos_model *m, const char *path,
@@ -1853,6 +1863,35 @@ typedef struct jaos_iis_report {
 JAOS_NODISCARD jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
                                     jaos_iis_side *col_side,
                                     jaos_iis_report *out);
+
+/* The subsystem as a model of its own (D343). A list of sides says which
+ * constraints fight; a caller who wants to LOOK at them wants a model --
+ * something to write to a file, open in an editor, hand to another solver
+ * or solve again. `*out` receives a new model the caller frees with
+ * jaos_model_free.
+ *
+ * The two arrays are jaos_iis's own output and are read and not checked
+ * against the model's answer: what this builds is the subsystem those two
+ * arrays describe, whether or not jaos_iis produced them.
+ *
+ * What it builds, and each step is what "subsystem" means. Every cost is
+ * zeroed and the objective constant with it, because a subsystem is a
+ * feasibility question and an objective could only turn it into an
+ * unbounded one. A side that is not a member goes to the infinity that
+ * relaxes it. A row left with no member side is deleted, since a row
+ * relaxed on both ends constrains nothing, and so is a column left with
+ * no entries and no bound of its own.
+ *
+ * So the result is infeasible, and its own jaos_solve says so. Nothing
+ * here asserts that -- it is a property of the arrays that came in, and
+ * the thing to do with it is solve the model and see.
+ *
+ * Row and column names survive, so a member of the subsystem is
+ * recognisable in the file by the name it had in the original. Indices do
+ * not: what was row 40 may be row 2 here. */
+JAOS_NODISCARD jaos_status jaos_iis_model(const jaos_model *m,
+    const jaos_iis_side *row_side, const jaos_iis_side *col_side,
+    jaos_model **out);
 
 /* Which bounds a feasibility relaxation may move. */
 typedef enum jaos_relax_scope {

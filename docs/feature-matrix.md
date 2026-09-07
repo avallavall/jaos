@@ -185,13 +185,22 @@ including the row where the field is ahead.
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
+| The IIS written out as a model of its own | ● | ? | — | — | ? | ? | ? |
 | Feasibility relaxation of an infeasible model | ● | ? | ? | ? | ? | ? | ? |
 | **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | **Check a point another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
 **The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 (D331) and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
 
-**The last row is new on 2026-09-07 (D342) and is the tolerance-judged
+**The IIS-as-a-model row is new on 2026-09-07 (D343)** and its other
+columns are `?`, not `○`: HiGHS, SCIP and Gurobi all have an IIS, and
+whether each can write the subsystem out as a model rather than as a list
+was not re-read for this row. SoPlex and Clp have no IIS at all, which is
+what the `—` says. JAOS's is `jaos_iis_model` and `jaos iis --write OUT`,
+and all 29 reference infeasibilities have theirs written and solved again
+to INFEASIBLE (`bench/measurements/02-218/`).
+
+**The row after it is new on 2026-09-07 (D342) and is the tolerance-judged
 half of the one above it.** A point file is one `NAME VALUE` line per
 column and nothing else, so `jaos check FILE --point POINT` runs the
 independent checker on an answer this library did not compute; `--duals`

@@ -348,3 +348,111 @@ out:
     free(y);
     return rc;
 }
+
+/* --------------------------------------------------------------------- */
+/* The subsystem as a model of its own (D343)                             */
+/* --------------------------------------------------------------------- */
+
+/* An IIS printed as a list of sides says which constraints fight. A
+ * caller who wants to LOOK at them wants a model: something to open in an
+ * editor, hand to another solver, or solve again. This builds one, over
+ * the public API and nothing else, so what it does is what any caller
+ * could have done with the same two arrays.
+ *
+ * Four steps, and each is what "subsystem" means:
+ *   - every cost is zeroed, and the objective constant with it, because a
+ *     subsystem is a feasibility question and an objective could only
+ *     turn it into an unbounded one;
+ *   - a side that is not a member goes to the infinity that relaxes it;
+ *   - a row with no member side is deleted, since a relaxed row on both
+ *     ends constrains nothing;
+ *   - a column left with no entries and no finite bound is deleted too,
+ *     for the same reason. That one runs after the rows go, because a
+ *     column's entries are what the row deletion removes.
+ *
+ * What comes out is infeasible, and its own `jaos_solve` says so. That is
+ * the check worth running on it, and the test does. */
+jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
+                           const jaos_iis_side *col_side, jaos_model **out)
+{
+    if (m == nullptr || row_side == nullptr || col_side == nullptr ||
+        out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t i = 0; i < m->num_row; i++)
+        if ((unsigned)row_side[i] > (unsigned)JAOS_IIS_BOTH)
+            return JAOS_ERR_INVALID_INPUT;
+    for (int64_t j = 0; j < m->num_col; j++)
+        if ((unsigned)col_side[j] > (unsigned)JAOS_IIS_BOTH)
+            return JAOS_ERR_INVALID_INPUT;
+
+    jaos_model *c = nullptr;
+    jaos_status st = jaos_model_copy(m, &c);
+    if (st != JAOS_OK)
+        return st;
+
+    int64_t *drop = nullptr;
+    int64_t ndrop = 0;
+
+    /* A feasibility question and nothing else. */
+    st = jaos_set_objective_offset(c, 0.0);
+    for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)
+        st = jaos_set_col_cost(c, j, 0.0);
+
+    for (int64_t i = 0; st == JAOS_OK && i < m->num_row; i++) {
+        const double lo = (row_side[i] & JAOS_IIS_LOWER) ? m->row_lower[i]
+                                                         : -INFINITY;
+        const double up = (row_side[i] & JAOS_IIS_UPPER) ? m->row_upper[i]
+                                                         : INFINITY;
+        st = jaos_set_row_bounds(c, i, lo, up);
+    }
+    for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++) {
+        const double lo = (col_side[j] & JAOS_IIS_LOWER) ? m->col_lower[j]
+                                                         : -INFINITY;
+        const double up = (col_side[j] & JAOS_IIS_UPPER) ? m->col_upper[j]
+                                                         : INFINITY;
+        st = jaos_set_col_bounds(c, j, lo, up);
+    }
+
+    /* The rows that constrain nothing. Collected first and deleted in one
+     * call, because a deletion renumbers everything after it. */
+    if (st == JAOS_OK) {
+        drop = jm_alloc_array(m->num_row, sizeof *drop);
+        if (drop == nullptr)
+            st = JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (st == JAOS_OK) {
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (row_side[i] == JAOS_IIS_NONE)
+                drop[ndrop++] = i;
+        if (ndrop > 0)
+            st = jaos_delete_rows(c, ndrop, drop);
+        free(drop);
+        drop = nullptr;
+    }
+
+    /* Then the columns nothing is left to say about: no entry in any
+     * surviving row and no bound of their own. */
+    if (st == JAOS_OK) {
+        const int64_t ncol = c->num_col;
+        drop = jm_alloc_array(ncol, sizeof *drop);
+        if (drop == nullptr)
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        ndrop = 0;
+        for (int64_t j = 0; st == JAOS_OK && j < ncol; j++) {
+            int64_t nz = 0;
+            st = jaos_col_entries(c, j, &nz, nullptr, nullptr);
+            if (st == JAOS_OK && nz == 0 && col_side[j] == JAOS_IIS_NONE)
+                drop[ndrop++] = j;
+        }
+        if (st == JAOS_OK && ndrop > 0)
+            st = jaos_delete_cols(c, ndrop, drop);
+        free(drop);
+    }
+
+    if (st != JAOS_OK) {
+        jaos_model_free(c);
+        return st;
+    }
+    *out = c;
+    return JAOS_OK;
+}

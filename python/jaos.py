@@ -610,6 +610,7 @@ _sig("jaos_write_mps_basis", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_mps_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(ctypes.c_int))
 _sig("jaos_write_point", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_point_values", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_point", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
@@ -645,6 +646,8 @@ _sig("jaos_check_certificate", ctypes.c_int, _VP, _P(_D), _D,
      _P(_CertificateReport))
 _sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
+_sig("jaos_iis_model", ctypes.c_int, _VP, _P(ctypes.c_int),
+     _P(ctypes.c_int), _P(_VP))
 _sig("jaos_iis", ctypes.c_int, _VP, _P(ctypes.c_int), _P(ctypes.c_int),
      _P(_IISReport))
 _sig("jaos_feasrelax", ctypes.c_int, _VP, ctypes.c_int, _P(_D), _P(_D),
@@ -715,11 +718,17 @@ class Model:
     independent.
     """
 
-    def __init__(self):
-        handle = _VP()
-        rc = _lib.jaos_model_new(ctypes.byref(handle))
-        if rc != Status.OK:
-            raise JaosError(rc, "could not allocate a model")
+    def __init__(self, _handle=None):
+        # `_handle` adopts a model the library made -- iis_model()'s, for
+        # one. It is not part of the interface: a caller builds a Model
+        # and fills it, and only this module hands one over.
+        if _handle is not None:
+            handle = _handle
+        else:
+            handle = _VP()
+            rc = _lib.jaos_model_new(ctypes.byref(handle))
+            if rc != Status.OK:
+                raise JaosError(rc, "could not allocate a model")
         self._m = handle
         # ctypes does not keep a callback alive on the C side's behalf, and
         # a collected trampoline is a crash rather than an error. The two
@@ -889,6 +898,19 @@ class Model:
         `NAME VALUE` line per column and nothing else (D342). The
         availability rule is solution()'s."""
         self._check(_lib.jaos_write_point(self._handle(), _path(path)))
+
+    def write_point_values(self, path, col_value):
+        """The same file from values the caller has (D344): one of
+        mip_pool_solution()'s, an incumbent a budget stop left, or a point
+        from somewhere else. No solve is needed, because nothing here
+        reads one."""
+        nc = self.num_col
+        if len(col_value) != nc:
+            raise ValueError("a point needs %d values, and got %d"
+                             % (nc, len(col_value)))
+        x = (_D * max(nc, 1))(*[float(v) for v in col_value])
+        self._check(_lib.jaos_write_point_values(
+            self._handle(), _path(path), x))
 
     def read_point(self, path):
         """The list of column values in a point file, in index order.
@@ -1883,6 +1905,34 @@ class Model:
                    IISReport(*(getattr(rep, f)
                                for f, _ in _IISReport._fields_)))
 
+    def iis_model(self, iis):
+        """The subsystem `iis` describes, as a `Model` of its own (D343):
+        something to write to a file, open in an editor or solve again.
+
+        Every cost is zeroed, because a subsystem is a feasibility
+        question; a side that is not a member goes to the infinity that
+        relaxes it; and a row or column nothing is left to say about is
+        dropped. So the result is infeasible and its own solve() says so.
+        Names survive and indices do not.
+
+        `iis` is what iis() returned, or any pair of side lists of the
+        right lengths."""
+        nr, nc = self.num_row, self.num_col
+        rows = getattr(iis, "row_side", None)
+        cols = getattr(iis, "col_side", None)
+        if rows is None or cols is None:
+            rows, cols = iis
+        if len(rows) != nr or len(cols) != nc:
+            raise ValueError(
+                "an IIS needs %d row sides and %d column sides, and got "
+                "%d and %d" % (nr, nc, len(rows), len(cols)))
+        rs = (ctypes.c_int * max(nr, 1))(*[int(s) for s in rows])
+        cs = (ctypes.c_int * max(nc, 1))(*[int(s) for s in cols])
+        out = _VP()
+        self._check(_lib.jaos_iis_model(self._handle(), rs, cs,
+                                        ctypes.byref(out)))
+        return Model(_handle=out)
+
     def feasrelax(self, scope=RelaxScope.BOTH):
         """The smallest total change to the bounds that makes this model
         feasible: a `Relaxation` of one signed move per row, one per
@@ -2649,6 +2699,17 @@ class Problem:
                   if s != IISSide.NONE]
         return IIS(cons, bounds, found.report)
 
+    def iis_model(self):
+        """The subsystem as a `Model` of its own; see Model.iis_model.
+        This layer's iis() reports members only, so the IIS is taken
+        again from the model underneath rather than from what iis()
+        returned."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        found = self._m.iis()
+        return self._m.iis_model(found)
+
     def feasrelax(self, scope=RelaxScope.BOTH):
         """The smallest total change to the bounds that makes this problem
         feasible, in this layer's own terms: a list of (Constraint, move)
@@ -3111,6 +3172,13 @@ class Problem:
         """Writes the answer's point as a point file; see
         Model.write_point."""
         self._m.write_point(path)
+
+    def write_point_values(self, path, col_value):
+        """The same file from values the caller has, in the order the
+        variables were added; see Model.write_point_values."""
+        if self._pending():
+            self._build_and_load()
+        self._m.write_point_values(path, col_value)
 
     def read_point(self, path):
         """The column values in a point file, in the order the variables

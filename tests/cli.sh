@@ -68,6 +68,31 @@ expect_exit 0 "--version exits 0" "$JAOS" --version
 expect_exit 0 "--help exits 0" "$JAOS" --help
 printf '%s\n' "$out" | grep -q '^Usage:' \
     && pass "--help prints the usage" || flunk "--help printed no usage"
+full_help=$(printf '%s\n' "$out" | wc -l)
+
+# help COMMAND prints that command's own piece (D345): its synopsis lines,
+# its own text and the footer, and nothing about the other seven.
+for v in solve convert check iis relax verify stats ranging; do
+    expect_exit 0 "help $v exits 0" "$JAOS" help "$v"
+    printf '%s\n' "$out" | grep -q "^  jaos $v " \
+        && pass "and shows its own synopsis" \
+        || flunk "help $v has no '  jaos $v ' line"
+    [ "$(printf '%s\n' "$out" | wc -l)" -lt "$full_help" ] \
+        && pass "and is shorter than the whole text" \
+        || flunk "help $v printed everything"
+done
+# The control: solve's text is in the full help and not in another
+# command's, so the filtering is doing something.
+"$JAOS" help convert | grep -q '^solve reads FILE' \
+    && flunk "help convert printed solve's text" \
+    || pass "help convert leaves solve's text out"
+"$JAOS" --help | grep -q '^solve reads FILE' \
+    && pass "and the full help still has it" \
+    || flunk "the full help lost solve's text"
+expect_exit 5 "help of an unknown command is a usage error" \
+    "$JAOS" help frobnicate
+expect_exit 5 "help of two commands is a usage error" \
+    "$JAOS" help solve check
 
 # ------------------------------------------------------------------ usage
 expect_exit 5 "no arguments is a usage error" "$JAOS"
@@ -429,6 +454,30 @@ expect_exit 0 "a pool of two still solves it" \
     || flunk "pool: $(line_of objective) / $(line_of pool_points)"
 expect_exit 5 "--pool-size refuses zero" \
     "$JAOS" solve "$DATA/nl_int.lp" --pool-size 0
+# --pool-out writes one point file per pool entry (D344), and each of them
+# is a point the checker takes.
+rm -f "$tmp"/pl-*.pt
+expect_exit 0 "--pool-out writes the pool" \
+    "$JAOS" solve "$DATA/nl_int.lp" --pool-size 2 --pool-out "$tmp/pl"
+[ -n "$(line_of pool_files)" ] && pass "and says how many" \
+    || flunk "no pool_files line"
+[ "$(ls "$tmp"/pl-*.pt 2>/dev/null | wc -l)" \
+  -eq "$(line_of pool_files | cut -d' ' -f2)" ] \
+    && pass "and the count matches the files" \
+    || flunk "pool_files says $(line_of pool_files), files: $(ls "$tmp"/pl-*.pt 2>/dev/null | wc -l)"
+expect_exit 0 "and the best one checks out" \
+    "$JAOS" check "$DATA/nl_int.lp" --point "$tmp/pl-0.pt"
+[ "$(line_of primal_feasible)" = "primal_feasible yes" ] \
+    && pass "as a feasible point" \
+    || flunk "the pool point printed '$(line_of primal_feasible)'"
+# An LP has no integer point, so there is nothing to write and it says so
+# without changing the exit code.
+rm -f "$tmp"/lp-*.pt
+expect_exit 0 "--pool-out on an LP writes nothing" \
+    "$JAOS" solve "$DATA/solve1.mps" --pool-out "$tmp/lp"
+[ -z "$(ls "$tmp"/lp-*.pt 2>/dev/null)" ] && pass "and leaves no files" \
+    || flunk "an LP wrote pool files"
+[ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
 # A node limit (D291): nl_int.lp's root is fractional with the cuts off,
 # and the rounding finds the optimum there, so a limit of one node stops
 # as node_limit with exit 3 and an incumbent on the first node; zero is
@@ -828,6 +877,42 @@ fi
 
 expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
 expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
+
+# iis --write writes the subsystem as a model (D343), and the check that
+# settles it is to solve the file: a subsystem that reads anything but
+# infeasible is not one.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "iis --write writes the subsystem" \
+    "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.mps"
+[ -n "$(line_of subsystem_file)" ] && pass "and says where" \
+    || flunk "no subsystem_file line"
+expect_exit 1 "and the file it wrote is infeasible" \
+    "$JAOS" solve "$tmp/sub.mps"
+[ "$(line_of status)" = "status infeasible" ] \
+    && pass "which is what a subsystem has to be" \
+    || flunk "the subsystem solved '$(line_of status)'"
+# It is smaller than the model it came from, which is the other half of
+# the word. t1.mps has three rows and one is a bystander.
+expect_exit 0 "iis --write to LP works too" \
+    "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.lp"
+[ "$(line_of subsystem_rows)" = "subsystem_rows 2" ] \
+    && pass "and the subsystem has two of the three rows" \
+    || flunk "iis --write printed '$(line_of subsystem_rows)'"
+expect_exit 1 "and the LP it wrote is infeasible as well" \
+    "$JAOS" solve "$tmp/sub.lp"
+fi
+expect_exit 5 "iis --write to an unknown extension is a usage error" \
+    "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.txt"
+[ ! -e "$tmp/sub.txt" ] && pass "and writes nothing" \
+    || flunk "sub.txt was written"
+expect_exit 5 "iis --write needs a path" "$JAOS" iis "$DATA/t1.mps" --write
+expect_exit 5 "iis refuses an unknown option" \
+    "$JAOS" iis "$DATA/t1.mps" --bogus
+# A model that is not infeasible has no subsystem, so nothing is written.
+expect_exit 1 "iis --write on an optimal model exits 1" \
+    "$JAOS" iis "$DATA/solve1.mps" --write "$tmp/none.mps"
+[ ! -e "$tmp/none.mps" ] && pass "and leaves no file" \
+    || flunk "none.mps was written"
 
 # ------------------------------------------------------------------ relax
 expect_exit 0 "relax of an infeasible model exits 0" "$JAOS" relax "$DATA/t1.mps"

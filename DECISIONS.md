@@ -350,6 +350,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D340](#d340--a-gz-this-library-writes-is-one-anything-reads-139-of-139-against-the-system-gzip)** — A `.gz` this library writes is one anything reads: 139 of 139 against the system gzip
 - **[D341](#d341--a-library-nobody-can-install-is-a-library-nobody-outside-the-repository-can-use)** — A library nobody can install is a library nobody outside the repository can use
 - **[D342](#d342--the-point-file-the-checker-judges-another-solvers-answer-not-only-its-own)** — The point file: the checker judges another solver's answer, not only its own
+- **[D343](#d343--the-infeasible-subsystem-as-a-model-and-29-of-29-of-them-solve-infeasible)** — The infeasible subsystem as a model, and 29 of 29 of them solve infeasible
+- **[D344](#d344--a-point-file-from-values-the-caller-has-and-the-solution-pool-gets-written-out)** — A point file from values the caller has, and the solution pool gets written out
+- **[D345](#d345--the-usage-text-is-one-piece-per-command-and-jaos-help-command-prints-one)** — The usage text is one piece per command, and `jaos help COMMAND` prints one
 
 ---
 
@@ -23887,3 +23890,100 @@ read back reads `primal_feasible yes`, the same answer with every value
 moved by 5 reads `primal_feasible no` and exits 1, and a file two lines
 short is refused with the missing column named. Without the second and
 third the first proves nothing.
+
+## D343 — The infeasible subsystem as a model, and 29 of 29 of them solve infeasible
+
+**The question.** `jaos_iis` has named the members of an irreducible
+infeasible subsystem since D264, as one bound side per row and per column.
+A list of sides is something to read. Somebody who wants to LOOK at the
+constraints that fight wants a model: something to write to a file, open
+in an editor, hand to another solver, or solve again.
+
+**What landed.** `jaos_iis_model` builds one from the model and the two
+arrays `jaos_iis` produced, over the public API and nothing else, so what
+it does is what any caller could have done with the same two arrays.
+`jaos iis FILE --write OUT` writes it as MPS or LP (a `.gz` after either
+compresses it, D340), and `iis_model` is at both Python layers.
+
+**Four steps, and each is what "subsystem" means.** Every cost is zeroed
+and the objective constant with it, because a subsystem is a feasibility
+question and an objective could only turn it into an unbounded one. A side
+that is not a member goes to the infinity that relaxes it. A row left with
+no member side is deleted, since a row relaxed on both ends constrains
+nothing. And a column left with no entries and no bound of its own goes
+too -- after the rows, because a column's entries are what the row
+deletion removes.
+
+**Measured over the reference set** (`bench/measurements/02-218/`): every
+one of the **29 pinned infeasibilities** has its subsystem written out and
+solved again, and **all 29 read INFEASIBLE**. That is the one check that
+settles it -- a mistake in any of the four steps shows up here as a file
+that reads OPTIMAL or UNBOUNDED. And it is a subsystem: 1165 rows of
+24131 and 4090 columns of 40069 over the set, 4.8% and 10.2%.
+
+**The test carries its own control.** A subsystem built from the same
+arrays with one member dropped is FEASIBLE, and that is what makes "it is
+infeasible" a statement about the arrays rather than about the builder.
+
+**What it does not claim.** Irreducible is `jaos_iis`'s claim (D264) and
+not this one. This builds the subsystem those arrays describe; whether
+those arrays are irreducible is measured elsewhere.
+
+**Names survive and indices do not.** What was row 40 may be row 2 in the
+file, so a member is recognisable by the name it had and not by where it
+was. That is the only way to write a smaller model at all.
+
+## D344 — A point file from values the caller has, and the solution pool gets written out
+
+**The question.** D342's `jaos_write_point` writes the last solve's point,
+under `jaos_solution`'s rule: an optimum has one and nothing else does.
+That leaves out every point a caller actually has and cannot write -- a
+solution pool entry, a mixed-integer incumbent a budget stop left, a point
+from somewhere else entirely.
+
+**What landed.** `jaos_write_point_values(m, path, col_value)`, the same
+file from an array the caller passes, with the same refusals and no solve
+needed. `jaos_write_point` is a wrapper over it now. And `jaos solve
+--pool-out PREFIX` writes one file per solution pool entry, `PREFIX-0.pt`
+best first, so `--pool-size 10 --pool-out sol` leaves ten point files each
+of which `jaos check --point` judges.
+
+**The values are copied and not written from.** The caller's array may be
+the model's own storage -- `jaos_mip_pool_solution` fills one -- and
+nothing in the writer should depend on which it got.
+
+**An LP writes no pool files and says so on stderr, and the exit code
+stays the answer's.** There is no integer point, which is not a failure of
+the solve.
+
+## D345 — The usage text is one piece per command, and `jaos help COMMAND` prints one
+
+**Two problems with one answer.** The command-line tool's usage text is
+over two hundred lines, and a reader who typed `jaos convert` wants six of
+them. And ISO C only promises a 4095-byte string literal, which GCC
+enforces under `-Wpedantic -Werror`: the text had outgrown it three times
+in one day, each time repaired by splitting the string at whatever line
+happened to be near the limit.
+
+**What landed.** One piece per command -- `U_SOLVE_A` through `U_SOLVE_D`
+for the long one, `U_CONVERT`, `U_CHECK`, `U_IIS`, `U_RELAX`, `U_VERIFY`,
+`U_STATS`, `U_RANGING` -- with a synopsis and a footer around them, joined
+by `print_usage`, which is the only thing that knows the order. `jaos help
+COMMAND` prints that command's synopsis lines, its own piece and the
+footer. `jaos --help` prints everything, as before.
+
+**The synopsis is filtered rather than split.** `print_usage` walks the
+synopsis block and keeps the line that begins `  jaos <command> ` and the
+indented continuations under it. Splitting it into nine strings would have
+made the block impossible to read as a block, and reading it as a block is
+the point of having one.
+
+**The size problem is now structural rather than repaired.** A command's
+piece would have to reach 4095 bytes on its own, and no command's is
+within a factor of two of that. The three splits before this were repairs
+to a symptom.
+
+**The test asserts the filtering does something**, not only that the
+output is non-empty: `jaos help convert` must not contain solve's text and
+`jaos --help` must, which is the pair that fails if `print_usage` printed
+everything either way.

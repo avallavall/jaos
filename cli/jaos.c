@@ -10,7 +10,8 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--mip-start SOLUTION] [--cutoff V]
- *                   [--basis BAS] [--write-basis BAS] [--write-point PT]
+ *                   [--basis BAS] [--write-basis BAS]
+ *                   [--write-point PT] [--pool-out PRE]
  *                   [--proof PATH]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
@@ -34,7 +35,7 @@
  *   jaos check FILE --proof PROOF
  *   jaos check FILE --point POINT [--duals DUALS] [--tol T]
  *   jaos stats FILE
- *   jaos iis FILE
+ *   jaos iis FILE [--write OUT]
  *   jaos relax FILE [--rows | --cols] [--apply OUT]
  *   jaos verify FILE [--values] [--proof PATH] [--basis BAS]
  *   jaos ranging FILE
@@ -87,11 +88,18 @@ enum {
     EXIT_USAGE      = 5,
 };
 
-static const char USAGE[] =
+/* The usage text, one piece per command and the long one split by group
+ * (D345). Two reasons it is not one string. ISO C only promises a
+ * 4095-byte literal and GCC enforces it under `-Wpedantic -Werror`, which
+ * this text has outgrown three times; and `jaos help VERB` prints one
+ * command's piece, which a single string cannot do. The pieces are joined
+ * by `print_usage`, which is the only thing that knows the order. */
+static const char U_SYNOPSIS[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--mip-start SOLUTION] [--cutoff V]\n"
-    "                  [--basis BAS] [--write-basis BAS] [--write-point PT]\n"
+    "                  [--basis BAS] [--write-basis BAS]\n"
+    "                  [--write-point PT] [--pool-out PRE]\n"
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
@@ -116,13 +124,15 @@ static const char USAGE[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
     "  jaos stats FILE\n"
-    "  jaos iis FILE\n"
+    "  jaos iis FILE [--write OUT]\n"
     "  jaos relax FILE [--rows | --cols] [--apply OUT]\n"
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
-    "  jaos --help\n"
-    "\n"
+    "  jaos --help [COMMAND]\n"
+    "\n";
+
+static const char U_SOLVE_A[] =
     "solve reads FILE, solves it and prints one fact per line on stdout:\n"
     "  status, objective (only when the solve found one), iterations,\n"
     "  work_units and time. Every line but time is reproducible.\n"
@@ -139,6 +149,9 @@ static const char USAGE[] =
     "  --write-point PT write the optimum's point to PT, one `NAME VALUE`\n"
     "                   line per column and nothing else: the shape\n"
     "                   another program's checker takes\n"
+    "  --pool-out PRE   write one point file per solution pool entry,\n"
+    "                   PRE-0.pt best first. Use --pool-size K to keep\n"
+    "                   more than the incumbent\n"
     "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
     "                   file before it runs; refused, and the search goes\n"
     "                   on without it, when the point is not feasible\n"
@@ -161,15 +174,13 @@ static const char USAGE[] =
     "  --no-cut-drop    carry a node's cut to every node under it even once\n"
     "                   its slack is basic (by default it is dropped there)\n";
 
-/* The second piece, because ISO C only promises a 4095-byte literal. */
-static const char USAGE0B[] =
+static const char U_SOLVE_B[] =
     "  --cut-stall F    end the root's cut rounds once one moves the bound by\n"
     "                   less than F of (1 + |bound|) (F >= 0; 0 never)\n"
     "  --node-cut-stall F  no cut round under a node whose round moved its\n"
     "                   bound by less than F of (1 + |bound|) (F >= 0; 0 never)\n";
 
-/* The third piece, for the same reason. */
-static const char USAGE1A[] =
+static const char U_SOLVE_C[] =
     "  --root-cut-drop  let a root cut leave below a node where its slack is\n"
     "                   basic (the default); --no-root-cut-drop keeps every\n"
     "                   root cut\n"
@@ -178,8 +189,7 @@ static const char USAGE1A[] =
     "  --mir-rounds N   rounds of mixed-integer rounding cuts on the model's\n"
     "                   rows at the root of a MIP (default 6; 0 for none)\n";
 
-/* The third piece, for the same reason. */
-static const char USAGE1B[] =
+static const char U_SOLVE_D[] =
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
     "                   up, down or pseudocost\n"
@@ -242,12 +252,13 @@ static const char USAGE1B[] =
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
     "  by Ctrl-C, 4 numerical failure.\n";
-/* The third piece. */
-static const char USAGE2[] =
+static const char U_CONVERT[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
     "  .mps or .lp. A .gz after either compresses the file, which every\n"
     "  writer here takes and both readers already took. Exit 0 when\n"
-    "  written.\n"
+    "  written.\n";
+
+static const char U_CHECK[] =
     "check judges SOLUTION, a file `solve --solution` wrote, against FILE\n"
     "  with the independent checker and prints its report. --tol T is the\n"
     "  checker's tolerance (default 1e-7). Exit 0 when primal and dual\n"
@@ -259,11 +270,21 @@ static const char USAGE2[] =
     "                   must appear exactly once\n"
     "  --duals FILE     the row multipliers, same shape, for the dual\n"
     "                   half of the report; without it `checked_duals`\n"
-    "                   reads no and the verdict is the primal half\n"
+    "                   reads no and the verdict is the primal half\n";
+
+static const char U_IIS[] =
     "iis solves FILE and, when it is infeasible, prints one irreducible\n"
     "  infeasible subsystem: `row I lower|upper` and `col J lower|upper`\n"
     "  lines, then the counts. Exit 0 with an IIS, 1 when the model is not\n"
     "  infeasible.\n"
+    "  --write OUT      write the subsystem itself to OUT, .mps or .lp:\n"
+    "                   the member sides kept, every other side relaxed,\n"
+    "                   the rows and columns nothing is left to say about\n"
+    "                   dropped, and every cost zeroed, so the file is a\n"
+    "                   feasibility question and solves infeasible. The\n"
+    "                   names survive, the indices do not\n";
+
+static const char U_RELAX[] =
     "relax reads FILE and prints the smallest total change to the bounds\n"
     "  that makes it feasible: one `row NAME lower|upper V` or\n"
     "  `col NAME lower|upper V` line per bound that has to move, signed,\n"
@@ -277,11 +298,9 @@ static const char USAGE2[] =
     "                   describe, so it can be solved rather than\n"
     "                   read\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
-    "  (a lower bound above its upper) or the copy did not finish.\n"
-    "";
+    "  (a lower bound above its upper) or the copy did not finish.\n";
 
-/* The fifth piece, for the same reason. */
-static const char USAGE2B[] =
+static const char U_VERIFY[] =
     "verify solves FILE and runs the exact arithmetic its answer allows.\n"
     "  On an optimum it proves, or refuses to prove, the published basis:\n"
     "  exit 0 proved, 1 the basis does not certify the answer, 3 refused\n"
@@ -307,22 +326,91 @@ static const char USAGE2B[] =
     "                   solved, so the verdict is about the basis brought\n"
     "                   in -- another solver's, say -- and about nothing\n"
     "                   JAOS did. Same three verdicts, same exit codes,\n"
-    "                   and --values and --proof work off it\n"
+    "                   and --values and --proof work off it\n";
+
+static const char U_STATS[] =
     "stats reads FILE and prints what the model is, one `name value`\n"
     "  line each: the three sizes, the row and column kinds, the\n"
     "  integer and binary counts, the empty rows and columns, and the\n"
     "  smallest and largest magnitude in the matrix and in the\n"
-    "  objective. It solves nothing. Exit 0.\n"
+    "  objective. It solves nothing. Exit 0.\n";
+
+static const char U_RANGING[] =
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
     "  `cost J lo hi`, `rhs I lower_lo lower_hi upper_lo upper_hi`,\n"
-    "  `bound J lower_lo lower_hi upper_lo upper_hi`. Exit 0.\n"
+    "  `bound J lower_lo lower_hi upper_lo upper_hi`. Exit 0.\n";
+
+static const char U_FOOTER[] =
     "\n"
     "A file named .lp or .lp.gz is read as LP format, anything else as MPS.\n"
     "Both readers accept gzip-compressed input, and every path this tool\n"
     "writes to compresses when it ends in .gz. Indices count from 0; column\n"
     "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
     "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
+
+/* One command's own piece, or nullptr when the word is not a command.
+ * `solve` is four pieces and the rest are one, so the table carries four
+ * slots and fills what it needs. */
+typedef struct { const char *name; const char *part[4]; } u_entry;
+
+static const u_entry U_TABLE[] = {
+    {"solve",   {U_SOLVE_A, U_SOLVE_B, U_SOLVE_C, U_SOLVE_D}},
+    {"convert", {U_CONVERT, nullptr, nullptr, nullptr}},
+    {"check",   {U_CHECK,   nullptr, nullptr, nullptr}},
+    {"iis",     {U_IIS,     nullptr, nullptr, nullptr}},
+    {"relax",   {U_RELAX,   nullptr, nullptr, nullptr}},
+    {"verify",  {U_VERIFY,  nullptr, nullptr, nullptr}},
+    {"stats",   {U_STATS,   nullptr, nullptr, nullptr}},
+    {"ranging", {U_RANGING, nullptr, nullptr, nullptr}},
+};
+
+/* The whole usage text, or one command's (D345). A command's own help is
+ * the synopsis, that command's piece and the footer, which is what
+ * somebody who typed `jaos help solve` asked for; without a command it is
+ * every piece in the order the synopsis lists them. Returns false when
+ * `verb` is not a command, so the caller can say so. */
+static bool print_usage(FILE *out, const char *verb)
+{
+    if (verb == nullptr) {
+        fputs(U_SYNOPSIS, out);
+    } else {
+        /* One command's synopsis lines out of the block: the line that
+         * begins `  jaos <verb> ` and every indented continuation under
+         * it. Printing all forty would bury the six the reader asked
+         * for. */
+        char want[64];
+        snprintf(want, sizeof want, "  jaos %s", verb);
+        const size_t n = strlen(want);
+        fputs("Usage:\n", out);
+        bool keep = false;
+        for (const char *p = U_SYNOPSIS; *p != '\0';) {
+            const char *nl = strchr(p, '\n');
+            const size_t len = nl != nullptr ? (size_t)(nl - p) + 1
+                                             : strlen(p);
+            if (strncmp(p, "  jaos ", 7) == 0)
+                keep = strncmp(p, want, n) == 0 &&
+                       (p[n] == ' ' || p[n] == '\n');
+            if (keep)
+                fwrite(p, 1, len, out);
+            if (nl == nullptr)
+                break;
+            p = nl + 1;
+        }
+        fputs("\n", out);
+    }
+    bool found = verb == nullptr;
+    for (size_t k = 0; k < sizeof U_TABLE / sizeof U_TABLE[0]; k++) {
+        if (verb != nullptr && strcmp(verb, U_TABLE[k].name) != 0)
+            continue;
+        found = true;
+        for (int p = 0; p < 4 && U_TABLE[k].part[p] != nullptr; p++)
+            fputs(U_TABLE[k].part[p], out);
+    }
+    if (found)
+        fputs(U_FOOTER, out);
+    return found;
+}
 
 /* A usage error: the message, then the usage text, both on stderr. */
 [[gnu::format(printf, 1, 2)]]
@@ -334,12 +422,7 @@ static int usage_error(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fputs("\n\n", stderr);
-    fputs(USAGE, stderr);
-    fputs(USAGE0B, stderr);
-    fputs(USAGE1A, stderr);
-    fputs(USAGE1B, stderr);
-    fputs(USAGE2, stderr);
-    fputs(USAGE2B, stderr);
+    (void)print_usage(stderr, nullptr);
     return EXIT_USAGE;
 }
 
@@ -585,6 +668,7 @@ struct solve_options {
     const char *basis;       /* an MPS basis file to warm-start from */
     const char *write_basis; /* where to write the basis the solve left */
     const char *write_point; /* where to write the point, one name a line */
+    const char *pool_out;    /* prefix for one point file per pool entry */
     const char *mip_start;   /* a solution file whose point seeds the
                                 tree (D326)                          */
     bool has_cutoff;
@@ -758,6 +842,8 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->write_basis = v;
         } else if (strcmp(a, "--write-point") == 0) {
             o->write_point = v;
+        } else if (strcmp(a, "--pool-out") == 0) {
+            o->pool_out = v;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -1303,6 +1389,47 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the point file", o.write_point, m);
     }
 
+    /* The whole pool, one point file per entry (D344): `PREFIX-0.pt` is
+     * the best, `PREFIX-1.pt` the next, in the order jaos_mip_pool_count
+     * hands them out. It is the pool's own rule that decides how many
+     * there are, so a run with no pool asked for writes the one point the
+     * search proved and a plain LP writes none at all. */
+    if (o.pool_out != nullptr) {
+        int64_t npool = 0;
+        if (jaos_mip_pool_count(m, &npool) != JAOS_OK)
+            npool = 0;
+        const int64_t nc = jaos_num_col(m);
+        double *px = zeroed(nc, sizeof *px);
+        if (px == nullptr) {
+            fputs("jaos: out of memory\n", stderr);
+            rc = EXIT_USAGE;
+        } else if (npool == 0) {
+            fprintf(stderr, "jaos: no pool files written: the solve left no "
+                    "integer point\n");
+        } else {
+            char path[4096];
+            bool all = true;
+            for (int64_t k = 0; all && k < npool; k++) {
+                double obj = 0.0;
+                if (jaos_mip_pool_solution(m, k, px, &obj) != JAOS_OK) {
+                    rc = library_error("read the solution pool of", o.file, m);
+                    all = false;
+                } else if (snprintf(path, sizeof path, "%s-%" PRId64 ".pt",
+                                    o.pool_out, k) >= (int)sizeof path) {
+                    fprintf(stderr, "jaos: the pool prefix is too long\n");
+                    rc = EXIT_USAGE;
+                    all = false;
+                } else if (jaos_write_point_values(m, path, px) != JAOS_OK) {
+                    rc = library_error("write a pool file to", path, m);
+                    all = false;
+                }
+            }
+            if (all)
+                printf("pool_files %" PRId64 "\n", npool);
+        }
+        free(px);
+    }
+
     /* The exact proof (D325, D328). An optimum's proof is its coordinates
      * and needs a jaos_verify first; a certificate is a vector the solve
      * already published and needs none. A verify that refuses is not a
@@ -1695,9 +1822,36 @@ static void print_sides(const jaos_model *m, bool is_col,
  * subsystem. */
 static int cmd_iis(int argc, char **argv)
 {
-    if (argc != 3)
-        return usage_error("iis takes exactly one file");
-    const char *file = argv[2];
+    const char *file = nullptr, *write = nullptr;
+    for (int i = 2; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--write") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--write needs a path to write");
+            write = argv[++i];
+        } else if (a[0] == '-') {
+            return usage_error("unknown option '%s'", a);
+        } else if (file == nullptr) {
+            file = a;
+        } else {
+            return usage_error("iis takes one file, and got '%s' and '%s'",
+                               file, a);
+        }
+    }
+    if (file == nullptr)
+        return usage_error("iis needs a file");
+
+    /* The writer is chosen before the model is read, the rule `convert`
+     * follows: a typo in the output should fail before a solve is paid
+     * for, and an IIS costs one solve per candidate. */
+    jaos_status (*write_fn)(jaos_model *, const char *) = nullptr;
+    if (write != nullptr) {
+        write_fn = writer_for(write);
+        if (write_fn == nullptr)
+            return usage_error("--write writes .mps or .lp, either with a "
+                               ".gz after it, and '%s' is none of those",
+                               write);
+    }
 
     jaos_model *m = nullptr;
     int rc = load(file, &m);
@@ -1747,6 +1901,27 @@ static int cmd_iis(int argc, char **argv)
     print_int("work_units", rep.work_units);
     print_bool("from_certificate", rep.from_certificate);
     rc = EXIT_OPTIMAL;
+
+    /* The subsystem as a model (D343), for a caller who wants to open it
+     * rather than read a list of sides. It keeps the names, so a member
+     * is recognisable in the file by what it was called in the original. */
+    if (write != nullptr) {
+        jaos_model *sub = nullptr;
+        if (jaos_iis_model(m, rows, cols, &sub) != JAOS_OK) {
+            rc = library_error("build the subsystem of", file, m);
+            goto out;
+        }
+        const jaos_status ws = write_fn(sub, write);
+        if (ws != JAOS_OK) {
+            rc = library_error("write the subsystem to", write, sub);
+            jaos_model_free(sub);
+            goto out;
+        }
+        printf("subsystem_rows %" PRId64 "\n", jaos_num_row(sub));
+        printf("subsystem_columns %" PRId64 "\n", jaos_num_col(sub));
+        printf("subsystem_file %s\n", write);
+        jaos_model_free(sub);
+    }
 
 out:
     free(rows);
@@ -2249,12 +2424,15 @@ int main(int argc, char **argv)
     }
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||
         strcmp(cmd, "help") == 0) {
-        fputs(USAGE, stdout);
-        fputs(USAGE0B, stdout);
-        fputs(USAGE1A, stdout);
-        fputs(USAGE1B, stdout);
-        fputs(USAGE2, stdout);
-        fputs(USAGE2B, stdout);
+        /* `jaos help solve` prints solve's own piece and nothing else
+         * (D345). The whole text is over three hundred lines now, and
+         * most of it is about a command the reader is not using. */
+        const char *verb = argc > 2 ? argv[2] : nullptr;
+        if (argc > 3)
+            return usage_error("help takes one command, and got '%s' and "
+                               "'%s'", argv[2], argv[3]);
+        if (!print_usage(stdout, verb))
+            return usage_error("there is no '%s' command", verb);
         return EXIT_OPTIMAL;
     }
     if (strcmp(cmd, "solve") == 0)

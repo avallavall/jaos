@@ -2372,6 +2372,39 @@ static void test_the_point_writer_refuses_what_it_cannot_write(void)
     jaos_model_free(m);
 }
 
+/* Values the caller has, which is what makes the format usable for a
+ * point that is not the answer (D344): a pool entry, an incumbent a
+ * budget stop left, or a point from elsewhere. It needs no solve, and
+ * that is the half worth asserting. */
+static void test_a_point_file_is_written_from_given_values(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    const double x[3] = {1.5, -2.0, 0.0};
+    /* No solve has run and none is needed. */
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_point(m, TMP_PT));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_point_values(m, TMP_PT, x));
+
+    double back[3] = {9.0, 9.0, 9.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, TMP_PT, back));
+    for (int k = 0; k < 3; k++)
+        SAME_D(x[k], back[k]);
+
+    /* The same refusals: a value no file can carry, and bad arguments. */
+    const double bad[3] = {1.0, INFINITY, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_point_values(m, TMP_PT, bad));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no file can carry"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_point_values(nullptr, TMP_PT, x));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_point_values(m, nullptr, x));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_point_values(m, TMP_PT, nullptr));
+    remove(TMP_PT);
+    jaos_model_free(m);
+}
+
 /* A positional name works where the model named nothing, the way every
  * other reader here takes one (D284) -- and the writer prints it, so a
  * model with no names of its own still round-trips. */
@@ -2468,6 +2501,7 @@ int main(void)
     RUN_TEST(test_each_point_reader_guard_fires_on_its_own);
     RUN_TEST(test_the_dual_half_runs_only_with_a_duals_file);
     RUN_TEST(test_the_point_writer_refuses_what_it_cannot_write);
+    RUN_TEST(test_a_point_file_is_written_from_given_values);
     RUN_TEST(test_a_point_file_uses_positional_names);
     return UNITY_END();
 }

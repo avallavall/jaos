@@ -12,7 +12,8 @@ compiles it and runs its test, `tests/cli.sh`.
 
 ```
 jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
-                [--basis BAS] [--write-basis BAS] [--write-point PT]
+                [--basis BAS] [--write-basis BAS]
+                [--write-point PT] [--pool-out PRE]
                 [--work-limit N] [--time-limit SECONDS]
                 [--primal-tol T] [--dual-tol T]
                 [--mip-start SOLUTION] [--cutoff V]
@@ -37,12 +38,12 @@ jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos check FILE --point POINT [--duals DUALS] [--tol T]
 jaos stats FILE
-jaos iis FILE
+jaos iis FILE [--write OUT]
 jaos relax FILE [--rows | --cols] [--apply OUT]
 jaos verify FILE [--values] [--proof PATH] [--basis BAS]
 jaos ranging FILE
 jaos --version
-jaos --help
+jaos --help [COMMAND]
 ```
 
 **The branch-and-bound switches are the long half of that list, and every
@@ -129,6 +130,7 @@ prints the same facts as the same model solved silently.
 | `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file (D338): the format every solver in the field writes a basis in, so `BAS` may be another solver's. It is read and handed to the model before the solve, exactly as `--start` does with JAOS's own file. Not with `--start`: a solve begins in one place, and being handed two is a question the caller has to answer. A file whose names or count do not fit this model is refused with the library's message and exit 5. |
 | `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed (D340). |
 | `--write-point PT` | writes the optimum's point to `PT` as a point file: one `NAME VALUE` line per column and nothing else (D342). It is the shape another program's checker takes, and the shape `check --point` reads back. The rule is `--solution`'s: an optimum has a point and nothing else does, and a solve without one writes no file and says why on stderr. |
+| `--pool-out PRE` | writes one point file per solution pool entry (D344): `PRE-0.pt` is the best, `PRE-1.pt` the next, in the order the pool keeps them. `--pool-size K` is what makes the pool bigger than the incumbent. An LP has no integer point, so nothing is written and stderr says so without changing the exit code. Each file is one `check --point` reads back. |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
 | `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs (D326). It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
 | `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed (D326). It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
@@ -447,6 +449,40 @@ the tool prints its status line, says on stderr that there is nothing to
 find, and exits 1. Exit 5 on an error, including a re-solve that could not
 decide its side.
 
+### `iis FILE --write OUT`
+
+**`--write OUT` writes the subsystem itself as a model** (D343), `.mps` or
+`.lp` by the extension, with a `.gz` after either to compress it. A list of
+bound sides is something to read; the file is something to open, hand to
+another solver, or solve again.
+
+```
+$ jaos iis model.mps --write sub.mps
+row LIM2 upper
+row EQ1 lower
+col X1 lower
+col X2 lower
+members 4
+...
+subsystem_rows 2
+subsystem_columns 3
+subsystem_file sub.mps
+$ jaos solve sub.mps
+status infeasible
+```
+
+What the file is: the member sides kept at the values they had, every
+other side relaxed to its infinity, every row with no member side dropped,
+every column left with no entries and no bound of its own dropped, and
+every cost zeroed. So it is a feasibility question, and solving it reads
+`infeasible` -- which is the check worth running on it, and the one all 29
+reference infeasibilities pass (`bench/measurements/02-218/`).
+
+Names survive and indices do not: what was row 40 may be row 2 in the
+file, so a member is recognisable by the name it had. A model that is not
+infeasible has no subsystem, so nothing is written and the exit code is
+the answer's.
+
 ## `relax`
 
 `relax FILE` reads the model and answers a different question from `iis`:
@@ -698,6 +734,25 @@ one that does not is not (D340).
 
 A file that cannot be read is reported on stderr with the library's message,
 which names the offending line, and the tool exits 5.
+
+## `help`
+
+`jaos --help` prints the whole usage text and `jaos help COMMAND` prints
+one command's: its synopsis lines, its own description and the footer
+(D345). The whole text is over two hundred lines and most of it is about
+a command the reader is not using.
+
+```
+$ jaos help convert
+Usage:
+  jaos convert IN OUT
+
+convert reads IN and writes OUT in the format OUT's extension names,
+  .mps or .lp. ...
+```
+
+A word that is not a command is a usage error with exit 5, and so is more
+than one.
 
 ## Exit codes
 

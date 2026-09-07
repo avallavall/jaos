@@ -7,6 +7,42 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, seventeenth round: the subsystem is a model,
+the pool gets written out, and the help fits on a screen (D343, D344,
+D345).**
+
+`jaos_iis_model` and `jaos iis FILE --write OUT` turn a list of bound
+sides into a model. `jaos_write_point_values` writes a point file from
+values the caller has, and `jaos solve --pool-out PREFIX` writes one per
+solution pool entry. And `jaos help COMMAND` prints one command's piece of
+a usage text that is now one string per command.
+
+**Three things worth carrying forward.**
+
+**A written model raises one question and it has one answer: solve it.**
+All 29 reference infeasibilities have their subsystem written out and
+solved again, and all 29 read INFEASIBLE
+(`bench/measurements/02-218/`). A mistake in any of the four steps -- the
+zeroed costs, the relaxed sides, the dropped rows, the dropped columns --
+would show up there as a file that reads OPTIMAL or UNBOUNDED. The test's
+control is the same arrays with one member dropped, which is FEASIBLE, so
+"it is infeasible" is a statement about the arrays and not about the
+builder.
+
+**A convenience call that reads the answer needs a sibling that does
+not.** `jaos_write_point` writes the last solve's point under
+`jaos_solution`'s rule, which leaves out every point a caller actually
+has: a pool entry, an incumbent a budget stop left, a point from
+elsewhere. The sibling takes the values, and the wrapper is three lines.
+That shape is worth looking for elsewhere in the API.
+
+**Three repairs to a symptom in one day is the signal to fix the
+structure.** ISO C promises a 4095-byte string literal and the usage text
+hit it three times, each repaired by splitting the string wherever the
+limit fell. One string per command puts it out of reach -- no command's
+piece is within a factor of two -- and it is what `jaos help COMMAND`
+needed anyway.
+
 **2026-09-07, the day batch, sixteenth round: the library can be
 installed, and the checker judges another solver's point (D341, D342).**
 

@@ -11,6 +11,23 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **The infeasible subsystem as a model.** `jaos_iis_model` and `jaos iis
+  FILE --write OUT` build the subsystem the IIS names: member sides kept,
+  every other side relaxed, the rows and columns nothing is left to say
+  about dropped, every cost zeroed. All 29 reference infeasibilities have
+  theirs written and solved again, and all 29 read INFEASIBLE (D343,
+  `bench/measurements/02-218/`).
+
+- **A point file from values the caller has**, `jaos_write_point_values`,
+  so a pool entry or an incumbent can be written and not only a proved
+  optimum; `jaos solve --pool-out PREFIX` writes one per pool entry, best
+  first (D344).
+
+- **`jaos help COMMAND`.** The usage text is one piece per command now,
+  and a reader who typed `jaos convert` gets six lines instead of two
+  hundred and thirty. It also puts the 4095-byte string-literal limit out
+  of reach structurally, after three repairs to it in one day (D345).
+
 - **`make install`.** The header, both library forms, the tool and a
   pkg-config file go where a compiler finds them; `PREFIX`, `DESTDIR` and
   the four directory variables behave the way the convention says.
