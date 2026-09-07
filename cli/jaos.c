@@ -33,7 +33,7 @@
  *   jaos check FILE --proof PROOF
  *   jaos stats FILE
  *   jaos iis FILE
- *   jaos relax FILE [--rows | --cols]
+ *   jaos relax FILE [--rows | --cols] [--apply OUT]
  *   jaos verify FILE [--values] [--proof PATH]
  *   jaos ranging FILE
  *   jaos --version
@@ -113,7 +113,7 @@ static const char USAGE[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos stats FILE\n"
     "  jaos iis FILE\n"
-    "  jaos relax FILE [--rows | --cols]\n"
+    "  jaos relax FILE [--rows | --cols] [--apply OUT]\n"
     "  jaos verify FILE [--values] [--proof PATH]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
@@ -243,6 +243,10 @@ static const char USAGE2[] =
     "  runs on an elastic copy and the model itself is never solved.\n"
     "  --rows           only row bounds may move\n"
     "  --cols           only column bounds may move\n"
+    "  --apply OUT      write the model with every move applied to\n"
+    "                   OUT, .mps or .lp: the same file the moves\n"
+    "                   describe, so it can be solved rather than\n"
+    "                   read\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n"
     "verify solves FILE and runs the exact arithmetic its answer allows.\n"
@@ -1593,7 +1597,7 @@ out:
  * one answers 0. */
 static int cmd_relax(int argc, char **argv)
 {
-    const char *file = nullptr;
+    const char *file = nullptr, *apply = nullptr;
     jaos_relax_scope scope = JAOS_RELAX_BOTH;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
@@ -1601,6 +1605,10 @@ static int cmd_relax(int argc, char **argv)
             scope = JAOS_RELAX_ROWS;
         } else if (strcmp(a, "--cols") == 0) {
             scope = JAOS_RELAX_COLS;
+        } else if (strcmp(a, "--apply") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--apply needs a path to write");
+            apply = argv[++i];
         } else if (a[0] == '-' && a[1] != '\0') {
             return usage_error("unknown option '%s'", a);
         } else if (file != nullptr) {
@@ -1612,6 +1620,19 @@ static int cmd_relax(int argc, char **argv)
     }
     if (file == nullptr)
         return usage_error("relax needs a file");
+    /* The writer is chosen by the output's name and before the input is
+     * read, the rule `convert` follows: a typo in the output should fail
+     * before a solve is paid for. */
+    jaos_status (*write)(jaos_model *, const char *) = nullptr;
+    if (apply != nullptr) {
+        if (has_suffix(apply, ".mps"))
+            write = jaos_write_mps;
+        else if (has_suffix(apply, ".lp"))
+            write = jaos_write_lp;
+        else
+            return usage_error("--apply writes .mps or .lp, and '%s' is "
+                               "neither", apply);
+    }
 
     jaos_model *m = nullptr;
     double *rm = nullptr, *cm = nullptr;
@@ -1656,6 +1677,47 @@ static int cmd_relax(int argc, char **argv)
     print_num("largest", rep.largest);
     print_int("work_units", rep.work_units);
     rc = EXIT_OPTIMAL;
+
+    /* The moves, applied and written out, so the answer can be solved and
+     * not only read. Each move is added to the bound it names, which is
+     * the arithmetic the report's own contract states, and the model that
+     * comes out has a feasible point. The objective is the caller's own:
+     * a relaxation says what feasibility costs in bounds, and what the
+     * relaxed model then optimises to is a question for a solve. */
+    if (apply != nullptr) {
+        for (int64_t i = 0; i < nr && rc == EXIT_OPTIMAL; i++) {
+            if (rm[i] == 0.0)
+                continue;
+            double lo = 0.0, hi = 0.0;
+            if (jaos_row_bounds(m, i, &lo, &hi) != JAOS_OK) {
+                rc = library_error("read a row bound of", file, m);
+                break;
+            }
+            if (rm[i] < 0.0)
+                lo += rm[i];
+            else
+                hi += rm[i];
+            if (jaos_set_row_bounds(m, i, lo, hi) != JAOS_OK)
+                rc = library_error("move a row bound of", file, m);
+        }
+        for (int64_t j = 0; j < nc && rc == EXIT_OPTIMAL; j++) {
+            if (cm[j] == 0.0)
+                continue;
+            double lo = 0.0, hi = 0.0;
+            if (jaos_col_bounds(m, j, &lo, &hi) != JAOS_OK) {
+                rc = library_error("read a column bound of", file, m);
+                break;
+            }
+            if (cm[j] < 0.0)
+                lo += cm[j];
+            else
+                hi += cm[j];
+            if (jaos_set_col_bounds(m, j, lo, hi) != JAOS_OK)
+                rc = library_error("move a column bound of", file, m);
+        }
+        if (rc == EXIT_OPTIMAL && write(m, apply) != JAOS_OK)
+            rc = library_error("write", apply, m);
+    }
 
 out:
     free(rm);

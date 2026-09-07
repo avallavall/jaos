@@ -36,7 +36,7 @@ jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos stats FILE
 jaos iis FILE
-jaos relax FILE [--rows | --cols]
+jaos relax FILE [--rows | --cols] [--apply OUT]
 jaos verify FILE [--values] [--proof PATH]
 jaos ranging FILE
 jaos --version
@@ -429,6 +429,15 @@ number of bounds moved, which is a different and much harder problem.
 |---|---|
 | `--rows` | only row bounds may move |
 | `--cols` | only column bounds may move |
+| `--apply OUT` | write the model with every move applied, `.mps` or `.lp` |
+
+`--apply` makes the answer actionable: it adds each move to the bound it
+names and writes the model out, so the relaxation can be solved rather
+than read off. The writer is chosen by `OUT`'s extension and chosen before
+the input is read, so a typo fails before a solve is paid for. The
+objective is the caller's own — a relaxation says what feasibility costs
+in bounds, and what the relaxed model then optimises to is a question for
+a solve.
 
 Without either, both may move and they are weighed against each other at
 the same price per unit. Rows only is what to ask for when the column

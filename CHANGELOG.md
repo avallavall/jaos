@@ -55,6 +55,10 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   is `(1, 1)`, caught by a hand oracle and not by any campaign, since no gate
   set has an unbounded instance in it (D336).
 
+- **`jaos relax --apply OUT`** writes the model with every move applied,
+  `.mps` or `.lp`, so a relaxation can be solved instead of read off. The
+  writer is chosen before the input is read, the rule `convert` follows.
+
 ### Measured and refused
 
 - **The exact arithmetic's limb budget stays at 128.** D333 left four

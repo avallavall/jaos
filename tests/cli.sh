@@ -730,6 +730,19 @@ expect_exit 0 "relax --cols exits 0" "$JAOS" relax "$DATA/t1.mps" --cols
 [ "$(line_of rows_moved)" = "rows_moved 0" ] \
     && pass "and moves no row bound" \
     || flunk "relax --cols printed '$(line_of rows_moved)'"
+# --apply makes the answer actionable, and the oracle is the solver: the
+# written model must have a feasible point where the original had none.
+expect_exit 0 "relax --apply exits 0" \
+    "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.mps"
+expect_exit 0 "and the model it wrote solves" \
+    "$JAOS" solve "$tmp/relaxed.mps"
+[ "$(line_of status)" = "status optimal" ] \
+    && pass "to an optimum, where the original was infeasible" \
+    || flunk "the relaxed model solved '$(line_of status)'"
+expect_exit 5 "relax --apply to a name neither writer takes is a usage error" \
+    "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.txt"
+expect_exit 5 "relax --apply without a path is a usage error" \
+    "$JAOS" relax "$DATA/t1.mps" --apply
 expect_exit 5 "relax without a file is a usage error" "$JAOS" relax
 expect_exit 5 "relax of a missing file exits 5" "$JAOS" relax "$tmp/no-such.mps"
 expect_exit 5 "relax with an unknown option is a usage error" \
