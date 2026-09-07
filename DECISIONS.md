@@ -344,6 +344,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D334](#d334--a-mips-proved-incumbent-publishes-a-basis-of-the-model-and-not-of-the-model-plus-its-cuts-5-of-24-to-24-of-24)** — A MIP's proved incumbent publishes a basis of the model and not of the model plus its cuts: 5 of 24 to 24 of 24
 - **[D335](#d335--a-warm-start-that-reaches-no-answer-is-thrown-away-and-the-solve-restarts-cold)** — A warm start that reaches no answer is thrown away and the solve restarts cold
 - **[D336](#d336--the-unbounded-direction-exactly-too-and-it-is-not-one-entering-column)** — The unbounded direction exactly too, and it is not one entering column
+- **[D337](#d337--the-limb-budget-stays-at-128-256-buys-nothing-and-512-buys-two-certificates-for-five-times-the-time)** — The limb budget stays at 128: 256 buys nothing and 512 buys two certificates for five times the time
 
 ---
 
@@ -23565,3 +23566,55 @@ and 29 infeasible instances and no unbounded one, so there is nothing to
 measure this over. What stands behind it is the hand oracle above, the
 case the checker must reject built by changing one component, and the
 symmetry with D333, which does have a population.
+
+## D337 — The limb budget stays at 128: 256 buys nothing and 512 buys two certificates for five times the time
+
+**The question.** D333 left four of the 29 pinned infeasibilities
+unreached: `pang`, `qual`, `refinery` and `vol1` have a basis the exact
+derivation could use, and the a-priori bound refuses them at 11680 to
+16158 bits against a capacity of 4096. That capacity is
+`JM_EXACT_LIMBS`, 128 limbs of 32 bits. So: what does raising it buy?
+
+**Swept at 128, 256 and 512, each from `make clean`**
+(`bench/measurements/02-216/`), because `make` does not track a change in
+`EXTRA_CFLAGS` and a sweep without the clean measures one binary three
+times (D154). The canary is the peak resident size, which moves with the
+setting even where the counts do not.
+
+| `JM_EXACT_LIMBS` | derivations that fit | certificates that hold | wall | peak RSS |
+|---|---|---|---|---|
+| **128** | 12 of 29 | **25 of 29** | 9.80 s | 44 MB |
+| 256 | 12 of 29 | 25 of 29 | 9.78 s | 63 MB |
+| 512 | 17 of 29 | 27 of 29 | 48.41 s | 88 MB |
+
+**256 buys exactly nothing and costs 43% more memory.** Not one
+derivation moves. The four refusals need 365 limbs and more, so 8192 bits
+clears none of them, and every other instance already fitted. A setting
+that changes no verdict is a setting nobody should ship.
+
+**512 buys two and costs five times the time.** `qual` and `refinery`
+certify; `pang` and `vol1` still do not, so even 16384 bits does not
+close the four. The wall time goes 9.80 s to 48.41 s and the memory
+doubles, and the cost is not paid by the two that gained: it is paid by
+every instance whose bound now admits it to a cubic elimination it did
+not enter before, and by every `jm_rational` in the library, which is a
+fixed-size struct four times larger at 512.
+
+**Refused, and the reason is the shape of the trade rather than the
+mean.** The capacity is a ceiling on everything the exact machinery does
+-- `jaos_verify` on an optimum, `jaos_check_proof`, both derivations --
+and this sweep measured one of those on one set. Two certificates of 29,
+for five times the time on that set and an unmeasured cost on the 110
+optimum proofs, is not a trade this record can accept on the evidence it
+has.
+
+**What would reopen it**, in `bench/refusals.txt`: the same sweep run
+over the optimum proofs as well, so the cost is known where most of the
+exact work happens. 30 of the 110 gate bases prove at 128 (D274); if 512
+moves that number materially and the time stays inside the same factor,
+the trade changes and this decision expires.
+
+**A capacity that is a compile-time constant is what makes this a sweep
+and not a setting.** `jm_rational` holds its magnitude inline, so the
+budget is in the type and every array of them scales with it. A runtime
+capacity would be a different design and is not what was measured here.

@@ -55,6 +55,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   is `(1, 1)`, caught by a hand oracle and not by any campaign, since no gate
   set has an unbounded instance in it (D336).
 
+### Measured and refused
+
+- **The exact arithmetic's limb budget stays at 128.** D333 left four
+  infeasibilities unreached because the a-priori bound refuses them; swept
+  at 128, 256 and 512 from clean builds, **256 moves no verdict at all** and
+  512 closes two of the four for **5x the wall time** and twice the memory,
+  with the cost on the 110 optimum proofs unmeasured. Refused with that
+  reopen condition (D337, `bench/measurements/02-216/`).
+
 ### Fixed
 
 - **A mixed-integer solve publishes a basis of the model, not of the model

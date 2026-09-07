@@ -1,0 +1,22 @@
+=== JM_EXACT_LIMBS=128 ===
+exact derivation fits the budget: 12 of 29
+certify on what the writer emits: 25 of 29
+  wall 9.80 s, peak rss 44364 KiB
+  still refused: 17 of 29
+=== JM_EXACT_LIMBS=256 ===
+exact derivation fits the budget: 12 of 29
+certify on what the writer emits: 25 of 29
+  wall 9.78 s, peak rss 63300 KiB
+  still refused: 17 of 29
+=== JM_EXACT_LIMBS=512 ===
+exact derivation fits the budget: 17 of 29
+certify on what the writer emits: 27 of 29
+  wall 48.41 s, peak rss 88244 KiB
+  still refused: 12 of 29
+
+=== the four D333 could not reach ===
+pang      shipped=False shipped=False shipped=False
+qual      shipped=False shipped=False shipped=True
+refinery  shipped=False shipped=False shipped=True
+vol1      shipped=False shipped=False shipped=False
+(columns: 128, 256, 512)

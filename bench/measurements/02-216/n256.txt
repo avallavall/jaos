@@ -1,0 +1,37 @@
+bgdbg1     basis=False derived=False doubles=True  shipped=True  bound=0/0
+bgetam     basis=True  derived=True  doubles=False shipped=True  bound=1961/8192
+bgindy     basis=True  derived=True  doubles=False shipped=True  bound=838/8192
+bgprtr     basis=True  derived=True  doubles=False shipped=True  bound=76/8192
+box1       basis=True  derived=True  doubles=True  shipped=True  bound=12/8192
+ceria3d    basis=False derived=False doubles=True  shipped=True  bound=0/0
+chemcom    basis=True  derived=True  doubles=True  shipped=True  bound=211/8192
+cplex1     basis=True  derived=False doubles=True  shipped=True  bound=32460/8192
+cplex2     basis=True  derived=False doubles=True  shipped=True  bound=15189/8192
+ex72a      basis=True  derived=True  doubles=True  shipped=True  bound=75/8192
+ex73a      basis=True  derived=True  doubles=True  shipped=True  bound=62/8192
+forest6    basis=True  derived=True  doubles=False shipped=True  bound=1625/8192
+galenet    basis=False derived=False doubles=True  shipped=True  bound=0/0
+gosh       basis=True  derived=False doubles=True  shipped=True  bound=146899/8192
+gran       basis=False derived=False doubles=True  shipped=True  bound=0/0
+greenbea   basis=False derived=False doubles=True  shipped=True  bound=0/0
+itest2     basis=False derived=False doubles=True  shipped=True  bound=0/0
+itest6     basis=False derived=False doubles=True  shipped=True  bound=0/0
+klein1     basis=True  derived=True  doubles=False shipped=True  bound=657/8192
+klein2     basis=True  derived=True  doubles=False shipped=True  bound=735/8192
+klein3     basis=True  derived=True  doubles=False shipped=True  bound=1289/8192
+mondou2    basis=True  derived=True  doubles=True  shipped=True  bound=128/8192
+pang       basis=True  derived=False doubles=False shipped=False bound=11680/8192
+pilot4i    basis=False derived=False doubles=True  shipped=True  bound=0/0
+qual       basis=True  derived=False doubles=False shipped=False bound=14294/8192
+reactor    basis=False derived=False doubles=True  shipped=True  bound=0/0
+refinery   basis=True  derived=False doubles=False shipped=False bound=13664/8192
+vol1       basis=True  derived=False doubles=False shipped=False bound=16158/8192
+woodinfe   basis=False derived=False doubles=True  shipped=True  bound=0/0
+
+publish a basis                 : 19 of 29
+exact derivation fits the budget: 12 of 29
+certify on the published doubles: 18 of 29
+certify on what the writer emits: 25 of 29
+derivations that fit AND certify: 12 of 12
+closed by the exact ray         : bgetam, bgindy, bgprtr, forest6, klein1, klein2, klein3
+lost                            : none
