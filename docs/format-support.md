@@ -554,9 +554,23 @@ works where the model has none of its own.
 half stands on its own: the checker takes a NULL `row_dual` and says so on
 its `checked_duals` line.
 
-The format is deliberately poorer than the solution file's. Two lines of
-awk turn most solvers' output into one of these, and that is what it is
-for; a richer format would be a better record and a worse bridge.
+The format is deliberately poorer than the solution file's, and the reader
+also takes the shapes other solvers write, detected from the file itself:
+
+- **Gurobi `.sol`**: `# Objective value = ...` then `name value` lines. The
+  plain shape, comments included.
+- **MIPLIB `.sol`**: an `=obj= value` line, then `name value`. A column the
+  file omits is zero, which is that format's convention.
+- **SCIP `.sol`**: `solution status:` and `objective value:` lines, then
+  `name value (obj:c)`; an omitted column is zero.
+- **HiGHS `--solution_file`**: the `# Columns N` block under the primal
+  values gives the point, and the second `# Rows N` block, under the dual
+  values, gives the duals.
+- **CPLEX `.sol` (XML)**: `<variable name= value=>` records give the point
+  and `<constraint name= dual=>` records the duals.
+
+The strict every-column rule holds for every shape except the two whose
+convention is that an omitted column is zero.
 
 The writer's availability rule is `jaos_solution`'s and is not restated
 here: an optimum has a point and nothing else does. It refuses two columns

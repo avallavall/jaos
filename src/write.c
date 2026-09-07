@@ -1466,6 +1466,64 @@ done:
     return st;
 }
 
+enum pt_shape { PT_PLAIN, PT_MIPLIB, PT_SCIP, PT_HIGHS, PT_CPLEX };
+
+static bool starts_with(const char *s, const char *pre)
+{
+    while (*s == ' ' || *s == '\t')
+        s++;
+    return strncmp(s, pre, strlen(pre)) == 0;
+}
+
+static enum pt_shape sniff_shape(FILE *f)
+{
+    enum pt_shape shape = PT_PLAIN;
+    char *line = nullptr;
+    size_t lsz = 0;
+    bool first = true;
+    while (getline(&line, &lsz, f) >= 0) {
+        if (starts_with(line, "<?xml") || strstr(line, "<CPLEXSolution") != nullptr) {
+            shape = PT_CPLEX;
+            break;
+        }
+        if (starts_with(line, "# Columns")) {
+            shape = PT_HIGHS;
+            break;
+        }
+        char *t = line;
+        while (*t == ' ' || *t == '\t')
+            t++;
+        if (*t == '\0' || *t == '\n' || *t == '\r' || *t == '#')
+            continue;
+        if (first) {
+            if (starts_with(t, "=obj="))
+                shape = PT_MIPLIB;
+            else if (starts_with(t, "solution status:"))
+                shape = PT_SCIP;
+            first = false;
+        }
+    }
+    free(line);
+    rewind(f);
+    return shape;
+}
+
+static bool xml_attr(const char *line, const char *key, char *out, size_t cap)
+{
+    char pat[32];
+    snprintf(pat, sizeof pat, " %s=\"", key);
+    const char *at = strstr(line, pat);
+    if (at == nullptr)
+        return false;
+    at += strlen(pat);
+    const char *close = strchr(at, '"');
+    if (close == nullptr || (size_t)(close - at) >= cap)
+        return false;
+    memcpy(out, at, (size_t)(close - at));
+    out[close - at] = '\0';
+    return true;
+}
+
 static jaos_status read_named_values(jaos_model *m, const char *path,
                                      bool is_col, double *out)
 {
@@ -1484,63 +1542,116 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
     char *line = nullptr;
     size_t lsz = 0;
     int64_t lno = 0, seen = 0;
+    const enum pt_shape shape = sniff_shape(f);
+    const bool lenient = shape == PT_MIPLIB || shape == PT_SCIP;
+    int64_t block_left = -1, blocks = 0;
+    const char *want_block = is_col ? "# Columns" : "# Rows";
+    const int want_index = is_col ? 1 : 2;
     bool *got = jm_calloc_array(n, sizeof *got);
     if (got == nullptr) {
         jm_set_err(m, "out of memory");
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
+    if (lenient)
+        for (int64_t k = 0; k < n; k++)
+            out[k] = 0.0;
 
 #define PT_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
     while (getline(&line, &lsz, f) >= 0) {
         lno++;
-        char *hash = strchr(line, '#');
-        if (hash != nullptr)
-            *hash = '\0';
-
-        char *tok[4];
+        char name[NAME_LEN], numtxt[64];
+        const char *nm = nullptr, *val = nullptr;
+        char *tok[8];
         int nt = 0;
-        for (char *p = strtok(line, " \t\r\n");
-             p != nullptr && nt < 4; p = strtok(nullptr, " \t\r\n"))
-            tok[nt++] = p;
-        if (nt == 0)
-            continue;
-        if (nt != 2)
-            PT_FAIL("line %" PRId64 ": a record is a name and one number, "
-                    "and this line has %d field%s", lno, nt,
-                    nt == 1 ? "" : "s");
+
+        if (shape == PT_CPLEX) {
+            if (strstr(line, is_col ? "<variable " : "<constraint ") == nullptr)
+                continue;
+            if (!xml_attr(line, "name", name, sizeof name) ||
+                !xml_attr(line, is_col ? "value" : "dual", numtxt, sizeof numtxt))
+                PT_FAIL("line %" PRId64 ": a CPLEX %s record needs name and %s",
+                        lno, is_col ? "variable" : "constraint",
+                        is_col ? "value" : "dual");
+            nm = name;
+            val = numtxt;
+        } else if (shape == PT_HIGHS) {
+            if (starts_with(line, "#")) {
+                if (starts_with(line, want_block)) {
+                    blocks++;
+                    if (blocks == want_index) {
+                        const char *t = line;
+                        while (*t == ' ' || *t == '\t')
+                            t++;
+                        t += strlen(want_block);
+                        block_left = strtoll(t, nullptr, 10);
+                    }
+                }
+                continue;
+            }
+            if (block_left <= 0)
+                continue;
+            block_left--;
+            for (char *q = strtok(line, " \t\r\n");
+                 q != nullptr && nt < 8; q = strtok(nullptr, " \t\r\n"))
+                tok[nt++] = q;
+            if (nt < 2)
+                PT_FAIL("line %" PRId64 ": a HiGHS record is a name and a "
+                        "number", lno);
+            nm = tok[0];
+            val = tok[1];
+        } else {
+            if (shape == PT_MIPLIB && starts_with(line, "=obj="))
+                continue;
+            if (shape == PT_SCIP && (starts_with(line, "solution status:") ||
+                                     starts_with(line, "objective value:")))
+                continue;
+            char *hash = strchr(line, '#');
+            if (hash != nullptr)
+                *hash = '\0';
+            for (char *q = strtok(line, " \t\r\n");
+                 q != nullptr && nt < 8; q = strtok(nullptr, " \t\r\n"))
+                tok[nt++] = q;
+            if (nt == 0)
+                continue;
+            if (shape == PT_PLAIN ? nt != 2 : nt < 2)
+                PT_FAIL("line %" PRId64 ": a record is a name and one number, "
+                        "and this line has %d field%s", lno, nt,
+                        nt == 1 ? "" : "s");
+            nm = tok[0];
+            val = tok[1];
+        }
 
         int64_t k = 0;
-        const jaos_status fk = is_col ? jaos_col_index(m, tok[0], &k)
-                                      : jaos_row_index(m, tok[0], &k);
+        const jaos_status fk = is_col ? jaos_col_index(m, nm, &k)
+                                      : jaos_row_index(m, nm, &k);
         if (fk != JAOS_OK)
             PT_FAIL("line %" PRId64 ": no %s is named '%s'", lno,
-                    is_col ? "column" : "row", tok[0]);
+                    is_col ? "column" : "row", nm);
         if (got[k])
-            PT_FAIL("line %" PRId64 ": a second value for '%s'", lno, tok[0]);
+            PT_FAIL("line %" PRId64 ": a second value for '%s'", lno, nm);
 
         double v = 0.0;
-        if (!rd_num(tok[1], &v))
-            PT_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
-                    tok[1]);
+        if (!rd_num(val, &v))
+            PT_FAIL("line %" PRId64 ": '%s' is not a finite number", lno, val);
         out[k] = v;
         got[k] = true;
         seen++;
     }
 
-    if (seen != n)
+    if (seen != n && !lenient)
         for (int64_t k = 0; k < n; k++)
             if (!got[k]) {
-                char nm[NAME_LEN];
+                char nm2[NAME_LEN];
                 if (is_col)
-                    col_name(m, nm, k);
+                    col_name(m, nm2, k);
                 else
-                    row_name(m, nm, k);
+                    row_name(m, nm2, k);
                 PT_FAIL("the file names %" PRId64 " of the model's %" PRId64
                         " %ss; '%s' is the first it does not name",
-                        seen, n, is_col ? "column" : "row", nm);
+                        seen, n, is_col ? "column" : "row", nm2);
             }
 
     m->err[0] = '\0';

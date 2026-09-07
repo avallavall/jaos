@@ -2143,6 +2143,36 @@ static void test_a_semicontinuous_column_round_trips_through_both_formats(void)
     jaos_model_free(a);
 }
 
+static void test_other_solvers_solution_files_read_as_points(void)
+{
+    const char *files[4] = {"tests/data/sol_gurobi.sol", "tests/data/sol_miplib.sol",
+                            "tests/data/sol_highs.sol", "tests/data/sol_cplex.sol"};
+    for (int k = 0; k < 4; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g1.lp"));
+        double x[3] = {-9.0, -9.0, -9.0};
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_read_point(m, files[k], x),
+                                      files[k]);
+        TEST_ASSERT_TRUE_MESSAGE(x[0] == 0.0 && x[1] == -1.0 && x[2] == 8.0,
+                                 files[k]);
+        if (k >= 2) {
+            double y[3] = {-9.0, -9.0, -9.0};
+            TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+                                          jaos_read_duals(m, files[k], y),
+                                          files[k]);
+            TEST_ASSERT_TRUE_MESSAGE(y[0] == 0.0 && y[1] == 0.0 && y[2] == -1.0,
+                                     files[k]);
+        }
+        jaos_model_free(m);
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g1.lp"));
+    double x[3] = {-9.0, -9.0, -9.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_point(m, "tests/data/sol_scip.sol", x));
+    TEST_ASSERT_TRUE(x[0] == 0.0 && x[1] == -1.0 && x[2] == 8.0);
+    jaos_model_free(m);
+}
+
 static void test_an_indicator_row_round_trips_through_both_formats(void)
 {
     const double cost[] = {-1.0, 3.0};
@@ -2302,5 +2332,6 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_column_round_trips_through_both_formats);
     RUN_TEST(test_special_ordered_sets_round_trip_through_both_formats);
     RUN_TEST(test_an_indicator_row_round_trips_through_both_formats);
+    RUN_TEST(test_other_solvers_solution_files_read_as_points);
     return UNITY_END();
 }

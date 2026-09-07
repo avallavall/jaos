@@ -118,7 +118,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Write LP | **partial** | refuses a name LP cannot spell and a free row; `convert --positional` is the escape |
 | Own solution file, written and read | **done** | |
 | Point and duals files | **done** | the smallest exchange format; `check --point` |
-| Read other solvers' solution files | **missing** | |
+| Read other solvers' solution files | **done** | `jaos_read_point` and `jaos_read_duals` detect and read Gurobi, MIPLIB, SCIP, HiGHS and CPLEX XML solution files, so `jaos check --point` judges them |
 | Reject unsupported constructs with a line number | **done** | |
 | `diff` and `show` commands | **done** | |
 | Indicator constraints in MPS and LP | **done** | |
