@@ -7,6 +7,31 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, eighteenth round: the LP writer's 34 name
+refusals get an escape hatch, and the checker runs without a file (D346,
+D347).**
+
+`jaos convert IN OUT --positional` takes every name off the model first,
+so the file is written with `R1`, `C1` and `COST`. Over the 139 gate
+instances the LP writer goes from **104 conversions that read back and
+re-solve to 138** (`bench/measurements/02-219/`). And `jaos solve FILE
+--check` runs the independent checker on the answer in the same run.
+
+**Two things worth carrying forward.**
+
+**The one LP refusal left is not a name.** `greenbea` has a free row, and
+the dialect has no syntax for one: a constraint with no bound on either
+side is not a constraint. Dropping the names closes exactly 34, which is
+D284's split confirmed from the other side by a different script a week
+later. The 104 reproduced instance for instance too.
+
+**A refusal that is right can still want an escape hatch, and the hatch
+belongs to the caller.** The LP writer refuses an unspellable name rather
+than renaming, because renaming behind the caller's back writes a file
+that reads back as a different model. That stays. What changed is that
+the caller who has read the refusal can now type one flag, and the flag
+says in its name what it costs.
+
 **2026-09-07, the day batch, seventeenth round: the subsystem is a model,
 the pool gets written out, and the help fits on a screen (D343, D344,
 D345).**

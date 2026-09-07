@@ -561,6 +561,27 @@ grep -q '^basis ' "$tmp/b.sol" \
     && pass "the certificate file carries a basis section" \
     || flunk "no basis records in the certificate file"
 
+# solve --check runs the independent checker on the answer in the same
+# run (D347): the same report `check` prints, plus a check_ok line, and
+# the exit code stays the solve's.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "solve --check exits with the solve's code" \
+    "$JAOS" solve "$DATA/solve1.mps" --check
+[ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and says the answer checks out" \
+    || flunk "solve --check printed '$(line_of check_ok)'"
+[ -n "$(line_of primal_feasible)" ] && [ -n "$(line_of gap_certified)" ] \
+    && pass "and prints the checker's own report" \
+    || flunk "solve --check printed no report"
+# The exit code is the solve's and not the checker's, which is what keeps
+# `solve` one command.
+expect_exit 1 "--check on an infeasible model still exits 1" \
+    "$JAOS" solve "$DATA/t1.mps" --check
+[ -z "$(line_of check_ok)" ] && pass "and checks nothing, since there is no optimum" \
+    || flunk "solve --check judged a non-optimum"
+[ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+fi
+
 # --write-basis and --basis, the MPS basis file (D338). The pair is
 # checked the same way --start is: write the optimum's basis, start a
 # second run from it, and require no iteration. The file's own shape is
@@ -666,6 +687,26 @@ expect_exit 0 "--write-basis takes one too" \
 [ -s "$tmp/z.bas.gz" ] && pass "and that file is there" \
     || flunk "the .gz basis is missing"
 fi
+
+# --positional takes every name off first (D346), which is the escape
+# hatch for a name the LP dialect cannot spell. The control is that the
+# names really are gone and the model is not.
+expect_exit 0 "convert --positional exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/pos.lp" --positional
+grep -q 'C1' "$tmp/pos.lp" && pass "and the file uses positional names" \
+    || flunk "no C1 in the positional file"
+grep -q 'X1' "$tmp/pos.lp" && flunk "the positional file kept a real name" \
+    || pass "and none of the model's own"
+expect_exit 0 "the positional LP solves" "$JAOS" solve "$tmp/pos.lp"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "to the same objective, so only the names were lost" \
+    || flunk "positional objective '$(line_of objective)'"
+# Without it the same model keeps its names, which is what makes the
+# option do something.
+expect_exit 0 "convert without it keeps the names" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/named.lp"
+grep -q 'X1' "$tmp/named.lp" && pass "and X1 is in the file" \
+    || flunk "the plain conversion lost the names"
 
 expect_exit 5 "convert to an unknown extension is a usage error" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/out.txt"

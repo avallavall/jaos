@@ -29,8 +29,8 @@
  *                   [--no-heuristics] [--node-limit N] [--branching RULE]
  *                   [--reliability N] [--probe-cap M] [--probe-depth D]
  *                   [--no-cut-drop] [--pool-size K] [--log LEVEL]
- *                   [--quiet]
- *   jaos convert IN OUT
+ *                   [--check] [--quiet]
+ *   jaos convert IN OUT [--positional]
  *   jaos check FILE SOLUTION [--tol T]
  *   jaos check FILE --proof PROOF
  *   jaos check FILE --point POINT [--duals DUALS] [--tol T]
@@ -118,8 +118,8 @@ static const char U_SYNOPSIS[] =
     "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
-    "                  [--quiet]\n"
-    "  jaos convert IN OUT\n"
+    "                  [--check] [--quiet]\n"
+    "  jaos convert IN OUT [--positional]\n"
     "  jaos check FILE SOLUTION [--tol T]\n"
     "  jaos check FILE --proof PROOF\n"
     "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
@@ -234,7 +234,9 @@ static const char U_SOLVE_D[] =
     "                   proved them, or the certificate of an infeasible\n"
     "                   or unbounded answer, as exact rationals.\n"
     "                   `jaos check FILE --proof PATH` judges any of the\n"
-    "                   three from the model alone, with no tolerance\n"
+    "                   three from the model alone, with no tolerance\n";
+
+static const char U_SOLVE_E[] =
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -248,6 +250,10 @@ static const char U_SOLVE_D[] =
     "                   root; every depth by default)\n"
     "  --pool-size K    keep the K best integer points of a MIP (K >= 1;\n"
     "                   default 1) and print how many were found\n"
+    "  --check          run the independent checker on the answer and\n"
+    "                   print its report, then a `check_ok` line. Saves\n"
+    "                   the round trip through a solution file; the exit\n"
+    "                   code stays the solve's\n"
     "  --log LEVEL      solver log on stderr: off, summary, progress, detail\n"
     "  --quiet          print the status line only\n"
     "  Exit: 0 optimal, 1 infeasible, 2 unbounded, 3 stopped by a limit or\n"
@@ -256,7 +262,13 @@ static const char U_CONVERT[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
     "  .mps or .lp. A .gz after either compresses the file, which every\n"
     "  writer here takes and both readers already took. Exit 0 when\n"
-    "  written.\n";
+    "  written.\n"
+    "  --positional     take every name off first, so the file is written\n"
+    "                   with R1, C1 and COST. It is the escape hatch for\n"
+    "                   a name the LP dialect cannot spell -- one holding\n"
+    "                   a `-`, or starting with a digit -- which the LP\n"
+    "                   writer otherwise refuses by name. What is lost is\n"
+    "                   the names, and nothing else about the model\n";
 
 static const char U_CHECK[] =
     "check judges SOLUTION, a file `solve --solution` wrote, against FILE\n"
@@ -352,17 +364,17 @@ static const char U_FOOTER[] =
 /* One command's own piece, or nullptr when the word is not a command.
  * `solve` is four pieces and the rest are one, so the table carries four
  * slots and fills what it needs. */
-typedef struct { const char *name; const char *part[4]; } u_entry;
+typedef struct { const char *name; const char *part[5]; } u_entry;
 
 static const u_entry U_TABLE[] = {
-    {"solve",   {U_SOLVE_A, U_SOLVE_B, U_SOLVE_C, U_SOLVE_D}},
-    {"convert", {U_CONVERT, nullptr, nullptr, nullptr}},
-    {"check",   {U_CHECK,   nullptr, nullptr, nullptr}},
-    {"iis",     {U_IIS,     nullptr, nullptr, nullptr}},
-    {"relax",   {U_RELAX,   nullptr, nullptr, nullptr}},
-    {"verify",  {U_VERIFY,  nullptr, nullptr, nullptr}},
-    {"stats",   {U_STATS,   nullptr, nullptr, nullptr}},
-    {"ranging", {U_RANGING, nullptr, nullptr, nullptr}},
+    {"solve",   {U_SOLVE_A, U_SOLVE_B, U_SOLVE_C, U_SOLVE_D, U_SOLVE_E}},
+    {"convert", {U_CONVERT, nullptr}},
+    {"check",   {U_CHECK,   nullptr}},
+    {"iis",     {U_IIS,     nullptr}},
+    {"relax",   {U_RELAX,   nullptr}},
+    {"verify",  {U_VERIFY,  nullptr}},
+    {"stats",   {U_STATS,   nullptr}},
+    {"ranging", {U_RANGING, nullptr}},
 };
 
 /* The whole usage text, or one command's (D345). A command's own help is
@@ -404,7 +416,7 @@ static bool print_usage(FILE *out, const char *verb)
         if (verb != nullptr && strcmp(verb, U_TABLE[k].name) != 0)
             continue;
         found = true;
-        for (int p = 0; p < 4 && U_TABLE[k].part[p] != nullptr; p++)
+        for (int p = 0; p < 5 && U_TABLE[k].part[p] != nullptr; p++)
             fputs(U_TABLE[k].part[p], out);
     }
     if (found)
@@ -566,6 +578,32 @@ static void print_bool(const char *key, bool v)
     printf("%s %s\n", key, yesno(v));
 }
 
+/* The checker's report, in the struct's own field names and its own
+ * order, so it reads against jaos.h without a translation table. Shared
+ * by `check` and by `solve --check` (D347), because two copies of
+ * eighteen field names drift. */
+static void print_check_report(const jaos_check_report *rep)
+{
+    print_num("max_col_violation", rep->max_col_violation);
+    print_num("max_row_violation", rep->max_row_violation);
+    print_num("max_row_violation_relative", rep->max_row_violation_relative);
+    print_num("max_dual_violation", rep->max_dual_violation);
+    print_num("primal_objective", rep->primal_objective);
+    print_num("dual_objective", rep->dual_objective);
+    print_num("objective_gap", rep->objective_gap);
+    print_num("gap_positive", rep->gap_positive);
+    print_num("gap_negative", rep->gap_negative);
+    print_num("max_dropped_multiplier", rep->max_dropped_multiplier);
+    print_int("dropped_terms", rep->dropped_terms);
+    print_num("certified_suboptimality", rep->certified_suboptimality);
+    print_int("unquantified_rays", rep->unquantified_rays);
+    print_num("relative_suboptimality", rep->relative_suboptimality);
+    print_bool("primal_feasible", rep->primal_feasible);
+    print_bool("dual_feasible", rep->dual_feasible);
+    print_bool("checked_duals", rep->checked_duals);
+    print_bool("gap_certified", rep->gap_certified);
+}
+
 /* calloc that never returns NULL for a zero count: an empty model has zero
  * columns, and the calls below take a real pointer for zero values. */
 static void *zeroed(int64_t count, size_t size)
@@ -669,6 +707,7 @@ struct solve_options {
     const char *write_basis; /* where to write the basis the solve left */
     const char *write_point; /* where to write the point, one name a line */
     const char *pool_out;    /* prefix for one point file per pool entry */
+    bool check;              /* run the independent checker on the answer */
     const char *mip_start;   /* a solution file whose point seeds the
                                 tree (D326)                          */
     bool has_cutoff;
@@ -766,6 +805,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--quiet") == 0) {
             o->quiet = true;
+            continue;
+        }
+        if (strcmp(a, "--check") == 0) {
+            o->check = true;
             continue;
         }
         if (strcmp(a, "--dive") == 0) {
@@ -1389,6 +1432,40 @@ static int cmd_solve(int argc, char **argv)
             rc = library_error("write the point file", o.write_point, m);
     }
 
+    /* The independent checker on the solve's own answer, in the same run
+     * (D347). It is the same report `jaos check FILE SOLUTION` prints and
+     * it saves the round trip through a file, which is the only thing
+     * that stood between a caller and checking every answer. The verdict
+     * goes on its own line rather than into the exit code, because the
+     * exit code is the solve's and a checker that could change it would
+     * make `solve` two commands. */
+    if (o.check) {
+        if (ss != JAOS_SOLVE_OPTIMAL) {
+            fprintf(stderr, "jaos: nothing to check: the solve ended %s, "
+                    "and the checker judges an optimum\n",
+                    jaos_solve_status_str(ss));
+        } else {
+            const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+            double *cx = zeroed(nc, sizeof *cx);
+            double *cy = zeroed(nr, sizeof *cy);
+            jaos_check_report crep;
+            memset(&crep, 0, sizeof crep);
+            if (cx == nullptr || cy == nullptr) {
+                fputs("jaos: out of memory\n", stderr);
+                rc = EXIT_USAGE;
+            } else if (jaos_solution(m, cx, nullptr, cy, nullptr) != JAOS_OK ||
+                       jaos_check_solution(m, cx, cy, 1e-7, &crep) != JAOS_OK) {
+                rc = library_error("check the answer of", o.file, m);
+            } else {
+                print_check_report(&crep);
+                print_bool("check_ok", crep.primal_feasible &&
+                                       crep.dual_feasible);
+            }
+            free(cx);
+            free(cy);
+        }
+    }
+
     /* The whole pool, one point file per entry (D344): `PREFIX-0.pt` is
      * the best, `PREFIX-1.pt` the next, in the order jaos_mip_pool_count
      * hands them out. It is the pool's own rule that decides how many
@@ -1469,11 +1546,41 @@ out:
 /* convert                                                                   */
 /* ------------------------------------------------------------------------- */
 
+/* Takes every name off the model, so every row and column is called by
+ * its position and the writers print `R<i+1>`, `C<j+1>` and `COST`
+ * (D346). No new library call is needed: a setter given NULL takes the
+ * name away, and that is the whole of it. */
+static jaos_status drop_names(jaos_model *m)
+{
+    jaos_status st = jaos_set_objective_name(m, nullptr);
+    for (int64_t i = 0; st == JAOS_OK && i < jaos_num_row(m); i++)
+        st = jaos_set_row_name(m, i, nullptr);
+    for (int64_t j = 0; st == JAOS_OK && j < jaos_num_col(m); j++)
+        st = jaos_set_col_name(m, j, nullptr);
+    return st;
+}
+
 static int cmd_convert(int argc, char **argv)
 {
-    if (argc != 4)
+    const char *in = nullptr, *out = nullptr;
+    bool positional = false;
+    for (int i = 2; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--positional") == 0) {
+            positional = true;
+        } else if (a[0] == '-') {
+            return usage_error("unknown option '%s'", a);
+        } else if (in == nullptr) {
+            in = a;
+        } else if (out == nullptr) {
+            out = a;
+        } else {
+            return usage_error("convert takes IN and OUT, and got a third "
+                               "name '%s'", a);
+        }
+    }
+    if (in == nullptr || out == nullptr)
         return usage_error("convert takes exactly IN and OUT");
-    const char *in = argv[2], *out = argv[3];
 
     /* The writer is chosen by OUT's name, and it is chosen before the read:
      * a typo in the output name should fail before the input is loaded. */
@@ -1491,6 +1598,8 @@ static int cmd_convert(int argc, char **argv)
     int rc = EXIT_OPTIMAL;
     if (read_model(m, in) != JAOS_OK)
         rc = library_error("read", in, m);
+    else if (positional && drop_names(m) != JAOS_OK)
+        rc = library_error("rename the rows and columns of", in, m);
     else if (write(m, out) != JAOS_OK)
         /* A refused write names the row or column the format cannot
          * express, and leaves no file behind (jaos.h, jaos_write_mps). */
@@ -1751,26 +1860,7 @@ judge:
         goto out;
     }
 
-    /* The struct's own field names, in its own order, so the report reads
-     * against jaos.h without a translation table. */
-    print_num("max_col_violation", rep.max_col_violation);
-    print_num("max_row_violation", rep.max_row_violation);
-    print_num("max_row_violation_relative", rep.max_row_violation_relative);
-    print_num("max_dual_violation", rep.max_dual_violation);
-    print_num("primal_objective", rep.primal_objective);
-    print_num("dual_objective", rep.dual_objective);
-    print_num("objective_gap", rep.objective_gap);
-    print_num("gap_positive", rep.gap_positive);
-    print_num("gap_negative", rep.gap_negative);
-    print_num("max_dropped_multiplier", rep.max_dropped_multiplier);
-    print_int("dropped_terms", rep.dropped_terms);
-    print_num("certified_suboptimality", rep.certified_suboptimality);
-    print_int("unquantified_rays", rep.unquantified_rays);
-    print_num("relative_suboptimality", rep.relative_suboptimality);
-    print_bool("primal_feasible", rep.primal_feasible);
-    print_bool("dual_feasible", rep.dual_feasible);
-    print_bool("checked_duals", rep.checked_duals);
-    print_bool("gap_certified", rep.gap_certified);
+    print_check_report(&rep);
     /* The verdict is over what was judged. Where no duals came in, the
      * dual half did not run and `dual_feasible` is false because nothing
      * set it, so folding it into the exit code would report a feasible

@@ -353,6 +353,8 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D343](#d343--the-infeasible-subsystem-as-a-model-and-29-of-29-of-them-solve-infeasible)** — The infeasible subsystem as a model, and 29 of 29 of them solve infeasible
 - **[D344](#d344--a-point-file-from-values-the-caller-has-and-the-solution-pool-gets-written-out)** — A point file from values the caller has, and the solution pool gets written out
 - **[D345](#d345--the-usage-text-is-one-piece-per-command-and-jaos-help-command-prints-one)** — The usage text is one piece per command, and `jaos help COMMAND` prints one
+- **[D346](#d346--convert---positional-the-lp-dialects-34-name-refusals-become-0-and-the-one-that-is-left-is-not-a-name)** — `convert --positional`: the LP dialect's 34 name refusals become 0, and the one that is left is not a name
+- **[D347](#d347--solve---check-the-checker-runs-on-the-answer-in-the-same-process)** — `solve --check`: the checker runs on the answer in the same process
 
 ---
 
@@ -23987,3 +23989,65 @@ to a symptom.
 output is non-empty: `jaos help convert` must not contain solve's text and
 `jaos --help` must, which is the pair that fails if `print_usage` printed
 everything either way.
+
+## D346 — `convert --positional`: the LP dialect's 34 name refusals become 0, and the one that is left is not a name
+
+**The question.** `jaos_write_lp` refuses a name the LP dialect cannot
+spell -- one starting with a digit, or holding `*`, `+` or `-` -- by name,
+pointing at `jaos_write_mps`. That is the right refusal: renaming behind
+the caller's back would write a file that reads back as a different model,
+and the round trip is this library's one contract about files. It also
+means **35 of the 139 gate instances cannot be converted to LP at all**,
+and 34 of those are a name and nothing else (D284).
+
+**What landed.** `jaos convert IN OUT --positional` takes every name off
+the model before writing, so the writers print `R<i+1>`, `C<j+1>` and
+`COST`. No new library call: a name setter given NULL takes the name away,
+and the CLI loops. The round trip stays exact -- positional names are what
+both readers assign to an unnamed row or column (D284) -- and what is lost
+is the names, which is what the caller asked for.
+
+**Measured over the 139 gate instances**
+(`bench/measurements/02-219/`). A conversion counts only when the LP file
+reads back and solves to the same status and objective line, because a
+file that is written and not read is not a conversion.
+
+| | written and re-solved | refused | differing |
+|---|---|---|---|
+| with the model's own names | 103 | 35 | 0 |
+| `--positional` | **137** | **1** | 0 |
+
+**The one that is left is `greenbea`, and it is not a name.** It has a free
+row, which the LP dialect has no syntax for at all: a constraint with no
+bound on either side is not a constraint. No renaming reaches it, and
+`jaos_write_mps` is still the answer for it. That is exactly the split
+D284 measured -- 34 names and 1 free row -- confirmed from the other side.
+
+**Why a flag and not a fallback.** A writer that renamed on its own when a
+name was unspellable would produce a file the caller did not ask for, and
+they would find out by reading it. The refusal names the row; this flag is
+what the caller types once they have read it.
+
+## D347 — `solve --check`: the checker runs on the answer in the same process
+
+**The question.** JAOS ships an independent checker and that is the
+project's distinguishing feature. Reaching it from the command line took
+two commands and a file: `jaos solve FILE --solution OUT` then `jaos check
+FILE OUT`. A file round trip is what stood between a caller and checking
+every answer.
+
+**What landed.** `jaos solve FILE --check` runs `jaos_check_solution` on
+the answer and prints the same eighteen-field report, then a `check_ok`
+line. The printing is shared with `jaos check` -- two copies of eighteen
+field names drift.
+
+**The exit code stays the solve's.** A checker that could change it would
+make `solve` two commands with one name, and a script that branches on
+`solve`'s exit code would start branching on something else. The verdict
+goes on its own line, which is where a script that wants it looks.
+
+**It judges an optimum and says so otherwise.** The checker's report is
+about a point and a set of duals, and a solve that ended INFEASIBLE,
+UNBOUNDED or on a budget has none; that case is said on stderr and changes
+nothing. `jaos check FILE SOLUTION` already judges an infeasibility
+certificate, which is a different object with a different checker.

@@ -349,6 +349,15 @@ and hold `*` and `-` -- and the writer refuses them by name rather than
 rename them, pointing at MPS. It was 138 and 1 while the writer printed
 positional names (D276, `02-181/`), which no scanner refuses.
 
+**Since D346 the caller can ask for that.** `jaos convert IN OUT
+--positional` takes every name off the model first, and the same 139 read
+**138 written and re-solved with 1 refused** (`bench/measurements/02-219/`)
+-- the same 138 and 1, now a flag instead of a limitation. The one left is
+`greenbea`'s free row, which no renaming reaches. The row stays ◐ because
+the default still refuses those 34 by name, which is the right default: a
+writer that renamed on its own would produce a file the caller did not ask
+for.
+
 Write MPS reads ● and still has three refusals, which is not a contradiction:
 two of them are shapes the format itself has no syntax for, and the third is a
 ranged row whose two bounds no RANGES entry reconstructs exactly. All three

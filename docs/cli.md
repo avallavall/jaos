@@ -32,8 +32,8 @@ jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
                 [--no-heuristics] [--node-limit N] [--branching RULE]
                 [--reliability N] [--probe-cap M] [--probe-depth D]
                 [--no-cut-drop] [--pool-size K]
-                [--log LEVEL] [--quiet]
-jaos convert IN OUT
+                [--log LEVEL] [--check] [--quiet]
+jaos convert IN OUT [--positional]
 jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos check FILE --point POINT [--duals DUALS] [--tol T]
@@ -131,6 +131,7 @@ prints the same facts as the same model solved silently.
 | `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed (D340). |
 | `--write-point PT` | writes the optimum's point to `PT` as a point file: one `NAME VALUE` line per column and nothing else (D342). It is the shape another program's checker takes, and the shape `check --point` reads back. The rule is `--solution`'s: an optimum has a point and nothing else does, and a solve without one writes no file and says why on stderr. |
 | `--pool-out PRE` | writes one point file per solution pool entry (D344): `PRE-0.pt` is the best, `PRE-1.pt` the next, in the order the pool keeps them. `--pool-size K` is what makes the pool bigger than the incumbent. An LP has no integer point, so nothing is written and stderr says so without changing the exit code. Each file is one `check --point` reads back. |
+| `--check` | runs the independent checker on the answer and prints its eighteen-field report, then a `check_ok` line (D347). It is the report `check FILE SOLUTION` prints and it saves the round trip through a file. The exit code stays the solve's: a checker that could change it would make `solve` two commands with one name. It judges an optimum; a solve that ended otherwise has no point and no duals, which is said on stderr and changes nothing. |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
 | `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs (D326). It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
 | `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed (D326). It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
@@ -231,6 +232,16 @@ exists to shrink (D327).
 `OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
 LP, and any other extension is a usage error. The output name is checked
 before the input is read.
+
+**`--positional` takes every name off the model before writing** (D346),
+so the file comes out with `R1`, `C1` and `COST`. It is the escape hatch
+for a name the LP dialect cannot spell -- one starting with a digit, or
+holding `*`, `+` or `-` -- which the LP writer otherwise refuses by name.
+What is lost is the names and nothing else: over the 139 gate instances
+the LP writer goes from 104 conversions that read back and re-solve to
+**138**, and the one left is `greenbea`'s free row, which no renaming
+reaches (`bench/measurements/02-219/`). The default keeps the names,
+because a model with its own names is worth more to a person reading it.
 
 **A `.gz` after either extension compresses the file** (D340), so
 `out.mps.gz` and `out.lp.gz` work and name the same two formats. That is

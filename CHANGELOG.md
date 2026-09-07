@@ -11,6 +11,17 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`jaos convert IN OUT --positional`** takes every name off before
+  writing, which is the escape hatch for a name the LP dialect cannot
+  spell. Over the 139 gate instances the LP writer goes from 104 written
+  and re-solved to **138**, and the one left is `greenbea`'s free row,
+  which no renaming reaches (D346, `bench/measurements/02-219/`).
+
+- **`jaos solve FILE --check`** runs the independent checker on the answer
+  in the same run and prints its report and a `check_ok` line, so checking
+  an answer no longer needs a file round trip. The exit code stays the
+  solve's (D347).
+
 - **The infeasible subsystem as a model.** `jaos_iis_model` and `jaos iis
   FILE --write OUT` build the subsystem the IIS names: member sides kept,
   every other side relaxed, the rows and columns nothing is left to say
