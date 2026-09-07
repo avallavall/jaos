@@ -35,8 +35,8 @@
  *   jaos check FILE --proof PROOF
  *   jaos check FILE --point POINT [--duals DUALS] [--tol T]
  *   jaos stats FILE
- *   jaos iis FILE [--write OUT]
- *   jaos relax FILE [--rows | --cols] [--apply OUT]
+ *   jaos iis FILE [--write OUT] [--positional]
+ *   jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
  *   jaos verify FILE [--values] [--proof PATH] [--basis BAS]
  *   jaos ranging FILE
  *   jaos --version
@@ -124,8 +124,8 @@ static const char U_SYNOPSIS[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
     "  jaos stats FILE\n"
-    "  jaos iis FILE [--write OUT]\n"
-    "  jaos relax FILE [--rows | --cols] [--apply OUT]\n"
+    "  jaos iis FILE [--write OUT] [--positional]\n"
+    "  jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]\n"
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
@@ -294,7 +294,9 @@ static const char U_IIS[] =
     "                   the rows and columns nothing is left to say about\n"
     "                   dropped, and every cost zeroed, so the file is a\n"
     "                   feasibility question and solves infeasible. The\n"
-    "                   names survive, the indices do not\n";
+    "                   names survive, the indices do not\n"
+    "  --positional     take every name off the subsystem first, the same\n"
+    "                   escape hatch `convert` has\n";
 
 static const char U_RELAX[] =
     "relax reads FILE and prints the smallest total change to the bounds\n"
@@ -309,6 +311,8 @@ static const char U_RELAX[] =
     "                   OUT, .mps or .lp: the same file the moves\n"
     "                   describe, so it can be solved rather than\n"
     "                   read\n"
+    "  --positional     take every name off before writing OUT, the same\n"
+    "                   escape hatch `convert` has\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n";
 
@@ -1913,9 +1917,12 @@ static void print_sides(const jaos_model *m, bool is_col,
 static int cmd_iis(int argc, char **argv)
 {
     const char *file = nullptr, *write = nullptr;
+    bool positional = false;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
-        if (strcmp(a, "--write") == 0) {
+        if (strcmp(a, "--positional") == 0) {
+            positional = true;
+        } else if (strcmp(a, "--write") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--write needs a path to write");
             write = argv[++i];
@@ -2001,6 +2008,11 @@ static int cmd_iis(int argc, char **argv)
             rc = library_error("build the subsystem of", file, m);
             goto out;
         }
+        if (positional && drop_names(sub) != JAOS_OK) {
+            rc = library_error("rename the subsystem of", file, sub);
+            jaos_model_free(sub);
+            goto out;
+        }
         const jaos_status ws = write_fn(sub, write);
         if (ws != JAOS_OK) {
             rc = library_error("write the subsystem to", write, sub);
@@ -2027,6 +2039,7 @@ out:
 static int cmd_relax(int argc, char **argv)
 {
     const char *file = nullptr, *apply = nullptr;
+    bool positional = false;
     jaos_relax_scope scope = JAOS_RELAX_BOTH;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
@@ -2034,6 +2047,8 @@ static int cmd_relax(int argc, char **argv)
             scope = JAOS_RELAX_ROWS;
         } else if (strcmp(a, "--cols") == 0) {
             scope = JAOS_RELAX_COLS;
+        } else if (strcmp(a, "--positional") == 0) {
+            positional = true;
         } else if (strcmp(a, "--apply") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--apply needs a path to write");
@@ -2142,6 +2157,8 @@ static int cmd_relax(int argc, char **argv)
             if (jaos_set_col_bounds(m, j, lo, hi) != JAOS_OK)
                 rc = library_error("move a column bound of", file, m);
         }
+        if (rc == EXIT_OPTIMAL && positional && drop_names(m) != JAOS_OK)
+            rc = library_error("rename the rows and columns of", file, m);
         if (rc == EXIT_OPTIMAL && write(m, apply) != JAOS_OK)
             rc = library_error("write", apply, m);
     }

@@ -81,6 +81,14 @@ none of the others ship — SCIP ships `viprchk`, which verifies a certificate
 SCIP emits and is a different object. A budget counted in reproducible work
 units rather than seconds.
 
+**Since 2026-09-07 the checker reaches beyond JAOS's own answers.**
+`jaos_verify_basis` proves a basis the caller hands in, over the rationals
+and with no solve at all (D339); `jaos check --point` judges a point file
+another program wrote (D342); a basis arrives in the format the field
+exchanges one in (D338). None of the others exposes its verifier to an
+answer it did not produce, which is a sharper claim than "ships a
+checker".
+
 **One place where JAOS is behind where it believed it was ahead.** SoPlex
 solves LPs exactly over the rationals and SCIP emits a VIPR certificate an
 external program verifies in exact arithmetic. JAOS's checker is a

@@ -24023,6 +24023,8 @@ bound on either side is not a constraint. No renaming reaches it, and
 `jaos_write_mps` is still the answer for it. That is exactly the split
 D284 measured -- 34 names and 1 free row -- confirmed from the other side.
 
+**It reaches every command that writes a model**, not `convert` alone: `iis --write` and `relax --apply` take it too. All three write a file the LP dialect may refuse for the same reason, and a caller who has met the refusal once should not have to find out which command has the hatch.
+
 **Why a flag and not a fallback.** A writer that renamed on its own when a
 name was unspellable would produce a file the caller did not ask for, and
 they would find out by reading it. The refusal names the row; this flag is

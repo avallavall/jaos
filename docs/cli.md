@@ -38,8 +38,8 @@ jaos check FILE SOLUTION [--tol T]
 jaos check FILE --proof PROOF
 jaos check FILE --point POINT [--duals DUALS] [--tol T]
 jaos stats FILE
-jaos iis FILE [--write OUT]
-jaos relax FILE [--rows | --cols] [--apply OUT]
+jaos iis FILE [--write OUT] [--positional]
+jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
 jaos verify FILE [--values] [--proof PATH] [--basis BAS]
 jaos ranging FILE
 jaos --version

@@ -444,6 +444,15 @@ emits, which is a different object. A budget counted in reproducible work
 units rather than seconds. All three come from the same decision, and it is
 the project's actual distinguishing feature.
 
+**Since 2026-09-07 the second of those reaches further than JAOS's own
+answers.** `jaos_verify_basis` proves a basis the caller hands in, over
+the rationals with no tolerance and with no solve at all (D339), and
+`jaos check --point` runs the floating-point checker on a point file
+another program wrote (D342). A basis arrives in the format the field
+exchanges one in (D338), and a point in two lines of awk. None of the
+others exposes its verifier to an answer it did not produce, and that is
+a sharper claim than "ships a checker".
+
 **And one thing this page claimed and had wrong until 2026-09-04.** The IIS
 was listed as Gurobi's alone among the open solvers. HiGHS and SCIP both have
 one, both before this page was written. It is off the distinctive list.
@@ -456,7 +465,18 @@ is not a proof. `SPECS.md` lists exact rational verification as partial — the
 arithmetic is here since D266 and the verifier is not — and this page says
 what it is missing against.
 
-**The current milestone will barely move this page, and that is by design.**
+**That sentence was written before 2026-09-07, and six new rows arrived
+that day.** Exchanging a basis in the MPS basis format (D338), proving a
+basis another solver produced (D339), checking a point another solver
+produced (D342), writing compressed output (D340), writing the IIS out as
+a model (D343), and installing with a pkg-config file (D341). Four of the
+six are the same kind of cell: **JAOS's own machinery pointed at somebody
+else's answer**. The checker and the exact verifier were the project's
+distinguishing features already; what changed is that neither is now
+limited to judging what this solver produced.
+
+**The current milestone will barely move the rest of this page, and that
+is by design.**
 M2 is about speed, not features. Of everything on this page, only the presolve
 and postsolve rows change when M2 closes, and they are at ◐ already rather
 than at ○. Nor do they reach ●: the families left are deferred or refused with

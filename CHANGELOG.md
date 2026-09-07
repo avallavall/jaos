@@ -11,6 +11,10 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **`--positional` reaches every command that writes a model**, not
+  `convert` alone: `iis --write` and `relax --apply` take it too, the same
+  escape hatch for the same LP dialect limit (D346).
+
 - **`jaos convert IN OUT --positional`** takes every name off before
   writing, which is the escape hatch for a name the LP dialect cannot
   spell. Over the 139 gate instances the LP writer goes from 104 written

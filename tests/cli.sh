@@ -941,6 +941,18 @@ expect_exit 0 "iis --write to LP works too" \
     || flunk "iis --write printed '$(line_of subsystem_rows)'"
 expect_exit 1 "and the LP it wrote is infeasible as well" \
     "$JAOS" solve "$tmp/sub.lp"
+# --positional reaches every command that writes a model, not just
+# convert (D346): the same escape hatch for the same LP dialect limit.
+expect_exit 0 "iis --write --positional exits 0" \
+    "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sp.lp" --positional
+grep -q 'C1' "$tmp/sp.lp" && pass "and the subsystem uses positional names" \
+    || flunk "no C1 in the positional subsystem"
+expect_exit 1 "and it is still infeasible" "$JAOS" solve "$tmp/sp.lp"
+expect_exit 0 "relax --apply --positional exits 0" \
+    "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/rp.lp" --positional
+grep -q 'C1' "$tmp/rp.lp" && pass "and the relaxed model uses them too" \
+    || flunk "no C1 in the positional relaxation"
+expect_exit 0 "and the relaxed model is feasible" "$JAOS" solve "$tmp/rp.lp"
 fi
 expect_exit 5 "iis --write to an unknown extension is a usage error" \
     "$JAOS" iis "$DATA/t1.mps" --write "$tmp/sub.txt"

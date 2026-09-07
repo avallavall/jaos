@@ -7,6 +7,33 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, nineteenth round: `--positional` on every
+command that writes a model, and the record's own summary caught up.**
+
+`iis --write` and `relax --apply` take `--positional` too, not `convert`
+alone. All three write a file the LP dialect may refuse for the same
+reason, and a caller who has met the refusal once should not have to find
+out which command has the hatch.
+
+**And `docs/feature-matrix.md` said something that had stopped being
+true.** Its closing section read "the current milestone will barely move
+this page, and that is by design", written when M2 was the only thing
+happening. Six rows arrived on 2026-09-07: the MPS basis format (D338),
+proving an outside basis (D339), checking an outside point (D342),
+compressed output (D340), the IIS as a model (D343) and installing with a
+pkg-config file (D341). **Four of the six are the same kind of cell** --
+JAOS's own machinery pointed at somebody else's answer -- and the page's
+"three things JAOS has that the field mostly does not" now says so:
+shipping a checker is a weaker claim than exposing it to an answer this
+solver did not produce.
+
+**The thing to carry forward is the checking habit and not the edit.** A
+summary paragraph is the part of a document that goes stale first,
+because every row that moves is written by somebody looking at the row.
+`make record-check` cannot see it: it checks citations, constants and
+labels, and a paragraph that draws the wrong conclusion from correct rows
+passes every one of them.
+
 **2026-09-07, the day batch, eighteenth round: the LP writer's 34 name
 refusals get an escape hatch, and the checker runs without a file (D346,
 D347).**
