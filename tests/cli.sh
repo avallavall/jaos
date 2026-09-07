@@ -512,6 +512,44 @@ grep -q '^basis ' "$tmp/b.sol" \
     && pass "the certificate file carries a basis section" \
     || flunk "no basis records in the certificate file"
 
+# --write-basis and --basis, the MPS basis file (D338). The pair is
+# checked the same way --start is: write the optimum's basis, start a
+# second run from it, and require no iteration. The file's own shape is
+# checked too, because a reader that took anything would pass the trip.
+#
+# Skipped under either fault build, the rule every check that reads a
+# published basis follows: those builds publish one basic variable too
+# many on purpose, and the writer refuses a basis of the wrong size
+# rather than writing one, so there is no file to check.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--write-basis writes a basis file" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/a.bas"
+[ -s "$tmp/a.bas" ] && pass "and the file is not empty" \
+    || flunk "--write-basis left nothing"
+grep -q '^ENDATA$' "$tmp/a.bas" && pass "and it ends with ENDATA" \
+    || flunk "no ENDATA in the basis file"
+grep -qE '^ (XU|XL|UL) ' "$tmp/a.bas" && pass "and carries cards" \
+    || flunk "no cards in the basis file"
+expect_exit 0 "--basis warm-starts from it" \
+    "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/a.bas"
+[ "$(line_of iterations)" = "iterations 0" ] \
+    && pass "and needs no iteration" \
+    || flunk "--basis printed '$(line_of iterations)'"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line" \
+    || flunk "--basis objective '$(line_of objective)' vs '$mps_objective'"
+expect_exit 5 "--basis with a file for another model exits 5" \
+    "$JAOS" solve "$DATA/g2.lp" --basis "$tmp/a.bas"
+expect_exit 5 "--basis and --start together is a usage error" \
+    "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/a.bas" --start "$tmp/a.sol"
+# An infeasible model stops on a basis too, so the file is written and the
+# exit code stays the answer's rather than becoming the writer's.
+expect_exit 1 "--write-basis after an infeasible answer exits 1" \
+    "$JAOS" solve "$DATA/t1.mps" --write-basis "$tmp/b.bas"
+fi
+expect_exit 5 "--basis with a missing file exits 5" \
+    "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/no-such.bas"
+
 # ---------------------------------------------------------------- convert
 expect_exit 0 "convert MPS to LP exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.lp"
@@ -539,6 +577,46 @@ expect_exit 0 "the MPS written from LP solves" "$JAOS" solve "$tmp/g1.mps"
 [ "$(line_of objective)" = "$lp_objective" ] \
     && pass "and gives the same objective line as the LP" \
     || flunk "MPS-from-LP objective '$(line_of objective)' vs '$lp_objective'"
+
+# A .gz after either extension compresses the output (D340). The file is
+# checked against the system's own gzip where there is one, which is the
+# claim that matters: a .gz JAOS writes is one anything reads.
+expect_exit 0 "convert to .mps.gz exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/z.mps.gz"
+expect_exit 0 "the compressed MPS solves" "$JAOS" solve "$tmp/z.mps.gz"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line" \
+    || flunk "gz objective '$(line_of objective)' vs '$mps_objective'"
+expect_exit 0 "convert to .lp.gz exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/z.lp.gz"
+expect_exit 0 "the compressed LP solves" "$JAOS" solve "$tmp/z.lp.gz"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line too" \
+    || flunk "gz LP objective '$(line_of objective)' vs '$mps_objective'"
+if command -v gzip >/dev/null 2>&1; then
+    gzip -t "$tmp/z.mps.gz" 2>/dev/null \
+        && pass "the system gzip accepts what JAOS wrote" \
+        || flunk "gzip -t refused the file JAOS wrote"
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/z2.mps" >/dev/null 2>&1
+    gzip -dc "$tmp/z.mps.gz" > "$tmp/z2.back" 2>/dev/null
+    cmp -s "$tmp/z2.mps" "$tmp/z2.back" \
+        && pass "and it decompresses to the plain file byte for byte" \
+        || flunk "gzip -dc of the .gz differs from the plain write"
+fi
+# The solution file and the basis file take the name as well. The basis
+# half is skipped under a fault build, which publishes no basis worth
+# writing; the rest of this block is about the container and not the
+# answer, so it runs everywhere.
+expect_exit 0 "--solution takes a .gz name" \
+    "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/z.sol.gz"
+[ -s "$tmp/z.sol.gz" ] && pass "and the file is there" \
+    || flunk "the .gz solution is missing"
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--write-basis takes one too" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/z.bas.gz"
+[ -s "$tmp/z.bas.gz" ] && pass "and that file is there" \
+    || flunk "the .gz basis is missing"
+fi
 
 expect_exit 5 "convert to an unknown extension is a usage error" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/out.txt"
@@ -803,6 +881,37 @@ expect_exit 0 "the derived ray is judged and holds" \
     || flunk "check printed '$(line_of proof)'"
 fi
 expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
+
+# verify --basis proves a basis from a file with no solve at all (D339).
+# The pair runs both ways round: the model's own basis is proved, and the
+# slack basis, which is legal and not optimal, is broken. Without the
+# second the first would pass on a verifier that proved everything.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "--write-basis then verify --basis exits 0" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/v.bas"
+expect_exit 0 "verify --basis proves the solve's own basis" \
+    "$JAOS" verify "$DATA/solve1.mps" --basis "$tmp/v.bas"
+[ "$(line_of proof)" = "proof optimal" ] && pass "and says optimal" \
+    || flunk "verify --basis printed '$(line_of proof)'"
+[ -z "$(line_of status)" ] && pass "and never solved the model" \
+    || flunk "verify --basis printed a status line, so it solved"
+printf 'NAME          SLACK\nENDATA\n' > "$tmp/slack.bas"
+expect_exit 1 "verify --basis of the slack basis exits 1" \
+    "$JAOS" verify "$DATA/solve1.mps" --basis "$tmp/slack.bas"
+[ "$(line_of proof)" = "proof broken" ] && pass "and says broken" \
+    || flunk "verify --basis printed '$(line_of proof)'"
+expect_exit 0 "verify --basis writes a proof file of an outside basis" \
+    "$JAOS" verify "$DATA/solve1.mps" --basis "$tmp/v.bas" \
+    --proof "$tmp/v.proof"
+expect_exit 0 "and the independent checker judges it" \
+    "$JAOS" check "$DATA/solve1.mps" --proof "$tmp/v.proof"
+[ "$(line_of proof)" = "proof holds" ] && pass "and it holds" \
+    || flunk "check printed '$(line_of proof)'"
+fi
+expect_exit 5 "verify --basis needs a path" \
+    "$JAOS" verify "$DATA/solve1.mps" --basis
+expect_exit 5 "verify --basis with a missing file exits 5" \
+    "$JAOS" verify "$DATA/solve1.mps" --basis "$tmp/no-such.bas"
 
 # ---------------------------------------------------------------- ranging
 if [ "$faulty" -eq 0 ]; then

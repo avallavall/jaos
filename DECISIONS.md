@@ -345,6 +345,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D335](#d335--a-warm-start-that-reaches-no-answer-is-thrown-away-and-the-solve-restarts-cold)** — A warm start that reaches no answer is thrown away and the solve restarts cold
 - **[D336](#d336--the-unbounded-direction-exactly-too-and-it-is-not-one-entering-column)** — The unbounded direction exactly too, and it is not one entering column
 - **[D337](#d337--the-limb-budget-stays-at-128-256-buys-nothing-and-512-buys-two-certificates-for-five-times-the-time)** — The limb budget stays at 128: 256 buys nothing and 512 buys two certificates for five times the time
+- **[D338](#d338--a-basis-leaves-and-enters-in-the-format-the-field-exchanges-one-in)** — A basis leaves and enters in the format the field exchanges one in
+- **[D339](#d339--the-exact-proof-runs-on-a-basis-from-outside-so-jaos-checks-somebody-elses-answer)** — The exact proof runs on a basis from outside, so JAOS checks somebody else's answer
+- **[D340](#d340--a-gz-this-library-writes-is-one-anything-reads-139-of-139-against-the-system-gzip)** — A `.gz` this library writes is one anything reads: 139 of 139 against the system gzip
 
 ---
 
@@ -23618,3 +23621,170 @@ the trade changes and this decision expires.
 and not a setting.** `jm_rational` holds its magnitude inline, so the
 budget is in the type and every array of them scales with it. A runtime
 capacity would be a different design and is not what was measured here.
+
+## D338 — A basis leaves and enters in the format the field exchanges one in
+
+**The question.** JAOS has had `jaos_basis` and `jaos_set_basis` since
+early, and since D332 a solution file carries a basis, so a refusal
+resumes across processes. All of that is in JAOS's own format. No other
+solver reads it, and JAOS read nobody else's. A basis is the one object
+LP solvers actually exchange, and the format they exchange it in is the
+MPS basis file.
+
+**What landed.** `jaos_write_mps_basis` and `jaos_read_mps_basis`, the
+classic four cards: `XU col row` and `XL col row` for a basic column
+paired with a row resting on its upper or lower bound, `UL col` for a
+column at its upper, `LL col` for one at its lower. The defaults are
+every column nonbasic at its lower bound and every row's logical basic,
+so a slack basis writes an empty file. `jaos solve --write-basis BAS`
+and `jaos solve --basis BAS` on the command line, `write_mps_basis` and
+`read_mps_basis` at both Python layers.
+
+**Three things this had to get right, and each has a test that fails
+without it.**
+
+`JAOS_BASIS_FREE` has no card in the format and needs none. A nonbasic
+variable with both bounds infinite rests at zero and nowhere else, so it
+is written as the default and read back as FREE from the bounds it has.
+That makes the round trip exact rather than lucky, and it is why the
+reader decides FREE from the model and not from the card.
+
+**The basic count needs no check, and the obvious reading is that it
+does.** Only `XU` and `XL` make a column basic, each one makes exactly
+one row nonbasic in the same card, and a second card for either side is
+refused. So the count of basic columns equals the count of nonbasic
+rows for any file that reads at all, and the total is `num_row` by
+construction. It is an assert and not a validation.
+
+The name check is per side and not `names_unique`'s. Two columns of a
+name would read back as one and are refused; a column and a row of a
+name are fine, because the two never occupy the same field of a card.
+The control for that is in the test: the writer takes a model whose row
+is called `x` beside a column called `x`.
+
+**What it is for.** A basis JAOS found starts another solver's run, and
+a basis another solver found starts JAOS's. It is also what D339 needs:
+a basis that arrives in a file is a basis JAOS can prove.
+
+## D339 — The exact proof runs on a basis from outside, so JAOS checks somebody else's answer
+
+**The question.** `jaos_verify` proves the basis the last solve
+published. Everything it does is a statement about a model and a basis
+-- rebuild the basis over the integers, eliminate it fraction-free,
+check the basic values against their bounds and the reduced costs
+against the model -- and none of it reads a number the solve produced.
+So why does it require a solve at all?
+
+**It does not, and now it does not have to.** `jaos_verify_basis(m,
+col_status, row_status, out)` runs the same proof over a basis the
+caller hands in, with no solve. The body is shared: `jaos_verify` fills
+the published basis in and this one fills the caller's in, and neither
+entry point tells the proof which it got.
+
+**What that makes JAOS.** An independent exact checker of another
+solver's LP answer. Read a model, read the basis the other solver
+stopped on -- `jaos_read_mps_basis` reads the format it writes one in
+(D338) -- and get, over the rationals with no tolerance anywhere,
+whether that basis is an optimal basis of that model. Then
+`jaos_write_proof` writes the exact coordinates and `jaos_check_proof`,
+which shares no code with the prover, judges the file. The whole chain
+runs on a model this library never solved.
+
+`jaos verify FILE --basis BAS` on the command line, `verify_basis` at
+both Python layers.
+
+**The three verdicts are unchanged and mean the same things.** OPTIMAL
+proves it. BROKEN names the first basic value outside its bounds or the
+first reduced cost pointing out of the model, which is what a wrong
+answer from elsewhere looks like from here. REFUSED is the limb budget
+and says nothing about the basis (D337).
+
+**Two things it deliberately does not do.** It does not touch
+`solve_status`: a model that never solved stays one, `jaos_solution`
+keeps refusing, and the basis the next solve starts from is whatever
+`jaos_set_basis` last said. Proving somebody else's basis optimal does
+not make it this solver's answer. And it reads no number the other
+solver reported -- not its objective, not its point -- so the verdict
+comes from the model and the basis alone.
+
+**The two structural checks are `jaos_set_basis`'s**, a value that is
+not one of the four statuses and any count of basic variables other than
+`num_row`, and they are refused here for the same reason: a basis of the
+wrong size is not a basis and nothing later can make it one.
+
+**The case it must reject is built in the test**, twice: the slack basis
+of a model whose optimum is elsewhere reads BROKEN at the dual stage,
+and a basis whose basic value lands past its own bound reads BROKEN at
+the primal stage with the violation named. Without those two, every
+other assertion would pass on a prover that returned OPTIMAL for
+everything.
+
+**The one thing that had to be careful.** The proof reads the published
+basis in several places and at the end again, so the caller's arrays are
+copied in rather than borrowed, and the model's own pointers are put
+back whatever the verdict. The test that reads the solve's basis, proves
+a different one, and reads the solve's basis again is what holds that.
+
+## D340 — A `.gz` this library writes is one anything reads: 139 of 139 against the system gzip
+
+**The question.** Both readers have taken gzip since D240, and no writer
+could produce it. A compressed file was a one-way street through a
+library whose one contract about files is that what it writes it reads
+back.
+
+**What landed.** `src/deflate.c`, a DEFLATE and gzip encoder written
+here for the reason the decoder was written here: JAOS links nothing but
+libc and libm. Every writer takes it through one rule -- a path ending
+in `.gz` is compressed -- so `jaos_write_mps`, `jaos_write_lp`,
+`jaos_write_solution` and `jaos_write_mps_basis` all have it from one
+change to the shared open and close. `jaos convert in.mps out.lp.gz`
+follows, and so does `--solution`, `--write-basis` and `relax --apply`.
+
+**Measured against the system's own gzip**
+(`bench/measurements/02-217/`). Every gate instance is written twice,
+plain and compressed:
+
+| | 139 instances |
+|---|---|
+| `gzip -t` accepts the file | 139 |
+| `gzip -dc` is byte-identical to the plain write | 139 |
+| differing | 0 |
+
+and separately, JAOS reads its own compressed file back and answers the
+same on **94 of 94** netlib instances, status line and objective line
+(`gzsolve.sh`). Those are two different code paths and both are checked.
+
+**The size, and what the shortcut costs.**
+
+| | bytes | of plain |
+|---|---|---|
+| plain MPS | 168 861 388 | 1.0000 |
+| JAOS `.gz` | 32 876 415 | 0.1947 |
+| `gzip -9` | 24 558 439 | 0.1454 |
+
+**1.3387x the size of `gzip -9`**, and about a fifth of the plain text
+either way. The whole of that gap is the fixed Huffman tables of RFC
+1951 section 3.2.6 against a tree fitted to the file. A dynamic block
+needs a frequency pass, a length assignment, the code-length alphabet
+with its own tree and the run-length coding of that: roughly three times
+the code for roughly a quarter off the output. What this feature is for
+is that the file reads everywhere, and the table above says it does.
+
+**The header carries no clock.** `MTIME` is written as zero and the OS
+byte as 255. A file whose bytes depended on when it was written would
+break the reproducibility every other output here keeps (D8), and the
+test that compresses the same input twice and compares the bytes is what
+holds it.
+
+**`CHAIN_MAX` is the one constant and it decides nothing but size
+against time.** Any value writes a valid file and the same value writes
+the same bytes; it is 128. There is no sweep beside it because the
+figure it moves is a file size in one table, not a solver result, and no
+gate can see it. `bench/measurements/02-217/README.md` is the baseline
+to move it against if a compressed write ever shows up in a profile.
+
+**One thing got better on the way.** A compressed write builds the whole
+file in memory and touches the path once, at the end, so a refusal never
+opens it at all. The plain path still calls `fopen(path, "w")` first,
+which truncates before the checks that can still fail; it removes the
+file afterwards, which is the older and weaker guarantee.

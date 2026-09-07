@@ -10,6 +10,7 @@
  * Usage:
  *   jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
  *                   [--mip-start SOLUTION] [--cutoff V]
+ *                   [--basis BAS] [--write-basis BAS]
  *                   [--proof PATH]
  *                   [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
  *                   [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
@@ -34,7 +35,7 @@
  *   jaos stats FILE
  *   jaos iis FILE
  *   jaos relax FILE [--rows | --cols] [--apply OUT]
- *   jaos verify FILE [--values] [--proof PATH]
+ *   jaos verify FILE [--values] [--proof PATH] [--basis BAS]
  *   jaos ranging FILE
  *   jaos --version
  *   jaos --help
@@ -89,6 +90,7 @@ static const char USAGE[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--mip-start SOLUTION] [--cutoff V]\n"
+    "                  [--basis BAS] [--write-basis BAS]\n"
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
@@ -114,7 +116,7 @@ static const char USAGE[] =
     "  jaos stats FILE\n"
     "  jaos iis FILE\n"
     "  jaos relax FILE [--rows | --cols] [--apply OUT]\n"
-    "  jaos verify FILE [--values] [--proof PATH]\n"
+    "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
     "  jaos ranging FILE\n"
     "  jaos --version\n"
     "  jaos --help\n"
@@ -126,6 +128,12 @@ static const char USAGE[] =
     "                   of an infeasible or unbounded model\n"
     "  --start SOLUTION warm-start from the basis in a solution file, an\n"
     "                   optimum's or a certificate's\n"
+    "  --basis BAS      warm-start from an MPS basis file, the format the\n"
+    "                   field exchanges a basis in. Not with --start: a\n"
+    "                   solve begins in one place\n"
+    "  --write-basis BAS  write the basis the solve stopped on to BAS, in\n"
+    "                   the same format. An optimum, a refusal, an\n"
+    "                   unboundedness and a budget stop all leave one\n"
     "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
     "                   file before it runs; refused, and the search goes\n"
     "                   on without it, when the point is not feasible\n"
@@ -150,7 +158,10 @@ static const char USAGE[] =
     "  --cut-stall F    end the root's cut rounds once one moves the bound by\n"
     "                   less than F of (1 + |bound|) (F >= 0; 0 never)\n"
     "  --node-cut-stall F  no cut round under a node whose round moved its\n"
-    "                   bound by less than F of (1 + |bound|) (F >= 0; 0 never)\n"
+    "                   bound by less than F of (1 + |bound|) (F >= 0; 0 never)\n";
+
+/* The second piece, because ISO C only promises a 4095-byte literal. */
+static const char USAGE1A[] =
     "  --root-cut-drop  let a root cut leave below a node where its slack is\n"
     "                   basic (the default); --no-root-cut-drop keeps every\n"
     "                   root cut\n"
@@ -159,7 +170,7 @@ static const char USAGE[] =
     "  --mir-rounds N   rounds of mixed-integer rounding cuts on the model's\n"
     "                   rows at the root of a MIP (default 6; 0 for none)\n";
 
-/* The second piece, because ISO C only promises a 4095-byte literal. */
+/* The third piece, for the same reason. */
 static const char USAGE1B[] =
     "  --dive           dive from each selected node of a MIP (off by default)\n"
     "  --dive-child RULE which child the dive solves first: nearer (default),\n"
@@ -226,7 +237,9 @@ static const char USAGE1B[] =
 /* The third piece. */
 static const char USAGE2[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
-    "  .mps or .lp. Exit 0 when written.\n"
+    "  .mps or .lp. A .gz after either compresses the file, which every\n"
+    "  writer here takes and both readers already took. Exit 0 when\n"
+    "  written.\n"
     "check judges SOLUTION, a file `solve --solution` wrote, against FILE\n"
     "  with the independent checker and prints its report. --tol T is the\n"
     "  checker's tolerance (default 1e-7). Exit 0 when primal and dual\n"
@@ -269,6 +282,12 @@ static const char USAGE2[] =
     "                   from the model alone, over the rationals and with\n"
     "                   no tolerance, and prints primal, dual and\n"
     "                   objective. Exit 0 proved, 1 broken, 4 out of limbs\n"
+    "  --basis BAS      prove the basis in the MPS basis file BAS instead,\n"
+    "                   with no solve at all. The model is read and never\n"
+    "                   solved, so the verdict is about the basis brought\n"
+    "                   in -- another solver's, say -- and about nothing\n"
+    "                   JAOS did. Same three verdicts, same exit codes,\n"
+    "                   and --values and --proof work off it\n"
     "stats reads FILE and prints what the model is, one `name value`\n"
     "  line each: the three sizes, the row and column kinds, the\n"
     "  integer and binary counts, the empty rows and columns, and the\n"
@@ -280,7 +299,8 @@ static const char USAGE2[] =
     "  `bound J lower_lo lower_hi upper_lo upper_hi`. Exit 0.\n"
     "\n"
     "A file named .lp or .lp.gz is read as LP format, anything else as MPS.\n"
-    "Both readers accept gzip-compressed input. Indices count from 0; column\n"
+    "Both readers accept gzip-compressed input, and every path this tool\n"
+    "writes to compresses when it ends in .gz. Indices count from 0; column\n"
     "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
     "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
 
@@ -295,6 +315,7 @@ static int usage_error(const char *fmt, ...)
     va_end(ap);
     fputs("\n\n", stderr);
     fputs(USAGE, stderr);
+    fputs(USAGE1A, stderr);
     fputs(USAGE1B, stderr);
     fputs(USAGE2, stderr);
     return EXIT_USAGE;
@@ -367,6 +388,20 @@ static bool is_lp_name(const char *path)
 static jaos_status read_model(jaos_model *m, const char *path)
 {
     return is_lp_name(path) ? jaos_read_lp(m, path) : jaos_read_mps(m, path);
+}
+
+/* Which writer a path names, or nullptr for a name neither does. `.gz`
+ * says compress and says nothing about the format, so it is looked past
+ * (D340) -- the library reads the same suffix and does the compressing,
+ * and both `out.lp` and `out.lp.gz` go to the LP writer. */
+static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)
+{
+    const bool gz = has_suffix(path, ".gz");
+    if (has_suffix(path, ".mps") || (gz && has_suffix(path, ".mps.gz")))
+        return jaos_write_mps;
+    if (has_suffix(path, ".lp") || (gz && has_suffix(path, ".lp.gz")))
+        return jaos_write_lp;
+    return nullptr;
 }
 
 /* A fresh model with `path` read into it. Returns -1 with *out set, or the
@@ -525,6 +560,8 @@ struct solve_options {
     const char *file;
     const char *solution;
     const char *start;       /* a solution file to warm-start from */
+    const char *basis;       /* an MPS basis file to warm-start from */
+    const char *write_basis; /* where to write the basis the solve left */
     const char *mip_start;   /* a solution file whose point seeds the
                                 tree (D326)                          */
     bool has_cutoff;
@@ -692,6 +729,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->has_cutoff = true;
         } else if (strcmp(a, "--start") == 0) {
             o->start = v;
+        } else if (strcmp(a, "--basis") == 0) {
+            o->basis = v;
+        } else if (strcmp(a, "--write-basis") == 0) {
+            o->write_basis = v;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -845,6 +886,9 @@ static int parse_solve_options(int argc, char **argv, int first,
     }
     if (o->file == nullptr)
         return usage_error("solve needs a file");
+    if (o->start != nullptr && o->basis != nullptr)
+        return usage_error("--start and --basis both say where the solve "
+                           "begins, and a solve begins in one place");
     return -1;
 }
 
@@ -1089,6 +1133,27 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
+    /* The same warm start out of an MPS basis file (D338), which is the
+     * format another solver's basis arrives in. It is the same two calls
+     * with a different reader, and the two flags are refused together
+     * because a solve begins in one place and being handed two is a
+     * question the caller has to answer. */
+    if (o.basis != nullptr) {
+        const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+        jaos_basis_status *cs = zeroed(nc, sizeof *cs);
+        jaos_basis_status *rs = zeroed(nr, sizeof *rs);
+        jaos_status rd = JAOS_ERR_OUT_OF_MEMORY;
+        if (cs != nullptr && rs != nullptr &&
+            (rd = jaos_read_mps_basis(m, o.basis, cs, rs)) == JAOS_OK)
+            rd = jaos_set_basis(m, cs, rs);
+        free(cs);
+        free(rs);
+        if (rd != JAOS_OK) {
+            rc = library_error("warm-start from", o.basis, m);
+            goto out;
+        }
+    }
+
     /* The tree's own two inputs (D326): a point the caller already has,
      * and an objective they do not care to beat. The point is read out of
      * a solution file the same reader --start uses, and the library
@@ -1186,6 +1251,21 @@ static int cmd_solve(int argc, char **argv)
         }
     }
 
+    /* The basis the solve stopped on, in the format the field exchanges
+     * (D338). The rule is jaos_basis's and is wider than --solution's: a
+     * refusal, an unboundedness and a budget stop all leave a basis worth
+     * writing, and only a solve with none at all does not. That case is
+     * said on stderr and leaves the exit code the answer's, because the
+     * answer is not what went wrong. */
+    if (o.write_basis != nullptr) {
+        const jaos_status bw = jaos_write_mps_basis(m, o.write_basis);
+        if (bw == JAOS_ERR_INVALID_INPUT)
+            fprintf(stderr, "jaos: no basis file written: %s\n",
+                    jaos_model_error(m));
+        else if (bw != JAOS_OK)
+            rc = library_error("write the basis file", o.write_basis, m);
+    }
+
     /* The exact proof (D325, D328). An optimum's proof is its coordinates
      * and needs a jaos_verify first; a certificate is a vector the solve
      * already published and needs none. A verify that refuses is not a
@@ -1233,14 +1313,10 @@ static int cmd_convert(int argc, char **argv)
 
     /* The writer is chosen by OUT's name, and it is chosen before the read:
      * a typo in the output name should fail before the input is loaded. */
-    jaos_status (*write)(jaos_model *, const char *) = nullptr;
-    if (has_suffix(out, ".mps"))
-        write = jaos_write_mps;
-    else if (has_suffix(out, ".lp"))
-        write = jaos_write_lp;
-    else
-        return usage_error("convert writes .mps or .lp, and '%s' is neither",
-                           out);
+    jaos_status (*write)(jaos_model *, const char *) = writer_for(out);
+    if (write == nullptr)
+        return usage_error("convert writes .mps or .lp, either with a .gz "
+                           "after it, and '%s' is none of those", out);
 
     jaos_model *m = nullptr;
     if (jaos_model_new(&m) != JAOS_OK) {
@@ -1625,13 +1701,11 @@ static int cmd_relax(int argc, char **argv)
      * before a solve is paid for. */
     jaos_status (*write)(jaos_model *, const char *) = nullptr;
     if (apply != nullptr) {
-        if (has_suffix(apply, ".mps"))
-            write = jaos_write_mps;
-        else if (has_suffix(apply, ".lp"))
-            write = jaos_write_lp;
-        else
-            return usage_error("--apply writes .mps or .lp, and '%s' is "
-                               "neither", apply);
+        write = writer_for(apply);
+        if (write == nullptr)
+            return usage_error("--apply writes .mps or .lp, either with a "
+                               ".gz after it, and '%s' is none of those",
+                               apply);
     }
 
     jaos_model *m = nullptr;
@@ -1743,7 +1817,7 @@ static const char *stage_word(jaos_proof_stage s)
  * fit. A refusal is not a failure, which is why it is not 5. */
 static int cmd_verify(int argc, char **argv)
 {
-    const char *file = nullptr, *proof = nullptr;
+    const char *file = nullptr, *proof = nullptr, *basis = nullptr;
     bool values = false;
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--values") == 0) {
@@ -1752,6 +1826,10 @@ static int cmd_verify(int argc, char **argv)
             if (i + 1 >= argc)
                 return usage_error("--proof needs a path to write");
             proof = argv[++i];
+        } else if (strcmp(argv[i], "--basis") == 0) {
+            if (i + 1 >= argc)
+                return usage_error("--basis needs a basis file to read");
+            basis = argv[++i];
         } else if (argv[i][0] == '-') {
             return usage_error("unknown option '%s'", argv[i]);
         } else if (file == nullptr) {
@@ -1769,7 +1847,32 @@ static int cmd_verify(int argc, char **argv)
     if (rc >= 0)
         return rc;
 
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
     jaos_solve_status ss;
+
+    /* A basis from a file, proved against the model with no solve at all
+     * (D339). This is the whole of `verify --basis`: the model is never
+     * solved, so the verdict is about the basis the caller brought and
+     * about nothing this solver did. */
+    if (basis != nullptr) {
+        const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+        jaos_basis_status *cs = zeroed(nc, sizeof *cs);
+        jaos_basis_status *rs = zeroed(nr, sizeof *rs);
+        jaos_status rd = JAOS_ERR_OUT_OF_MEMORY;
+        if (cs != nullptr && rs != nullptr)
+            rd = jaos_read_mps_basis(m, basis, cs, rs);
+        if (rd == JAOS_OK)
+            rd = jaos_verify_basis(m, cs, rs, &rep);
+        free(cs);
+        free(rs);
+        if (rd != JAOS_OK) {
+            rc = library_error("verify the basis in", basis, m);
+            goto out;
+        }
+        goto report;
+    }
+
     rc = solve_for_report(m, file, &ss);
     if (rc >= 0)
         goto out;
@@ -1853,13 +1956,12 @@ static int cmd_verify(int argc, char **argv)
         goto out;
     }
 
-    jaos_verify_report rep;
-    memset(&rep, 0, sizeof rep);
     if (jaos_verify(m, &rep) != JAOS_OK) {
         rc = library_error("verify the basis of", file, m);
         goto out;
     }
 
+report:
     printf("proof %s\n", proof_word(rep.status));
     printf("stage %s\n", stage_word(rep.stage));
     print_num("bound_bits", rep.bound_bits);
@@ -2060,6 +2162,7 @@ int main(int argc, char **argv)
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||
         strcmp(cmd, "help") == 0) {
         fputs(USAGE, stdout);
+        fputs(USAGE1A, stdout);
         fputs(USAGE1B, stdout);
         fputs(USAGE2, stdout);
         return EXIT_OPTIMAL;

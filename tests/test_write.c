@@ -1588,6 +1588,571 @@ static void test_a_solve_with_no_certificate_writes_nothing(void)
 }
 
 
+
+/* --------------------------------------------------------------------- */
+/* The MPS basis file (D338)                                              */
+/* --------------------------------------------------------------------- */
+
+static const char *TMP_BAS = "build/tw_tmp.bas";
+
+/* The whole file, so a test can assert what is in it and not only what
+ * reading it back gives. The buffer is the function's own and is good
+ * until the next call. */
+static const char *slurp(const char *path)
+{
+    static char buf[8192];
+    FILE *f = fopen(path, "r");
+    if (f == nullptr)
+        return nullptr;
+    const size_t n = fread(buf, 1, sizeof buf - 1, f);
+    buf[n] = '\0';
+    fclose(f);
+    return buf;
+}
+
+/* Writes `text` to TMP_BAS, for the tests that feed the reader a file no
+ * writer here would produce. */
+static void put_bas(const char *text)
+{
+    FILE *f = fopen(TMP_BAS, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs(text, f);
+    TEST_ASSERT_EQUAL_INT(0, fclose(f));
+}
+
+/* Three named columns and two named rows, one column bounded above, one
+ * free, one row with no lower bound and one with no upper. Between them
+ * every branch of the reader has a card that reaches it. */
+static jaos_model *build_bas_model(void)
+{
+    /* min -x - 2y   s.t.  cap: x + y + z <= 4,  eq: x - y >= 0
+     *      0 <= x <= 3,  0 <= y <= 2,  z free */
+    const double cost[] = {-1.0, -2.0, 0.0};
+    const double cl[] = {0.0, 0.0, -INFINITY};
+    const double cu[] = {3.0, 2.0, INFINITY};
+    const double rl[] = {-INFINITY, 0.0}, ru[] = {4.0, INFINITY};
+    const int64_t as[] = {0, 2, 4, 5}, ai[] = {0, 1, 0, 1, 0};
+    const double av[] = {1.0, 1.0, 1.0, -1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     5, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 2, "z"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "cap"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "eq"));
+    return m;
+}
+
+/* The claim, stated the only way that cannot be vacuous: what the file
+ * gives back is what jaos_basis gave out, compared as memory rather than
+ * one status at a time. */
+static void test_a_basis_file_round_trips(void)
+{
+    jaos_model *m = build_bas_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    jaos_basis_status want_c[3], want_r[2], got_c[3], got_r[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, want_c, want_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(want_c, got_c, sizeof want_c);
+    TEST_ASSERT_EQUAL_MEMORY(want_r, got_r, sizeof want_r);
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* Reading is not installing, so the basis has to survive being set back
+ * on a second model and re-solved. Zero iterations is the evidence that
+ * the file carried the optimal basis and not merely a legal one. */
+static void test_a_basis_file_warm_starts_a_second_solve(void)
+{
+    jaos_model *m = build_bas_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double first = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &first));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+
+    jaos_model *n = build_bas_model();
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps_basis(n, TMP_BAS, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(n, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(n));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(n));
+    double second = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(n, &second));
+    SAME_D(first, second);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(n));
+    remove(TMP_BAS);
+    jaos_model_free(n);
+    jaos_model_free(m);
+}
+
+/* The file's card count is decided by the basis and by nothing else: one
+ * two-name card per basic column, one UL per column at its upper bound,
+ * and nothing for the rest. A writer that emitted an LL per column would
+ * still round-trip, so the counts are asserted and not only the trip. */
+static void test_the_file_carries_the_cards_the_basis_asks_for(void)
+{
+    jaos_model *m = build_bas_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+    const char *text = slurp(TMP_BAS);
+    TEST_ASSERT_NOT_NULL(text);
+    TEST_ASSERT_NOT_NULL(strstr(text, "\nNAME "));
+    TEST_ASSERT_NOT_NULL(strstr(text, "\nENDATA\n"));
+
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    int64_t basic_cols = 0, upper_cols = 0;
+    for (int64_t j = 0; j < 3; j++) {
+        if (cs[j] == JAOS_BASIS_BASIC)
+            basic_cols++;
+        else if (cs[j] == JAOS_BASIS_AT_UPPER)
+            upper_cols++;
+    }
+    int64_t two = 0, ul = 0;
+    for (const char *p = text; (p = strstr(p, "\n X")) != nullptr; p += 3)
+        two++;
+    for (const char *p = text; (p = strstr(p, "\n UL ")) != nullptr; p += 5)
+        ul++;
+    TEST_ASSERT_EQUAL_INT64(basic_cols, two);
+    TEST_ASSERT_EQUAL_INT64(upper_cols, ul);
+    /* And no LL, which is the default and which this writer never emits. */
+    TEST_ASSERT_NULL(strstr(text, "\n LL "));
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* A slack basis is the format's default in every field, so its file has
+ * no cards at all. The model is built so that the slack basis IS the
+ * optimum, which is the only way to get the writer to produce one. */
+static void test_a_slack_basis_writes_no_cards(void)
+{
+    /* min x  s.t.  x <= 10,  0 <= x <= 5. The optimum is x = 0 nonbasic
+     * at its lower bound with the row's logical basic, which is the
+     * slack basis. */
+    const double cost[] = {1.0}, cl[] = {0.0}, cu[] = {5.0};
+    const double rl[] = {-INFINITY}, ru[] = {10.0};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_basis_status want_c[1], want_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, want_c, want_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, want_c[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, want_r[0]);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+    const char *text = slurp(TMP_BAS);
+    TEST_ASSERT_NOT_NULL(text);
+    TEST_ASSERT_NULL(strstr(text, "\n X"));
+    TEST_ASSERT_NULL(strstr(text, "\n UL "));
+    TEST_ASSERT_NULL(strstr(text, "\n LL "));
+
+    jaos_basis_status got_c[1], got_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(want_c, got_c, sizeof want_c);
+    TEST_ASSERT_EQUAL_MEMORY(want_r, got_r, sizeof want_r);
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* FREE has no card and needs none: a nonbasic variable with both bounds
+ * infinite rests at zero and nowhere else, so the bounds decide it. Both
+ * sides are driven, a free column left to the default and a free row
+ * named by an XL card, because the reader treats the two in different
+ * branches. This is the reader's half; the writer's is that it emits
+ * nothing for either, which the card counts above already assert. */
+static void test_free_round_trips_without_a_card_of_its_own(void)
+{
+    /* One free row and one free column, so a file with a single card
+     * names both. */
+    const double cost[] = {1.0, 0.0};
+    const double cl[] = {0.0, -INFINITY}, cu[] = {5.0, INFINITY};
+    const double rl[] = {-INFINITY, 0.0};
+    const double ru[] = {INFINITY, 5.0};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "w"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "z"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "loose"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 1, "cap"));
+
+    /* w basic against the free row, z left to the default. */
+    const jaos_basis_status cs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_FREE};
+    const jaos_basis_status rs[2] = {JAOS_BASIS_FREE, JAOS_BASIS_BASIC};
+    put_bas("NAME          T\n XL w         loose\nENDATA\n");
+    jaos_basis_status got_c[2], got_r[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(cs, got_c, sizeof cs);
+    TEST_ASSERT_EQUAL_MEMORY(rs, got_r, sizeof rs);
+
+    /* An XU on the same free row reads back as FREE as well, since a row
+     * with neither bound rests at zero whichever card names it. */
+    put_bas("NAME          T\n XU w         loose\nENDATA\n");
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no upper bound"));
+
+    /* And the basis reads back through set_basis, which is what the
+     * caller does with it. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* A file another solver wrote: the cards in a different order from this
+ * writer's, an explicit LL that this writer never emits, and a comment
+ * line. All three read, because the format allows all three. */
+static void test_the_reader_takes_a_file_this_writer_would_not_write(void)
+{
+    jaos_model *m = build_bas_model();
+    put_bas("* someone else's basis\n"
+            " LL x\n"
+            " XU y         cap\n"
+            " XL z         eq\n"
+            "ENDATA\n");
+    const jaos_basis_status cs[3] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_BASIC,
+                                     JAOS_BASIS_BASIC};
+    const jaos_basis_status rs[2] = {JAOS_BASIS_AT_UPPER,
+                                     JAOS_BASIS_AT_LOWER};
+    jaos_basis_status got_c[3], got_r[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(cs, got_c, sizeof cs);
+    TEST_ASSERT_EQUAL_MEMORY(rs, got_r, sizeof rs);
+    /* And it is a basis this model accepts, which is the point of
+     * reading someone else's file at all. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, got_c, got_r));
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* A positional name works where the model named nothing, the way every
+ * other reader here takes one (D284). */
+static void test_the_basis_reader_takes_a_positional_name(void)
+{
+    const double cost[] = {1.0}, cl[] = {0.0}, cu[] = {5.0};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1}, ai[] = {0};
+    const double av[] = {1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    put_bas(" XL C1        R1\nENDATA\n");
+    jaos_basis_status got_c[1], got_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, got_c[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, got_r[0]);
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* Each refusal on its own, and each with the file it is about. One test
+ * fed a single broken file would pass while every other guard was
+ * missing. */
+static void test_each_basis_reader_guard_fires_on_its_own(void)
+{
+    const struct { const char *text; const char *want; } bad[] = {
+        {" XU nosuch    cap\nENDATA\n",         "no column"},
+        {" XU x         nosuch\nENDATA\n",      "no row"},
+        {" XU x         cap\n LL x\nENDATA\n",  "second card for column"},
+        {" XU x         cap\n XU y         cap\nENDATA\n",
+                                                "second card for row"},
+        {" UL z\nENDATA\n",                     "no upper bound"},
+        {" XU x         eq\nENDATA\n",          "no upper bound"},
+        {" XL x         cap\nENDATA\n",         "no lower bound"},
+        {" BS x\nENDATA\n",                     "not one of the four"},
+        {" XL x\nENDATA\n",                     "takes a column and a row"},
+        {" UL x         cap\nENDATA\n",         "takes a column"},
+        {" XU x         cap\n",                 "without 'ENDATA'"},
+        {"ENDATA\n XU x         cap\n",         "after 'ENDATA'"},
+    };
+    for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+        jaos_model *m = build_bas_model();
+        put_bas(bad[k].text);
+        jaos_basis_status cs[3], rs[2];
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_ERR_INVALID_INPUT,
+            jaos_read_mps_basis(m, TMP_BAS, cs, rs), bad[k].text);
+        TEST_ASSERT_NOT_NULL_MESSAGE(
+            strstr(jaos_model_error(m), bad[k].want), jaos_model_error(m));
+        remove(TMP_BAS);
+        jaos_model_free(m);
+    }
+}
+
+/* The control the table above needs: the same shapes with the one thing
+ * fixed that each refusal is about, so no line of it is refused for a
+ * reason nobody meant. */
+static void test_the_basis_reader_takes_what_the_guards_leave(void)
+{
+    jaos_model *m = build_bas_model();
+    const char *good[] = {
+        " XU x         cap\nENDATA\n",
+        " XL x         eq\nENDATA\n",
+        " UL x\nENDATA\n",
+        " LL x\nENDATA\n",
+        " XU x         cap\n LL y\nENDATA\n",
+        " XU x         cap\n XL y         eq\nENDATA\n",
+        "ENDATA\n",
+    };
+    for (size_t k = 0; k < sizeof good / sizeof good[0]; k++) {
+        put_bas(good[k]);
+        jaos_basis_status cs[3], rs[2];
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+            jaos_read_mps_basis(m, TMP_BAS, cs, rs), good[k]);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+            jaos_set_basis(m, cs, rs), good[k]);
+    }
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* Nothing is written into the caller's arrays when the read fails, so a
+ * refusal on the last line cannot leave half a basis behind. */
+static void test_a_refused_basis_read_leaves_the_arrays_alone(void)
+{
+    jaos_model *m = build_bas_model();
+    jaos_basis_status cs[3] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_AT_UPPER,
+                               JAOS_BASIS_AT_UPPER};
+    jaos_basis_status rs[2] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_AT_UPPER};
+    put_bas(" XU x         cap\n XL nosuch    eq\nENDATA\n");
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_read_mps_basis(m, TMP_BAS, cs, rs));
+    for (int k = 0; k < 3; k++)
+        TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, cs[k]);
+    for (int k = 0; k < 2; k++)
+        TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[k]);
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* The writer's availability rule is jaos_basis's, so a model that never
+ * solved has nothing to write and leaves no file behind. */
+static void test_the_basis_writer_refuses_without_a_basis(void)
+{
+    jaos_model *m = build_bas_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_mps_basis(m, TMP_BAS));
+    TEST_ASSERT_FALSE(file_exists(TMP_BAS));
+    jaos_model_free(m);
+}
+
+/* Two columns of a name would read back as one, so the writer refuses
+ * before it opens anything. A row named like a column is fine, because
+ * the two never occupy the same field of a card, and that control is
+ * what keeps the refusal from being the wrong rule. */
+static void test_the_basis_writer_refuses_two_columns_of_a_name(void)
+{
+    jaos_model *m = build_bas_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_mps_basis(m, TMP_BAS));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "both named"));
+    TEST_ASSERT_FALSE(file_exists(TMP_BAS));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* The basis behind an infeasible answer is a basis, and jaos_basis hands
+ * it out (D330), so the writer writes it. That is the case the format is
+ * most worth having for: another process picks the refusal up. */
+static void test_a_refusals_basis_is_written_too(void)
+{
+    jaos_model *m = build_infeasible_by_simplex();
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_basis_status want_c[2], want_r[2], got_c[2], got_r[2];
+    const jaos_status av = jaos_basis(m, want_c, want_r);
+    if (av != JAOS_OK) {
+        /* A build where presolve answered this one has no basis to
+         * write, and the writer says so rather than writing zeros. */
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_write_mps_basis(m, TMP_BAS));
+        TEST_ASSERT_FALSE(file_exists(TMP_BAS));
+        jaos_model_free(m);
+        return;
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, TMP_BAS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, got_c, got_r));
+    TEST_ASSERT_EQUAL_MEMORY(want_c, got_c, sizeof want_c);
+    TEST_ASSERT_EQUAL_MEMORY(want_r, got_r, sizeof want_r);
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* Either array may be NULL, the way every reader here allows. */
+static void test_both_outputs_of_the_basis_reader_are_optional(void)
+{
+    jaos_model *m = build_bas_model();
+    put_bas(" XU x         cap\n XL y         eq\nENDATA\n");
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, cs, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, nullptr, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_UPPER, rs[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_AT_LOWER, rs[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps_basis(m, TMP_BAS, nullptr, nullptr));
+    remove(TMP_BAS);
+    jaos_model_free(m);
+}
+
+/* Bad arguments, and a path nothing can be read from or written to. */
+static void test_the_basis_file_calls_reject_bad_arguments(void)
+{
+    jaos_model *m = build_bas_model();
+    jaos_basis_status cs[3], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_mps_basis(nullptr, TMP_BAS));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_mps_basis(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_mps_basis(nullptr, TMP_BAS, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_mps_basis(m, nullptr, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO,
+        jaos_read_mps_basis(m, "build/no_such_dir/x.bas", cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO,
+        jaos_write_mps_basis(m, "build/no_such_dir/x.bas"));
+    jaos_model_free(m);
+}
+
+/* --------------------------------------------------------------------- */
+/* Compressed output (D340)                                               */
+/* --------------------------------------------------------------------- */
+
+/* The writers' own contract, unchanged: what JAOS writes it reads back as
+ * the same model. A `.gz` name only says how the bytes are stored, and
+ * the readers decide by the file's first two bytes, so the round trip is
+ * the same claim over a different container. */
+static void test_both_model_writers_take_a_gz_name(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+
+    const char *paths[2] = {"build/tw_tmp.mps.gz", "build/tw_tmp.lp.gz"};
+    for (int k = 0; k < 2; k++) {
+        const jaos_status st = k == 0 ? jaos_write_mps(m, paths[k])
+                                      : jaos_write_lp(m, paths[k]);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, st, paths[k]);
+
+        /* The file is gzip and not text: the two magic bytes of RFC 1952
+         * are what says the name was acted on rather than ignored. */
+        FILE *f = fopen(paths[k], "rb");
+        TEST_ASSERT_NOT_NULL(f);
+        unsigned char magic[2] = {0, 0};
+        TEST_ASSERT_EQUAL_size_t(2u, fread(magic, 1, 2, f));
+        TEST_ASSERT_EQUAL_INT(0, fclose(f));
+        TEST_ASSERT_EQUAL_UINT8(0x1fu, magic[0]);
+        TEST_ASSERT_EQUAL_UINT8(0x8bu, magic[1]);
+
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, k == 0 ? jaos_read_mps(b, paths[k])
+                                              : jaos_read_lp(b, paths[k]));
+        assert_same_model(m, b);
+        jaos_model_free(b);
+        remove(paths[k]);
+    }
+    jaos_model_free(m);
+}
+
+/* A plain name still writes text, which is the control: without it the
+ * test above would pass on a writer that compressed everything. */
+static void test_a_plain_name_still_writes_text(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, TMP_MPS));
+    FILE *f = fopen(TMP_MPS, "rb");
+    TEST_ASSERT_NOT_NULL(f);
+    unsigned char magic[2] = {0, 0};
+    TEST_ASSERT_EQUAL_size_t(2u, fread(magic, 1, 2, f));
+    TEST_ASSERT_EQUAL_INT(0, fclose(f));
+    TEST_ASSERT_TRUE(magic[0] != 0x1fu || magic[1] != 0x8bu);
+    remove(TMP_MPS);
+    jaos_model_free(m);
+}
+
+/* The solution writer and the basis writer take the name too, since all
+ * four share one open and one close. */
+static void test_the_answer_writers_take_a_gz_name(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const char *sol = "build/tw_tmp.sol.gz";
+    const char *bas = "build/tw_tmp.bas.gz";
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, sol));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, bas));
+
+    /* The solution reader opens the file itself and does not inflate, so
+     * a compressed solution file is a file for somebody else to read.
+     * What is asserted here is that it was written and that it is gzip;
+     * the model writers above are where the round trip lives. */
+    for (int k = 0; k < 2; k++) {
+        FILE *f = fopen(k == 0 ? sol : bas, "rb");
+        TEST_ASSERT_NOT_NULL(f);
+        unsigned char magic[2] = {0, 0};
+        TEST_ASSERT_EQUAL_size_t(2u, fread(magic, 1, 2, f));
+        TEST_ASSERT_EQUAL_INT(0, fclose(f));
+        TEST_ASSERT_EQUAL_UINT8(0x1fu, magic[0]);
+        TEST_ASSERT_EQUAL_UINT8(0x8bu, magic[1]);
+    }
+    remove(sol);
+    remove(bas);
+    jaos_model_free(m);
+}
+
+/* A refusal leaves no file behind, compressed or not -- and with a `.gz`
+ * name it never opens the path at all, since the whole file is built in
+ * memory first. */
+static void test_a_refused_compressed_write_leaves_nothing(void)
+{
+    jaos_model *m = fresh();
+    const double cost[] = {1.0, 1.0}, cl[] = {0.0, 0.0};
+    const double cu[] = {1.0, 1.0};
+    const double rl[] = {-INFINITY}, ru[] = {1.0};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    /* Two columns of a name: every writer here refuses that. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "same"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "same"));
+    const char *path = "build/tw_refused.mps.gz";
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_mps(m, path));
+    TEST_ASSERT_FALSE(file_exists(path));
+    jaos_model_free(m);
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -1629,5 +2194,24 @@ int main(void)
     RUN_TEST(test_an_unbounded_ray_round_trips);
     RUN_TEST(test_the_certificate_reader_refuses_what_is_not_one);
     RUN_TEST(test_a_solve_with_no_certificate_writes_nothing);
+    RUN_TEST(test_a_basis_file_round_trips);
+    RUN_TEST(test_a_basis_file_warm_starts_a_second_solve);
+    RUN_TEST(test_the_file_carries_the_cards_the_basis_asks_for);
+    RUN_TEST(test_a_slack_basis_writes_no_cards);
+    RUN_TEST(test_free_round_trips_without_a_card_of_its_own);
+    RUN_TEST(test_the_reader_takes_a_file_this_writer_would_not_write);
+    RUN_TEST(test_the_basis_reader_takes_a_positional_name);
+    RUN_TEST(test_each_basis_reader_guard_fires_on_its_own);
+    RUN_TEST(test_the_basis_reader_takes_what_the_guards_leave);
+    RUN_TEST(test_a_refused_basis_read_leaves_the_arrays_alone);
+    RUN_TEST(test_the_basis_writer_refuses_without_a_basis);
+    RUN_TEST(test_the_basis_writer_refuses_two_columns_of_a_name);
+    RUN_TEST(test_a_refusals_basis_is_written_too);
+    RUN_TEST(test_both_outputs_of_the_basis_reader_are_optional);
+    RUN_TEST(test_the_basis_file_calls_reject_bad_arguments);
+    RUN_TEST(test_both_model_writers_take_a_gz_name);
+    RUN_TEST(test_a_plain_name_still_writes_text);
+    RUN_TEST(test_the_answer_writers_take_a_gz_name);
+    RUN_TEST(test_a_refused_compressed_write_leaves_nothing);
     return UNITY_END();
 }

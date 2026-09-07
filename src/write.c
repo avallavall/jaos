@@ -99,7 +99,24 @@ typedef struct {
     FILE *f;
     jaos_model *m;
     jaos_status st;
+    /* Set when the path ends in `.gz` (D340). The whole file is then
+     * built in memory and compressed at the close, so `f` is a memory
+     * stream and `gz_buf` is what it writes into. */
+    bool gz;
+    char *gz_buf;
+    size_t gz_len;
 } wr;
+
+/* Whether a path names a file to compress. The rule is the name and not a
+ * flag, because the readers decide by the file's first two bytes and a
+ * caller who writes `model.mps.gz` means one thing by it. Every writer
+ * here shares this, so `jaos convert in.mps out.lp.gz` needs no case of
+ * its own. */
+static bool path_is_gz(const char *path)
+{
+    const size_t n = strlen(path);
+    return n >= 3 && strcmp(path + n - 3, ".gz") == 0;
+}
 
 /* Every refusal funnels here: the first one wins, so a later check cannot
  * overwrite the message that says what is actually wrong. */
@@ -138,7 +155,12 @@ static bool wr_open(wr *w, const char *path, locale_t *prev, locale_t *cloc)
                 "cannot switch to the C locale needed to write '%s'", path);
         return false;
     }
-    w->f = fopen(path, "w");
+    /* A compressed path opens a memory stream instead, and the real file
+     * is not touched until the close has something to put in it. That is
+     * strictly better than the plain path, where `fopen(path, "w")`
+     * truncates before the first check that can still fail. */
+    w->gz = path_is_gz(path);
+    w->f = w->gz ? open_memstream(&w->gz_buf, &w->gz_len) : fopen(path, "w");
     if (w->f == nullptr) {
         uselocale(*prev);
         freelocale(*cloc);
@@ -163,6 +185,36 @@ static jaos_status wr_close(wr *w, const char *path, locale_t prev,
         uselocale(prev);
         freelocale(cloc);
     }
+
+    /* The compression and the one write of the real file (D340). It comes
+     * after the locale is restored, since nothing below formats a number,
+     * and after the stream is closed, since that is what makes the buffer
+     * whole. */
+    if (w->gz && w->st == JAOS_OK) {
+        char *packed = nullptr;
+        int64_t packed_n = 0;
+        if (!jm_gzip(w->gz_buf != nullptr ? w->gz_buf : "",
+                     (int64_t)w->gz_len, &packed, &packed_n)) {
+            wr_fail(w, JAOS_ERR_OUT_OF_MEMORY,
+                    "out of memory compressing '%s'", path);
+        } else {
+            FILE *out = fopen(path, "wb");
+            if (out == nullptr) {
+                wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
+            } else {
+                const size_t wrote = packed_n > 0
+                    ? fwrite(packed, 1, (size_t)packed_n, out) : 0;
+                if (wrote != (size_t)packed_n)
+                    wr_fail(w, JAOS_ERR_IO, "writing '%s' failed", path);
+                if (fclose(out) != 0)
+                    wr_fail(w, JAOS_ERR_IO, "closing '%s' failed", path);
+            }
+            free(packed);
+        }
+    }
+    free(w->gz_buf);
+    w->gz_buf = nullptr;
+
     if (w->st != JAOS_OK)
         remove(path);
     else
@@ -1324,5 +1376,322 @@ jaos_status jaos_solution_file_status(jaos_model *m, const char *path,
     const jaos_status st = read_solution_file(m, path, 0, &o);
     if (st == JAOS_OK)
         *status = o.status;
+    return st;
+}
+
+/* --------------------------------------------------------------------- */
+/* The MPS basis file                                                     */
+/* --------------------------------------------------------------------- */
+
+/* The reader is beside the writer for D282's reason: it is the exact
+ * inverse of it, and split across two files they drift.
+ *
+ * The format's own defaults do most of the work. Every column starts
+ * nonbasic at its lower bound and every row's logical starts basic, so a
+ * slack basis is an empty file and a solved one carries a card per
+ * departure. That is what makes these files small, and it is also why the
+ * reader has to seed the arrays with the defaults before it reads a line.
+ */
+
+/* Two columns, or two rows, called the same would read back as one. This
+ * is not `names_unique`: that one puts the objective and the rows in a
+ * single space because an MPS ROWS section does, and here a column and a
+ * row may share a name, since the two never occupy the same field of a
+ * card. */
+static void basis_names_unique(wr *w)
+{
+    const jaos_model *m = w->m;
+    char nm[NAME_LEN];
+    int64_t prior;
+
+    for (int side = 0; side < 2 && w->st == JAOS_OK; side++) {
+        jm_nmap seen = {0};
+        const int64_t n = side == 0 ? m->num_col : m->num_row;
+        for (int64_t k = 0; w->st == JAOS_OK && k < n; k++) {
+            if (side == 0)
+                col_name(m, nm, k);
+            else
+                row_name(m, nm, k);
+            if (jm_nmap_get(&seen, nm, &prior))
+                wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                        "%ss %" PRId64 " and %" PRId64 " are both named "
+                        "'%s', which no file can tell apart",
+                        side == 0 ? "column" : "row", prior, k, nm);
+            else if (!jm_nmap_insert(&seen, nm, k))
+                wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        }
+        jm_nmap_free(&seen);
+    }
+}
+
+jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+
+    jaos_basis_status *cs = jm_alloc_array(m->num_col, sizeof *cs);
+    jaos_basis_status *rs = jm_alloc_array(m->num_row, sizeof *rs);
+    if (cs == nullptr || rs == nullptr)
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+
+    /* The availability rule is jaos_basis's and is not restated here:
+     * whatever it hands out is what this writes, and whatever it refuses
+     * this refuses with the message it set. */
+    if (w->st == JAOS_OK) {
+        const jaos_status bst = jaos_basis(m, cs, rs);
+        if (bst != JAOS_OK) {
+            free(cs);
+            free(rs);
+            return bst;
+        }
+    }
+    /* Exactly num_row basic variables is what jaos_basis promises (D257),
+     * and it is checked rather than assumed, for the reason
+     * `vbasis_build` checks it: the pairing below walks the basic columns
+     * against the nonbasic rows, and a count that is one out walks off
+     * the end of the row array. An assert would say so in a dev build and
+     * segfault in a release one, which is what the off-by-one fault build
+     * demonstrated. */
+    if (w->st == JAOS_OK) {
+        int64_t basic = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            basic += cs[j] == JAOS_BASIS_BASIC;
+        for (int64_t i = 0; i < m->num_row; i++)
+            basic += rs[i] == JAOS_BASIS_BASIC;
+        if (basic != m->num_row)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "the basis has %" PRId64 " basic variables and this "
+                    "model has %" PRId64 " rows, so it is not a basis of it",
+                    basic, m->num_row);
+    }
+    if (w->st == JAOS_OK)
+        basis_names_unique(w);
+
+    locale_t prev = (locale_t)0, cloc = (locale_t)0;
+    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+        free(cs);
+        free(rs);
+        return w->st;
+    }
+
+    {
+        char nm[NAME_LEN], rn[NAME_LEN];
+        fprintf(w->f, "* written by JAOS %s\n", JAOS_VERSION_STRING);
+        fprintf(w->f, "NAME          %s\n",
+                m->model_name != nullptr ? m->model_name : "JAOS");
+
+        /* A basis has exactly num_row basic variables, so the basic
+         * columns and the nonbasic rows are equal in number (jaos_basis
+         * promises the count, D257). They are paired in index order,
+         * which is a choice the format leaves open and which makes the
+         * file reproducible: the same basis writes the same bytes. */
+        int64_t i = 0;
+        for (int64_t j = 0; j < m->num_col; j++) {
+            if (cs[j] == JAOS_BASIS_BASIC) {
+                while (i < m->num_row && rs[i] == JAOS_BASIS_BASIC)
+                    i++;
+                /* Unreachable now that the count is checked above, which
+                 * is exactly what makes it worth asserting (D216, D224). */
+                assert(i < m->num_row);
+                col_name(m, nm, j);
+                row_name(m, rn, i);
+                fprintf(w->f, " %s %-9s %s\n",
+                        rs[i] == JAOS_BASIS_AT_UPPER ? "XU" : "XL", nm, rn);
+                i++;
+            } else if (cs[j] == JAOS_BASIS_AT_UPPER) {
+                col_name(m, nm, j);
+                fprintf(w->f, " UL %s\n", nm);
+            }
+            /* AT_LOWER is the default and FREE reads back as FREE from
+             * the bounds, so neither writes a card. */
+        }
+        fprintf(w->f, "ENDATA\n");
+    }
+
+    free(cs);
+    free(rs);
+    return wr_close(w, path, prev, cloc);
+}
+
+/* The status a nonbasic variable rests in, given the bounds it has. A
+ * variable with neither bound rests at zero, which is what FREE means; one
+ * with a lower bound rests there. This is the reader's whole treatment of
+ * FREE, and it is exact rather than a guess: the writer emits no card for
+ * either, so the bounds are the only thing that separates them and they
+ * separate them completely. */
+static jaos_basis_status nonbasic_at_lower(double lo, double up)
+{
+    return (lo == -INFINITY && up == INFINITY) ? JAOS_BASIS_FREE
+                                               : JAOS_BASIS_AT_LOWER;
+}
+
+jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
+                                jaos_basis_status *col_status,
+                                jaos_basis_status *row_status)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    FILE *f = fopen(path, "r");
+    if (f == nullptr) {
+        jm_set_err(m, "cannot open '%s' for reading", path);
+        return JAOS_ERR_IO;
+    }
+
+    jaos_status st = JAOS_OK;
+    char *line = nullptr;
+    size_t lsz = 0;
+    int64_t lno = 0;
+    bool ended = false;
+
+    /* The arrays are the reader's own, not the caller's: a refusal on the
+     * last line must not leave half a basis in the caller's buffers. */
+    jaos_basis_status *cs = jm_alloc_array(m->num_col, sizeof *cs);
+    jaos_basis_status *rs = jm_alloc_array(m->num_row, sizeof *rs);
+    /* One flag per variable, so a second card for one of them is caught
+     * rather than silently taken. The default state is not a card, so an
+     * unflagged slot is untouched and not "seen". */
+    bool *cseen = jm_calloc_array(m->num_col, sizeof *cseen);
+    bool *rseen = jm_calloc_array(m->num_row, sizeof *rseen);
+    if (cs == nullptr || rs == nullptr || cseen == nullptr ||
+        rseen == nullptr) {
+        jm_set_err(m, "out of memory");
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto done;
+    }
+    for (int64_t j = 0; j < m->num_col; j++)
+        cs[j] = nonbasic_at_lower(m->col_lower[j], m->col_upper[j]);
+    for (int64_t i = 0; i < m->num_row; i++)
+        rs[i] = JAOS_BASIS_BASIC;
+
+#define BAS_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
+    jm_set_err(m, __VA_ARGS__); goto done; } while (0)
+
+    while (getline(&line, &lsz, f) >= 0) {
+        lno++;
+        if (ended)
+            BAS_FAIL("line %" PRId64 ": content after 'ENDATA'", lno);
+        if (line[0] == '*')
+            continue;   /* an MPS comment, and what this writer's first
+                         * line is */
+
+        char *tok[8];
+        int nt = 0;
+        for (char *p = strtok(line, " \t\r\n");
+             p != nullptr && nt < 8; p = strtok(nullptr, " \t\r\n"))
+            tok[nt++] = p;
+        if (nt == 0)
+            continue;
+
+        if (strcmp(tok[0], "ENDATA") == 0) {
+            ended = true;
+            continue;
+        }
+        if (strcmp(tok[0], "NAME") == 0)
+            continue;   /* the file's own name for the model, which says
+                         * nothing about whether it is this model */
+
+        const bool two = strcmp(tok[0], "XU") == 0 ||
+                         strcmp(tok[0], "XL") == 0;
+        const bool one = strcmp(tok[0], "UL") == 0 ||
+                         strcmp(tok[0], "LL") == 0;
+        if (!two && !one)
+            BAS_FAIL("line %" PRId64 ": '%s' is not one of the four cards "
+                     "XU, XL, UL and LL", lno, tok[0]);
+        if (nt != (two ? 3 : 2))
+            BAS_FAIL("line %" PRId64 ": '%s' takes %s", lno, tok[0],
+                     two ? "a column and a row" : "a column");
+
+        int64_t j = 0;
+        if (jaos_col_index(m, tok[1], &j) != JAOS_OK)
+            BAS_FAIL("line %" PRId64 ": no column is named '%s'", lno,
+                     tok[1]);
+        if (cseen[j])
+            BAS_FAIL("line %" PRId64 ": a second card for column '%s'", lno,
+                     tok[1]);
+        cseen[j] = true;
+
+        if (two) {
+            int64_t i = 0;
+            if (jaos_row_index(m, tok[2], &i) != JAOS_OK)
+                BAS_FAIL("line %" PRId64 ": no row is named '%s'", lno,
+                         tok[2]);
+            if (rseen[i])
+                BAS_FAIL("line %" PRId64 ": a second card for row '%s'", lno,
+                         tok[2]);
+            rseen[i] = true;
+            cs[j] = JAOS_BASIS_BASIC;
+            /* A row with no bound on the named side is refused rather
+             * than moved to the other one. jaos_set_basis repairs a
+             * status whose bound was retired since the basis was taken,
+             * and that is a different thing from a file that never made
+             * sense: here nothing has changed underneath, so a card
+             * naming a bound the row does not have is a wrong file. */
+            if (tok[0][1] == 'U') {
+                if (m->row_upper[i] == INFINITY)
+                    BAS_FAIL("line %" PRId64 ": row '%s' has no upper bound "
+                             "to rest on", lno, tok[2]);
+                rs[i] = JAOS_BASIS_AT_UPPER;
+            } else {
+                rs[i] = nonbasic_at_lower(m->row_lower[i], m->row_upper[i]);
+                if (rs[i] == JAOS_BASIS_AT_LOWER &&
+                    m->row_lower[i] == -INFINITY)
+                    BAS_FAIL("line %" PRId64 ": row '%s' has no lower bound "
+                             "to rest on", lno, tok[2]);
+            }
+        } else if (tok[0][0] == 'U') {
+            if (m->col_upper[j] == INFINITY)
+                BAS_FAIL("line %" PRId64 ": column '%s' has no upper bound "
+                         "to rest on", lno, tok[1]);
+            cs[j] = JAOS_BASIS_AT_UPPER;
+        } else {
+            cs[j] = nonbasic_at_lower(m->col_lower[j], m->col_upper[j]);
+            if (cs[j] == JAOS_BASIS_AT_LOWER && m->col_lower[j] == -INFINITY)
+                BAS_FAIL("line %" PRId64 ": column '%s' has no lower bound "
+                         "to rest on", lno, tok[1]);
+        }
+    }
+
+    if (!ended)
+        BAS_FAIL("line %" PRId64 ": the file ends without 'ENDATA'", lno);
+
+    /* The basic count needs no check, and the argument is worth writing
+     * down because the obvious reading is that it does. Only XU and XL
+     * make a column basic, each one makes exactly one row nonbasic in the
+     * same card, and the two seen-flags refuse a second card for either
+     * side. So the count of basic columns equals the count of nonbasic
+     * rows, whatever the file says, and the total is num_row for every
+     * file that gets this far. That makes it an invariant rather than a
+     * validation, which in this project is an assert (D216, D224). */
+#ifndef NDEBUG
+    {
+        int64_t basic = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (cs[j] == JAOS_BASIS_BASIC)
+                basic++;
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (rs[i] == JAOS_BASIS_BASIC)
+                basic++;
+        assert(basic == m->num_row);
+    }
+#endif
+
+    if (col_status != nullptr)
+        memcpy(col_status, cs, (size_t)m->num_col * sizeof *cs);
+    if (row_status != nullptr)
+        memcpy(row_status, rs, (size_t)m->num_row * sizeof *rs);
+    m->err[0] = '\0';
+
+#undef BAS_FAIL
+done:
+    free(line);
+    free(cs);
+    free(rs);
+    free(cseen);
+    free(rseen);
+    fclose(f);
     return st;
 }

@@ -21,6 +21,7 @@
 #include "jaos_internal.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1228,6 +1229,228 @@ static void test_each_exact_derivation_refuses_the_other_s_answer(void)
     jaos_model_free(m);
 }
 
+
+/* ------------------------------------------ a basis from outside (D339) */
+
+/* The same proof over a basis the caller brings, and it agrees with
+ * jaos_verify on the basis jaos_verify would have used. That agreement is
+ * the claim: the two entry points share a body and neither reads a number
+ * the solve produced. */
+static void test_verify_basis_agrees_with_verify_on_the_same_basis(void)
+{
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+
+    jaos_verify_report a, b;
+    memset(&a, 0, sizeof a);
+    memset(&b, 0, sizeof b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, cs, rs, &b));
+    TEST_ASSERT_EQUAL_INT(a.status, b.status);
+    TEST_ASSERT_EQUAL_INT(a.stage, b.stage);
+    TEST_ASSERT_EQUAL_INT64(a.blocks, b.blocks);
+    TEST_ASSERT_EQUAL_INT64(a.largest_block, b.largest_block);
+    TEST_ASSERT_EQUAL_INT64(a.terms, b.terms);
+    TEST_ASSERT_EQUAL_DOUBLE(a.bound_bits, b.bound_bits);
+    jaos_model_free(m);
+}
+
+/* And it needs no solve at all, which is the point of having it. The
+ * model here is never solved: the basis is written down by hand from what
+ * the optimum of model_two is known to be. */
+static void test_verify_basis_proves_a_basis_with_no_solve(void)
+{
+    jaos_model *m = model_two();
+    /* x = 3 at its upper bound, y basic, the row at its upper bound. */
+    const jaos_basis_status cs[2] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_BASIC};
+    const jaos_basis_status rs[1] = {JAOS_BASIS_AT_UPPER};
+
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, cs, rs, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+
+    /* The model still says nothing ran, and jaos_solution still refuses:
+     * proving somebody else's basis is not this solver's answer. */
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(m, &obj));
+
+    /* What the proof does leave is the exact values it derived. */
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("3", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 1, &v));
+    TEST_ASSERT_EQUAL_STRING("1", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &v));
+    TEST_ASSERT_EQUAL_STRING("-4", v);
+    jaos_model_free(m);
+}
+
+/* The case it has to reject, built on purpose: a basis that is legal --
+ * the right count, four legal statuses -- and not optimal. A verifier
+ * that returned OPTIMAL for everything would pass every test above. */
+static void test_verify_basis_rejects_a_basis_that_is_not_optimal(void)
+{
+    jaos_model *m = model_two();
+    /* The slack basis: both columns at their lower bound, the row's
+     * logical basic. It is feasible and it is not optimal, because both
+     * reduced costs are -1 and point out of the model at a lower bound. */
+    const jaos_basis_status cs[2] = {JAOS_BASIS_AT_LOWER,
+                                     JAOS_BASIS_AT_LOWER};
+    const jaos_basis_status rs[1] = {JAOS_BASIS_BASIC};
+
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, cs, rs, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_BROKEN, rep.status);
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_STAGE_DUAL, rep.stage);
+    /* A BROKEN verdict leaves no exact values, since there is no proof
+     * for them to be the coordinates of. */
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_exact_col_value(m, 0, &v));
+    jaos_model_free(m);
+}
+
+/* The other side of BROKEN: a basis whose basic value falls outside its
+ * bounds, which is the primal stage rather than the dual one. */
+static void test_verify_basis_rejects_an_infeasible_basis(void)
+{
+    jaos_model *m = model_two();
+    /* x basic against the row at its upper bound, y at its lower: that
+     * makes x = 4, which is past its own upper bound of 3. */
+    const jaos_basis_status cs[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_AT_LOWER};
+    const jaos_basis_status rs[1] = {JAOS_BASIS_AT_UPPER};
+
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, cs, rs, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_BROKEN, rep.status);
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_STAGE_PRIMAL, rep.stage);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, rep.violation);
+    jaos_model_free(m);
+}
+
+/* jaos_set_basis's two structural checks, refused here for the same
+ * reason and with the same words. */
+static void test_verify_basis_refuses_a_basis_that_is_not_one(void)
+{
+    jaos_model *m = model_two();
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+
+    /* Too few basic: no column basic and the row nonbasic is zero basics
+     * against one row. */
+    const jaos_basis_status few_c[2] = {JAOS_BASIS_AT_LOWER,
+                                        JAOS_BASIS_AT_LOWER};
+    const jaos_basis_status few_r[1] = {JAOS_BASIS_AT_UPPER};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, few_c, few_r, &rep));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "basic variables"));
+
+    /* Too many. */
+    const jaos_basis_status many_c[2] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC};
+    const jaos_basis_status many_r[1] = {JAOS_BASIS_BASIC};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, many_c, many_r, &rep));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "basic variables"));
+
+    /* A value that is not a status. */
+    const jaos_basis_status junk_c[2] = {(jaos_basis_status)9,
+                                         JAOS_BASIS_BASIC};
+    const jaos_basis_status junk_r[1] = {JAOS_BASIS_AT_UPPER};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, junk_c, junk_r, &rep));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no such basis status"));
+
+    /* And the nulls. */
+    const jaos_basis_status ok_c[2] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_BASIC};
+    const jaos_basis_status ok_r[1] = {JAOS_BASIS_AT_UPPER};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(nullptr, ok_c, ok_r, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, nullptr, ok_r, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, ok_c, nullptr, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+        jaos_verify_basis(m, ok_c, ok_r, nullptr));
+
+    /* The control: the same call with a basis that is one is taken. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, ok_c, ok_r, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    jaos_model_free(m);
+}
+
+/* The model's own starting basis is not touched by a proof of somebody
+ * else's, and neither is a solve that already happened. Both are the
+ * "borrowed scratch" question: the proof swaps the published basis out
+ * for the caller's and has to put it back. */
+static void test_verify_basis_leaves_the_model_alone(void)
+{
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_basis_status was_c[2], was_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, was_c, was_r));
+    double was_obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &was_obj));
+
+    /* A basis that is not the solve's, proved and refused. */
+    const jaos_basis_status other_c[2] = {JAOS_BASIS_AT_LOWER,
+                                          JAOS_BASIS_AT_LOWER};
+    const jaos_basis_status other_r[1] = {JAOS_BASIS_BASIC};
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_verify_basis(m, other_c, other_r, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_BROKEN, rep.status);
+
+    /* Everything the solve published is where it was. */
+    jaos_basis_status now_c[2], now_r[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, now_c, now_r));
+    TEST_ASSERT_EQUAL_MEMORY(was_c, now_c, sizeof was_c);
+    TEST_ASSERT_EQUAL_MEMORY(was_r, now_r, sizeof was_r);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double now_obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &now_obj));
+    TEST_ASSERT_EQUAL_DOUBLE(was_obj, now_obj);
+
+    /* And the solve's own proof still runs afterwards and still proves. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    jaos_model_free(m);
+}
+
+/* A proof of an outside basis writes a proof file, and the file checker
+ * -- which shares no code with the prover -- agrees. That is the whole
+ * chain another solver's answer travels: its basis in, an exact proof
+ * out, judged by a third thing. */
+static void test_a_basis_from_outside_gets_a_proof_file(void)
+{
+    jaos_model *m = model_two();
+    const jaos_basis_status cs[2] = {JAOS_BASIS_AT_UPPER, JAOS_BASIS_BASIC};
+    const jaos_basis_status rs[1] = {JAOS_BASIS_AT_UPPER};
+    jaos_verify_report rep;
+    memset(&rep, 0, sizeof rep);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify_basis(m, cs, rs, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+
+    const char *path = "build/tv_outside.proof";
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, path));
+    jaos_proof_report pr;
+    memset(&pr, 0, sizeof pr);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, path, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+    TEST_ASSERT_TRUE(pr.primal);
+    TEST_ASSERT_TRUE(pr.dual);
+    TEST_ASSERT_TRUE(pr.objective);
+    remove(path);
+    jaos_model_free(m);
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -1260,5 +1483,12 @@ int main(void)
     RUN_TEST(test_the_exact_certificate_is_dropped_with_the_answer);
     RUN_TEST(test_exact_values_carry_the_model_s_own_sign);
     RUN_TEST(test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve);
+    RUN_TEST(test_verify_basis_agrees_with_verify_on_the_same_basis);
+    RUN_TEST(test_verify_basis_proves_a_basis_with_no_solve);
+    RUN_TEST(test_verify_basis_rejects_a_basis_that_is_not_optimal);
+    RUN_TEST(test_verify_basis_rejects_an_infeasible_basis);
+    RUN_TEST(test_verify_basis_refuses_a_basis_that_is_not_one);
+    RUN_TEST(test_verify_basis_leaves_the_model_alone);
+    RUN_TEST(test_a_basis_from_outside_gets_a_proof_file);
     return UNITY_END();
 }

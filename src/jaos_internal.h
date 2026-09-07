@@ -566,6 +566,17 @@ bool jm_model_has_integer(const jaos_model *m);
 JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
                                     char **out, int64_t *out_len);
 
+/* Compresses `n` bytes into a gzip file (src/deflate.c, D340), the other
+ * half of jm_slurp's inflate. On success *out is a malloc'd buffer the
+ * caller frees and *out_n is its length. False on out of memory and on an
+ * input past two gigabytes; nothing is allocated then.
+ *
+ * The bytes are a function of the input alone -- no clock in the header,
+ * no address in the match search -- so a compressed file this library
+ * writes is the same on every machine and every run (D8). */
+JAOS_NODISCARD bool jm_gzip(const char *data, int64_t n, char **out,
+                            int64_t *out_n);
+
 /* Builds the CSR mirror if it is not current. */
 /* Whether a lower bound sits above its upper by more than presolve's own
  * rounding window (src/presolve.c). The solve's entry refuses such a box

@@ -106,6 +106,7 @@ relaxation only.
 | Add and delete rows and columns | ● | ● | ● | ● | ● | ● | ● |
 | Warm start from a previous basis | ● | ● | ● | ● | ● | ● | ? |
 | Read and write a starting basis | ● | ● | ● | ● | ● | ● | ? |
+| Exchange a basis in the MPS basis format | ● | ● | ● | ● | ● | ● | ? |
 | Resume after a work or time limit | ● | ● | ? | ? | ● | ● | ● |
 
 JAOS's presolve rows are ◐ as of phase 2: the reduced-model machinery, the
@@ -185,8 +186,21 @@ including the row where the field is ahead.
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
 | Feasibility relaxation of an infeasible model | ● | ? | ? | ? | ? | ? | ? |
+| **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
 **The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 (D331) and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
+
+**The last row is new on 2026-09-07 (D339) and its six `○`s are meant.**
+`jaos_verify_basis` runs the exact proof over a basis the caller hands in,
+with no solve at all, so JAOS reads a model, reads the basis another
+solver stopped on -- `jaos_read_mps_basis` reads the format the field
+writes one in (D338) -- and says over the rationals whether that basis is
+an optimal basis of that model. None of the others exposes its own
+verifier to a basis it did not produce: SoPlex and SCIP solve exactly and
+SCIP emits a VIPR certificate its own `viprchk` checks, which is a
+different object, and the rest have no exact checker to point at anything.
+That is what the row is asking, and this cell is a real difference rather
+than a restatement of the checker row above.
 
 Three rows carry most of the meaning.
 
@@ -283,11 +297,21 @@ that line is missing against.
 | Read MPS (fixed and free) | ● | ● | ● | ● | ● | ● | ● |
 | Read LP format | ◐ | ● | ● | ● | ● | ● | ● |
 | Read compressed input | ● | ● | ● | ● | ● | ● | ? |
+| Write compressed output | ● | ? | ? | ? | ? | ? | ? |
 | Direct load from arrays | ● | ● | ● | ● | ● | ● | ● |
 | Write MPS | ● | ● | ● | ● | ● | ● | ? |
 | Write LP | ◐ | ● | ● | ● | ● | ● | ? |
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
 | Reject unsupported constructs with a line number | ● | ? | ? | ? | ? | ? | ? |
+
+**The compressed-output row is new on 2026-09-07 (D340) and its six other
+columns are `?` rather than `○`.** Every writer here compresses when the
+path ends in `.gz`, over an encoder written in this repository for the
+reason the decoder was. The rivals' documentation was not re-read for this
+row, so the honest entry is unknown; it is due at the next pass over the
+other columns. What is measured is JAOS's own: `gzip -t` accepts all 139
+gate instances and `gzip -dc` returns the plain write byte for byte, at
+1.3387x the size of `gzip -9` (`bench/measurements/02-217/`).
 
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.

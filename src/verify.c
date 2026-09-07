@@ -1043,13 +1043,15 @@ static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
                         const jm_rational *xs, const jm_rational *us,
                         double sigma);
 
-jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
+/* The proof itself, over whatever basis sits in m->sol_col_status and
+ * m->sol_row_status. The two public entry points below differ in nothing
+ * but where that basis came from: jaos_verify proves the one the last
+ * solve published, and jaos_verify_basis proves one the caller hands in,
+ * which may be another solver's (D339). Nothing in here asks which, and
+ * that is the point -- the proof never reads a solve's own numbers, only
+ * the model and a basis of it. */
+static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
 {
-    if (m == nullptr || out == nullptr)
-        return JAOS_ERR_INVALID_INPUT;
-    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr ||
-        m->sol_row_status == nullptr)
-        return JAOS_ERR_INVALID_INPUT;
     /* A previous proof's values go first, so nothing stale survives a
      * verdict that is not OPTIMAL. */
     jm_model_drop_exact(m);
@@ -1074,13 +1076,13 @@ jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
     jaos_status rc = JAOS_ERR_NUMERICAL;
 
     if (!vbasis_build(m, &b)) {
-        jm_set_err(m, "jaos_verify: the published basis is not %lld columns",
+        jm_set_err(m, "the basis handed to the proof is not %lld columns",
                    (long long)m->num_row);
         *out = rep;
         return JAOS_ERR_NUMERICAL;
     }
     if (!vbasis_scale(&b)) {
-        jm_set_err(m, "jaos_verify: a basis row does not scale to an integer "
+        jm_set_err(m, "a basis row does not scale to an integer "
                       "inside the limb budget");
         goto done;
     }
@@ -1469,6 +1471,99 @@ done:
     vbasis_free(&b);
     *out = rep;
     return rc;
+}
+
+jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr ||
+        m->sol_row_status == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    return verify_core(m, out);
+}
+
+/* The same four values jaos_set_basis admits, checked the same way. It is
+ * spelled out again here rather than shared, because src/model.c's copy is
+ * static and one enum with four members is not a contract worth a header
+ * line. */
+static bool vstatus_in_range(jaos_basis_status s)
+{
+    return s == JAOS_BASIS_BASIC || s == JAOS_BASIS_AT_LOWER ||
+           s == JAOS_BASIS_AT_UPPER || s == JAOS_BASIS_FREE;
+}
+
+/* A basis from outside, proved against this model and nothing else (D339).
+ *
+ * The published basis is swapped out for the caller's for the length of
+ * the proof and put back afterwards, whatever the verdict. Copies are made
+ * rather than the caller's arrays borrowed, because exact_store reads the
+ * statuses again at the end and a caller who freed theirs in between would
+ * be read after the free.
+ *
+ * `solve_status` is NOT touched. A model that never solved stays one, and
+ * the verdict says something about the basis rather than about the model's
+ * own history: jaos_solution keeps refusing, and only the exact values
+ * this proof stored become readable. That is the honest split, because
+ * proving somebody else's basis optimal does not make it this solver's
+ * answer. */
+jaos_status jaos_verify_basis(jaos_model *m,
+                              const jaos_basis_status *col_status,
+                              const jaos_basis_status *row_status,
+                              jaos_verify_report *out)
+{
+    if (m == nullptr || out == nullptr || col_status == nullptr ||
+        row_status == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    /* The same two structural checks jaos_set_basis makes, and for the
+     * same reason: nothing later can make a wrong count right, and a
+     * verifier that took one would factor a matrix that is not square and
+     * then report something about it. */
+    int64_t basic = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!vstatus_in_range(col_status[j])) {
+            jm_set_err(m, "column %lld has no such basis status: %d",
+                       (long long)j, (int)col_status[j]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        basic += col_status[j] == JAOS_BASIS_BASIC;
+    }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        if (!vstatus_in_range(row_status[i])) {
+            jm_set_err(m, "row %lld has no such basis status: %d",
+                       (long long)i, (int)row_status[i]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        basic += row_status[i] == JAOS_BASIS_BASIC;
+    }
+    if (basic != m->num_row) {
+        jm_set_err(m, "the basis has %lld basic variables and this model has "
+                   "%lld rows", (long long)basic, (long long)m->num_row);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
+    jaos_basis_status *cs = jm_alloc_array(m->num_col, sizeof *cs);
+    jaos_basis_status *rs = jm_alloc_array(m->num_row, sizeof *rs);
+    if (cs == nullptr || rs == nullptr) {
+        free(cs);
+        free(rs);
+        jm_set_err(m, "out of memory");
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    memcpy(cs, col_status, (size_t)m->num_col * sizeof *cs);
+    memcpy(rs, row_status, (size_t)m->num_row * sizeof *rs);
+
+    jaos_basis_status *saved_c = m->sol_col_status;
+    jaos_basis_status *saved_r = m->sol_row_status;
+    m->sol_col_status = cs;
+    m->sol_row_status = rs;
+    const jaos_status st = verify_core(m, out);
+    m->sol_col_status = saved_c;
+    m->sol_row_status = saved_r;
+    free(cs);
+    free(rs);
+    return st;
 }
 
 /* -------------------------------------------------- 7. the exact values */

@@ -770,6 +770,43 @@ class TestVerify(unittest.TestCase):
         with self.assertRaises(ValueError):
             p.verify()
 
+    def test_a_basis_from_outside_is_proved_with_no_solve(self):
+        """D339. Both ways round: the basis of the optimum proves, and the
+        slack basis, which is legal and not optimal, is broken. Without the
+        second the first would pass on a prover that proved everything."""
+        B = jaos.BasisStatus
+        with jaos.Model() as m:
+            # min -x - y, x + y <= 4, x <= 3: the optimum is x = 3, y = 1
+            # with x at its upper bound, y basic and the row at its upper.
+            m.load(2, 1, [-1.0, -1.0], [0.0, 0.0], [3.0, float("inf")],
+                   [-float("inf")], [4.0], [0, 1, 2], [0, 0], [1.0, 1.0])
+            r = m.verify_basis([B.AT_UPPER, B.BASIC], [B.AT_UPPER])
+            self.assertIs(r.status, jaos.Proof.OPTIMAL)
+            # Nothing solved, and the exact values are readable.
+            self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
+            self.assertEqual(str(m.exact_col_value(0)), "3")
+            self.assertEqual(str(m.exact_objective()), "-4")
+
+            r = m.verify_basis([B.AT_LOWER, B.AT_LOWER], [B.BASIC])
+            self.assertIs(r.status, jaos.Proof.BROKEN)
+            self.assertIs(r.stage, jaos.ProofStage.DUAL)
+
+            # Two structural refusals, and a wrong length.
+            with self.assertRaises(jaos.JaosError):
+                m.verify_basis([B.BASIC, B.BASIC], [B.BASIC])
+            with self.assertRaises(ValueError):
+                m.verify_basis([B.BASIC], [B.AT_UPPER])
+
+    def test_the_layer_verifies_a_basis_too(self):
+        B = jaos.BasisStatus
+        p = jaos.Problem()
+        x = p.add_var(ub=3.0)
+        y = p.add_var()
+        p.add(x + y <= 4)
+        p.minimize(-x - y)
+        r = p.verify_basis([B.AT_UPPER, B.BASIC], [B.AT_UPPER])
+        self.assertIs(r.status, jaos.Proof.OPTIMAL)
+
 
 class TestProgressCallback(unittest.TestCase):
     def test_the_callback_sees_the_solve(self):
@@ -2081,6 +2118,61 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
                 m.set_basis(basis.col_status, basis.row_status)
                 self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
                 self.assertAlmostEqual(m.objective(), 29.0, places=9)
+
+    def test_an_mps_basis_file_round_trips_at_both_layers(self):
+        """D338: the format the field exchanges a basis in. Model writes
+        it and reads it back as the same statuses, and Problem does the
+        same over its own model."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a.bas")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                want = m.basis()
+                m.write_mps_basis(path)
+                got = m.read_mps_basis(path)
+                self.assertEqual(got.col_status, want.col_status)
+                self.assertEqual(got.row_status, want.row_status)
+                with open(path) as f:
+                    text = f.read()
+                self.assertIn("ENDATA", text)
+
+            # And it warm-starts a second model, which is the point of
+            # having the file at all.
+            with jaos.Model() as n:
+                n.read_mps(data("solve1.mps"))
+                b = n.read_mps_basis(path)
+                n.set_basis(b.col_status, b.row_status)
+                self.assertIs(n.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertEqual(n.iterations, 0)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.bas")
+            p = jaos.Problem()
+            x = p.add_var(lb=0, ub=10, name="x")
+            p.add(x >= 3)
+            p.minimize(x)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            p.write_mps_basis(path)
+            b = p.read_mps_basis(path)
+            self.assertEqual(len(b.col_status), 1)
+            self.assertEqual(len(b.row_status), 1)
+
+    def test_an_mps_basis_file_is_refused_when_it_is_wrong(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "bad.bas")
+            with open(path, "w") as f:
+                f.write(" XL nosuch    nosuch\nENDATA\n")
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.solve()
+                with self.assertRaises(Exception):
+                    m.read_mps_basis(path)
+            # And a model that never solved has no basis to write.
+            with jaos.Model() as n:
+                n.read_mps(data("solve1.mps"))
+                with self.assertRaises(Exception):
+                    n.write_mps_basis(os.path.join(tmp, "none.bas"))
 
     def test_a_file_from_another_model_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -7,6 +7,55 @@ line leaves this file in the same commit.
 
 ## Where the last session stopped — 2026-09-06
 
+**2026-09-07, the day batch, fifteenth round: a basis crosses the fence,
+in both directions (D338, D339, D340).** JAOS reads and writes the MPS
+basis file, proves a basis it did not produce, and compresses anything it
+writes.
+
+`jaos_write_mps_basis` and `jaos_read_mps_basis` are the format every
+solver in the field exchanges a basis in, so a basis JAOS found starts
+another solver's run and a basis another solver found starts JAOS's
+(`jaos solve --write-basis BAS`, `--basis BAS`, both Python layers).
+`jaos_verify_basis` then proves one that arrives in a file, with no solve
+at all, over the rationals and with no tolerance (`jaos verify FILE
+--basis BAS`). And `src/deflate.c` closes D240's one-way street: every
+writer compresses when the path ends in `.gz`.
+
+**Four things worth carrying forward.**
+
+**The proof never needed a solve, and nobody had noticed.** Everything
+`jaos_verify` does is a statement about a model and a basis; it reads no
+number the solve produced. So the change was an entry point and a shared
+body, not new machinery, and what came out of it is the distinctive cell
+on `docs/feature-matrix.md`: JAOS proves **another solver's** basis, and
+none of the others exposes its verifier to a basis it did not produce.
+The chain runs to the end -- outside basis in, exact proof file out,
+judged by `jaos_check_proof`, which shares no code with the prover.
+
+**Two checks that look necessary are not, and both are asserts now.** The
+basis file's basic count cannot be wrong: only `XU` and `XL` make a
+column basic, each makes one row nonbasic in the same card, and a second
+card for either side is refused, so any file that reads leaves exactly
+`num_row` basics. And `JAOS_BASIS_FREE` needs no card of its own: a
+nonbasic variable with both bounds infinite rests at zero and the bounds
+decide it, which is what makes the round trip exact rather than lucky.
+Writing the argument down beside the assert is the point; a defensive
+check that can never fire reads as a check that can.
+
+**A compressed write is safer than a plain one, which was not the goal.**
+It builds the whole file in memory and touches the path once, at the end,
+so a refusal never opens it. The plain path still calls `fopen(path,
+"w")` first, which truncates before the checks that can still fail, and
+removes the file afterwards.
+
+**The compressor's evidence is the system's own gzip and not a round trip
+here.** 139 of 139 gate instances pass `gzip -t`, and `gzip -dc` of each
+returns the plain write byte for byte; separately JAOS's own reader gets
+the same answer out on 94 of 94 netlib instances, which is a different
+code path. The size is 1.3387x `gzip -9`'s, which is the whole cost of
+the fixed Huffman tables, and `bench/measurements/02-217/` says so rather
+than a comment claiming it.
+
 **2026-09-07, the day batch, twelfth round: presolve reports what it
 removed (D329).** The per-family counters have existed since D95 and were
 logged only, so they died with the presolve object and the only way to

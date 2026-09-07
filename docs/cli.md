@@ -12,6 +12,7 @@ compiles it and runs its test, `tests/cli.sh`.
 
 ```
 jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
+                [--basis BAS] [--write-basis BAS]
                 [--work-limit N] [--time-limit SECONDS]
                 [--primal-tol T] [--dual-tol T]
                 [--mip-start SOLUTION] [--cutoff V]
@@ -37,7 +38,7 @@ jaos check FILE --proof PROOF
 jaos stats FILE
 jaos iis FILE
 jaos relax FILE [--rows | --cols] [--apply OUT]
-jaos verify FILE [--values] [--proof PATH]
+jaos verify FILE [--values] [--proof PATH] [--basis BAS]
 jaos ranging FILE
 jaos --version
 jaos --help
@@ -124,6 +125,8 @@ prints the same facts as the same model solved silently.
 |---|---|
 | `--solution OUT` | writes the solution file to `OUT`: the optimum when the solve found one, and the certificate when it proved the model infeasible or unbounded (D285). A solve that stopped on a budget or an interrupt has no answer to write; no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
 | `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. Either kind of file will do since D332 -- an optimum's, or a certificate's, which carries the basis the refusal stopped on -- so a run that ended INFEASIBLE resumes after one bound moves. A file for another model, or one carrying no basis at all, is refused with the library's message and exit 5. |
+| `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file (D338): the format every solver in the field writes a basis in, so `BAS` may be another solver's. It is read and handed to the model before the solve, exactly as `--start` does with JAOS's own file. Not with `--start`: a solve begins in one place, and being handed two is a question the caller has to answer. A file whose names or count do not fit this model is refused with the library's message and exit 5. |
+| `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed (D340). |
 | `--proof PATH` | writes the answer's exact proof to `PATH` (D325, D328). An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when that refuses, saying so on stderr; an infeasible or unbounded answer's proof is the certificate the solve already published, which needs no verify because every double in it is already an exact rational. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
 | `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs (D326). It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
 | `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed (D326). It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
@@ -224,6 +227,13 @@ exists to shrink (D327).
 `OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
 LP, and any other extension is a usage error. The output name is checked
 before the input is read.
+
+**A `.gz` after either extension compresses the file** (D340), so
+`out.mps.gz` and `out.lp.gz` work and name the same two formats. That is
+not special to `convert`: every path this tool writes to compresses when
+it ends in `.gz`, `--solution` and `--write-basis` and `relax --apply`
+included. `docs/format-support.md`, "Compressed output", has the rule and
+what it costs in size.
 
 What JAOS writes, JAOS reads back as the same model, names included: the
 input's names are written out, and a row or column the input did not name
@@ -557,6 +567,42 @@ reproducible bit for bit.
 `jaos check FILE --proof PATH` is what judges it back, and
 `docs/format-support.md` describes the file.
 
+### `verify FILE --basis BAS`
+
+**`--basis BAS` proves the basis in an MPS basis file instead, and the
+model is never solved** (D339). Everything the proof does is a statement
+about a model and a basis, and none of it reads a number a solve
+produced, so a basis that arrives in a file is a basis it can prove.
+
+That is what makes JAOS a checker of somebody else's answer. `BAS` may be
+the file another solver wrote -- the format is the one the field
+exchanges a basis in (D338) -- and what comes back is, over the rationals
+and with no tolerance anywhere, whether that basis is an optimal basis of
+`FILE`.
+
+```
+$ jaos verify model.mps --basis other-solver.bas
+proof optimal
+stage none
+bound_bits 1169
+capacity_bits 4096
+blocks 24
+largest_block 4
+bytes_held 10560
+terms 221
+```
+
+There is no `status` line, because nothing was solved. The three verdicts
+and the exit codes are the same as above, and `broken` names the first
+basic value outside its bounds or the first reduced cost pointing out of
+the model, which is what a wrong answer from elsewhere looks like from
+here. `--values` and `--proof` work off it, so the chain runs to the end:
+another solver's basis in, an exact proof file out, judged by `jaos check
+FILE --proof PATH`, which shares no code with the prover.
+
+A file whose names or basic count do not fit the model is refused with
+the library's message and exit 5.
+
 ## `ranging`
 
 `ranging FILE` solves the model. When the answer is optimal, it prints how
@@ -608,6 +654,10 @@ Compression is not decided by the name. Both readers look at the first two
 bytes of the file and inflate a gzip file themselves, so `model.mps.gz` and
 `model.mps` read the same way. `docs/format-support.md`, "Compressed input",
 has the rule.
+
+**Writing is the other way round**, because a file that does not exist yet
+has no first two bytes to look at. A path ending in `.gz` is compressed and
+one that does not is not (D340).
 
 A file that cannot be read is reported on stderr with the library's message,
 which names the offending line, and the tool exits 5.

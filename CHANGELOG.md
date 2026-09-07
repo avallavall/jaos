@@ -11,6 +11,29 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
 
 ### Added
 
+- **A basis leaves and enters in the format the field exchanges one in.**
+  `jaos_write_mps_basis` and `jaos_read_mps_basis` read and write the MPS
+  basis file, the four classic cards over the format's own defaults, so a
+  slack basis writes an empty file. `jaos solve --write-basis BAS` and
+  `--basis BAS`; both Python layers. FREE needs no card, since a nonbasic
+  variable with both bounds infinite rests at zero and the bounds decide
+  it (D338).
+
+- **The exact proof runs on a basis from outside.** `jaos_verify_basis`
+  proves a basis the caller hands in, with no solve at all, so JAOS checks
+  another solver's answer: read a model, read the basis it stopped on, and
+  get over the rationals whether that basis is an optimal basis of that
+  model. `jaos verify FILE --basis BAS`, `--values` and `--proof` off it,
+  and both Python layers. `solve_status` is untouched, because proving
+  somebody else's basis does not make it this solver's answer (D339).
+
+- **Every writer compresses when the path ends in `.gz`.** `src/deflate.c`
+  is a gzip and DEFLATE encoder written here, the other half of D240's
+  decoder. 139 of 139 gate instances accepted by the system `gzip -t` and
+  all 139 giving back the plain write byte for byte, at 1.3387x the size
+  of `gzip -9`; the header carries no clock, so the bytes are the same on
+  every machine (D340, `bench/measurements/02-217/`).
+
 - **The basis behind a refusal is readable.** `jaos_basis` answers after
   INFEASIBLE, UNBOUNDED and a work, time or interrupt stop, not only after
   an optimum. The basis was already written and already remembered for the

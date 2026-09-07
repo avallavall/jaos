@@ -606,6 +606,9 @@ _sig("jaos_read_certificate", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
 _sig("jaos_solution_file_status", ctypes.c_int, _VP, _CS, _P(ctypes.c_int))
 _sig("jaos_read_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(ctypes.c_int))
+_sig("jaos_write_mps_basis", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_mps_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
+     _P(ctypes.c_int))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
@@ -647,6 +650,8 @@ _sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_verify", ctypes.c_int, _VP, _P(_VerifyReport))
+_sig("jaos_verify_basis", ctypes.c_int, _VP, _P(ctypes.c_int),
+     _P(ctypes.c_int), _P(_VerifyReport))
 _sig("jaos_exact_certificate", ctypes.c_int, _VP, _P(_ExactRayReport))
 _sig("jaos_exact_row_multiplier", ctypes.c_int, _VP, ctypes.c_int64,
      _P(_CS))
@@ -854,6 +859,25 @@ class Model:
         cs = (ctypes.c_int * max(nc, 1))()
         rs = (ctypes.c_int * max(nr, 1))()
         self._check(_lib.jaos_read_basis(self._handle(), _path(path), cs, rs))
+        return Basis([BasisStatus(v) for v in cs[:nc]],
+                     [BasisStatus(v) for v in rs[:nr]])
+
+    def write_mps_basis(self, path):
+        """Writes the basis the last solve left in the MPS basis file
+        format, which every solver in the field reads (D338). The rule is
+        basis()'s: an optimum, a refusal, an unboundedness and a budget
+        stop all have one, and a solve that never ran does not."""
+        self._check(_lib.jaos_write_mps_basis(self._handle(), _path(path)))
+
+    def read_mps_basis(self, path):
+        """The `Basis` in an MPS basis file, written here or by another
+        solver. Nothing is installed -- pass it to set_basis() to
+        warm-start from it."""
+        nc, nr = self.num_col, self.num_row
+        cs = (ctypes.c_int * max(nc, 1))()
+        rs = (ctypes.c_int * max(nr, 1))()
+        self._check(_lib.jaos_read_mps_basis(
+            self._handle(), _path(path), cs, rs))
         return Basis([BasisStatus(v) for v in cs[:nc]],
                      [BasisStatus(v) for v in rs[:nr]])
 
@@ -1874,10 +1898,42 @@ class Model:
         basis() (jaos_verify in jaos.h)."""
         rep = _VerifyReport()
         self._check(_lib.jaos_verify(self._handle(), ctypes.byref(rep)))
+        return self._verify_report(rep)
+
+    @staticmethod
+    def _verify_report(rep):
         vals = {f: getattr(rep, f) for f, _ in _VerifyReport._fields_}
         vals["status"] = Proof(vals["status"])
         vals["stage"] = ProofStage(vals["stage"])
         return VerifyReport(**vals)
+
+    def verify_basis(self, col_status, row_status):
+        """The same proof over a basis handed in, with no solve at all
+        (D339). This is what makes JAOS a checker of somebody else's
+        answer: read a model, read the basis another solver stopped on --
+        read_mps_basis() reads the format the field writes it in -- and
+        this says, over the rationals and with no tolerance, whether that
+        basis is an optimal basis of that model.
+
+        `col_status` holds one status per column and `row_status` one per
+        row. Refused for a value that is not a `BasisStatus` and for any
+        count of basic variables other than the row count.
+
+        The model is not solved and its own state is not touched; what a
+        proof leaves behind is the exact values it derived, readable
+        through exact_col_value() and the two beside it."""
+        nc, nr = self.num_col, self.num_row
+        if len(col_status) != nc or len(row_status) != nr:
+            raise ValueError(
+                "a basis needs %d column statuses and %d row statuses, "
+                "and got %d and %d"
+                % (nc, nr, len(col_status), len(row_status)))
+        cs = (ctypes.c_int * max(nc, 1))(*[int(s) for s in col_status])
+        rs = (ctypes.c_int * max(nr, 1))(*[int(s) for s in row_status])
+        rep = _VerifyReport()
+        self._check(_lib.jaos_verify_basis(self._handle(), cs, rs,
+                                           ctypes.byref(rep)))
+        return self._verify_report(rep)
 
     def cost_ranging(self):
         """How far each column's cost may move, everything else held, with
@@ -2594,6 +2650,14 @@ class Problem:
         self._settled()
         return self._m.verify()
 
+    def verify_basis(self, col_status, row_status):
+        """The same proof over a basis handed in, with no solve at all;
+        see `Model.verify_basis`. The statuses are in the order the
+        variables and the constraints were added."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.verify_basis(col_status, row_status)
+
     def cost_ranging(self):
         """How far each variable's objective coefficient may move with the
         basis behind the answer staying optimal: a `CostRanging` of two
@@ -3000,6 +3064,17 @@ class Problem:
         if self._pending():
             self._build_and_load()
         return self._m.read_basis(path)
+
+    def write_mps_basis(self, path):
+        """Writes the last solve's basis as an MPS basis file; see
+        Model.write_mps_basis."""
+        self._m.write_mps_basis(path)
+
+    def read_mps_basis(self, path):
+        """The basis in an MPS basis file; see Model.read_mps_basis."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.read_mps_basis(path)
 
     @property
     def work_units(self):

@@ -17,6 +17,7 @@
 #include "jaos_internal.h" /* white-box: two assembled models are compared */
 #include "unity.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -286,6 +287,167 @@ static void test_a_missing_compressed_file_is_an_io_error(void)
     jaos_model_free(m);
 }
 
+
+/* --------------------------------------------------------------------- */
+/* The compressor (D340)                                                  */
+/* --------------------------------------------------------------------- */
+
+/* The claim is one sentence: what jm_gzip writes, the decoder above reads
+ * back byte for byte. It is checked on the shapes that reach different
+ * parts of the encoder -- nothing, one byte, a run longer than one match,
+ * text with repeats far apart, data with no repeats at all, and input
+ * past the 32 KB window so the hash chain wraps -- because a compressor
+ * that got the window wrong would still pass on a short file.
+ *
+ * The reader is the real one: the bytes go through a file and back
+ * through jm_slurp, which is what every input to this library goes
+ * through. */
+
+static const char *GZTMP = "build/ti_tmp.gz";
+
+/* Writes `n` bytes through jm_gzip and reads them back through jm_slurp.
+ * Returns the round trip's own bytes, which the caller frees, and the
+ * compressed size through `packed_n`. */
+static char *gz_round_trip(jaos_model *m, const char *data, int64_t n,
+                           int64_t *back_n, int64_t *packed_n)
+{
+    char *packed = nullptr;
+    int64_t pn = 0;
+    TEST_ASSERT_TRUE(jm_gzip(data, n, &packed, &pn));
+    TEST_ASSERT_NOT_NULL(packed);
+    TEST_ASSERT_TRUE(pn > 0);
+    *packed_n = pn;
+
+    FILE *f = fopen(GZTMP, "wb");
+    TEST_ASSERT_NOT_NULL(f);
+    TEST_ASSERT_EQUAL_size_t((size_t)pn, fwrite(packed, 1, (size_t)pn, f));
+    TEST_ASSERT_EQUAL_INT(0, fclose(f));
+    free(packed);
+
+    char *back = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_slurp(m, GZTMP, &back, back_n));
+    remove(GZTMP);
+    return back;
+}
+
+/* A fixed linear congruential sequence, so "incompressible" input is the
+ * same on every machine and every run and a failure is reproducible. */
+static void fill_pseudo(char *p, int64_t n, uint32_t seed)
+{
+    uint32_t s = seed;
+    for (int64_t i = 0; i < n; i++) {
+        s = s * UINT32_C(1103515245) + UINT32_C(12345);
+        p[i] = (char)((s >> 16) & 0xffu);
+    }
+}
+
+static void test_the_compressor_round_trips_every_shape(void)
+{
+    jaos_model *m = fresh();
+    constexpr int64_t BIG = 200000;   /* past the 32768-byte window */
+    char *buf = malloc((size_t)BIG);
+    TEST_ASSERT_NOT_NULL(buf);
+
+    struct { const char *name; int64_t n; } cases[] = {
+        {"empty", 0}, {"one", 1}, {"run", 5000}, {"text", 40000},
+        {"random", 40000}, {"big", BIG},
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+        const int64_t n = cases[k].n;
+        if (strcmp(cases[k].name, "run") == 0) {
+            memset(buf, 'a', (size_t)n);
+        } else if (strcmp(cases[k].name, "text") == 0) {
+            for (int64_t i = 0; i < n; i++)
+                buf[i] = (char)("ROWS COLUMNS RHS BOUNDS ENDATA "[i % 30]);
+        } else if (strcmp(cases[k].name, "random") == 0) {
+            fill_pseudo(buf, n, 12345u);
+        } else if (strcmp(cases[k].name, "big") == 0) {
+            /* Half repeats and half does not, so one file exercises both
+             * the match path and the literal path past the window. */
+            fill_pseudo(buf, n / 2, 999u);
+            memcpy(buf + n / 2, buf, (size_t)(n / 2));
+        } else {
+            memset(buf, 'x', (size_t)(n > 0 ? n : 1));
+        }
+
+        int64_t back_n = -1, packed_n = 0;
+        char *back = gz_round_trip(m, buf, n, &back_n, &packed_n);
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(n, back_n, cases[k].name);
+        if (n > 0)
+            TEST_ASSERT_EQUAL_MEMORY_MESSAGE(buf, back, (size_t)n,
+                                             cases[k].name);
+        free(back);
+    }
+    free(buf);
+    jaos_model_free(m);
+}
+
+/* And it compresses, which the round trip alone does not say: a
+ * compressor that emitted every byte as a literal would pass every
+ * assertion above. The bar is deliberately loose -- half the input on a
+ * file that is one repeated run -- because the number that matters is
+ * measured against the real gzip in bench/measurements/02-217/ and not
+ * pinned here. */
+static void test_the_compressor_actually_compresses(void)
+{
+    jaos_model *m = fresh();
+    constexpr int64_t N = 20000;
+    char *buf = malloc((size_t)N);
+    TEST_ASSERT_NOT_NULL(buf);
+    memset(buf, 'a', (size_t)N);
+
+    int64_t back_n = 0, packed_n = 0;
+    char *back = gz_round_trip(m, buf, N, &back_n, &packed_n);
+    TEST_ASSERT_EQUAL_INT64(N, back_n);
+    TEST_ASSERT_TRUE_MESSAGE(packed_n < N / 2,
+                             "a run of one byte did not compress");
+    free(back);
+
+    /* The control: input with no structure does not shrink, and the file
+     * is still valid. A "compressor" that shrank this would be losing
+     * something. */
+    fill_pseudo(buf, N, 4321u);
+    char *back2 = gz_round_trip(m, buf, N, &back_n, &packed_n);
+    TEST_ASSERT_EQUAL_INT64(N, back_n);
+    TEST_ASSERT_EQUAL_MEMORY(buf, back2, (size_t)N);
+    TEST_ASSERT_TRUE(packed_n > N);
+    free(back2);
+
+    free(buf);
+    jaos_model_free(m);
+}
+
+/* The same bytes in give the same bytes out, which is the reproducibility
+ * rule this library keeps everywhere (D8). The gzip header's modification
+ * time is the field that would break it, and it is written as zero. */
+static void test_the_compressor_is_reproducible(void)
+{
+    constexpr int64_t N = 3000;
+    char *buf = malloc((size_t)N);
+    TEST_ASSERT_NOT_NULL(buf);
+    fill_pseudo(buf, N, 77u);
+
+    char *a = nullptr, *b = nullptr;
+    int64_t an = 0, bn = 0;
+    TEST_ASSERT_TRUE(jm_gzip(buf, N, &a, &an));
+    TEST_ASSERT_TRUE(jm_gzip(buf, N, &b, &bn));
+    TEST_ASSERT_EQUAL_INT64(an, bn);
+    TEST_ASSERT_EQUAL_MEMORY(a, b, (size_t)an);
+    free(a);
+    free(b);
+    free(buf);
+}
+
+/* Bad arguments, and the one size it refuses. */
+static void test_the_compressor_rejects_bad_arguments(void)
+{
+    char *out = nullptr;
+    int64_t n = 0;
+    TEST_ASSERT_FALSE(jm_gzip(nullptr, 0, &out, &n));
+    TEST_ASSERT_FALSE(jm_gzip("x", 1, nullptr, &n));
+    TEST_ASSERT_FALSE(jm_gzip("x", 1, &out, nullptr));
+    TEST_ASSERT_FALSE(jm_gzip("x", -1, &out, &n));
+}
 int main(void)
 {
     UNITY_BEGIN();
@@ -304,5 +466,9 @@ int main(void)
     RUN_TEST(test_a_corrupted_payload_never_becomes_a_model);
     RUN_TEST(test_an_uncompressed_file_is_untouched);
     RUN_TEST(test_a_missing_compressed_file_is_an_io_error);
+    RUN_TEST(test_the_compressor_round_trips_every_shape);
+    RUN_TEST(test_the_compressor_actually_compresses);
+    RUN_TEST(test_the_compressor_is_reproducible);
+    RUN_TEST(test_the_compressor_rejects_bad_arguments);
     return UNITY_END();
 }

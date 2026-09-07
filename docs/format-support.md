@@ -26,6 +26,31 @@ Both trailer fields are checked, the CRC-32 and the length. A file that
 inflates to bytes other than the ones it was built from is refused, so a
 damaged instance is never solved as though it were a different model.
 
+## Compressed output
+
+**Every writer here compresses when the path ends in `.gz`** (D340), and
+that is the whole rule: `jaos_write_mps`, `jaos_write_lp`,
+`jaos_write_solution` and `jaos_write_mps_basis` share one open and one
+close, so all four take it. `jaos convert in.mps out.lp.gz` follows, and so
+do `solve --solution`, `solve --write-basis` and `relax --apply`. The name
+says compression and says nothing about the format, so `out.lp.gz` is an LP
+file and `out.mps.gz` an MPS one.
+
+The encoder is `src/deflate.c`, written here for the reason `src/inflate.c`
+is. It emits one final DEFLATE block coded with the fixed Huffman tables of
+RFC 1951 section 3.2.6 over a greedy LZ77 search, and no dynamic tables.
+Against the system's `gzip -9` over the 139 gate instances that is 1.3387x
+the size, and about a fifth of the plain text either way; `gzip -t` accepts
+all 139 and `gzip -dc` gives back the plain file byte for byte
+(`bench/measurements/02-217/`).
+
+The gzip header carries **no clock**: `MTIME` is zero and the OS byte is
+255. The same input gives the same bytes on every machine and every run,
+which is the rule every other output here keeps.
+
+A compressed write builds the whole file in memory and touches the path
+once, at the end, so a refused write never opens it at all.
+
 ## MPS
 
 One reader for both layouts: lines are tokenized on whitespace, a section
@@ -431,3 +456,46 @@ and can overflow, so a model whose bounds reach 1e300 reaches an optimum
 holding an infinity or a NaN. Printing one would put a word in the file whose
 spelling belongs to the host libc, so the call fails and names the row or the
 column instead (D226).
+
+### The MPS basis file
+
+`jaos_write_mps_basis` and `jaos_read_mps_basis` (D338), the format every
+solver in the field exchanges a basis in. Its reader lives beside its
+writer in `src/write.c`, for the reason the two above do.
+
+A `NAME` line, then one card per variable that is not in its default
+state, then `ENDATA`. `*` in the first column is a comment, as in MPS.
+The defaults are **every column nonbasic at its lower bound and every
+row's logical basic**, so a slack basis writes no cards at all.
+
+| card | what it says |
+|---|---|
+| `XU col row` | the column is basic and that row rests on its upper bound |
+| `XL col row` | the column is basic and that row rests on its lower bound |
+| `UL col` | the column is nonbasic at its upper bound |
+| `LL col` | the column is nonbasic at its lower bound |
+
+A row is described by its **activity**, exactly as `jaos_basis` describes
+it, so `XU` names a row whose `A_i x` rests on `ru_i`. `LL` is the
+default, so this writer never emits one and always reads one.
+
+**The pairing is not a constraint on the caller.** A basis has exactly
+`num_row` basic variables, so the basic columns and the nonbasic rows are
+equal in number and pair off; the reader rebuilds the same basis from any
+order of the cards. The writer pairs them in index order, which the format
+leaves open and which makes the file a function of the basis alone.
+
+**`JAOS_BASIS_FREE` has no card and needs none.** A nonbasic variable with
+both bounds infinite rests at zero and nowhere else, so it is written as
+the default and read back as FREE from the bounds it has.
+
+Refused with the line named: a card that is not one of the four, the wrong
+number of names on one, a name the model does not carry, a second card for
+one variable, and a card naming a bound the variable does not have. A
+refused read leaves the caller's arrays untouched. The writer refuses two
+columns of a name or two rows of a name, for the reason every writer here
+does; a column and a row may share a name, since the two never occupy the
+same field.
+
+Names are looked up the way `jaos_col_index` looks them up, so a positional
+name works where the model has none of its own.

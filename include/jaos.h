@@ -1422,6 +1422,65 @@ JAOS_NODISCARD jaos_status jaos_read_certificate(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_read_basis(jaos_model *m, const char *path,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 
+/* The basis in the MPS basis file format, which every solver in the field
+ * reads and writes and JAOS's own solution file is not (D338). That is the
+ * whole point of these two: a basis JAOS found can start another solver's
+ * run, and a basis another solver found can start JAOS's.
+ *
+ * The format is the classic one. A `NAME` line, then one card per variable
+ * that is not in its default state, then `ENDATA`. The defaults are every
+ * column nonbasic at its lower bound and every row's logical basic, so a
+ * slack basis writes no cards at all. The four cards:
+ *
+ *   XU col row   the column is basic and that row rests on its upper bound
+ *   XL col row   the column is basic and that row rests on its lower bound
+ *   UL col       the column is nonbasic at its upper bound
+ *   LL col       the column is nonbasic at its lower bound, which is the
+ *                default, so JAOS never writes one and always reads one
+ *
+ * A row is described by its activity here, exactly as jaos_basis describes
+ * it, so `XU` names a row whose A_i x rests on ru_i.
+ *
+ * The pairing in the two-name cards is not a constraint the caller has to
+ * satisfy. A basis has exactly num_row basic variables, so the basic
+ * columns and the nonbasic rows are equal in number and pair off, and the
+ * reader below rebuilds the same basis from any order of them.
+ *
+ * JAOS_BASIS_FREE has no card of its own and needs none. A nonbasic
+ * variable with both bounds infinite rests at zero and nowhere else, so it
+ * is written as the default and read back as FREE from the bounds it has.
+ * The round trip is exact for that reason and not by luck.
+ *
+ * jaos_write_mps_basis writes whatever jaos_basis would hand out, so its
+ * availability rule is jaos_basis's: an optimum, a refusal, an
+ * unboundedness and a budget stop all have one, and a solve that never ran
+ * does not. It refuses two columns or two rows with the same name, for the
+ * reason every writer here does -- no reader could tell them apart -- and
+ * leaves no file behind when it refuses.
+ *
+ * jaos_read_mps_basis fills the caller's arrays; either may be NULL. Names
+ * are looked up the way jaos_col_index looks them up, so a positional name
+ * works where the model has none of its own. A card naming something the
+ * model does not have, a second card for one variable, and a card naming a
+ * bound the variable does not have are all refused with the line named,
+ * and a refused read leaves the caller's arrays untouched. What comes back
+ * goes to jaos_set_basis, which is where a warm start begins.
+ *
+ * The basic count is not among the checks and needs no check. Only XU and
+ * XL make a column basic, each one makes one row nonbasic in the same
+ * card, and a second card for either side is refused, so any file that
+ * reads at all leaves exactly num_row variables basic.
+ *
+ * The file says nothing about which model it belongs to beyond the names,
+ * so a basis of a different model is caught by the names and by the count
+ * and not before. That is the format's own limit, and every solver that
+ * reads it has the same one. */
+JAOS_NODISCARD jaos_status jaos_write_mps_basis(jaos_model *m,
+    const char *path);
+JAOS_NODISCARD jaos_status jaos_read_mps_basis(jaos_model *m,
+    const char *path, jaos_basis_status *col_status,
+    jaos_basis_status *row_status);
+
 /* Which of the three a solution file holds, read from the whole file, so
  * a file that would be refused by the reader for its kind is refused here
  * too. This is how a caller decides between jaos_read_solution and
@@ -1951,6 +2010,41 @@ typedef struct jaos_verify_report {
  * them. */
 JAOS_NODISCARD jaos_status jaos_verify(jaos_model *m,
                                        jaos_verify_report *out);
+
+/* The same proof over a basis the caller hands in, with no solve at all
+ * (D339). This is what makes JAOS a checker of somebody else's answer and
+ * not only of its own: read a model, read the basis another solver
+ * stopped on -- jaos_read_mps_basis reads the format the field writes it
+ * in -- and this says, over the rationals and with no tolerance anywhere,
+ * whether that basis is an optimal basis of that model.
+ *
+ * col_status holds num_col statuses and row_status num_row, and both are
+ * required. Refused as JAOS_ERR_INVALID_INPUT for a value that is not one
+ * of the four and for any count of basic variables other than num_row,
+ * which are jaos_set_basis's two structural checks and are refused here
+ * for the same reason: a basis of the wrong size is not a basis, and
+ * nothing later can make it one.
+ *
+ * The three verdicts are jaos_verify's and mean the same things. OPTIMAL
+ * proves the basis certifies an optimum of this model. BROKEN names the
+ * first basic value outside its bounds or the first reduced cost pointing
+ * out of the model, which is what a wrong answer from another solver
+ * looks like from here. REFUSED is the limb budget and is not a verdict
+ * about the basis.
+ *
+ * The model is not solved and its own state is not touched: a model that
+ * never solved stays one, jaos_solution keeps refusing, and the basis the
+ * next solve starts from is whatever jaos_set_basis last said. What a
+ * proof does leave behind is the exact values it derived, readable
+ * through jaos_exact_col_value and the two beside it, so "what does that
+ * basis actually give" has an exact answer as well as a verdict.
+ *
+ * Proving a basis optimal is not the same as being told an objective
+ * value. Nothing here reads a number the other solver reported; the
+ * verdict comes from the model and the basis alone. */
+JAOS_NODISCARD jaos_status jaos_verify_basis(jaos_model *m,
+    const jaos_basis_status *col_status,
+    const jaos_basis_status *row_status, jaos_verify_report *out);
 
 /* What a proved basis says the answer IS, exactly (D286).
  *
