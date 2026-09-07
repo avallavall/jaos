@@ -599,6 +599,39 @@ static int64_t sos_violated(const jaos_model *m, const double *x,
     return -1;
 }
 
+double jm_mip_default(enum jm_mip_key key)
+{
+    switch (key) {
+    case JM_DEF_GAP: return MIP_GAP;
+    case JM_DEF_CUT_ROUNDS: return (double)MIP_CUT_ROUNDS;
+    case JM_DEF_CUT_DEPTH: return (double)MIP_CUT_DEPTH;
+    case JM_DEF_NODE_CUT_CAP: return (double)MIP_NODE_CUT_CAP;
+    case JM_DEF_COVER_ROUNDS: return (double)MIP_COVER_ROUNDS;
+    case JM_DEF_CUT_STALL: return MIP_CUT_STALL;
+    case JM_DEF_NODE_CUT_STALL: return MIP_NODE_CUT_STALL;
+    case JM_DEF_ROOT_CUT_DROP: return MIP_ROOT_CUT_DROP ? 1.0 : 0.0;
+    case JM_DEF_COVER_LIFT: return MIP_COVER_LIFT ? 1.0 : 0.0;
+    case JM_DEF_MIR_ROUNDS: return (double)MIP_MIR_ROUNDS;
+    case JM_DEF_MIR_AGGREGATE: return (double)MIP_MIR_AGGREGATE;
+    case JM_DEF_DIVE_HEURISTIC: return (double)MIP_DIVE_HEURISTIC;
+    case JM_DEF_DIVE_HEURISTIC_DEPTH: return (double)MIP_DIVE_HEURISTIC_DEPTH;
+    case JM_DEF_RINS: return (double)MIP_RINS;
+    case JM_DEF_DIVE_BACKTRACK: return (double)MIP_DIVE_BACKTRACK;
+    case JM_DEF_DIVE_GAP: return MIP_DIVE_GAP;
+    case JM_DEF_DIVE_DEGRADE: return MIP_DIVE_DEGRADE;
+    case JM_DEF_FEASPUMP: return (double)MIP_FEASPUMP;
+    case JM_DEF_PUMP_GENERAL: return MIP_PUMP_GENERAL ? 1.0 : 0.0;
+    case JM_DEF_PUMP_OBJ: return MIP_PUMP_OBJ;
+    case JM_DEF_PUMP_ALWAYS: return MIP_PUMP_ALWAYS ? 1.0 : 0.0;
+    case JM_DEF_RCFIX: return MIP_RCFIX ? 1.0 : 0.0;
+    case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
+    case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
+    case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
+    case JM_DEF_RELIABILITY: return (double)MIP_RELIABILITY;
+    }
+    return 0.0;
+}
+
 bool jm_model_has_integer(const jaos_model *m)
 {
     if (m->col_integer == nullptr)

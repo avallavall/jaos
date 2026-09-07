@@ -41,6 +41,7 @@ static const char U_SYNOPSIS[] =
     "                  [--rcfix | --no-rcfix] [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
+    "                  [--opt NAME=VALUE]... [--params FILE]\n"
     "                  [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
@@ -169,6 +170,8 @@ static const char U_SOLVE_D[] =
 
 static const char U_SOLVE_E[] =
     "  --algorithm A    which simplex solves every LP: dual (default) or primal\n"
+    "  --opt NAME=VALUE any option by name (jaos options lists them); repeats\n"
+    "  --params FILE    options from a file, one 'name value' per line\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -626,6 +629,9 @@ struct solve_options {
     int64_t node_limit;
     int branching;
     int algorithm;
+    const char *opts[64];
+    int nopts;
+    const char *params;
     int64_t reliability;
     int dive_child;
     bool has_probe_cap;
@@ -667,6 +673,8 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->pump_general = -1;
     o->branching = -1;
     o->algorithm = -1;
+    o->nopts = 0;
+    o->params = nullptr;
     o->reliability = -1;
     o->dive_child = -1;
     o->probe_depth = -1;
@@ -813,6 +821,15 @@ static int parse_solve_options(int argc, char **argv, int first,
             else
                 return usage_error("--dive-child needs nearer, up, down or "
                                    "pseudocost, not '%s'", v);
+        } else if (strcmp(a, "--opt") == 0) {
+            const char *eq = strchr(v, '=');
+            if (eq == nullptr || eq == v || eq[1] == '\0')
+                return usage_error("--opt takes NAME=VALUE, not '%s'", v);
+            if (o->nopts >= 64)
+                return usage_error("--opt: more than 64 options on one line");
+            o->opts[o->nopts++] = v;
+        } else if (strcmp(a, "--params") == 0) {
+            o->params = v;
         } else if (strcmp(a, "--algorithm") == 0) {
             if (strcmp(v, "dual") == 0)
                 o->algorithm = JAOS_ALGORITHM_DUAL;
@@ -969,6 +986,25 @@ static int cmd_solve(int argc, char **argv)
         jaos_set_mip_reliability(m, o.reliability) != JAOS_OK) {
         rc = library_error("set the reliability for", o.file, m);
         goto out;
+    }
+    if (o.params != nullptr && jaos_read_options(m, o.params) != JAOS_OK) {
+        rc = library_error("read the options file for", o.file, m);
+        goto out;
+    }
+    for (int k = 0; k < o.nopts; k++) {
+        char name[64];
+        const char *eq = strchr(o.opts[k], '=');
+        const size_t len = (size_t)(eq - o.opts[k]);
+        if (len >= sizeof name) {
+            rc = usage_error("--opt: option name too long in '%s'", o.opts[k]);
+            goto out;
+        }
+        memcpy(name, o.opts[k], len);
+        name[len] = '\0';
+        if (jaos_set_option(m, name, eq + 1) != JAOS_OK) {
+            rc = library_error("set an option for", o.file, m);
+            goto out;
+        }
     }
     if (o.algorithm >= 0 &&
         jaos_set_algorithm(m, (jaos_algorithm)o.algorithm) != JAOS_OK) {

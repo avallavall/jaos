@@ -375,6 +375,15 @@ typedef enum jaos_algorithm {
 JAOS_NODISCARD jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg);
 JAOS_NODISCARD jaos_algorithm jaos_algorithm_of(const jaos_model *m);
 
+JAOS_NODISCARD jaos_status jaos_set_option(jaos_model *m, const char *name,
+                                           const char *value);
+JAOS_NODISCARD jaos_status jaos_get_option(const jaos_model *m,
+                                           const char *name, char *buf,
+                                           int64_t cap);
+JAOS_NODISCARD jaos_status jaos_read_options(jaos_model *m, const char *path);
+JAOS_NODISCARD int64_t jaos_num_options(void);
+JAOS_NODISCARD const char *jaos_option_name(int64_t k);
+
 typedef void (*jaos_log_fn)(void *user, jaos_log_level level, const char *line);
 
 JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,

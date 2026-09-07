@@ -1318,6 +1318,32 @@ class TestBranchAndBound(unittest.TestCase):
         m.set_col_semicontinuous(0, False)
         self.assertFalse(m.col_semicontinuous(0))
 
+    def test_options_by_name_round_trip(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=4, name="x")
+        p.add(x >= 1)
+        p.minimize(x)
+        self.assertEqual(p.get_option("algorithm"), "dual")
+        p.set_option("algorithm", "primal").set_option("mip_cut_rounds", 3)
+        p.set_option("mip_heuristics", False)
+        self.assertEqual(p.get_option("algorithm"), "primal")
+        self.assertEqual(p.get_option("mip_cut_rounds"), "3")
+        self.assertEqual(p.get_option("mip_heuristics"), "false")
+        self.assertIs(p.algorithm, jaos.Algorithm.PRIMAL)
+        with self.assertRaises(jaos.JaosError):
+            p.set_option("no_such_option", 1)
+        with self.assertRaises(jaos.JaosError):
+            p.set_option("mip_cut_rounds", "three")
+        names = jaos.Model.option_names()
+        self.assertIn("mip_gap", names)
+        self.assertGreater(len(names), 40)
+        for name in names:
+            v = p.get_option(name)
+            p.set_option(name, v)
+            self.assertEqual(p.get_option(name), v)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 1.0, places=12)
+
     def test_the_algorithm_is_a_caller_option(self):
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=5, name="x")

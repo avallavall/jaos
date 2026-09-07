@@ -584,6 +584,12 @@ _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_algorithm", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_option", ctypes.c_int, _VP, ctypes.c_char_p, ctypes.c_char_p)
+_sig("jaos_get_option", ctypes.c_int, _VP, ctypes.c_char_p, ctypes.c_char_p,
+     _I64)
+_sig("jaos_read_options", ctypes.c_int, _VP, ctypes.c_char_p)
+_sig("jaos_num_options", _I64)
+_sig("jaos_option_name", ctypes.c_char_p, _I64)
 _sig("jaos_algorithm_of", ctypes.c_int, _VP)
 _sig("jaos_set_mip_reliability", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_probe_cap", ctypes.c_int, _VP, _D)
@@ -1271,6 +1277,31 @@ class Model:
     @property
     def algorithm(self):
         return Algorithm(_lib.jaos_algorithm_of(self._handle()))
+
+    def set_option(self, name, value):
+        """Any option by name, its value as text or a Python value:
+        set_option("mip_cut_rounds", 2), set_option("algorithm", "primal")."""
+        if isinstance(value, bool):
+            value = "true" if value else "false"
+        self._check(_lib.jaos_set_option(self._handle(), str(name).encode(),
+                                         str(value).encode()))
+
+    def get_option(self, name):
+        """The option's current value, as text."""
+        buf = ctypes.create_string_buffer(64)
+        self._check(_lib.jaos_get_option(self._handle(), str(name).encode(),
+                                         buf, 64))
+        return buf.value.decode()
+
+    def read_options(self, path):
+        """Options from a file, one `name value` per line, `#` comments."""
+        self._check(_lib.jaos_read_options(self._handle(),
+                                           _path(path)))
+
+    @staticmethod
+    def option_names():
+        n = int(_lib.jaos_num_options())
+        return [_lib.jaos_option_name(k).decode() for k in range(n)]
 
     def set_mip_reliability(self, branches):
         """Branches per direction before a column's pseudocost is trusted;
@@ -2950,6 +2981,17 @@ class Problem:
     @property
     def algorithm(self):
         return self._m.algorithm
+
+    def set_option(self, name, value):
+        self._m.set_option(name, value)
+        return self
+
+    def get_option(self, name):
+        return self._m.get_option(name)
+
+    def read_options(self, path):
+        self._m.read_options(path)
+        return self
 
     def set_mip_reliability(self, branches):
         self._m.set_mip_reliability(branches)

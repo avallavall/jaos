@@ -264,6 +264,19 @@ typedef enum {
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 
 double jm_primal_tolerance(const jaos_model *m);
+double jm_dual_tolerance(const jaos_model *m);
+
+enum jm_mip_key {
+    JM_DEF_GAP, JM_DEF_CUT_ROUNDS, JM_DEF_CUT_DEPTH, JM_DEF_NODE_CUT_CAP,
+    JM_DEF_COVER_ROUNDS, JM_DEF_CUT_STALL, JM_DEF_NODE_CUT_STALL,
+    JM_DEF_ROOT_CUT_DROP, JM_DEF_COVER_LIFT, JM_DEF_MIR_ROUNDS,
+    JM_DEF_MIR_AGGREGATE, JM_DEF_DIVE_HEURISTIC, JM_DEF_DIVE_HEURISTIC_DEPTH,
+    JM_DEF_RINS, JM_DEF_DIVE_BACKTRACK, JM_DEF_DIVE_GAP, JM_DEF_DIVE_DEGRADE,
+    JM_DEF_FEASPUMP, JM_DEF_PUMP_GENERAL, JM_DEF_PUMP_OBJ, JM_DEF_PUMP_ALWAYS,
+    JM_DEF_RCFIX, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
+    JM_DEF_RELIABILITY,
+};
+double jm_mip_default(enum jm_mip_key key);
 
 typedef struct jm_tableau jm_tableau;
 JAOS_NODISCARD jaos_status jm_tableau_build(jaos_model *m, jm_tableau **out);

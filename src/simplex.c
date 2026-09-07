@@ -3848,3 +3848,8 @@ double jm_primal_tolerance(const jaos_model *m)
 {
     return m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
 }
+
+double jm_dual_tolerance(const jaos_model *m)
+{
+    return m->cfg.dual_tol > 0.0 ? m->cfg.dual_tol : DUAL_TOL;
+}

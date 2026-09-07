@@ -392,6 +392,22 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+expect_exit 0 "--opt sets options by name" \
+    "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds=0 --opt mip_heuristics=false --opt algorithm=dual
+[ "$(line_of objective)" = "objective 2" ] && pass "and the answer stands" \
+    || flunk "--opt: $(line_of objective)"
+expect_exit 5 "--opt refuses an unknown option" \
+    "$JAOS" solve "$DATA/g_int.lp" --opt nonsense=1
+expect_exit 5 "--opt refuses a value of the wrong kind" \
+    "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds=many
+expect_exit 5 "--opt wants NAME=VALUE" \
+    "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds
+printf 'mip_cut_rounds 0\n# a comment\nalgorithm = primal\n' > "$tmp/opts.txt"
+expect_exit 0 "--params reads a file of options" \
+    "$JAOS" solve "$DATA/g_int.lp" --params "$tmp/opts.txt"
+printf 'mip_cut_rounds zero\n' > "$tmp/bad.txt"
+expect_exit 5 "--params names the bad line" \
+    "$JAOS" solve "$DATA/g_int.lp" --params "$tmp/bad.txt"
 expect_exit 0 "check --point takes a SCIP solution file" \
     "$JAOS" check "$DATA/g1.lp" --point "$DATA/sol_scip.sol"
 expect_exit 0 "and a HiGHS one with its duals" \
