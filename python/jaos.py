@@ -650,6 +650,9 @@ _sig("jaos_verify", ctypes.c_int, _VP, _P(_VerifyReport))
 _sig("jaos_exact_certificate", ctypes.c_int, _VP, _P(_ExactRayReport))
 _sig("jaos_exact_row_multiplier", ctypes.c_int, _VP, ctypes.c_int64,
      _P(_CS))
+_sig("jaos_exact_unbounded_ray", ctypes.c_int, _VP, _P(_ExactRayReport))
+_sig("jaos_exact_col_direction", ctypes.c_int, _VP, ctypes.c_int64,
+     _P(_CS))
 _sig("jaos_work_units", _I64, _VP)
 _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
@@ -1334,6 +1337,26 @@ class Model:
         out = _CS()
         self._check(_lib.jaos_exact_row_multiplier(self._handle(), int(row),
                                                    ctypes.byref(out)))
+        return Fraction(out.value.decode())
+
+    def exact_unbounded_ray(self):
+        """Derive the unbounded direction exactly, from the basis the
+        solve stopped on (D336). The symmetric half of
+        exact_certificate(): same report, same refusal rule, and the same
+        split between deriving and judging. Raises unless the last solve
+        answered UNBOUNDED with both a ray and a basis."""
+        rep = _ExactRayReport()
+        self._check(_lib.jaos_exact_unbounded_ray(self._handle(),
+                                                  ctypes.byref(rep)))
+        return ExactRayReport(*(getattr(rep, f)
+                                for f, _ in _ExactRayReport._fields_))
+
+    def exact_col_direction(self, col):
+        """One column's exact ray component as a `fractions.Fraction`,
+        after exact_unbounded_ray(). Raises when there is none."""
+        out = _CS()
+        self._check(_lib.jaos_exact_col_direction(self._handle(), int(col),
+                                                  ctypes.byref(out)))
         return Fraction(out.value.decode())
 
     def write_proof(self, path):
@@ -2887,6 +2910,19 @@ class Problem:
         self._settled()
         return self._m.exact_row_multiplier(
             con._i if isinstance(con, Constraint) else int(con))
+
+    def exact_unbounded_ray(self):
+        """Derive the unbounded direction exactly; see
+        `Model.exact_unbounded_ray`."""
+        self._settled()
+        return self._m.exact_unbounded_ray()
+
+    def exact_col_direction(self, var):
+        """One variable's exact ray component, by Var or by index; see
+        `Model.exact_col_direction`."""
+        self._settled()
+        return self._m.exact_col_direction(
+            var._i if isinstance(var, Var) else int(var))
 
     def check_proof(self, path):
         """Judge a proof file from this problem alone, over the rationals

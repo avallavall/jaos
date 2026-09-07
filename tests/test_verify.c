@@ -1140,9 +1140,99 @@ static void test_the_exact_certificate_is_dropped_with_the_answer(void)
     jaos_model_free(m);
 }
 
+/* D336: the unbounded direction, derived exactly from the same basis.
+ *
+ * The model is `min -x` with `x - y <= 1` and both columns at zero below,
+ * so raising x alone is blocked by the row and raising y with it is not.
+ * The oracle is arithmetic by hand: any ray must have `d_x = d_y` (the
+ * row's activity may not rise) with `d_x >= 0`, and `c'd = -d_x` must be
+ * strictly negative, so the direction is x and y together at one rate.
+ * The derivation must produce a vector of that shape, and the checker,
+ * which shares no code with it, must take it. */
+static void test_the_exact_unbounded_ray_is_derived_and_checks(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {-1.0, 0.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {INFINITY, INFINITY};
+    const double rl[1] = {-INFINITY}, ru[1] = {1.0};
+    const int64_t s[3] = {0, 1, 2};
+    const int64_t ix[2] = {0, 0};
+    const double v[2] = {1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+
+    jaos_exact_ray_report rr;
+    memset(&rr, 0, sizeof rr);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_unbounded_ray(m, &rr));
+    TEST_ASSERT_TRUE(rr.derived);
+    /* A direction names a column and not a row, and the report says so. */
+    TEST_ASSERT_EQUAL_INT64(-1, rr.at_row);
+
+    const char *dx = nullptr, *dy = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_direction(m, 0, &dx));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_direction(m, 1, &dy));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_UNBOUNDED, pr.kind);
+
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
+    /* That build lifts the answer onto the wrong row on purpose, so the
+     * derivation reads a basis that does not belong to this model and the
+     * direction it produces is not one. The claim here is the checker's
+     * and not the derivation's: a checker that accepts a build made to be
+     * wrong is not a checker. The edits below cannot run -- they name a
+     * component this build does not write -- so the test ends here, the
+     * same shape `test_an_infeasibility_certificate_is_checked_exactly`
+     * uses on the same fault. */
+    TEST_ASSERT_FALSE_MESSAGE(pr.certified,
+                              "a direction derived from a basis lifted onto "
+                              "the wrong row must not certify");
+    remove(TMP_PROOF);
+    jaos_model_free(m);
+    return;
+#else
+    /* The oracle: x and y move together, at one rate, and nothing else. */
+    TEST_ASSERT_EQUAL_STRING("1", dx);
+    TEST_ASSERT_EQUAL_STRING("1", dy);
+    TEST_ASSERT_TRUE(pr.certified);
+#endif
+
+    /* The case the checker must reject, one thing changed: y no longer
+     * rises with x, so the row's activity does and it has an upper bound. */
+    TEST_ASSERT_TRUE(proof_edit("ray C2 1", "ray C2 0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, TMP_PROOF, &pr));
+    TEST_ASSERT_FALSE(pr.certified);
+    TEST_ASSERT_TRUE(proof_edit("ray C2 0", "ray C2 1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+
+    remove(TMP_PROOF);
+    jaos_model_free(m);
+}
+
+/* The two derivations are each other's opposite and neither answers for
+ * the other's outcome. */
+static void test_each_exact_derivation_refuses_the_other_s_answer(void)
+{
+    jaos_exact_ray_report rr;
+    jaos_model *m = model_two_row_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_exact_unbounded_ray(m, &rr));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_the_exact_unbounded_ray_is_derived_and_checks);
+    RUN_TEST(test_each_exact_derivation_refuses_the_other_s_answer);
     RUN_TEST(test_proves_a_small_optimum);
     RUN_TEST(test_proves_a_model_whose_rows_need_scaling);
     RUN_TEST(test_proves_a_model_whose_dual_carries_the_scale);

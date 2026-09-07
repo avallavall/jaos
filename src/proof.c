@@ -151,9 +151,18 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
             goto io_error;
         }
     } else if (unbounded) {
+        /* The derived direction wins over the published doubles, the same
+         * rule the certificate follows (D333, D336). */
         fprintf(f, "# ray <column name> <exact direction>\n");
-        if (!write_ray(f, m, m->sol_ray, false))
+        if (m->exact_uray != nullptr) {
+            for (int64_t j = 0; j < m->num_col; j++) {
+                if (jaos_col_name(m, j, nm, sizeof nm) != JAOS_OK)
+                    goto io_error;
+                fprintf(f, "ray %s %s\n", nm, m->exact_uray[j]);
+            }
+        } else if (!write_ray(f, m, m->sol_ray, false)) {
             goto io_error;
+        }
     } else {
         fprintf(f, "objective %s\n", m->exact_obj);
         fprintf(f, "# col <name> <exact value>\n");

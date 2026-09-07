@@ -343,6 +343,7 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D333](#d333--the-exact-farkas-ray-derived-from-the-basis-a-refusal-stopped-on-the-proof-file-goes-from-18-of-29-to-25-of-29)** — The exact Farkas ray, derived from the basis a refusal stopped on: the proof file goes from 18 of 29 to 25 of 29
 - **[D334](#d334--a-mips-proved-incumbent-publishes-a-basis-of-the-model-and-not-of-the-model-plus-its-cuts-5-of-24-to-24-of-24)** — A MIP's proved incumbent publishes a basis of the model and not of the model plus its cuts: 5 of 24 to 24 of 24
 - **[D335](#d335--a-warm-start-that-reaches-no-answer-is-thrown-away-and-the-solve-restarts-cold)** — A warm start that reaches no answer is thrown away and the solve restarts cold
+- **[D336](#d336--the-unbounded-direction-exactly-too-and-it-is-not-one-entering-column)** — The unbounded direction exactly too, and it is not one entering column
 
 ---
 
@@ -23519,3 +23520,48 @@ alternates between a declined iteration and a taken one rather than
 stopping, and Bland's rule cannot terminate a sequence in which most
 iterations perform no pivot. Naming that is not fixing it, and `TODO.md`
 carries it.
+
+## D336 — The unbounded direction exactly too, and it is not one entering column
+
+**What it is.** `jaos_exact_unbounded_ray` derives the direction behind
+an UNBOUNDED answer over the rationals, from the basis the solve stopped
+on, and leaves it on the model as one decimal rational per structural
+column; `jaos_exact_col_direction` reads one back and `jaos_write_proof`
+writes them in place of the published doubles. `jaos verify FILE` runs it
+where the answer is unbounded, `--values` prints the direction, and both
+Python layers carry it. The symmetric half of D333: that one solves the
+transpose system for a vector in the row space, this one solves the
+primal system for a vector in the column space.
+
+**The nonbasic part is taken and not derived, and that loses nothing.**
+Those entries are the rates the solve chose, each a double and so an
+exact rational already. What the floating-point solve rounded is the
+basic part, `B x = -(sum over nonbasic j of A_j d_j)`, and that is what
+this solves exactly.
+
+**Summed over every nonbasic column, and the first version was not.** It
+assumed a single entering column, which is the textbook shape and is not
+JAOS's: the shared lent-bound verdict proves a ray by moving every held
+column together at unit rate (D247). On a model whose ray is `(1, 1)` the
+single-column version produced `(1, 0)`, which is not a ray at all --
+raising one column without the other moves a row that has a bound.
+
+**What caught it was an oracle worked by hand, and nothing else would
+have.** The gate has no unbounded instance in it, so no campaign covers
+this path; the checker takes whatever the derivation produces and would
+have said `certified` for a single-column ray on a model whose ray really
+is one column. The test states the arithmetic instead -- for `min -x`
+with `x - y <= 1` any ray must have `d_x = d_y` and `c'd` strictly
+negative -- and the wrong version failed it on the first run.
+
+**It derives and does not judge**, the same split D333 draws.
+`jaos_check_ray` at a tolerance of zero, or `jaos_check_proof` on the
+file, is what says whether the direction certifies, and neither shares
+code with this. `at_row` is always -1: a direction names a column.
+
+**No number over a population, and the record says so rather than
+inventing one.** The three netlib sets carry 94 feasible, 16 Kennington
+and 29 infeasible instances and no unbounded one, so there is nothing to
+measure this over. What stands behind it is the hand oracle above, the
+case the checker must reject built by changing one component, and the
+symmetry with D333, which does have a population.

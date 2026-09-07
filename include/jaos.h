@@ -2038,6 +2038,32 @@ JAOS_NODISCARD jaos_status jaos_exact_row_multiplier(const jaos_model *m,
                                                      int64_t row,
                                                      const char **out);
 
+/* The unbounded direction behind the last UNBOUNDED answer, exactly
+ * (D336). One decimal rational per structural column, on the model, read
+ * back with jaos_exact_col_direction.
+ *
+ * The symmetric half of jaos_exact_certificate and the same argument. The
+ * simplex proves unboundedness on a column whose ratio test finds no
+ * blocking row, and the direction is that column at 1 with -B^-1 A_q over
+ * the basics; jaos_unbounded_ray publishes it solved in floating point and
+ * unscaled, so it is rounded twice. This solves the same system over the
+ * rationals from the basis the solve stopped on. The primal system rather
+ * than the transpose one is the only difference of substance: this ray
+ * lives in the column space where the Farkas multipliers live in the row
+ * space.
+ *
+ * Same rules as the certificate's: it needs the published ray and the
+ * basis behind it, REFUSED is read before any of the work and returns
+ * JAOS_OK with `derived` false, and it derives without judging — hand the
+ * direction to jaos_check_ray at a tolerance of zero, or let
+ * jaos_check_proof judge the file jaos_write_proof writes. `at_row` is
+ * always -1 here: a direction names a column and not a row. */
+JAOS_NODISCARD jaos_status jaos_exact_unbounded_ray(
+    jaos_model *m, jaos_exact_ray_report *out);
+JAOS_NODISCARD jaos_status jaos_exact_col_direction(const jaos_model *m,
+                                                    int64_t col,
+                                                    const char **out);
+
 /* The exact optimality proof, on disk (D325).
  *
  * jaos_write_proof writes what a jaos_verify that returned

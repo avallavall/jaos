@@ -1490,14 +1490,19 @@ static void exact_drop(jaos_model *m)
     if (m->exact_farkas != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
             free(m->exact_farkas[i]);
+    if (m->exact_uray != nullptr)
+        for (int64_t j = 0; j < m->num_col; j++)
+            free(m->exact_uray[j]);
     free(m->exact_col);
     free(m->exact_dual);
     free(m->exact_obj);
     free(m->exact_farkas);
+    free(m->exact_uray);
     m->exact_col = nullptr;
     m->exact_dual = nullptr;
     m->exact_obj = nullptr;
     m->exact_farkas = nullptr;
+    m->exact_uray = nullptr;
 }
 
 void jm_model_drop_exact(jaos_model *m)
@@ -1889,4 +1894,261 @@ jaos_status jaos_exact_row_multiplier(const jaos_model *m, int64_t row,
 {
     return exact_get(m, m ? m->exact_farkas : nullptr, row,
                      m ? m->num_row : 0, out);
+}
+
+/* The unbounded direction behind UNBOUNDED, exactly (D336).
+ *
+ * The symmetric half of D333, and the same argument. The simplex proves
+ * unboundedness on a column q whose ratio test finds no blocking row: the
+ * direction is `d_q = 1` and `d_B = -B^-1 A_q` over the basics, and what
+ * `jaos_unbounded_ray` publishes is that solved in floating point and
+ * unscaled, so it is rounded twice. This solves `B x = A_q` over the
+ * rationals from the same basis instead.
+ *
+ * The primal system rather than the transpose one, which is the only
+ * difference of substance: the ray lives in the COLUMN space where the
+ * Farkas multipliers live in the row space.
+ *
+ * The nonbasic part is taken from the published ray and not derived, and
+ * that loses nothing: those entries are the rates the solve chose, each
+ * one a double and so an exact rational already. What the floating-point
+ * solve rounded is the BASIC part, `B x = -(sum over nonbasic j of
+ * A_j d_j)`, and that is what this solves exactly.
+ *
+ * Summed over every nonbasic column rather than over one entering
+ * column, because JAOS's ray is not always a single column's: the shared
+ * lent-bound verdict proves a ray by moving every held column together at
+ * unit rate (D247), and a derivation that assumed one entering column
+ * would produce a vector that is not a ray at all. The test that found
+ * that was an oracle worked by hand, not a campaign. */
+jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *out = (jaos_exact_ray_report){ .derived = false, .bound_bits = 0.0,
+                                    .capacity_bits =
+                                        32.0 * (double)JM_EXACT_LIMBS,
+                                    .blocks = 0, .largest_block = 0,
+                                    .terms = 0, .bytes_held = 0,
+                                    .at_row = -1 };
+    if (m->solve_status != JAOS_SOLVE_UNBOUNDED || !m->ray_ok ||
+        m->sol_ray == nullptr || !m->sol_basis_ok) {
+        jm_set_err(m, "an exact ray needs an UNBOUNDED answer with both a "
+                      "published direction and the basis it stopped on");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    jm_model_drop_exact(m);
+
+    jaos_exact_ray_report rep = *out;
+    vbasis b;
+    vrowwise rw = {0};
+    vsccs s = {0};
+    int64_t *mc = nullptr, *mr = nullptr;
+    jm_rational *rhs = nullptr, *xs = nullptr;
+    jaos_status rc = JAOS_ERR_NUMERICAL;
+    int64_t moving = 0;
+
+    /* The columns the ray moves and the basis does not hold. There may be
+     * several (D247), and a ray that moves none is not one. */
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (m->sol_col_status[j] != JAOS_BASIS_BASIC && m->sol_ray[j] != 0.0)
+            moving++;
+    if (moving == 0) {
+        jm_set_err(m, "jaos_exact_unbounded_ray: the published direction is "
+                      "zero on every nonbasic column, so there is nothing "
+                      "to solve for");
+        *out = rep;
+        return JAOS_ERR_NUMERICAL;
+    }
+
+    if (!vbasis_build(m, &b)) {
+        jm_set_err(m, "jaos_exact_unbounded_ray: the published basis is not "
+                      "%lld columns", (long long)m->num_row);
+        *out = rep;
+        return JAOS_ERR_NUMERICAL;
+    }
+    if (!vbasis_scale(&b)) {
+        jm_set_err(m, "jaos_exact_unbounded_ray: a basis row does not scale "
+                      "to an integer inside the limb budget");
+        goto done;
+    }
+    if (!vrowwise_build(&b, &rw))
+        goto done;
+    mc = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mc);
+    mr = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mr);
+    if (mc == nullptr || mr == nullptr)
+        goto done;
+    if (!transversal(&b, mc, mr)) {
+        jm_set_err(m, "jaos_exact_unbounded_ray: the published basis is "
+                      "structurally singular");
+        goto done;
+    }
+    if (!tarjan(&b, mr, &s))
+        goto done;
+    rep.blocks = s.ncomp;
+    rep.largest_block = s.largest;
+
+    {
+        jm_nat sq;
+        vprod whole;
+        vprod_one(&whole);
+        for (int64_t c = 0; c < b.n; c++)
+            if (!col_norm_sq(&b, c, nullptr, 0, &sq) ||
+                !vprod_mul(&whole, &sq))
+                goto done;
+        vprod *per = calloc((size_t)(s.ncomp > 0 ? s.ncomp : 1), sizeof *per);
+        if (per == nullptr)
+            goto done;
+        for (int64_t c = 0; c < s.ncomp; c++)
+            vprod_one(&per[c]);
+        bool pok = true;
+        for (int64_t i = 0; i < b.n && pok; i++)
+            pok = col_norm_sq(&b, mr[i], s.comp, s.comp[i], &sq) &&
+                  vprod_mul(&per[s.comp[i]], &sq);
+        int64_t worst2 = 0;
+        for (int64_t c = 0; c < s.ncomp; c++) {
+            const int64_t v = vprod_log2(&per[c]);
+            if (v > worst2)
+                worst2 = v;
+        }
+        free(per);
+        if (!pok)
+            goto done;
+        rep.bound_bits = (double)((vprod_log2(&whole) + worst2 + 1) / 2);
+    }
+    if (rep.bound_bits > rep.capacity_bits) {
+        rc = JAOS_OK;
+        goto done;
+    }
+
+    rhs = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *rhs);
+    xs  = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *xs);
+    if (rhs == nullptr || xs == nullptr)
+        goto done;
+
+    /* `B x = sign * A_q`, each equation scaled the way its row was: the
+     * stored matrix is `Z = D B G`, so `Z (G^-1 x) = D (sign A_q)` and
+     * the primal solve's right-hand side takes the ROW factor while its
+     * answer carries the column one. `solve_system` undoes `G` itself on
+     * this side, the way the values solve does. */
+    {
+        jm_rational v, d, t;
+        for (int64_t i = 0; i < b.n; i++)
+            jm_rational_set_zero(&rhs[i]);
+        for (int64_t j = 0; j < m->num_col; j++) {
+            if (m->sol_col_status[j] == JAOS_BASIS_BASIC ||
+                m->sol_ray[j] == 0.0)
+                continue;
+            if (!jm_rational_from_double(&d, -m->sol_ray[j]))
+                goto done;
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                if (m->a_value[k] == 0.0)
+                    continue;
+                const int64_t i = m->a_index[k];
+                if (!jm_rational_from_double(&v, m->a_value[k]) ||
+                    !jm_rational_mul(&t, &v, &d) ||
+                    !jm_rational_add(&rhs[i], &rhs[i], &t))
+                    goto done;
+            }
+        }
+        for (int64_t i = 0; i < b.n; i++) {
+            if (b.shift[i] == 0 || jm_rational_is_zero(&rhs[i]))
+                continue;
+            jm_rational p2;
+            jm_rational_set_i64(&p2, 1);
+            if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+                goto done;
+            p2.num.sign = 1;
+            if (!jm_rational_mul(&rhs[i], &rhs[i], &p2))
+                goto done;
+        }
+    }
+    {
+        vsolver V = { .b = &b, .rw = &rw, .match_row = mr, .match_col = mc,
+                      .s = &s, .transpose = false, .terms = 0, .held = 0,
+                      .singular = false };
+        if (!solve_system(&V, rhs, xs)) {
+            rep.terms += V.terms;
+            if ((int64_t)V.held > rep.bytes_held)
+                rep.bytes_held = (int64_t)V.held;
+            if (V.singular)
+                jm_set_err(m, "jaos_exact_unbounded_ray: the published basis "
+                              "is singular");
+            else
+                rc = JAOS_OK;
+            goto done;
+        }
+        rep.terms += V.terms;
+        if ((int64_t)V.held > rep.bytes_held)
+            rep.bytes_held = (int64_t)V.held;
+    }
+
+    /* The direction, per structural column: `sign` on q, `-x` on a basic
+     * structural, zero on every other nonbasic. A basic LOGICAL is a row
+     * and not a column, so its component is not part of what
+     * `jaos_unbounded_ray` publishes and is dropped here too. */
+    m->exact_uray = jm_calloc_array(m->num_col, sizeof(char *));
+    if (m->exact_uray == nullptr)
+        goto done;
+    {
+        jm_rational zero, neg;
+        jm_rational_set_zero(&zero);
+        for (int64_t j = 0; j < m->num_col; j++) {
+            m->exact_uray[j] = jm_rational_decimal(&zero);
+            if (m->exact_uray[j] == nullptr) {
+                jm_model_drop_exact(m);
+                goto done;
+            }
+        }
+        /* The basic structurals, from the solve. `B x = rhs` already
+         * carries the minus sign in `rhs`, so `xs` IS the rate. A basic
+         * logical is a row and not a column, and is dropped. */
+        for (int64_t i = 0; i < b.n; i++) {
+            const int64_t w = b.who[mr[i]];
+            if (w < 0)
+                continue;
+            free(m->exact_uray[w]);
+            m->exact_uray[w] = jm_rational_decimal(&xs[i]);
+            if (m->exact_uray[w] == nullptr) {
+                jm_model_drop_exact(m);
+                goto done;
+            }
+        }
+        /* The nonbasic ones, at the rates the solve chose: doubles, and so
+         * exact rationals already. */
+        for (int64_t j = 0; j < m->num_col; j++) {
+            if (m->sol_col_status[j] == JAOS_BASIS_BASIC ||
+                m->sol_ray[j] == 0.0)
+                continue;
+            if (!jm_rational_from_double(&neg, m->sol_ray[j])) {
+                jm_model_drop_exact(m);
+                goto done;
+            }
+            free(m->exact_uray[j]);
+            m->exact_uray[j] = jm_rational_decimal(&neg);
+            if (m->exact_uray[j] == nullptr) {
+                jm_model_drop_exact(m);
+                goto done;
+            }
+        }
+        (void)zero;
+    }
+    rep.derived = true;
+    rc = JAOS_OK;
+
+done:
+    free(rhs); free(xs);
+    free(s.comp);
+    free(mc); free(mr);
+    vrowwise_free(&rw);
+    vbasis_free(&b);
+    *out = rep;
+    return rc;
+}
+
+jaos_status jaos_exact_col_direction(const jaos_model *m, int64_t col,
+                                     const char **out)
+{
+    return exact_get(m, m ? m->exact_uray : nullptr, col,
+                     m ? m->num_col : 0, out);
 }

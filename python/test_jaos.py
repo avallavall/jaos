@@ -1940,6 +1940,30 @@ class TestExactCertificate(unittest.TestCase):
             self.assertIs(rep.kind, jaos.ProofKind.INFEASIBLE)
             self.assertTrue(rep.certified)
 
+    def test_the_unbounded_direction_is_derived_exactly(self):
+        """D336, with the same kind of oracle: for `min -x` under
+        `x - y <= 1` any ray must move x and y together, or the row's
+        activity rises and it has an upper bound."""
+        p = jaos.Problem()
+        x = p.add_var(lb=0, name="x")
+        y = p.add_var(lb=0, name="y")
+        p.add(x - y <= 1)
+        p.minimize(-x)
+        self.assertIs(p.solve(), jaos.SolveStatus.UNBOUNDED)
+        rep = p.exact_unbounded_ray()
+        self.assertTrue(rep.derived)
+        self.assertEqual(rep.at_row, -1)
+        dx = p.exact_col_direction(x)
+        dy = p.exact_col_direction(y)
+        self.assertEqual(dx, dy)
+        self.assertGreater(dx, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "u.proof")
+            p.write_proof(path)
+            r = p.check_proof(path)
+            self.assertIs(r.kind, jaos.ProofKind.UNBOUNDED)
+            self.assertTrue(r.certified)
+
     def test_the_model_layer_refuses_what_has_no_basis(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

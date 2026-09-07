@@ -777,11 +777,18 @@ expect_exit 5 "verify refuses an unknown option" \
 
 # An infeasible model has exact arithmetic of its own to run since D333,
 # so verify no longer refuses it; what still has none is an unbounded one.
-expect_exit 5 "verify of an unbounded model exits 5" \
-    "$JAOS" verify "$DATA/unbounded.mps"
-[ "$out" = "status unbounded" ] && pass "and prints only the status" \
-    || flunk "verify of an unbounded model printed: $out"
-[ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+# An unbounded answer has its own exact derivation since D336.
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "verify of an unbounded model exits 0" \
+    "$JAOS" verify "$DATA/unbounded.mps" --proof "$tmp/u.proof"
+[ "$(line_of ray)" = "ray exact" ] && pass "and says the ray is exact" \
+    || flunk "verify printed '$(line_of ray)'"
+expect_exit 0 "the derived ray is judged and holds" \
+    "$JAOS" check "$DATA/unbounded.mps" --proof "$tmp/u.proof"
+[ "$(line_of proof)" = "proof holds" ] \
+    && pass "and the independent checker says so" \
+    || flunk "check printed '$(line_of proof)'"
+fi
 expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
 
 # ---------------------------------------------------------------- ranging

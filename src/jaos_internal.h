@@ -329,6 +329,11 @@ struct jaos_model {
      * the solve's basis actually says, and the difference is the eleven
      * certificates D328 could not close. */
     char **exact_farkas;     /* [num_row] or nullptr */
+    /* The unbounded direction behind UNBOUNDED, exactly, one per
+     * structural column (D336). The symmetric half of exact_farkas:
+     * that one lives in the row space and this one in the column
+     * space, and `sol_ray` is this vector rounded to doubles. */
+    char **exact_uray;       /* [num_col] or nullptr */
     int64_t solve_work;
     int64_t solve_iters;
     /* How many of `solve_iters` the primal method ran, and how many of THOSE

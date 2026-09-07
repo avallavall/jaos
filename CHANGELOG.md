@@ -45,6 +45,15 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   both Python layers carry it. It derives and does not judge: `jaos check
   FILE --proof PATH` is still what says whether they certify (D333,
   `bench/measurements/02-213/`).
+- **The unbounded direction is derived exactly too**, from the same basis
+  and by the same argument: `jaos_exact_unbounded_ray`,
+  `jaos_exact_col_direction`, `jaos verify` on an unbounded answer, and both
+  Python layers. All three outcomes a solve can prove now carry an exact
+  certificate. The derivation sums over every nonbasic column rather than
+  assuming one entering column, because JAOS's ray can move several at once
+  (D247) — the first version assumed one and produced `(1, 0)` where the ray
+  is `(1, 1)`, caught by a hand oracle and not by any campaign, since no gate
+  set has an unbounded instance in it (D336).
 
 ### Fixed
 

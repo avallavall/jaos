@@ -499,12 +499,18 @@ terms 46
 - `--proof PATH` then writes the derived multipliers instead of the
   published doubles, and `--values` prints them as `multiplier NAME V`.
 
-**Deriving is not judging.** This command produces the multipliers; `jaos
-check FILE --proof PATH` says whether they certify, from the model alone
-and with no tolerance, sharing no code with the derivation. Over the 29
-reference infeasibilities the exact ray takes the proof file from 18 of 29
-certifying to 25 of 29, and every derivation that fits the budget
-certifies.
+**When the answer is unbounded the direction is derived the same way**
+(D336), from the same basis and by the primal system rather than the
+transpose one. It prints `ray exact` or `ray refused` and the same cost
+lines, `--values` prints `direction NAME V` per column, and `--proof`
+writes the derived direction instead of the published doubles.
+
+**Deriving is not judging.** This command produces the multipliers or the
+direction; `jaos check FILE --proof PATH` says whether they certify, from
+the model alone and with no tolerance, sharing no code with the
+derivation. Over the 29 reference infeasibilities the exact ray takes the
+proof file from 18 of 29 certifying to 25 of 29, and every derivation that
+fits the budget certifies.
 
 `--values` prints, after a `proof optimal`, what the proof proved (D286):
 one `x NAME VALUE` line per column, one `y NAME DUAL` line per row, then

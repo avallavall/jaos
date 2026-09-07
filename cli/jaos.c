@@ -250,9 +250,11 @@ static const char USAGE2[] =
     "  exit 0 proved, 1 the basis does not certify the answer, 3 refused\n"
     "  because the numbers do not fit. On an infeasibility it derives the\n"
     "  Farkas multipliers exactly from the same basis instead, printing\n"
-    "  `certificate exact` or `certificate refused` and the same cost\n"
-    "  lines: exit 0 derived, 4 refused. Deriving is not judging -- `jaos\n"
-    "  check FILE --proof PATH` is what says whether they certify.\n"
+    "  `certificate exact` or `certificate refused`; on an unboundedness it\n"
+    "  derives the direction the same way, printing `ray exact` or `ray\n"
+    "  refused`. Both print the same cost lines: exit 0 derived, 4 refused.\n"
+    "  Deriving is not judging -- `jaos check FILE --proof PATH` is what\n"
+    "  says whether they certify.\n"
     "  --values         after a proof, print every column's value, every\n"
     "                   row's dual and the objective as exact rationals;\n"
     "                   after a derived certificate, every row's exact\n"
@@ -1751,10 +1753,40 @@ static int cmd_verify(int argc, char **argv)
         rc = rr.derived ? EXIT_OPTIMAL : EXIT_NUMERICAL;
         goto out;
     }
+    /* And an unbounded answer has the symmetric derivation (D336): the
+     * same basis, the primal system rather than the transpose one. */
+    if (ss == JAOS_SOLVE_UNBOUNDED) {
+        jaos_exact_ray_report rr;
+        memset(&rr, 0, sizeof rr);
+        if (jaos_exact_unbounded_ray(m, &rr) != JAOS_OK) {
+            rc = library_error("derive an exact ray of", file, m);
+            goto out;
+        }
+        printf("ray %s\n", rr.derived ? "exact" : "refused");
+        print_num("bound_bits", rr.bound_bits);
+        print_num("capacity_bits", rr.capacity_bits);
+        print_int("blocks", rr.blocks);
+        print_int("largest_block", rr.largest_block);
+        print_int("bytes_held", rr.bytes_held);
+        print_int("terms", rr.terms);
+        if (values && rr.derived) {
+            namebuf nm;
+            const char *v = nullptr;
+            for (int64_t j = 0; j < jaos_num_col(m); j++)
+                if (jaos_exact_col_direction(m, j, &v) == JAOS_OK)
+                    printf("direction %s %s\n", col_name(m, j, nm), v);
+        }
+        if (proof != nullptr && jaos_write_proof(m, proof) != JAOS_OK) {
+            rc = library_error("write the proof of", file, m);
+            goto out;
+        }
+        rc = rr.derived ? EXIT_OPTIMAL : EXIT_NUMERICAL;
+        goto out;
+    }
     if (ss != JAOS_SOLVE_OPTIMAL) {
         fprintf(stderr, "jaos: nothing to verify: the solve of %s ended %s, "
-                "and only an optimum or an infeasibility has exact "
-                "arithmetic to run\n", file, jaos_solve_status_str(ss));
+                "and there is no exact arithmetic for that outcome\n",
+                file, jaos_solve_status_str(ss));
         rc = EXIT_USAGE;
         goto out;
     }
