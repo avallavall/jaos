@@ -84,22 +84,43 @@ point and never a claim, and already threw one away for producing an
 uncertified point; reaching no answer at all is the same statement
 louder, and it takes the same route.
 
-**What is still open from this, and it is a diagnosis rather than a
-repair.** `klein2`'s warm attempt still burns 106201 iterations to the
-guard before the retry begins, 83680 of them with the pivot declined on
-factorization disagreement (D86). The guard against looping there --
-take the pivot when `n_updates == 0` -- makes the solve alternate between
-a declined iteration and a taken one rather than stop, and Bland's rule
-cannot terminate a sequence in which most iterations perform no pivot.
-**Nobody has looked at why those pivots disagree on this model.** It is a
-small instance with a two-line reproducer
-(`bench/measurements/02-212/klein2-double-solve.py`), and it is where the
-next session that opens the stability trigger should start.
+**`klein2` is diagnosed now and not repaired**
+(`bench/measurements/02-215/`). It is a **cycle of period two**, bit for
+bit: two pivots are declined on 41799 and 41798 occasions with the same
+two doubles every time, and between them position 112 takes variable 54
+and gives it back to 55, with the same two steps every time.
+
+**The defect is that `PIVOT_MIN` admits a pivot element that
+`LU_AGREE_TOL` then refuses, and nothing removes the candidate in
+between.** `PIVOT_MIN` is 1e-9 and every declined element is 1e-9 to
+3e-8, so it clears the floor by about four. At that magnitude the element
+is what is left after cancellation rather than a coefficient -- one of
+them is exactly 3 * 2^-31 -- and the two independent computations of it,
+the pricing row's BTRAN and the entering column's FTRAN, disagree by 1%
+to 71%. D86's trigger is right to refuse it; what it does about it is ask
+for a rebuild and hand the iteration back, and the candidate is still
+there.
+
+**The refusal turns into a cycle because the rebuild changes the
+pricing.** With updates applied the pricing picks the noisy row and the
+trigger declines it; on the fresh factorization that follows, the pricing
+picks a different row whose element is 0.67 or 1.5 and takes it; one
+update later the noisy row wins again. **Bland's rule is on from
+iteration 8266 and is not in control of the sequence**: its anti-cycling
+argument assumes the pivot it selects is the pivot performed, and here
+the pivot it selects is the one being refused.
+
+**What would close it**, both constants with two sides to sweep: make the
+ratio test's floor and the agreement tolerance agree, so a pivot the
+trigger will refuse is never offered; or have the trigger exclude the
+(row, column) it refused from the next pricing, so a refusal progresses
+instead of repeating. `bench/measurements/02-215/README.md` states both.
 
 **What is next**, in order:**What is next**, in order:
 
-1. **Why `klein2`'s pivots disagree**, above. A diagnosis, not a repair:
-   the answer is right now and the cost is not.
+1. **Closing `klein2`'s cycle**, above — the diagnosis is done and the
+   repair is a constant with a sweep on both sides, so it is its own
+   piece of work rather than a follow-up edit.
 2. **The four infeasibilities the exact ray does not reach** — `pang`,
    `qual`, `refinery` and `vol1` have a basis and the a-priori bound
    refuses them at 11680 to 16158 bits against a capacity of 4096. That

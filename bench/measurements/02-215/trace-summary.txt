@@ -1,0 +1,79 @@
+patched /tmp/tmp.evCx81RMqd/src/simplex.c
+=== trace lines ===
+190143
+=== declines vs takes ===
+83680
+106463
+
+=== the first 8 declines ===
+DECL 8442 r=88 leave=91 q=0 alpha=-1.0728426309893731e-09 col=-3.3657556741673034e-09 rel=0.681248 upd=57
+DECL 8933 r=89 leave=92 q=77 alpha=-3.9488443903668013e-09 col=-3.9492533687734976e-09 rel=0.000103558 upd=36
+DECL 9300 r=124 leave=9 q=2 alpha=-3.4399330479260951e-09 col=-3.4401835800799857e-09 rel=7.28252e-05 upd=61
+DECL 9447 r=99 leave=57 q=0 alpha=-1.7278363815381822e-09 col=-1.6477426144661834e-09 rel=0.0463549 upd=17
+DECL 9478 r=37 leave=61 q=57 alpha=-1.14066045497907e-09 col=-1.1395968613214791e-09 rel=0.000932437 upd=31
+DECL 9484 r=337 leave=69 q=77 alpha=-3.3319833218082993e-09 col=-3.8853613659739494e-09 rel=0.142426 upd=6
+DECL 9656 r=32 leave=60 q=57 alpha=-1.3035844339285951e-08 col=-1.3220414984971285e-08 rel=0.013961 upd=42
+DECL 9948 r=256 leave=62 q=2 alpha=-1.047570714928572e-09 col=-1.0475969079619836e-09 rel=2.5003e-05 upd=32
+
+=== distinct (r, leave, q) triples among the declines ===
+  41799 r=143 leave=61 q=77
+  41798 r=253 leave=66 q=77
+      1 r=99 leave=57 q=0
+      1 r=89 leave=92 q=77
+      1 r=89 leave=73 q=62
+      1 r=88 leave=91 q=0
+      1 r=80 leave=61 q=7
+      1 r=74 leave=61 q=36
+      1 r=73 leave=59 q=7
+      1 r=69 leave=203 q=77
+distinct triples: 85
+
+=== distinct (r, leave, q) triples among the takes ===
+distinct triples: 21327
+  41799 r=112 leave=55 q=54
+  41799 r=112 leave=54 q=55
+     10 r=213 leave=2 q=1
+      9 r=222 leave=2 q=1
+      9 r=111 leave=2 q=1
+      8 r=75 leave=2 q=1
+
+=== the relative disagreement, distribution ===
+  >=1     : 4
+  0.1-1   : 41811
+  0.01-0.1: 41821
+  1e-3-1e-2: 23
+  <1e-3   : 21
+
+=== n_updates at the decline ===
+  83978 0
+  83976 1
+    379 3
+    379 2
+    378 6
+    378 5
+
+=== a window of 14 consecutive trace lines inside the cycle ===
+60000:DECL 41260 r=253 leave=66 q=77 alpha=-4.8174738865449891e-09 col=-1.3969838619232178e-09 rel=0.710017 upd=1
+60001:TAKE 41260 r=112 leave=55 q=54 alpha=-0.66666666596443391 theta=1.7881393451452538e-06 upd=0
+60002:DECL 41261 r=143 leave=61 q=77 alpha=-3.6960288727173812e-09 col=-3.5215634852647781e-09 rel=0.0472035 upd=1
+60003:TAKE 41261 r=112 leave=54 q=55 alpha=-1.4999999613795512 theta=2.9156606153322726e-05 upd=0
+60004:DECL 41262 r=253 leave=66 q=77 alpha=-4.8174738865449891e-09 col=-1.3969838619232178e-09 rel=0.710017 upd=1
+60005:TAKE 41262 r=112 leave=55 q=54 alpha=-0.66666666596443391 theta=1.7881393451452538e-06 upd=0
+60006:DECL 41263 r=143 leave=61 q=77 alpha=-3.6960288727173812e-09 col=-3.5215634852647781e-09 rel=0.0472035 upd=1
+60007:TAKE 41263 r=112 leave=54 q=55 alpha=-1.4999999613795512 theta=2.9156606153322726e-05 upd=0
+60008:DECL 41264 r=253 leave=66 q=77 alpha=-4.8174738865449891e-09 col=-1.3969838619232178e-09 rel=0.710017 upd=1
+60009:TAKE 41264 r=112 leave=55 q=54 alpha=-0.66666666596443391 theta=1.7881393451452538e-06 upd=0
+60010:DECL 41265 r=143 leave=61 q=77 alpha=-3.6960288727173812e-09 col=-3.5215634852647781e-09 rel=0.0472035 upd=1
+60011:TAKE 41265 r=112 leave=54 q=55 alpha=-1.4999999613795512 theta=2.9156606153322726e-05 upd=0
+60012:DECL 41266 r=253 leave=66 q=77 alpha=-4.8174738865449891e-09 col=-1.3969838619232178e-09 rel=0.710017 upd=1
+60013:TAKE 41266 r=112 leave=55 q=54 alpha=-0.66666666596443391 theta=1.7881393451452538e-06 upd=0
+
+=== the primal step on the two repeated takes ===
+  41799 theta=1.7881393451452538e-06
+  41798 theta=2.9156606153322726e-05
+      1 theta=5.9405963002881615e-06
+
+=== |alpha| of the two repeated declines ===
+alpha=-2.7619487585894831e-08
+alpha=-3.6960288727173812e-09
+alpha=-4.8174738865449891e-09
