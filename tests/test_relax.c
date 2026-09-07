@@ -373,9 +373,70 @@ static void test_the_published_basis_is_one_set_basis_takes(void)
     jaos_model_free(m);
 }
 
+/* D335: a warm start that reaches no answer is thrown away and the
+ * solve restarts cold. `klein2` is the instance that found it and it is
+ * far too large for a unit test, so what is pinned here is the rule
+ * rather than the instance: a basis that is hostile to the model it is
+ * handed to may cost iterations and may not cost the answer.
+ *
+ * The hostile basis is the one from a DIFFERENT model of the same shape,
+ * which is exactly what `jaos_set_basis` documents as legal and exactly
+ * what the retry exists for. Both models below answer on their own, and
+ * the second has to answer the same way from the first one's basis. */
+static void test_a_hostile_warm_start_still_reaches_the_answer(void)
+{
+    /* Two rows that conflict: the answer is INFEASIBLE and there is a
+     * basis behind it (D330). */
+    jaos_model *a = two_rows_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(a));
+    jaos_basis_status cs[2], rs[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(a, cs, rs));
+    jaos_model_free(a);
+
+    /* The same shape, feasible, and its optimum is 0 at the origin. */
+    jaos_model *b = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&b));
+    {
+        const double c[2] = {1.0, 1.0};
+        const double cl[2] = {0.0, 0.0}, cu[2] = {INFINITY, INFINITY};
+        const double rl[2] = {-INFINITY, -INFINITY};
+        const double ru[2] = {1.0, 4.0};
+        const int64_t s[3] = {0, 2, 4};
+        const int64_t ix[4] = {0, 1, 0, 1};
+        const double v[4] = {1.0, 1.0, 1.0, 1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(b, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         4, s, ix, v));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(b, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(b));
+    double obj = -1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &obj));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, obj);
+    jaos_model_free(b);
+}
+
+/* The other side of the same rule, and the reason the retry is bounded:
+ * a model solved twice reaches the same verdict the second time, from
+ * the basis the first solve left. That is what `klein2` broke. */
+static void test_a_second_solve_reaches_the_same_verdict(void)
+{
+    jaos_model *m = two_rows_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(jaos_num_row(m), basic_count(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_hostile_warm_start_still_reaches_the_answer);
+    RUN_TEST(test_a_second_solve_reaches_the_same_verdict);
     RUN_TEST(test_a_row_that_asks_more_than_the_columns_can_give);
     RUN_TEST(test_the_scope_decides_which_bound_moves);
     RUN_TEST(test_a_feasible_model_moves_nothing);

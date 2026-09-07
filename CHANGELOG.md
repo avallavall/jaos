@@ -34,23 +34,46 @@ open, `bench/README.md` for the gate, and the commit each entry came from.
   up where the last run stopped. 18 of the 19 files that carry a basis
   re-solve in no more iterations warm than cold — `gosh` 25171 to 27.
   `jaos_read_basis` reads a basis out of a file of either kind (D332).
+- **The Farkas ray is derived exactly.** `jaos_exact_certificate` solves
+  the basis's own system over the rationals instead of reading the doubles
+  the floating-point solve rounded twice, and `jaos_write_proof` writes what
+  it derived. The proof file goes from **18 of 29** reference infeasibilities
+  certifying with no tolerance to **25 of 29**, closing `bgetam`, `bgindy`,
+  `bgprtr`, `forest6`, `klein1`, `klein2` and `klein3` and losing none; every
+  one of the 12 derivations the limb budget admits certifies. `jaos verify`
+  runs it on an infeasible answer, `--values` prints the multipliers, and
+  both Python layers carry it. It derives and does not judge: `jaos check
+  FILE --proof PATH` is still what says whether they certify (D333,
+  `bench/measurements/02-213/`).
 
 ### Fixed
 
-- **`jaos_basis` no longer hands out a vector that is not a basis after a
-  mixed-integer solve.** A proved incumbent's statuses are the node LP's
-  truncated to the caller's rows, so every cut binding at that node leaves
-  one basic too many: 19 of the 24 MIPLIB instances, measured. The
-  availability is counted rather than claimed now, so the call refuses; the
-  underlying truncation predates this batch and is carried in `TODO.md`.
-  Found by `numerics-reviewer` on this batch's own diff (D330,
-  `bench/measurements/02-212/mip-basis-count.txt`).
-
-### Found, not fixed
-
-- `klein2` re-solved from its own infeasible basis trips the internal
-  iteration guard, through a second `jaos_solve` on one model just as
-  through a file. Older than this batch; carried in `TODO.md`.
+- **A mixed-integer solve publishes a basis of the model, not of the model
+  plus its cuts.** A proved incumbent's statuses were the node LP's
+  truncated to the caller's rows, so every cut binding at that node left
+  one basic too many, and the duals and reduced costs were taken over a row
+  set the caller's model does not have. **5 of the 24 MIPLIB instances
+  published a basis of the right size before, 24 of 24 after.** The repair
+  is one LP: fix the integer columns at the incumbent, drop the cuts, and
+  solve what is left, whose optimum is the incumbent's because a valid cut
+  removes no integer-feasible point. It runs only where the count is
+  actually broken, and costs **1.001163x the work on the geometric mean
+  over the MIP set, 1.013031x at worst, with no instance's tree moving**;
+  the MIP baseline is rewritten for the work column alone. Found by
+  `numerics-reviewer` reading this batch's own diff, not by any campaign —
+  no gate set has an integer column in it (D330, D334,
+  `bench/measurements/02-212/`, `02-214/`).
+- **A warm start that reaches no answer restarts cold instead of failing.**
+  `klein2` answers INFEASIBLE in 262 iterations cold and tripped the
+  internal iteration guard after 106201 warm from its own infeasible basis,
+  83680 of them with the pivot declined on factorization disagreement. That
+  path is as old as remembering a refusal's basis and a second `jaos_solve`
+  on one model reaches it with no file involved. It now takes the route
+  D148 already wrote for an uncertified warm point, for the same reason: a
+  basis on the model is a starting point and never a claim. The warm
+  attempt still burns to the guard first, so the answer costs 46 seconds
+  where the cold solve costs 262 iterations; what changed is that it is an
+  answer (D335).
 
 ## [0.3.0] — 2026-09-07
 

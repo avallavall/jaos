@@ -15,6 +15,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -2465,6 +2466,53 @@ static void test_a_starting_point_and_a_cutoff(void)
 }
 
 
+/* D334: a proved incumbent's basis is a basis of the MODEL, so its
+ * count is exactly num_row and every consumer that reads a basis takes
+ * it. Before the repair the statuses were the node LP's truncated to the
+ * caller's rows, which keeps the basic a binding cut paid for and drops
+ * the row it paid on.
+ *
+ * The knapsack below needs cuts to close, which is what puts a binding
+ * cut in the proving node and makes this test the case it is for. The
+ * control is the same model with every cut switched off: the truncation
+ * cannot happen then, and the count has to be right either way. */
+static void test_a_proved_incumbent_publishes_a_basis_of_the_model(void)
+{
+    for (int cuts = 1; cuts >= 0; cuts--) {
+        jaos_model *m = knapsack5();
+        if (cuts == 0) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+        const int64_t nr = jaos_num_row(m), nc = jaos_num_col(m);
+        jaos_basis_status *cs = calloc((size_t)(nc + 1), sizeof *cs);
+        jaos_basis_status *rs = calloc((size_t)(nr + 1), sizeof *rs);
+        TEST_ASSERT_NOT_NULL(cs);
+        TEST_ASSERT_NOT_NULL(rs);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+        int64_t basic = 0;
+        for (int64_t j = 0; j < nc; j++) basic += cs[j] == JAOS_BASIS_BASIC;
+        for (int64_t i = 0; i < nr; i++) basic += rs[i] == JAOS_BASIS_BASIC;
+        TEST_ASSERT_EQUAL_INT64(nr, basic);
+
+        /* And the library takes it back, which is the count checked a
+         * second time through a gate that is not this test's. */
+        jaos_model *c = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(c, cs, rs));
+        jaos_model_free(c);
+
+        free(cs);
+        free(rs);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -2474,6 +2522,7 @@ int main(void)
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     return UNITY_END();
 #endif
+    RUN_TEST(test_a_proved_incumbent_publishes_a_basis_of_the_model);
     RUN_TEST(test_the_knapsack_finds_the_integer_optimum);
     RUN_TEST(test_a_fractional_root_branches_to_the_integer_answer);
     RUN_TEST(test_an_integer_model_with_no_integer_point_is_infeasible);

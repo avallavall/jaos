@@ -1,0 +1,28 @@
+air03        basis of 124 basics for 124 rows  (0.1s)
+bell3a       basis of 123 basics for 123 rows  (7.1s)
+bell5        basis of 91 basics for 91 rows  (11.1s)
+blend2       basis of 274 basics for 274 rows  (2.8s)
+dcmulti      basis of 290 basics for 290 rows  (0.7s)
+egout        basis of 98 basics for 98 rows  (0.4s)
+enigma       basis of 21 basics for 21 rows  (0.1s)
+flugpl       basis of 18 basics for 18 rows  (0.0s)
+gen          basis of 780 basics for 780 rows  (0.0s)
+gt2          basis of 29 basics for 29 rows  (0.1s)
+khb05250     basis of 101 basics for 101 rows  (0.1s)
+l152lav      basis of 97 basics for 97 rows  (64.0s)
+lseu         basis of 28 basics for 28 rows  (0.5s)
+misc03       basis of 96 basics for 96 rows  (0.6s)
+misc06       basis of 820 basics for 820 rows  (1.3s)
+misc07       basis of 212 basics for 212 rows  (28.9s)
+mod008       basis of 6 basics for 6 rows  (0.4s)
+mod010       basis of 146 basics for 146 rows  (0.0s)
+p0033        basis of 16 basics for 16 rows  (0.0s)
+p0201        basis of 133 basics for 133 rows  (0.6s)
+p0282        basis of 241 basics for 241 rows  (2.5s)
+rgn          basis of 24 basics for 24 rows  (0.5s)
+stein27      basis of 118 basics for 118 rows  (0.4s)
+stein45      basis of 331 basics for 331 rows  (15.7s)
+
+proved incumbents publishing a basis of the right size: 24
+publishing one of the wrong size, and so refused       : 0
+not measured (no file, or not solved to optimality)    : 0

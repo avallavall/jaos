@@ -211,6 +211,13 @@ FILE --proof PATH` writes one and `jaos check FILE --proof PATH` judges
 one. What stops it is the limb budget and nothing else, and that is
 reported as "cannot judge" rather than as a verdict.
 
+**Since D333 the infeasibility ray in that file is exact rather than
+rounded.** `jaos_exact_certificate` solves the basis's own system over the
+rationals, from the basis a refusal stops on, and the file carries what it
+derived; that took the reference infeasibilities from 18 of 29 certifying
+with no tolerance to 25 of 29, with none lost and every derivation the limb
+budget admits certifying.
+
 **Since D328 the file carries all three outcomes**: a Farkas certificate
 and an unbounded ray as well, checked the same way and with no tolerance.
 Those two need no proof step at all, because the vector the solve

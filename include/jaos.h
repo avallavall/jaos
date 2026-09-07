@@ -1983,6 +1983,61 @@ JAOS_NODISCARD jaos_status jaos_exact_row_dual(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_exact_objective(const jaos_model *m,
                                                 const char **out);
 
+/* What deriving an exact infeasibility certificate cost, and whether it
+ * fitted. This call derives and does not judge, so there is no verdict
+ * here: whether the multipliers certify is jaos_check_certificate's
+ * answer, or jaos_check_proof's over the rationals. */
+typedef struct jaos_exact_ray_report {
+    bool    derived;         /* the multipliers are on the model         */
+    double  bound_bits;      /* what the derivation needs, read before any
+                                of it is attempted, the same a-priori
+                                bound jaos_verify uses                    */
+    double  capacity_bits;   /* what the arithmetic holds                 */
+    int64_t blocks;          /* strongly connected components of the basis */
+    int64_t largest_block;   /* rows in the biggest one                   */
+    int64_t at_row;          /* the row whose own logical the ray leaves
+                                the basis on, or -1 when a structural
+                                column holds that position                */
+    int64_t bytes_held;      /* the largest single block table allocated  */
+    int64_t terms;           /* integer products formed                   */
+} jaos_exact_ray_report;
+
+/* The Farkas multipliers behind the last INFEASIBLE answer, exactly
+ * (D333). One decimal rational per row, on the model, read back with
+ * jaos_exact_row_multiplier.
+ *
+ * jaos_certificate publishes the same vector in doubles, and the
+ * difference is rounding twice: once in the triangular solve that formed
+ * it and once in the unscaling. That rounding is measurable — 18 of the
+ * 29 reference infeasibilities certify with no tolerance at all and
+ * eleven do not, every failure a single column whose (A'y)_j sits a
+ * rounding away from zero (D328). This solves the same system over the
+ * rationals instead, from the basis the refusal stopped on, which
+ * jaos_basis publishes since D330.
+ *
+ * Needs an INFEASIBLE answer that has both a published ray and that
+ * basis: a verdict presolve reached with no simplex has no basis to solve
+ * against, and an inverted box has no ray. REFUSED comes before the work,
+ * the same way it does for the proof: `bound_bits` against
+ * `capacity_bits` is read before a limb is allocated, and `derived` is
+ * false with JAOS_OK returned, because "the arithmetic does not fit" is
+ * an answer and not a failure.
+ *
+ * It derives and does not judge, deliberately. Hand the multipliers to
+ * jaos_check_certificate at a tolerance of zero, or write them into a
+ * proof file with jaos_write_proof and let jaos_check_proof judge them
+ * over the rationals; both re-derive everything from the model and share
+ * no code with this. So a wrong answer here cannot become a proof.
+ *
+ * Reproducible bit for bit, like everything else (D8). Dropped by
+ * anything that drops the answer, and by the next jaos_verify. Not billed
+ * to jaos_work_units; the report carries the cost. */
+JAOS_NODISCARD jaos_status jaos_exact_certificate(jaos_model *m,
+                                                  jaos_exact_ray_report *out);
+JAOS_NODISCARD jaos_status jaos_exact_row_multiplier(const jaos_model *m,
+                                                     int64_t row,
+                                                     const char **out);
+
 /* The exact optimality proof, on disk (D325).
  *
  * jaos_write_proof writes what a jaos_verify that returned

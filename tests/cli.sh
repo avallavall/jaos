@@ -673,6 +673,27 @@ expect_exit 1 "iis of an optimal model exits 1" "$JAOS" iis "$DATA/solve1.mps"
 [ "$out" = "status optimal" ] && pass "and prints only the status" \
     || flunk "iis of an optimal model printed: $out"
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
+# verify on an infeasible model derives the exact certificate (D333).
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "verify of an infeasible model exits 0" \
+    "$JAOS" verify "$DATA/t1.mps" --proof "$tmp/t1.proof"
+[ "$(line_of certificate)" = "certificate exact" ] \
+    && pass "and says the certificate is exact" \
+    || flunk "verify printed '$(line_of certificate)'"
+for k in bound_bits capacity_bits blocks largest_block terms; do
+    [ -n "$(line_of $k)" ] && pass "verify prints a $k line" \
+        || flunk "no $k line in: $out"
+done
+expect_exit 0 "the derived certificate is judged and holds" \
+    "$JAOS" check "$DATA/t1.mps" --proof "$tmp/t1.proof"
+[ "$(line_of proof)" = "proof holds" ] \
+    && pass "and the independent checker says so" \
+    || flunk "check printed '$(line_of proof)'"
+grep -q '^ray ' "$tmp/t1.proof" \
+    && pass "the proof file carries ray records" \
+    || flunk "no ray records in the derived proof file"
+fi
+
 expect_exit 5 "iis without a file is a usage error" "$JAOS" iis
 expect_exit 5 "iis of a missing file exits 5" "$JAOS" iis "$tmp/no-such.mps"
 
@@ -754,9 +775,12 @@ fi
 expect_exit 5 "verify refuses an unknown option" \
     "$JAOS" verify "$DATA/solve1.mps" --bogus
 
-expect_exit 5 "verify of an infeasible model exits 5" "$JAOS" verify "$DATA/t1.mps"
-[ "$out" = "status infeasible" ] && pass "and prints only the status" \
-    || flunk "verify of an infeasible model printed: $out"
+# An infeasible model has exact arithmetic of its own to run since D333,
+# so verify no longer refuses it; what still has none is an unbounded one.
+expect_exit 5 "verify of an unbounded model exits 5" \
+    "$JAOS" verify "$DATA/unbounded.mps"
+[ "$out" = "status unbounded" ] && pass "and prints only the status" \
+    || flunk "verify of an unbounded model printed: $out"
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
 expect_exit 5 "verify without a file is a usage error" "$JAOS" verify
 

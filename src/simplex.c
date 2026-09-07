@@ -4732,6 +4732,39 @@ jaos_status jm_dual_simplex(jaos_model *m)
          * dual iterations. */
         st = m->cfg.force_primal ? run_primal(&s, &outcome)
                                  : run(&s, &outcome);
+        /* A warm start that cannot get anywhere is thrown away whole and
+         * the solve restarts once, cold — the same rule the uncertified
+         * point below follows, for the same reason (D148): the basis on
+         * the model is a starting point and never a claim, so a start
+         * that fails is the start's failure and not the model's. What
+         * reaches here is the internal iteration guard, which is a
+         * refusal and not an answer: `klein2` answers INFEASIBLE in 262
+         * iterations cold and trips the guard after 106201 warm from its
+         * own infeasible basis, 83680 of those iterations having their
+         * pivot declined on factorization disagreement (D335). Out of
+         * memory is not retried: a second attempt needs the memory the
+         * first one could not get. */
+        if (st == JAOS_ERR_NUMERICAL && warm) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the supplied basis reached no answer (%s); restarting "
+                   "cold from the slack basis after %lld iterations, %lld "
+                   "refactorizations, %lld stalls, %lld stability rebuilds",
+                   target->err, (long long)s.iters, (long long)s.n_refactor,
+                   (long long)s.n_bland, (long long)s.n_stability);
+            const jm_work carried = s.work;
+            const struct timespec t0 = s.started;
+            sx_free(&s);
+            st = sx_init(&s, target);
+            if (st != JAOS_OK) {
+                jm_presolve_free(&p);
+                return st;
+            }
+            s.work = carried;
+            s.started = t0;
+            target->err[0] = '\0';
+            allow_warm = false;
+            continue;
+        }
         if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
             break;
 

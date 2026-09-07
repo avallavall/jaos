@@ -68,7 +68,8 @@ __all__ = [
     "CheckReport", "CertificateReport", "RayReport", "Progress",
     "IISSide", "IISReport", "IIS",
     "RelaxScope", "RelaxReport", "Relaxation",
-    "Proof", "ProofStage", "VerifyReport", "MipReport",
+    "Proof", "ProofStage", "VerifyReport", "ExactRayReport",
+    "MipReport",
 ]
 
 
@@ -464,6 +465,24 @@ class _VerifyReport(ctypes.Structure):
 VerifyReport = namedtuple("VerifyReport",
                           [f for f, _ in _VerifyReport._fields_])
 
+
+class _ExactRayReport(ctypes.Structure):
+    """jaos_exact_ray_report, field for field."""
+    _fields_ = [
+        ("derived", ctypes.c_bool),
+        ("bound_bits", _D),
+        ("capacity_bits", _D),
+        ("blocks", ctypes.c_int64),
+        ("largest_block", ctypes.c_int64),
+        ("at_row", ctypes.c_int64),
+        ("bytes_held", ctypes.c_int64),
+        ("terms", ctypes.c_int64),
+    ]
+
+
+ExactRayReport = namedtuple("ExactRayReport",
+                            [f for f, _ in _ExactRayReport._fields_])
+
 _LOG_FN = ctypes.CFUNCTYPE(None, _VP, ctypes.c_int, _CS)
 _PROGRESS_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Progress), _VP)
 
@@ -628,6 +647,9 @@ _sig("jaos_cost_ranging", ctypes.c_int, _VP, _P(_D), _P(_D))
 _sig("jaos_rhs_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_bound_ranging", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
 _sig("jaos_verify", ctypes.c_int, _VP, _P(_VerifyReport))
+_sig("jaos_exact_certificate", ctypes.c_int, _VP, _P(_ExactRayReport))
+_sig("jaos_exact_row_multiplier", ctypes.c_int, _VP, ctypes.c_int64,
+     _P(_CS))
 _sig("jaos_work_units", _I64, _VP)
 _sig("jaos_iterations", _I64, _VP)
 _sig("jaos_solve_time", _D, _VP)
@@ -1284,6 +1306,35 @@ class Model:
         the question it asks."""
         self._check(_lib.jaos_set_mip_cutoff(self._handle(), float(cutoff)))
         return self
+
+    def exact_certificate(self):
+        """Derive the Farkas multipliers behind an INFEASIBLE answer
+        exactly, from the basis the refusal stopped on (D333).
+
+        Returns an `ExactRayReport`. `derived` says the arithmetic fitted;
+        false with no exception is the honest refusal, and `bound_bits`
+        against `capacity_bits` says how far outside it was. The
+        multipliers are then on the model, readable with
+        `exact_row_multiplier()` and written into the proof file by
+        `write_proof()` in place of the published doubles.
+
+        It derives and does not judge: hand the result to
+        `check_certificate()` at a tolerance of zero, or let
+        `check_proof()` judge the file. Raises unless the last solve
+        answered INFEASIBLE with both a ray and a basis."""
+        rep = _ExactRayReport()
+        self._check(_lib.jaos_exact_certificate(self._handle(),
+                                                ctypes.byref(rep)))
+        return ExactRayReport(*(getattr(rep, f)
+                                for f, _ in _ExactRayReport._fields_))
+
+    def exact_row_multiplier(self, row):
+        """One row's exact Farkas multiplier as a `fractions.Fraction`,
+        after exact_certificate(). Raises when there is none."""
+        out = _CS()
+        self._check(_lib.jaos_exact_row_multiplier(self._handle(), int(row),
+                                                   ctypes.byref(out)))
+        return Fraction(out.value.decode())
 
     def write_proof(self, path):
         """Write the answer's exact proof to a file.
@@ -2822,6 +2873,20 @@ class Problem:
         self._settled()
         self._m.write_proof(path)
         return self
+
+    def exact_certificate(self):
+        """Derive the exact Farkas multipliers behind an INFEASIBLE
+        answer; see `Model.exact_certificate`. Raises while the problem is
+        ahead of its last solve."""
+        self._settled()
+        return self._m.exact_certificate()
+
+    def exact_row_multiplier(self, con):
+        """One constraint's exact Farkas multiplier, by Constraint or by
+        index; see `Model.exact_row_multiplier`."""
+        self._settled()
+        return self._m.exact_row_multiplier(
+            con._i if isinstance(con, Constraint) else int(con))
 
     def check_proof(self, path):
         """Judge a proof file from this problem alone, over the rationals

@@ -1,0 +1,29 @@
+air03        work 1.003345x   iters 443 -> 443   nodes 1 -> 1
+bell3a       work 1.000015x   iters 263803 -> 263803   nodes 64077 -> 64077
+bell5        work 1.000007x   iters 228020 -> 228020   nodes 140595 -> 140595
+blend2       work 1.000003x   iters 223587 -> 223587   nodes 5879 -> 5879
+dcmulti      work 1.002197x   iters 29024 -> 29024   nodes 415 -> 415
+egout        work 1.000011x   iters 4942 -> 4942   nodes 6841 -> 6841
+enigma       work 1.000000x   iters 21156 -> 21156   nodes 2814 -> 2814
+flugpl       work 1.000000x   iters 2069 -> 2069   nodes 2445 -> 2445
+gen          work 1.013031x   iters 691 -> 691   nodes 7 -> 7
+gt2          work 1.000022x   iters 6166 -> 6166   nodes 445 -> 445
+khb05250     work 1.004690x   iters 4041 -> 4041   nodes 81 -> 81
+l152lav      work 1.000000x   iters 2446858 -> 2446858   nodes 2505 -> 2505
+lseu         work 1.000002x   iters 39922 -> 39922   nodes 5949 -> 5949
+misc03       work 1.000013x   iters 43476 -> 43476   nodes 1271 -> 1271
+misc06       work 1.003814x   iters 44178 -> 44178   nodes 73 -> 73
+misc07       work 1.000000x   iters 1405418 -> 1405418   nodes 35287 -> 35287
+mod008       work 1.000008x   iters 24760 -> 24760   nodes 2631 -> 2631
+mod010       work 1.000707x   iters 820 -> 820   nodes 1 -> 1
+p0033        work 1.000019x   iters 1243 -> 1243   nodes 329 -> 329
+p0201        work 1.000010x   iters 34042 -> 34042   nodes 797 -> 797
+p0282        work 1.000004x   iters 117190 -> 117190   nodes 8375 -> 8375
+rgn          work 1.000101x   iters 60822 -> 60822   nodes 4233 -> 4233
+stein27      work 1.000003x   iters 32829 -> 32829   nodes 9181 -> 9181
+stein45      work 1.000000x   iters 906108 -> 906108   nodes 120987 -> 120987
+
+geometric mean of the work ratios: 1.001163x
+largest single ratio             : 1.013031x
+instances whose work did not move: 5 of 24
+instances whose tree moved       : none

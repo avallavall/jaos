@@ -340,6 +340,9 @@ and you have the argument. Jump to the entry for the numbers behind it.
 - **[D330](#d330--the-basis-behind-a-refusal-is-published-19-of-the-29-infeasible-answers-have-one-and-10-are-reached-inside-presolve)** — The basis behind a refusal is published: 19 of the 29 infeasible answers have one, and 10 are reached inside presolve
 - **[D331](#d331--the-smallest-change-to-the-bounds-that-makes-a-model-feasible-jaosfeasrelax-and-jaos-relax)** — The smallest change to the bounds that makes a model feasible: `jaos_feasrelax` and `jaos relax`
 - **[D332](#d332--the-certificate-file-carries-its-basis-so-a-refusal-resumes-across-processes)** — The certificate file carries its basis, so a refusal resumes across processes
+- **[D333](#d333--the-exact-farkas-ray-derived-from-the-basis-a-refusal-stopped-on-the-proof-file-goes-from-18-of-29-to-25-of-29)** — The exact Farkas ray, derived from the basis a refusal stopped on: the proof file goes from 18 of 29 to 25 of 29
+- **[D334](#d334--a-mips-proved-incumbent-publishes-a-basis-of-the-model-and-not-of-the-model-plus-its-cuts-5-of-24-to-24-of-24)** — A MIP's proved incumbent publishes a basis of the model and not of the model plus its cuts: 5 of 24 to 24 of 24
+- **[D335](#d335--a-warm-start-that-reaches-no-answer-is-thrown-away-and-the-solve-restarts-cold)** — A warm start that reaches no answer is thrown away and the solve restarts cold
 
 ---
 
@@ -23342,3 +23345,177 @@ leaves a basis and no answer, and writing one would need a fourth kind of
 file; the caller who wants that reads `jaos_basis` and carries the
 statuses themselves. What this decision adds is a section to two records
 that already exist.
+
+## D333 — The exact Farkas ray, derived from the basis a refusal stopped on: the proof file goes from 18 of 29 to 25 of 29
+
+**What it is.** `jaos_exact_certificate` derives the Farkas multipliers
+behind an INFEASIBLE answer over the rationals, from the basis the dual
+simplex stopped on, and leaves them on the model as decimal rationals;
+`jaos_exact_row_multiplier` reads one back and `jaos_write_proof` writes
+them into the file in place of the published doubles. `jaos verify FILE`
+runs it where the answer is infeasible, `--values` prints the
+multipliers, `--proof` writes them, and both Python layers carry
+`exact_certificate()` and `exact_row_multiplier()`.
+
+**What it closes.** D328 wrote the published doubles and measured **18 of
+29** pinned infeasibilities certifying with no tolerance at all. All
+eleven failures were the same shape: a single column whose `(A'y)_j` sat
+a rounding away from zero with no finite bound on the side it pointed at.
+A ray computed by the floating-point triangular solve and then unscaled
+is rounded twice, and that is where the entry comes from. Measured
+(`bench/measurements/02-213/`): **25 of 29 certify now**, the seven
+closed being `bgetam`, `bgindy`, `bgprtr`, `forest6`, `klein1`, `klein2`
+and `klein3`, and **none is lost**.
+
+**The stronger reading is 12 of 12.** Of the 19 that publish a basis
+(D330), the a-priori bound admits 12, and **every one of those 12
+certifies**. The seven it refuses are refused before a limb is allocated,
+at 11680 to 146899 bits against a capacity of 4096, and they keep the
+doubles. So the derivation has no failure mode on this set: it either
+fits and proves, or says it does not fit.
+
+**The two mechanisms are complementary, which is why nothing is lost.**
+The ten instances presolve settles by itself have no basis to solve
+against, and they were already certifying: a site-seeded ray is one
+signed unit lifted through the reductions, which is exact by
+construction. The nineteen the simplex settles are the ones the rounding
+was costing. The writer falls back to the doubles wherever there is no
+derivation, so an instance can only move upward.
+
+**No new machinery.** The system is the transpose one `jaos_verify`
+already solves for the duals, at a different right-hand side: `B' y = e_r`
+rather than `B' u = c_B`. The scaling is the same and its direction is the
+same trap -- `Z = D B G`, so the right-hand side carries the column factor
+`2^-cshift` and the answer carries the row factor `2^-shift`, and taking
+either the other way is a silent factor of two to the hundreds.
+
+**Finding r needs no new state and is done in doubles on purpose.** The
+published ray is `sigma * (row r of B inverse)`, so `B' y` is a multiple
+of `e_r` and its largest entry names the position and the sign. That
+selection is an index and decides nothing: the vector it produces is
+judged by `jaos_check_proof`, which re-derives primal and dual
+feasibility from the model with no basis at all and shares no code with
+this. A wrong r yields a vector that does not certify, never a wrong
+proof.
+
+**It derives and does not judge, and the report says so.**
+`jaos_exact_ray_report` has no verdict field -- `derived` says the
+arithmetic fitted, and `bound_bits` against `capacity_bits` says how far
+outside it was when it did not. Refusing to fold the verdict in is what
+keeps the checker independent; a call that both produced and blessed its
+own vector would be the one thing this project's certificate story is
+built to avoid.
+
+**Tested against arithmetic done by hand, not against the solver.** The
+model is `x + y <= 1` beside `x + y >= 2` with both columns open above,
+which no presolve family reads (bound tightening is refused, D97), so the
+simplex answers it and there is a basis. The only multipliers that can
+certify are opposite and equal, so both columns price at exactly zero,
+and the derivation returns `-1` and `1`. The case the checker must reject
+is one multiplier changed to `-2`, which stops the columns cancelling and
+sends the supremum to infinity; the file is put back afterwards, so the
+refusal was the edit.
+
+## D334 — A MIP's proved incumbent publishes a basis of the model and not of the model plus its cuts: 5 of 24 to 24 of 24
+
+**The defect.** `incumbent_take` copies the node LP's statuses truncated
+to the caller's own rows. The node LP carries the cut rows, and a cut
+that binds at the proving node has a nonbasic logical, so truncation
+drops that status while keeping the basic it paid for. The published
+count then reads one too high per binding cut. Measured over
+`bench/miplib.manifest` before the repair
+(`bench/measurements/02-212/mip-basis-count.txt`): **5 of the 24
+instances published a basis of the right size and 19 did not**. Cuts are
+on by default, so the wrong case was the ordinary one.
+
+The duals and the reduced costs carry the same shape of defect and it is
+worse than the count: they are the node's, taken over a row set that has
+rows the caller's model does not, so `c - A'y` does not close on the
+model at all.
+
+**How it stayed invisible.** Both consumers refuse such a vector on their
+own count check -- `jaos_cost_ranging` returns `JAOS_ERR_NUMERICAL` and
+`jaos_verify` returns false -- so nothing downstream ever read it. It
+predates D330 and D330 did not create it; what D330 did was promise the
+count on every answer `jaos_basis` gives out, which is what turned a
+quiet wrong vector into a broken promise. Found by `numerics-reviewer`
+reading D330's own diff, and not by any campaign: no gate set has an
+integer column in it.
+
+**The repair is a solve and it is the smallest one that exists.** Fix
+every integer column at the incumbent's value, drop the cuts, and solve
+the model that is left. That LP's optimum IS the incumbent's, and the
+argument is short: every cut the tree adds is valid for the integer hull,
+so it removes no point that satisfies the model with the integers at
+those values, and the feasible set of the fixed model is exactly those
+points. So the objective cannot move, and what comes back is a basis, a
+set of duals and a set of reduced costs of the model as the caller loaded
+it. **24 of 24 after the repair.**
+
+**What it costs: 1.001163x on the geometric mean over the MIP set,
+1.013031x at worst, and no tree moved**
+(`bench/measurements/02-214/cost.txt`). Every instance's iteration count
+and node count is identical to the baseline's, which the repair's shape
+predicts -- it runs after the search has finished and cannot reach a
+decision the search made -- so only the work column moves and the
+baseline is rewritten for that alone.
+
+**It runs once and only where it is needed.** The count is asked first,
+so the five instances that never had the defect pay nothing. A re-solve
+that does not reach an optimum changes nothing and leaves the flag false,
+which is the state D330 introduced and the one this replaces. The cost is
+billed rather than stated, unlike `jaos_iis` and the ranging calls,
+because it runs on the caller's own solve rather than on an analysis call
+they asked for separately.
+
+**Why not repair the vector instead of re-solving it.** Turning a basis
+of the model plus its cuts into a basis of the model alone means pivoting
+the binding cuts out, which needs a factorization and a ratio test -- a
+simplex, in other words, with none of the guarantees this one has. The
+fixed LP is a simplex with all of them.
+
+## D335 — A warm start that reaches no answer is thrown away and the solve restarts cold
+
+**The defect.** `klein2` answers INFEASIBLE in 262 iterations from the
+slack basis. Solved a second time on the same model, which starts from
+the basis the first solve remembered, it trips the internal iteration
+guard after 106201 iterations, the last 103246 without the total
+infeasibility improving, under Bland's rule, with **83680 of those
+iterations having their pivot declined on factorization disagreement**.
+The guard's own message calls it a JAOS defect and it is right.
+
+Reached identically with two `jaos_solve` calls on one model and no file
+involved (`bench/measurements/02-212/klein2-double-solve.py`), so the
+path is as old as remembering a refusal's basis. D330 and D332 only made
+it reachable from a file as well, which is how this batch found it.
+
+**The repair is the rule that was already written, applied to one more
+failure.** D148 says an uncertified point from a WARM start is thrown
+away whole and the solve restarts once, cold, because the basis on the
+model is a starting point and never a claim. A warm start that reaches no
+answer at all is the same thing said louder, so it takes the same route:
+the `sx` is rebuilt, the work accumulator and the clock origin carry over
+(D16), `allow_warm` goes false, and the cold solve runs. `klein2` warm
+now answers INFEASIBLE in 262 iterations.
+
+**Out of memory is not retried**, and that is the one exclusion: a second
+attempt needs the memory the first one could not get. A COLD start that
+trips the guard is still a hard failure, because there is nothing else to
+try.
+
+**What is NOT repaired, and is the honest cost.** The warm attempt still
+burns its way to the guard before the retry begins, so `klein2` warm
+costs about 46 seconds and 3.6 billion work units to reach the answer the
+cold solve reaches in 262 iterations. The guard's cap is
+`ITER_SANITY_FACTOR * (nrow + ncol + 1)` and lowering it is a constant
+with two sides to sweep, which this decision does not do. What changed is
+the verdict: an error became the right answer.
+
+**The mechanism underneath is still not diagnosed.** 81% of those
+iterations had their pivot declined by the stability trigger (D86), which
+asks for a rebuild and hands the iteration back unspent. The guard against
+looping there -- take the pivot when `n_updates == 0` -- means the solve
+alternates between a declined iteration and a taken one rather than
+stopping, and Bland's rule cannot terminate a sequence in which most
+iterations perform no pivot. Naming that is not fixing it, and `TODO.md`
+carries it.

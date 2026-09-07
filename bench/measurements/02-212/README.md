@@ -48,9 +48,12 @@ as a move, and none of the 94 does.
 **The MIP incumbent's basis.** 5 of the 24 MIPLIB instances publish a
 basis of the right size and 19 do not, so a truncated basis is the
 ordinary case rather than a corner. The five are `enigma`, `flugpl`,
-`l152lav`, `misc07` and `stein45`. `jaos_basis` refuses the other 19
-since D330 counts instead of claiming; the truncation itself is older
-and is carried in `TODO.md`.
+`l152lav`, `misc07` and `stein45`.
+
+`mip-basis-count.txt` is that reading. **`mip-basis-count-after.txt` is
+the same script after D334 repaired it: 24 of 24.** The repair fixes the
+integer columns at the incumbent, drops the cuts and solves what is left,
+and what it costs is `bench/measurements/02-214/`.
 
 **The nineteenth is `klein2`, and it is not this batch's.** Warm from its
 own infeasible basis it trips the internal iteration guard after 106201

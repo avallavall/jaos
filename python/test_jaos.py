@@ -13,6 +13,7 @@ own expected values.
 Run with `make python-test` from the repository root.
 """
 
+import fractions
 import os
 import sys
 import tempfile
@@ -1901,6 +1902,50 @@ class TestCertificateFile(unittest.TestCase):
             self.assertIs(status, jaos.SolveStatus.UNBOUNDED)
             self.assertEqual(ray, m.unbounded_ray())
             self.assertTrue(m.check_ray(ray).certified)
+
+
+class TestExactCertificate(unittest.TestCase):
+    """D333. The oracle is arithmetic by hand: for `x + y <= 1` beside
+    `x + y >= 2` the only multipliers that certify are opposite and
+    equal, so both columns price at exactly zero."""
+
+    def conflict(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, name="x")
+        y = p.add_var(lb=0, name="y")
+        p.add(x + y <= 1, "low")
+        p.add(x + y >= 2, "high")
+        p.minimize(x + y)
+        return p
+
+    def test_the_multipliers_are_derived_exactly(self):
+        p = self.conflict()
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        rep = p.exact_certificate()
+        self.assertTrue(rep.derived)
+        self.assertLessEqual(rep.bound_bits, rep.capacity_bits)
+        self.assertEqual(p.exact_row_multiplier(0), fractions.Fraction(-1))
+        self.assertEqual(p.exact_row_multiplier(1), fractions.Fraction(1))
+        # And by Constraint as well as by index.
+        self.assertEqual(p.exact_row_multiplier(p._cons[1]), fractions.Fraction(1))
+
+    def test_the_derived_file_is_judged_by_the_independent_checker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "cert.proof")
+            p = self.conflict()
+            p.solve()
+            p.exact_certificate()
+            p.write_proof(path)
+            rep = p.check_proof(path)
+            self.assertIs(rep.kind, jaos.ProofKind.INFEASIBLE)
+            self.assertTrue(rep.certified)
+
+    def test_the_model_layer_refuses_what_has_no_basis(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            m.solve()          # optimal: no certificate to derive
+            with self.assertRaises(jaos.JaosError):
+                m.exact_certificate()
 
 
 class TestFeasibilityRelaxation(unittest.TestCase):

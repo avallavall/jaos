@@ -245,11 +245,18 @@ static const char USAGE2[] =
     "  --cols           only column bounds may move\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n"
-    "verify solves FILE and proves, or refuses to prove, its optimal basis\n"
-    "  in exact arithmetic. Exit 0 proved, 1 the basis does not certify the\n"
-    "  answer, 3 refused because the numbers do not fit.\n"
+    "verify solves FILE and runs the exact arithmetic its answer allows.\n"
+    "  On an optimum it proves, or refuses to prove, the published basis:\n"
+    "  exit 0 proved, 1 the basis does not certify the answer, 3 refused\n"
+    "  because the numbers do not fit. On an infeasibility it derives the\n"
+    "  Farkas multipliers exactly from the same basis instead, printing\n"
+    "  `certificate exact` or `certificate refused` and the same cost\n"
+    "  lines: exit 0 derived, 4 refused. Deriving is not judging -- `jaos\n"
+    "  check FILE --proof PATH` is what says whether they certify.\n"
     "  --values         after a proof, print every column's value, every\n"
-    "                   row's dual and the objective as exact rationals\n"
+    "                   row's dual and the objective as exact rationals;\n"
+    "                   after a derived certificate, every row's exact\n"
+    "                   multiplier\n"
     "  --proof PATH     after a proof, write it to PATH: every value and\n"
     "                   every dual as an exact rational, with no basis\n"
     "                   in it. `jaos check FILE --proof PATH` judges one\n"
@@ -1706,10 +1713,48 @@ static int cmd_verify(int argc, char **argv)
         rc = unfinished(file, ss);
         goto out;
     }
+    /* An infeasible answer has no optimum to prove and does have a
+     * certificate to derive exactly (D333), so `verify` runs that
+     * instead: the same exact arithmetic on the same basis, at the
+     * right-hand side the refusal points at. `--proof` then writes the
+     * derived multipliers rather than the published doubles. */
+    if (ss == JAOS_SOLVE_INFEASIBLE) {
+        jaos_exact_ray_report rr;
+        memset(&rr, 0, sizeof rr);
+        if (jaos_exact_certificate(m, &rr) != JAOS_OK) {
+            rc = library_error("derive an exact certificate of", file, m);
+            goto out;
+        }
+        printf("certificate %s\n", rr.derived ? "exact" : "refused");
+        print_num("bound_bits", rr.bound_bits);
+        print_num("capacity_bits", rr.capacity_bits);
+        print_int("blocks", rr.blocks);
+        print_int("largest_block", rr.largest_block);
+        if (rr.at_row >= 0)
+            print_int("at_row", rr.at_row);
+        print_int("bytes_held", rr.bytes_held);
+        print_int("terms", rr.terms);
+        if (values && rr.derived) {
+            namebuf nm;
+            const char *v = nullptr;
+            for (int64_t i = 0; i < jaos_num_row(m); i++)
+                if (jaos_exact_row_multiplier(m, i, &v) == JAOS_OK)
+                    printf("multiplier %s %s\n", row_name(m, i, nm), v);
+        }
+        if (proof != nullptr && jaos_write_proof(m, proof) != JAOS_OK) {
+            rc = library_error("write the proof of", file, m);
+            goto out;
+        }
+        /* The verdict is whether the arithmetic reached an answer, not
+         * whether the answer certifies: `jaos check FILE --proof PATH`
+         * is what judges that, from the model and with no tolerance. */
+        rc = rr.derived ? EXIT_OPTIMAL : EXIT_NUMERICAL;
+        goto out;
+    }
     if (ss != JAOS_SOLVE_OPTIMAL) {
         fprintf(stderr, "jaos: nothing to verify: the solve of %s ended %s, "
-                "and only an optimum has a basis to prove\n", file,
-                jaos_solve_status_str(ss));
+                "and only an optimum or an infeasibility has exact "
+                "arithmetic to run\n", file, jaos_solve_status_str(ss));
         rc = EXIT_USAGE;
         goto out;
     }

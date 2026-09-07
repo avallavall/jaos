@@ -1487,12 +1487,17 @@ static void exact_drop(jaos_model *m)
     if (m->exact_dual != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
             free(m->exact_dual[i]);
+    if (m->exact_farkas != nullptr)
+        for (int64_t i = 0; i < m->num_row; i++)
+            free(m->exact_farkas[i]);
     free(m->exact_col);
     free(m->exact_dual);
     free(m->exact_obj);
+    free(m->exact_farkas);
     m->exact_col = nullptr;
     m->exact_dual = nullptr;
     m->exact_obj = nullptr;
+    m->exact_farkas = nullptr;
 }
 
 void jm_model_drop_exact(jaos_model *m)
@@ -1640,4 +1645,248 @@ jaos_status jaos_exact_objective(const jaos_model *m, const char **out)
     }
     *out = m->exact_obj;
     return JAOS_OK;
+}
+
+/* ------------------------------------ 8. the exact infeasibility ray */
+
+/* The Farkas multipliers behind an INFEASIBLE answer, exactly (D333).
+ *
+ * The dual simplex stops on a basis and a row of it that it cannot
+ * repair. What it publishes as `sol_farkas` is that row of B inverse,
+ * computed in floating point and rounded twice on the way out: once by
+ * the triangular solve and once by the unscaling. D328 measured what the
+ * rounding costs -- 18 of the 29 pinned infeasibilities certify with no
+ * tolerance and eleven do not, every failure a single column whose
+ * `(A'y)_j` is a rounding away from zero with no finite bound on the
+ * side it points at. This derives the same vector over the rationals
+ * instead, from the basis the refusal stopped on, which `jaos_basis`
+ * publishes since D330.
+ *
+ * The system is the transpose one `jaos_verify` already solves for the
+ * duals, at a different right-hand side: `B' y = e_r`, r the basis
+ * position the ray belongs to. Nothing new is needed to find r -- the
+ * published ray already points at it, so `B' y` computed in doubles is a
+ * multiple of `e_r` and its largest entry names the position and the
+ * sign. A wrong r cannot manufacture a proof: the vector this produces
+ * is judged by `jaos_check_proof`, which re-derives everything from the
+ * model and shares no code with it.
+ *
+ * This call derives and does not judge. `derived` says the arithmetic
+ * fitted, and whether the multipliers certify is the checker's answer. */
+jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
+{
+    if (m == nullptr || out == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    *out = (jaos_exact_ray_report){ .derived = false,
+                                    .bound_bits = 0.0,
+                                    .capacity_bits =
+                                        32.0 * (double)JM_EXACT_LIMBS,
+                                    .blocks = 0, .largest_block = 0,
+                                    .terms = 0, .bytes_held = 0,
+                                    .at_row = -1 };
+    if (m->solve_status != JAOS_SOLVE_INFEASIBLE || !m->farkas_ok ||
+        m->sol_farkas == nullptr || !m->sol_basis_ok) {
+        jm_set_err(m, "an exact certificate needs an INFEASIBLE answer with "
+                      "both a published ray and the basis it stopped on");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    /* A previous derivation goes first, so nothing stale survives a call
+     * that then refuses. */
+    jm_model_drop_exact(m);
+
+    jaos_exact_ray_report rep = *out;
+    vbasis b;
+    vrowwise rw = {0};
+    vsccs s = {0};
+    int64_t *mc = nullptr, *mr = nullptr;
+    jm_rational *rhs = nullptr, *us = nullptr;
+    jaos_status rc = JAOS_ERR_NUMERICAL;
+    int64_t pos = -1;
+    double best = 0.0, best_signed = 0.0;
+
+    if (!vbasis_build(m, &b)) {
+        jm_set_err(m, "jaos_exact_certificate: the published basis is not "
+                      "%lld columns", (long long)m->num_row);
+        *out = rep;
+        return JAOS_ERR_NUMERICAL;
+    }
+    if (!vbasis_scale(&b)) {
+        jm_set_err(m, "jaos_exact_certificate: a basis row does not scale to "
+                      "an integer inside the limb budget");
+        goto done;
+    }
+    if (!vrowwise_build(&b, &rw))
+        goto done;
+
+    mc = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mc);
+    mr = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mr);
+    if (mc == nullptr || mr == nullptr)
+        goto done;
+    if (!transversal(&b, mc, mr)) {
+        jm_set_err(m, "jaos_exact_certificate: the published basis is "
+                      "structurally singular");
+        goto done;
+    }
+    if (!tarjan(&b, mr, &s))
+        goto done;
+    rep.blocks = s.ncomp;
+    rep.largest_block = s.largest;
+
+    /* The same a-priori bound the proof uses, read before a limb is
+     * allocated (D273): the whole basis for the answer's denominator and
+     * the largest block for the elimination's right-hand side column. */
+    {
+        jm_nat sq;
+        vprod whole;
+        vprod_one(&whole);
+        for (int64_t c = 0; c < b.n; c++)
+            if (!col_norm_sq(&b, c, nullptr, 0, &sq) ||
+                !vprod_mul(&whole, &sq))
+                goto done;
+        vprod *per = calloc((size_t)(s.ncomp > 0 ? s.ncomp : 1), sizeof *per);
+        if (per == nullptr)
+            goto done;
+        for (int64_t c = 0; c < s.ncomp; c++)
+            vprod_one(&per[c]);
+        bool pok = true;
+        for (int64_t i = 0; i < b.n && pok; i++)
+            pok = col_norm_sq(&b, mr[i], s.comp, s.comp[i], &sq) &&
+                  vprod_mul(&per[s.comp[i]], &sq);
+        int64_t worst2 = 0;
+        for (int64_t c = 0; c < s.ncomp; c++) {
+            const int64_t v = vprod_log2(&per[c]);
+            if (v > worst2)
+                worst2 = v;
+        }
+        free(per);
+        if (!pok)
+            goto done;
+        rep.bound_bits = (double)((vprod_log2(&whole) + worst2 + 1) / 2);
+    }
+    if (rep.bound_bits > rep.capacity_bits) {
+        rc = JAOS_OK;                 /* refused, and that is an answer */
+        goto done;
+    }
+
+    /* Which basis position the ray belongs to. `B' y` is a multiple of
+     * `e_r`, so the largest entry names the position and carries its
+     * sign. Computed in doubles on purpose: it selects an index and
+     * decides nothing, and the vector that comes out is judged from the
+     * model afterwards. The UNSCALED matrix is what pairs with the
+     * published ray, so the columns are read from the model rather than
+     * from the scaled copy in `b`. */
+    for (int64_t c = 0; c < b.n; c++) {
+        const int64_t w = b.who[c];
+        double t = 0.0;
+        if (w >= 0) {
+            for (int64_t k = m->a_start[w]; k < m->a_start[w + 1]; k++)
+                t += m->a_value[k] * m->sol_farkas[m->a_index[k]];
+        } else {
+            /* A slack column is -e_i in the row space the ray lives in. */
+            t = -m->sol_farkas[-w - 1];
+        }
+        if (fabs(t) > best) {
+            best = fabs(t);
+            best_signed = t;
+            pos = c;
+        }
+    }
+    if (pos < 0) {
+        jm_set_err(m, "jaos_exact_certificate: the published ray is zero on "
+                      "every basis column, so it names no position");
+        goto done;
+    }
+    /* The row the ray belongs to, for the report. A basic slack names its
+     * own row; a basic structural names none, and -1 says so. */
+    rep.at_row = b.who[pos] < 0 ? -b.who[pos] - 1 : -1;
+
+    rhs = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *rhs);
+    us  = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *us);
+    if (rhs == nullptr || us == nullptr)
+        goto done;
+
+    /* The right-hand side. `Z = D B G` with `D = diag(2^-shift)` over the
+     * rows and `G = diag(2^-cshift)` over the columns, so
+     * `Z' u = G B' (D u)`: asking for `B' y = +-e_r` means the
+     * transpose's right-hand side carries the column factor and the
+     * answer does not, exactly as the dual's does. */
+    for (int64_t i = 0; i < b.n; i++)
+        jm_rational_set_zero(&rhs[i]);
+    for (int64_t i = 0; i < b.n; i++) {
+        if (mr[i] != pos)
+            continue;
+        if (!jm_rational_from_double(&rhs[i], best_signed > 0.0 ? 1.0 : -1.0))
+            goto done;
+        const int64_t g = b.cshift[pos];
+        if (g != 0) {
+            jm_rational p2;
+            jm_rational_set_i64(&p2, 1);
+            if (!jm_nat_shl(&p2.den, &p2.den, g) ||
+                !jm_rational_mul(&rhs[i], &rhs[i], &p2))
+                goto done;
+        }
+        break;
+    }
+    {
+        vsolver V = { .b = &b, .rw = &rw, .match_row = mr, .match_col = mc,
+                      .s = &s, .transpose = true, .terms = 0, .held = 0,
+                      .singular = false };
+        if (!solve_system(&V, rhs, us)) {
+            rep.terms += V.terms;
+            if ((int64_t)V.held > rep.bytes_held)
+                rep.bytes_held = (int64_t)V.held;
+            if (V.singular)
+                jm_set_err(m, "jaos_exact_certificate: the published basis "
+                              "is singular");
+            else
+                rc = JAOS_OK;         /* out of limbs during the work */
+            goto done;
+        }
+        rep.terms += V.terms;
+        if ((int64_t)V.held > rep.bytes_held)
+            rep.bytes_held = (int64_t)V.held;
+    }
+    /* `y = D u`, that is `y_i = 2^-shift[i] * u_i`. The shift is at most
+     * zero, so this multiplies; taking it the other way is a silent
+     * factor of two to the hundreds on a row of decimal data. */
+    for (int64_t i = 0; i < b.n; i++) {
+        if (b.shift[i] == 0)
+            continue;
+        jm_rational p2;
+        jm_rational_set_i64(&p2, 1);
+        if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+            goto done;
+        p2.num.sign = 1;
+        if (!jm_rational_mul(&us[i], &us[i], &p2))
+            goto done;
+    }
+
+    m->exact_farkas = jm_calloc_array(m->num_row, sizeof(char *));
+    if (m->exact_farkas == nullptr)
+        goto done;
+    for (int64_t i = 0; i < m->num_row; i++) {
+        m->exact_farkas[i] = jm_rational_decimal(&us[i]);
+        if (m->exact_farkas[i] == nullptr) {
+            jm_model_drop_exact(m);
+            goto done;
+        }
+    }
+    rep.derived = true;
+    rc = JAOS_OK;
+
+done:
+    free(rhs); free(us);
+    free(s.comp);
+    free(mc); free(mr);
+    vrowwise_free(&rw);
+    vbasis_free(&b);
+    *out = rep;
+    return rc;
+}
+
+jaos_status jaos_exact_row_multiplier(const jaos_model *m, int64_t row,
+                                      const char **out)
+{
+    return exact_get(m, m ? m->exact_farkas : nullptr, row,
+                     m ? m->num_row : 0, out);
 }

@@ -132,11 +132,24 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
     fprintf(f, "columns %" PRId64 "\n", m->num_col);
     fprintf(f, "rows %" PRId64 "\n", m->num_row);
     if (infeasible) {
-        /* The Farkas multipliers, one per row: the same vector
-         * jaos_certificate publishes, spelled exactly. */
+        /* The Farkas multipliers, one per row. Two vectors can be here
+         * and the exact one wins (D333): `jaos_exact_certificate` solves
+         * the basis's own system over the rationals, while `sol_farkas`
+         * is that solution rounded twice, in the triangular solve and in
+         * the unscaling. Both are written exactly -- a double is a
+         * rational -- and what differs is which number the file states.
+         * Without a derivation the published doubles are what there is,
+         * which is what D328 wrote and what 18 of the 29 certify on. */
         fprintf(f, "# ray <row name> <exact multiplier>\n");
-        if (!write_ray(f, m, m->sol_farkas, true))
+        if (m->exact_farkas != nullptr) {
+            for (int64_t i = 0; i < m->num_row; i++) {
+                if (jaos_row_name(m, i, nm, sizeof nm) != JAOS_OK)
+                    goto io_error;
+                fprintf(f, "ray %s %s\n", nm, m->exact_farkas[i]);
+            }
+        } else if (!write_ray(f, m, m->sol_farkas, true)) {
             goto io_error;
+        }
     } else if (unbounded) {
         fprintf(f, "# ray <column name> <exact direction>\n");
         if (!write_ray(f, m, m->sol_ray, false))

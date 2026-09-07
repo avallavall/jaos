@@ -322,6 +322,13 @@ struct jaos_model {
     char **exact_col;        /* [num_col] or nullptr */
     char **exact_dual;       /* [num_row] or nullptr */
     char *exact_obj;
+    /* The Farkas multipliers behind INFEASIBLE, exactly, one per row as a
+     * decimal rational (D333). Filled by jaos_exact_certificate from the
+     * basis the refusal stopped on, and dropped with everything else here.
+     * `sol_farkas` is the same vector rounded to doubles; this one is what
+     * the solve's basis actually says, and the difference is the eleven
+     * certificates D328 could not close. */
+    char **exact_farkas;     /* [num_row] or nullptr */
     int64_t solve_work;
     int64_t solve_iters;
     /* How many of `solve_iters` the primal method ran, and how many of THOSE

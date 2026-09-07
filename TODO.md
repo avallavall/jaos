@@ -53,48 +53,59 @@ basis and had a singleton row leave it with nothing entering, so the count
 was short of `num_row`. It was invisible because the arrays were zeroed
 one statement later. It pairs now, the way D257's OPTIMAL replay pairs it.
 
-**A standing defect this batch found and did not cause.** `klein2`
-answers INFEASIBLE cold in 262 iterations. Warm from its own infeasible
-basis it trips the internal iteration guard after 106201 iterations, 83680
-pivots declined on factorization disagreement, and the message calls
-itself a JAOS defect. Reached identically by two `jaos_solve` calls on one
-model with no file involved
-(`bench/measurements/02-212/klein2-double-solve.py`), so the path is as
-old as remembering a refusal's basis. It is the only one of the 19 whose
-warm re-solve costs more than its cold one. **Not diagnosed. Next session
-that touches the dual's stalling should start here**, because it is a
-small model with a reproducer that takes two lines.
+**2026-09-07, the day batch, fourteenth round: the exact Farkas ray,
+and both of the thirteenth round's carried defects repaired (D333, D334,
+D335).** `jaos_exact_certificate` derives the Farkas multipliers over the
+rationals from the basis a refusal stops on, and the proof file goes from
+18 of 29 certifying with no tolerance to **25 of 29**, with 12 of the 12
+derivations the limb budget admits certifying and none lost. A MIP's
+proved incumbent publishes a basis of the MODEL rather than of the model
+plus its cuts, **5 of 24 to 24 of 24**, by one LP with the integer
+columns fixed and the cuts dropped: 1.001163x the work over the set and
+no tree moved. And a warm start that reaches no answer is thrown away and
+the solve restarts cold, so `klein2` answers INFEASIBLE from its own
+infeasible basis instead of tripping the iteration guard.
 
-**A second standing defect, found by `numerics-reviewer` on this batch's
-own diff and older than it.** A MIP's proved incumbent publishes a basis
-with MORE than `num_row` basics whenever the node that proved it still
-held a binding cut. `incumbent_take` (`src/mip.c`) copies the node LP's
-statuses truncated to the caller's own rows, which drops a cut row's
-status but not the basic it paid for, so the count is one too high per
-binding cut. Cuts are on by default, so this is the ordinary case rather
-than a corner. It predates D330 -- `jaos_basis` gated on OPTIMAL and
-handed out the same vector -- and both `jaos_cost_ranging` and
-`jaos_verify` already refuse such a vector on their own count checks,
-which is how it stayed invisible. **D330 does not repair it**: it makes
-`sol_basis_ok` counted rather than claimed at that site, so the call
-refuses instead of handing out a truncation, and the header says so. The
-repair is the exchange `node_child` already does -- a cut whose slack is
-basic leaves with its row -- applied to the incumbent's copy, and it wants
-the session that next touches `src/mip.c`.
+**Three things worth carrying forward.**
 
-**What is next**, in order:
+The exact ray needed no new machinery, only a different right-hand side
+on the transpose system the proof already solves. What it needed was
+D330: without a published basis there was nothing to solve against, which
+is why the item was blocked rather than merely unstarted.
 
-1. **The exact Farkas ray**, which is now unblocked. D328's eleven would
-   close with a ray derived from the final basis, and the basis is
-   published now. `src/verify.c`'s `solve_system` takes a `.transpose`
-   flag, and the row index the ray belongs to is the argmax of `B'y`
-   computed in doubles, so no solver change is needed to do the exact
-   solve. What it wants is the setup `jaos_verify` does inline — build,
-   scale, transversal, Tarjan, the a-priori bound — factored out so two
-   callers can share it.
-2. **`klein2`'s warm stall** above.
-3. **The MIP incumbent's basis count** above.
-4. After those, the seven held constants.
+`numerics-reviewer` found the MIP defect by reading D330's own diff, and
+no campaign could have: **no gate set has an integer column in it**, and
+the two consumers that read a basis both refuse a wrong count on their
+own check, so nothing downstream ever complained. A promise stated in the
+header is what turned a quiet wrong vector into a finding.
+
+D335 is not a new mechanism. D148 already said a warm start is a starting
+point and never a claim, and already threw one away for producing an
+uncertified point; reaching no answer at all is the same statement
+louder, and it takes the same route.
+
+**What is still open from this, and it is a diagnosis rather than a
+repair.** `klein2`'s warm attempt still burns 106201 iterations to the
+guard before the retry begins, 83680 of them with the pivot declined on
+factorization disagreement (D86). The guard against looping there --
+take the pivot when `n_updates == 0` -- makes the solve alternate between
+a declined iteration and a taken one rather than stop, and Bland's rule
+cannot terminate a sequence in which most iterations perform no pivot.
+**Nobody has looked at why those pivots disagree on this model.** It is a
+small instance with a two-line reproducer
+(`bench/measurements/02-212/klein2-double-solve.py`), and it is where the
+next session that opens the stability trigger should start.
+
+**What is next**, in order:**What is next**, in order:
+
+1. **Why `klein2`'s pivots disagree**, above. A diagnosis, not a repair:
+   the answer is right now and the cost is not.
+2. **The four infeasibilities the exact ray does not reach** — `pang`,
+   `qual`, `refinery` and `vol1` have a basis and the a-priori bound
+   refuses them at 11680 to 16158 bits against a capacity of 4096. That
+   is D273's ceiling and not this ray's, so it reopens with the limb
+   budget and not on its own.
+3. After those, the seven held constants.
 
 **2026-09-07, the day batch, eleventh round: the proof file carries a
 certificate, and two independent checkers agree 28 times out of 28

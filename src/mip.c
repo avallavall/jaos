@@ -698,6 +698,89 @@ static void incumbent_free(incumbent *inc)
     free(inc->cs); free(inc->rs);
 }
 
+/* A basis of the MODEL behind a proved incumbent (D334).
+ *
+ * `incumbent_take` copies the node LP's statuses truncated to the
+ * caller's rows, and the node LP carries the cut rows. A cut that binds
+ * at that node has a nonbasic logical, and truncation drops the status
+ * while keeping the basic it paid for, so the published count comes out
+ * one too high per binding cut -- 19 of the 24 MIPLIB instances, and the
+ * ordinary case rather than a corner since cuts are on by default (D330,
+ * `bench/measurements/02-212/mip-basis-count.txt`). The duals and the
+ * reduced costs have the same shape of defect: they are the node's, over
+ * a row set that has rows the caller's model does not.
+ *
+ * The repair is a solve and not a copy, and it is the smallest one that
+ * exists. Fix every integer column at the incumbent's value, drop the
+ * cuts, and solve the model that is left. That LP's optimum IS the
+ * incumbent's: every cut the tree added is valid for the integer hull, so
+ * it removes no point that satisfies the model with the integers at those
+ * values, and the feasible set of the fixed model is exactly those
+ * points. So the objective cannot move, and what comes back is a basis,
+ * a set of duals and a set of reduced costs of the model as the caller
+ * loaded it.
+ *
+ * It runs once, at publication, and only where the truncation actually
+ * broke the count -- five of the 24 need nothing. A re-solve that does
+ * not reach an optimum changes nothing and leaves the flag false, which
+ * is the honest state and the one this function replaces. */
+static bool republish_at_the_incumbent(jaos_model *m, const double *point,
+                                       int64_t nc, int64_t nr,
+                                       int64_t *extra_work)
+{
+    jaos_model *fin = nullptr;
+    bool ok = false;
+    if (jaos_model_copy(m, &fin) != JAOS_OK)
+        return false;
+    /* No integrality on the copy: this is one LP and not a second tree. */
+    free(fin->col_integer);
+    fin->col_integer = nullptr;
+    /* And no log: the re-solve is this function's own business, the rule
+     * the tree's own copy follows. */
+    fin->cfg.log_cb = nullptr;
+
+    for (int64_t j = 0; j < nc; j++) {
+        if (m->col_integer == nullptr || !m->col_integer[j])
+            continue;
+        /* The incumbent's value is integral to the tree's tolerance; the
+         * bound it is fixed at is the integer itself, so the fixed model
+         * is stated in integers and not in a rounding of them. */
+        const double v = floor(point[j] + 0.5);
+        if (jaos_set_col_bounds(fin, j, v, v) != JAOS_OK)
+            goto out;
+    }
+    if (jaos_solve(fin) != JAOS_OK)
+        goto out;
+    *extra_work += jaos_work_units(fin);
+    if (jaos_status_of(fin) != JAOS_SOLVE_OPTIMAL || !fin->sol_basis_ok)
+        goto out;
+
+    if (nc > 0) {
+        memcpy(m->sol_col, fin->sol_col, (size_t)nc * sizeof *m->sol_col);
+        memcpy(m->sol_redcost, fin->sol_redcost,
+               (size_t)nc * sizeof *m->sol_redcost);
+        memcpy(m->sol_col_status, fin->sol_col_status,
+               (size_t)nc * sizeof *m->sol_col_status);
+    }
+    if (nr > 0) {
+        memcpy(m->sol_row, fin->sol_row, (size_t)nr * sizeof *m->sol_row);
+        memcpy(m->sol_dual, fin->sol_dual, (size_t)nr * sizeof *m->sol_dual);
+        memcpy(m->sol_row_status, fin->sol_row_status,
+               (size_t)nr * sizeof *m->sol_row_status);
+    }
+    /* The incumbent's own values go back over the columns the fixing
+     * pinned, so the published point is the one the tree proved and not a
+     * re-solve's spelling of it. They are equal by construction -- the
+     * bound IS the value -- and this says so rather than assuming it. */
+    for (int64_t j = 0; j < nc; j++)
+        if (m->col_integer != nullptr && m->col_integer[j])
+            m->sol_col[j] = floor(point[j] + 0.5);
+    ok = true;
+out:
+    jaos_model_free(fin);
+    return ok;
+}
+
 bool jm_model_has_integer(const jaos_model *m)
 {
     if (m->col_integer == nullptr)
@@ -3436,19 +3519,21 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             memcpy(m->sol_dual, inc.rd, (size_t)nr * sizeof *m->sol_dual);
             memcpy(m->sol_row_status, inc.rs, (size_t)nr * sizeof *m->sol_row_status);
         }
-        jm_model_publish_objective(m);
-        /* Counted rather than claimed, and the count really does fail
-         * here. `incumbent_take` copies the node LP's statuses truncated
-         * to the caller's own rows, so a cut row's status is dropped
-         * while the basic it paid for is not: a proved node still
-         * holding a binding cut publishes one basic too many per cut.
-         * That is older than D330 -- `jaos_basis` handed the same vector
-         * out after a MIP optimum before it -- and `jaos_ranging` and
-         * `jaos_verify` each refuse such a vector on their own count
-         * check. Carried in `TODO.md`; until it is repaired the flag
-         * says what is true, so no caller is told a truncation is a
-         * basis. */
+        /* The truncation, and the solve that repairs it (D334). The
+         * count is asked first because five of the 24 MIPLIB instances
+         * do not need the repair, and a re-solve that changes nothing
+         * is a re-solve nobody should pay for. */
         m->sol_basis_ok = jm_model_basis_count_ok(m);
+        if (!m->sol_basis_ok) {
+            int64_t extra = 0;
+            if (republish_at_the_incumbent(m, m->mip_inc_x, nc, nr, &extra))
+                m->sol_basis_ok = jm_model_basis_count_ok(m);
+            /* Billed, because it runs on the caller's own solve and is
+             * not an analysis call the caller asked for separately. */
+            m->solve_work += extra;
+        }
+        jm_model_publish_objective(m);
+        assert(!m->sol_basis_ok || jm_model_basis_count_ok(m));
     }
 
 done:

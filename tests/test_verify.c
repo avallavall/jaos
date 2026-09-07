@@ -980,6 +980,166 @@ static void test_an_unbounded_ray_is_checked_exactly(void)
 }
 
 
+
+/* ---- the exact infeasibility ray (D333) ------------------------------ *
+ *
+ * The model is the two-row conflict `x + y <= 1` beside `x + y >= 2`,
+ * both columns open above. No presolve family reads two rows at once and
+ * bound tightening is refused (D97), so the dual simplex is what answers
+ * it and there is a basis to solve against; `model_infeasible` above is
+ * settled inside presolve and has none, which is the other arm.
+ *
+ * The oracle is arithmetic by hand. Any y with y_1 < 0 on the first row
+ * and y_2 > 0 on the second and y_1 + y_2 = 0 on the columns proves it:
+ * the infimum over the rows is then 2*y_2 + 1*y_1 = y_2 > 0 and the
+ * supremum over the columns is 0. So a certificate that certifies must
+ * have (A'y)_j exactly zero on both columns, which is exactly what
+ * rounding takes away and what this derivation puts back.
+ */
+static jaos_model *model_two_row_conflict(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {1.0, 1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {INFINITY, INFINITY};
+    const double rl[2] = {-INFINITY, 2.0}, ru[2] = {1.0, INFINITY};
+    const int64_t s[3] = {0, 2, 4};
+    const int64_t ix[4] = {0, 1, 0, 1};
+    const double v[4] = {1.0, 1.0, 1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    return m;
+}
+
+static void test_the_exact_certificate_is_derived_and_certifies(void)
+{
+    jaos_model *m = model_two_row_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    jaos_exact_ray_report rr;
+    memset(&rr, 0, sizeof rr);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_certificate(m, &rr));
+    TEST_ASSERT_TRUE(rr.derived);
+    TEST_ASSERT_TRUE(rr.bound_bits <= rr.capacity_bits);
+
+    /* The multipliers are readable and they are the ones the oracle
+     * above allows: opposite signs, and the two summing to zero so that
+     * both columns price at exactly zero. */
+    const char *y0 = nullptr, *y1 = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_multiplier(m, 0, &y0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_multiplier(m, 1, &y1));
+    TEST_ASSERT_EQUAL_STRING("-1", y0);
+    TEST_ASSERT_EQUAL_STRING("1", y1);
+
+    /* And the file it writes is judged by a checker that shares no code
+     * with the derivation, from the model alone and with no tolerance. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_model_free(m);
+
+    jaos_model *a = model_two_row_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+    TEST_ASSERT_TRUE(pr.certified);
+    jaos_model_free(a);
+
+    /* The case the checker must reject, built by corrupting exactly one
+     * thing: the two multipliers no longer cancel on the columns, so the
+     * supremum over the box is unbounded above and the proof dies. */
+    jaos_model *b = model_two_row_conflict();
+    TEST_ASSERT_TRUE(proof_edit("ray R1 -1", "ray R1 -2"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(b, TMP_PROOF, &pr));
+    TEST_ASSERT_FALSE(pr.certified);
+    TEST_ASSERT_TRUE(proof_edit("ray R1 -2", "ray R1 -1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(b, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+    jaos_model_free(b);
+    remove(TMP_PROOF);
+}
+
+/* The three states with nothing to derive from, each refused by name.
+ * `jaos_basis` is what says whether there is a basis, so this is the
+ * same rule D330 states, read from the other side. */
+static void test_the_exact_certificate_refuses_what_has_no_basis(void)
+{
+    jaos_exact_ray_report rr;
+
+    /* Never solved. */
+    jaos_model *m = model_two_row_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_exact_certificate(m, &rr));
+    TEST_ASSERT_FALSE(rr.derived);
+    jaos_model_free(m);
+
+    /* Optimal: there is a basis and no certificate, so the answer is the
+     * proof's and not this call's. */
+    jaos_model *o = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&o));
+    {
+        const double c[1] = {1.0}, cl[1] = {1.0}, cu[1] = {5.0};
+        const double rl[1] = {1.0}, ru[1] = {INFINITY};
+        const int64_t s[2] = {0, 1};
+        const int64_t ix[1] = {0};
+        const double v[1] = {1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(o, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         1, s, ix, v));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(o));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(o));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_exact_certificate(o, &rr));
+    jaos_model_free(o);
+
+    /* A verdict presolve reached by itself: a ray, and no basis under
+     * it. The reference build has no presolve and its simplex answers
+     * the same model, so it derives -- asserted rather than skipped,
+     * because a one-sided test passes on a call that always refuses. */
+    jaos_model *p = model_infeasible();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(p));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(p));
+    const jaos_status got = jaos_exact_certificate(p, &rr);
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, got);
+    TEST_ASSERT_TRUE(rr.derived);
+#else
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, got);
+    TEST_ASSERT_FALSE(rr.derived);
+    /* And the writer falls back to the published doubles, which is what
+     * D328 measured and what this model has always certified on. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(p, TMP_PROOF));
+    jaos_proof_report pr;
+    jaos_model *q = model_infeasible();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(q, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+    jaos_model_free(q);
+    remove(TMP_PROOF);
+#endif
+    jaos_model_free(p);
+}
+
+/* A derivation is dropped by everything that drops an answer, so a stale
+ * one cannot be read back or written into a file. */
+static void test_the_exact_certificate_is_dropped_with_the_answer(void)
+{
+    jaos_model *m = model_two_row_conflict();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_exact_ray_report rr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_certificate(m, &rr));
+    TEST_ASSERT_TRUE(rr.derived);
+    const char *y = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_row_multiplier(m, 0, &y));
+
+    /* One bound moved, and the derivation is about a different model. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, -INFINITY, 3.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_exact_row_multiplier(m, 0, &y));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1005,6 +1165,9 @@ int main(void)
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
     RUN_TEST(test_an_infeasibility_certificate_is_checked_exactly);
     RUN_TEST(test_an_unbounded_ray_is_checked_exactly);
+    RUN_TEST(test_the_exact_certificate_is_derived_and_certifies);
+    RUN_TEST(test_the_exact_certificate_refuses_what_has_no_basis);
+    RUN_TEST(test_the_exact_certificate_is_dropped_with_the_answer);
     RUN_TEST(test_exact_values_carry_the_model_s_own_sign);
     RUN_TEST(test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve);
     return UNITY_END();

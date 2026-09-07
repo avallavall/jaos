@@ -445,8 +445,9 @@ together opens it -- or when the copy did not finish.
 
 ## `verify`
 
-`verify FILE` solves the model. When the answer is optimal, it proves, or
-refuses to prove, that the published basis certifies it, in exact
+`verify FILE` solves the model and runs whatever exact arithmetic the
+answer allows. When the answer is optimal, it proves, or refuses to prove,
+that the published basis certifies it, in exact
 arithmetic with no tolerance anywhere. The basis is rebuilt over the
 integers and eliminated exactly; the verdict is `optimal` when every basic
 value lies inside its bounds and every reduced cost points into the model.
@@ -472,6 +473,38 @@ terms 10
 - On `broken`, `at_row` and `at_col` name the row or column that breaks the
   proof, when one does, and `violation` says how far out it is.
 - `blocks`, `largest_block`, `bytes_held` and `terms` describe the work.
+
+**When the answer is infeasible there is no optimum to prove, and `verify`
+derives the Farkas multipliers exactly instead** (D333). The basis a
+refusal stops on is a basis like any other, and the system is the same one
+at a different right-hand side, so the same exact machinery runs:
+
+```
+status infeasible
+certificate exact
+bound_bits 76
+capacity_bits 4096
+blocks 17
+largest_block 2
+at_row 13
+bytes_held 3168
+terms 46
+```
+
+- `certificate` is `exact` or `refused`, and `refused` is not a failure —
+  it is the answer when `bound_bits` exceeds `capacity_bits`, read before
+  any of the work is attempted. Exit 0 derived, 4 refused.
+- `at_row` names the row whose own logical the ray leaves the basis on, or
+  is absent when a structural column holds that position.
+- `--proof PATH` then writes the derived multipliers instead of the
+  published doubles, and `--values` prints them as `multiplier NAME V`.
+
+**Deriving is not judging.** This command produces the multipliers; `jaos
+check FILE --proof PATH` says whether they certify, from the model alone
+and with no tolerance, sharing no code with the derivation. Over the 29
+reference infeasibilities the exact ray takes the proof file from 18 of 29
+certifying to 25 of 29, and every derivation that fits the budget
+certifies.
 
 `--values` prints, after a `proof optimal`, what the proof proved (D286):
 one `x NAME VALUE` line per column, one `y NAME DUAL` line per row, then
