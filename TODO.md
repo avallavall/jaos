@@ -24,9 +24,28 @@ the default build reports a fixed column and an empty row, and
 a one-sided test passes on a report that is always empty. `tests/cli.sh`'s
 "five lines, one fact each" contract is stated as nine where presolve
 fires rather than relaxed to "at least five", which would stop catching a
-stray line. **What is next**, in order: an exact Farkas ray derived from
-the final basis, which would close D328's eleven; then the seven held
-constants.
+stray line.
+
+**What is next, and the first item is BLOCKED on a precondition nobody had
+noticed.** D328's eleven would close with an exact Farkas ray derived from
+the final basis. Step two of that is already available: `src/verify.c`'s
+`solve_system` takes a `.transpose` flag, and the row index the ray
+belongs to can be recovered as the argmax of `B'y` computed in doubles, so
+no solver change is needed to do the exact solve. **Step one is not
+available: an INFEASIBLE solve publishes no basis at all** — `jaos_basis`
+refuses after one, checked on `bgetam`, `klein2` and `vol1`. So the work
+is really two items, and the first is its own feature:
+
+1. **Publish the final basis on an INFEASIBLE answer**, lifted through
+   presolve. That is D257's territory, the half where the published basis
+   broke `jaos.h`'s row-count promise on 46 of netlib's 188 solves until
+   every postsolve status was decided from the reduction's structure. It
+   is worth having on its own — a caller can then warm-start from an
+   infeasible solve and inspect what proved it — and it wants a session
+   that can give postsolve full attention.
+2. **Then the exact ray**, which is the cheap half.
+
+After those, the seven held constants.
 
 **2026-09-07, the day batch, eleventh round: the proof file carries a
 certificate, and two independent checkers agree 28 times out of 28
