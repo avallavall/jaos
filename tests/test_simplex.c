@@ -3161,6 +3161,41 @@ static void test_an_inverted_row_box_is_infeasible(void)
     jaos_model_free(m);
 }
 
+static void test_the_algorithm_is_a_caller_option(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_DUAL, jaos_algorithm_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_algorithm(m, (jaos_algorithm)3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_PRIMAL, jaos_algorithm_of(m));
+    TEST_ASSERT_TRUE(m->cfg.force_primal);
+    const double cost[2] = {1.0, 2.0}, cl[2] = {0.0, 0.0}, cu[2] = {5.0, 5.0};
+    const double rl[1] = {2.0}, ru[1] = {5.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0,
+                                                cost, cl, cu, rl, ru,
+                                                2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_PRIMAL, jaos_algorithm_of(m));
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    for (int pass = 0; pass < 2; pass++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(
+            m, pass ? JAOS_ALGORITHM_DUAL : JAOS_ALGORITHM_PRIMAL));
+        jaos_clear_basis(m);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[2];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, 2.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] == 2.0 && x[1] == 0.0);
+    }
+#endif
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3283,5 +3318,6 @@ int main(void)
     RUN_TEST(test_an_inverted_row_box_is_infeasible);
     RUN_TEST(test_a_loan_nobody_holds_is_retired_before_publishing);
     RUN_TEST(test_a_retired_loan_leaves_a_basis_of_the_model);
+    RUN_TEST(test_the_algorithm_is_a_caller_option);
     return UNITY_END();
 }

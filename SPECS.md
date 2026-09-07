@@ -30,7 +30,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Dual simplex | **done** | steepest-edge pricing, Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, Bland fallback on a stall |
-| Primal simplex | **partial** | Dantzig pricing, composite phase 1, Harris ratio test; behind a development switch. Missing: Devex pricing, caller-selectable |
+| Primal simplex | **partial** | Dantzig pricing, composite phase 1, Harris ratio test; `jaos_set_algorithm` selects it. Missing: Devex pricing |
 | Barrier (interior point) | **missing** | needs a deterministic sparse Cholesky written here |
 | Crossover from an interior point | **missing** | |
 | First-order method (PDLP) | **missing** | |
@@ -148,7 +148,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Primal and dual tolerances | **done** | |
 | Logging with levels | **done** | |
 | Progress callback that can stop | **done** | |
-| Choose the algorithm | **missing** | |
+| Choose the algorithm | **done** | `jaos_set_algorithm`, `jaos_algorithm_of`, `--algorithm dual|primal`, Python `set_algorithm` |
 | Options as name-value strings, parameter file | **missing** | |
 | Steering callbacks: user cuts, lazy constraints, branching | **missing** | |
 | Thread count | **missing** | |

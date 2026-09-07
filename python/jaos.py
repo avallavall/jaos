@@ -118,6 +118,11 @@ class Branching(enum.IntEnum):
     PSEUDOCOST = 0
     MOST_FRACTIONAL = 1
 
+class Algorithm(enum.IntEnum):
+    """Which simplex solves every LP; jaos_algorithm."""
+    DUAL = 0
+    PRIMAL = 1
+
 class DiveChild(enum.IntEnum):
     """Which child a dive solves first (D295); jaos_dive_child."""
     NEARER = 0
@@ -570,6 +575,8 @@ _sig("jaos_set_log_level", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_algorithm", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_algorithm_of", ctypes.c_int, _VP)
 _sig("jaos_set_mip_reliability", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_probe_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive_child", ctypes.c_int, _VP, ctypes.c_int)
@@ -1193,6 +1200,15 @@ class Model:
         """Which column a fractional node branches on: a `Branching`;
         PSEUDOCOST by default (D292)."""
         self._check(_lib.jaos_set_mip_branching(self._handle(), int(rule)))
+
+    def set_algorithm(self, alg):
+        """Which simplex solves every LP, the root relaxation and every
+        node included: an `Algorithm`, DUAL by default."""
+        self._check(_lib.jaos_set_algorithm(self._handle(), int(alg)))
+
+    @property
+    def algorithm(self):
+        return Algorithm(_lib.jaos_algorithm_of(self._handle()))
 
     def set_mip_reliability(self, branches):
         """Branches per direction before a column's pseudocost is trusted;
@@ -2827,6 +2843,14 @@ class Problem:
     def set_mip_branching(self, rule):
         self._m.set_mip_branching(rule)
         return self
+
+    def set_algorithm(self, alg):
+        self._m.set_algorithm(alg)
+        return self
+
+    @property
+    def algorithm(self):
+        return self._m.algorithm
 
     def set_mip_reliability(self, branches):
         self._m.set_mip_reliability(branches)

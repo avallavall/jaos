@@ -40,7 +40,8 @@ static const char U_SYNOPSIS[] =
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--propagate N]\n"
     "                  [--propagate-depth D]\n"
-    "                  [--no-heuristics] [--node-limit N] [--branching RULE]\n"
+    "                  [--algorithm dual|primal] [--no-heuristics]\n"
+    "                  [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
     "                  [--check] [--quiet]\n"
@@ -167,6 +168,7 @@ static const char U_SOLVE_D[] =
     "                   three from the model alone, with no tolerance\n";
 
 static const char U_SOLVE_E[] =
+    "  --algorithm A    which simplex solves every LP: dual (default) or primal\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
@@ -623,6 +625,7 @@ struct solve_options {
     double dive_degrade;
     int64_t node_limit;
     int branching;
+    int algorithm;
     int64_t reliability;
     int dive_child;
     bool has_probe_cap;
@@ -663,6 +666,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->feaspump = -1;
     o->pump_general = -1;
     o->branching = -1;
+    o->algorithm = -1;
     o->reliability = -1;
     o->dive_child = -1;
     o->probe_depth = -1;
@@ -809,6 +813,13 @@ static int parse_solve_options(int argc, char **argv, int first,
             else
                 return usage_error("--dive-child needs nearer, up, down or "
                                    "pseudocost, not '%s'", v);
+        } else if (strcmp(a, "--algorithm") == 0) {
+            if (strcmp(v, "dual") == 0)
+                o->algorithm = JAOS_ALGORITHM_DUAL;
+            else if (strcmp(v, "primal") == 0)
+                o->algorithm = JAOS_ALGORITHM_PRIMAL;
+            else
+                return usage_error("--algorithm needs dual or primal, not '%s'", v);
         } else if (strcmp(a, "--branching") == 0) {
             if (strcmp(v, "pseudocost") == 0)
                 o->branching = JAOS_BRANCH_PSEUDOCOST;
@@ -957,6 +968,11 @@ static int cmd_solve(int argc, char **argv)
     if (o.reliability >= 0 &&
         jaos_set_mip_reliability(m, o.reliability) != JAOS_OK) {
         rc = library_error("set the reliability for", o.file, m);
+        goto out;
+    }
+    if (o.algorithm >= 0 &&
+        jaos_set_algorithm(m, (jaos_algorithm)o.algorithm) != JAOS_OK) {
+        rc = library_error("set the algorithm for", o.file, m);
         goto out;
     }
     if (o.branching >= 0 &&

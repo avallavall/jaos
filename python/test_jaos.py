@@ -1259,6 +1259,26 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_the_algorithm_is_a_caller_option(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=5, name="x")
+        y = p.add_var(lb=0, ub=5, name="y")
+        p.add(x + y >= 2)
+        p.minimize(x + 2 * y)
+        self.assertIs(p.algorithm, jaos.Algorithm.DUAL)
+        for alg in (jaos.Algorithm.PRIMAL, jaos.Algorithm.DUAL):
+            p.set_algorithm(alg)
+            self.assertIs(p.algorithm, alg)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 2.0, places=12)
+            self.assertEqual((x.value, y.value), (2.0, 0.0))
+        with self.assertRaises(jaos.JaosError):
+            p.set_algorithm(3)
+        m = jaos.Model()
+        self.assertIs(m.algorithm, jaos.Algorithm.DUAL)
+        m.set_algorithm(jaos.Algorithm.PRIMAL)
+        self.assertIs(m.algorithm, jaos.Algorithm.PRIMAL)
+
     def test_both_branching_rules_reach_the_knapsack_optimum(self):
 
         for rule in (jaos.Branching.MOST_FRACTIONAL, jaos.Branching.PSEUDOCOST):

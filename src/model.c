@@ -845,6 +845,25 @@ jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (alg != JAOS_ALGORITHM_DUAL && alg != JAOS_ALGORITHM_PRIMAL) {
+        jm_set_err(m, "the algorithm must be dual or primal");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.force_primal = alg == JAOS_ALGORITHM_PRIMAL;
+    return JAOS_OK;
+}
+
+jaos_algorithm jaos_algorithm_of(const jaos_model *m)
+{
+    if (m == nullptr || !m->cfg.force_primal)
+        return JAOS_ALGORITHM_DUAL;
+    return JAOS_ALGORITHM_PRIMAL;
+}
+
 jaos_status jaos_set_mip_reliability(jaos_model *m, int64_t branches)
 {
     if (m == nullptr)

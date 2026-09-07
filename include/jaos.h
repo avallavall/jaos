@@ -349,6 +349,14 @@ JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 JAOS_NODISCARD jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol);
 JAOS_NODISCARD jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol);
 
+typedef enum jaos_algorithm {
+    JAOS_ALGORITHM_DUAL = 0,
+    JAOS_ALGORITHM_PRIMAL,
+} jaos_algorithm;
+
+JAOS_NODISCARD jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg);
+JAOS_NODISCARD jaos_algorithm jaos_algorithm_of(const jaos_model *m);
+
 typedef void (*jaos_log_fn)(void *user, jaos_log_level level, const char *line);
 
 JAOS_NODISCARD jaos_status jaos_set_log_callback(jaos_model *m,

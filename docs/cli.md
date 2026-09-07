@@ -29,6 +29,7 @@ jaos solve FILE [--solution OUT] [--start SOLUTION] [--proof PATH]
                 [--pump-obj F] [--pump-always | --no-pump-always]
                 [--rcfix | --no-rcfix]
                 [--propagate N] [--propagate-depth D]
+                [--algorithm dual|primal]
                 [--no-heuristics] [--node-limit N] [--branching RULE]
                 [--reliability N] [--probe-cap M] [--probe-depth D]
                 [--no-cut-drop] [--pool-size K]
@@ -169,6 +170,7 @@ prints the same facts as the same model solved silently.
 | `--rcfix` | at the root, once an incumbent exists, pulls an integer column's far bound in to the furthest integer its reduced cost still allows, and every node inherits it. Off by default: 1.010x, `p0282` 0.519x against `gt2` 2.492x out of the same deduction. `--no-rcfix` is the default. |
 | `--propagate N` | passes of bound propagation at each node before its relaxation is solved: each reads the model's rows over the node's own bounds, proves the node infeasible with no solve where a row admits no point, and pulls in the integer bounds the rows imply. Default 0, off: 1.093x at one pass and 1.074x at four, with `bell5` unfinished at the cap. |
 | `--propagate-depth D` | the deepest node propagation runs at, the root being 0; negative, the default, is every node. Depth 0 is not less propagation but the free half of it, since the root's deductions hold for the whole tree: 1.051x, and it moves a bound on 6 of 24 while the other 18 read exactly 1.000x. Only matters with `--propagate`. |
+| `--algorithm A` | which simplex solves every LP, the root relaxation and every node of a MIP included: `dual`, the default, or `primal`. The primal takes more work than the dual on the Netlib set and is there for a caller who wants it; both give the same answer. |
 | `--no-heuristics` | turns the rounding heuristic off: by default every fractional node's relaxation is rounded to the nearest integers and kept as the incumbent when it is inside every bound and row. No effect on an LP. |
 | `--node-limit N` | stops a branch and bound before its `N`-th node past the limit, as `node_limit`, keeping the incumbent it has; `N` must be a positive integer. No effect on an LP. |
 | `--branching RULE` | which column a fractional node branches on: `pseudocost`, the default, scores each column by the objective gain a unit move in each direction has cost so far in the tree; `most-fractional` takes the column farthest from an integer. No effect on an LP. |
