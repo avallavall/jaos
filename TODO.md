@@ -5,7 +5,33 @@ says why closed questions closed, `CHANGELOG.md` says what landed, `bench/`
 says what it costs. This file says what is next. When something lands, its
 line leaves this file in the same commit.
 
-## Where the last session stopped — 2026-09-06
+## WHAT IS NEXT — read this before the log below
+
+Three items, unchanged by the nineteen rounds of 2026-09-07: every one of
+those was a feature or a format, and none of them touched the simplex, the
+limb budget or a swept constant.
+
+1. **Close `klein2`'s cycle.** Diagnosed and not repaired
+   (`bench/measurements/02-215/`): a cycle of period two, in which
+   `PIVOT_MIN` admits a pivot element `LU_AGREE_TOL` then refuses while
+   nothing removes the candidate in between. Two repairs, each a constant
+   with two sides to sweep: make the ratio test's floor and the agreement
+   tolerance agree, or have the trigger exclude the (row, column) it
+   refused from the next pricing. **This is solver internals: the full
+   loop, `numerics-reviewer` on the diff before any campaign.** The
+   diagnosis in full is in the log below, under the fourteenth round.
+2. **The four infeasibilities the exact ray does not reach** — `pang`,
+   `qual`, `refinery`, `vol1`. Blocked on the limb budget, which D337
+   measured and refused; it reopens with D337's condition and not on its
+   own.
+3. **The seven held constants**, each swept once something moves it.
+
+**What the nineteen rounds did NOT do**, so nobody looks for it: they
+moved no default, swept no constant, and left `bench/results/` byte-
+identical on every batch. The gate ran green four times and said nothing
+new, which is what a feature batch should look like.
+
+## Where the last session stopped — 2026-09-07
 
 **2026-09-07, the day batch, nineteenth round: `--positional` on every
 command that writes a model, and the record's own summary caught up.**
@@ -294,17 +320,10 @@ trigger will refuse is never offered; or have the trigger exclude the
 (row, column) it refused from the next pricing, so a refusal progresses
 instead of repeating. `bench/measurements/02-215/README.md` states both.
 
-**What is next**, in order:**What is next**, in order:
-
-1. **Closing `klein2`'s cycle**, above — the diagnosis is done and the
-   repair is a constant with a sweep on both sides, so it is its own
-   piece of work rather than a follow-up edit.
-2. **The four infeasibilities the exact ray does not reach** — `pang`,
-   `qual`, `refinery` and `vol1` have a basis and the a-priori bound
-   refuses them at 11680 to 16158 bits against a capacity of 4096. That
-   is D273's ceiling and not this ray's, so it reopens with the limb
-   budget and not on its own.
-3. After those, the seven held constants.
+**What is next** is at the top of this file, and this is where it came
+from. The `pang`, `qual`, `refinery` and `vol1` entry there is this: they
+have a basis and the a-priori bound refuses them at 11680 to 16158 bits
+against a capacity of 4096, which is D273's ceiling and not this ray's.
 
 **2026-09-07, the day batch, eleventh round: the proof file carries a
 certificate, and two independent checkers agree 28 times out of 28
