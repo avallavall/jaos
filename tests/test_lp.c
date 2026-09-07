@@ -247,6 +247,22 @@ static void test_a_semicontinuous_section_marks_the_columns(void)
     jaos_model_free(m);
 }
 
+static void test_lazy_constraints_and_user_cuts_are_rows(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_lazy.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("lz", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 2, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("uc", nm);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_upper[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[2]);
+    jaos_model_free(m);
+}
+
 static void test_an_indicator_arrow_marks_the_row(void)
 {
     jaos_model *m = fresh();
@@ -298,5 +314,6 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_section_marks_the_columns);
     RUN_TEST(test_an_sos_section_builds_the_sets);
     RUN_TEST(test_an_indicator_arrow_marks_the_row);
+    RUN_TEST(test_lazy_constraints_and_user_cuts_are_rows);
     return UNITY_END();
 }

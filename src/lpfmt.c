@@ -227,6 +227,7 @@ static bool is_reserved(const char *s)
         "subject", "such", "st", "s.t.", "bounds", "bound",
         "general", "generals", "gen", "integer", "integers",
         "binary", "binaries", "bin", "semi", "semis", "sos",
+        "lazy", "user",
         "end", "free", "infinity", "inf",
     };
     for (size_t i = 0; i < sizeof kws / sizeof *kws; i++)
@@ -415,8 +416,20 @@ static jaos_status parse(lp *p)
     for (;;) {
         if (p->tok.t == T_EOF)
             FAIL("missing End");
-        if (at_reserved(p))
+        if (at_reserved(p)) {
+            if (tok_is(p, "lazy") || tok_is(p, "user")) {
+                const bool lazy = tok_is(p, "lazy");
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                if (!(lazy ? tok_is(p, "constraints") : tok_is(p, "cuts")))
+                    FAIL("line %" PRId64 ": expected '%s'", p->tok.line,
+                         lazy ? "Lazy Constraints" : "User Cuts");
+                if ((st = lx_next(p)) != JAOS_OK)
+                    goto done;
+                continue;
+            }
             break;
+        }
 
         char *label = nullptr;
         if (p->tok.t == T_NAME) {

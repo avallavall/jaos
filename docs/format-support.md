@@ -186,6 +186,9 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   column under `General`, its bounds already above. **`Semi-continuous`**
   (`Semi`, `Semis`, `Semi-continuous`): names of variables that rest at zero
   or inside their bounds; the writer prints them under `Semi-continuous`.
+- **`Lazy Constraints` and `User Cuts`** sections read as ordinary
+  constraints; JAOS does not defer them. The writer prints every row under
+  `Subject To`.
 - **Indicator constraints**: `name: z = 1 -> x + y <= 5`; the row holds
   only while the integer variable `z` equals the value, 0 or 1. The writer
   prints the same arrow.

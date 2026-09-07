@@ -111,7 +111,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Read fixed and free MPS | **done** | `OBJNAME`, `RANGES`, all bound types, `MARKER` for integers |
-| Read LP | **partial** | CPLEX-style core. Missing: the constructs `docs/format-support.md` lists as unsupported |
+| Read LP | **partial** | CPLEX-style linear dialect: objective, constraints, ranges, bounds, General, Binary, Semi-continuous, SOS, indicators, Lazy Constraints, User Cuts. Missing: quadratic terms, which are QP |
 | Read and write gzip | **done** | inflate and deflate written here |
 | Direct load from arrays | **done** | |
 | Write MPS | **done** | |
