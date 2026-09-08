@@ -382,6 +382,12 @@ expect_exit 5 "--probing-cap refuses a negative" \
 "$JAOS" options | grep -q '^mip_probing_cap ' \
     && pass "jaos options lists mip_probing_cap" \
     || flunk "jaos options does not list mip_probing_cap"
+expect_exit 0 "an .nl file is read by its extension" \
+    "$JAOS" solve "$DATA/t_lin.nl"
+[ "$(line_of objective)" = "objective -4" ] && pass "to -4" \
+    || flunk "nl: $(line_of objective)"
+expect_exit 5 "a nonlinear .nl is refused" \
+    "$JAOS" solve "$DATA/e_nonlin.nl"
 expect_exit 0 "--no-conflicts still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-conflicts
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

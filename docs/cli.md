@@ -823,7 +823,9 @@ and exits 5.
 ## Which reader is used
 
 The reader is chosen by the input file's name. A name ending in `.lp` or
-`.lp.gz` goes to the LP reader. Every other name goes to the MPS reader,
+`.lp.gz` goes to the LP reader, one ending in `.nl` or `.nl.gz` to the
+nl reader (AMPL's format, the text form, linear models). Every other
+name goes to the MPS reader,
 because an MPS file has been called `.mps`, `.MPS`, `.sif` and nothing at
 all. The comparison is case-sensitive.
 

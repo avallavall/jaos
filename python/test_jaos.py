@@ -126,6 +126,20 @@ class TestSolving(unittest.TestCase):
             self.assertGreaterEqual(m.solve_time, 0.0)
 
 class TestReadingFiles(unittest.TestCase):
+    def test_an_nl_file_reads_with_its_names_and_a_nonlinear_one_is_refused(self):
+        with jaos.Model() as m:
+            m.read_nl(data("t_lin.nl"))
+            self.assertEqual((m.num_col, m.num_row, m.num_nz), (3, 3, 6))
+            self.assertEqual(m.col_name(2), "y")
+            self.assertEqual(m.row_name(1), "c2")
+            self.assertTrue(m.col_integer(2))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -4.0, places=9)
+        with jaos.Model() as m:
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.read_nl(data("e_nonlin.nl"))
+            self.assertIn("nonlinear", str(ctx.exception))
+
     def test_t1_mps_matches_what_the_c_suite_asserts(self):
         with jaos.Model() as m:
             m.read_mps(data("t1.mps"))

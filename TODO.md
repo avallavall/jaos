@@ -19,18 +19,13 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    a hashed choice at a tie in the ratio test were refused
    (`bench/refusals.txt`, primal-bound-perturbation and primal-tie-hash,
    the second in four gates, the grow family refusing every one and the
-   six not moving in any). What is left unmeasured is a perturbation on
-   the pricing side. The row in SPECS stays partial until the count is
-   zero.
+   six not moving in any), and so was a cost perturbation on the pricing
+   side after a run of zero steps (primal-cost-perturbation, 1.001x).
+   Every named reopen is measured; what is left is reading the walk
+   itself. The row in SPECS stays partial until the count is zero.
 
 ## Milestone: read more, say more
 
-8. **Read `.nl`** (AMPL's nl format, the text form): the header, the
-   linear objective, the linear rows with their bounds, the column bounds,
-   the integer columns, the names from a `.col` and `.row` file beside it
-   when present. A file with a nonlinear expression is refused by name.
-   C API `jaos_read_nl`, the CLI's readers pick it by extension, Python at
-   both layers, tests on files written by hand.
 9. **Thread count**: `jaos_set_threads` and `--threads N` accept 1, refuse
    0 and negatives, and refuse more than 1 with a message saying JAOS runs
    one thread, so a caller porting from another solver gets an answer

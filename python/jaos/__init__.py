@@ -648,6 +648,7 @@ _sig("jaos_delete_cols", ctypes.c_int, _VP, _I64, _P(_I64))
 _sig("jaos_delete_rows", ctypes.c_int, _VP, _I64, _P(_I64))
 _sig("jaos_read_mps", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_lp", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_mps", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
@@ -867,6 +868,15 @@ class Model:
     def read_lp(self, path):
         """Reads a CPLEX-style LP file. gzip is accepted here too."""
         self._check(_lib.jaos_read_lp(self._handle(), _path(path)))
+        return self
+
+    def read_nl(self, path):
+        """Reads an AMPL .nl file in its text form: a linear model with
+        its bounds and integer columns, and the names from the .col and
+        .row files beside it when both are there. A nonlinear expression,
+        a defined variable or a complementarity condition is refused by
+        line. gzip is accepted here too."""
+        self._check(_lib.jaos_read_nl(self._handle(), _path(path)))
         return self
 
     def write_mps(self, path):

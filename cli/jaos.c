@@ -354,8 +354,9 @@ static const char U_RANGING[] =
 
 static const char U_FOOTER[] =
     "\n"
-    "A file named .lp or .lp.gz is read as LP format, anything else as MPS.\n"
-    "Both readers accept gzip-compressed input, and every path this tool\n"
+    "A file named .lp or .lp.gz is read as LP format, .nl or .nl.gz as\n"
+    "AMPL's nl format (linear models, the text form), anything else as MPS.\n"
+    "All readers accept gzip-compressed input, and every path this tool\n"
     "writes to compresses when it ends in .gz. Indices count from 0; column\n"
     "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
     "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
@@ -473,9 +474,18 @@ static bool is_lp_name(const char *path)
     return has_suffix(path, ".lp") || has_suffix(path, ".lp.gz");
 }
 
+static bool is_nl_name(const char *path)
+{
+    return has_suffix(path, ".nl") || has_suffix(path, ".nl.gz");
+}
+
 static jaos_status read_model(jaos_model *m, const char *path)
 {
-    return is_lp_name(path) ? jaos_read_lp(m, path) : jaos_read_mps(m, path);
+    if (is_lp_name(path))
+        return jaos_read_lp(m, path);
+    if (is_nl_name(path))
+        return jaos_read_nl(m, path);
+    return jaos_read_mps(m, path);
 }
 
 static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)

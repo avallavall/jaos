@@ -201,6 +201,25 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   `D` exponents here — they are not part of any LP dialect.
 - **`End` is required**; content after it is an error.
 
+## NL
+
+AMPL's `.nl` format in its text form (the file starts with `g`), read
+by `jaos_read_nl` and by the tool for a name ending in `.nl` or `.nl.gz`.
+JAOS reads the linear part: the ten header lines, `C` rows whose body is
+a constant (`n0`, or `n c` with the constant moved into the bounds),
+`O` objectives with a constant body (the first objective is taken, its
+sense from the flag), `r` and `b` bounds in the five codes 0 to 4, `J`
+and `G` coefficients, and the binary and integer counts of header line
+7, which name the last columns as integer. `x`, `d`, `k` and `S`
+segments are read and dropped. The names come from the `.col` and
+`.row` files beside the file, when both are there and complete; the
+objective's name is the line after the rows in `.row`. Refused by line:
+a binary `.nl` (starts with `b`; write it with the text option), a
+nonlinear body in a row or objective, nonlinear or network counts in
+the header, user functions, defined variables (`V`), logical
+constraints (`L`) and complementarity bounds (code 5). JAOS does not
+write `.nl`.
+
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31

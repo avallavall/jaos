@@ -41,6 +41,7 @@ set(JAOS_SOURCES
     src/mip.c
     src/model.c
     src/mps.c
+    src/nl.c
     src/options.c
     src/presolve.c
     src/proof.c
