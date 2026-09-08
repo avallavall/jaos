@@ -41,4 +41,14 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    degen3, dfl001, maros-r7; four run phase 2 past 10x the dual's work:
    bnl2, fit1d, fit2d, scsd8; pilot87's phase 1 ends in a numerical error.
    One at a time, each with its own diagnosis; the row in SPECS stays
-   partial until the count is zero.
+   partial until the count is zero. What the stalls are (02-31): not
+   cycles but degenerate walks. d6cube's phase 1 takes 3204 iterations and
+   12x the dual's whole work with the infeasibility falling steadily, and
+   57% of its steps are zero-length, 50% in phase 2; degen3 78% in phase
+   1; scsd8 81% and 67%; bnl2 39% and 16%. The remedy to build is a
+   deterministic bound perturbation for the primal (a hash of the column
+   index sets the size, no clock and no seed), the true bounds restored at
+   the phase-2 optimum and the dual re-entry that already exists cleaning
+   the small primal infeasibility that leaves; its size is a new constant
+   for `docs/tolerances.md`, measured on `bench/results/primal.txt`, and
+   the dual path stays untouched.
