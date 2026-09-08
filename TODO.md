@@ -24,7 +24,26 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Every named reopen is measured; what is left is reading the walk
    itself. The row in SPECS stays partial until the count is zero.
 
-## Milestone: read more, say more
+## Milestone: symmetry
+
+10. **Symmetry detection at the root.** The model as a coloured graph:
+    one vertex per column, coloured by cost, bounds and kind, one per row,
+    coloured by its bounds, an edge per nonzero coloured by the
+    coefficient. Colour refinement to an equitable partition, then a
+    partition-backtracking search that individualises a vertex of the
+    first non-singleton cell, refines, and compares leaves, under a work
+    cap; every automorphism found is a generator, and the column orbits
+    come from the generators by union-find. A subgroup is enough: every
+    use below is valid on a subgroup. Logged at the root (generators,
+    orbits, the largest); `jaos_mip_report` says how many orbits. No
+    change to the tree, so every gate stays byte-identical. Tests on a
+    model with a known group and on stein27's log.
+11. **Orbital fixing at the nodes** behind `--orbital-fixing`: at a node,
+    the generators that fix pointwise every binary the branching set to 1
+    generate a subgroup; in each of its orbits that holds a binary the
+    branching set to 0, every binary is fixed to 0 (Ostrowski, Linderoth,
+    Rossi and Smriglio). Measured on the MIP set; lands on or off by the
+    reading.
 
 
 
