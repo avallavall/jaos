@@ -108,6 +108,7 @@ static int verified(jaos_model *m, int status, double *x, double *y)
 }
 
 static bool g_dantzig = false;
+static bool g_devex = false;
 
 static void measure_one(const entry *e, const char *dir, int64_t factor,
                         result *r)
@@ -168,6 +169,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
 
     m->cfg.force_primal = true;
     m->cfg.primal_dantzig = g_dantzig;
+    m->cfg.primal_devex = g_devex;
     t0 = now_seconds();
     st = jaos_solve(m);
     r->secs_p = now_seconds() - t0;
@@ -471,6 +473,8 @@ int main(int argc, char **argv)
                 factor = 1;
         } else if (strcmp(argv[i], "--dantzig") == 0) {
             g_dantzig = true;
+        } else if (strcmp(argv[i], "--devex") == 0) {
+            g_devex = true;
         } else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1)

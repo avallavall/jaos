@@ -23,6 +23,7 @@ typedef struct {
 
     bool force_primal;
     bool primal_dantzig;
+    bool primal_devex;
     bool node_solve;
 
     double mip_gap;
