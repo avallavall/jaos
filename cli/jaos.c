@@ -52,6 +52,7 @@ static const char U_SYNOPSIS[] =
     "  jaos check FILE --proof PROOF\n"
     "  jaos check FILE --point POINT [--duals DUALS] [--tol T]\n"
     "  jaos stats FILE\n"
+    "  jaos options [--opt NAME=VALUE]... [--params FILE]\n"
     "  jaos diff A B\n"
     "  jaos show FILE (--row NAME | --col NAME)\n"
     "  jaos iis FILE [--write OUT] [--positional]\n"
@@ -289,6 +290,12 @@ static const char U_STATS[] =
     "  smallest and largest magnitude in the matrix and in the\n"
     "  objective. It solves nothing. Exit 0.\n";
 
+static const char U_OPTIONS[] =
+    "options prints every option with its value, one `name value` line\n"
+    "  each, the defaults unless --opt or --params changed one. The\n"
+    "  output is what --params reads, so a run's settings can be saved\n"
+    "  and replayed. Exit 0.\n";
+
 static const char U_DIFF[] =
     "diff reads A and B and says whether they describe the same model, and\n"
     "  where they first do not: one line per difference, then a\n"
@@ -331,6 +338,7 @@ static const u_entry U_TABLE[] = {
     {"relax",   {U_RELAX,   nullptr}},
     {"verify",  {U_VERIFY,  nullptr}},
     {"stats",   {U_STATS,   nullptr}},
+    {"options", {U_OPTIONS, nullptr}},
     {"ranging", {U_RANGING, nullptr}},
     {"diff",    {U_DIFF,    nullptr}},
     {"show",    {U_SHOW,    nullptr}},
@@ -2381,6 +2389,52 @@ out:
     jaos_model_free(m);
     return rc;
 }
+static int cmd_options(int argc, char **argv)
+{
+    jaos_model *m = nullptr;
+    if (jaos_model_new(&m) != JAOS_OK)
+        return usage_error("out of memory");
+    int rc = -1;
+    for (int i = 2; i < argc && rc < 0; i++) {
+        const char *a = argv[i];
+        if (i + 1 >= argc)
+            rc = usage_error("%s needs a value", a);
+        else if (strcmp(a, "--params") == 0) {
+            if (jaos_read_options(m, argv[++i]) != JAOS_OK)
+                rc = library_error("read the options file", argv[i], m);
+        } else if (strcmp(a, "--opt") == 0) {
+            const char *v = argv[++i];
+            const char *eq = strchr(v, '=');
+            char name[64];
+            if (eq == nullptr || eq == v || (size_t)(eq - v) >= sizeof name)
+                rc = usage_error("--opt takes NAME=VALUE, not '%s'", v);
+            else {
+                memcpy(name, v, (size_t)(eq - v));
+                name[eq - v] = '\0';
+                if (jaos_set_option(m, name, eq + 1) != JAOS_OK)
+                    rc = library_error("set an option in", v, m);
+            }
+        } else
+            rc = usage_error("unknown option '%s'", a);
+    }
+    if (rc < 0) {
+        const int64_t n = jaos_num_options();
+        for (int64_t k = 0; k < n; k++) {
+            char buf[64];
+            const char *name = jaos_option_name(k);
+            if (jaos_get_option(m, name, buf, sizeof buf) != JAOS_OK) {
+                rc = library_error("read option", name, m);
+                break;
+            }
+            printf("%s %s\n", name, buf);
+        }
+        if (rc < 0)
+            rc = 0;
+    }
+    jaos_model_free(m);
+    return rc;
+}
+
 static int cmd_stats(int argc, char **argv)
 {
     if (argc != 3)
@@ -2534,6 +2588,8 @@ int main(int argc, char **argv)
         return cmd_check(argc, argv);
     if (strcmp(cmd, "stats") == 0)
         return cmd_stats(argc, argv);
+    if (strcmp(cmd, "options") == 0)
+        return cmd_options(argc, argv);
     if (strcmp(cmd, "iis") == 0)
         return cmd_iis(argc, argv);
     if (strcmp(cmd, "relax") == 0)

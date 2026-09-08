@@ -194,6 +194,15 @@ Ctrl-C during a solve stops it at the next point the solver checks, and the
 tool prints `status interrupted` and exits 3. It does not kill the process
 mid-way.
 
+## `options`
+
+`jaos options` prints every option with its value, one `name value` per
+line: the defaults, unless `--opt NAME=VALUE` or `--params FILE` on the same
+command line changed one. The output is exactly what `--params` reads, so
+`jaos options --opt ... > run.txt` saves a run's settings and
+`jaos solve model.mps --params run.txt` replays them. Exit 0 unless an option
+is unknown or its value is of the wrong kind, which is a usage error.
+
 ## `stats`
 
 `jaos stats FILE` reads the model and prints what it is, one `key value`

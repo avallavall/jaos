@@ -149,7 +149,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Logging with levels | **done** | |
 | Progress callback that can stop | **done** | |
 | Choose the algorithm | **done** | `jaos_set_algorithm`, `jaos_algorithm_of`, `--algorithm dual|primal`, Python `set_algorithm` |
-| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`, `jaos_num_options`, `jaos_option_name`; 42 options; `jaos solve --opt NAME=VALUE`, `--params FILE`; Python `set_option`, `get_option`, `read_options`, `Model.option_names()` |
+| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`, `jaos_num_options`, `jaos_option_name`; 42 options; `jaos solve --opt NAME=VALUE`, `--params FILE`; Python `set_option`, `get_option`, `read_options`, `Model.option_names()`; `jaos options` prints them all in the shape `--params` reads |
 | Steering callbacks: user cuts, lazy constraints, branching | **missing** | |
 | Thread count | **missing** | |
 | Sensitivity and ranging | **done** | |

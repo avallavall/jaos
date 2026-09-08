@@ -396,6 +396,22 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+expect_exit 0 "options prints every option" \
+    "$JAOS" options
+[ "$(line_of mip_cut_rounds)" = "mip_cut_rounds 1" ] && pass "with its default" \
+    || flunk "options: $(line_of mip_cut_rounds)"
+[ "$(printf '%s\n' "$out" | wc -l)" -gt 40 ] && pass "all of them" || flunk "options: too few lines"
+expect_exit 0 "options reflects --opt" \
+    "$JAOS" options --opt mip_cut_rounds=7 --opt algorithm=primal
+[ "$(line_of mip_cut_rounds)" = "mip_cut_rounds 7" ] && [ "$(line_of algorithm)" = "algorithm primal" ] \
+    && pass "in its lines" || flunk "options --opt: $(line_of algorithm)"
+printf '%s\n' "$out" > "$tmp/saved.txt"
+expect_exit 0 "and --params reads what options printed" \
+    "$JAOS" options --params "$tmp/saved.txt"
+[ "$(line_of algorithm)" = "algorithm primal" ] && pass "back unchanged" \
+    || flunk "options round trip: $(line_of algorithm)"
+expect_exit 5 "options refuses an unknown option" \
+    "$JAOS" options --opt nonsense=1
 expect_exit 0 "--opt sets options by name" \
     "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds=0 --opt mip_heuristics=false --opt algorithm=dual
 [ "$(line_of objective)" = "objective 2" ] && pass "and the answer stands" \
