@@ -40,6 +40,7 @@ static const char U_SYNOPSIS[] =
     "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
+    "                  [--probing | --no-probing]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -165,6 +166,9 @@ static const char U_SOLVE_D[] =
     "  --tighten        at the root, shrink a binary column's coefficient\n"
     "                   in a one-sided row it can never make tight; on by\n"
     "                   default, --no-tighten turns it off\n"
+    "  --probing        at the root, fix a binary column whose one setting\n"
+    "                   makes some row impossible by propagation; off by\n"
+    "                   default, --no-probing is the default\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -639,6 +643,7 @@ struct solve_options {
     int pump_always;
     int rcfix;
     int tighten;
+    int probing;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -683,6 +688,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->pump_always = -1;
     o->rcfix = -1;
     o->tighten = -1;
+    o->probing = -1;
     o->propagate = -1;
     o->propagate_depth = -2;
     o->mir_aggregate = -1;
@@ -762,6 +768,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-tighten") == 0) {
             o->tighten = 0;
+            continue;
+        }
+        if (strcmp(a, "--probing") == 0) {
+            o->probing = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-probing") == 0) {
+            o->probing = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -1176,6 +1190,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.tighten >= 0 && jaos_set_mip_tighten(m, o.tighten) != JAOS_OK) {
         rc = library_error("set coefficient tightening for", o.file, m);
+        goto out;
+    }
+    if (o.probing >= 0 && jaos_set_mip_probing(m, o.probing) != JAOS_OK) {
+        rc = library_error("set probing for", o.file, m);
         goto out;
     }
     if (o.propagate >= 0 &&

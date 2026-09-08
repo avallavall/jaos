@@ -346,6 +346,15 @@ expect_exit 0 "--tighten is accepted" \
 "$JAOS" options | grep -q '^mip_tighten ' \
     && pass "jaos options lists mip_tighten" \
     || flunk "jaos options does not list mip_tighten"
+expect_exit 0 "--no-probing still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-probing
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-probing: $(line_of objective)"
+expect_exit 0 "--probing is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --probing
+"$JAOS" options | grep -q '^mip_probing ' \
+    && pass "jaos options lists mip_probing" \
+    || flunk "jaos options does not list mip_probing"
 expect_exit 0 "propagation at the root alone still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4 --propagate-depth 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

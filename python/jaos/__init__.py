@@ -550,6 +550,7 @@ _sig("jaos_set_mip_pump_obj", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_pump_always", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1269,6 +1270,17 @@ class Model:
         face. On by default; a negative value restores it.
         """
         self._check(_lib.jaos_set_mip_tighten(self._handle(), int(on)))
+
+    def set_mip_probing(self, on):
+        """Probing at the root.
+
+        Each binary column is tried at 0 and at 1 with the rows propagated
+        over the bounds; a setting that makes some row impossible fixes
+        the column the other way, and a column that fits neither way
+        makes the model infeasible. Off by default (1.566x over the MIP
+        set); a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_probing(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -2995,6 +3007,12 @@ class Problem:
         """Coefficient tightening of binary columns in one-sided rows at
         the root; on by default, negative restores it."""
         self._m.set_mip_tighten(on)
+        return self
+
+    def set_mip_probing(self, on):
+        """Probing of binary columns at the root; off by default, negative
+        restores it."""
+        self._m.set_mip_probing(on)
         return self
 
     def set_mip_propagate(self, rounds):

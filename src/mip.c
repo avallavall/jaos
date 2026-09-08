@@ -66,6 +66,8 @@ constexpr bool MIP_PUMP_ALWAYS = false;
 
 constexpr bool MIP_RCFIX = false;
 constexpr bool MIP_TIGHTEN = true;
+constexpr bool MIP_PROBING = false;
+constexpr int64_t MIP_PROBING_ROUNDS = 2;
 
 constexpr double MIP_RCFIX_SLACK = 1e-6;
 
@@ -629,6 +631,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PUMP_ALWAYS: return MIP_PUMP_ALWAYS ? 1.0 : 0.0;
     case JM_DEF_RCFIX: return MIP_RCFIX ? 1.0 : 0.0;
     case JM_DEF_TIGHTEN: return MIP_TIGHTEN ? 1.0 : 0.0;
+    case JM_DEF_PROBING: return MIP_PROBING ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -1185,6 +1188,58 @@ static void set_coefficient(jaos_model *lp, int64_t i, int64_t j,
         }
     }
     *cost += lp->a_start[j + 1] - lp->a_start[j];
+}
+
+static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
+                              double *phi, int64_t rounds, int64_t *work);
+
+static int64_t probe_binaries(jaos_model *m, jaos_model *lp, double *plo,
+                              double *phi, double *ilo, double *ihi,
+                              int64_t *probed, bool *infeasible,
+                              int64_t *work)
+{
+    const int64_t nc = m->num_col;
+    double *save_lo = malloc((size_t)(nc > 0 ? 2 * nc : 1) * sizeof *save_lo);
+    if (save_lo == nullptr)
+        return -2;
+    double *save_hi = save_lo + nc;
+    int64_t fixed = 0;
+    *probed = 0;
+    *infeasible = false;
+    for (int64_t j = 0; j < nc && !*infeasible; j++) {
+        if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0)
+            continue;
+        (*probed)++;
+        int64_t r[2] = {0, 0};
+        for (int v = 0; v < 2; v++) {
+            memcpy(save_lo, lp->col_lower, (size_t)nc * sizeof *save_lo);
+            memcpy(save_hi, lp->col_upper, (size_t)nc * sizeof *save_hi);
+            lp->col_lower[j] = (double)v;
+            lp->col_upper[j] = (double)v;
+            r[v] = propagate_node(m, lp, plo, phi, MIP_PROBING_ROUNDS, work);
+            memcpy(lp->col_lower, save_lo, (size_t)nc * sizeof *save_lo);
+            memcpy(lp->col_upper, save_hi, (size_t)nc * sizeof *save_hi);
+            *work += 2 * nc;
+            if (r[v] == -2) {
+                free(save_lo);
+                return -2;
+            }
+        }
+        if (r[0] == -1 && r[1] == -1) {
+            *infeasible = true;
+            break;
+        }
+        if (r[0] == -1 || r[1] == -1) {
+            const double keep = r[0] == -1 ? 1.0 : 0.0;
+            lp->col_lower[j] = keep;
+            lp->col_upper[j] = keep;
+            ilo[j] = keep;
+            ihi[j] = keep;
+            fixed++;
+        }
+    }
+    free(save_lo);
+    return fixed;
 }
 
 static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
@@ -2291,6 +2346,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const bool rcfix = m->cfg.mip_rcfix_set ? m->cfg.mip_rcfix : MIP_RCFIX;
     const bool tighten = m->cfg.mip_tighten_set ? m->cfg.mip_tighten
                                                 : MIP_TIGHTEN;
+    const bool probing = m->cfg.mip_probing_set ? m->cfg.mip_probing
+                                                : MIP_PROBING;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -2445,6 +2502,25 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             ilo[j] = 0.0;
         else if (m->col_integer[j] && ilo[j] > ihi[j])
             outcome = JAOS_SOLVE_INFEASIBLE;
+    }
+    if (probing && outcome == JAOS_SOLVE_NOT_RUN) {
+        double *qlo = malloc((size_t)(nc > 0 ? 2 * nc : 1) * sizeof *qlo);
+        if (qlo == nullptr)
+            goto done;
+        int64_t probed = 0;
+        bool infeasible = false;
+        const int64_t fixed = probe_binaries(m, lp, qlo, qlo + nc, ilo, ihi,
+                                             &probed, &infeasible, &work);
+        free(qlo);
+        if (fixed == -2)
+            goto done;
+        if (infeasible)
+            outcome = JAOS_SOLVE_INFEASIBLE;
+        if (probed > 0)
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "probing: %lld columns fixed of %lld probed%s",
+                   (long long)fixed, (long long)probed,
+                   infeasible ? ", and one of them fits neither way" : "");
     }
     if (tighten && outcome == JAOS_SOLVE_NOT_RUN) {
         int64_t rows_tightened = 0;

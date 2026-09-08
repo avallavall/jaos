@@ -1932,6 +1932,22 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_probing_is_a_switch_and_changes_no_answer(self):
+        objs = []
+        for on in (0, 1, -1):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(x + y <= 1)
+            p.add(x + z <= 1)
+            p.add(y + z >= 1)
+            p.maximize(2 * x + y + z)
+            p.set_mip_probing(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            objs.append(p.objective_value)
+        self.assertEqual(objs, [2.0, 2.0, 2.0])
+
     def test_the_dive_heuristic_runs_below_the_root(self):
 
         solves = []
