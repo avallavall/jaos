@@ -445,6 +445,7 @@ static void model_answer_is_stale(jaos_model *m)
     m->mip_has_incumbent = false;
     m->mip_nodes = m->mip_solves = 0;
     m->mip_rcfix_n = m->mip_prop_n = 0;
+    m->mip_sym_gen = m->mip_sym_orbits = 0;
     m->mip_bound = 0.0;
     m->solve_status = JAOS_SOLVE_NOT_RUN;
     m->objective = 0.0;
@@ -1516,6 +1517,15 @@ jaos_status jaos_set_mip_conflicts(jaos_model *m, int on)
         return JAOS_ERR_INVALID_INPUT;
     m->cfg.mip_conflicts_set = on >= 0;
     m->cfg.mip_conflicts = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_symmetry_set = on >= 0;
+    m->cfg.mip_symmetry = on > 0;
     return JAOS_OK;
 }
 

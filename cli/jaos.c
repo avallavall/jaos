@@ -45,6 +45,7 @@ static const char U_SYNOPSIS[] =
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
     "                  [--conflicts | --no-conflicts]\n"
+    "                  [--symmetry | --no-symmetry]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -171,7 +172,9 @@ static const char U_SOLVE_D[] =
     "                   plain pump; default 0.5)\n"
     "  --pump-always    run the pump at the root even where something\n"
     "                   already holds an incumbent; --no-pump-always\n"
-    "                   keeps the guard, which is the default\n"
+    "                   keeps the guard, which is the default\n";
+
+static const char U_SOLVE_D2[] =
     "  --rcfix          fix integer column bounds at the root by their\n"
     "                   reduced costs once an incumbent exists; on by\n"
     "                   default, --no-rcfix turns it off\n"
@@ -195,6 +198,10 @@ static const char U_SOLVE_D[] =
     "                   and a row forbidding them together is kept for the\n"
     "                   rest of the search; on by default, --no-conflicts\n"
     "                   turns it off\n"
+    "  --symmetry       at the root, find the model's symmetries (column\n"
+    "                   permutations that map it to itself) and report the\n"
+    "                   orbits; off by default until the tree uses them,\n"
+    "                   --no-symmetry is the default\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -364,10 +371,11 @@ static const char U_FOOTER[] =
     "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
     "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
 
-typedef struct { const char *name; const char *part[5]; } u_entry;
+typedef struct { const char *name; const char *part[6]; } u_entry;
 
 static const u_entry U_TABLE[] = {
-    {"solve",   {U_SOLVE_A, U_SOLVE_B, U_SOLVE_C, U_SOLVE_D, U_SOLVE_E}},
+    {"solve",   {U_SOLVE_A, U_SOLVE_B, U_SOLVE_C, U_SOLVE_D, U_SOLVE_D2,
+                 U_SOLVE_E}},
     {"convert", {U_CONVERT, nullptr}},
     {"check",   {U_CHECK,   nullptr}},
     {"iis",     {U_IIS,     nullptr}},
@@ -411,7 +419,7 @@ static bool print_usage(FILE *out, const char *verb)
         if (verb != nullptr && strcmp(verb, U_TABLE[k].name) != 0)
             continue;
         found = true;
-        for (int p = 0; p < 5 && U_TABLE[k].part[p] != nullptr; p++)
+        for (int p = 0; p < 6 && U_TABLE[k].part[p] != nullptr; p++)
             fputs(U_TABLE[k].part[p], out);
     }
     if (found)
@@ -687,6 +695,7 @@ struct solve_options {
     double probing_cap;
     int clique_fix;
     int conflicts;
+    int symmetry;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -736,6 +745,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->probing = -1;
     o->clique_fix = -1;
     o->conflicts = -1;
+    o->symmetry = -1;
     o->propagate = -1;
     o->propagate_depth = -2;
     o->mir_aggregate = -1;
@@ -839,6 +849,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-conflicts") == 0) {
             o->conflicts = 0;
+            continue;
+        }
+        if (strcmp(a, "--symmetry") == 0) {
+            o->symmetry = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-symmetry") == 0) {
+            o->symmetry = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -1306,6 +1324,10 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("set conflict analysis for", o.file, m);
         goto out;
     }
+    if (o.symmetry >= 0 && jaos_set_mip_symmetry(m, o.symmetry) != JAOS_OK) {
+        rc = library_error("set symmetry detection for", o.file, m);
+        goto out;
+    }
     if (o.propagate >= 0 &&
         jaos_set_mip_propagate(m, o.propagate) != JAOS_OK) {
         rc = library_error("set bound propagation for", o.file, m);
@@ -1447,6 +1469,8 @@ static int cmd_solve(int argc, char **argv)
             printf("first_incumbent %" PRId64 "\n", mrep.first_incumbent_node);
             printf("fixed_cols %" PRId64 "\n", mrep.fixed_cols);
             printf("tightened %" PRId64 "\n", mrep.tightened);
+            printf("symmetry_generators %" PRId64 "\n", mrep.symmetry_generators);
+            printf("symmetry_orbits %" PRId64 "\n", mrep.symmetry_orbits);
             printf("bound %.17g\n", mrep.bound);
 
             int64_t held = 0;

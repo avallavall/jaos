@@ -265,6 +265,8 @@ JAOS_NODISCARD jaos_status jaos_set_mip_clique_fix(jaos_model *m, int on);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_conflicts(jaos_model *m, int on);
 
+JAOS_NODISCARD jaos_status jaos_set_mip_symmetry(jaos_model *m, int on);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_propagate(jaos_model *m,
                                                   int64_t rounds);
 
@@ -317,6 +319,8 @@ typedef struct jaos_mip_report {
     int64_t first_incumbent_node;
     int64_t fixed_cols;
     int64_t tightened;
+    int64_t symmetry_generators;
+    int64_t symmetry_orbits;
 } jaos_mip_report;
 
 JAOS_NODISCARD jaos_status jaos_mip_result(const jaos_model *m,

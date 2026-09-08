@@ -334,6 +334,8 @@ class _MipReport(ctypes.Structure):
         ("first_incumbent_node", _I64),
         ("fixed_cols", _I64),
         ("tightened", _I64),
+        ("symmetry_generators", _I64),
+        ("symmetry_orbits", _I64),
     ]
 
 MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
@@ -614,6 +616,7 @@ _sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_clique_fix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_conflicts", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_symmetry", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1402,6 +1405,14 @@ class Model:
         the search. On by default; a negative value restores it.
         """
         self._check(_lib.jaos_set_mip_conflicts(self._handle(), int(on)))
+
+    def set_mip_symmetry(self, on):
+        """Symmetry detection at the root: the model as a coloured graph,
+        colour refinement, and a partition search under a work cap for
+        the column permutations that map the model to itself. The
+        report says how many generators and orbits were found. Off by
+        default until the tree uses them; a negative value restores it."""
+        self._check(_lib.jaos_set_mip_symmetry(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -3205,6 +3216,12 @@ class Problem:
         """Conflict analysis at infeasible nodes; on by default,
         negative restores it."""
         self._m.set_mip_conflicts(on)
+        return self
+
+    def set_mip_symmetry(self, on):
+        """Symmetry detection at the root; off by default, negative
+        restores it."""
+        self._m.set_mip_symmetry(on)
         return self
 
     def set_mip_propagate(self, rounds):

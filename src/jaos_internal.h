@@ -111,6 +111,9 @@ typedef struct {
     bool mip_conflicts_set;
     bool mip_conflicts;
 
+    bool mip_symmetry_set;
+    bool mip_symmetry;
+
     bool mip_propagate_set;
     int64_t mip_propagate;
 
@@ -212,6 +215,7 @@ struct jaos_model {
 
     int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
     int64_t mip_rcfix_n, mip_prop_n;
+    int64_t mip_sym_gen, mip_sym_orbits;
     double mip_bound;
     bool mip_has_incumbent;
     double mip_inc_obj;
@@ -300,7 +304,7 @@ enum jm_mip_key {
     JM_DEF_MIR_AGGREGATE, JM_DEF_DIVE_HEURISTIC, JM_DEF_DIVE_HEURISTIC_DEPTH,
     JM_DEF_RINS, JM_DEF_DIVE_BACKTRACK, JM_DEF_DIVE_GAP, JM_DEF_DIVE_DEGRADE,
     JM_DEF_FEASPUMP, JM_DEF_PUMP_GENERAL, JM_DEF_PUMP_OBJ, JM_DEF_PUMP_ALWAYS,
-    JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_CONFLICTS, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
+    JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_CONFLICTS, JM_DEF_SYMMETRY, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
     JM_DEF_FLOW_COVER_ROUNDS,
 };
@@ -359,6 +363,16 @@ bool jm_lp_name_ok(const char *s);
 void jm_model_drop_exact(jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_branch_and_bound(jaos_model *m);
+
+typedef struct {
+    int64_t nc, ngen, norbit, largest;
+    int64_t *gen;
+    int64_t *orbit;
+} jm_symmetry;
+JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
+                                            int64_t work_cap,
+                                            jm_symmetry *out, int64_t *work);
+void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,

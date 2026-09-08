@@ -2040,6 +2040,19 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_symmetry_detection_reports_the_orbits_of_three_alike_columns(self):
+        for on, want in ((1, 1), (0, 0), (-1, 0)):
+            p = jaos.Problem()
+            xs = [p.add_var(binary=True, name=f"x{k}") for k in range(3)]
+            p.add(xs[0] + xs[1] + xs[2] >= 1)
+            p.minimize(xs[0] + xs[1] + xs[2])
+            p.set_mip_symmetry(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            rep = p.mip_report()
+            self.assertEqual(rep.symmetry_orbits, want)
+            if want:
+                self.assertGreaterEqual(rep.symmetry_generators, 1)
+
     def test_conflict_analysis_is_a_switch_and_keeps_the_verdict(self):
         nodes = []
         for on in (0, 1, -1):

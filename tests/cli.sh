@@ -395,6 +395,17 @@ expect_exit 0 "an .nl file is read by its extension" \
     || flunk "nl: $(line_of objective)"
 expect_exit 5 "a nonlinear .nl is refused" \
     "$JAOS" solve "$DATA/e_nonlin.nl"
+expect_exit 0 "--no-symmetry still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-symmetry
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-symmetry: $(line_of objective)"
+expect_exit 0 "--symmetry is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --symmetry
+[ -n "$(line_of symmetry_orbits)" ] && pass "and reports the orbits" \
+    || flunk "no symmetry_orbits line"
+"$JAOS" options | grep -q '^mip_symmetry ' \
+    && pass "jaos options lists mip_symmetry" \
+    || flunk "jaos options does not list mip_symmetry"
 expect_exit 0 "--no-conflicts still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-conflicts
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

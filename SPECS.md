@@ -76,7 +76,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Semi-continuous variables | **done** | `jaos_set_col_semicontinuous`; MPS `SC` and `SI`, LP `Semi-continuous`, both writers; the tree relaxes the floor to zero and branches on the zero side; the checker accepts zero |
 | SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_num_sos`, `jaos_sos`; MPS `SOS` section and LP `SOS` section, both writers; the tree branches on the weighted split and the checker counts the excess nonzeros as an integrality violation; Python `add_sos` at both layers |
 | Indicator constraints | **done** | `jaos_set_row_indicator`, `jaos_row_indicator`: a row that holds only while a binary column equals 0 or 1. The tree keeps the row free until the column is fixed by branching and branches on the column when the point breaks it; the checker ignores an inactive row. LP `z = 1 ->`, MPS `INDICATORS`, both writers, Python `add_indicator` |
-| Symmetry detection | **missing** | |
+| Symmetry detection | **partial** | the model's automorphisms found at the root by colour refinement and a partition search under a work cap (`src/symmetry.c`), the generators and column orbits reported, behind `--symmetry` and off until the tree uses them. Missing: orbital fixing in the tree |
 | Conflict analysis | **done** | an infeasible node's Farkas proof, read over the branching fixings on the path, gives a row over the binaries the proof needs, kept for the rest of the search; on by default at 0.924x over the MIP set, behind `--conflicts` |
 | Deterministic parallel tree search | **missing** | |
 

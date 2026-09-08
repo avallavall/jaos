@@ -29,6 +29,8 @@ constexpr int64_t MIP_ZERO_HALF_CUT_CAP = 50;
 constexpr int64_t MIP_FLOW_COVER_ROUNDS = 0;
 constexpr int64_t MIP_FLOW_COVER_CUT_CAP = 50;
 constexpr bool MIP_CONFLICTS = true;
+constexpr bool MIP_SYMMETRY = false;
+constexpr int64_t MIP_SYMMETRY_WORK = 250;
 constexpr int64_t MIP_CONFLICT_MAX = 32;
 constexpr double MIP_CONFLICT_GAP = 1e-9;
 constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
@@ -671,6 +673,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PROBING_CAP: return MIP_PROBING_CAP;
     case JM_DEF_CLIQUE_FIX: return MIP_CLIQUE_FIX ? 1.0 : 0.0;
     case JM_DEF_CONFLICTS: return MIP_CONFLICTS ? 1.0 : 0.0;
+    case JM_DEF_SYMMETRY: return MIP_SYMMETRY ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -3261,6 +3264,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_clique_fix : MIP_CLIQUE_FIX;
     const bool conflicts_on = m->cfg.mip_conflicts_set
         ? m->cfg.mip_conflicts : MIP_CONFLICTS;
+    const bool symmetry_on = m->cfg.mip_symmetry_set
+        ? m->cfg.mip_symmetry : MIP_SYMMETRY;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -3341,6 +3346,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t clique_fixed = 0, clique_cut_nodes = 0;
     steer sw = {0};
     int64_t nperm = nr;
+    jm_symmetry sym = {0};
     double *cray = nullptr, *cacol = nullptr, *cblo = nullptr;
     int64_t *clast = nullptr;
     int64_t cray_cap = 0, conflicts = 0, conflict_lits = 0;
@@ -3461,6 +3467,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                (long long)reliability, probe_cap, cut_stall, node_cut_stall,
                root_cut_drop ? "dropped when slack" : "kept",
                cover_lift ? "lifted" : "extended");
+    }
+
+    if (symmetry_on && outcome == JAOS_SOLVE_NOT_RUN) {
+        const int64_t cap = MIP_SYMMETRY_WORK * (m->num_nz + nc + nr + 1);
+        if (jm_symmetry_find(m, cap, &sym, &work) != JAOS_OK)
+            goto done;
+        m->mip_sym_gen = sym.ngen;
+        m->mip_sym_orbits = sym.norbit;
+        if (sym.ngen > 0)
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "symmetry: %lld generators, %lld orbits of more than one "
+                   "column, the largest of %lld",
+                   (long long)sym.ngen, (long long)sym.norbit,
+                   (long long)sym.largest);
     }
 
     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
@@ -4626,6 +4646,7 @@ done:
     free(pbuf);
     clique_table_free(&ctab);
     steer_free(&sw);
+    jm_symmetry_free(&sym);
     free(cray);
     free(cacol);
     free(clast);
@@ -4674,6 +4695,8 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->first_incumbent_node = m->mip_first_inc;
     out->fixed_cols = m->mip_rcfix_n;
     out->tightened = m->mip_prop_n;
+    out->symmetry_generators = m->mip_sym_gen;
+    out->symmetry_orbits = m->mip_sym_orbits;
     return JAOS_OK;
 }
 
