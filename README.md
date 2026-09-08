@@ -74,8 +74,10 @@ fact per line; the exit code is the verdict. `convert`, `check`, `stats`,
 `diff`, `show`, `iis`, `relax`, `verify`, `ranging`. Reference:
 [`docs/cli.md`](docs/cli.md).
 
-**Python.** `python/jaos.py` over `libjaos.so`, standard library only. Every
-C call is reachable, and a modeling layer sits on top.
+**Python.** The `jaos` package in `python/` over `libjaos.so`, standard
+library only. Every C call is reachable, and a modeling layer sits on top.
+`pip install .` builds the shared library and installs the package;
+`python -m jaos solve model.mps` solves from the command line.
 
 ```python
 p = jaos.Problem()
@@ -144,7 +146,7 @@ separates it from the field.
 include/jaos.h        the public header, the only one
 src/                  library sources
 tests/                unit suite; tests/vendor/unity/ is the one vendored dependency
-python/               the binding, over ctypes and the standard library only
+python/               the jaos package, over ctypes and the standard library only
 cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers

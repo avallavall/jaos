@@ -502,6 +502,7 @@ _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cover_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_clique_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_node_cut_cap", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_stall", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_node_cut_stall", ctypes.c_int, _VP, _D)
@@ -1089,6 +1090,11 @@ class Model:
         """Rounds of knapsack cover cuts at the root, beside the Gomory
         rounds (D300): 0 for none, a negative value for the default."""
         self._check(_lib.jaos_set_mip_cover_rounds(self._handle(), int(rounds)))
+
+    def set_mip_clique_rounds(self, rounds):
+        """Rounds of clique cuts at the root, from the conflicts the rows
+        put between binary columns: 0 for none, negative for the default."""
+        self._check(_lib.jaos_set_mip_clique_rounds(self._handle(), int(rounds)))
 
     def set_mip_node_cut_cap(self, cap):
         """At most `cap` cuts per node below the root, the most efficacious
@@ -2831,6 +2837,10 @@ class Problem:
         """Rounds of knapsack cover cuts at the root (D300); 0 for none,
         negative for the default."""
         self._m.set_mip_cover_rounds(rounds)
+        return self
+
+    def set_mip_clique_rounds(self, rounds):
+        self._m.set_mip_clique_rounds(rounds)
         return self
 
     def set_mip_node_cut_cap(self, cap):

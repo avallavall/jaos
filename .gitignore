@@ -18,6 +18,8 @@
 /.claude/scheduled_tasks.lock
 
 # Build output
+/python/jaos/libjaos.so
+/python/jaos.egg-info/
 /build/
 
 # Test instances are fetched and checksum-verified, never committed
