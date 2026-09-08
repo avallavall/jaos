@@ -56,6 +56,11 @@ static_assert(ITER_SANITY_FACTOR >= 60,
 
 constexpr int64_t STALL_FACTOR = 10;
 
+#ifndef JAOS_DUAL_PERTURB
+#define JAOS_DUAL_PERTURB 1e-6
+#endif
+constexpr double DUAL_PERTURB = JAOS_DUAL_PERTURB;
+
 constexpr double PHASE1_RISE_MAX = 1.0;
 
 constexpr double NOISE_MARGIN = 1e5;
@@ -172,6 +177,9 @@ typedef struct {
     bool verified;
 
     bool shift_pending;
+
+    bool costs_perturbed;
+    int64_t n_perturb;
 
     bool dse_guess;
     int64_t n_guess_restart;
@@ -882,17 +890,60 @@ static jaos_status refresh(sx *s, bool *ok, bool refine)
     return JAOS_OK;
 }
 
+static uint64_t perturb_hash(uint64_t x)
+{
+    x += UINT64_C(0x9E3779B97F4A7C15);
+    x = (x ^ (x >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
+    x = (x ^ (x >> 27)) * UINT64_C(0x94D049BB133111EB);
+    return x ^ (x >> 31);
+}
+
+static void perturb_costs(sx *s)
+{
+    int64_t moved = 0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (!(s->lo[v] < s->up[v]))
+            continue;
+        double sign;
+        if (s->status[v] == JM_AT_LOWER)
+            sign = 1.0;
+        else if (s->status[v] == JM_AT_UPPER)
+            sign = -1.0;
+        else
+            continue;
+        const double u = 0.5 + 0.5 * (double)(perturb_hash((uint64_t)v) >> 11) *
+                                   (1.0 / 9007199254740992.0);
+        const double delta = sign * DUAL_PERTURB * (1.0 + fabs(s->cost0[v])) * u;
+        s->cost[v] += delta;
+        s->shift[v] += delta;
+        s->d[v] += delta;
+        moved++;
+    }
+    jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+    s->costs_perturbed = true;
+    s->n_perturb++;
+    jm_log(s->m, JAOS_LOG_DETAIL,
+           "iter %lld: no progress for %lld iterations, perturbing %lld "
+           "reduced costs", (long long)s->iters,
+           (long long)(s->iters - s->last_gain), (long long)moved);
+    s->last_gain = s->iters;
+}
+
 static int64_t price_row(sx *s, bool *below, double *violation)
 {
 
     if (!s->bland &&
         s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
+        if (DUAL_PERTURB > 0.0 && !s->costs_perturbed && shifts_costs(s)) {
+            perturb_costs(s);
+        } else {
         s->bland = true;
         s->n_bland++;
         jm_log(s->m, JAOS_LOG_DETAIL,
                "iter %lld: no progress for %lld iterations, switching to "
                "Bland's rule", (long long)s->iters,
                (long long)(s->iters - s->last_gain));
+        }
     }
 
     int64_t best = -1;

@@ -36,8 +36,8 @@ ganges       ok        branch=x0<=19586 warm=1211/4958752 cold=1211/4958752 verd
 gfrd-pnc     ok        branch=x0<=15098 warm=2/40613 cold=549/3254842 verdict=optimal obj=6902236.1540229144/6902236.1540229144 before=6902235.9995488087 moved=yes checker=warm:ok/cold:ok 
 greenbea     ok        branch=x2<=830302 warm=9096/529526219 cold=9096/529526219 verdict=optimal obj=-72555248.097065017/-72555248.097065017 before=-72555248.129845992 moved=yes checker=warm:ok/cold:ok 
 greenbeb     ok        branch=x13<=193 warm=9798/563226520 cold=9798/563226520 verdict=optimal obj=-4302260.2271257397/-4302260.2271257397 before=-4302260.2612065868 moved=yes checker=warm:ok/cold:ok 
-grow15       ERROR     cold solve failed
-grow22       ok        branch=x0<=5762 warm=1/1222587 cold=3903/133212051 verdict=optimal obj=-160834336.48256296/-160834336.48256296 before=-160834336.48256308 moved=yes checker=warm:ok/cold:ok 
+grow15       ok        branch=x0<=575295 warm=1/487489 cold=10679/259641195 verdict=optimal obj=-106870941.29357533/-106870941.29357533 before=-106870941.29357533 moved=NO checker=warm:ok/cold:ok 
+grow22       ok        branch=x0<=7690 warm=1/1251960 cold=14061/396146748 verdict=optimal obj=-160834336.48256481/-160834336.48256299 before=-160834336.48256296 moved=yes checker=warm:ok/cold:ok 
 grow7        ok        branch=x0<=5153 warm=1/151082 cold=744/10092921 verdict=optimal obj=-47787811.814711504/-47787811.814711504 before=-47787811.814711504 moved=NO checker=warm:ok/cold:ok 
 israel       ok        branch=x0<=230 warm=1/41292 cold=111/644424 verdict=optimal obj=-896639.18589917012/-896639.18589917012 before=-896644.82186304568 moved=yes checker=warm:ok/cold:ok 
 kb2          ok        branch=x0<=0 warm=6/35958 cold=41/51804 verdict=optimal obj=-1749.8864620011495/-1749.8864620011495 before=-1749.9001299062058 moved=yes checker=warm:ok/cold:ok 
@@ -95,11 +95,11 @@ wood1p       ok        branch=x1944<=0 warm=64/4932459 cold=273/15344196 verdict
 woodw        ok        branch=x11<=0 warm=1047/33273895 cold=1047/33273895 verdict=optimal obj=1.3088124471865628/1.3088124471865628 before=1.3044763330842295 moved=yes checker=warm:ok/cold:ok 
 
 -- warm against cold --
-measured 91, skipped 2, disagreed 0, rejected 0, errors 1
-iterations (warm+1)/(cold+1), geometric mean: 0.0908
-work units warm/cold, geometric mean:         0.2001
+measured 92, skipped 2, disagreed 0, rejected 0, errors 0
+iterations (warm+1)/(cold+1), geometric mean: 0.0837
+work units warm/cold, geometric mean:         0.1880
 work ratio, best  truss at 0.0002
 work ratio, worst 25fv47 at 1.3960
-reached the optimum in no iterations at all:  3 of 91
-took more iterations warm than cold:          0 of 91
-the branch moved the optimum:                 79 of 91
+reached the optimum in no iterations at all:  3 of 92
+took more iterations warm than cold:          0 of 92
+the branch moved the optimum:                 79 of 92

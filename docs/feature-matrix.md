@@ -66,7 +66,8 @@ respectively, which is why those rows read "—" and not "○".
 | Concurrent solve (race several methods) | ○ | ◐ | ○ | ○ | ● | ● | ? |
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
-bound flipping, dual phase 1 by artificial bounds and a Bland fallback.
+bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
+the first stall and Bland's rule after it.
 
 **The primal simplex reads ◐ rather than ○ since 2026-08-31**, and the reason it
 is not ● is that no caller can select it. `run_primal` and `run_primal_phase1`
