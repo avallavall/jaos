@@ -28,6 +28,7 @@ static const char U_SYNOPSIS[] =
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
+    "                  [--clique-rounds N]\n"
     "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
     "                  [--root-cut-drop | --no-root-cut-drop]\n"
     "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
@@ -99,6 +100,8 @@ static const char U_SOLVE_A[] =
     "                   1; 0 for none)\n"
     "  --cover-rounds N rounds of knapsack cover cuts at the root of a MIP,\n"
     "                   beside the Gomory rounds (default 4; 0 for none)\n"
+    "  --clique-rounds N rounds of clique cuts at the root, from the\n"
+    "                   conflicts the rows put between binary columns\n"
     "  --cut-depth D    one round of Gomory cuts at every node of a MIP down\n"
     "                   to depth D (default 3; 0 for the root only)\n"
     "  --node-cut-cap K at most K cuts per node below the root, the most\n"
@@ -602,6 +605,7 @@ struct solve_options {
     int64_t cut_rounds;
     int64_t cut_depth;
     int64_t cover_rounds;
+    int64_t clique_rounds;
     int64_t node_cut_cap;
     bool has_cut_stall, has_node_cut_stall;
     double cut_stall, node_cut_stall;
@@ -655,6 +659,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->cut_rounds = -1;
     o->cut_depth = -1;
     o->cover_rounds = -1;
+    o->clique_rounds = -1;
     o->node_cut_cap = -1;
     o->root_cut_drop = -1;
     o->cover_lift = -1;
@@ -921,6 +926,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->cover_rounds) || o->cover_rounds < 0)
                 return usage_error("--cover-rounds needs a count of rounds, 0 "
                                    "or more, not '%s'", v);
+        } else if (strcmp(a, "--clique-rounds") == 0) {
+            if (!parse_int64(v, &o->clique_rounds) || o->clique_rounds < 0)
+                return usage_error("--clique-rounds needs a count of rounds, "
+                                   "0 or more, not '%s'", v);
         } else if (strcmp(a, "--cut-depth") == 0) {
             if (!parse_int64(v, &o->cut_depth) || o->cut_depth < 0)
                 return usage_error("--cut-depth needs a depth, 0 or more, "
@@ -1053,6 +1062,11 @@ static int cmd_solve(int argc, char **argv)
     if (o.cover_rounds >= 0 &&
         jaos_set_mip_cover_rounds(m, o.cover_rounds) != JAOS_OK) {
         rc = library_error("set the cover rounds for", o.file, m);
+        goto out;
+    }
+    if (o.clique_rounds >= 0 &&
+        jaos_set_mip_clique_rounds(m, o.clique_rounds) != JAOS_OK) {
+        rc = library_error("set the clique rounds for", o.file, m);
         goto out;
     }
     if (o.node_cut_cap >= 0 &&

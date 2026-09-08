@@ -1935,6 +1935,7 @@ static void test_the_pump_perturbs_a_rounding_that_repeats(void)
             jaos_model *m = cycling_pair();
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
@@ -2349,6 +2350,58 @@ static void test_an_indicator_row_holds_only_while_its_column_says_so(void)
 #endif
 }
 
+static void test_clique_cuts_close_a_pairwise_conflict_at_the_root(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    const double cost[] = {-1.0, -1.0, -1.0};
+    const double cl[]   = {0.0, 0.0, 0.0};
+    const double cu[]   = {1.0, 1.0, 1.0};
+    const double rl[]   = {-INFINITY, -INFINITY, -INFINITY};
+    const double ru[]   = {1.0, 1.0, 1.0};
+    const int64_t as[]  = {0, 2, 4, 6};
+    const int64_t ai[]  = {0, 2, 0, 1, 1, 2};
+    const double  av[]  = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         6, as, ai, av));
+        for (int64_t j = 0; j < 3; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, pass == 0 ? 1 : 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (pass == 0) {
+            TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+            TEST_ASSERT_TRUE(rep.cuts >= 1);
+        } else {
+            TEST_ASSERT_TRUE(rep.nodes > 1);
+        }
+        jaos_model_free(m);
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 2));
+    TEST_ASSERT_TRUE(m->cfg.mip_clique_rounds_set && m->cfg.mip_clique_rounds == 2);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_clique_rounds_set);
+    jaos_model_free(m);
+#endif
+}
+
 static jaos_model *three_unit_columns(void)
 {
     const double cost[] = {-1.0, -1.0, -1.0};
@@ -2494,5 +2547,6 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
     RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
     RUN_TEST(test_an_indicator_row_holds_only_while_its_column_says_so);
+    RUN_TEST(test_clique_cuts_close_a_pairwise_conflict_at_the_root);
     return UNITY_END();
 }

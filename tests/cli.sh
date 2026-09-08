@@ -208,6 +208,10 @@ expect_exit 0 "a round of cover cuts still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "cover rounds: $(line_of objective)"
+expect_exit 0 "--clique-rounds 1 solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --clique-rounds 1
+expect_exit 5 "--clique-rounds refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --clique-rounds -1
 expect_exit 5 "--cover-rounds refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --cover-rounds -1
 expect_exit 0 "a node cut cap still solves it" \

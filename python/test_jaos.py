@@ -1318,6 +1318,54 @@ class TestBranchAndBound(unittest.TestCase):
         m.set_col_semicontinuous(0, False)
         self.assertFalse(m.col_semicontinuous(0))
 
+    def test_clique_cuts_close_a_pairwise_conflict_at_the_root(self):
+        for rounds, want_nodes in ((1, 1), (0, None)):
+            p = jaos.Problem()
+            xs = [p.add_var(binary=True, name=f"x{k}") for k in range(3)]
+            p.add(xs[0] + xs[1] <= 1)
+            p.add(xs[1] + xs[2] <= 1)
+            p.add(xs[0] + xs[2] <= 1)
+            p.maximize(xs[0] + xs[1] + xs[2])
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
+            p.set_mip_clique_rounds(rounds)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 1.0, places=9)
+            rep = p.mip_report()
+            if want_nodes is not None:
+                self.assertEqual(rep.nodes, want_nodes)
+                self.assertGreaterEqual(rep.cuts, 1)
+            else:
+                self.assertGreater(rep.nodes, 1)
+
+    def test_the_module_runs_as_a_command(self):
+        import os
+        import subprocess
+        import sys
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.dirname(here)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = here
+        env["JAOS_LIBRARY"] = jaos.library_path()
+        run = lambda *a: subprocess.run(
+            [sys.executable, "-m", "jaos"] + list(a), cwd=root, env=env,
+            capture_output=True, text=True)
+        r = run("solve", os.path.join("tests", "data", "solve1.mps"),
+                "--opt", "mip_cut_rounds=0")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("status optimal", r.stdout)
+        self.assertIn("objective ", r.stdout)
+        r = run("solve", os.path.join("tests", "data", "g_int.lp"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("objective 2", r.stdout)
+        self.assertEqual(run("frobnicate").returncode, 5)
+        self.assertEqual(run("solve").returncode, 5)
+        self.assertEqual(run("solve", "no_such.mps").returncode, 5)
+        r = run("version")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), jaos.version())
+
     def test_options_by_name_round_trip(self):
         p = jaos.Problem()
         x = p.add_var(ub=4, name="x")

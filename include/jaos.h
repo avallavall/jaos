@@ -165,6 +165,8 @@ JAOS_NODISCARD jaos_status jaos_set_mip_node_cut_cap(jaos_model *m,
 
 JAOS_NODISCARD jaos_status jaos_set_mip_cover_rounds(jaos_model *m,
                                                      int64_t rounds);
+JAOS_NODISCARD jaos_status jaos_set_mip_clique_rounds(jaos_model *m,
+                                                      int64_t rounds);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_cut_stall(jaos_model *m,
                                                   double fraction);

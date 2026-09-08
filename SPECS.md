@@ -64,7 +64,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Pseudocost branching | **done** | most-fractional as an option |
 | Strong branching | **partial** | exists behind a switch and is off: measured worse |
 | Gomory, knapsack cover and MIR cuts | **done** | at the root and to depth 3, dropped when the slack goes basic |
-| Clique cuts | **missing** | |
+| Clique cuts | **done** | four rounds at the root by default, from the conflicts each all-binary row puts between literals, grown greedily in a fixed order; 0.9697x the work over the MIP set, `gen` 0.62x and `p0282` 0.69x, none past 2x. `jaos_set_mip_clique_rounds`, `--clique-rounds`, `mip_clique_rounds` |
 | Flow cover, zero-half, lifted cover cuts | **missing** | lifted covers exist behind a switch and are off |
 | Rounding heuristic, root dive, feasibility pump | **done** | |
 | RINS, local branching, other improvement heuristics | **partial** | RINS exists behind a switch and is off |
@@ -131,7 +131,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | C API, one header | **done** | |
 | Command-line tool | **done** | `docs/cli.md` |
 | Python: ctypes wrapper and modeling layer | **done** | standard library only |
-| Python package installable with pip | **missing** | |
+| Python package installable with pip | **done** | `pyproject.toml` and `setup.py` build `libjaos.so` and install the `jaos` package; `python -m jaos solve FILE` |
 | Julia | **missing** | |
 | Java, .NET | **missing** | |
 | R, MATLAB | **missing** | |

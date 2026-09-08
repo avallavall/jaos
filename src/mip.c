@@ -22,6 +22,9 @@ constexpr int64_t MIP_NODE_CUT_CAP = 4;
 
 constexpr int64_t MIP_COVER_ROUNDS = 4;
 
+constexpr int64_t MIP_CLIQUE_ROUNDS = 4;
+constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
+
 constexpr double MIP_CUT_STALL = 0.0;
 
 constexpr double MIP_NODE_CUT_STALL = 0.0;
@@ -607,6 +610,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_CUT_DEPTH: return (double)MIP_CUT_DEPTH;
     case JM_DEF_NODE_CUT_CAP: return (double)MIP_NODE_CUT_CAP;
     case JM_DEF_COVER_ROUNDS: return (double)MIP_COVER_ROUNDS;
+    case JM_DEF_CLIQUE_ROUNDS: return (double)MIP_CLIQUE_ROUNDS;
     case JM_DEF_CUT_STALL: return MIP_CUT_STALL;
     case JM_DEF_NODE_CUT_STALL: return MIP_NODE_CUT_STALL;
     case JM_DEF_ROOT_CUT_DROP: return MIP_ROOT_CUT_DROP ? 1.0 : 0.0;
@@ -1122,6 +1126,196 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
             added++;
         }
     }
+    return added;
+}
+
+typedef struct {
+    int64_t a, b;
+} lpair;
+
+static int lpair_cmp(const void *pa, const void *pb)
+{
+    const lpair *p = pa, *q = pb;
+    if (p->a != q->a)
+        return p->a < q->a ? -1 : 1;
+    return p->b < q->b ? -1 : p->b > q->b;
+}
+
+static bool lpair_adjacent(const lpair *e, int64_t ne, int64_t u, int64_t v)
+{
+    if (u == v)
+        return false;
+    const lpair key = {u < v ? u : v, u < v ? v : u};
+    int64_t lo = 0, hi = ne;
+    while (lo < hi) {
+        const int64_t mid = lo + (hi - lo) / 2;
+        const int c = lpair_cmp(&e[mid], &key);
+        if (c == 0)
+            return true;
+        if (c < 0)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return false;
+}
+
+typedef struct {
+    int64_t lit;
+    double v;
+} litval;
+
+static int litval_cmp(const void *pa, const void *pb)
+{
+    const litval *p = pa, *q = pb;
+    if (p->v > q->v) return -1;
+    if (p->v < q->v) return 1;
+    return p->lit < q->lit ? -1 : p->lit > q->lit;
+}
+
+static int64_t clique_round(const jaos_model *m, jaos_model *lp,
+                            const double *x, const double *ilo,
+                            const double *ihi, cutbuf *cb, kitem *items,
+                            double *cut, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double tol = jm_primal_tolerance(m);
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    lpair *edges = nullptr;
+    int64_t ne = 0, ecap = 0;
+    int64_t added = -1;
+    *work += m->num_nz + nc + nr;
+    for (int64_t i = 0; i < nr; i++) {
+        bool binary = true;
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && binary; k++) {
+            const int64_t j = lp->ar_index[k];
+            binary = m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0;
+        }
+        if (!binary)
+            continue;
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            double b = sg * bound;
+            int64_t n = 0;
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+                const int64_t j = lp->ar_index[k];
+                const double a = sg * lp->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                if (a > 0.0) {
+                    items[n] = (kitem){ .col = j, .a = a, .xv = x[j], .compl = false };
+                } else {
+                    items[n] = (kitem){ .col = j, .a = -a, .xv = 1.0 - x[j],
+                                        .compl = true };
+                    b += -a;
+                }
+                n++;
+            }
+            if (n < 2 || !(b >= 0.0))
+                continue;
+            qsort(items, (size_t)n, sizeof *items, kitem_weight_cmp);
+            if (n > MIP_CLIQUE_ROW_CAP)
+                n = MIP_CLIQUE_ROW_CAP;
+            const double over = b + tol * (1.0 + fabs(b));
+            for (int64_t p = 0; p < n; p++)
+                for (int64_t q = p + 1; q < n; q++) {
+                    if (!(items[p].a + items[q].a > over))
+                        break;
+                    if (items[p].col == items[q].col)
+                        continue;
+                    const int64_t lu = 2 * items[p].col + (items[p].compl ? 1 : 0);
+                    const int64_t lv = 2 * items[q].col + (items[q].compl ? 1 : 0);
+                    if (!JM_GROW(edges, ecap, ne + 1))
+                        goto out;
+                    edges[ne].a = lu < lv ? lu : lv;
+                    edges[ne].b = lu < lv ? lv : lu;
+                    ne++;
+                }
+        }
+    }
+    added = 0;
+    if (ne == 0)
+        goto out;
+    qsort(edges, (size_t)ne, sizeof *edges, lpair_cmp);
+    {
+        int64_t w = 0;
+        for (int64_t k = 0; k < ne; k++)
+            if (w == 0 || lpair_cmp(&edges[w - 1], &edges[k]) != 0)
+                edges[w++] = edges[k];
+        ne = w;
+    }
+    *work += 2 * ne;
+
+    litval *lits = malloc((size_t)(2 * ne) * sizeof *lits);
+    bool *used = calloc((size_t)(2 * nc), sizeof *used);
+    int64_t *members = malloc((size_t)(2 * nc) * sizeof *members);
+    if (lits == nullptr || used == nullptr || members == nullptr) {
+        free(lits); free(used); free(members);
+        added = -1;
+        goto out;
+    }
+    int64_t nl = 0;
+    for (int64_t k = 0; k < ne; k++) {
+        lits[nl++].lit = edges[k].a;
+        lits[nl++].lit = edges[k].b;
+    }
+    for (int64_t k = 0; k < nl; k++) {
+        const int64_t j = lits[k].lit / 2;
+        lits[k].v = lits[k].lit % 2 ? 1.0 - x[j] : x[j];
+    }
+    qsort(lits, (size_t)nl, sizeof *lits, litval_cmp);
+    {
+        int64_t w = 0;
+        for (int64_t k = 0; k < nl; k++)
+            if (w == 0 || lits[w - 1].lit != lits[k].lit)
+                lits[w++] = lits[k];
+        nl = w;
+    }
+    for (int64_t s = 0; s < nl; s++) {
+        if (used[lits[s].lit] || !(lits[s].v > tol))
+            continue;
+        int64_t nm = 0;
+        members[nm++] = lits[s].lit;
+        double sum = lits[s].v;
+        for (int64_t t = 0; t < nl; t++) {
+            if (t == s || used[lits[t].lit])
+                continue;
+            const int64_t v = lits[t].lit;
+            bool ok = true;
+            for (int64_t q = 0; q < nm && ok; q++)
+                ok = members[q] / 2 != v / 2 &&
+                     lpair_adjacent(edges, ne, members[q], v);
+            if (!ok)
+                continue;
+            members[nm++] = v;
+            sum += lits[t].v;
+        }
+        *work += nm * nm;
+        if (nm < 2 || !(sum > 1.0 + tol))
+            continue;
+        memset(cut, 0, (size_t)nc * sizeof *cut);
+        int64_t ncompl = 0;
+        for (int64_t q = 0; q < nm; q++) {
+            const int64_t j = members[q] / 2;
+            const bool compl = members[q] % 2 == 1;
+            cut[j] = compl ? 1.0 : -1.0;
+            ncompl += compl;
+            used[members[q]] = true;
+        }
+        if (!cutbuf_push(cb, cut, nc, (double)ncompl - 1.0,
+                         (sum - 1.0) / sqrt((double)nm))) {
+            added = -1;
+            break;
+        }
+        added++;
+    }
+    free(lits); free(used); free(members);
+out:
+    free(edges);
     return added;
 }
 
@@ -1961,11 +2155,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                      : MIP_CUT_ROUNDS;
     const int64_t cover_rounds = m->cfg.mip_cover_rounds_set
         ? m->cfg.mip_cover_rounds : MIP_COVER_ROUNDS;
+    const int64_t clique_rounds = m->cfg.mip_clique_rounds_set
+        ? m->cfg.mip_clique_rounds : MIP_CLIQUE_ROUNDS;
     const int64_t mir_rounds = m->cfg.mip_mir_rounds_set ? m->cfg.mip_mir_rounds
                                                          : MIP_MIR_ROUNDS;
     int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
     if (mir_rounds > root_rounds)
         root_rounds = mir_rounds;
+    if (clique_rounds > root_rounds)
+        root_rounds = clique_rounds;
     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
@@ -2055,6 +2253,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     double rins_key = 0.0;
     bool rins_seen = false;
     int64_t covers = 0;
+    int64_t cliques = 0;
     kitem *items = nullptr;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
@@ -2313,8 +2512,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
             if (cut == nullptr)
                 goto done;
-            if (cover_rounds > 0 && items == nullptr)
+            if ((cover_rounds > 0 || clique_rounds > 0) && items == nullptr)
                 items = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *items);
+            if (clique_rounds > 0 && items == nullptr)
+                goto done;
             if (cover_rounds > 0 && mu == nullptr)
                 mu = malloc((size_t)(nc + 1) * sizeof *mu);
             if (cover_rounds > 0 && (items == nullptr || mu == nullptr))
@@ -2354,6 +2555,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                         goto done;
                     covers += cv;
                     got += cv;
+                }
+                if (r < clique_rounds) {
+                    const int64_t qv = clique_round(m, lp, x, ilo, ihi, &cb,
+                                                    items, cut, &work);
+                    if (qv < 0)
+                        goto done;
+                    cliques += qv;
+                    got += qv;
                 }
                 if (r < mir_rounds) {
                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
@@ -2434,8 +2643,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nfixed = root_cut_drop ? nr : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
                    "root: relaxation %.17g after %lld cuts, %lld of them "
-                   "covers and %lld MIR",
-                   obj, (long long)cuts, (long long)covers, (long long)mirs);
+                   "covers, %lld cliques and %lld MIR",
+                   obj, (long long)cuts, (long long)covers,
+                   (long long)cliques, (long long)mirs);
         }
 
         if (nodes == 1 && m->mip_start != nullptr) {
