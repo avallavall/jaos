@@ -335,6 +335,17 @@ expect_exit 0 "every one of the three off still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --propagate 0 --no-rcfix --no-pump-always
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "propagate off: $(line_of objective)"
+expect_exit 0 "--no-tighten still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-tighten
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-tighten: $(line_of objective)"
+expect_exit 0 "--tighten is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --tighten
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "tighten: $(line_of objective)"
+"$JAOS" options | grep -q '^mip_tighten ' \
+    && pass "jaos options lists mip_tighten" \
+    || flunk "jaos options does not list mip_tighten"
 expect_exit 0 "propagation at the root alone still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4 --propagate-depth 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

@@ -31,7 +31,7 @@ enum opt_id {
     O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_MIR_AGGREGATE,
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
-    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_PROPAGATE,
+    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_PROPAGATE,
     O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS,
     O_COUNT
 };
@@ -74,6 +74,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_PUMP_OBJ] = {"mip_pump_obj", OPT_DOUBLE, nullptr, 0},
     [O_PUMP_ALWAYS] = {"mip_pump_always", OPT_BOOL, nullptr, 0},
     [O_RCFIX] = {"mip_rcfix", OPT_BOOL, nullptr, 0},
+    [O_TIGHTEN] = {"mip_tighten", OPT_BOOL, nullptr, 0},
     [O_PROPAGATE] = {"mip_propagate", OPT_INT, nullptr, 0},
     [O_PROPAGATE_DEPTH] = {"mip_propagate_depth", OPT_INT, nullptr, 0},
     [O_HEURISTICS] = {"mip_heuristics", OPT_BOOL, nullptr, 0},
@@ -221,6 +222,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_PUMP_OBJ: return jaos_set_mip_pump_obj(m, x);
     case O_PUMP_ALWAYS: return jaos_set_mip_pump_always(m, b);
     case O_RCFIX: return jaos_set_mip_rcfix(m, b);
+    case O_TIGHTEN: return jaos_set_mip_tighten(m, b);
     case O_PROPAGATE: return jaos_set_mip_propagate(m, i);
     case O_PROPAGATE_DEPTH: return jaos_set_mip_propagate_depth(m, i);
     case O_HEURISTICS: return jaos_set_mip_heuristics(m, b == 1);
@@ -288,6 +290,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_PUMP_OBJ: x = eff(c->mip_pump_obj_set, c->mip_pump_obj, JM_DEF_PUMP_OBJ); break;
     case O_PUMP_ALWAYS: b = eff(c->mip_pump_always_set, c->mip_pump_always ? 1.0 : 0.0, JM_DEF_PUMP_ALWAYS) != 0.0; break;
     case O_RCFIX: b = eff(c->mip_rcfix_set, c->mip_rcfix ? 1.0 : 0.0, JM_DEF_RCFIX) != 0.0; break;
+    case O_TIGHTEN: b = eff(c->mip_tighten_set, c->mip_tighten ? 1.0 : 0.0, JM_DEF_TIGHTEN) != 0.0; break;
     case O_PROPAGATE: i = (int64_t)eff(c->mip_propagate_set, (double)c->mip_propagate, JM_DEF_PROPAGATE); break;
     case O_PROPAGATE_DEPTH: i = (int64_t)eff(c->mip_propagate_depth_set, (double)c->mip_propagate_depth, JM_DEF_PROPAGATE_DEPTH); break;
     case O_HEURISTICS: b = !c->mip_no_heuristics; break;

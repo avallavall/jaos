@@ -31,6 +31,7 @@ static jaos_model *knapsack(void)
                      3, as, ai, av));
     for (int64_t j = 0; j < 3; j++)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
     return m;
 }
 
@@ -1923,6 +1924,7 @@ static jaos_model *cycling_pair(void)
                      2, as, ai, av));
     for (int64_t j = 0; j < 2; j++)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
     return m;
 }
 
@@ -2350,6 +2352,64 @@ static void test_an_indicator_row_holds_only_while_its_column_says_so(void)
 #endif
 }
 
+static void test_coefficient_tightening_is_a_switch(void)
+{
+    jaos_model *m = knapsack();
+    TEST_ASSERT_TRUE(m->cfg.mip_tighten_set);
+    TEST_ASSERT_FALSE(m->cfg.mip_tighten);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 1));
+    TEST_ASSERT_TRUE(m->cfg.mip_tighten);
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, obj);
+    TEST_ASSERT_NOT_NULL(strstr(g_log,
+        "coefficient tightening: 2 coefficients on 1 rows"));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_tighten_set);
+    jaos_model_free(m);
+}
+
+static void test_coefficient_tightening_closes_a_loose_binary_row(void)
+{
+    const double c[2] = {-1.0, -1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {1.0, 1.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {4.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {5.0, 3.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+    TEST_ASSERT_NOT_NULL(strstr(g_log,
+        "coefficient tightening: 1 coefficients on 1 rows"));
+
+    double x[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[1]);
+    jaos_model_free(m);
+}
+
 static void test_clique_cuts_close_a_pairwise_conflict_at_the_root(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -2548,5 +2608,7 @@ int main(void)
     RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
     RUN_TEST(test_an_indicator_row_holds_only_while_its_column_says_so);
     RUN_TEST(test_clique_cuts_close_a_pairwise_conflict_at_the_root);
+    RUN_TEST(test_coefficient_tightening_closes_a_loose_binary_row);
+    RUN_TEST(test_coefficient_tightening_is_a_switch);
     return UNITY_END();
 }

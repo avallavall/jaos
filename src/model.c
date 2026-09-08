@@ -1433,6 +1433,15 @@ jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_tighten(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_tighten_set = on >= 0;
+    m->cfg.mip_tighten = on > 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)
 {
     if (m == nullptr)

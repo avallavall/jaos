@@ -65,6 +65,7 @@ constexpr double MIP_PUMP_OBJ = 0.5;
 constexpr bool MIP_PUMP_ALWAYS = false;
 
 constexpr bool MIP_RCFIX = false;
+constexpr bool MIP_TIGHTEN = true;
 
 constexpr double MIP_RCFIX_SLACK = 1e-6;
 
@@ -73,6 +74,7 @@ constexpr int64_t MIP_PROPAGATE = 0;
 constexpr int64_t MIP_PROPAGATE_DEPTH = -1;
 
 constexpr double MIP_PROP_SLACK = 1e-9;
+constexpr double MIP_TIGHTEN_MIN = 1e-9;
 
 constexpr double MIP_PROP_INFEAS = 1e-7;
 
@@ -626,6 +628,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PUMP_OBJ: return MIP_PUMP_OBJ;
     case JM_DEF_PUMP_ALWAYS: return MIP_PUMP_ALWAYS ? 1.0 : 0.0;
     case JM_DEF_RCFIX: return MIP_RCFIX ? 1.0 : 0.0;
+    case JM_DEF_TIGHTEN: return MIP_TIGHTEN ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -1169,6 +1172,108 @@ static int litval_cmp(const void *pa, const void *pb)
     if (p->v > q->v) return -1;
     if (p->v < q->v) return 1;
     return p->lit < q->lit ? -1 : p->lit > q->lit;
+}
+
+static void set_coefficient(jaos_model *lp, int64_t i, int64_t j,
+                            int64_t p, double value, int64_t *cost)
+{
+    lp->ar_value[p] = value;
+    for (int64_t k = lp->a_start[j]; k < lp->a_start[j + 1]; k++) {
+        if (lp->a_index[k] == i) {
+            lp->a_value[k] = value;
+            break;
+        }
+    }
+    *cost += lp->a_start[j + 1] - lp->a_start[j];
+}
+
+static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
+                                    const double *ilo, const double *ihi,
+                                    int64_t *rows_touched, int64_t *work)
+{
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return 0;
+    int64_t tightened = 0, cost = 0;
+    *rows_touched = 0;
+    for (int64_t i = 0; i < lp->num_row; i++) {
+        double rl = lp->row_lower[i], ru = lp->row_upper[i];
+        const bool le = isfinite(ru) && !isfinite(rl);
+        const bool ge = isfinite(rl) && !isfinite(ru);
+        if (!le && !ge)
+            continue;
+        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
+        double umax = 0.0, umin = 0.0;
+        int64_t inf_max = 0, inf_min = 0;
+        for (int64_t p = p0; p < p1; p++) {
+            const int64_t j = lp->ar_index[p];
+            const double a = lp->ar_value[p];
+            const double hi = a > 0.0 ? ihi[j] : ilo[j];
+            const double lo = a > 0.0 ? ilo[j] : ihi[j];
+            if (isfinite(hi))
+                umax += a * hi;
+            else
+                inf_max++;
+            if (isfinite(lo))
+                umin += a * lo;
+            else
+                inf_min++;
+        }
+        cost += p1 - p0;
+        bool touched = false;
+        for (int64_t p = p0; p < p1; p++) {
+            const int64_t j = lp->ar_index[p];
+            const double a = lp->ar_value[p];
+            if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0 ||
+                a == 0.0)
+                continue;
+            if (le) {
+                if (inf_max > 0)
+                    continue;
+                const double without = umax - (a > 0.0 ? a : 0.0);
+                const double d = ru - without;
+                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(ru))))
+                    continue;
+                if (a > 0.0 && a > d) {
+                    set_coefficient(lp, i, j, p, a - d, &cost);
+                    ru -= d;
+                    umax -= d;
+                    touched = true;
+                    tightened++;
+                } else if (a < 0.0 && -a > d) {
+                    set_coefficient(lp, i, j, p, a + d, &cost);
+                    umin += d;
+                    touched = true;
+                    tightened++;
+                }
+            } else {
+                if (inf_min > 0)
+                    continue;
+                const double without = umin - (a < 0.0 ? a : 0.0);
+                const double d = without - rl;
+                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(rl))))
+                    continue;
+                if (a < 0.0 && -a > d) {
+                    set_coefficient(lp, i, j, p, a + d, &cost);
+                    rl += d;
+                    umin += d;
+                    touched = true;
+                    tightened++;
+                } else if (a > 0.0 && a > d) {
+                    set_coefficient(lp, i, j, p, a - d, &cost);
+                    umax -= d;
+                    touched = true;
+                    tightened++;
+                }
+            }
+        }
+        if (touched) {
+            lp->row_lower[i] = rl;
+            lp->row_upper[i] = ru;
+            (*rows_touched)++;
+        }
+    }
+    *work += cost;
+    return tightened;
 }
 
 static int64_t clique_round(const jaos_model *m, jaos_model *lp,
@@ -2184,6 +2289,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const bool pump_always = m->cfg.mip_pump_always_set
         ? m->cfg.mip_pump_always : MIP_PUMP_ALWAYS;
     const bool rcfix = m->cfg.mip_rcfix_set ? m->cfg.mip_rcfix : MIP_RCFIX;
+    const bool tighten = m->cfg.mip_tighten_set ? m->cfg.mip_tighten
+                                                : MIP_TIGHTEN;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -2338,6 +2445,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             ilo[j] = 0.0;
         else if (m->col_integer[j] && ilo[j] > ihi[j])
             outcome = JAOS_SOLVE_INFEASIBLE;
+    }
+    if (tighten && outcome == JAOS_SOLVE_NOT_RUN) {
+        int64_t rows_tightened = 0;
+        const int64_t tightened =
+            tighten_coefficients(m, lp, ilo, ihi, &rows_tightened, &work);
+        if (tightened > 0)
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "coefficient tightening: %lld coefficients on %lld rows",
+                   (long long)tightened, (long long)rows_tightened);
     }
     if (jm_logging_at(m, JAOS_LOG_SUMMARY)) {
         int64_t nint = 0;

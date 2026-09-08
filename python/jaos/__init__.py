@@ -549,6 +549,7 @@ _sig("jaos_set_mip_pump_general", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_pump_obj", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_pump_always", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1258,6 +1259,16 @@ class Model:
         restores it.
         """
         self._check(_lib.jaos_set_mip_rcfix(self._handle(), int(on)))
+
+    def set_mip_tighten(self, on):
+        """Coefficient tightening at the root.
+
+        A binary column whose coefficient in a one-sided row can never
+        make the row tight has that coefficient shrunk, and the bound with
+        it, so the relaxation loses nothing integral and gains a tighter
+        face. On by default; a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_tighten(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -2978,6 +2989,12 @@ class Problem:
         """Reduced-cost fixing of integer bounds at the root (D323); on by
         default, negative restores it."""
         self._m.set_mip_rcfix(on)
+        return self
+
+    def set_mip_tighten(self, on):
+        """Coefficient tightening of binary columns in one-sided rows at
+        the root; on by default, negative restores it."""
+        self._m.set_mip_tighten(on)
         return self
 
     def set_mip_propagate(self, rounds):

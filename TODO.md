@@ -18,3 +18,8 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    of the weight update itself on the dense ones; bound perturbation was
    refused (`bench/refusals.txt`). The row in SPECS stays partial until
    the count is zero.
+3. **MIP presolve, the rest: probing and a clique table.** Coefficient
+   tightening landed on 02-31 (`--tighten`, 0.9999x on the MIP set, fires
+   on 2 of 24). Probing fixes binaries whose one setting makes the model
+   infeasible and a clique table feeds the clique cuts from the model's
+   rows; each measured on the MIP set against the tree without it.
