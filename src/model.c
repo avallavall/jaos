@@ -149,8 +149,8 @@ static jaos_status name_out(jaos_model *m, const char *name, char *buf,
 {
     const size_t len = strlen(name);
     if (buf == nullptr || cap <= 0 || (size_t)cap <= len) {
-        jm_set_err(m, "the name '%s' needs %zu bytes and the buffer holds "
-                   "%lld", name, len + 1, (long long)cap);
+        jm_set_err(m, "the name '%s' needs %lld bytes and the buffer holds "
+                   "%lld", name, (long long)(len + 1), (long long)cap);
         return JAOS_ERR_INVALID_INPUT;
     }
     memcpy(buf, name, len + 1);

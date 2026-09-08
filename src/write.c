@@ -1,12 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -48,8 +47,7 @@ typedef struct {
     jaos_status st;
 
     bool gz;
-    char *gz_buf;
-    size_t gz_len;
+    jm_memstream ms;
 } wr;
 
 static bool path_is_gz(const char *path)
@@ -69,52 +67,40 @@ static void wr_fail(wr *w, jaos_status st, const char *fmt, ...)
     va_end(ap);
 }
 
-static bool wr_open(wr *w, const char *path, locale_t *prev, locale_t *cloc)
+static bool wr_open(wr *w, const char *path, jm_locale *loc)
 {
-    *cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-    if (*cloc == (locale_t)0) {
+    if (!jm_locale_c_enter(loc)) {
         wr_fail(w, JAOS_ERR_IO,
                 "cannot install the C locale needed to write '%s'", path);
         return false;
     }
-    *prev = uselocale(*cloc);
-    if (*prev == (locale_t)0) {
-        freelocale(*cloc);
-        *cloc = (locale_t)0;
-        wr_fail(w, JAOS_ERR_IO,
-                "cannot switch to the C locale needed to write '%s'", path);
-        return false;
-    }
 
     w->gz = path_is_gz(path);
-    w->f = w->gz ? open_memstream(&w->gz_buf, &w->gz_len) : fopen(path, "w");
+    if (w->gz)
+        w->f = jm_memstream_open(&w->ms) ? w->ms.f : nullptr;
+    else
+        w->f = fopen(path, "w");
     if (w->f == nullptr) {
-        uselocale(*prev);
-        freelocale(*cloc);
-        *cloc = (locale_t)0;
+        jm_locale_leave(loc);
         wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
         return false;
     }
     return true;
 }
 
-static jaos_status wr_close(wr *w, const char *path, locale_t prev,
-                            locale_t cloc)
+static jaos_status wr_close(wr *w, const char *path, jm_locale *loc)
 {
     if (ferror(w->f))
         wr_fail(w, JAOS_ERR_IO, "writing '%s' failed", path);
-    if (fclose(w->f) != 0)
+    if (w->gz ? !jm_memstream_close(&w->ms) : fclose(w->f) != 0)
         wr_fail(w, JAOS_ERR_IO, "closing '%s' failed", path);
-    if (cloc) {
-        uselocale(prev);
-        freelocale(cloc);
-    }
+    jm_locale_leave(loc);
 
     if (w->gz && w->st == JAOS_OK) {
         char *packed = nullptr;
         int64_t packed_n = 0;
-        if (!jm_gzip(w->gz_buf != nullptr ? w->gz_buf : "",
-                     (int64_t)w->gz_len, &packed, &packed_n)) {
+        if (!jm_gzip(w->ms.buf != nullptr ? w->ms.buf : "",
+                     (int64_t)w->ms.len, &packed, &packed_n)) {
             wr_fail(w, JAOS_ERR_OUT_OF_MEMORY,
                     "out of memory compressing '%s'", path);
         } else {
@@ -132,8 +118,8 @@ static jaos_status wr_close(wr *w, const char *path, locale_t prev,
             free(packed);
         }
     }
-    free(w->gz_buf);
-    w->gz_buf = nullptr;
+    free(w->ms.buf);
+    w->ms.buf = nullptr;
 
     if (w->st != JAOS_OK)
         remove(path);
@@ -291,8 +277,8 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
                                                           : "a row");
     }
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+    jm_locale loc = {0};
+    if (w->st != JAOS_OK || !wr_open(w, path, &loc)) {
         free(type);
         free(rhs);
         free(rng);
@@ -453,7 +439,7 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
     free(type);
     free(rhs);
     free(rng);
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 constexpr int LP_WRAP = 72;
@@ -537,8 +523,8 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
                     i < 0 ? jm_obj_name(m) : rn);
     }
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc))
+    jm_locale loc = {0};
+    if (w->st != JAOS_OK || !wr_open(w, path, &loc))
         return w->st;
 
     {
@@ -669,7 +655,7 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
         fprintf(w->f, "End\n");
     }
 
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 static const char *basis_word(jaos_basis_status s)
@@ -763,8 +749,8 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     if (w->st != JAOS_OK)
         return w->st;
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (!wr_open(w, path, &prev, &cloc))
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc))
         return w->st;
 
     fprintf(w->f, "# JAOS solution file, format 1\n");
@@ -827,7 +813,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     }
 
     fprintf(w->f, "end\n");
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 static bool basis_of_word(const char *w, jaos_basis_status *out)
@@ -882,8 +868,8 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
         return JAOS_ERR_IO;
     }
 
-    locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-    locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+    jm_locale loc;
+    jm_locale_c_enter(&loc);
 
     jaos_status st = JAOS_OK;
     char *line = nullptr;
@@ -898,7 +884,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
 #define RD_FAIL(...)  do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (getline(&line, &lsz, f) >= 0) {
+    while (jm_getline(&line, &lsz, f) >= 0) {
         lno++;
         if (ended)
             RD_FAIL("line %" PRId64 ": content after 'end'", lno);
@@ -1140,10 +1126,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
 done:
     free(line);
     fclose(f);
-    if (cloc) {
-        uselocale(prev ? prev : LC_GLOBAL_LOCALE);
-        freelocale(cloc);
-    }
+    jm_locale_leave(&loc);
     return st;
 }
 
@@ -1272,8 +1255,8 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
     if (w->st == JAOS_OK)
         basis_names_unique(w);
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+    jm_locale loc = {0};
+    if (w->st != JAOS_OK || !wr_open(w, path, &loc)) {
         free(cs);
         free(rs);
         return w->st;
@@ -1308,7 +1291,7 @@ jaos_status jaos_write_mps_basis(jaos_model *m, const char *path)
 
     free(cs);
     free(rs);
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 static jaos_basis_status nonbasic_at_lower(double lo, double up)
@@ -1355,7 +1338,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
 #define BAS_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (getline(&line, &lsz, f) >= 0) {
+    while (jm_getline(&line, &lsz, f) >= 0) {
         lno++;
         if (ended)
             BAS_FAIL("line %" PRId64 ": content after 'ENDATA'", lno);
@@ -1481,7 +1464,7 @@ static enum pt_shape sniff_shape(FILE *f)
     char *line = nullptr;
     size_t lsz = 0;
     bool first = true;
-    while (getline(&line, &lsz, f) >= 0) {
+    while (jm_getline(&line, &lsz, f) >= 0) {
         if (starts_with(line, "<?xml") || strstr(line, "<CPLEXSolution") != nullptr) {
             shape = PT_CPLEX;
             break;
@@ -1535,8 +1518,8 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
         return JAOS_ERR_IO;
     }
 
-    locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-    locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+    jm_locale loc;
+    jm_locale_c_enter(&loc);
 
     jaos_status st = JAOS_OK;
     char *line = nullptr;
@@ -1560,7 +1543,7 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
 #define PT_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (getline(&line, &lsz, f) >= 0) {
+    while (jm_getline(&line, &lsz, f) >= 0) {
         lno++;
         char name[NAME_LEN], numtxt[64];
         const char *nm = nullptr, *val = nullptr;
@@ -1660,10 +1643,7 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
 done:
     free(line);
     free(got);
-    if (cloc) {
-        uselocale(prev);
-        freelocale(cloc);
-    }
+    jm_locale_leave(&loc);
     fclose(f);
     return st;
 }
@@ -1724,8 +1704,8 @@ jaos_status jaos_write_point_values(jaos_model *m, const char *path,
         }
     }
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+    jm_locale loc = {0};
+    if (w->st != JAOS_OK || !wr_open(w, path, &loc)) {
         free(x);
         return w->st;
     }
@@ -1741,7 +1721,7 @@ jaos_status jaos_write_point_values(jaos_model *m, const char *path,
     }
 
     free(x);
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 jaos_status jaos_write_point(jaos_model *m, const char *path)
@@ -1802,8 +1782,8 @@ jaos_status jaos_write_dual_values(jaos_model *m, const char *path,
         }
     }
 
-    locale_t prev = (locale_t)0, cloc = (locale_t)0;
-    if (w->st != JAOS_OK || !wr_open(w, path, &prev, &cloc)) {
+    jm_locale loc = {0};
+    if (w->st != JAOS_OK || !wr_open(w, path, &loc)) {
         free(y);
         return w->st;
     }
@@ -1819,7 +1799,7 @@ jaos_status jaos_write_dual_values(jaos_model *m, const char *path,
     }
 
     free(y);
-    return wr_close(w, path, prev, cloc);
+    return wr_close(w, path, &loc);
 }
 
 jaos_status jaos_write_duals(jaos_model *m, const char *path)

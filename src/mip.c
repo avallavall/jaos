@@ -1,14 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 constexpr double MIP_INT_TOL = 1e-6;
 
@@ -451,9 +450,7 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
 
 static double now_seconds(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
+    return jm_monotonic_seconds();
 }
 
 typedef struct {
@@ -507,6 +504,7 @@ static bool republish_at_the_incumbent(jaos_model *m, const double *point,
     bool ok = false;
     if (jaos_model_copy(m, &fin) != JAOS_OK)
         return false;
+    fin->cfg.node_solve = true;
 
     free(fin->col_integer);
     fin->col_integer = nullptr;
@@ -2294,6 +2292,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         goto done;
     if (jaos_model_copy(m, &lp) != JAOS_OK)
         goto done;
+    lp->cfg.node_solve = true;
     free(lp->col_integer);
     lp->col_integer = nullptr;
     free(lp->col_semi);

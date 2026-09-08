@@ -2,7 +2,7 @@
 #include "jaos_internal.h"
 
 #include <math.h>
-#include <stdckdint.h>
+#include "jaos_sys.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

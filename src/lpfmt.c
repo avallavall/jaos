@@ -1,16 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <ctype.h>
 #include <inttypes.h>
-#include <locale.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 constexpr int NAME_MAX_LEN = 255;
 
@@ -217,7 +215,7 @@ static void lx_push(lp *p, const token *back)
 
 static bool tok_is(const lp *p, const char *kw)
 {
-    return p->tok.t == T_NAME && strcasecmp(p->tok.text, kw) == 0;
+    return p->tok.t == T_NAME && jm_strcasecmp(p->tok.text, kw) == 0;
 }
 
 static bool is_reserved(const char *s)
@@ -231,7 +229,7 @@ static bool is_reserved(const char *s)
         "end", "free", "infinity", "inf",
     };
     for (size_t i = 0; i < sizeof kws / sizeof *kws; i++)
-        if (strcasecmp(s, kws[i]) == 0)
+        if (jm_strcasecmp(s, kws[i]) == 0)
             return true;
     return false;
 }
@@ -761,9 +759,9 @@ static jaos_status parse(lp *p)
                 FAIL("line %" PRId64 ": expected '::' after the SOS type",
                      fline);
             int type = 0;
-            if (strcasecmp(tybuf, "S1") == 0)
+            if (jm_strcasecmp(tybuf, "S1") == 0)
                 type = 1;
-            else if (strcasecmp(tybuf, "S2") == 0)
+            else if (jm_strcasecmp(tybuf, "S2") == 0)
                 type = 2;
             else
                 FAIL("line %" PRId64 ": an SOS set is S1 or S2, not '%s'",
@@ -910,13 +908,10 @@ jaos_status jaos_read_lp(jaos_model *m, const char *path)
         goto done;
 
     {
-        locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-        locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+        jm_locale loc;
+        jm_locale_c_enter(&loc);
         st = parse(p);
-        if (cloc) {
-            uselocale(prev);
-            freelocale(cloc);
-        }
+        jm_locale_leave(&loc);
     }
 
 done:

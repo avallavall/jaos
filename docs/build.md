@@ -54,6 +54,54 @@ Without that, the sweep measures one binary several times. The same trap
 applies to the test suite: `make configs` runs all five build configurations
 with `make clean` between them, and it is the only honest way to run them.
 
+## CMake
+
+`CMakeLists.txt` builds the same three artifacts with the same flags:
+`-std=c23 -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -g`, plus
+`-O3 -DNDEBUG` and LTO in Release. `JAOS_LTO=OFF` drops the LTO,
+`JAOS_BUILD_SHARED=OFF` and `JAOS_BUILD_CLI=OFF` drop the shared library
+and the tool, and `JAOS_BUILD_TESTS` (on when JAOS is the top-level project)
+adds the unit suite and `tests/cli.sh` to `ctest`. The suite is compiled
+from its own copy of the objects at `-Og` with `NDEBUG` undefined, exactly as
+the Makefile does, because `jaos_internal.h` lays out structures differently
+under `NDEBUG` and a test has to agree with the library it links.
+
+`cmake --install` puts the header, `libjaos.a`, `libjaos.so`, `jaos`,
+`jaos.pc` and `lib/cmake/jaos/` under the prefix. A consumer then writes
+`find_package(jaos REQUIRED)` and links `jaos::jaos` or `jaos::shared`;
+`jaos::cli` is the tool. `tests/cmake.sh` is what `make test` runs to check
+all of that against a staging root, and it skips itself when `cmake` is not
+installed.
+
+## Windows
+
+Every call the C standard does not provide sits behind one shim,
+`src/jaos_sys.h` and `src/sys.c`: `getline`, `fmemopen`, `open_memstream`,
+the per-thread C locale (`newlocale`, `uselocale`), `strcasecmp` and the
+monotonic clock. The POSIX half is what Linux builds; the Windows half uses
+`tmpfile`, `_configthreadlocale`, `_stricmp` and `QueryPerformanceCounter`.
+Nothing else in `src/` or `cli/` is platform-specific.
+
+The build is checked by cross-compiling from Linux: `cmake/mingw-w64.cmake`
+is the toolchain file, and `tests/windows.sh` (part of `make test`, skipped
+when `x86_64-w64-mingw32-gcc` is absent) configures with it, builds
+`libjaos.a`, `libjaos.dll` and `jaos.exe`. When wine is installed it also
+runs `jaos.exe` on five of the test models, an LP, a MIP, a gzip-compressed
+MPS, an LP-format file and an unbounded model, and on a gzip write, and
+requires every answer and every byte of output to equal the Linux build's.
+Install both with `apt install gcc-mingw-w64-x86-64 wine64`.
+
+```
+cmake -S . -B build/win -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DJAOS_BUILD_TESTS=OFF
+cmake --build build/win
+```
+
+MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
+`nullptr`, which its C front end does not accept. clang-cl should, since the
+shim compiles under `_WIN32` with no GCC-only call in it, but no machine with
+clang-cl has run it yet. The Python binding still looks for `libjaos.so`
+only.
+
 ## What stays in the shipping build
 
 `-g` stays. It costs nothing at run time, and a profiler needs it.

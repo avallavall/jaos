@@ -59,7 +59,7 @@ DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
 .PHONY: all test sanitize configs cli bench compare-build compare-solvers compare refusals \
-	install uninstall pkgconfig install-test \
+	install uninstall pkgconfig install-test cmake-test windows-test \
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
@@ -117,12 +117,18 @@ refusals:
 	@mkdir -p $(B)
 	@bash tools/refusals.sh
 
-test: $(DEV_TESTS) $(BENCH_TOOLS) $(CLI) install-test
+test: $(DEV_TESTS) $(BENCH_TOOLS) $(CLI) install-test cmake-test windows-test
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; \
 	echo "== tests/cli.sh"; JAOS_CLI_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/cli.sh $(CLI) || fail=1; exit $$fail
 
 install-test: $(LIB) $(SHLIB) $(CLI) $(B)/jaos.pc
 	@echo "== tests/install.sh"; bash tests/install.sh $(CC)
+
+cmake-test:
+	@echo "== tests/cmake.sh"; bash tests/cmake.sh $(CC)
+
+windows-test:
+	@echo "== tests/windows.sh"; bash tests/windows.sh
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos_internal.h"
 
-#include <stdckdint.h>
+#include "jaos_sys.h"
 #include <stdlib.h>
 #include <string.h>
 

@@ -1,15 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <inttypes.h>
-#include <locale.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 typedef enum { OPT_INT, OPT_DOUBLE, OPT_BOOL, OPT_ENUM } opt_kind;
 
@@ -99,21 +97,18 @@ static int find_option(const char *name)
     if (name == nullptr)
         return -1;
     for (int k = 0; k < O_COUNT; k++)
-        if (strcasecmp(OPTS[k].name, name) == 0)
+        if (jm_strcasecmp(OPTS[k].name, name) == 0)
             return k;
     return -1;
 }
 
 static bool parse_c_double(const char *s, double *out)
 {
-    locale_t cloc = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-    locale_t prev = cloc ? uselocale(cloc) : (locale_t)0;
+    jm_locale loc;
+    jm_locale_c_enter(&loc);
     char *end = nullptr;
     const double v = strtod(s, &end);
-    if (cloc) {
-        uselocale(prev);
-        freelocale(cloc);
-    }
+    jm_locale_leave(&loc);
     if (end == s || *end != '\0' || isnan(v))
         return false;
     *out = v;
@@ -135,9 +130,9 @@ static int parse_bool_word(const char *s)
     static const char *const yes[] = {"1", "true", "on", "yes"};
     static const char *const no[] = {"0", "false", "off", "no"};
     for (size_t k = 0; k < 4; k++) {
-        if (strcasecmp(s, yes[k]) == 0)
+        if (jm_strcasecmp(s, yes[k]) == 0)
             return 1;
-        if (strcasecmp(s, no[k]) == 0)
+        if (jm_strcasecmp(s, no[k]) == 0)
             return 0;
     }
     return -1;
@@ -180,7 +175,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
         break;
     case OPT_ENUM:
         for (int w = 0; w < d->nwords; w++)
-            if (strcasecmp(d->words[w], value) == 0)
+            if (jm_strcasecmp(d->words[w], value) == 0)
                 e = w;
         if (e < 0) {
             jm_set_err(m, "option %s does not take '%s'", d->name, value);
@@ -329,7 +324,7 @@ jaos_status jaos_read_options(jaos_model *m, const char *path)
     char *line = nullptr;
     size_t lsz = 0;
     int64_t lno = 0;
-    while (st == JAOS_OK && getline(&line, &lsz, f) >= 0) {
+    while (st == JAOS_OK && jm_getline(&line, &lsz, f) >= 0) {
         lno++;
         char *hash = strchr(line, '#');
         if (hash != nullptr)

@@ -1760,7 +1760,7 @@ static void test_the_basis_names_which_rows_hold_the_optimum(void)
                      5, as, ai, av));
     solve_and_verify(m, 4.5);
 
-    jaos_basis_status cs[2], rs[3];
+    jaos_basis_status cs[3], rs[3];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
 
     TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, cs[0]);
@@ -1912,6 +1912,32 @@ static void test_a_warm_re_solve_agrees_with_a_cold_one(void)
 
     jaos_model_free(warm);
     jaos_model_free(cold);
+}
+
+static void test_an_infeasible_model_warm_from_its_own_basis_answers_at_once(void)
+{
+    const double c[3]  = {0.0, 0.0, 0.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {10.0, 10.0, 10.0};
+    const double rl[3] = {3.0, -INFINITY, -INFINITY};
+    const double ru[3] = {INFINITY, 1.0, 1.0};
+    const int64_t as[4] = {0, 2, 4, 6}, ai[6] = {0, 1, 0, 2, 1, 2};
+    const double av[6]  = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
+
+    jaos_basis_status cs[3], rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    jaos_model_free(m);
 }
 
 static void test_a_basis_handed_in_must_be_a_basis(void)
@@ -3315,6 +3341,7 @@ int main(void)
     RUN_TEST(test_the_basis_is_refused_where_no_simplex_ran);
     RUN_TEST(test_re_solving_an_unchanged_model_costs_no_iterations);
     RUN_TEST(test_a_warm_re_solve_agrees_with_a_cold_one);
+    RUN_TEST(test_an_infeasible_model_warm_from_its_own_basis_answers_at_once);
     RUN_TEST(test_a_basis_handed_in_must_be_a_basis);
     RUN_TEST(test_the_primal_reaches_the_optimum_from_a_feasible_basis);
     RUN_TEST(test_the_primal_and_the_dual_agree_on_the_same_model);

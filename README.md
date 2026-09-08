@@ -90,7 +90,8 @@ p.solve()
 
 ## Build and test
 
-GCC 14 or later, Linux only.
+GCC 14 or later, Linux. The same sources cross-compile for Windows with
+mingw-w64 through the CMake package; see [`docs/build.md`](docs/build.md).
 
 ```
 make              # build/release/libjaos.a
@@ -118,6 +119,20 @@ make uninstall
 
 Installs the header, both library forms, the tool and a pkg-config file:
 `cc $(pkg-config --cflags jaos) prog.c $(pkg-config --libs jaos)`.
+
+The same build under CMake, for projects that consume it with
+`find_package`:
+
+```
+cmake -S . -B build/cmake -DCMAKE_C_COMPILER=gcc-14
+cmake --build build/cmake --parallel
+ctest --test-dir build/cmake
+cmake --install build/cmake --prefix $HOME/.local
+```
+
+That installs the same files plus a package config, so a consumer writes
+`find_package(jaos REQUIRED)` and links `jaos::jaos` (the archive),
+`jaos::shared` or runs `jaos::cli`.
 
 `make` builds with `-O3 -flto -g -DNDEBUG`. `make pgo` is worth about 1.1x on
 top and needs the fetched instances. [`docs/build.md`](docs/build.md).

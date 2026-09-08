@@ -137,8 +137,8 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | R, MATLAB | **missing** | |
 | Modelling-system links (JuMP, Pyomo, AMPL, GAMS) | **missing** | |
 | `make install` and pkg-config | **done** | |
-| CMake package | **missing** | |
-| Windows and macOS builds | **missing** | |
+| CMake package | **done** | `CMakeLists.txt` beside the Makefile: archive, shared library, tool, `ctest`, install with `jaosConfig.cmake` and `jaos.pc`; `tests/cmake.sh` checks a `find_package` consumer |
+| Windows and macOS builds | **partial** | the POSIX calls sit behind `src/jaos_sys.h`; Windows builds with mingw-w64, and `tests/windows.sh` runs `jaos.exe` under wine and requires the Linux build's answers byte for byte. Missing: a native Windows run, clang-cl, the Python binding finding `jaos.dll`, macOS |
 
 ## 9. Controlling a solve
 

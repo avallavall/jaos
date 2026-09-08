@@ -1,14 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-#define _POSIX_C_SOURCE 200809L
 
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 constexpr double PRIMAL_TOL    = 1e-7;
 constexpr double PIVOT_MIN     = 1e-9;
@@ -24,6 +23,11 @@ constexpr double LU_UPDATE_TOL = 1e-9;
 constexpr double DSE_MIN = 1e-12;
 
 constexpr double DSE_DRIFT = 10.0;
+
+#ifndef JAOS_DSE_GUESS_RESTARTS
+#define JAOS_DSE_GUESS_RESTARTS 64
+#endif
+constexpr int64_t DSE_GUESS_RESTARTS = JAOS_DSE_GUESS_RESTARTS;
 
 constexpr double DEVEX_RESET = 3.0;
 
@@ -160,13 +164,17 @@ typedef struct {
     double bst_dviol;
     bool bst_valid;
 
-    struct timespec started;
+    double started;
     int64_t iters;
     bool needs_refactor;
 
     bool verified;
 
     bool shift_pending;
+
+    bool dse_guess;
+    int64_t n_guess_restart;
+    bool dse_exact_pending;
 
     bool duals_dirty;
 
@@ -566,6 +574,9 @@ static bool build_warm_basis(sx *s)
 
     for (int64_t i = 0; i < s->nrow; i++)
         s->dse[i] = 1.0;
+    s->dse_guess = !m->cfg.node_solve && !m->cfg.force_primal;
+    s->n_guess_restart = 0;
+    s->dse_exact_pending = false;
 
     s->shift_pending = true;
     return true;
@@ -1388,6 +1399,35 @@ static void price_all(sx *s)
 #endif
 }
 
+static void exact_weights(sx *s)
+{
+    memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
+    for (int64_t i = 0; i < s->nrow; i++) {
+        s->rho[i] = 1.0;
+        int64_t nr = 0, words = 0;
+        jm_lu_btran_sparse(&s->lu, s->rho, &s->work, s->rpat, &nr);
+        double w = 0.0;
+        if (nr * SPARSE_RHO_DEN <= s->nrow) {
+            const int64_t np = jm_pattern_order(nr, s->rpat, s->rmark,
+                                                s->nrow, &words);
+            jm_work_add(&s->work, (nr + words + np) * JM_WORK_NONZERO);
+            for (int64_t k = 0; k < np; k++) {
+                const double v = s->rho[s->rpat[k]];
+                w += v * v;
+                s->rho[s->rpat[k]] = 0.0;
+            }
+        } else {
+            for (int64_t k = 0; k < s->nrow; k++) {
+                w += s->rho[k] * s->rho[k];
+                s->rho[k] = 0.0;
+            }
+            jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+        }
+        s->dse[i] = w > DSE_MIN ? w : DSE_MIN;
+    }
+    s->nrpat = -1;
+}
+
 static void build_pricing_row(sx *s, int64_t r)
 {
     memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
@@ -1592,8 +1632,13 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
 
     const bool sparse_col = s->ncpat >= 0;
     if (jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact, DSE_DRIFT,
-                      sparse_col ? s->cpat : nullptr, s->ncpat))
+                      sparse_col ? s->cpat : nullptr, s->ncpat)) {
         s->n_weight_restart++;
+        if (s->dse_guess && ++s->n_guess_restart >= DSE_GUESS_RESTARTS) {
+            s->dse_guess = false;
+            s->dse_exact_pending = true;
+        }
+    }
     jm_work_add(&s->work,
                 (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
 
@@ -2362,11 +2407,7 @@ static jaos_solve_status classify_optimum(sx *s)
 
 static double elapsed_seconds(const sx *s)
 {
-    struct timespec now;
-    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
-        return 0.0;
-    return (double)(now.tv_sec - s->started.tv_sec) +
-           1e-9 * (double)(now.tv_nsec - s->started.tv_nsec);
+    return jm_monotonic_seconds() - s->started;
 }
 
 static bool out_of_time(const sx *s)
@@ -3301,6 +3342,15 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             }
         }
 
+        if (s->dse_exact_pending) {
+            exact_weights(s);
+            s->dse_exact_pending = false;
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "iter %lld: the starting weights drifted %lld times; "
+                   "replaced by exact ones", (long long)s->iters,
+                   (long long)s->n_guess_restart);
+        }
+
         bool below = false;
         double violation = 0.0;
         int64_t r = price_row(s, &below, &violation);
@@ -3705,7 +3755,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     }
 
     s.work = pre_work;
-    clock_gettime(CLOCK_MONOTONIC, &s.started);
+    s.started = jm_monotonic_seconds();
 
     jm_log(m, JAOS_LOG_SUMMARY,
            "%s simplex: %lld rows, %lld columns, %lld nonzeros, "
@@ -3734,7 +3784,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                    target->err, (long long)s.iters, (long long)s.n_refactor,
                    (long long)s.n_bland, (long long)s.n_stability);
             const jm_work carried = s.work;
-            const struct timespec t0 = s.started;
+            const double t0 = s.started;
             sx_free(&s);
             st = sx_init(&s, target);
             if (st != JAOS_OK) {
@@ -3775,7 +3825,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                        (long long)s.n_weight_restart, (long long)s.n_bland,
                        (long long)s.n_stability);
                 const jm_work carried = s.work;
-                const struct timespec t0 = s.started;
+                const double t0 = s.started;
                 sx_free(&s);
                 st = sx_init(&s, target);
                 if (st != JAOS_OK) {
