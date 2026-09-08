@@ -1533,6 +1533,15 @@ jaos_status jaos_set_incumbent_callback(jaos_model *m, jaos_incumbent_fn cb,
     return JAOS_OK;
 }
 
+jaos_status jaos_set_node_callback(jaos_model *m, jaos_node_fn cb, void *user)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.node_cb = cb;
+    m->cfg.node_user = user;
+    return JAOS_OK;
+}
+
 jaos_solve_status jaos_status_of(const jaos_model *m)
 {
     return m ? m->solve_status : JAOS_SOLVE_NOT_RUN;

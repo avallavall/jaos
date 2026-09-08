@@ -187,7 +187,9 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   (`Semi`, `Semis`, `Semi-continuous`): names of variables that rest at zero
   or inside their bounds; the writer prints them under `Semi-continuous`.
 - **`Lazy Constraints` and `User Cuts`** sections read as ordinary
-  constraints; JAOS does not defer them. The writer prints every row under
+  constraints; JAOS does not defer rows read from a file. A lazy
+  constraint or a user cut deferred from code goes through the node
+  callback (`jaos_set_node_callback`). The writer prints every row under
   `Subject To`.
 - **Indicator constraints**: `name: z = 1 -> x + y <= 5`; the row holds
   only while the integer variable `z` equals the value, 0 or 1. The writer

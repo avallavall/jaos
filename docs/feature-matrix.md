@@ -26,7 +26,7 @@ are there for reference and their entries come from public documentation, not
 from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
 Gurobi and are left out only to keep the table readable.
 
-*JAOS's column was last checked against `src/` and `cli/` on 2026-09-07. The other
+*JAOS's column was last checked against `src/` and `cli/` on 2026-09-08. The other
 columns were last checked against their published documentation on
 2026-09-04, and that pass moved six cells — two of them corrections rather
 than news, because HiGHS's and SCIP's IIS both predate the previous check.
@@ -397,9 +397,17 @@ and Hexaly ship binaries rather than a build, which is what the `—` says.
 | Set primal and dual tolerances | ● | ● | ● | ● | ● | ● | ? |
 | Logging with verbosity levels | ● | ● | ● | ● | ● | ● | ● |
 | Progress callback that can stop the solve | ● | ● | ? | ● | ● | ● | ● |
-| Callbacks that steer the search | ○ | ◐ | ○ | ○ | ● | ● | ○ |
+| Callbacks that steer the search | ◐ | ◐ | ○ | ○ | ● | ● | ○ |
 | Choose the algorithm | ○ | ● | ● | ● | ● | ● | — |
 | Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ? |
+
+**The steering row reached ◐ on 2026-09-08.** One node callback
+(`jaos_set_node_callback`) sees every node's point once solved and cut,
+and every point a heuristic would make an incumbent; it adds rows that
+hold for every solution (user cuts, lazy constraints, the point rejected
+when a row cuts it) and names the column to branch on. What keeps it
+from ●: no way to hand the tree a solution from inside the callback, and
+no callback at the presolve or the LP.
 
 JAOS's "choose the algorithm" is ○ by decision, not by omission: D64 draws the
 line at what depends on the caller's data against what depends on the method,

@@ -461,6 +461,213 @@ static jaos_callback_action see_incumbent(const jaos_incumbent *inc, void *user)
     return s->answer;
 }
 
+
+typedef struct {
+    int calls, integral_calls, rejected;
+    int64_t steer_to, solver_choice;
+    int depth1_calls, depth1_integral;
+    jaos_callback_action answer;
+    jaos_status add_status;
+    bool bad_row;
+} node_seen;
+
+static jaos_callback_action lazy_pair(jaos_node *ev, void *user)
+{
+    node_seen *s = user;
+    s->calls++;
+    if (ev->integral) {
+        s->integral_calls++;
+        if (ev->col_value[0] + ev->col_value[1] > 1.5) {
+            const int64_t idx[2] = {0, 1};
+            const double val[2] = {1.0, 1.0};
+            s->add_status = jaos_node_add_row(ev, 2, idx, val, -INFINITY, 1.0);
+            s->rejected++;
+        }
+    }
+    return s->answer;
+}
+
+static void test_a_lazy_row_from_the_node_callback_rejects_the_point(void)
+{
+    const double c[3] = {-2.0, -2.0, -1.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {2.0};
+    const int64_t as[4] = {0, 1, 2, 3}, ai[3] = {0, 0, 0};
+    const double av[3] = {1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+    for (int64_t j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    node_seen seen = { .answer = JAOS_CALLBACK_CONTINUE, .add_status = JAOS_OK };
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_node_callback(nullptr, lazy_pair, &seen));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_node_callback(m, lazy_pair, &seen));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE(x[0] + x[1] <= 1.0 + 1e-9);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[2]);
+    TEST_ASSERT_TRUE(seen.calls >= 1);
+    TEST_ASSERT_TRUE(seen.integral_calls >= 1);
+    TEST_ASSERT_TRUE(seen.rejected >= 1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, seen.add_status);
+
+    seen.answer = JAOS_CALLBACK_STOP;
+    seen.calls = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, seen.calls);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_node_callback(m, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -4.0, obj);
+    jaos_model_free(m);
+}
+
+static jaos_callback_action cover_cut(jaos_node *ev, void *user)
+{
+    node_seen *s = user;
+    s->calls++;
+    if (ev->node == 1 && !ev->integral && !s->bad_row) {
+        const int64_t idx[3] = {0, 1, 2};
+        const double val[3] = {1.0, 1.0, 1.0};
+        s->add_status = jaos_node_add_row(ev, 3, idx, val, -INFINITY, 1.0);
+    }
+    if (s->bad_row) {
+        const int64_t idx[1] = {7};
+        const double val[1] = {1.0};
+        if (jaos_node_add_row(ev, 1, idx, val, 0.0, 1.0) != JAOS_ERR_INVALID_INPUT ||
+            jaos_node_add_row(ev, 1, idx, val, 2.0, 1.0) != JAOS_ERR_INVALID_INPUT ||
+            jaos_node_add_row(nullptr, 0, nullptr, nullptr, 0.0, 1.0) != JAOS_ERR_INVALID_INPUT)
+            return JAOS_CALLBACK_STOP;
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static jaos_model *cover_model(void)
+{
+    const double c[3] = {-3.0, -2.5, -2.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {3.0};
+    const int64_t as[4] = {0, 1, 2, 3}, ai[3] = {0, 0, 0};
+    const double av[3] = {2.0, 2.0, 2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     3, as, ai, av));
+    for (int64_t j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    return m;
+}
+
+static void test_a_user_cut_from_the_node_callback_closes_the_root(void)
+{
+    int64_t nodes[2] = {0, 0};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = cover_model();
+        node_seen seen = { .add_status = JAOS_OK };
+        if (on)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_node_callback(m, cover_cut, &seen));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[on] = rep.nodes;
+        if (on) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, seen.add_status);
+            TEST_ASSERT_TRUE(seen.calls >= 2);
+        }
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[0] > 1);
+    TEST_ASSERT_EQUAL_INT64(1, nodes[1]);
+
+    jaos_model *m = cover_model();
+    node_seen seen = { .bad_row = true };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_node_callback(m, cover_cut, &seen));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+static jaos_model *steer_model(void)
+{
+    const double c[3] = {-3.0, -1.0, -1.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+    const double rl[2] = {-INFINITY, -INFINITY}, ru[2] = {3.0, 3.0};
+    const int64_t as[4] = {0, 2, 3, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {2.0, 2.0, 2.0, 2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    for (int64_t j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    return m;
+}
+
+static jaos_callback_action steer_branch(jaos_node *ev, void *user)
+{
+    node_seen *s = user;
+    s->calls++;
+    if (ev->depth == 0 && !ev->integral) {
+        s->solver_choice = ev->branch_col;
+        s->steer_to = ev->branch_col == 1 ? 2 : 1;
+        ev->branch_col = s->steer_to;
+    }
+    if (ev->depth == 1) {
+        s->depth1_calls++;
+        const double v = ev->col_value[s->steer_to];
+        if (fabs(v - floor(v + 0.5)) <= 1e-9)
+            s->depth1_integral++;
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_the_node_callback_chooses_the_branching_column(void)
+{
+    jaos_model *m = steer_model();
+    node_seen seen = { .steer_to = -1, .solver_choice = -1 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_node_callback(m, steer_branch, &seen));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_TRUE(seen.solver_choice == 1 || seen.solver_choice == 2);
+    TEST_ASSERT_TRUE(seen.steer_to != seen.solver_choice);
+    TEST_ASSERT_TRUE(seen.depth1_calls >= 1);
+    TEST_ASSERT_EQUAL_INT(seen.depth1_calls, seen.depth1_integral);
+    jaos_model_free(m);
+}
+
 static jaos_model *neighbour_model(void)
 {
     const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
@@ -2720,6 +2927,9 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
+    RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
+    RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);
+    RUN_TEST(test_the_node_callback_chooses_the_branching_column);
     RUN_TEST(test_both_branching_rules_reach_the_same_optimum);
     RUN_TEST(test_a_fractional_bound_on_an_integer_column_is_rounded_inward);
     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);

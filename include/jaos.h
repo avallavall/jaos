@@ -438,6 +438,28 @@ JAOS_NODISCARD jaos_status jaos_set_incumbent_callback(jaos_model *m,
                                                        jaos_incumbent_fn cb,
                                                        void *user);
 
+typedef struct jaos_node {
+    int64_t node;
+    int64_t depth;
+    double  objective;
+    double  bound;
+    const double *col_value;
+    int64_t num_col;
+    bool    integral;
+    int64_t branch_col;
+    void   *internal;
+} jaos_node;
+
+typedef jaos_callback_action (*jaos_node_fn)(jaos_node *ev, void *user);
+
+JAOS_NODISCARD jaos_status jaos_set_node_callback(jaos_model *m,
+                                                  jaos_node_fn cb, void *user);
+
+JAOS_NODISCARD jaos_status jaos_node_add_row(jaos_node *ev, int64_t nnz,
+                                             const int64_t *index,
+                                             const double *value,
+                                             double lower, double upper);
+
 JAOS_NODISCARD jaos_status jaos_solve(jaos_model *m);
 
 JAOS_NODISCARD jaos_solve_status jaos_status_of(const jaos_model *m);

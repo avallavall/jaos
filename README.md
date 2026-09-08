@@ -53,8 +53,10 @@ rule on a stall.
 **Mixed-integer programs.** Branch and bound over the dual simplex, best bound
 first, pseudocost branching. Gomory, knapsack cover and mixed-integer rounding
 cuts at the root and below it. A rounding heuristic, a root dive and a
-feasibility pump. A solution pool, a MIP start, a cutoff, a node limit and an
-incumbent callback. Every default was set on the MIPLIB 3 set (`make miplib`).
+feasibility pump. A solution pool, a MIP start, a cutoff, a node limit, an
+incumbent callback and a node callback that adds lazy constraints and user
+cuts and picks the branching column. Every default was set on the MIPLIB 3
+set (`make miplib`).
 
 **After the answer.** The independent checker. Sensitivity and ranging for
 every cost and bound. Farkas certificates and unbounded rays, floating and

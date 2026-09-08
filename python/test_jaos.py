@@ -1273,6 +1273,91 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.INTERRUPTED)
         self.assertTrue(p.mip_report().has_incumbent)
 
+    def test_the_node_callback_adds_lazy_rows_and_user_cuts_and_steers(self):
+        p = jaos.Problem()
+        x = p.add_var(binary=True, name="x")
+        y = p.add_var(binary=True, name="y")
+        z = p.add_var(binary=True, name="z")
+        p.add(x + y + z <= 2)
+        p.maximize(2 * x + 2 * y + z)
+        seen = []
+
+        def lazy(ev):
+            seen.append((ev.node, ev.integral))
+            if ev.integral and ev.values[x] + ev.values[y] > 1.5:
+                ev.add(x + y <= 1)
+        p.set_node_callback(lazy)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+        self.assertLessEqual(x.value + y.value, 1.0 + 1e-9)
+        self.assertTrue(any(integral for _, integral in seen))
+
+        p.set_node_callback(None)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 4.0, places=9)
+
+        q = jaos.Problem()
+        a = q.add_var(binary=True, name="a")
+        b = q.add_var(binary=True, name="b")
+        c = q.add_var(binary=True, name="c")
+        q.add(2 * a + 2 * b + 2 * c <= 3)
+        q.maximize(3 * a + 2.5 * b + 2 * c)
+        q.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+        q.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+        q.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+        plain = q.mip_report().nodes
+        self.assertGreater(plain, 1)
+        choices = []
+
+        def cut(ev):
+            if ev.node == 1 and not ev.integral:
+                choices.append(ev.branch_var)
+                ev.add(a + b + c <= 1)
+        q.set_node_callback(cut)
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(q.objective_value, 3.0, places=9)
+        self.assertEqual(q.mip_report().nodes, 1)
+        self.assertIs(choices[0], b)
+
+        s = jaos.Problem()
+        a = s.add_var(binary=True, name="a")
+        b = s.add_var(binary=True, name="b")
+        c = s.add_var(binary=True, name="c")
+        s.add(2 * a + 2 * b <= 3)
+        s.add(2 * a + 2 * c <= 3)
+        s.maximize(3 * a + b + c)
+        s.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+        s.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+        s.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+        depth1 = []
+        steered = []
+
+        def steer(ev):
+            if ev.depth == 0 and not ev.integral:
+                other = c if ev.branch_var is b else b
+                steered.append(other)
+                ev.branch_on(other)
+            if ev.depth == 1:
+                depth1.append(ev.values[steered[0]])
+        s.set_node_callback(steer)
+        self.assertIs(s.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(s.objective_value, 3.0, places=9)
+        self.assertTrue(depth1)
+        self.assertTrue(all(v in (0.0, 1.0) for v in depth1))
+
+        def bad(ev):
+            ev.add_row([7], [1.0], 0.0, 1.0)
+        q._m.set_node_callback(bad)
+        hook = sys.excepthook
+        sys.excepthook = lambda *args: None
+        try:
+            self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
+        finally:
+            sys.excepthook = hook
+        q.set_node_callback(lambda ev: jaos.CallbackAction.STOP)
+        self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
+
     def test_an_indicator_row_holds_only_while_its_variable_says_so(self):
         p = jaos.Problem()
         x = p.add_var(ub=10, name="x")

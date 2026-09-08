@@ -130,6 +130,8 @@ typedef struct {
     int mip_dive_child;
     jaos_incumbent_fn incumbent_cb;
     void *incumbent_user;
+    jaos_node_fn node_cb;
+    void *node_user;
 } jm_config;
 
 typedef struct {

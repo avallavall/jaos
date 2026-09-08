@@ -2311,6 +2311,168 @@ static bool incumbent_take_point(incumbent *inc, const jaos_model *lp,
 
 constexpr int64_t MIP_LOG_EVERY = 100;
 
+typedef struct {
+    int64_t *start, *idx;
+    double *val, *lo, *up;
+    int64_t n, nnz;
+    int64_t cap_start, cap_idx, cap_val, cap_lo, cap_up;
+    int64_t nc;
+} rowbuf;
+
+typedef struct {
+    rowbuf rb;
+    int64_t fired, rows, rejected, steered;
+} steer;
+
+enum { STEER_ERR = -1, STEER_OK = 0, STEER_REJECT = 1, STEER_STOP = 2 };
+
+constexpr int64_t MIP_STEER_ROUNDS = 1000;
+
+jaos_status jaos_node_add_row(jaos_node *ev, int64_t nnz, const int64_t *index,
+                              const double *value, double lower, double upper)
+{
+    if (ev == nullptr || ev->internal == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    rowbuf *rb = ev->internal;
+    if (nnz < 0 || (nnz > 0 && (index == nullptr || value == nullptr)) ||
+        isnan(lower) || isnan(upper) || lower > upper ||
+        lower == INFINITY || upper == -INFINITY)
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t k = 0; k < nnz; k++)
+        if (index[k] < 0 || index[k] >= rb->nc || !isfinite(value[k]))
+            return JAOS_ERR_INVALID_INPUT;
+    if (!JM_GROW(rb->start, rb->cap_start, rb->n + 2) ||
+        !JM_GROW(rb->lo, rb->cap_lo, rb->n + 1) ||
+        !JM_GROW(rb->up, rb->cap_up, rb->n + 1) ||
+        !JM_GROW(rb->idx, rb->cap_idx, rb->nnz + nnz) ||
+        !JM_GROW(rb->val, rb->cap_val, rb->nnz + nnz))
+        return JAOS_ERR_OUT_OF_MEMORY;
+    rb->start[rb->n] = rb->nnz;
+    for (int64_t k = 0; k < nnz; k++) {
+        rb->idx[rb->nnz] = index[k];
+        rb->val[rb->nnz] = value[k];
+        rb->nnz++;
+    }
+    rb->lo[rb->n] = lower;
+    rb->up[rb->n] = upper;
+    rb->n++;
+    rb->start[rb->n] = rb->nnz;
+    return JAOS_OK;
+}
+
+static void steer_free(steer *sw)
+{
+    free(sw->rb.start); free(sw->rb.idx); free(sw->rb.val);
+    free(sw->rb.lo); free(sw->rb.up);
+    memset(&sw->rb, 0, sizeof sw->rb);
+}
+
+static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
+                               const cutbuf *pool, const cutlist *in_copy,
+                               int64_t *nfixed, int64_t *nperm,
+                               const double *x, bool *violated, int64_t *work)
+{
+    rowbuf *rb = &sw->rb;
+    *violated = false;
+    if (rb->n == 0)
+        return JAOS_OK;
+    const double tol = jm_primal_tolerance(m);
+    for (int64_t r = 0; r < rb->n && !*violated; r++) {
+        double act = 0.0;
+        for (int64_t p = rb->start[r]; p < rb->start[r + 1]; p++)
+            act += rb->val[p] * x[rb->idx[p]];
+        if (act < rb->lo[r] - tol * (1.0 + fabs(rb->lo[r])) ||
+            act > rb->up[r] + tol * (1.0 + fabs(rb->up[r])))
+            *violated = true;
+    }
+    jaos_status st = JAOS_OK;
+    if (in_copy->n > 0) {
+        int64_t *del = malloc((size_t)in_copy->n * sizeof *del);
+        if (del == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        for (int64_t k = 0; k < in_copy->n; k++)
+            del[k] = *nfixed + k;
+        st = jaos_delete_rows(lp, in_copy->n, del);
+        free(del);
+        if (st != JAOS_OK)
+            return st;
+    }
+    st = jaos_add_rows(lp, rb->n, rb->lo, rb->up, rb->nnz, rb->start, rb->idx,
+                       rb->val);
+    if (st != JAOS_OK)
+        return st;
+    *nfixed = lp->num_row;
+    *nperm = lp->num_row;
+    if (in_copy->n > 0) {
+        st = pool_add(lp, pool, in_copy->v, in_copy->n);
+        if (st != JAOS_OK)
+            return st;
+    }
+    *work += rb->nnz + m->num_col;
+    sw->rows += rb->n;
+    rb->n = rb->nnz = 0;
+    return JAOS_OK;
+}
+
+static jaos_callback_action steer_fire(const jaos_model *m, steer *sw,
+                                       int64_t node, int64_t depth, double obj,
+                                       double bound, const double *x,
+                                       bool integral, int64_t *branch)
+{
+    jaos_node ev = {
+        .node = node,
+        .depth = depth,
+        .objective = obj,
+        .bound = bound,
+        .col_value = x,
+        .num_col = m->num_col,
+        .integral = integral,
+        .branch_col = *branch,
+        .internal = &sw->rb,
+    };
+    sw->rb.nc = m->num_col;
+    sw->fired++;
+    const jaos_callback_action a = m->cfg.node_cb(&ev, m->cfg.node_user);
+    *branch = ev.branch_col;
+    return a;
+}
+
+static bool steer_branch_ok(const jaos_model *m, const double *x, int64_t j)
+{
+    if (j < 0 || j >= m->num_col || !m->col_integer[j])
+        return false;
+    const double f = x[j] - floor(x[j]);
+    return f > MIP_INT_TOL && f < 1.0 - MIP_INT_TOL;
+}
+
+static int steer_point(const jaos_model *m, steer *sw, jaos_model *lp,
+                       const cutbuf *pool, const cutlist *in_copy,
+                       int64_t *nfixed, int64_t *nperm, int64_t node,
+                       int64_t depth, double bound, const double *x,
+                       double obj, int64_t *work)
+{
+    if (m->cfg.node_cb == nullptr)
+        return STEER_OK;
+    int64_t branch = -1;
+    const jaos_callback_action a =
+        steer_fire(m, sw, node, depth, obj, bound, x, true, &branch);
+    *work += m->num_col;
+    bool violated = false;
+    if (steer_flush(m, lp, sw, pool, in_copy, nfixed, nperm, x, &violated,
+                    work) != JAOS_OK)
+        return STEER_ERR;
+    if (a == JAOS_CALLBACK_STOP)
+        return STEER_STOP;
+    if (violated) {
+        sw->rejected++;
+        jm_log(m, JAOS_LOG_PROGRESS,
+               "node %lld: a point at %.17g is rejected by the callback",
+               (long long)node, obj);
+        return STEER_REJECT;
+    }
+    return STEER_OK;
+}
+
 static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
                                int64_t node, double bound, bool by_rounding)
 {
@@ -2630,6 +2792,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     lpair *pextra = nullptr;
     int64_t npextra = 0, pecap = 0;
     int64_t clique_fixed = 0, clique_cut_nodes = 0;
+    steer sw = {0};
+    int64_t nperm = nr;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
     double *prnd = nullptr;
@@ -3124,7 +3288,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (nodes == 1) {
             best_bound = key;
 
-            nfixed = root_cut_drop ? nr : lp->num_row;
+            nfixed = root_cut_drop ? nperm : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
                    "root: relaxation %.17g after %lld cuts, %lld of them "
                    "covers, %lld cliques and %lld MIR",
@@ -3136,8 +3300,19 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             double hobj = 0.0;
             work += m->num_nz + nc + nr;
             if (rounded_point(m, m->mip_start, x2, ra, &hobj)) {
-                const double hkey = sigma * hobj;
-                spool_offer(&sp, x2, hkey, hobj);
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
@@ -3168,8 +3343,19 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1)
                 work += m->num_nz + nc + nr;
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
-                const double hkey = sigma * hobj;
-                spool_offer(&sp, x2, hkey, hobj);
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
@@ -3210,8 +3396,19 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1)
                 work += m->num_nz + nc + nr;
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
-                const double hkey = sigma * hobj;
-                spool_offer(&sp, x2, hkey, hobj);
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
 
                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
@@ -3243,8 +3440,19 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             if (got == 1)
                 work += m->num_nz + nc + nr;
             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
-                const double hkey = sigma * hobj;
-                spool_offer(&sp, x2, hkey, hobj);
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
                 if (hkey < cut_key && hkey < inc.key) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
@@ -3349,13 +3557,90 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
         }
 
+        if (m->cfg.node_cb != nullptr) {
+            int leave = 0;
+            for (int64_t round = 0; round < MIP_STEER_ROUNDS; round++) {
+                int64_t want = branch;
+                const double ok = open_key(&heap, dstack, dstack_n);
+                const jaos_callback_action a = steer_fire(
+                    m, &sw, nodes, depth_here, obj,
+                    sigma * (ok < key ? ok : key), x, branch < 0, &want);
+                work += nc;
+                bool violated = false;
+                if (steer_flush(m, lp, &sw, &pool, &in_copy, &nfixed,
+                                &nperm, x, &violated, &work) != JAOS_OK)
+                    goto done;
+                if (a == JAOS_CALLBACK_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    leave = 1;
+                    break;
+                }
+                if (!violated) {
+                    if (want != branch && steer_branch_ok(m, x, want)) {
+                        branch = want;
+                        sw.steered++;
+                    }
+                    break;
+                }
+                if (branch < 0)
+                    sw.rejected++;
+                st = jaos_solve(lp);
+                solves++;
+                work += jaos_work_units(lp);
+                iters += jaos_iterations(lp);
+                if (st != JAOS_OK) {
+                    if (st == JAOS_ERR_NUMERICAL) {
+                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                        jm_set_err(m, "node %lld after the callback's rows: "
+                                      "%s", (long long)nodes,
+                                   jaos_model_error(lp));
+                        leave = 1;
+                        break;
+                    }
+                    goto done;
+                }
+                ns = jaos_status_of(lp);
+                if (ns == JAOS_SOLVE_INFEASIBLE) {
+                    leave = 2;
+                    break;
+                }
+                if (ns != JAOS_SOLVE_OPTIMAL) {
+                    outcome = ns;
+                    leave = 1;
+                    break;
+                }
+                if (jaos_objective(lp, &obj) != JAOS_OK ||
+                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                    goto done;
+                key = sigma * obj;
+                branch = select_branch(m, x, rule, pc_sum, pc_n);
+            }
+            if (leave == 1)
+                break;
+            if (leave == 2)
+                continue;
+            if (nodes == 1)
+                best_bound = key;
+        }
+
         if (heur && branch >= 0) {
             double hobj = 0.0;
 
             work += m->num_nz + nc + nr;
             if (rounded_point(m, x, xr, ra, &hobj)) {
-                const double hkey = sigma * hobj;
-                spool_offer(&sp, xr, hkey, hobj);
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, xr,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, xr, hkey, hobj);
                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, xr, ra, hobj, hkey))
                         goto done;
@@ -3662,13 +3947,16 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            "by the dive heuristic, %lld by RINS and %lld by the pump, "
            "%lld probes, "
            "%lld of them capped, %lld columns fixed by cliques and %lld "
-           "nodes cut by them",
+           "nodes cut by them, the callback fired %lld times, added %lld "
+           "rows, rejected %lld points and chose %lld branches",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
            (long long)rins_points, (long long)pump_points,
            (long long)probes, (long long)capped, (long long)clique_fixed,
-           (long long)clique_cut_nodes);
+           (long long)clique_cut_nodes, (long long)sw.fired,
+           (long long)sw.rows, (long long)sw.rejected,
+           (long long)sw.steered);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -3736,6 +4024,7 @@ done:
     free(items);
     free(pbuf);
     clique_table_free(&ctab);
+    steer_free(&sw);
     free(cstack);
     free(pextra);
     free(porder);

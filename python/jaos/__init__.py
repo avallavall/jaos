@@ -68,6 +68,7 @@ from fractions import Fraction
 __all__ = [
     "Model", "JaosError", "Status", "SolveStatus", "ObjSense", "LogLevel",
     "BasisStatus", "CallbackAction", "Solution", "Basis", "INFINITY",
+    "NodeEvent",
     "NAME_MAX", "version", "library_path",
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",
@@ -482,6 +483,63 @@ class _Incumbent(ctypes.Structure):
 
 _INCUMBENT_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Incumbent), _VP)
 
+class _Node(ctypes.Structure):
+    """jaos_node, field for field."""
+    _fields_ = [
+        ("node", _I64),
+        ("depth", _I64),
+        ("objective", _D),
+        ("bound", _D),
+        ("col_value", _P(_D)),
+        ("num_col", _I64),
+        ("integral", ctypes.c_bool),
+        ("branch_col", _I64),
+        ("internal", _VP),
+    ]
+
+_NODE_FN = ctypes.CFUNCTYPE(ctypes.c_int, _P(_Node), _VP)
+
+class NodeEvent:
+    """What the node callback sees: `node`, `depth`, `objective` (the
+    node's relaxation), `bound` (the tree's), `values` (the point, a
+    list by column), `integral` (the point is integer feasible and
+    becomes an incumbent unless a row added here cuts it) and
+    `branch_col`, the solver's choice, which the callback may set to
+    any integer column fractional at the point. `add_row` adds a row
+    that must hold for every solution of the model; it stays for the
+    rest of the search. Live only while the callback runs."""
+
+    __slots__ = ("_c", "node", "depth", "objective", "bound", "values",
+                 "integral", "branch_col")
+
+    def __init__(self, c):
+        self._c = c
+        self.node = c.node
+        self.depth = c.depth
+        self.objective = c.objective
+        self.bound = c.bound
+        self.values = [c.col_value[i] for i in range(c.num_col)]
+        self.integral = bool(c.integral)
+        self.branch_col = c.branch_col
+
+    def add_row(self, index, value, lower=-float("inf"), upper=float("inf")):
+        """Adds `lower <= sum(value[k] * x[index[k]]) <= upper`."""
+        if self._c is None:
+            raise JaosError(Status.ERR_INVALID_INPUT,
+                            "this node event is over")
+        n = len(index)
+        if len(value) != n:
+            raise ValueError("index and value differ in length")
+        idx = (_I64 * max(n, 1))(*[int(i) for i in index])
+        val = (_D * max(n, 1))(*[float(v) for v in value])
+        rc = _lib.jaos_node_add_row(ctypes.byref(self._c), n, idx, val,
+                                    float(lower), float(upper))
+        if rc != Status.OK:
+            raise JaosError(Status(rc), "the row is not one the node "
+                            "callback may add: a column index out of "
+                            "range, a non-finite coefficient, or bounds "
+                            "that cross")
+
 def _sig(name, restype, *argtypes):
     fn = getattr(_lib, name)
     fn.restype = restype
@@ -633,6 +691,8 @@ _sig("jaos_set_mip_pool_size", ctypes.c_int, _VP, _I64)
 _sig("jaos_mip_pool_count", ctypes.c_int, _VP, _P(_I64))
 _sig("jaos_mip_pool_solution", ctypes.c_int, _VP, _I64, _P(_D), _P(_D))
 _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
+_sig("jaos_set_node_callback", ctypes.c_int, _VP, _NODE_FN, _VP)
+_sig("jaos_node_add_row", ctypes.c_int, _P(_Node), _I64, _P(_I64), _P(_D), _D, _D)
 _sig("jaos_solve", ctypes.c_int, _VP)
 _sig("jaos_status_of", ctypes.c_int, _VP)
 _sig("jaos_objective", ctypes.c_int, _VP, _P(_D))
@@ -1461,6 +1521,42 @@ class Model:
         self._incumbent_cb = _INCUMBENT_FN(trampoline)
         self._check(_lib.jaos_set_incumbent_callback(self._handle(),
                                                      self._incumbent_cb, None))
+        return self
+
+    def set_node_callback(self, fn):
+        """Asks a branch and bound to call `fn(event)` at every node
+        once its relaxation is solved and cut, and for every point a
+        heuristic would make an incumbent, with a `NodeEvent`. The
+        callback may add rows that hold for every solution (user cuts
+        at a fractional point, lazy constraints against an integral
+        one, which is then not taken), and may set `event.branch_col`.
+        A node whose point a new row cuts is solved again and seen
+        again. Return `CallbackAction.STOP` to end the search as
+        INTERRUPTED. Pass None to remove the callback."""
+        if fn is None:
+            self._node_cb = None
+            self._check(_lib.jaos_set_node_callback(
+                self._handle(), ctypes.cast(None, _NODE_FN), None))
+            return self
+
+        def trampoline(p, _user):
+            ev = None
+            try:
+                ev = NodeEvent(p.contents)
+                r = fn(ev)
+                b = ev.branch_col
+                p.contents.branch_col = -1 if b is None else int(b)
+                return int(CallbackAction.CONTINUE if r is None else r)
+            except Exception:
+                sys.excepthook(*sys.exc_info())
+                return int(CallbackAction.STOP)
+            finally:
+                if ev is not None:
+                    ev._c = None
+
+        self._node_cb = _NODE_FN(trampoline)
+        self._check(_lib.jaos_set_node_callback(self._handle(),
+                                                self._node_cb, None))
         return self
 
     def presolve_report(self):
@@ -3134,6 +3230,62 @@ class Problem:
             return fn(inc._replace(values={v: inc.values[i]
                                            for i, v in enumerate(vars_)}))
         self._m.set_incumbent_callback(wrap)
+        return self
+
+    def set_node_callback(self, fn):
+        """Like Model.set_node_callback, with `event.values` as a dict
+        from variable to value, `event.add(constraint)` taking a
+        constraint built by comparison (it must hold for every solution
+        of the problem), `event.branch_on(var)` naming the column to
+        branch on, and `event.branch_var` the solver's own choice or
+        None."""
+        if fn is None:
+            self._m.set_node_callback(None)
+            return self
+        problem = self
+
+        class _Event:
+            __slots__ = ("_ev", "node", "depth", "objective", "bound",
+                         "values", "integral", "branch_var")
+
+            def __init__(self, ev):
+                self._ev = ev
+                self.node = ev.node
+                self.depth = ev.depth
+                self.objective = ev.objective
+                self.bound = ev.bound
+                self.values = {v: ev.values[i]
+                               for i, v in enumerate(problem._vars)}
+                self.integral = ev.integral
+                self.branch_var = (problem._vars[ev.branch_col]
+                                   if ev.branch_col >= 0 else None)
+
+            def add(self, cons):
+                if not isinstance(cons, Constraint):
+                    raise TypeError("add() wants a constraint, built like "
+                                    " x + 2*y <= 5")
+                index, value = [], []
+                for v, c in cons._t.items():
+                    if v._p is not problem:
+                        raise ValueError(f"{v.name} belongs to a different "
+                                         f"Problem")
+                    if c != 0.0:
+                        index.append(v._i)
+                        value.append(c)
+                self._ev.add_row(index, value, cons._lo, cons._hi)
+
+            def branch_on(self, var):
+                if var is None:
+                    self._ev.branch_col = -1
+                    return
+                if var._p is not problem:
+                    raise ValueError(f"{var.name} belongs to a different "
+                                     f"Problem")
+                self._ev.branch_col = var._i
+
+        def wrap(ev):
+            return fn(_Event(ev))
+        self._m.set_node_callback(wrap)
         return self
 
     def presolve_report(self):

@@ -25,13 +25,6 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: steer and cut
 
-3. **Steering callbacks: user cuts, lazy constraints, branching.** One
-   node callback with the node's point: it may add rows that hold for
-   every solution (user cuts at a fractional point, lazy constraints
-   against an integer one, which is then not an incumbent), and may name
-   the column to branch on. Every point that would become an incumbent,
-   the heuristics' included, passes the callback first. C API, Python at
-   both layers, tests with a subtour-style rejection and a forced branch.
 4. **Zero-half cuts** at the root, from pairs and triples of rows with
    integer coefficients on integer columns whose sum has odd right-hand
    side parity after the combination (Caprara and Fischetti). Measured on
