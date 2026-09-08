@@ -35,3 +35,12 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    (branched 1674, plain 11923, three unit tests fail). The next thing to
    try is a deterministic cost perturbation for a stalled dual, settled by
    the existing `settle_shifts`, measured on the three LP gates.
+3. **Hyper-sparse FTRAN.** BTRAN already skips the slots a sparse right-hand
+   side never reaches; FTRAN still traverses every slot. Measured in work
+   units on the three LP gates and the MIP set, no instance regressing;
+   `bench/refusals.txt` D36 and D76 are the neighbouring refusals to read
+   first.
+4. **Primal simplex: the 17 of 94 standard instances that overrun or
+   disagree with the dual** (`bench/results/primal.txt`). One at a time,
+   each with its own diagnosis; the row in SPECS stays partial until the
+   count is zero.
