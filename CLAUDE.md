@@ -1,7 +1,9 @@
 # JAOS — Just Another Optimization Solver
 
-An LP and MIP solver in C23. No dependencies, Apache 2.0, Linux/GCC 14 only.
-Built and tested under WSL; the Windows side has no compiler.
+An LP and MIP solver in C23. No dependencies, Apache 2.0, Linux/GCC 14.
+Built and tested under WSL; the Windows side has no compiler. The POSIX
+calls sit behind `src/jaos_sys.h`, and `tests/windows.sh` cross-compiles
+with mingw-w64 and runs the tool under wine, both installed in the WSL.
 
 ## The record is three files
 

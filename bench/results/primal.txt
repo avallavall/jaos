@@ -98,7 +98,7 @@ woodw        ok        dual=1186/39809598 primal=1924/105687061 split=p1:604/p2:
 measured 88, skipped 0, unreached 0, unbounded? 0, overrun 6, disagreed 0, rejected 0, errors 0
 iterations by method: phase 1 166104 (37.5%), phase 2 277409 (62.5%), dual re-entry 5 (0.0%)
   that is a sum over the set (D46): dfl001 carries 32.2% of it and pilot87 15.2%. Median per-instance phase-1 share 63.4% over 94 instance(s).
-  6 of 94 did not finish inside 10x the dual's work. Dantzig pricing is the worst rule that is still correct, and that is TODO.md section 0 stage 5, not a defect.
+  6 of 94 did not finish inside 10x the dual's work; they are listed in TODO.md, each with what makes it slow.
 iterations (primal+1)/(dual+1), geometric mean: 1.2296
 work units primal/dual, geometric mean:         2.6532
 work ratio, best  grow22 at 0.0405

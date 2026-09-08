@@ -95,7 +95,7 @@ mingw-w64 through the CMake package; see [`docs/build.md`](docs/build.md).
 
 ```
 make              # build/release/libjaos.a
-make test         # unit suite, the CLI's test, the install test
+make test         # unit suite, the CLI's test, the install, CMake and Windows checks
 make sanitize     # unit suite under ASan and UBSan
 make cli          # build/cli/jaos
 make shared       # build/release/libjaos.so, which the Python binding loads

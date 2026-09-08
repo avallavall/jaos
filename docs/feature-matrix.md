@@ -69,13 +69,14 @@ JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
 the first stall and Bland's rule after it.
 
-**The primal simplex reads ◐ rather than ○ since 2026-08-31**, and the reason it
-is not ● is that no caller can select it. `run_primal` and `run_primal_phase1`
-are in `src/simplex.c`, the tests reach them and `make primal` measures them.
-The only route in is `cfg.force_primal` in `src/jaos_internal.h`, a development
-switch and not public API. Devex pricing is what is missing
-(`TODO.md` §0 stage 5, blocked on a paywalled source), and it is Devex alone
-that still blocks crossover. Stage 7, the unboundedness verdict, landed on
+**The primal simplex reads ◐ rather than ●** because 6 of the 94 standard
+instances still run past 10x the dual's work (`bench/results/primal.txt`,
+`TODO.md`). `jaos_set_algorithm` and `--algorithm primal` select it. It has
+steepest-edge pricing since 2026-09-08, with Devex and Dantzig behind
+`cfg.primal_devex` and `cfg.primal_dantzig` for measurement, a composite
+phase 1 and a Harris ratio test; the same day its phase 2 stopped shifting
+costs through the shared pivot, which had made it stop after one pivot and
+hand the solve to the dual. Stage 7, the unboundedness verdict, landed on
 2026-09-01: the primal declares a ray it meets in phase 2 on the same D19
 proof the dual already used, and the shared lent-bound verdict also
 proves a ray that needs several columns at once.

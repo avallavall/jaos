@@ -661,9 +661,8 @@ int main(int argc, char **argv)
                  "that line\n", no_split);
     }
     if (overrun > 0)
-        emit("  %d of %d did not finish inside %lldx the dual's work. Dantzig "
-             "pricing is the worst rule that is still correct, and that is "
-             "TODO.md section 0 stage 5, not a defect.\n",
+        emit("  %d of %d did not finish inside %lldx the dual's work; they "
+             "are listed in TODO.md, each with what makes it slow.\n",
              overrun, n_selected, (long long)factor);
 
     if (unreached > 0)
