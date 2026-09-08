@@ -15,6 +15,10 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    and from 9 with steepest-edge pricing (02-31: iterations primal/dual
    1.43x to 1.23x, work 2.75x to 2.65x, pilot87 solves). What is left is
    the long degenerate phase 2 of d6cube, degen3 and dfl001 and the cost
-   of the weight update itself on the dense ones; bound perturbation was
-   refused (`bench/refusals.txt`). The row in SPECS stays partial until
-   the count is zero.
+   of the weight update itself on the dense ones; bound perturbation and
+   a hashed choice at a tie in the ratio test were refused
+   (`bench/refusals.txt`, primal-bound-perturbation and primal-tie-hash,
+   the second in four gates, the grow family refusing every one and the
+   six not moving in any). What is left unmeasured is a perturbation on
+   the pricing side. The row in SPECS stays partial until the count is
+   zero.
