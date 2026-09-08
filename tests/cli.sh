@@ -382,6 +382,13 @@ expect_exit 5 "--probing-cap refuses a negative" \
 "$JAOS" options | grep -q '^mip_probing_cap ' \
     && pass "jaos options lists mip_probing_cap" \
     || flunk "jaos options does not list mip_probing_cap"
+expect_exit 0 "--threads 1 is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --threads 1
+expect_exit 5 "--threads 2 is refused" \
+    "$JAOS" solve "$DATA/nl_int.lp" --threads 2
+"$JAOS" options | grep -q '^threads ' \
+    && pass "jaos options lists threads" \
+    || flunk "jaos options does not list threads"
 expect_exit 0 "an .nl file is read by its extension" \
     "$JAOS" solve "$DATA/t_lin.nl"
 [ "$(line_of objective)" = "objective -4" ] && pass "to -4" \

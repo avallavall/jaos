@@ -670,6 +670,7 @@ _sig("jaos_write_dual_values", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_point", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_threads", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
 _sig("jaos_set_dual_tolerance", ctypes.c_int, _VP, _D)
@@ -1926,6 +1927,13 @@ class Model:
         self._check(_lib.jaos_set_work_limit(self._handle(), int(units)))
         return self
 
+    def set_threads(self, threads):
+        """The thread count. JAOS runs one thread, so 1 is accepted and
+        anything else raises with a message saying so, for a caller
+        ported from a solver that takes more."""
+        self._check(_lib.jaos_set_threads(self._handle(), int(threads)))
+        return self
+
     def set_time_limit(self, seconds):
         self._check(_lib.jaos_set_time_limit(self._handle(), float(seconds)))
         return self
@@ -3003,6 +3011,10 @@ class Problem:
 
     def set_work_limit(self, units):
         self._m.set_work_limit(units)
+        return self
+
+    def set_threads(self, threads):
+        self._m.set_threads(threads)
         return self
 
     def set_time_limit(self, seconds):

@@ -26,9 +26,5 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: read more, say more
 
-9. **Thread count**: `jaos_set_threads` and `--threads N` accept 1, refuse
-   0 and negatives, and refuse more than 1 with a message saying JAOS runs
-   one thread, so a caller porting from another solver gets an answer
-   rather than a silent ignore. Options list, CLI, Python, docs.
 
 

@@ -27,6 +27,7 @@ static const char U_SYNOPSIS[] =
     "                  [--write-point PT] [--pool-out PRE]\n"
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
+    "                  [--threads N]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
     "                  [--clique-rounds N] [--zero-half-rounds N]\n"
     "                  [--flow-cover-rounds N]\n"
@@ -100,6 +101,8 @@ static const char U_SOLVE_A[] =
     "                   question it asks\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
+    "  --threads N      the thread count; JAOS runs one, so 1 is accepted\n"
+    "                   and anything else is refused with a message\n"
     "  --primal-tol T   primal feasibility tolerance (default 1e-7)\n"
     "  --dual-tol T     dual feasibility tolerance (default 1e-7)\n"
     "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
@@ -651,6 +654,7 @@ struct solve_options {
     double cutoff;
     const char *proof;
     int64_t work_limit;
+    int64_t threads;
     double time_limit;
     int64_t cut_rounds;
     int64_t cut_depth;
@@ -875,6 +879,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->pool_out = v;
         } else if (strcmp(a, "--write-duals") == 0) {
             o->write_duals = v;
+        } else if (strcmp(a, "--threads") == 0) {
+            if (!parse_int64(v, &o->threads))
+                return usage_error("--threads needs an integer, not '%s'",
+                                   v);
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -1094,6 +1102,10 @@ static int cmd_solve(int argc, char **argv)
         return EXIT_USAGE;
     }
 
+    if (o.threads != 0 && jaos_set_threads(m, o.threads) != JAOS_OK) {
+        rc = library_error("set the thread count for", o.file, m);
+        goto out;
+    }
     if (o.work_limit > 0 && jaos_set_work_limit(m, o.work_limit) != JAOS_OK) {
         rc = library_error("set the work limit for", o.file, m);
         goto out;

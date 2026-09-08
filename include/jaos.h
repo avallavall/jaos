@@ -384,6 +384,8 @@ JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
 JAOS_NODISCARD const char *jaos_model_error(const jaos_model *m);
 
 JAOS_NODISCARD jaos_status jaos_set_work_limit(jaos_model *m, int64_t units);
+
+JAOS_NODISCARD jaos_status jaos_set_threads(jaos_model *m, int64_t threads);
 JAOS_NODISCARD jaos_status jaos_set_time_limit(jaos_model *m, double seconds);
 
 JAOS_NODISCARD jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol);

@@ -151,7 +151,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Choose the algorithm | **done** | `jaos_set_algorithm`, `jaos_algorithm_of`, `--algorithm dual|primal`, Python `set_algorithm` |
 | Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`, `jaos_num_options`, `jaos_option_name`; 42 options; `jaos solve --opt NAME=VALUE`, `--params FILE`; Python `set_option`, `get_option`, `read_options`, `Model.option_names()`; `jaos options` prints them all in the shape `--params` reads |
 | Steering callbacks: user cuts, lazy constraints, branching | **done** | one node callback (`jaos_set_node_callback`) sees every node's point once solved and cut, and every point a heuristic would make an incumbent; `jaos_node_add_row` adds a row that holds for every solution (a user cut at a fractional point, a lazy constraint against an integral one, which is then not taken), the node is solved again while a new row cuts its point, and `branch_col` names the column to branch on. Python at both layers |
-| Thread count | **missing** | |
+| Thread count | **done** | `jaos_set_threads`, `--threads N` and the `threads` option take 1 and refuse any other count with a message saying JAOS runs one thread |
 | Sensitivity and ranging | **done** | |
 
 ## 10. Licence and distribution

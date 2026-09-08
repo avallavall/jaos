@@ -1492,6 +1492,24 @@ jaos_status jaos_set_mip_clique_fix(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_threads(jaos_model *m, int64_t threads)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (threads <= 0) {
+        jm_set_err(m, "the thread count must be positive, not %lld",
+                   (long long)threads);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (threads > 1) {
+        jm_set_err(m, "JAOS runs one thread, and every answer is the same "
+                      "on every machine because of it; %lld threads were "
+                      "asked for", (long long)threads);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_conflicts(jaos_model *m, int on)
 {
     if (m == nullptr)
