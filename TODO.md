@@ -23,4 +23,15 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    applies and the unbranched model passes. Two fixes: something for dual
    degeneracy in the first, the published point's unscaled row residue in
    the second. The branched models are one `set_col_bounds` away from the
-   netlib files.
+   netlib files. What the cycle looks like: from iteration 3999 on, rows
+   199 and 228 alternate and columns 383/403 and 445/449 swap in and out,
+   a period of four with pivots of 1e2 and 1e-2 and dual steps of 1e-10 to
+   1e-6 whose sign follows the leaving side, so every step is legal and the
+   state still repeats; the cost shifts `shift_to_feasible` writes on each
+   pivot are what absorb the gain. Two things tried and dropped (02-31):
+   shifting the entering column's cost to zero before the step (branched
+   grow15 finishes in 11707 iterations, plain grow15 goes 1871 to 20364),
+   and sweeping every shift after each recomputation of the duals
+   (branched 1674, plain 11923, three unit tests fail). The next thing to
+   try is a deterministic cost perturbation for a stalled dual, settled by
+   the existing `settle_shifts`, measured on the three LP gates.
