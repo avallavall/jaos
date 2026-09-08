@@ -617,6 +617,7 @@ _sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_clique_fix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_conflicts", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_symmetry", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_orbital", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1413,6 +1414,15 @@ class Model:
         report says how many generators and orbits were found. Off by
         default until the tree uses them; a negative value restores it."""
         self._check(_lib.jaos_set_mip_symmetry(self._handle(), int(on)))
+
+    def set_mip_orbital(self, on):
+        """Orbital branching and fixing (Ostrowski, Linderoth, Rossi and
+        Smriglio): a branching on a binary zeroes its whole orbit on the
+        zero side, and a node zeroes every orbit that holds a binary the
+        path zeroed, the orbits taken under the generators that fix the
+        path's ones. Turns the symmetry search on. On by default; a
+        negative value restores it."""
+        self._check(_lib.jaos_set_mip_orbital(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -3222,6 +3232,12 @@ class Problem:
         """Symmetry detection at the root; off by default, negative
         restores it."""
         self._m.set_mip_symmetry(on)
+        return self
+
+    def set_mip_orbital(self, on):
+        """Orbital branching and fixing; on by default, negative
+        restores it."""
+        self._m.set_mip_orbital(on)
         return self
 
     def set_mip_propagate(self, rounds):

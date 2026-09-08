@@ -267,6 +267,8 @@ JAOS_NODISCARD jaos_status jaos_set_mip_conflicts(jaos_model *m, int on);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_symmetry(jaos_model *m, int on);
 
+JAOS_NODISCARD jaos_status jaos_set_mip_orbital(jaos_model *m, int on);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_propagate(jaos_model *m,
                                                   int64_t rounds);
 

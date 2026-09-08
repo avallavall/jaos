@@ -30,6 +30,7 @@ constexpr int64_t MIP_FLOW_COVER_ROUNDS = 0;
 constexpr int64_t MIP_FLOW_COVER_CUT_CAP = 50;
 constexpr bool MIP_CONFLICTS = true;
 constexpr bool MIP_SYMMETRY = false;
+constexpr bool MIP_ORBITAL = true;
 constexpr int64_t MIP_SYMMETRY_WORK = 250;
 constexpr int64_t MIP_CONFLICT_MAX = 32;
 constexpr double MIP_CONFLICT_GAP = 1e-9;
@@ -265,6 +266,7 @@ typedef struct {
     int64_t ncuts;
     bool no_cuts;
     int64_t nrow, nperm;
+    int64_t fcap;
 } bnode;
 
 static void node_free(bnode *n)
@@ -380,6 +382,7 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
         n->hi[pf + k] = fhi[k];
     }
     n->nfix = nf;
+    n->fcap = nf > 0 ? nf : 1;
     n->nrow = nr;
     n->nperm = nperm;
     n->depth = d;
@@ -486,6 +489,76 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
         }
     }
     return st;
+}
+
+
+static bool node_add_fix(bnode *n, int64_t col, double lo, double hi)
+{
+    if (n->nfix >= n->fcap) {
+        const int64_t cap = n->fcap > 0 ? 2 * n->fcap : 4;
+        int64_t *c = realloc(n->col, (size_t)cap * sizeof *c);
+        double *l = realloc(n->lo, (size_t)cap * sizeof *l);
+        double *h = realloc(n->hi, (size_t)cap * sizeof *h);
+        if (c != nullptr)
+            n->col = c;
+        if (l != nullptr)
+            n->lo = l;
+        if (h != nullptr)
+            n->hi = h;
+        if (c == nullptr || l == nullptr || h == nullptr)
+            return false;
+        n->fcap = cap;
+    }
+    n->col[n->nfix] = col;
+    n->lo[n->nfix] = lo;
+    n->hi[n->nfix] = hi;
+    n->nfix++;
+    return true;
+}
+
+static int64_t orbit_find(int64_t *uf, int64_t v)
+{
+    while (uf[v] != v) {
+        uf[v] = uf[uf[v]];
+        v = uf[v];
+    }
+    return v;
+}
+
+static int64_t orbit_stabilizer(const jaos_model *m, const jm_symmetry *sym,
+                                const bnode *cur, const double *ilo,
+                                const double *ihi, int64_t *uf, int64_t *work)
+{
+    const int64_t nc = m->num_col;
+    for (int64_t j = 0; j < nc; j++)
+        uf[j] = j;
+    int64_t kept = 0;
+    for (int64_t g = 0; g < sym->ngen; g++) {
+        const int64_t *p = sym->gen + g * nc;
+        bool ok = true;
+        for (int64_t k = 0; ok && cur != nullptr && k < cur->nfix; k++) {
+            const int64_t j = cur->col[k];
+            const bool binary = m->col_integer[j] && ilo[j] == 0.0 &&
+                                ihi[j] == 1.0;
+            const bool one = cur->lo[k] == cur->hi[k] && cur->lo[k] == 1.0;
+            if ((!binary || one) && p[j] != j)
+                ok = false;
+        }
+        if (!ok)
+            continue;
+        kept++;
+        for (int64_t j = 0; j < nc; j++) {
+            int64_t a = orbit_find(uf, j), b = orbit_find(uf, p[j]);
+            if (a == b)
+                continue;
+            if (a < b)
+                uf[b] = a;
+            else
+                uf[a] = b;
+        }
+    }
+    *work += sym->ngen * (cur != nullptr ? cur->nfix : 0) + kept * nc;
+    return kept;
 }
 
 static double now_seconds(void)
@@ -674,6 +747,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_CLIQUE_FIX: return MIP_CLIQUE_FIX ? 1.0 : 0.0;
     case JM_DEF_CONFLICTS: return MIP_CONFLICTS ? 1.0 : 0.0;
     case JM_DEF_SYMMETRY: return MIP_SYMMETRY ? 1.0 : 0.0;
+    case JM_DEF_ORBITAL: return MIP_ORBITAL ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -3264,8 +3338,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_clique_fix : MIP_CLIQUE_FIX;
     const bool conflicts_on = m->cfg.mip_conflicts_set
         ? m->cfg.mip_conflicts : MIP_CONFLICTS;
-    const bool symmetry_on = m->cfg.mip_symmetry_set
-        ? m->cfg.mip_symmetry : MIP_SYMMETRY;
+    const bool orbital_on = m->cfg.mip_orbital_set
+        ? m->cfg.mip_orbital : MIP_ORBITAL;
+    const bool symmetry_on = (m->cfg.mip_symmetry_set
+        ? m->cfg.mip_symmetry : MIP_SYMMETRY) || orbital_on;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -3347,6 +3423,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     steer sw = {0};
     int64_t nperm = nr;
     jm_symmetry sym = {0};
+    int64_t *ouf = nullptr;
+    bool *ozero = nullptr;
+    int64_t orbital_fixed = 0, orbital_branches = 0;
     double *cray = nullptr, *cacol = nullptr, *cblo = nullptr;
     int64_t *clast = nullptr;
     int64_t cray_cap = 0, conflicts = 0, conflict_lits = 0;
@@ -3556,6 +3635,41 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             act_n = cur->ncuts;
         }
         nodes++;
+
+        if (nodes > 1 && orbital_on && sym.ngen > 0) {
+            if (ouf == nullptr) {
+                ouf = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ouf);
+                ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *ozero);
+                if (ouf == nullptr || ozero == nullptr)
+                    goto done;
+            }
+            orbit_stabilizer(m, &sym, cur, ilo, ihi, ouf, &work);
+            bool any = false;
+            for (int64_t k = 0; k < cur->nfix; k++) {
+                const int64_t j = cur->col[k];
+                if (m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0 &&
+                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0) {
+                    ozero[orbit_find(ouf, j)] = true;
+                    any = true;
+                }
+            }
+            const int64_t before_fix = cur->nfix;
+            for (int64_t l = 0; any && l < nc; l++) {
+                if (!m->col_integer[l] || ilo[l] != 0.0 || ihi[l] != 1.0)
+                    continue;
+                if (lp->col_lower[l] != 0.0 || lp->col_upper[l] != 1.0)
+                    continue;
+                if (!ozero[orbit_find(ouf, l)])
+                    continue;
+                if (jaos_set_col_bounds(lp, l, 0.0, 0.0) != JAOS_OK ||
+                    !node_add_fix(cur, l, 0.0, 0.0))
+                    goto done;
+                orbital_fixed++;
+            }
+            for (int64_t k = 0; k < before_fix; k++)
+                ozero[orbit_find(ouf, cur->col[k])] = false;
+            work += nc;
+        }
 
         if (nodes > 1 && clique_fix_on && ctab.ne > 0) {
             const int64_t got = clique_fix(m, lp, &ctab, cstack, &work);
@@ -4439,6 +4553,34 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             ucol[0] = branch;
             ulo[0] = sc ? sc_lo : ceil(v);
             uhi[0] = lp->col_upper[branch];
+            if (orbital_on && sym.ngen > 0 && !sc && m->col_integer[branch] &&
+                ilo[branch] == 0.0 && ihi[branch] == 1.0 && fhi[0] == 0.0 &&
+                ulo[0] == 1.0) {
+                if (ouf == nullptr) {
+                    ouf = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ouf);
+                    ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *ozero);
+                    if (ouf == nullptr || ozero == nullptr)
+                        goto done;
+                }
+                orbit_stabilizer(m, &sym, nodes > 1 ? cur : nullptr, ilo, ihi,
+                                 ouf, &work);
+                const int64_t rep = orbit_find(ouf, branch);
+                int64_t widened = 0;
+                for (int64_t l = 0; l < nc; l++) {
+                    if (l == branch || orbit_find(ouf, l) != rep)
+                        continue;
+                    if (lp->col_lower[l] != 0.0 || lp->col_upper[l] != 1.0)
+                        continue;
+                    fcol[nfd] = l;
+                    flo[nfd] = 0.0;
+                    fhi[nfd] = 0.0;
+                    nfd++;
+                    widened++;
+                }
+                if (widened > 0)
+                    orbital_branches++;
+                work += nc;
+            }
         } else if (ind >= 0) {
             fcol[0] = ind;
             flo[0] = lp->col_lower[ind];
@@ -4568,7 +4710,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            "%lld of them capped, %lld columns fixed by cliques and %lld "
            "nodes cut by them, the callback fired %lld times, added %lld "
            "rows, rejected %lld points and chose %lld branches, %lld "
-           "conflicts over %lld binaries",
+           "conflicts over %lld binaries, %lld branchings widened to an orbit "
+           "and %lld columns fixed by orbits",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
@@ -4577,7 +4720,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            (long long)clique_cut_nodes, (long long)sw.fired,
            (long long)sw.rows, (long long)sw.rejected,
            (long long)sw.steered, (long long)conflicts,
-           (long long)conflict_lits);
+           (long long)conflict_lits, (long long)orbital_branches,
+           (long long)orbital_fixed);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -4647,6 +4791,8 @@ done:
     clique_table_free(&ctab);
     steer_free(&sw);
     jm_symmetry_free(&sym);
+    free(ouf);
+    free(ozero);
     free(cray);
     free(cacol);
     free(clast);

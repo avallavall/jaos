@@ -1529,6 +1529,15 @@ jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_orbital(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_orbital_set = on >= 0;
+    m->cfg.mip_orbital = on > 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)
 {
     if (m == nullptr)

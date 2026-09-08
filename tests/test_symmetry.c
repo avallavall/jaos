@@ -86,6 +86,7 @@ static void test_the_tree_reports_the_orbits_and_the_switch_holds(void)
     for (int on = 1; on >= 0; on--) {
         jaos_model *m = covering(c);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_symmetry(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, on));
         TEST_ASSERT_TRUE(m->cfg.mip_symmetry_set);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -141,6 +142,53 @@ static void test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection(void)
     jaos_model_free(m);
 }
 
+static void test_orbital_branching_shortens_a_symmetric_tree(void)
+{
+    const double c[6] = {1, 1, 1, 1, 1, 1};
+    const double cl[6] = {0, 0, 0, 0, 0, 0}, cu[6] = {1, 1, 1, 1, 1, 1};
+    const double rl[1] = {2.5}, ru[1] = {INFINITY};
+    const int64_t as[7] = {0, 1, 2, 3, 4, 5, 6}, ai[6] = {0, 0, 0, 0, 0, 0};
+    const double av[6] = {1, 1, 1, 1, 1, 1};
+    int64_t nodes[2] = {0, 0};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 6, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         6, as, ai, av));
+        for (int64_t j = 0; j < 6; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, on));
+        TEST_ASSERT_TRUE(m->cfg.mip_orbital_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[on] = rep.nodes;
+        if (on)
+            TEST_ASSERT_EQUAL_INT64(1, rep.symmetry_orbits);
+        else
+            TEST_ASSERT_EQUAL_INT64(0, rep.symmetry_orbits);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_orbital_set);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
+}
+
 static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)
 {
     const double c[3] = {1.0, 1.0, 1.0};
@@ -161,6 +209,7 @@ int main(void)
     RUN_TEST(test_two_alike_columns_beside_a_third);
     RUN_TEST(test_the_tree_reports_the_orbits_and_the_switch_holds);
     RUN_TEST(test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection);
+    RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
     return UNITY_END();
 }

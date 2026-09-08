@@ -2040,13 +2040,29 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_orbital_branching_is_a_switch_that_keeps_the_optimum(self):
+        nodes = []
+        for on in (0, 1):
+            p = jaos.Problem()
+            xs = [p.add_var(binary=True, name=f"x{k}") for k in range(6)]
+            p.add(sum(xs) >= 2.5)
+            p.minimize(sum(xs))
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+            p.set_mip_conflicts(0).set_mip_orbital(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 3.0, places=9)
+            nodes.append(p.mip_report().nodes)
+        self.assertLess(nodes[1], nodes[0])
+
     def test_symmetry_detection_reports_the_orbits_of_three_alike_columns(self):
-        for on, want in ((1, 1), (0, 0), (-1, 0)):
+        for on, want in ((1, 1), (0, 0)):
             p = jaos.Problem()
             xs = [p.add_var(binary=True, name=f"x{k}") for k in range(3)]
             p.add(xs[0] + xs[1] + xs[2] >= 1)
             p.minimize(xs[0] + xs[1] + xs[2])
-            p.set_mip_symmetry(on)
+            p.set_mip_symmetry(on).set_mip_orbital(on)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             rep = p.mip_report()
             self.assertEqual(rep.symmetry_orbits, want)

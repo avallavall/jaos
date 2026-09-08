@@ -45,7 +45,7 @@ static const char U_SYNOPSIS[] =
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
     "                  [--conflicts | --no-conflicts]\n"
-    "                  [--symmetry | --no-symmetry]\n"
+    "                  [--symmetry | --no-symmetry] [--orbital | --no-orbital]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -202,6 +202,12 @@ static const char U_SOLVE_D2[] =
     "                   permutations that map it to itself) and report the\n"
     "                   orbits; off by default until the tree uses them,\n"
     "                   --no-symmetry is the default\n"
+    "  --orbital        orbital branching and fixing: a branching on a\n"
+    "                   binary zeroes its whole orbit on the zero side,\n"
+    "                   and a node zeroes every orbit that holds a zeroed\n"
+    "                   binary, under the symmetries fixing the ones; on\n"
+    "                   by default and turns the search on, --no-orbital\n"
+    "                   turns it off\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -696,6 +702,7 @@ struct solve_options {
     int clique_fix;
     int conflicts;
     int symmetry;
+    int orbital;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -746,6 +753,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->clique_fix = -1;
     o->conflicts = -1;
     o->symmetry = -1;
+    o->orbital = -1;
     o->propagate = -1;
     o->propagate_depth = -2;
     o->mir_aggregate = -1;
@@ -857,6 +865,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-symmetry") == 0) {
             o->symmetry = 0;
+            continue;
+        }
+        if (strcmp(a, "--orbital") == 0) {
+            o->orbital = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-orbital") == 0) {
+            o->orbital = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -1326,6 +1342,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.symmetry >= 0 && jaos_set_mip_symmetry(m, o.symmetry) != JAOS_OK) {
         rc = library_error("set symmetry detection for", o.file, m);
+        goto out;
+    }
+    if (o.orbital >= 0 && jaos_set_mip_orbital(m, o.orbital) != JAOS_OK) {
+        rc = library_error("set orbital branching for", o.file, m);
         goto out;
     }
     if (o.propagate >= 0 &&

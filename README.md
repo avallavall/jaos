@@ -56,6 +56,7 @@ cuts at the root and below it. A rounding heuristic, a root dive and a
 feasibility pump. A solution pool, a MIP start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.
+Symmetry detection at the root and orbital branching on its orbits.
 Every default was set on the MIPLIB 3 set (`make miplib`).
 
 **After the answer.** The independent checker. Sensitivity and ranging for

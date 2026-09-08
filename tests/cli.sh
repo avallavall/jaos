@@ -395,6 +395,15 @@ expect_exit 0 "an .nl file is read by its extension" \
     || flunk "nl: $(line_of objective)"
 expect_exit 5 "a nonlinear .nl is refused" \
     "$JAOS" solve "$DATA/e_nonlin.nl"
+expect_exit 0 "--no-orbital still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-orbital
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-orbital: $(line_of objective)"
+expect_exit 0 "--orbital is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --orbital
+"$JAOS" options | grep -q '^mip_orbital ' \
+    && pass "jaos options lists mip_orbital" \
+    || flunk "jaos options does not list mip_orbital"
 expect_exit 0 "--no-symmetry still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-symmetry
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

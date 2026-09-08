@@ -2881,6 +2881,7 @@ static void test_a_conflict_row_shortens_an_infeasible_tree(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, on));
         TEST_ASSERT_TRUE(m->cfg.mip_conflicts_set);
         TEST_ASSERT_EQUAL_INT(on, m->cfg.mip_conflicts);

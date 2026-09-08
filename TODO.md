@@ -26,12 +26,6 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: symmetry
 
-11. **Orbital fixing at the nodes** behind `--orbital-fixing`: at a node,
-    the generators that fix pointwise every binary the branching set to 1
-    generate a subgroup; in each of its orbits that holds a binary the
-    branching set to 0, every binary is fixed to 0 (Ostrowski, Linderoth,
-    Rossi and Smriglio). Measured on the MIP set; lands on or off by the
-    reading.
 
 
 
