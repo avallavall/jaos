@@ -22,3 +22,23 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    six not moving in any). What is left unmeasured is a perturbation on
    the pricing side. The row in SPECS stays partial until the count is
    zero.
+
+## Milestone: steer and cut
+
+3. **Steering callbacks: user cuts, lazy constraints, branching.** One
+   node callback with the node's point: it may add rows that hold for
+   every solution (user cuts at a fractional point, lazy constraints
+   against an integer one, which is then not an incumbent), and may name
+   the column to branch on. Every point that would become an incumbent,
+   the heuristics' included, passes the callback first. C API, Python at
+   both layers, tests with a subtour-style rejection and a forced branch.
+4. **Zero-half cuts** at the root, from pairs and triples of rows with
+   integer coefficients on integer columns whose sum has odd right-hand
+   side parity after the combination (Caprara and Fischetti). Measured on
+   the MIP set against the four cut families in; lands on or off by the
+   reading, behind `--zero-half-rounds`.
+5. **Write LP: names it cannot spell.** A column or row name LP cannot
+   carry (leading digit, an operator or a space inside, too long) is
+   written under a spelled name with the original in a comment map at the
+   top of the file. A free row stays refused; `convert --positional` is the
+   escape. The row in SPECS stays partial for the free row.
