@@ -735,7 +735,7 @@ void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
 {
     if (!jm_logging_at(m, level))
         return;
-    char line[256];
+    char line[1024];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(line, sizeof line, fmt, ap);
@@ -1489,6 +1489,15 @@ jaos_status jaos_set_mip_clique_fix(jaos_model *m, int on)
         return JAOS_ERR_INVALID_INPUT;
     m->cfg.mip_clique_fix_set = on >= 0;
     m->cfg.mip_clique_fix = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_conflicts(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_conflicts_set = on >= 0;
+    m->cfg.mip_conflicts = on > 0;
     return JAOS_OK;
 }
 

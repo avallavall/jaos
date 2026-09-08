@@ -25,9 +25,4 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: the tree, the rest
 
-7. **Conflict analysis**: a node whose relaxation is infeasible gives a
-   Farkas ray, and the branching bounds the ray needs give a conflict
-   constraint over the binaries fixed on the path, added for the rest of
-   the search. Measured on the MIP set; lands on or off by the reading,
-   behind `--conflicts`.
 

@@ -28,6 +28,9 @@ constexpr int64_t MIP_ZERO_HALF_TRIPLE_CAP = 40;
 constexpr int64_t MIP_ZERO_HALF_CUT_CAP = 50;
 constexpr int64_t MIP_FLOW_COVER_ROUNDS = 0;
 constexpr int64_t MIP_FLOW_COVER_CUT_CAP = 50;
+constexpr bool MIP_CONFLICTS = true;
+constexpr int64_t MIP_CONFLICT_MAX = 32;
+constexpr double MIP_CONFLICT_GAP = 1e-9;
 constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
 
 constexpr double MIP_CUT_STALL = 0.0;
@@ -259,6 +262,7 @@ typedef struct {
     int64_t *cuts;
     int64_t ncuts;
     bool no_cuts;
+    int64_t nrow, nperm;
 } bnode;
 
 static void node_free(bnode *n)
@@ -337,7 +341,7 @@ static bool resume_within(const bnode *n, const bheap *h, bnode *const *stack,
 }
 
 static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
-                         const jaos_basis_status *cs,
+                         int64_t nperm, const jaos_basis_status *cs,
                          const jaos_basis_status *rs, int64_t nfix,
                          const int64_t *fcol, const double *flo,
                          const double *fhi, double key, int64_t id,
@@ -374,6 +378,8 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
         n->hi[pf + k] = fhi[k];
     }
     n->nfix = nf;
+    n->nrow = nr;
+    n->nperm = nperm;
     n->depth = d;
     n->key = key;
     n->id = id;
@@ -455,8 +461,28 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
             st = jaos_set_row_bounds(lp, i, on ? m->row_lower[i] : -INFINITY,
                                      on ? m->row_upper[i] : INFINITY);
         }
-    if (st == JAOS_OK && n != nullptr)
-        st = jaos_set_basis(lp, n->cs, n->rs);
+    if (st == JAOS_OK && n != nullptr) {
+        if (n->nrow == lp->num_row) {
+            st = jaos_set_basis(lp, n->cs, n->rs);
+        } else {
+            const int64_t copies = n->nrow - n->nperm;
+            if (nfixed + copies != lp->num_row || nfixed < n->nperm)
+                return JAOS_ERR_INVALID_INPUT;
+            jaos_basis_status *rs =
+                malloc((size_t)(lp->num_row > 0 ? lp->num_row : 1) * sizeof *rs);
+            if (rs == nullptr)
+                return JAOS_ERR_OUT_OF_MEMORY;
+            if (n->nperm > 0)
+                memcpy(rs, n->rs, (size_t)n->nperm * sizeof *rs);
+            for (int64_t i = n->nperm; i < nfixed; i++)
+                rs[i] = JAOS_BASIS_BASIC;
+            if (copies > 0)
+                memcpy(rs + nfixed, n->rs + n->nperm,
+                       (size_t)copies * sizeof *rs);
+            st = jaos_set_basis(lp, n->cs, rs);
+            free(rs);
+        }
+    }
     return st;
 }
 
@@ -644,6 +670,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PROBING: return MIP_PROBING ? 1.0 : 0.0;
     case JM_DEF_PROBING_CAP: return MIP_PROBING_CAP;
     case JM_DEF_CLIQUE_FIX: return MIP_CLIQUE_FIX ? 1.0 : 0.0;
+    case JM_DEF_CONFLICTS: return MIP_CONFLICTS ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -2781,7 +2808,7 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     if (rb->n == 0)
         return JAOS_OK;
     const double tol = jm_primal_tolerance(m);
-    for (int64_t r = 0; r < rb->n && !*violated; r++) {
+    for (int64_t r = 0; x != nullptr && r < rb->n && !*violated; r++) {
         double act = 0.0;
         for (int64_t p = rb->start[r]; p < rb->start[r + 1]; p++)
             act += rb->val[p] * x[rb->idx[p]];
@@ -2816,6 +2843,110 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     sw->rows += rb->n;
     rb->n = rb->nnz = 0;
     return JAOS_OK;
+}
+
+
+static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
+                            const bnode *cur, const double *ilo,
+                            const double *ihi, double *ray, double *acol,
+                            int64_t *last, double *blo, double *bhi,
+                            rowbuf *rb, int64_t *work)
+{
+    const int64_t nc = m->num_col, nrl = lp->num_row;
+    if (cur == nullptr || cur->nfix == 0 || m->row_ind_col != nullptr ||
+        m->num_sos > 0)
+        return 0;
+    if (jaos_certificate(lp, ray) != JAOS_OK)
+        return 0;
+    *work += lp->num_nz + nc + nrl;
+    double inf_rows = 0.0;
+    for (int64_t i = 0; i < nrl; i++) {
+        const double y = ray[i];
+        if (y > 0.0) {
+            if (!isfinite(lp->row_lower[i]))
+                return 0;
+            inf_rows += y * lp->row_lower[i];
+        } else if (y < 0.0) {
+            if (!isfinite(lp->row_upper[i]))
+                return 0;
+            inf_rows += y * lp->row_upper[i];
+        }
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        double a = 0.0;
+        for (int64_t p = lp->a_start[j]; p < lp->a_start[j + 1]; p++)
+            a += lp->a_value[p] * ray[lp->a_index[p]];
+        acol[j] = a;
+        last[j] = -1;
+        blo[j] = ilo[j];
+        bhi[j] = ihi[j];
+    }
+    for (int64_t k = 0; k < cur->nfix; k++) {
+        const int64_t j = cur->col[k];
+        last[j] = k;
+        blo[j] = cur->lo[k];
+        bhi[j] = cur->hi[k];
+    }
+    double sup = 0.0;
+    for (int64_t j = 0; j < nc; j++) {
+        const double a = acol[j];
+        if (a > 0.0) {
+            if (!isfinite(bhi[j]))
+                return 0;
+            sup += a * bhi[j];
+        } else if (a < 0.0) {
+            if (!isfinite(blo[j]))
+                return 0;
+            sup += a * blo[j];
+        }
+    }
+    const double tol = MIP_CONFLICT_GAP * (1.0 + fabs(inf_rows));
+    double gap = inf_rows - sup;
+    if (!(gap > tol))
+        return 0;
+    int64_t kept = 0, ones = 0;
+    for (int64_t k = cur->nfix - 1; k >= 0; k--) {
+        const int64_t j = cur->col[k];
+        if (last[j] != k)
+            continue;
+        const double a = acol[j];
+        double delta = 0.0;
+        if (a > 0.0)
+            delta = isfinite(ihi[j]) ? a * (ihi[j] - bhi[j]) : INFINITY;
+        else if (a < 0.0)
+            delta = isfinite(ilo[j]) ? a * (ilo[j] - blo[j]) : INFINITY;
+        if (gap - delta > tol) {
+            gap -= delta;
+            last[j] = -1;
+            continue;
+        }
+        if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0 ||
+            blo[j] != bhi[j])
+            return 0;
+        kept++;
+        ones += blo[j] == 1.0;
+    }
+    if (kept == 0 || kept > MIP_CONFLICT_MAX)
+        return 0;
+    if (!JM_GROW(rb->start, rb->cap_start, rb->n + 2) ||
+        !JM_GROW(rb->lo, rb->cap_lo, rb->n + 1) ||
+        !JM_GROW(rb->up, rb->cap_up, rb->n + 1) ||
+        !JM_GROW(rb->idx, rb->cap_idx, rb->nnz + kept) ||
+        !JM_GROW(rb->val, rb->cap_val, rb->nnz + kept))
+        return -1;
+    rb->start[rb->n] = rb->nnz;
+    for (int64_t j = 0; j < nc; j++) {
+        if (last[j] < 0)
+            continue;
+        rb->idx[rb->nnz] = j;
+        rb->val[rb->nnz] = blo[j] == 1.0 ? -1.0 : 1.0;
+        rb->nnz++;
+    }
+    rb->lo[rb->n] = 1.0 - (double)ones;
+    rb->up[rb->n] = INFINITY;
+    rb->n++;
+    rb->start[rb->n] = rb->nnz;
+    return kept;
 }
 
 static jaos_callback_action steer_fire(const jaos_model *m, steer *sw,
@@ -3128,6 +3259,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_probing_cap : MIP_PROBING_CAP;
     const bool clique_fix_on = m->cfg.mip_clique_fix_set
         ? m->cfg.mip_clique_fix : MIP_CLIQUE_FIX;
+    const bool conflicts_on = m->cfg.mip_conflicts_set
+        ? m->cfg.mip_conflicts : MIP_CONFLICTS;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -3208,6 +3341,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t clique_fixed = 0, clique_cut_nodes = 0;
     steer sw = {0};
     int64_t nperm = nr;
+    double *cray = nullptr, *cacol = nullptr, *cblo = nullptr;
+    int64_t *clast = nullptr;
+    int64_t cray_cap = 0, conflicts = 0, conflict_lits = 0;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
     double *prnd = nullptr;
@@ -3453,8 +3589,37 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             goto done;
         }
         jaos_solve_status ns = jaos_status_of(lp);
-        if (ns == JAOS_SOLVE_INFEASIBLE)
+        if (ns == JAOS_SOLVE_INFEASIBLE) {
+            if (conflicts_on && nodes > 1) {
+                if (cacol == nullptr) {
+                    cacol = malloc((size_t)(nc > 0 ? 3 * nc : 1) * sizeof *cacol);
+                    clast = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *clast);
+                    if (cacol == nullptr || clast == nullptr)
+                        goto done;
+                    cblo = cacol + nc;
+                }
+                if (!JM_GROW(cray, cray_cap, lp->num_row + 1))
+                    goto done;
+                const int64_t got = conflict_row(m, lp, cur, ilo, ihi, cray,
+                                                 cacol, clast, cblo,
+                                                 cblo + nc, &sw.rb, &work);
+                if (got < 0)
+                    goto done;
+                if (got > 0) {
+                    bool violated = false;
+                    if (steer_flush(m, lp, &sw, &pool, &in_copy, &nfixed,
+                                    &nperm, nullptr, &violated, &work)
+                        != JAOS_OK)
+                        goto done;
+                    conflicts++;
+                    conflict_lits += got;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "node %lld: a conflict over %lld binaries",
+                           (long long)nodes, (long long)got);
+                }
+            }
             continue;
+        }
         if (ns == JAOS_SOLVE_UNBOUNDED) {
 
             outcome = JAOS_SOLVE_UNBOUNDED;
@@ -4298,11 +4463,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
         const bool child_no_cuts = stalled || (nodes > 1 && cur->no_cuts);
         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
-                                 lp->sol_col_status, child_rs, nfd, fcol, flo,
+                                 nfixed, lp->sol_col_status, child_rs, nfd,
+                                 fcol, flo,
                                  fhi, key, next_id++, frac_d, false, act,
                                  act_n, child_no_cuts);
         bnode *up = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
-                               lp->sol_col_status, child_rs, nfu, ucol, ulo,
+                               nfixed, lp->sol_col_status, child_rs, nfu,
+                               ucol, ulo,
                                uhi, key, next_id++, frac_u, true, act, act_n,
                                child_no_cuts);
         if (down == nullptr || up == nullptr) {
@@ -4380,7 +4547,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            "%lld probes, "
            "%lld of them capped, %lld columns fixed by cliques and %lld "
            "nodes cut by them, the callback fired %lld times, added %lld "
-           "rows, rejected %lld points and chose %lld branches",
+           "rows, rejected %lld points and chose %lld branches, %lld "
+           "conflicts over %lld binaries",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
@@ -4388,7 +4556,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            (long long)probes, (long long)capped, (long long)clique_fixed,
            (long long)clique_cut_nodes, (long long)sw.fired,
            (long long)sw.rows, (long long)sw.rejected,
-           (long long)sw.steered);
+           (long long)sw.steered, (long long)conflicts,
+           (long long)conflict_lits);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -4457,6 +4626,9 @@ done:
     free(pbuf);
     clique_table_free(&ctab);
     steer_free(&sw);
+    free(cray);
+    free(cacol);
+    free(clast);
     free(cstack);
     free(pextra);
     free(porder);

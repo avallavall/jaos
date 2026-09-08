@@ -613,6 +613,7 @@ _sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_clique_fix", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_conflicts", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1379,6 +1380,17 @@ class Model:
         a negative value restores it.
         """
         self._check(_lib.jaos_set_mip_clique_fix(self._handle(), int(on)))
+
+    def set_mip_conflicts(self, on):
+        """Conflict analysis at an infeasible node.
+
+        The Farkas proof of the node's relaxation is read over the
+        branching fixings on the path; the fixings the proof can do
+        without are dropped, and when the rest are binaries fixed to a
+        value, a row forbidding that combination is kept for the rest of
+        the search. On by default; a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_conflicts(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -3165,6 +3177,12 @@ class Problem:
         """Fixing by the root's clique table at each node; off by
         default, negative restores it."""
         self._m.set_mip_clique_fix(on)
+        return self
+
+    def set_mip_conflicts(self, on):
+        """Conflict analysis at infeasible nodes; on by default,
+        negative restores it."""
+        self._m.set_mip_conflicts(on)
         return self
 
     def set_mip_propagate(self, rounds):

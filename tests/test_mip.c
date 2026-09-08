@@ -2851,6 +2851,58 @@ static void test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(void)
     TEST_ASSERT_EQUAL_INT64(1, nodes[1]);
 }
 
+
+static void test_a_conflict_row_shortens_an_infeasible_tree(void)
+{
+    const double c[3] = {-1.0, -1.0, -1.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+    const double rl[4] = {-INFINITY, -INFINITY, -INFINITY, 1.5};
+    const double ru[4] = {1.0, 1.0, 1.0, INFINITY};
+    const int64_t as[4] = {0, 3, 6, 9};
+    const int64_t ai[9] = {0, 2, 3, 0, 1, 3, 1, 2, 3};
+    const double av[9] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    int64_t nodes[2] = {0, 0};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 4, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         9, as, ai, av));
+        for (int64_t j = 0; j < 3; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, on));
+        TEST_ASSERT_TRUE(m->cfg.mip_conflicts_set);
+        TEST_ASSERT_EQUAL_INT(on, m->cfg.mip_conflicts);
+        g_log[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[on] = rep.nodes;
+        if (on)
+            TEST_ASSERT_NOT_NULL(strstr(g_log, " 2 conflicts over 2 binaries"));
+        else
+            TEST_ASSERT_NOT_NULL(strstr(g_log, " 0 conflicts over 0 binaries"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_conflicts_set);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[1] <= nodes[0]);
+}
+
 static void test_coefficient_tightening_is_a_switch(void)
 {
     jaos_model *m = knapsack();
@@ -3118,5 +3170,6 @@ int main(void)
     RUN_TEST(test_clique_fixing_at_a_node_shortens_the_tree);
     RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
+    RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
     return UNITY_END();
 }

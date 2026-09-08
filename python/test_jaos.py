@@ -2017,6 +2017,25 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_conflict_analysis_is_a_switch_and_keeps_the_verdict(self):
+        nodes = []
+        for on in (0, 1, -1):
+            p = jaos.Problem()
+            xs = [p.add_var(binary=True, name=f"x{k}") for k in range(3)]
+            p.add(xs[0] + xs[1] <= 1)
+            p.add(xs[1] + xs[2] <= 1)
+            p.add(xs[0] + xs[2] <= 1)
+            p.add(xs[0] + xs[1] + xs[2] >= 1.5)
+            p.maximize(xs[0] + xs[1] + xs[2])
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0)
+            p.set_mip_cut_depth(0).set_mip_heuristics(False).set_mip_tighten(0)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_conflicts(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+            nodes.append(p.mip_report().nodes)
+        self.assertLessEqual(nodes[1], nodes[0])
+        self.assertEqual(nodes[2], nodes[1])
+
     def test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(self):
         nodes = []
         for rounds in (0, 1):

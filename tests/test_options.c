@@ -69,6 +69,8 @@ static void test_options_reach_the_setters(void)
     TEST_ASSERT_TRUE(m->cfg.mip_flow_cover_rounds_set && m->cfg.mip_flow_cover_rounds == 3);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_zero_half_rounds", "2"));
     TEST_ASSERT_TRUE(m->cfg.mip_zero_half_rounds_set && m->cfg.mip_zero_half_rounds == 2);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_conflicts", "off"));
+    TEST_ASSERT_TRUE(m->cfg.mip_conflicts_set && !m->cfg.mip_conflicts);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_clique_fix", "off"));
     TEST_ASSERT_TRUE(m->cfg.mip_clique_fix_set && !m->cfg.mip_clique_fix);
 

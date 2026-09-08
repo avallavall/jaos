@@ -43,6 +43,7 @@ static const char U_SYNOPSIS[] =
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
+    "                  [--conflicts | --no-conflicts]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -186,6 +187,11 @@ static const char U_SOLVE_D[] =
     "                   every literal the root's clique table puts in\n"
     "                   conflict with it; off by default, --no-clique-fix\n"
     "                   is the default\n"
+    "  --conflicts      at a node whose relaxation is infeasible, the\n"
+    "                   Farkas proof names the branching fixings it needs,\n"
+    "                   and a row forbidding them together is kept for the\n"
+    "                   rest of the search; on by default, --no-conflicts\n"
+    "                   turns it off\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -666,6 +672,7 @@ struct solve_options {
     bool has_probing_cap;
     double probing_cap;
     int clique_fix;
+    int conflicts;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -714,6 +721,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->tighten = -1;
     o->probing = -1;
     o->clique_fix = -1;
+    o->conflicts = -1;
     o->propagate = -1;
     o->propagate_depth = -2;
     o->mir_aggregate = -1;
@@ -809,6 +817,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-clique-fix") == 0) {
             o->clique_fix = 0;
+            continue;
+        }
+        if (strcmp(a, "--conflicts") == 0) {
+            o->conflicts = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-conflicts") == 0) {
+            o->conflicts = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -1262,6 +1278,10 @@ static int cmd_solve(int argc, char **argv)
     if (o.clique_fix >= 0 &&
         jaos_set_mip_clique_fix(m, o.clique_fix) != JAOS_OK) {
         rc = library_error("set clique fixing for", o.file, m);
+        goto out;
+    }
+    if (o.conflicts >= 0 && jaos_set_mip_conflicts(m, o.conflicts) != JAOS_OK) {
+        rc = library_error("set conflict analysis for", o.file, m);
         goto out;
     }
     if (o.propagate >= 0 &&

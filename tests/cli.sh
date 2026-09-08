@@ -382,6 +382,15 @@ expect_exit 5 "--probing-cap refuses a negative" \
 "$JAOS" options | grep -q '^mip_probing_cap ' \
     && pass "jaos options lists mip_probing_cap" \
     || flunk "jaos options does not list mip_probing_cap"
+expect_exit 0 "--no-conflicts still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-conflicts
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-conflicts: $(line_of objective)"
+expect_exit 0 "--conflicts is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --conflicts
+"$JAOS" options | grep -q '^mip_conflicts ' \
+    && pass "jaos options lists mip_conflicts" \
+    || flunk "jaos options does not list mip_conflicts"
 expect_exit 0 "--no-clique-fix still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-clique-fix
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
