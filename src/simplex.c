@@ -61,6 +61,7 @@ constexpr double PHASE1_RISE_MAX = 1.0;
 constexpr double NOISE_MARGIN = 1e5;
 
 constexpr int64_t SETTLE_ROUNDS = 32;
+constexpr int64_t POLISH_ROUNDS = 4;
 constexpr int64_t SETTLE_ROUNDS_PRIMAL = 256;
 
 constexpr int64_t WARM_REPAIR_MAX_SHORT = 4;
@@ -3476,6 +3477,54 @@ static jaos_basis_status published_status(jm_var_status st)
     return JAOS_BASIS_BASIC;
 }
 
+static void polish_unscaled(sx *s)
+{
+    const jaos_model *m = s->m;
+    const double *rho = m->row_scale, *gamma = m->col_scale;
+    double *r = s->raw, *comp = s->resc;
+
+    for (int64_t round = 0; round < POLISH_ROUNDS; round++) {
+        memset(comp, 0, (size_t)s->nrow * sizeof *comp);
+        for (int64_t i = 0; i < s->nrow; i++)
+            r[i] = -var_value(s, s->ncol + i) / rho[i];
+        int64_t nz = 0;
+        for (int64_t j = 0; j < s->ncol; j++) {
+            const double xj = gamma[j] * var_value(s, j);
+            if (xj == 0.0)
+                continue;
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                const int64_t i = m->a_index[k];
+                const double t = m->a_value[k] * xj;
+                const double a = r[i], u = a + t;
+                comp[i] += (fabs(a) >= fabs(t)) ? ((a - u) + t)
+                                                : ((t - u) + a);
+                r[i] = u;
+            }
+            nz += m->a_start[j + 1] - m->a_start[j];
+        }
+        jm_work_add(&s->work, (nz + 2 * s->nrow) * JM_WORK_NONZERO);
+
+        double worst = 0.0;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            if (isfinite(comp[i]))
+                r[i] += comp[i];
+            if (fabs(r[i]) > worst)
+                worst = fabs(r[i]);
+        }
+        if (!(worst > s->primal_tol))
+            return;
+        jm_log(m, JAOS_LOG_DETAIL,
+               "the point leaves a row by %.6g in the model's units; "
+               "polishing", worst);
+        for (int64_t i = 0; i < s->nrow; i++)
+            r[i] *= rho[i];
+        jm_lu_ftran(&s->lu, r, &s->work);
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->xb[i] -= r[i];
+        jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
+}
+
 static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
 {
     jaos_model *m = s->m;
@@ -3864,6 +3913,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
         (st != JAOS_OK || outcome == JAOS_SOLVE_NUMERICAL_ERROR))
         memcpy(m->err, target->err, sizeof m->err);
 
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL)
+        polish_unscaled(&s);
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
 
