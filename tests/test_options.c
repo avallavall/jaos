@@ -60,6 +60,11 @@ static void test_options_reach_the_setters(void)
     TEST_ASSERT_EQUAL_STRING("12.5", buf);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_cutoff", "inf"));
     TEST_ASSERT_FALSE(m->cfg.mip_cutoff_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_get_option(m, "mip_probing_cap", buf, 64));
+    TEST_ASSERT_EQUAL_STRING("1", buf);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_probing_cap", "0.5"));
+    TEST_ASSERT_TRUE(m->cfg.mip_probing_cap_set && m->cfg.mip_probing_cap == 0.5);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_probing_cap", "nan"));
 
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "no_such", "1"));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "no_such"));

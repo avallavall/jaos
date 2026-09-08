@@ -40,7 +40,7 @@ static const char U_SYNOPSIS[] =
     "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
-    "                  [--probing | --no-probing]\n"
+    "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -166,9 +166,14 @@ static const char U_SOLVE_D[] =
     "  --tighten        at the root, shrink a binary column's coefficient\n"
     "                   in a one-sided row it can never make tight; on by\n"
     "                   default, --no-tighten turns it off\n"
-    "  --probing        at the root, fix a binary column whose one setting\n"
-    "                   makes some row impossible by propagation; off by\n"
-    "                   default, --no-probing is the default\n"
+    "  --probing        after the root solve, try each binary column that\n"
+    "                   is fractional there at 0 and at 1 by propagation:\n"
+    "                   a setting some row cannot take fixes the column\n"
+    "                   the other way, and the bounds both settings imply\n"
+    "                   are kept; off by default, --no-probing is the\n"
+    "                   default\n"
+    "  --probing-cap M  stop probing at M times the root solve's own work\n"
+    "                   (M >= 0; 0 for no cap; default 1)\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -644,6 +649,8 @@ struct solve_options {
     int rcfix;
     int tighten;
     int probing;
+    bool has_probing_cap;
+    double probing_cap;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -836,6 +843,11 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->pool_size) || o->pool_size <= 0)
                 return usage_error("--pool-size needs a positive integer, "
                                    "not '%s'", v);
+        } else if (strcmp(a, "--probing-cap") == 0) {
+            if (!parse_double(v, &o->probing_cap) || o->probing_cap < 0.0)
+                return usage_error("--probing-cap needs a multiple of the "
+                                   "root's work, 0 or more, not '%s'", v);
+            o->has_probing_cap = true;
         } else if (strcmp(a, "--probe-cap") == 0) {
             if (!parse_double(v, &o->probe_cap) || o->probe_cap < 0.0)
                 return usage_error("--probe-cap needs a multiple of the node's "
@@ -1194,6 +1206,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.probing >= 0 && jaos_set_mip_probing(m, o.probing) != JAOS_OK) {
         rc = library_error("set probing for", o.file, m);
+        goto out;
+    }
+    if (o.has_probing_cap &&
+        jaos_set_mip_probing_cap(m, o.probing_cap) != JAOS_OK) {
+        rc = library_error("set the probing cap for", o.file, m);
         goto out;
     }
     if (o.propagate >= 0 &&

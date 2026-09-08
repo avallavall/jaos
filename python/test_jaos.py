@@ -1934,7 +1934,7 @@ class TestBranchAndBound(unittest.TestCase):
 
     def test_probing_is_a_switch_and_changes_no_answer(self):
         objs = []
-        for on in (0, 1, -1):
+        for on, cap in ((0, -1), (1, 0), (1, 0.5), (-1, -1)):
             p = jaos.Problem()
             x = p.add_var(integer=True, ub=1, name="x")
             y = p.add_var(integer=True, ub=1, name="y")
@@ -1942,11 +1942,13 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(x + y <= 1)
             p.add(x + z <= 1)
             p.add(y + z >= 1)
-            p.maximize(2 * x + y + z)
-            p.set_mip_probing(on)
+            p.maximize(3 * x + y + z)
+            p.set_mip_probing(on).set_mip_probing_cap(cap)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             objs.append(p.objective_value)
-        self.assertEqual(objs, [2.0, 2.0, 2.0])
+        self.assertEqual(objs, [2.0, 2.0, 2.0, 2.0])
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_probing_cap(float("nan"))
 
     def test_the_dive_heuristic_runs_below_the_root(self):
 

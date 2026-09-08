@@ -551,6 +551,7 @@ _sig("jaos_set_mip_pump_always", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1272,15 +1273,23 @@ class Model:
         self._check(_lib.jaos_set_mip_tighten(self._handle(), int(on)))
 
     def set_mip_probing(self, on):
-        """Probing at the root.
+        """Probing after the root solve.
 
-        Each binary column is tried at 0 and at 1 with the rows propagated
-        over the bounds; a setting that makes some row impossible fixes
-        the column the other way, and a column that fits neither way
-        makes the model infeasible. Off by default (1.566x over the MIP
-        set); a negative value restores it.
+        Each binary column fractional at the root is tried at 0 and at 1
+        with the rows propagated over the bounds, most fractional first,
+        under the cap of `set_mip_probing_cap`. A setting that makes some
+        row impossible fixes the column the other way, the bounds both
+        settings imply are kept, and a column that fits neither way makes
+        the model infeasible. Off by default; a negative value restores
+        it.
         """
         self._check(_lib.jaos_set_mip_probing(self._handle(), int(on)))
+
+    def set_mip_probing_cap(self, multiple):
+        """A work cap on the root's probing, as a multiple of the work
+        the root solve itself took. 0 removes the cap; a negative value
+        restores the default; NaN and infinity are refused."""
+        self._check(_lib.jaos_set_mip_probing_cap(self._handle(), float(multiple)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -3010,9 +3019,13 @@ class Problem:
         return self
 
     def set_mip_probing(self, on):
-        """Probing of binary columns at the root; off by default, negative
-        restores it."""
+        """Probing of the binary columns fractional at the root; off by
+        default, negative restores it."""
         self._m.set_mip_probing(on)
+        return self
+
+    def set_mip_probing_cap(self, multiple):
+        self._m.set_mip_probing_cap(multiple)
         return self
 
     def set_mip_propagate(self, rounds):

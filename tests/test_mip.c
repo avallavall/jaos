@@ -2354,7 +2354,7 @@ static void test_an_indicator_row_holds_only_while_its_column_says_so(void)
 
 static void test_probing_fixes_a_binary_that_fits_one_way_only(void)
 {
-    const double c[3] = {-2.0, -1.0, -1.0};
+    const double c[3] = {-3.0, -1.0, -1.0};
     const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
     const double rl[3] = {-INFINITY, -INFINITY, 1.0};
     const double ru[3] = {1.0, 1.0, INFINITY};
@@ -2370,6 +2370,11 @@ static void test_probing_fixes_a_binary_that_fits_one_way_only(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probing(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probing_cap(m, 0.0));
+    TEST_ASSERT_TRUE(m->cfg.mip_probing_cap_set);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->cfg.mip_probing_cap);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_mip_probing_cap(m, INFINITY));
     g_log[0] = '\0';
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
@@ -2378,7 +2383,12 @@ static void test_probing_fixes_a_binary_that_fits_one_way_only(void)
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, obj);
-    TEST_ASSERT_NOT_NULL(strstr(g_log, "probing: 1 columns fixed of 3 probed"));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "probing: 3 of 3 fractional binaries "
+                                       "probed, 1 fixed, 0 other bounds "
+                                       "implied"));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
     double x[3];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, x[0]);
@@ -2396,6 +2406,44 @@ static void test_probing_fixes_a_binary_that_fits_one_way_only(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, obj);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probing(m, -1));
     TEST_ASSERT_FALSE(m->cfg.mip_probing_set);
+    jaos_model_free(m);
+}
+
+static void test_probing_keeps_a_bound_both_settings_imply(void)
+{
+    const double c[2] = {-1.0, -1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {1.0, 5.0};
+    const double rl[2] = {-INFINITY, -INFINITY};
+    const double ru[2] = {2.0, 5.0};
+    const int64_t as[3] = {0, 2, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {-3.0, 3.0, 1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probing(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_probing_cap(m, 0.0));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, obj);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "probing: 1 of 1 fractional binaries "
+                                       "probed, 0 fixed, 1 other bounds "
+                                       "implied"));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
     jaos_model_free(m);
 }
 
@@ -2659,5 +2707,6 @@ int main(void)
     RUN_TEST(test_coefficient_tightening_closes_a_loose_binary_row);
     RUN_TEST(test_coefficient_tightening_is_a_switch);
     RUN_TEST(test_probing_fixes_a_binary_that_fits_one_way_only);
+    RUN_TEST(test_probing_keeps_a_bound_both_settings_imply);
     return UNITY_END();
 }

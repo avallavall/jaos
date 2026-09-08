@@ -1451,6 +1451,20 @@ jaos_status jaos_set_mip_probing(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_probing_cap(jaos_model *m, double multiple)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (isnan(multiple) || multiple == INFINITY) {
+        jm_set_err(m, "the probing cap must be a finite multiple of the "
+                      "root's work, 0 for none, or negative for the default");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_probing_cap_set = multiple >= 0.0;
+    m->cfg.mip_probing_cap = multiple >= 0.0 ? multiple : 0.0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)
 {
     if (m == nullptr)

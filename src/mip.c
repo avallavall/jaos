@@ -68,6 +68,7 @@ constexpr bool MIP_RCFIX = false;
 constexpr bool MIP_TIGHTEN = true;
 constexpr bool MIP_PROBING = false;
 constexpr int64_t MIP_PROBING_ROUNDS = 2;
+constexpr double MIP_PROBING_CAP = 1.0;
 
 constexpr double MIP_RCFIX_SLACK = 1e-6;
 
@@ -632,6 +633,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_RCFIX: return MIP_RCFIX ? 1.0 : 0.0;
     case JM_DEF_TIGHTEN: return MIP_TIGHTEN ? 1.0 : 0.0;
     case JM_DEF_PROBING: return MIP_PROBING ? 1.0 : 0.0;
+    case JM_DEF_PROBING_CAP: return MIP_PROBING_CAP;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -1190,56 +1192,106 @@ static void set_coefficient(jaos_model *lp, int64_t i, int64_t j,
     *cost += lp->a_start[j + 1] - lp->a_start[j];
 }
 
-static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
-                              double *phi, int64_t rounds, int64_t *work);
+static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
+                                int64_t rounds, int64_t *work);
 
-static int64_t probe_binaries(jaos_model *m, jaos_model *lp, double *plo,
-                              double *phi, double *ilo, double *ihi,
-                              int64_t *probed, bool *infeasible,
+typedef struct {
+    int64_t fractional, probed, fixed, implied;
+    bool infeasible, capped;
+} probe_report;
+
+static int64_t probe_bound_moves(jaos_model *m, jaos_model *lp,
+                                 const double *plo, const double *phi,
+                                 const double *qlo, const double *qhi,
+                                 double *ilo, double *ihi)
+{
+    int64_t moved = 0;
+    for (int64_t k = 0; k < m->num_col; k++) {
+        if (!m->col_integer[k])
+            continue;
+        const double lo = qlo == nullptr || plo[k] < qlo[k] ? plo[k] : qlo[k];
+        const double hi = qhi == nullptr || phi[k] > qhi[k] ? phi[k] : qhi[k];
+        const bool up = lo > lp->col_lower[k] + MIP_PROP_MOVE;
+        const bool down = hi < lp->col_upper[k] - MIP_PROP_MOVE;
+        if (!up && !down)
+            continue;
+        const double nlo = up ? lo : lp->col_lower[k];
+        const double nhi = down ? hi : lp->col_upper[k];
+        if (jaos_set_col_bounds(lp, k, nlo, nhi) != JAOS_OK)
+            return -2;
+        ilo[k] = nlo;
+        ihi[k] = nhi;
+        moved++;
+    }
+    return moved;
+}
+
+static jaos_status probe_root(jaos_model *m, jaos_model *lp, const double *x,
+                              double *ilo, double *ihi, double *buf,
+                              litval *order, int64_t cap, probe_report *rep,
                               int64_t *work)
 {
     const int64_t nc = m->num_col;
-    double *save_lo = malloc((size_t)(nc > 0 ? 2 * nc : 1) * sizeof *save_lo);
-    if (save_lo == nullptr)
-        return -2;
-    double *save_hi = save_lo + nc;
-    int64_t fixed = 0;
-    *probed = 0;
-    *infeasible = false;
-    for (int64_t j = 0; j < nc && !*infeasible; j++) {
+    double *plo = buf, *phi = buf + nc, *qlo = buf + 2 * nc, *qhi = buf + 3 * nc;
+    memset(rep, 0, sizeof *rep);
+    int64_t n = 0;
+    for (int64_t j = 0; j < nc; j++) {
         if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0)
             continue;
-        (*probed)++;
-        int64_t r[2] = {0, 0};
-        for (int v = 0; v < 2; v++) {
-            memcpy(save_lo, lp->col_lower, (size_t)nc * sizeof *save_lo);
-            memcpy(save_hi, lp->col_upper, (size_t)nc * sizeof *save_hi);
-            lp->col_lower[j] = (double)v;
-            lp->col_upper[j] = (double)v;
-            r[v] = propagate_node(m, lp, plo, phi, MIP_PROBING_ROUNDS, work);
-            memcpy(lp->col_lower, save_lo, (size_t)nc * sizeof *save_lo);
-            memcpy(lp->col_upper, save_hi, (size_t)nc * sizeof *save_hi);
-            *work += 2 * nc;
-            if (r[v] == -2) {
-                free(save_lo);
-                return -2;
-            }
-        }
-        if (r[0] == -1 && r[1] == -1) {
-            *infeasible = true;
+        if (x[j] <= MIP_INT_TOL || x[j] >= 1.0 - MIP_INT_TOL)
+            continue;
+        order[n].lit = j;
+        order[n].v = 0.5 - fabs(x[j] - 0.5);
+        n++;
+    }
+    rep->fractional = n;
+    if (n > 1)
+        qsort(order, (size_t)n, sizeof *order, litval_cmp);
+    const int64_t start = *work;
+    for (int64_t t = 0; t < n; t++) {
+        if (cap > 0 && *work - start >= cap) {
+            rep->capped = true;
             break;
         }
-        if (r[0] == -1 || r[1] == -1) {
-            const double keep = r[0] == -1 ? 1.0 : 0.0;
-            lp->col_lower[j] = keep;
-            lp->col_upper[j] = keep;
-            ilo[j] = keep;
-            ihi[j] = keep;
-            fixed++;
+        const int64_t j = order[t].lit;
+        if (lp->col_lower[j] == lp->col_upper[j])
+            continue;
+        rep->probed++;
+        int64_t r[2] = {0, 0};
+        for (int v = 0; v < 2; v++) {
+            double *lo = v == 0 ? qlo : plo, *hi = v == 0 ? qhi : phi;
+            memcpy(lo, lp->col_lower, (size_t)nc * sizeof *lo);
+            memcpy(hi, lp->col_upper, (size_t)nc * sizeof *hi);
+            lo[j] = (double)v;
+            hi[j] = (double)v;
+            *work += 2 * nc;
+            r[v] = propagate_bounds(m, lo, hi, MIP_PROBING_ROUNDS, work);
+            if (r[v] == -2)
+                return JAOS_ERR_OUT_OF_MEMORY;
         }
+        if (r[0] == -1 && r[1] == -1) {
+            rep->infeasible = true;
+            return JAOS_OK;
+        }
+        int64_t moved = 0;
+        if (r[0] == -1)
+            moved = probe_bound_moves(m, lp, plo, phi, nullptr, nullptr,
+                                      ilo, ihi);
+        else if (r[1] == -1)
+            moved = probe_bound_moves(m, lp, qlo, qhi, nullptr, nullptr,
+                                      ilo, ihi);
+        else
+            moved = probe_bound_moves(m, lp, plo, phi, qlo, qhi, ilo, ihi);
+        *work += nc;
+        if (moved == -2)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        if (r[0] == -1 || r[1] == -1) {
+            rep->fixed++;
+            moved--;
+        }
+        rep->implied += moved;
     }
-    free(save_lo);
-    return fixed;
+    return JAOS_OK;
 }
 
 static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
@@ -2196,13 +2248,29 @@ static const char *dive_child_str(int rule)
 static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
                               double *phi, int64_t rounds, int64_t *work)
 {
-    const int64_t nc = m->num_col, nr = m->num_row;
-    if (jm_model_ensure_rowwise(m) != JAOS_OK)
-        return -2;
+    const int64_t nc = m->num_col;
     for (int64_t j = 0; j < nc; j++) {
         plo[j] = lp->col_lower[j];
         phi[j] = lp->col_upper[j];
     }
+    const int64_t moved = propagate_bounds(m, plo, phi, rounds, work);
+    for (int64_t j = 0; moved > 0 && j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        if (plo[j] == lp->col_lower[j] && phi[j] == lp->col_upper[j])
+            continue;
+        if (jaos_set_col_bounds(lp, j, plo[j], phi[j]) != JAOS_OK)
+            return -2;
+    }
+    return moved;
+}
+
+static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
+                                int64_t rounds, int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (jm_model_ensure_rowwise(m) != JAOS_OK)
+        return -2;
     int64_t moved = 0;
     for (int64_t r = 0; r < rounds; r++) {
         int64_t moved_here = 0;
@@ -2292,14 +2360,6 @@ static int64_t propagate_node(jaos_model *m, jaos_model *lp, double *plo,
         if (moved_here == 0)
             break;
     }
-    for (int64_t j = 0; moved > 0 && j < nc; j++) {
-        if (!m->col_integer[j])
-            continue;
-        if (plo[j] == lp->col_lower[j] && phi[j] == lp->col_upper[j])
-            continue;
-        if (jaos_set_col_bounds(lp, j, plo[j], phi[j]) != JAOS_OK)
-            return -2;
-    }
     return moved;
 }
 
@@ -2348,6 +2408,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                 : MIP_TIGHTEN;
     const bool probing = m->cfg.mip_probing_set ? m->cfg.mip_probing
                                                 : MIP_PROBING;
+    const double probing_cap = m->cfg.mip_probing_cap_set
+        ? m->cfg.mip_probing_cap : MIP_PROBING_CAP;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -2417,6 +2479,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t covers = 0;
     int64_t cliques = 0;
     kitem *items = nullptr;
+    double *pbuf = nullptr;
+    litval *porder = nullptr;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
     double *prnd = nullptr;
@@ -2502,25 +2566,6 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             ilo[j] = 0.0;
         else if (m->col_integer[j] && ilo[j] > ihi[j])
             outcome = JAOS_SOLVE_INFEASIBLE;
-    }
-    if (probing && outcome == JAOS_SOLVE_NOT_RUN) {
-        double *qlo = malloc((size_t)(nc > 0 ? 2 * nc : 1) * sizeof *qlo);
-        if (qlo == nullptr)
-            goto done;
-        int64_t probed = 0;
-        bool infeasible = false;
-        const int64_t fixed = probe_binaries(m, lp, qlo, qlo + nc, ilo, ihi,
-                                             &probed, &infeasible, &work);
-        free(qlo);
-        if (fixed == -2)
-            goto done;
-        if (infeasible)
-            outcome = JAOS_SOLVE_INFEASIBLE;
-        if (probed > 0)
-            jm_log(m, JAOS_LOG_SUMMARY,
-                   "probing: %lld columns fixed of %lld probed%s",
-                   (long long)fixed, (long long)probed,
-                   infeasible ? ", and one of them fits neither way" : "");
     }
     if (tighten && outcome == JAOS_SOLVE_NOT_RUN) {
         int64_t rows_tightened = 0;
@@ -2684,6 +2729,64 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
             goto done;
         double key = sigma * obj;
+
+        if (nodes == 1 && probing) {
+            if (pbuf == nullptr) {
+                pbuf = malloc((size_t)(nc > 0 ? 4 * nc : 1) * sizeof *pbuf);
+                porder = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *porder);
+                if (pbuf == nullptr || porder == nullptr)
+                    goto done;
+            }
+            const int64_t cap = probing_cap > 0.0
+                ? (int64_t)ceil(probing_cap * (double)node_work) : 0;
+            const int64_t before = work;
+            probe_report pr;
+            if (probe_root(m, lp, x, ilo, ihi, pbuf, porder, cap, &pr, &work)
+                != JAOS_OK)
+                goto done;
+            if (pr.fractional > 0)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "probing: %lld of %lld fractional binaries probed%s, "
+                       "%lld fixed, %lld other bounds implied, %lld work "
+                       "against the root's %lld%s",
+                       (long long)pr.probed, (long long)pr.fractional,
+                       pr.capped ? " before the cap" : "",
+                       (long long)pr.fixed, (long long)pr.implied,
+                       (long long)(work - before), (long long)node_work,
+                       pr.infeasible ? ", and one fits neither way" : "");
+            if (pr.infeasible) {
+                outcome = JAOS_SOLVE_INFEASIBLE;
+                break;
+            }
+            if (pr.fixed + pr.implied > 0) {
+                st = jaos_solve(lp);
+                solves++;
+                work += jaos_work_units(lp);
+                iters += jaos_iterations(lp);
+                if (st != JAOS_OK) {
+                    if (st == JAOS_ERR_NUMERICAL) {
+                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                        jm_set_err(m, "root after probing: %s",
+                                   jaos_model_error(lp));
+                        break;
+                    }
+                    goto done;
+                }
+                ns = jaos_status_of(lp);
+                if (ns == JAOS_SOLVE_INFEASIBLE) {
+                    outcome = JAOS_SOLVE_INFEASIBLE;
+                    break;
+                }
+                if (ns != JAOS_SOLVE_OPTIMAL) {
+                    outcome = ns;
+                    break;
+                }
+                if (jaos_objective(lp, &obj) != JAOS_OK ||
+                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                    goto done;
+                key = sigma * obj;
+            }
+        }
 
         const double branch_key = key;
         if (nodes > 1)
@@ -3439,6 +3542,8 @@ done:
     free(cut);
     free(act);
     free(items);
+    free(pbuf);
+    free(porder);
     free(mu);
     free(mbest);
     free(mdelta);

@@ -252,6 +252,9 @@ JAOS_NODISCARD jaos_status jaos_set_mip_tighten(jaos_model *m, int on);
 
 JAOS_NODISCARD jaos_status jaos_set_mip_probing(jaos_model *m, int on);
 
+JAOS_NODISCARD jaos_status jaos_set_mip_probing_cap(jaos_model *m,
+                                                    double multiple);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_propagate(jaos_model *m,
                                                   int64_t rounds);
 

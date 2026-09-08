@@ -355,6 +355,15 @@ expect_exit 0 "--probing is accepted" \
 "$JAOS" options | grep -q '^mip_probing ' \
     && pass "jaos options lists mip_probing" \
     || flunk "jaos options does not list mip_probing"
+expect_exit 0 "--probing-cap is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --probing --probing-cap 0.5
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "probing-cap: $(line_of objective)"
+expect_exit 5 "--probing-cap refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --probing-cap -1
+"$JAOS" options | grep -q '^mip_probing_cap ' \
+    && pass "jaos options lists mip_probing_cap" \
+    || flunk "jaos options does not list mip_probing_cap"
 expect_exit 0 "propagation at the root alone still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4 --propagate-depth 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
