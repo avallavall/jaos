@@ -364,6 +364,15 @@ expect_exit 5 "--probing-cap refuses a negative" \
 "$JAOS" options | grep -q '^mip_probing_cap ' \
     && pass "jaos options lists mip_probing_cap" \
     || flunk "jaos options does not list mip_probing_cap"
+expect_exit 0 "--no-clique-fix still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --no-clique-fix
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "no-clique-fix: $(line_of objective)"
+expect_exit 0 "--clique-fix is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --clique-fix
+"$JAOS" options | grep -q '^mip_clique_fix ' \
+    && pass "jaos options lists mip_clique_fix" \
+    || flunk "jaos options does not list mip_clique_fix"
 expect_exit 0 "propagation at the root alone still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --propagate 4 --propagate-depth 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

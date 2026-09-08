@@ -552,6 +552,7 @@ _sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
+_sig("jaos_set_mip_clique_fix", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_propagate", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_propagate_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
@@ -1290,6 +1291,18 @@ class Model:
         the root solve itself took. 0 removes the cap; a negative value
         restores the default; NaN and infinity are refused."""
         self._check(_lib.jaos_set_mip_probing_cap(self._handle(), float(multiple)))
+
+    def set_mip_clique_fix(self, on):
+        """Fixing by the clique table at each node.
+
+        The root builds a table of the conflicts its all-binary rows put
+        between literals, plus the ones probing found. At each node a
+        binary fixed to one setting fixes every literal in conflict with
+        it, and a node holding both sides of a conflict is cut with no
+        solve. Off by default (1.026x over the MIP set, enigma 1.853x);
+        a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_clique_fix(self._handle(), int(on)))
 
     def set_mip_propagate(self, rounds):
         """Passes of bound propagation at each node.
@@ -3026,6 +3039,12 @@ class Problem:
 
     def set_mip_probing_cap(self, multiple):
         self._m.set_mip_probing_cap(multiple)
+        return self
+
+    def set_mip_clique_fix(self, on):
+        """Fixing by the root's clique table at each node; off by
+        default, negative restores it."""
+        self._m.set_mip_clique_fix(on)
         return self
 
     def set_mip_propagate(self, rounds):

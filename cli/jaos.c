@@ -41,6 +41,7 @@ static const char U_SYNOPSIS[] =
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
     "                  [--probing | --no-probing] [--probing-cap M]\n"
+    "                  [--clique-fix | --no-clique-fix]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
     "                  [--algorithm dual|primal] [--no-heuristics]\n"
@@ -174,6 +175,10 @@ static const char U_SOLVE_D[] =
     "                   default\n"
     "  --probing-cap M  stop probing at M times the root solve's own work\n"
     "                   (M >= 0; 0 for no cap; default 1)\n"
+    "  --clique-fix     at each node, a binary fixed to one setting fixes\n"
+    "                   every literal the root's clique table puts in\n"
+    "                   conflict with it; off by default, --no-clique-fix\n"
+    "                   is the default\n"
     "  --propagate N    passes of bound propagation at each node before\n"
     "                   its relaxation is solved; 0 turns it off\n"
     "  --propagate-depth D  deepest node propagation runs at, the root\n"
@@ -651,6 +656,7 @@ struct solve_options {
     int probing;
     bool has_probing_cap;
     double probing_cap;
+    int clique_fix;
     int64_t propagate;
     int64_t propagate_depth;
     double pump_obj;
@@ -696,6 +702,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->rcfix = -1;
     o->tighten = -1;
     o->probing = -1;
+    o->clique_fix = -1;
     o->propagate = -1;
     o->propagate_depth = -2;
     o->mir_aggregate = -1;
@@ -783,6 +790,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-probing") == 0) {
             o->probing = 0;
+            continue;
+        }
+        if (strcmp(a, "--clique-fix") == 0) {
+            o->clique_fix = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-clique-fix") == 0) {
+            o->clique_fix = 0;
             continue;
         }
         if (strcmp(a, "--no-node-mir") == 0) {
@@ -1211,6 +1226,11 @@ static int cmd_solve(int argc, char **argv)
     if (o.has_probing_cap &&
         jaos_set_mip_probing_cap(m, o.probing_cap) != JAOS_OK) {
         rc = library_error("set the probing cap for", o.file, m);
+        goto out;
+    }
+    if (o.clique_fix >= 0 &&
+        jaos_set_mip_clique_fix(m, o.clique_fix) != JAOS_OK) {
+        rc = library_error("set clique fixing for", o.file, m);
         goto out;
     }
     if (o.propagate >= 0 &&

@@ -1932,6 +1932,23 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_clique_fixing_at_a_node_shortens_the_tree(self):
+        nodes = []
+        for on in (0, 1, -1):
+            p = jaos.Problem()
+            xs = [p.add_var(binary=True, name=f"x{k}") for k in range(3)]
+            p.add(3 * xs[0] + 3 * xs[1] + 2 * xs[2] <= 5)
+            p.maximize(4 * xs[0] + 4 * xs[1] + xs[2])
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+            p.set_mip_clique_fix(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 5.0, places=9)
+            nodes.append(p.mip_report().nodes)
+        self.assertLess(nodes[1], nodes[0])
+        self.assertEqual(nodes[2], nodes[0])
+
     def test_probing_is_a_switch_and_changes_no_answer(self):
         objs = []
         for on, cap in ((0, -1), (1, 0), (1, 0.5), (-1, -1)):

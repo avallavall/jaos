@@ -69,6 +69,7 @@ constexpr bool MIP_TIGHTEN = true;
 constexpr bool MIP_PROBING = false;
 constexpr int64_t MIP_PROBING_ROUNDS = 2;
 constexpr double MIP_PROBING_CAP = 1.0;
+constexpr bool MIP_CLIQUE_FIX = false;
 
 constexpr double MIP_RCFIX_SLACK = 1e-6;
 
@@ -634,6 +635,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_TIGHTEN: return MIP_TIGHTEN ? 1.0 : 0.0;
     case JM_DEF_PROBING: return MIP_PROBING ? 1.0 : 0.0;
     case JM_DEF_PROBING_CAP: return MIP_PROBING_CAP;
+    case JM_DEF_CLIQUE_FIX: return MIP_CLIQUE_FIX ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
@@ -1196,9 +1198,31 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
                                 int64_t rounds, int64_t *work);
 
 typedef struct {
-    int64_t fractional, probed, fixed, implied;
+    int64_t fractional, probed, fixed, implied, conflicts;
     bool infeasible, capped;
 } probe_report;
+
+static bool probe_conflicts(const jaos_model *m, const jaos_model *lp,
+                            int64_t j, int v, const double *lo,
+                            const double *hi, lpair **extra, int64_t *ne,
+                            int64_t *ecap, int64_t *found)
+{
+    const int64_t lu = 2 * j + (v == 0 ? 1 : 0);
+    for (int64_t k = 0; k < m->num_col; k++) {
+        if (k == j || !m->col_integer[k] || lo[k] != hi[k])
+            continue;
+        if (lp->col_lower[k] != 0.0 || lp->col_upper[k] != 1.0)
+            continue;
+        const int64_t lv = 2 * k + (lo[k] == 0.0 ? 0 : 1);
+        if (!JM_GROW(*extra, *ecap, *ne + 1))
+            return false;
+        (*extra)[*ne].a = lu < lv ? lu : lv;
+        (*extra)[*ne].b = lu < lv ? lv : lu;
+        (*ne)++;
+        (*found)++;
+    }
+    return true;
+}
 
 static int64_t probe_bound_moves(jaos_model *m, jaos_model *lp,
                                  const double *plo, const double *phi,
@@ -1228,8 +1252,9 @@ static int64_t probe_bound_moves(jaos_model *m, jaos_model *lp,
 
 static jaos_status probe_root(jaos_model *m, jaos_model *lp, const double *x,
                               double *ilo, double *ihi, double *buf,
-                              litval *order, int64_t cap, probe_report *rep,
-                              int64_t *work)
+                              litval *order, int64_t cap, lpair **extra,
+                              int64_t *nextra, int64_t *ecap,
+                              probe_report *rep, int64_t *work)
 {
     const int64_t nc = m->num_col;
     double *plo = buf, *phi = buf + nc, *qlo = buf + 2 * nc, *qhi = buf + 3 * nc;
@@ -1280,8 +1305,15 @@ static jaos_status probe_root(jaos_model *m, jaos_model *lp, const double *x,
         else if (r[1] == -1)
             moved = probe_bound_moves(m, lp, qlo, qhi, nullptr, nullptr,
                                       ilo, ihi);
-        else
+        else {
+            if (!probe_conflicts(m, lp, j, 0, qlo, qhi, extra, nextra, ecap,
+                                 &rep->conflicts) ||
+                !probe_conflicts(m, lp, j, 1, plo, phi, extra, nextra, ecap,
+                                 &rep->conflicts))
+                return JAOS_ERR_OUT_OF_MEMORY;
+            *work += 2 * nc;
             moved = probe_bound_moves(m, lp, plo, phi, qlo, qhi, ilo, ihi);
+        }
         *work += nc;
         if (moved == -2)
             return JAOS_ERR_OUT_OF_MEMORY;
@@ -1383,18 +1415,33 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
     return tightened;
 }
 
-static int64_t clique_round(const jaos_model *m, jaos_model *lp,
-                            const double *x, const double *ilo,
-                            const double *ihi, cutbuf *cb, kitem *items,
-                            double *cut, int64_t *work)
+typedef struct {
+    lpair *edge;
+    int64_t ne;
+    int64_t *adj_start, *adj;
+} clique_table;
+
+static void clique_table_free(clique_table *t)
+{
+    free(t->edge);
+    free(t->adj_start);
+    free(t->adj);
+    memset(t, 0, sizeof *t);
+}
+
+static int64_t clique_table_build(const jaos_model *m, jaos_model *lp,
+                                  const double *ilo, const double *ihi,
+                                  kitem *items, const lpair *extra,
+                                  int64_t nextra, clique_table *t,
+                                  int64_t *work)
 {
     const int64_t nc = m->num_col, nr = m->num_row;
     const double tol = jm_primal_tolerance(m);
+    clique_table_free(t);
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
     lpair *edges = nullptr;
     int64_t ne = 0, ecap = 0;
-    int64_t added = -1;
     *work += m->num_nz + nc + nr;
     for (int64_t i = 0; i < nr; i++) {
         bool binary = true;
@@ -1417,9 +1464,9 @@ static int64_t clique_round(const jaos_model *m, jaos_model *lp,
                 if (a == 0.0)
                     continue;
                 if (a > 0.0) {
-                    items[n] = (kitem){ .col = j, .a = a, .xv = x[j], .compl = false };
+                    items[n] = (kitem){ .col = j, .a = a, .xv = 0.0, .compl = false };
                 } else {
-                    items[n] = (kitem){ .col = j, .a = -a, .xv = 1.0 - x[j],
+                    items[n] = (kitem){ .col = j, .a = -a, .xv = 0.0,
                                         .compl = true };
                     b += -a;
                 }
@@ -1439,17 +1486,27 @@ static int64_t clique_round(const jaos_model *m, jaos_model *lp,
                         continue;
                     const int64_t lu = 2 * items[p].col + (items[p].compl ? 1 : 0);
                     const int64_t lv = 2 * items[q].col + (items[q].compl ? 1 : 0);
-                    if (!JM_GROW(edges, ecap, ne + 1))
-                        goto out;
+                    if (!JM_GROW(edges, ecap, ne + 1)) {
+                        free(edges);
+                        return -1;
+                    }
                     edges[ne].a = lu < lv ? lu : lv;
                     edges[ne].b = lu < lv ? lv : lu;
                     ne++;
                 }
         }
     }
-    added = 0;
-    if (ne == 0)
-        goto out;
+    for (int64_t k = 0; k < nextra; k++) {
+        if (!JM_GROW(edges, ecap, ne + 1)) {
+            free(edges);
+            return -1;
+        }
+        edges[ne++] = extra[k];
+    }
+    if (ne == 0) {
+        free(edges);
+        return 0;
+    }
     qsort(edges, (size_t)ne, sizeof *edges, lpair_cmp);
     {
         int64_t w = 0;
@@ -1458,6 +1515,94 @@ static int64_t clique_round(const jaos_model *m, jaos_model *lp,
                 edges[w++] = edges[k];
         ne = w;
     }
+    int64_t *adj_start = calloc((size_t)(2 * nc + 1), sizeof *adj_start);
+    int64_t *adj = malloc((size_t)(2 * ne) * sizeof *adj);
+    if (adj_start == nullptr || adj == nullptr) {
+        free(edges); free(adj_start); free(adj);
+        return -1;
+    }
+    for (int64_t k = 0; k < ne; k++) {
+        adj_start[edges[k].a + 1]++;
+        adj_start[edges[k].b + 1]++;
+    }
+    for (int64_t u = 0; u < 2 * nc; u++)
+        adj_start[u + 1] += adj_start[u];
+    for (int64_t k = 0; k < ne; k++) {
+        adj[adj_start[edges[k].a]++] = edges[k].b;
+        adj[adj_start[edges[k].b]++] = edges[k].a;
+    }
+    for (int64_t u = 2 * nc; u > 0; u--)
+        adj_start[u] = adj_start[u - 1];
+    adj_start[0] = 0;
+    *work += 6 * ne;
+    t->edge = edges;
+    t->ne = ne;
+    t->adj_start = adj_start;
+    t->adj = adj;
+    return ne;
+}
+
+static int64_t clique_fix(const jaos_model *m, jaos_model *lp,
+                          const clique_table *t, int64_t *stack,
+                          int64_t *work)
+{
+    const int64_t nc = m->num_col;
+    if (t->ne == 0)
+        return 0;
+    int64_t n = 0, fixed = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j] || lp->col_lower[j] != lp->col_upper[j])
+            continue;
+        if (t->adj_start[2 * j + 2] == t->adj_start[2 * j])
+            continue;
+        if (lp->col_lower[j] == 1.0)
+            stack[n++] = 2 * j;
+        else if (lp->col_lower[j] == 0.0)
+            stack[n++] = 2 * j + 1;
+    }
+    *work += nc;
+    while (n > 0) {
+        const int64_t u = stack[--n];
+        *work += t->adj_start[u + 1] - t->adj_start[u];
+        for (int64_t p = t->adj_start[u]; p < t->adj_start[u + 1]; p++) {
+            const int64_t v = t->adj[p], k = v / 2;
+            if (v % 2 == 0) {
+                if (lp->col_lower[k] > 0.0)
+                    return -1;
+                if (lp->col_upper[k] > 0.0) {
+                    if (jaos_set_col_bounds(lp, k, lp->col_lower[k], 0.0)
+                        != JAOS_OK)
+                        return -2;
+                    fixed++;
+                    stack[n++] = 2 * k + 1;
+                }
+            } else {
+                if (lp->col_upper[k] < 1.0)
+                    return -1;
+                if (lp->col_lower[k] < 1.0) {
+                    if (jaos_set_col_bounds(lp, k, 1.0, lp->col_upper[k])
+                        != JAOS_OK)
+                        return -2;
+                    fixed++;
+                    stack[n++] = 2 * k;
+                }
+            }
+        }
+    }
+    return fixed;
+}
+
+static int64_t clique_round(const jaos_model *m, const clique_table *t,
+                            const double *x, cutbuf *cb, double *cut,
+                            int64_t *work)
+{
+    const int64_t nc = m->num_col;
+    const double tol = jm_primal_tolerance(m);
+    const lpair *edges = t->edge;
+    const int64_t ne = t->ne;
+    int64_t added = 0;
+    if (ne == 0)
+        return 0;
     *work += 2 * ne;
 
     litval *lits = malloc((size_t)(2 * ne) * sizeof *lits);
@@ -1465,8 +1610,7 @@ static int64_t clique_round(const jaos_model *m, jaos_model *lp,
     int64_t *members = malloc((size_t)(2 * nc) * sizeof *members);
     if (lits == nullptr || used == nullptr || members == nullptr) {
         free(lits); free(used); free(members);
-        added = -1;
-        goto out;
+        return -1;
     }
     int64_t nl = 0;
     for (int64_t k = 0; k < ne; k++) {
@@ -1524,8 +1668,6 @@ static int64_t clique_round(const jaos_model *m, jaos_model *lp,
         added++;
     }
     free(lits); free(used); free(members);
-out:
-    free(edges);
     return added;
 }
 
@@ -2410,6 +2552,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                                                 : MIP_PROBING;
     const double probing_cap = m->cfg.mip_probing_cap_set
         ? m->cfg.mip_probing_cap : MIP_PROBING_CAP;
+    const bool clique_fix_on = m->cfg.mip_clique_fix_set
+        ? m->cfg.mip_clique_fix : MIP_CLIQUE_FIX;
     const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
                                                        : MIP_PROPAGATE;
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
@@ -2481,6 +2625,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     kitem *items = nullptr;
     double *pbuf = nullptr;
     litval *porder = nullptr;
+    clique_table ctab = {0};
+    int64_t *cstack = nullptr;
+    lpair *pextra = nullptr;
+    int64_t npextra = 0, pecap = 0;
+    int64_t clique_fixed = 0, clique_cut_nodes = 0;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
     double *prnd = nullptr;
@@ -2674,6 +2823,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         nodes++;
 
+        if (nodes > 1 && clique_fix_on && ctab.ne > 0) {
+            const int64_t got = clique_fix(m, lp, &ctab, cstack, &work);
+            if (got == -2)
+                goto done;
+            if (got == -1) {
+                clique_cut_nodes++;
+                jm_log(m, JAOS_LOG_PROGRESS,
+                       "node %lld: infeasible by a clique",
+                       (long long)nodes);
+                continue;
+            }
+            clique_fixed += got;
+        }
+
         if (propagate > 0 &&
             (propagate_depth < 0 || depth_here <= propagate_depth)) {
             const int64_t got = propagate_node(m, lp, plo, phi, propagate,
@@ -2741,17 +2904,19 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 ? (int64_t)ceil(probing_cap * (double)node_work) : 0;
             const int64_t before = work;
             probe_report pr;
-            if (probe_root(m, lp, x, ilo, ihi, pbuf, porder, cap, &pr, &work)
-                != JAOS_OK)
+            if (probe_root(m, lp, x, ilo, ihi, pbuf, porder, cap, &pextra,
+                           &npextra, &pecap, &pr, &work) != JAOS_OK)
                 goto done;
             if (pr.fractional > 0)
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "probing: %lld of %lld fractional binaries probed%s, "
-                       "%lld fixed, %lld other bounds implied, %lld work "
-                       "against the root's %lld%s",
+                       "%lld fixed, %lld other bounds implied, %lld "
+                       "conflicts found, %lld work against the root's "
+                       "%lld%s",
                        (long long)pr.probed, (long long)pr.fractional,
                        pr.capped ? " before the cap" : "",
                        (long long)pr.fixed, (long long)pr.implied,
+                       (long long)pr.conflicts,
                        (long long)(work - before), (long long)node_work,
                        pr.infeasible ? ", and one fits neither way" : "");
             if (pr.infeasible) {
@@ -2785,6 +2950,31 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
                     goto done;
                 key = sigma * obj;
+            }
+        }
+
+        if (nodes == 1 && (clique_rounds > 0 || clique_fix_on)) {
+            if (items == nullptr)
+                items = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *items);
+            if (items == nullptr)
+                goto done;
+            if (clique_table_build(m, lp, ilo, ihi, items, pextra, npextra,
+                                   &ctab, &work) < 0)
+                goto done;
+            if (ctab.ne > 0 && clique_fix_on) {
+                cstack = malloc((size_t)(2 * nc) * sizeof *cstack);
+                if (cstack == nullptr)
+                    goto done;
+            }
+            if (ctab.ne > 0) {
+                int64_t lits = 0;
+                for (int64_t u = 0; u < 2 * nc; u++)
+                    lits += ctab.adj_start[u + 1] > ctab.adj_start[u];
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "clique table: %lld conflicts over %lld literals, "
+                       "%lld of the conflicts from probing",
+                       (long long)ctab.ne, (long long)lits,
+                       (long long)npextra);
             }
         }
 
@@ -2851,8 +3041,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     got += cv;
                 }
                 if (r < clique_rounds) {
-                    const int64_t qv = clique_round(m, lp, x, ilo, ihi, &cb,
-                                                    items, cut, &work);
+                    const int64_t qv = clique_round(m, &ctab, x, &cb, cut,
+                                                    &work);
                     if (qv < 0)
                         goto done;
                     cliques += qv;
@@ -3471,12 +3661,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
            "(%lld below the root), %lld points by rounding, %lld of them "
            "by the dive heuristic, %lld by RINS and %lld by the pump, "
            "%lld probes, "
-           "%lld of them capped",
+           "%lld of them capped, %lld columns fixed by cliques and %lld "
+           "nodes cut by them",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
            (long long)rins_points, (long long)pump_points,
-           (long long)probes, (long long)capped);
+           (long long)probes, (long long)capped, (long long)clique_fixed,
+           (long long)clique_cut_nodes);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -3543,6 +3735,9 @@ done:
     free(act);
     free(items);
     free(pbuf);
+    clique_table_free(&ctab);
+    free(cstack);
+    free(pextra);
     free(porder);
     free(mu);
     free(mbest);

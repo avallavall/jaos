@@ -18,10 +18,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    of the weight update itself on the dense ones; bound perturbation was
    refused (`bench/refusals.txt`). The row in SPECS stays partial until
    the count is zero.
-3. **MIP presolve, the rest: a clique table.** Coefficient tightening
-   landed on 02-31 (`--tighten`, 0.9999x on the MIP set). Probing exists
-   behind `--probing` and `--probing-cap` and is off: both forms are
-   measured and refused (`bench/refusals.txt`, mip-probing-root), the
-   second at 1.109x with no column fixed on any of the 24. A clique
-   table would feed the clique cuts from the model's rows, and is where
-   the implications probing finds could go instead of into bounds.
