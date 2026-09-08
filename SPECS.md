@@ -65,7 +65,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Strong branching | **partial** | exists behind a switch and is off: measured worse |
 | Gomory, knapsack cover and MIR cuts | **done** | at the root and to depth 3, dropped when the slack goes basic |
 | Clique cuts | **done** | four rounds at the root by default, from the conflicts each all-binary row puts between literals, grown greedily in a fixed order; 0.9697x the work over the MIP set, `gen` 0.62x and `p0282` 0.69x, none past 2x. `jaos_set_mip_clique_rounds`, `--clique-rounds`, `mip_clique_rounds` |
-| Flow cover, zero-half, lifted cover cuts | **partial** | zero-half cuts from one, two and three integer rows exist behind `--zero-half-rounds` and are off (1.182x at best on the MIP set, gt2 2.91x); lifted covers exist behind a switch and are off. Missing: flow cover cuts |
+| Flow cover, zero-half, lifted cover cuts | **partial** | all three exist behind switches and are off by measurement: flow covers behind `--flow-cover-rounds` (1.012x, the structure on two of the 24, dcmulti 1.49x), zero-half behind `--zero-half-rounds` (1.182x at best, gt2 2.91x), lifted covers behind `--cover-lift`. Missing: a reading that lands one of them on |
 | Rounding heuristic, root dive, feasibility pump | **done** | |
 | RINS, local branching, other improvement heuristics | **partial** | RINS exists behind a switch and is off |
 | Solution pool | **done** | |

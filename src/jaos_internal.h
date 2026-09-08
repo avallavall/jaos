@@ -47,6 +47,9 @@ typedef struct {
     bool mip_zero_half_rounds_set;
     int64_t mip_zero_half_rounds;
 
+    bool mip_flow_cover_rounds_set;
+    int64_t mip_flow_cover_rounds;
+
     bool mip_cut_stall_set;
     double mip_cut_stall;
 
@@ -296,6 +299,7 @@ enum jm_mip_key {
     JM_DEF_FEASPUMP, JM_DEF_PUMP_GENERAL, JM_DEF_PUMP_OBJ, JM_DEF_PUMP_ALWAYS,
     JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
+    JM_DEF_FLOW_COVER_ROUNDS,
 };
 double jm_mip_default(enum jm_mip_key key);
 

@@ -216,6 +216,15 @@ expect_exit 0 "--zero-half-rounds 1 solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --clique-rounds 0 --zero-half-rounds 1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "zero-half: $(line_of objective)"
+expect_exit 0 "--flow-cover-rounds 1 solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --clique-rounds 0 --flow-cover-rounds 1
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "flow-cover: $(line_of objective)"
+expect_exit 5 "--flow-cover-rounds refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --flow-cover-rounds -1
+"$JAOS" options | grep -q '^mip_flow_cover_rounds ' \
+    && pass "jaos options lists mip_flow_cover_rounds" \
+    || flunk "jaos options does not list mip_flow_cover_rounds"
 expect_exit 5 "--zero-half-rounds refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --zero-half-rounds -1
 "$JAOS" options | grep -q '^mip_zero_half_rounds ' \

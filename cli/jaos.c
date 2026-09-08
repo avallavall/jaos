@@ -29,6 +29,7 @@ static const char U_SYNOPSIS[] =
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
     "                  [--clique-rounds N] [--zero-half-rounds N]\n"
+    "                  [--flow-cover-rounds N]\n"
     "                  [--node-cut-cap K] [--cut-stall F] [--node-cut-stall F]\n"
     "                  [--root-cut-drop | --no-root-cut-drop]\n"
     "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
@@ -109,6 +110,9 @@ static const char U_SOLVE_A[] =
     "  --zero-half-rounds N\n"
     "                   rounds of zero-half cuts at the root, from one,\n"
     "                   two or three integer rows halved and rounded\n"
+    "  --flow-cover-rounds N\n"
+    "                   rounds of flow cover cuts at the root, from rows\n"
+    "                   read as single-node flow sets\n"
     "  --cut-depth D    one round of Gomory cuts at every node of a MIP down\n"
     "                   to depth D (default 3; 0 for the root only)\n"
     "  --node-cut-cap K at most K cuts per node below the root, the most\n"
@@ -637,6 +641,7 @@ struct solve_options {
     int64_t cover_rounds;
     int64_t clique_rounds;
     int64_t zero_half_rounds;
+    int64_t flow_cover_rounds;
     int64_t node_cut_cap;
     bool has_cut_stall, has_node_cut_stall;
     double cut_stall, node_cut_stall;
@@ -697,6 +702,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->cover_rounds = -1;
     o->clique_rounds = -1;
     o->zero_half_rounds = -1;
+    o->flow_cover_rounds = -1;
     o->node_cut_cap = -1;
     o->root_cut_drop = -1;
     o->cover_lift = -1;
@@ -999,6 +1005,11 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->clique_rounds) || o->clique_rounds < 0)
                 return usage_error("--clique-rounds needs a count of rounds, "
                                    "0 or more, not '%s'", v);
+        } else if (strcmp(a, "--flow-cover-rounds") == 0) {
+            if (!parse_int64(v, &o->flow_cover_rounds) ||
+                o->flow_cover_rounds < 0)
+                return usage_error("--flow-cover-rounds needs a count of "
+                                   "rounds, 0 or more, not '%s'", v);
         } else if (strcmp(a, "--zero-half-rounds") == 0) {
             if (!parse_int64(v, &o->zero_half_rounds) ||
                 o->zero_half_rounds < 0)
@@ -1146,6 +1157,11 @@ static int cmd_solve(int argc, char **argv)
     if (o.zero_half_rounds >= 0 &&
         jaos_set_mip_zero_half_rounds(m, o.zero_half_rounds) != JAOS_OK) {
         rc = library_error("set the zero-half rounds for", o.file, m);
+        goto out;
+    }
+    if (o.flow_cover_rounds >= 0 &&
+        jaos_set_mip_flow_cover_rounds(m, o.flow_cover_rounds) != JAOS_OK) {
+        rc = library_error("set the flow cover rounds for", o.file, m);
         goto out;
     }
     if (o.node_cut_cap >= 0 &&

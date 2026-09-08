@@ -25,12 +25,6 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: the tree, the rest
 
-6. **Flow cover cuts** at the root: a row read as a single-node flow set,
-   its continuous columns' variable upper bounds found in the two-entry
-   rows `x <= u y` with `y` binary, a flow cover picked by a greedy
-   heuristic, and the Padberg, Van Roy and Wolsey inequality with the
-   `L-` strengthening on the outflow side. Measured on the MIP set;
-   lands on or off by the reading, behind `--flow-cover-rounds`.
 7. **Conflict analysis**: a node whose relaxation is infeasible gives a
    Farkas ray, and the branching bounds the ray needs give a conflict
    constraint over the binaries fixed on the path, added for the rest of

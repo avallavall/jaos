@@ -1303,7 +1303,7 @@ class TestBranchAndBound(unittest.TestCase):
         q.add(2 * a + 2 * b + 2 * c <= 3)
         q.maximize(3 * a + 2.5 * b + 2 * c)
         q.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
-        q.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+        q.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
         q.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
         self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
         plain = q.mip_report().nodes
@@ -1328,7 +1328,7 @@ class TestBranchAndBound(unittest.TestCase):
         s.add(2 * a + 2 * c <= 3)
         s.maximize(3 * a + b + c)
         s.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
-        s.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+        s.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
         s.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
         depth1 = []
         steered = []
@@ -2017,6 +2017,28 @@ class TestBranchAndBound(unittest.TestCase):
             objs.append(p.objective_value)
         self.assertEqual(objs, [1.0, 1.0, 1.0])
 
+    def test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(self):
+        nodes = []
+        for rounds in (0, 1):
+            p = jaos.Problem()
+            x1 = p.add_var(name="x1")
+            x2 = p.add_var(name="x2")
+            y1 = p.add_var(binary=True, name="y1")
+            y2 = p.add_var(binary=True, name="y2")
+            p.add(x1 + x2 <= 5)
+            p.add(x1 - 4 * y1 <= 0)
+            p.add(x2 - 3 * y2 <= 0)
+            p.maximize(x1 + x2 - 2 * y1 - 2 * y2)
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_heuristics(False).set_mip_dive_heuristic(0).set_mip_feaspump(0)
+            p.set_mip_tighten(0).set_mip_flow_cover_rounds(rounds)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 2.0, places=9)
+            nodes.append(p.mip_report().nodes)
+        self.assertGreater(nodes[0], 1)
+        self.assertEqual(nodes[1], 1)
+
     def test_zero_half_cuts_close_an_odd_cycle_at_the_root(self):
         nodes = []
         for rounds in (0, 1, -1):
@@ -2027,7 +2049,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(xs[0] + xs[2] <= 1)
             p.maximize(xs[0] + xs[1] + xs[2])
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
-            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
             p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
             p.set_mip_zero_half_rounds(rounds)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
@@ -2044,7 +2066,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.add(3 * xs[0] + 3 * xs[1] + 2 * xs[2] <= 5)
             p.maximize(4 * xs[0] + 4 * xs[1] + xs[2])
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
-            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
+            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
             p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
             p.set_mip_clique_fix(on)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)

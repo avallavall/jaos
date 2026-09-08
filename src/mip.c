@@ -26,6 +26,8 @@ constexpr int64_t MIP_ZERO_HALF_ROUNDS = 0;
 constexpr int64_t MIP_ZERO_HALF_ROW_CAP = 100;
 constexpr int64_t MIP_ZERO_HALF_TRIPLE_CAP = 40;
 constexpr int64_t MIP_ZERO_HALF_CUT_CAP = 50;
+constexpr int64_t MIP_FLOW_COVER_ROUNDS = 0;
+constexpr int64_t MIP_FLOW_COVER_CUT_CAP = 50;
 constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
 
 constexpr double MIP_CUT_STALL = 0.0;
@@ -620,6 +622,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_COVER_ROUNDS: return (double)MIP_COVER_ROUNDS;
     case JM_DEF_CLIQUE_ROUNDS: return (double)MIP_CLIQUE_ROUNDS;
     case JM_DEF_ZERO_HALF_ROUNDS: return (double)MIP_ZERO_HALF_ROUNDS;
+    case JM_DEF_FLOW_COVER_ROUNDS: return (double)MIP_FLOW_COVER_ROUNDS;
     case JM_DEF_CUT_STALL: return MIP_CUT_STALL;
     case JM_DEF_NODE_CUT_STALL: return MIP_NODE_CUT_STALL;
     case JM_DEF_ROOT_CUT_DROP: return MIP_ROOT_CUT_DROP ? 1.0 : 0.0;
@@ -1898,6 +1901,180 @@ out:
     return added;
 }
 
+
+typedef struct {
+    int64_t col, y;
+    double a, u, xv, yv, key;
+} fitem;
+
+static int fitem_cmp(const void *pa, const void *pb)
+{
+    const fitem *p = pa, *q = pb;
+    if (p->key != q->key)
+        return p->key < q->key ? -1 : 1;
+    return p->col < q->col ? -1 : p->col > q->col;
+}
+
+static int64_t flow_cover_round(const jaos_model *m, jaos_model *lp,
+                                const double *x, const double *ilo,
+                                const double *ihi, cutbuf *cb, double *cut,
+                                int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double tol = jm_primal_tolerance(m);
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    int64_t *vub_y = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *vub_y);
+    double *vub_u = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *vub_u);
+    fitem *plus = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *plus);
+    fitem *minus = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *minus);
+    int64_t added = -1;
+    if (vub_y == nullptr || vub_u == nullptr || plus == nullptr ||
+        minus == nullptr)
+        goto out;
+    for (int64_t j = 0; j < nc; j++) {
+        vub_y[j] = -1;
+        vub_u[j] = INFINITY;
+        cut[j] = 0.0;
+    }
+    *work += m->num_nz + nc + nr;
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
+        if (p1 - p0 != 2)
+            continue;
+        double sign;
+        if (lp->row_upper[i] == 0.0 && lp->row_lower[i] == -INFINITY)
+            sign = 1.0;
+        else if (lp->row_lower[i] == 0.0 && lp->row_upper[i] == INFINITY)
+            sign = -1.0;
+        else
+            continue;
+        for (int t = 0; t < 2; t++) {
+            const int64_t j = lp->ar_index[p0 + t], y = lp->ar_index[p1 - 1 - t];
+            const double a = sign * lp->ar_value[p0 + t];
+            const double c = sign * lp->ar_value[p1 - 1 - t];
+            if (!(a > 0.0) || !(c < 0.0) || j == y)
+                continue;
+            if (!m->col_integer[y] || ilo[y] != 0.0 || ihi[y] != 1.0)
+                continue;
+            if (lp->col_lower[j] != 0.0)
+                continue;
+            const double u = -c / a;
+            if (u < vub_u[j]) {
+                vub_u[j] = u;
+                vub_y[j] = y;
+            }
+        }
+    }
+    added = 0;
+    for (int64_t i = 0; i < nr && added < MIP_FLOW_COVER_CUT_CAP; i++) {
+        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
+        if (p1 - p0 < 2)
+            continue;
+        for (int side = 0; side < 2 && added < MIP_FLOW_COVER_CUT_CAP; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound))
+                continue;
+            const double sg = side == 0 ? 1.0 : -1.0;
+            const double b = sg * bound;
+            int64_t np = 0, nm = 0;
+            bool fit = true;
+            for (int64_t k = p0; k < p1 && fit; k++) {
+                const int64_t j = lp->ar_index[k];
+                const double a = sg * lp->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                if (lp->col_lower[j] != 0.0) {
+                    fit = false;
+                    break;
+                }
+                const double hi = lp->col_upper[j] < vub_u[j] ? lp->col_upper[j]
+                                                              : vub_u[j];
+                const int64_t y = vub_y[j];
+                const double yv = y >= 0 ? x[y] : 1.0;
+                if (a > 0.0) {
+                    if (!isfinite(hi)) {
+                        fit = false;
+                        break;
+                    }
+                    plus[np] = (fitem){ .col = j, .y = y, .a = a, .u = a * hi,
+                                        .xv = a * x[j], .yv = yv };
+                    plus[np].key = plus[np].u * (1.0 - yv) - plus[np].xv;
+                    np++;
+                } else {
+                    minus[nm] = (fitem){ .col = j, .y = y, .a = -a,
+                                         .u = isfinite(hi) ? -a * hi : INFINITY,
+                                         .xv = -a * x[j], .yv = yv };
+                    minus[nm].key = 0.0;
+                    nm++;
+                }
+            }
+            *work += p1 - p0;
+            if (!fit || np == 0)
+                continue;
+            qsort(plus, (size_t)np, sizeof *plus, fitem_cmp);
+            double usum = 0.0;
+            int64_t c = 0;
+            while (c < np && !(usum > b + tol * (1.0 + fabs(b))))
+                usum += plus[c++].u;
+            if (!(usum > b + tol * (1.0 + fabs(b))))
+                continue;
+            const double lambda = usum - b;
+            double lhs = 0.0, rhs = b, d = b, nrm = 0.0;
+            for (int64_t t = 0; t < c; t++) {
+                lhs += plus[t].xv;
+                cut[plus[t].col] += plus[t].a;
+                if (plus[t].y >= 0 && plus[t].u > lambda) {
+                    const double e = plus[t].u - lambda;
+                    lhs += e * (1.0 - plus[t].yv);
+                    cut[plus[t].y] -= e;
+                    d -= e;
+                }
+            }
+            for (int64_t t = 0; t < nm; t++) {
+                if (minus[t].y >= 0 && minus[t].u > lambda) {
+                    rhs += lambda * minus[t].yv;
+                    cut[minus[t].y] -= lambda;
+                } else {
+                    rhs += minus[t].xv;
+                    cut[minus[t].col] -= minus[t].a;
+                }
+            }
+            const double viol = lhs - rhs;
+            bool pushed = false;
+            if (viol > tol * (1.0 + fabs(b))) {
+                for (int64_t k = 0; k < nc; k++)
+                    nrm += cut[k] * cut[k];
+                for (int64_t k = 0; k < nc; k++)
+                    cut[k] = -cut[k];
+                if (nrm > 0.0) {
+                    if (!cutbuf_push(cb, cut, nc, -d, viol / sqrt(nrm))) {
+                        added = -1;
+                        goto out;
+                    }
+                    added++;
+                    pushed = true;
+                }
+                *work += 2 * nc;
+            }
+            (void)pushed;
+            for (int64_t t = 0; t < np; t++) {
+                cut[plus[t].col] = 0.0;
+                if (plus[t].y >= 0)
+                    cut[plus[t].y] = 0.0;
+            }
+            for (int64_t t = 0; t < nm; t++) {
+                cut[minus[t].col] = 0.0;
+                if (minus[t].y >= 0)
+                    cut[minus[t].y] = 0.0;
+            }
+        }
+    }
+out:
+    free(vub_y); free(vub_u); free(plus); free(minus);
+    return added;
+}
+
 static bool shift_to_upper(double lo, double hi, double xj)
 {
     if (!isfinite(lo))
@@ -2917,6 +3094,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_zero_half_rounds : MIP_ZERO_HALF_ROUNDS;
     if (zh_rounds > root_rounds)
         root_rounds = zh_rounds;
+    const int64_t fc_rounds = m->cfg.mip_flow_cover_rounds_set
+        ? m->cfg.mip_flow_cover_rounds : MIP_FLOW_COVER_ROUNDS;
+    if (fc_rounds > root_rounds)
+        root_rounds = fc_rounds;
     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
@@ -3016,6 +3197,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t covers = 0;
     int64_t cliques = 0;
     int64_t zero_halves = 0;
+    int64_t flow_covers = 0;
     kitem *items = nullptr;
     double *pbuf = nullptr;
     litval *porder = nullptr;
@@ -3452,6 +3634,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     zero_halves += zv;
                     got += zv;
                 }
+                if (r < fc_rounds) {
+                    const int64_t fv = flow_cover_round(m, lp, x, ilo, ihi,
+                                                        &cb, cut, &work);
+                    if (fv < 0)
+                        goto done;
+                    flow_covers += fv;
+                    got += fv;
+                }
                 if (r < mir_rounds) {
                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
                                                  mbest, mdelta, magg, &work);
@@ -3531,10 +3721,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nfixed = root_cut_drop ? nperm : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
                    "root: relaxation %.17g after %lld cuts, %lld of them "
-                   "covers, %lld cliques, %lld zero-half and %lld MIR",
+                   "covers, %lld cliques, %lld zero-half, %lld flow covers "
+                   "and %lld MIR",
                    obj, (long long)cuts, (long long)covers,
                    (long long)cliques, (long long)zero_halves,
-                   (long long)mirs);
+                   (long long)flow_covers, (long long)mirs);
         }
 
         if (nodes == 1 && m->mip_start != nullptr) {
