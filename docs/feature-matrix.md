@@ -101,7 +101,7 @@ relaxation only.
 | Postsolve back to original indices | ● | ● | ● | ● | ● | ● | ● |
 | Scaling | ● | ● | ● | ● | ● | ● | ? |
 | Sparse LU with update (Forrest-Tomlin or similar) | ● | ● | ● | ● | ● | ● | ? |
-| Hyper-sparse triangular solves | ◐ | ● | ● | ● | ● | ● | ? |
+| Hyper-sparse triangular solves | ● | ● | ● | ● | ● | ● | ? |
 | Modify a loaded model (bounds, costs, coefficients) | ● | ● | ● | ● | ● | ● | ● |
 | Add and delete rows and columns | ● | ● | ● | ● | ● | ● | ● |
 | Warm start from a previous basis | ● | ● | ● | ● | ● | ● | ? |
@@ -131,12 +131,12 @@ reduction's structure, and 188 of 188 netlib and 32 of 32 Kennington solves
 publish exactly `num_row` basics. Postsolve covers every reduction JAOS
 performs, so the row is complete for what it has to undo.
 
-Hyper-sparsity is ◐ because **FTRAN's passes still traverse every slot**.
-Both solves report their pattern, and since D253 both of BTRAN's triangular
-passes compute only their reachable slots. FTRAN's skip the arithmetic of a
-zero slot and bill per nonzero, so the work counter cannot see the traversal
-at all — only an instruction count can, which is why this row does not close
-on a work-unit measurement.
+Both solves report their pattern, and both compute only their reachable
+slots on a sparse right-hand side: BTRAN since D253, FTRAN since 02-31, the
+latter behind a density prediction per kind of vector because the reach walk
+costs more than it saves once the answer is dense. The row closed on an
+instruction count, not on work units, since the full pass's traversal of
+every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
 
 ## 4. Mixed-integer machinery
 

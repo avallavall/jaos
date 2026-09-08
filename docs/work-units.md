@@ -86,9 +86,15 @@ what that leaves.
 
 **Triangular solves** (`jm_lu_ftran`, `jm_lu_btran`): `JM_WORK_NONZERO` per
 entry actually visited — the entries of each L column used, each U column
-used, and each Forrest-Tomlin eta. Both directions charge the same way,
-which is why a BTRAN-heavy iteration is not cheaper than an FTRAN-heavy one
-in the budget any more than it is on the machine.
+used, and each Forrest-Tomlin eta — plus, in the hyper-sparse form both
+directions take on a sparse right-hand side, one per edge the reach walk
+examines and one per word and per entry of the pattern sort. Both
+directions charge the same way, which is why a BTRAN-heavy iteration is not
+cheaper than an FTRAN-heavy one in the budget any more than it is on the
+machine. The walk is billed although it replaces an unbilled traversal of
+every slot, so on the hyper-sparse instances the counter reads a few
+percent above the full pass while the instruction count reads below it
+(`FTRAN_HYPER_DEN` in `tolerances.md`).
 
 **Basis update** (`jm_lu_update`): `JM_WORK_UPDATE` for the floor, plus
 `JM_WORK_ELIMINATED` per entry of the eliminated row.

@@ -501,6 +501,8 @@ typedef struct {
     int64_t *dfs_node;
     int64_t *dfs_next;
     int64_t *pattern;
+    uint64_t *bits;
+    double ftran_density[2];
 
     int64_t *lrow_start;
     int64_t *lrow_index;

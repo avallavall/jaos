@@ -45,7 +45,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Postsolve to the caller's indices, statuses and duals | **done** | |
 | Scaling | **done** | Curtis-Reid, powers of two |
 | Sparse LU, Markowitz pivoting, Forrest-Tomlin update | **done** | |
-| Hyper-sparse triangular solves | **partial** | BTRAN yes. Missing: FTRAN still traverses every slot |
+| Hyper-sparse triangular solves | **done** | both directions, FTRAN behind a density prediction per kind of vector; closed on instruction counts |
 | Modify bounds, costs, coefficients, objective sense and constant | **done** | each reads back |
 | Add and delete rows and columns | **done** | |
 | Copy a model | **done** | |

@@ -281,6 +281,7 @@ void jm_lu_free(jm_lu *lu)
     free(lu->dfs_node);
     free(lu->dfs_next);
     free(lu->pattern);
+    free(lu->bits);
     free(lu->lrow_start);
     free(lu->lrow_index);
     memset(lu, 0, sizeof *lu);
@@ -321,8 +322,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
     jm_work_add(w, JM_WORK_FACTOR);
 
+    const double density0 = lu->ftran_density[0];
+    const double density1 = lu->ftran_density[1];
     jm_lu_free(lu);
     lu->dim = dim;
+    lu->ftran_density[0] = density0;
+    lu->ftran_density[1] = density1;
 
     jaos_status st = JAOS_OK;
     elim e = {0};
@@ -353,6 +358,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->dfs_node = jm_alloc_array(dim, sizeof(int64_t));
     lu->dfs_next = jm_alloc_array(dim, sizeof(int64_t));
     lu->pattern  = jm_alloc_array(dim, sizeof(int64_t));
+    lu->bits     = jm_calloc_array((dim + 63) / 64 + 1, sizeof(uint64_t));
 
     e.col       = jm_calloc_array(dim, sizeof(jm_svec));
     e.row       = jm_calloc_array(dim, sizeof(pat));
@@ -376,6 +382,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
         !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike ||
         !lu->mark || !lu->dfs_node || !lu->dfs_next || !lu->pattern ||
+        !lu->bits ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.mult_of || !e.mult_set || !e.hit || !e.piv_row || !e.piv_mult ||
@@ -626,6 +633,12 @@ done:
     return st;
 }
 
+#ifndef JAOS_FTRAN_HYPER_DEN
+#define JAOS_FTRAN_HYPER_DEN 10
+#endif
+constexpr int64_t FTRAN_HYPER_DEN = JAOS_FTRAN_HYPER_DEN;
+constexpr double FTRAN_DENSITY_KEEP = 0.9;
+
 static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
                          jm_work *w)
 {
@@ -653,22 +666,53 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
     jm_lu_ftran_sparse(lu, x, w, nullptr, nullptr);
 }
 
-void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
-                        int64_t *pat, int64_t *npat)
+static int64_t ftran_reach(jm_lu *lu, int64_t n_in, bool through_u,
+                           jm_work *w)
 {
-    const int64_t n = lu->dim;
-    double *y = lu->tmp;
+    int64_t n_out = n_in, sp = 0, edges = 0;
 
-    if (npat != nullptr)
-        *npat = 0;
-    if (lu->rank != n)
-        return;
+    lu->stamp++;
+    assert(lu->stamp > 0);
+    for (int64_t k = 0; k < n_in; k++) {
+        const int64_t s = lu->pattern[k];
+        lu->mark[s] = lu->stamp;
+        lu->dfs_node[sp++] = s;
+    }
+    while (sp > 0) {
+        const int64_t t = lu->dfs_node[--sp];
+        if (through_u) {
+            const jm_svec *col = &lu->ucol[t];
+            for (int64_t p = 0; p < col->n; p++) {
+                const int64_t c = col->idx[p];
+                edges++;
+                if (lu->mark[c] != lu->stamp) {
+                    lu->mark[c] = lu->stamp;
+                    lu->pattern[n_out++] = c;
+                    lu->dfs_node[sp++] = c;
+                }
+            }
+        } else {
+            for (int64_t p = lu->l_start[t]; p < lu->l_start[t + 1]; p++) {
+                const int64_t c = lu->l_index[p];
+                edges++;
+                if (lu->mark[c] != lu->stamp) {
+                    lu->mark[c] = lu->stamp;
+                    lu->pattern[n_out++] = c;
+                    lu->dfs_node[sp++] = c;
+                }
+            }
+        }
+    }
+    jm_work_add(w, edges * JM_WORK_NONZERO);
+    assert(n_out <= lu->dim);
+    return n_out;
+}
 
-    ftran_prefix(lu, x, y, w);
-
-    for (int64_t k = n - 1; k >= 0; k--) {
-        int64_t s = lu->slot_at[k];
-        double z = y[s] / lu->u_diag[s];
+static void ftran_u_dense(jm_lu *lu, double *y, jm_work *w)
+{
+    for (int64_t k = lu->dim - 1; k >= 0; k--) {
+        const int64_t s = lu->slot_at[k];
+        const double z = y[s] / lu->u_diag[s];
         y[s] = z;
         if (z == 0.0)
             continue;
@@ -677,21 +721,123 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
             y[col->idx[p]] -= col->val[p] * z;
         jm_work_add(w, col->n * JM_WORK_NONZERO);
     }
+}
 
-    if (pat == nullptr) {
-        for (int64_t s = 0; s < n; s++)
-            x[lu->perm_col[s]] = y[s];
-        return;
-    }
+static int64_t ftran_scatter_all(const jm_lu *lu, const double *y,
+                                 double *x, int64_t *pat, int64_t *npat)
+{
     int64_t k = 0;
-    for (int64_t s = 0; s < n; s++) {
+    for (int64_t s = 0; s < lu->dim; s++) {
         const double v = y[s];
         const int64_t row = lu->perm_col[s];
         x[row] = v;
-        if (v != 0.0)
-            pat[k++] = row;
+        if (v != 0.0) {
+            if (pat != nullptr)
+                pat[k] = row;
+            k++;
+        }
     }
-    *npat = k;
+    if (npat != nullptr)
+        *npat = k;
+    return k;
+}
+
+void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat)
+{
+    const int64_t n = lu->dim;
+    double *y = lu->tmp;
+
+    if (npat != nullptr)
+        *npat = 0;
+    if (lu->rank != n || n == 0)
+        return;
+
+    const int cls = pat != nullptr;
+    const bool hyper = lu->ftran_density[cls] * FTRAN_HYPER_DEN < 1.0;
+    int64_t nz = 0;
+
+    if (!hyper) {
+        ftran_prefix(lu, x, y, w);
+        ftran_u_dense(lu, y, w);
+        nz = ftran_scatter_all(lu, y, x, pat, npat);
+    } else {
+        int64_t nroot = 0;
+        for (int64_t s = 0; s < n; s++) {
+            const int64_t row = lu->perm_row[s];
+            const double v = x[row];
+            y[s] = v;
+            if (v != 0.0) {
+                lu->pattern[nroot++] = s;
+                x[row] = 0.0;
+            }
+        }
+
+        int64_t words = 0;
+        int64_t nl = ftran_reach(lu, nroot, false, w);
+        nl = jm_pattern_order(nl, lu->pattern, lu->bits, n, &words);
+        jm_work_add(w, (nl + words) * JM_WORK_NONZERO);
+        for (int64_t k = 0; k < nl; k++) {
+            const int64_t s = lu->pattern[k];
+            const double ys = y[s];
+            if (ys == 0.0)
+                continue;
+            for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
+                y[lu->l_index[p]] -= lu->l_value[p] * ys;
+            jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) *
+                           JM_WORK_NONZERO);
+        }
+
+        for (int64_t k = 0; k < lu->ft.n; k++) {
+            const int64_t t = lu->ft.idx[k];
+            y[t] -= lu->ft.val[k] * y[lu->ft_source[k]];
+            if (lu->mark[t] != lu->stamp) {
+                lu->mark[t] = lu->stamp;
+                lu->pattern[nl++] = t;
+            }
+        }
+        jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
+
+        if (nl * FTRAN_HYPER_DEN >= n) {
+            ftran_u_dense(lu, y, w);
+            nz = ftran_scatter_all(lu, y, x, pat, npat);
+        } else {
+            int64_t nu = ftran_reach(lu, nl, true, w);
+            for (int64_t k = 0; k < nu; k++)
+                lu->dfs_next[k] = lu->pos_of[lu->pattern[k]];
+            nu = jm_pattern_order(nu, lu->dfs_next, lu->bits, n, &words);
+            jm_work_add(w, (nu + words) * JM_WORK_NONZERO);
+            for (int64_t k = nu - 1; k >= 0; k--) {
+                const int64_t s = lu->slot_at[lu->dfs_next[k]];
+                const double z = y[s] / lu->u_diag[s];
+                y[s] = z;
+                if (z == 0.0)
+                    continue;
+                const jm_svec *col = &lu->ucol[s];
+                for (int64_t p = 0; p < col->n; p++)
+                    y[col->idx[p]] -= col->val[p] * z;
+                jm_work_add(w, col->n * JM_WORK_NONZERO);
+            }
+
+            for (int64_t t = 0; t < nu; t++) {
+                const int64_t s = lu->slot_at[lu->dfs_next[t]];
+                const double v = y[s];
+                const int64_t row = lu->perm_col[s];
+                x[row] = v;
+                if (v != 0.0) {
+                    if (pat != nullptr)
+                        pat[nz] = row;
+                    nz++;
+                }
+            }
+            if (npat != nullptr)
+                *npat = nz;
+        }
+    }
+
+    lu->ftran_density[cls] = FTRAN_DENSITY_KEEP * lu->ftran_density[cls] +
+                             (1.0 - FTRAN_DENSITY_KEEP) *
+                                 ((double)nz / (double)n);
 }
 
 static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
