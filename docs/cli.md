@@ -263,8 +263,9 @@ before the input is read.
 
 **`--positional` takes every name off the model before writing**,
 so the file comes out with `R1`, `C1` and `COST`. It is the escape hatch
-for a name the LP dialect cannot spell -- one starting with a digit, or
-holding `*`, `+` or `-` -- which the LP writer otherwise refuses by name.
+for a model whose names you would rather not carry at all; a name the LP
+dialect cannot spell is otherwise written under `c<j+1>` or `r<i+1>`
+with a comment map at the top of the file saying what it was.
 What is lost is the names and nothing else: over the 139 gate instances
 the LP writer goes from 104 conversions that read back and re-solve to
 **138**, and the one left is `greenbea`'s free row, which no renaming
@@ -282,8 +283,10 @@ What JAOS writes, JAOS reads back as the same model, names included: the
 input's names are written out, and a row or column the input did not name
 is written by its position, `R<I+1>`, `C<J+1>`, `COST`. A name the
 LP dialect cannot spell -- one holding a `-`, starting with a digit, or
-spelling a keyword -- is refused by name when converting to LP, with the
-message pointing at MPS, which takes every name.
+spelling a keyword -- is written to LP under `c<j+1>`, `r<i+1>` or
+`obj`, an underscore appended while the model holds that name too, and
+a `\ column c2 was x-1` comment at the top of the file keeps the
+original. MPS takes every name.
 
 A write the format cannot express is refused: the tool prints the library's
 message, which names the row or column, exits 5, and leaves no file behind.

@@ -949,32 +949,68 @@ static void test_two_of_a_name_are_refused_by_every_writer(void)
     jaos_model_free(m);
 }
 
-static void test_lp_refuses_a_name_its_scanner_would_not_read_back(void)
+static bool file_holds(const char *path, const char *needle)
+{
+    FILE *f = fopen(path, "rb");
+    if (f == nullptr)
+        return false;
+    char buf[8192];
+    const size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    return strstr(buf, needle) != nullptr;
+}
+
+static void test_lp_spells_a_name_its_scanner_would_not_read_back(void)
 {
     jaos_model *m = build_named();
+    char nb[JAOS_NAME_MAX + 1];
 
     const char *bad[] = {"x-1", "2x", "Free", "a:b", "INF"};
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++) {
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, bad[k]));
-        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
-        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), bad[k]));
-        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MPS"));
-        TEST_ASSERT_FALSE(file_exists(TMP_LP));
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, TMP_MPS));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+        char want[64];
+        snprintf(want, sizeof want, "\\ column c2 was %s\n", bad[k]);
+        TEST_ASSERT_TRUE(file_holds(TMP_LP, want));
         jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, TMP_LP));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 1, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING("c2", nb);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(b, 1, bad[k]));
+        assert_same_model(m, b);
+        jaos_model_free(b);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, TMP_MPS));
+        b = fresh();
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, TMP_MPS));
         assert_same_model(m, b);
         jaos_model_free(b);
     }
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, nullptr));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "r-0"));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "row 'r-0'"));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, nullptr));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "min"));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "objective"));
 
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "c2"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "x-1"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "r-0"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "min"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, "\\ objective obj was min\n"));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, "\\ column c2_ was x-1\n"));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, "\\ row r1 was r-0\n"));
+    {
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, TMP_LP));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 0, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING("c2", nb);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 1, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING("c2_", nb);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, 0, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING("r1", nb);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, nb, sizeof nb));
+        TEST_ASSERT_EQUAL_STRING("obj", nb);
+        jaos_model_free(b);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x.first"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_name(m, "obj"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 1, "y(2)/a$b#c!d"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
@@ -2292,7 +2328,7 @@ int main(void)
     RUN_TEST(test_empty_model_round_trips);
     RUN_TEST(test_names_round_trip_through_both_formats);
     RUN_TEST(test_two_of_a_name_are_refused_by_every_writer);
-    RUN_TEST(test_lp_refuses_a_name_its_scanner_would_not_read_back);
+    RUN_TEST(test_lp_spells_a_name_its_scanner_would_not_read_back);
     RUN_TEST(test_mps_refuses_the_row_name_its_reader_takes_for_a_marker);
     RUN_TEST(test_a_solution_file_carries_the_names_and_is_checked_on_them);
     RUN_TEST(test_an_infeasibility_certificate_round_trips);

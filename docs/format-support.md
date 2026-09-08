@@ -219,10 +219,14 @@ behind.
   name, whichever format, because no reader can tell them apart; a
   positional name takes part, so a column named `C2` beside an unnamed
   second column is such a pair. MPS has one more refusal, a row named
-  `'MARKER'`, which its reader takes for an integer marker. LP refuses a
-  name its scanner would not read back as one token -- one outside the rule
-  in the LP section above, or a keyword -- pointing at MPS, which takes
-  every name the model accepts.
+  `'MARKER'`, which its reader takes for an integer marker. A name the LP
+  scanner would not read back as one token -- one outside the rule in the
+  LP section above, or a keyword -- is written under a spelled name,
+  `c<j+1>` for a column, `r<i+1>` for a row, `obj` for the objective,
+  with an underscore appended while the model already holds that name,
+  and a comment map at the top of the file says what each was:
+  `\ column c2 was x-1`. The file reads back with the spelled names;
+  MPS takes every name the model accepts.
 - **Numbers** are the shortest of 15, 16 or 17 significant digits that reads
   back as the same double. Seventeen is the IEEE-754 round-trip guarantee, so
   the fallback is always exact; the shorter forms keep the file readable.

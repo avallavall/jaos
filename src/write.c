@@ -463,72 +463,118 @@ static void lp_term(wr *w, int *col, bool *first, double coef,
     }
 }
 
-jaos_status jaos_write_lp(jaos_model *m, const char *path)
+static void lp_comment_name(FILE *f, const char *s)
 {
-    if (m == nullptr || path == nullptr)
-        return JAOS_ERR_INVALID_INPUT;
+    for (; *s; s++)
+        fputc((unsigned char)*s < 0x20 ? '?' : *s, f);
+}
 
-    jaos_status rs = jm_model_ensure_rowwise(m);
-    if (rs != JAOS_OK) {
-        jm_set_err(m, "out of memory building the row-wise copy");
-        return rs;
+static void lp_write_map(wr *w, const jaos_model *orig)
+{
+    const jaos_model *m = w->m;
+    char a[NAME_LEN], b[NAME_LEN];
+    if (strcmp(jm_obj_name(orig), jm_obj_name(m)) != 0) {
+        fprintf(w->f, "\\ objective %s was ", jm_obj_name(m));
+        lp_comment_name(w->f, jm_obj_name(orig));
+        fputc('\n', w->f);
     }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        col_name(orig, a, j);
+        col_name(m, b, j);
+        if (strcmp(a, b) == 0)
+            continue;
+        fprintf(w->f, "\\ column %s was ", b);
+        lp_comment_name(w->f, a);
+        fputc('\n', w->f);
+    }
+    for (int64_t i = 0; i < m->num_row; i++) {
+        row_name(orig, a, i);
+        row_name(m, b, i);
+        if (strcmp(a, b) == 0)
+            continue;
+        fprintf(w->f, "\\ row %s was ", b);
+        lp_comment_name(w->f, a);
+        fputc('\n', w->f);
+    }
+}
 
-    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
-    wr *w = &ww;
+static jaos_status lp_substitute(jm_nmap *taken, const char *base, char *buf)
+{
+    snprintf(buf, NAME_LEN, "%s", base);
+    int64_t v;
+    while (jm_nmap_get(taken, buf, &v)) {
+        const size_t n = strlen(buf);
+        if (n + 1 > (size_t)JAOS_NAME_MAX)
+            return JAOS_ERR_INVALID_INPUT;
+        buf[n] = '_';
+        buf[n + 1] = '\0';
+    }
+    return jm_nmap_insert(taken, buf, 0) ? JAOS_OK : JAOS_ERR_OUT_OF_MEMORY;
+}
 
+static jaos_status lp_spell_names(const jaos_model *m, jaos_model *c)
+{
+    jm_nmap taken = {0};
+    char nm[NAME_LEN], sub[NAME_LEN], base[NAME_LEN];
+    jaos_status st = JAOS_OK;
+    if (jm_lp_name_ok(jm_obj_name(m)) &&
+        !jm_nmap_insert(&taken, jm_obj_name(m), 0))
+        st = JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        if (jm_lp_name_ok(nm) && !jm_nmap_insert(&taken, nm, 0))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t i = 0; st == JAOS_OK && i < m->num_row; i++) {
+        row_name(m, nm, i);
+        if (jm_lp_name_ok(nm) && !jm_nmap_insert(&taken, nm, 0))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (st == JAOS_OK && !jm_lp_name_ok(jm_obj_name(m))) {
+        st = lp_substitute(&taken, "obj", sub);
+        if (st == JAOS_OK)
+            st = jaos_set_objective_name(c, sub);
+    }
+    for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        if (jm_lp_name_ok(nm))
+            continue;
+        snprintf(base, sizeof base, "c%" PRId64, j + 1);
+        st = lp_substitute(&taken, base, sub);
+        if (st == JAOS_OK)
+            st = jaos_set_col_name(c, j, sub);
+    }
+    for (int64_t i = 0; st == JAOS_OK && i < m->num_row; i++) {
+        row_name(m, nm, i);
+        if (jm_lp_name_ok(nm))
+            continue;
+        snprintf(base, sizeof base, "r%" PRId64, i + 1);
+        st = lp_substitute(&taken, base, sub);
+        if (st == JAOS_OK)
+            st = jaos_set_row_name(c, i, sub);
+    }
+    jm_nmap_free(&taken);
+    if (st != JAOS_OK)
+        jm_set_err(c, st == JAOS_ERR_OUT_OF_MEMORY
+                          ? "out of memory"
+                          : "no spelled name is free for a column or row LP "
+                            "format cannot name");
+    return st;
+}
+
+static jaos_status lp_write_body(wr *w, const char *path,
+                                 const jaos_model *orig)
+{
+    const jaos_model *m = w->m;
     char nm[NAME_LEN], rn[NAME_LEN], num[NUM_LEN];
-
-    for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
-        const double rl = m->row_lower[i], ru = m->row_upper[i];
-        row_name(m, rn, i);
-        if (rl == -INFINITY && ru == INFINITY)
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' is free, which LP format cannot express; write "
-                    "MPS instead", rn);
-        else if (!isfinite(rl == -INFINITY ? ru : rl))
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' has a bound at an infinity LP format cannot "
-                    "express", rn);
-        else if (m->ar_start[i] == m->ar_start[i + 1] && m->num_col == 0)
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' has no coefficients and the model has no "
-                    "columns to write a zero term against; write MPS "
-                    "instead", rn);
-    }
-    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
-        col_name(m, nm, j);
-        if (m->col_lower[j] == INFINITY || m->col_upper[j] == -INFINITY)
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "column '%s' has a bound at an infinity LP format cannot "
-                    "express", nm);
-    }
-
-    if (w->st == JAOS_OK)
-        names_unique(w);
-    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
-        col_name(m, nm, j);
-        if (!jm_lp_name_ok(nm))
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "column '%s' has a name LP format cannot spell; write "
-                    "MPS instead", nm);
-    }
-    for (int64_t i = -1; w->st == JAOS_OK && i < m->num_row; i++) {
-        if (i >= 0)
-            row_name(m, rn, i);
-        if (!jm_lp_name_ok(i < 0 ? jm_obj_name(m) : rn))
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "%s '%s' has a name LP format cannot spell; write MPS "
-                    "instead", i < 0 ? "the objective" : "row",
-                    i < 0 ? jm_obj_name(m) : rn);
-    }
-
     jm_locale loc = {0};
     if (w->st != JAOS_OK || !wr_open(w, path, &loc))
         return w->st;
 
     {
         fprintf(w->f, "\\ written by JAOS %s\n", JAOS_VERSION_STRING);
+        if (orig != nullptr)
+            lp_write_map(w, orig);
         fprintf(w->f, "%s\n",
                 m->sense == JAOS_MAXIMIZE ? "Maximize" : "Minimize");
 
@@ -656,6 +702,81 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
     }
 
     return wr_close(w, path, &loc);
+}
+
+jaos_status jaos_write_lp(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    jaos_status rs = jm_model_ensure_rowwise(m);
+    if (rs != JAOS_OK) {
+        jm_set_err(m, "out of memory building the row-wise copy");
+        return rs;
+    }
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+
+    char nm[NAME_LEN], rn[NAME_LEN];
+
+    for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
+        const double rl = m->row_lower[i], ru = m->row_upper[i];
+        row_name(m, rn, i);
+        if (rl == -INFINITY && ru == INFINITY)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' is free, which LP format cannot express; write "
+                    "MPS instead", rn);
+        else if (!isfinite(rl == -INFINITY ? ru : rl))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' has a bound at an infinity LP format cannot "
+                    "express", rn);
+        else if (m->ar_start[i] == m->ar_start[i + 1] && m->num_col == 0)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' has no coefficients and the model has no "
+                    "columns to write a zero term against; write MPS "
+                    "instead", rn);
+    }
+    for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        if (m->col_lower[j] == INFINITY || m->col_upper[j] == -INFINITY)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' has a bound at an infinity LP format cannot "
+                    "express", nm);
+    }
+
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    if (w->st != JAOS_OK)
+        return w->st;
+    bool spelled = jm_lp_name_ok(jm_obj_name(m));
+    for (int64_t j = 0; spelled && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        spelled = jm_lp_name_ok(nm);
+    }
+    for (int64_t i = 0; spelled && i < m->num_row; i++) {
+        row_name(m, rn, i);
+        spelled = jm_lp_name_ok(rn);
+    }
+    if (spelled)
+        return lp_write_body(w, path, nullptr);
+
+    jaos_model *c = nullptr;
+    if (jaos_model_copy(m, &c) != JAOS_OK) {
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        return w->st;
+    }
+    jaos_status st = jm_model_ensure_rowwise(c);
+    if (st == JAOS_OK)
+        st = lp_spell_names(m, c);
+    if (st == JAOS_OK) {
+        wr wc = {.f = nullptr, .m = c, .st = JAOS_OK};
+        st = lp_write_body(&wc, path, m);
+    }
+    if (st != JAOS_OK)
+        jm_set_err(m, "%s", jaos_model_error(c));
+    jaos_model_free(c);
+    return st;
 }
 
 static const char *basis_word(jaos_basis_status s)

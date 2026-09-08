@@ -115,7 +115,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Read and write gzip | **done** | inflate and deflate written here |
 | Direct load from arrays | **done** | |
 | Write MPS | **done** | |
-| Write LP | **partial** | refuses a name LP cannot spell and a free row; `convert --positional` is the escape |
+| Write LP | **partial** | a name LP cannot spell is written under `c<j+1>`, `r<i+1>` or `obj` with the original in a comment map at the top of the file. Missing: a free row, which the format has no place for; `convert --positional` and MPS are the escapes |
 | Own solution file, written and read | **done** | |
 | Point and duals files | **done** | the smallest exchange format; `check --point` |
 | Read other solvers' solution files | **done** | `jaos_read_point` and `jaos_read_duals` detect and read Gurobi, MIPLIB, SCIP, HiGHS and CPLEX XML solution files, so `jaos check --point` judges them |

@@ -25,8 +25,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: steer and cut
 
-5. **Write LP: names it cannot spell.** A column or row name LP cannot
-   carry (leading digit, an operator or a space inside, too long) is
-   written under a spelled name with the original in a comment map at the
-   top of the file. A free row stays refused; `convert --positional` is the
-   escape. The row in SPECS stays partial for the free row.
