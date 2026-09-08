@@ -53,7 +53,7 @@ typedef struct {
     char name[64];
     int verdict;
     int status_d, status_b;
-    long long iters_d, iters_b, work_d, work_b;
+    long long iters_d, iters_b, ipm_iters, work_d, work_b;
     int check_d, check_b;
     double obj_d, obj_b;
     double secs_d, secs_b;
@@ -151,6 +151,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     }
     r->status_b = (int)jaos_status_of(m);
     r->iters_b = jaos_iterations(m);
+    r->ipm_iters = m->solve_barrier_iters;
     r->work_b = jaos_work_units(m);
     (void)jaos_objective(m, &r->obj_b);
     r->check_b = verified(m, r->status_b, x, y);
@@ -225,10 +226,10 @@ static void print_result(const result *r)
              verdict_str((verdict)r->verdict), r->iters_d, r->work_d, r->note);
         return;
     }
-    emit("%-12s %-9s dual=%lld/%lld barrier=%lld/%lld verdict=%s/%s "
+    emit("%-12s %-9s dual=%lld/%lld barrier=%lld+%lld/%lld verdict=%s/%s "
          "obj=%.17g/%.17g checker=dual:%s/barrier:%s %s\n",
          r->name, verdict_str((verdict)r->verdict),
-         r->iters_d, r->work_d, r->iters_b, r->work_b,
+         r->iters_d, r->work_d, r->ipm_iters, r->iters_b - r->ipm_iters, r->work_b,
          jaos_solve_status_str((jaos_solve_status)r->status_d),
          jaos_solve_status_str((jaos_solve_status)r->status_b),
          r->obj_d, r->obj_b, check_str(r->check_d), check_str(r->check_b),
@@ -246,9 +247,9 @@ static bool write_result(const char *p, const result *r)
     FILE *f = fopen(p, "w");
     if (f == nullptr)
         return false;
-    fprintf(f, "%s %d %d %d %d %d %lld %lld %lld %lld %.17g %.17g %.17g %.17g\n%s\n",
+    fprintf(f, "%s %d %d %d %d %d %lld %lld %lld %lld %lld %.17g %.17g %.17g %.17g\n%s\n",
             r->name, r->verdict, r->status_d, r->status_b, r->check_d,
-            r->check_b, r->iters_d, r->iters_b, r->work_d, r->work_b,
+            r->check_b, r->iters_d, r->iters_b, r->ipm_iters, r->work_d, r->work_b,
             r->obj_d, r->obj_b, r->secs_d, r->secs_b,
             r->note[0] ? r->note : "-");
     fclose(f);
@@ -261,18 +262,18 @@ static bool read_result(const char *p, result *r)
     if (f == nullptr)
         return false;
     memset(r, 0, sizeof *r);
-    int n = fscanf(f, "%63s %d %d %d %d %d %lld %lld %lld %lld %lf %lf %lf %lf",
+    int n = fscanf(f, "%63s %d %d %d %d %d %lld %lld %lld %lld %lld %lf %lf %lf %lf",
                    r->name, &r->verdict, &r->status_d, &r->status_b,
-                   &r->check_d, &r->check_b, &r->iters_d, &r->iters_b,
+                   &r->check_d, &r->check_b, &r->iters_d, &r->iters_b, &r->ipm_iters,
                    &r->work_d, &r->work_b, &r->obj_d, &r->obj_b,
                    &r->secs_d, &r->secs_b);
-    if (n == 14) {
+    if (n == 15) {
         char note[sizeof r->note];
         if (fscanf(f, " %287[^\n]", note) == 1 && strcmp(note, "-") != 0)
             snprintf(r->note, sizeof r->note, "%s", note);
     }
     fclose(f);
-    return n == 14;
+    return n == 15;
 }
 
 static bool run_parallel(const entry *ents, const int *sel, int nsel,

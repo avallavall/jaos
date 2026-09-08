@@ -27,11 +27,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 ## Milestone: symmetry
 
 ## Milestone: barrier
-
-14. **Crossover.** From the barrier's point to a basis: the columns
-    strictly between their bounds and the rows with a nonzero dual guess
-    the basic set, a crash basis where that set is not square, and the
-    simplex finishes from there under the existing warm start. Every
-    published answer goes through the checker as today, so the barrier
-    row in SPECS turns done only when the checker accepts what the
-    crossover publishes on the 94.

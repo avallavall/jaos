@@ -3861,6 +3861,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->solve_iters = 0;
     m->solve_primal_iters = 0;
     m->solve_phase1_iters = 0;
+    m->solve_barrier_iters = 0;
 
     m->farkas_ok = false;
     m->ray_ok = false;
@@ -3956,10 +3957,16 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_col = target->num_col;
     m->presolve_num_nz  = target->num_nz;
 
+    int64_t barrier_iters = 0;
     if (m->cfg.barrier && !m->cfg.node_solve) {
-        jaos_status bst = jm_barrier(m, target, &p, pre_work);
-        jm_presolve_free(&p);
-        return bst;
+        bool crossover = false;
+        jaos_status bst = jm_barrier(m, target, &p, &pre_work, &crossover,
+                                     &barrier_iters);
+        m->solve_barrier_iters = barrier_iters;
+        if (bst != JAOS_OK || !crossover) {
+            jm_presolve_free(&p);
+            return bst;
+        }
     }
 
     sx s;
@@ -4080,6 +4087,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
 
     if (st != JAOS_OK)
         m->solve_iters = s.iters;
+    m->solve_iters += barrier_iters;
     m->solve_primal_iters = s.n_primal_iters;
     m->solve_phase1_iters = s.n_phase1_iters;
 

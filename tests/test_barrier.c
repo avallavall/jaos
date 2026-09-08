@@ -155,6 +155,62 @@ static void test_the_barrier_leaves_a_mip_to_the_simplex(void)
     jaos_model_free(m);
 }
 
+static void test_the_crossover_publishes_a_vertex_with_a_basis(void)
+{
+    jaos_model *m = two_column_lp();
+    (void)solve_with(m, JAOS_ALGORITHM_BARRIER);
+    TEST_ASSERT_TRUE(m->solve_barrier_iters > 0);
+    TEST_ASSERT_TRUE(jaos_iterations(m) >= m->solve_barrier_iters);
+    double x[2], y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, x[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, y[0]);
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    int basics = (cs[0] == JAOS_BASIS_BASIC) + (cs[1] == JAOS_BASIS_BASIC) +
+                 (rs[0] == JAOS_BASIS_BASIC);
+    TEST_ASSERT_EQUAL_INT(1, basics);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
+static void test_the_crossover_reaches_the_dual_on_every_bound_kind(void)
+{
+    jaos_model *m = every_bound_kind_lp();
+    const double obj = solve_with(m, JAOS_ALGORITHM_BARRIER);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 21.0, obj);
+    double x[4], y[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.0, x[2]);
+    jaos_basis_status cs[4], rs[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
+static void test_without_the_crossover_the_point_is_interior(void)
+{
+    jaos_model *m = two_column_lp();
+    m->cfg.barrier_no_crossover = true;
+    (void)solve_with(m, JAOS_ALGORITHM_BARRIER);
+    TEST_ASSERT_EQUAL_INT64(m->solve_barrier_iters, jaos_iterations(m));
+    double x[2], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 2.0, obj);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 2.0, x[0]);
+    jaos_model_free(m);
+}
+
 static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
@@ -181,6 +237,9 @@ int main(void)
     RUN_TEST(test_the_barrier_is_bit_identical_across_runs);
     RUN_TEST(test_the_barrier_stops_at_the_work_limit);
     RUN_TEST(test_the_barrier_leaves_a_mip_to_the_simplex);
+    RUN_TEST(test_the_crossover_publishes_a_vertex_with_a_basis);
+    RUN_TEST(test_the_crossover_reaches_the_dual_on_every_bound_kind);
+    RUN_TEST(test_without_the_crossover_the_point_is_interior);
     RUN_TEST(test_the_barrier_does_not_call_an_infeasible_lp_optimal);
     return UNITY_END();
 }

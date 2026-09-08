@@ -720,14 +720,162 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
     }
 }
 
-jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
-                       jm_work pre_work)
+typedef struct {
+    double score;
+    int64_t index;
+} ranked;
+
+static int by_score(const void *a, const void *b)
 {
+    const ranked *x = a, *y = b;
+    if (x->score != y->score)
+        return x->score > y->score ? -1 : 1;
+    return x->index < y->index ? -1 : x->index > y->index;
+}
+
+static jaos_status crash_basis(bx *s)
+{
+    jaos_model *m = s->m;
+    const int64_t nv = s->nvar, nr = s->nrow;
+    ranked *order = jm_alloc_array(nv > 0 ? nv : 1, sizeof *order);
+    jaos_basis_status *want = jm_alloc_array(nv > 0 ? nv : 1, sizeof *want);
+    int64_t *basis = jm_alloc_array(nr > 0 ? nr : 1, sizeof *basis);
+    int64_t *bs = jm_alloc_array(nr + 1, sizeof *bs);
+    int64_t *bi = jm_alloc_array(m->num_nz + nr + 1, sizeof *bi);
+    double *bv = jm_alloc_array(m->num_nz + nr + 1, sizeof *bv);
+    bool *covered = jm_calloc_array(nr > 0 ? nr : 1, sizeof *covered);
+    bool *used = jm_calloc_array(nr > 0 ? nr : 1, sizeof *used);
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (!order || !want || !basis || !bs || !bi || !bv || !covered || !used)
+        goto done;
+
+    for (int64_t j = 0; j < nv; j++) {
+        const uint8_t k = s->kind[j];
+        double sc;
+        if (k == FIXED)
+            sc = -1.0;
+        else if (k == 0)
+            sc = 2.0;
+        else {
+            double pd = HUGE_VAL, dd = 0.0;
+            if (k & HAS_LO) { pd = s->w[j]; dd = s->zl[j]; }
+            if (k & HAS_UP) {
+                if (s->v[j] < pd) pd = s->v[j];
+                if (s->zu[j] > dd) dd = s->zu[j];
+            }
+            sc = pd + dd > 0.0 ? pd / (pd + dd) : 0.5;
+        }
+        order[j].score = sc;
+        order[j].index = j;
+    }
+    qsort(order, (size_t)nv, sizeof *order, by_score);
+    {
+        int64_t bits = 0;
+        for (int64_t t = nv; t > 1; t >>= 1)
+            bits++;
+        jm_work_add(&s->work, nv * (bits + 2) * JM_WORK_NONZERO);
+    }
+
+    for (int64_t j = 0; j < nv; j++) {
+        const uint8_t k = s->kind[j];
+        if (k == 0)
+            want[j] = JAOS_BASIS_FREE;
+        else if (k == HAS_UP)
+            want[j] = JAOS_BASIS_AT_UPPER;
+        else if (k == (HAS_LO | HAS_UP) && s->v[j] < s->w[j])
+            want[j] = JAOS_BASIS_AT_UPPER;
+        else
+            want[j] = JAOS_BASIS_AT_LOWER;
+    }
+    for (int64_t q = 0; q < nr && q < nv; q++) {
+        basis[q] = order[q].index;
+        want[basis[q]] = JAOS_BASIS_BASIC;
+    }
+
+    for (int attempt = 0; attempt < 4 && nr > 0; attempt++) {
+        int64_t p = 0;
+        for (int64_t q = 0; q < nr; q++) {
+            bs[q] = p;
+            const int64_t v = basis[q];
+            if (v < s->ncol) {
+                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+                    bi[p] = m->a_index[k];
+                    bv[p] = s->av[k];
+                    p++;
+                }
+            } else {
+                bi[p] = v - s->ncol;
+                bv[p] = -1.0;
+                p++;
+            }
+        }
+        bs[nr] = p;
+        st = jm_lu_factor(&lu, nr, bs, bi, bv, LU_PIVOT_TOL, &s->work);
+        if (st != JAOS_OK)
+            goto done;
+        if (lu.rank == nr)
+            break;
+        memset(covered, 0, (size_t)nr * sizeof *covered);
+        memset(used, 0, (size_t)nr * sizeof *used);
+        for (int64_t k = 0; k < lu.rank; k++) {
+            covered[lu.perm_row[k]] = true;
+            used[lu.perm_col[k]] = true;
+        }
+        int64_t i = 0;
+        for (int64_t q = 0; q < nr; q++) {
+            if (used[q])
+                continue;
+            while (i < nr && (covered[i] || want[s->ncol + i] == JAOS_BASIS_BASIC))
+                i++;
+            if (i >= nr)
+                break;
+            const int64_t leaving = basis[q];
+            want[leaving] = s->kind[leaving] == 0 ? JAOS_BASIS_FREE
+                            : (s->kind[leaving] == HAS_UP ? JAOS_BASIS_AT_UPPER
+                                                          : JAOS_BASIS_AT_LOWER);
+            basis[q] = s->ncol + i;
+            want[s->ncol + i] = JAOS_BASIS_BASIC;
+            i++;
+        }
+        jm_work_add(&s->work, 2 * nr * JM_WORK_NONZERO);
+    }
+
+    st = jm_model_ensure_solution_arrays(m);
+    if (st != JAOS_OK)
+        goto done;
+    for (int64_t j = 0; j < m->num_col; j++)
+        m->sol_col_status[j] = want[j];
+    for (int64_t i = 0; i < m->num_row; i++)
+        m->sol_row_status[i] = want[m->num_col + i];
+    st = jm_model_remember_basis(m);
+    int64_t structural = 0;
+    for (int64_t q = 0; q < nr; q++)
+        structural += basis[q] < s->ncol;
+    jm_log(m, JAOS_LOG_DETAIL,
+           "crossover: %lld of %lld basics are structural, the guess "
+           "factored at rank %lld",
+           (long long)structural, (long long)nr, (long long)lu.rank);
+
+done:
+    jm_lu_free(&lu);
+    free(order);  free(want);  free(basis);
+    free(bs);     free(bi);    free(bv);
+    free(covered); free(used);
+    return st;
+}
+
+jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+                       jm_work *work, bool *crossover, int64_t *iters)
+{
+    *crossover = false;
+    *iters = 0;
     bx s;
     jaos_status st = bx_init(&s, target);
     if (st != JAOS_OK)
         return st;
-    s.work = pre_work;
+    s.work = *work;
     s.started = jm_monotonic_seconds();
 
     jm_log(m, JAOS_LOG_SUMMARY,
@@ -737,6 +885,19 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
 
     jaos_solve_status outcome = JAOS_SOLVE_NUMERICAL_ERROR;
     st = bx_run(&s, &outcome);
+    *iters = s.iters;
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
+        !m->cfg.barrier_no_crossover) {
+        st = crash_basis(&s);
+        *work = s.work;
+        *crossover = st == JAOS_OK;
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "barrier converged after %lld iterations, %lld work units; "
+               "crossing over to the simplex from its basis guess",
+               (long long)s.iters, (long long)s.work.units);
+        bx_free(&s);
+        return st;
+    }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);
 

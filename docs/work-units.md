@@ -216,6 +216,14 @@ charges one per variable. Nothing is charged per iteration beyond what the
 iteration touches, for the reason the simplex has no per-iteration
 constant either.
 
+*The crossover* charges the sort of the basis guess at one per variable
+per pass of a comparison sort, `nvar * (2 + floor(log2 nvar))`, then the
+LU factorisation of the guess at the factorisation's own rate, and two per
+row for each repair pass that swaps an unpivoted position for a logical.
+The dual simplex that finishes from the guess is billed as any warm-started
+solve is, on the same counter, so `jaos_work_units` reads the whole
+journey from the starting point to the vertex.
+
 ## What is outside the budget
 
 **Model loading is not charged.** Reading a file or calling `jaos_load_lp`

@@ -23,6 +23,7 @@ typedef struct {
 
     bool force_primal;
     bool barrier;
+    bool barrier_no_crossover;
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
@@ -276,6 +277,7 @@ struct jaos_model {
     int64_t solve_iters;
 
     int64_t solve_primal_iters, solve_phase1_iters;
+    int64_t solve_barrier_iters;
 
     double solve_time;
 
@@ -501,7 +503,8 @@ JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(
     jm_presolve *p, jaos_solve_status status);
 
 JAOS_NODISCARD jaos_status jm_barrier(jaos_model *m, jaos_model *target,
-                                      jm_presolve *p, jm_work pre_work);
+                                      jm_presolve *p, jm_work *work,
+                                      bool *crossover, int64_t *iters);
 
 typedef struct {
     int64_t *idx;

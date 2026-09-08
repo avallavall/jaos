@@ -60,7 +60,7 @@ respectively, which is why those rows read "—" and not "○".
 | Dual simplex | ● | ● | ● | ● | ● | ● | ? |
 | Primal simplex | ◐ | ● | ● | ● | ● | ● | ? |
 | Barrier / interior point | ◐ | ● | ○ | ● | ● | ● | ? |
-| Crossover to a basic solution | ○ | ● | — | ◐ | ● | ● | ? |
+| Crossover to a basic solution | ◐ | ● | — | ◐ | ● | ● | ? |
 | First-order method (PDLP / PDHG) | ○ | ● | ○ | ○ | ○ | ● | ○ |
 | GPU acceleration | ○ | ● | ○ | ○ | ○ | ● | ○ |
 | Concurrent solve (race several methods) | ○ | ◐ | ○ | ○ | ● | ● | ? |
@@ -84,11 +84,15 @@ proves a ray that needs several columns at once.
 **The barrier reads ◐ since 2026-09-08.** `--algorithm barrier` and
 `JAOS_ALGORITHM_BARRIER` select Mehrotra's predictor-corrector on the
 normal equations, factored by a minimum-degree sparse Cholesky written
-here (`src/chol.c`, `src/barrier.c`). It publishes an interior point and no
-basis, so the checker accepts its answer only where the point has closed
-onto a vertex, and a MIP's relaxations stay on the dual. What keeps it from
-●: the crossover row below, and the reading in `bench/results/barrier.txt`,
-which is what decides whether it ever becomes a default.
+here (`src/chol.c`, `src/barrier.c`), and a crossover since 2026-09-09: the
+interior point ranks the variables by primal against dual slack, the best
+`rows` of them are the basis guess, the LU repairs it where singular, and
+the dual simplex finishes from there. A MIP's relaxations stay on the dual.
+What keeps both rows from ●: the crossover is a crash and a warm start, not
+a primal and dual push, so on the degenerate instances the simplex that
+follows can cost more than a cold dual solve; `bench/results/barrier.txt`
+is the reading, and it is what decides whether the barrier ever becomes a
+default.
 
 **HiGHS's GPU row was ◐ on the claim that the PDLP work was "in progress
 rather than released". It is released.** HiGHS ships cuPDLP-C and a native
