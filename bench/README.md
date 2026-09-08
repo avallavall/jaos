@@ -46,6 +46,8 @@ Rewrite a baseline only with `make <set>-baseline`, after reading the diff.
   step per instance, against a cold solve. A ratio, not a verdict.
 - `make primal`: the primal simplex on the standard set, three-way split of
   agreement with the dual.
+- `make barrier`: the barrier on the standard set against the dual, in work
+  units, with whether the checker accepts the interior point it publishes.
 - `bench/compare/`: JAOS against HiGHS, SoPlex and Clp, in seconds.
 - `bench/measurements/<id>/`: raw readings behind each refusal in
   `refusals.txt`. `make refusals` re-runs the ones that have a script.

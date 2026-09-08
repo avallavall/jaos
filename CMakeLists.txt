@@ -31,7 +31,9 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 set(JAOS_SOURCES
     src/alloc.c
+    src/barrier.c
     src/check.c
+    src/chol.c
     src/deflate.c
     src/exact.c
     src/iis.c

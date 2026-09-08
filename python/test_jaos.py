@@ -1547,6 +1547,26 @@ class TestBranchAndBound(unittest.TestCase):
         m.set_algorithm(jaos.Algorithm.PRIMAL)
         self.assertIs(m.algorithm, jaos.Algorithm.PRIMAL)
 
+    def test_the_barrier_reaches_the_same_optimum(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=5, name="x")
+        y = p.add_var(lb=0, ub=5, name="y")
+        p.add(x + y >= 2)
+        p.minimize(x + 2 * y)
+        p.set_algorithm(jaos.Algorithm.BARRIER)
+        self.assertIs(p.algorithm, jaos.Algorithm.BARRIER)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 2.0, places=6)
+        self.assertAlmostEqual(x.value, 2.0, places=5)
+        self.assertAlmostEqual(y.value, 0.0, places=5)
+        m = jaos.Model()
+        m.set_algorithm(jaos.Algorithm.BARRIER)
+        self.assertIs(m.algorithm, jaos.Algorithm.BARRIER)
+        m.set_option("algorithm", "dual")
+        self.assertIs(m.algorithm, jaos.Algorithm.DUAL)
+        m.set_option("algorithm", "barrier")
+        self.assertEqual(m.get_option("algorithm"), "barrier")
+
     def test_both_branching_rules_reach_the_knapsack_optimum(self):
 
         for rule in (jaos.Branching.MOST_FRACTIONAL, jaos.Branching.PSEUDOCOST):

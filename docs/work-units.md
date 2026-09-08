@@ -13,7 +13,9 @@ or time limit keeps the basis it stopped on, so raising the limit and calling
 basis. There is no answer to read in between — the run did not produce one, and
 `jaos_basis` says so, because a stopping point is not a solution. Until that
 landed, a budget was a way to abandon work and nothing else, which is a strange
-thing to have built a deterministic counter for.
+thing to have built a deterministic counter for. The barrier is the
+exception: it has no basis to keep, so a barrier run cut off by a budget
+starts again from its starting point when `jaos_solve` is called again.
 
 ## The weights
 
@@ -200,6 +202,19 @@ factorisation and dominates on anything but a tree.
 *The solve* (`jm_chol_solve`) charges `JM_WORK_NONZERO` per entry of `L`
 in each direction, the diagonal included, plus the two permutations at one
 per row. The test suite pins one three-row system exactly.
+
+**The barrier** (`src/barrier.c`) is billed on top of the Cholesky by the
+same rule. Forming the normal matrix `A Θ A^T` charges `JM_WORK_NONZERO`
+per multiply-add, which is the sum over the columns of the square of their
+length, plus one per entry of the pattern read out; that term is the
+barrier's largest charge on anything with a dense column, and it is why
+`fit1p`, `fit2p` and `seba` overrun the dual's work before their first
+iteration. Every product with `A` or `A^T` charges one per nonzero plus one
+per row. Every sweep over the variables, the residuals, the scaling, the
+two directions, the step lengths, the neighbourhood check and the update,
+charges one per variable. Nothing is charged per iteration beyond what the
+iteration touches, for the reason the simplex has no per-iteration
+constant either.
 
 ## What is outside the budget
 

@@ -59,7 +59,7 @@ respectively, which is why those rows read "—" and not "○".
 |---|---|---|---|---|---|---|---|
 | Dual simplex | ● | ● | ● | ● | ● | ● | ? |
 | Primal simplex | ◐ | ● | ● | ● | ● | ● | ? |
-| Barrier / interior point | ○ | ● | ○ | ● | ● | ● | ? |
+| Barrier / interior point | ◐ | ● | ○ | ● | ● | ● | ? |
 | Crossover to a basic solution | ○ | ● | — | ◐ | ● | ● | ? |
 | First-order method (PDLP / PDHG) | ○ | ● | ○ | ○ | ○ | ● | ○ |
 | GPU acceleration | ○ | ● | ○ | ○ | ○ | ● | ○ |
@@ -80,6 +80,15 @@ hand the solve to the dual. Stage 7, the unboundedness verdict, landed on
 2026-09-01: the primal declares a ray it meets in phase 2 on the same D19
 proof the dual already used, and the shared lent-bound verdict also
 proves a ray that needs several columns at once.
+
+**The barrier reads ◐ since 2026-09-08.** `--algorithm barrier` and
+`JAOS_ALGORITHM_BARRIER` select Mehrotra's predictor-corrector on the
+normal equations, factored by a minimum-degree sparse Cholesky written
+here (`src/chol.c`, `src/barrier.c`). It publishes an interior point and no
+basis, so the checker accepts its answer only where the point has closed
+onto a vertex, and a MIP's relaxations stay on the dual. What keeps it from
+●: the crossover row below, and the reading in `bench/results/barrier.txt`,
+which is what decides whether it ever becomes a default.
 
 **HiGHS's GPU row was ◐ on the claim that the PDLP work was "in progress
 rather than released". It is released.** HiGHS ships cuPDLP-C and a native

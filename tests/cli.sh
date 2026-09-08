@@ -556,8 +556,12 @@ expect_exit 0 "--algorithm primal solves it too" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm primal
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
     || flunk "primal: $(line_of objective) against $dual_obj"
-expect_exit 5 "--algorithm refuses an unknown method" \
+expect_exit 0 "--algorithm barrier solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm barrier
+[ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
+    || flunk "barrier: $(line_of objective) against $dual_obj"
+expect_exit 5 "--algorithm refuses an unknown method" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm newton
 expect_exit 0 "reliability zero still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --reliability 0
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

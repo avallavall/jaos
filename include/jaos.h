@@ -400,6 +400,7 @@ JAOS_NODISCARD jaos_status jaos_set_dual_tolerance(jaos_model *m, double tol);
 typedef enum jaos_algorithm {
     JAOS_ALGORITHM_DUAL = 0,
     JAOS_ALGORITHM_PRIMAL,
+    JAOS_ALGORITHM_BARRIER,
 } jaos_algorithm;
 
 JAOS_NODISCARD jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg);

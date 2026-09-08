@@ -1030,19 +1030,23 @@ jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg)
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    if (alg != JAOS_ALGORITHM_DUAL && alg != JAOS_ALGORITHM_PRIMAL) {
-        jm_set_err(m, "the algorithm must be dual or primal");
+    if (alg != JAOS_ALGORITHM_DUAL && alg != JAOS_ALGORITHM_PRIMAL &&
+        alg != JAOS_ALGORITHM_BARRIER) {
+        jm_set_err(m, "the algorithm must be dual, primal or barrier");
         return JAOS_ERR_INVALID_INPUT;
     }
     m->cfg.force_primal = alg == JAOS_ALGORITHM_PRIMAL;
+    m->cfg.barrier = alg == JAOS_ALGORITHM_BARRIER;
     return JAOS_OK;
 }
 
 jaos_algorithm jaos_algorithm_of(const jaos_model *m)
 {
-    if (m == nullptr || !m->cfg.force_primal)
+    if (m == nullptr)
         return JAOS_ALGORITHM_DUAL;
-    return JAOS_ALGORITHM_PRIMAL;
+    if (m->cfg.barrier)
+        return JAOS_ALGORITHM_BARRIER;
+    return m->cfg.force_primal ? JAOS_ALGORITHM_PRIMAL : JAOS_ALGORITHM_DUAL;
 }
 
 jaos_status jaos_set_mip_reliability(jaos_model *m, int64_t branches)

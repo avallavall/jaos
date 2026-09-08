@@ -125,9 +125,11 @@ class Branching(enum.IntEnum):
     MOST_FRACTIONAL = 1
 
 class Algorithm(enum.IntEnum):
-    """Which simplex solves every LP; jaos_algorithm."""
+    """What solves an LP; jaos_algorithm. The barrier is an interior point
+    method for plain LPs; a MIP's relaxations stay on the dual simplex."""
     DUAL = 0
     PRIMAL = 1
+    BARRIER = 2
 
 class DiveChild(enum.IntEnum):
     """Which child a dive solves first (D295); jaos_dive_child."""
@@ -1469,8 +1471,9 @@ class Model:
         self._check(_lib.jaos_set_mip_branching(self._handle(), int(rule)))
 
     def set_algorithm(self, alg):
-        """Which simplex solves every LP, the root relaxation and every
-        node included: an `Algorithm`, DUAL by default."""
+        """What solves an LP: an `Algorithm`, DUAL by default. DUAL and
+        PRIMAL also solve the root relaxation and every node of a MIP;
+        BARRIER solves plain LPs only and leaves a MIP to the dual."""
         self._check(_lib.jaos_set_algorithm(self._handle(), int(alg)))
 
     @property

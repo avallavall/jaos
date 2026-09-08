@@ -3956,6 +3956,12 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_col = target->num_col;
     m->presolve_num_nz  = target->num_nz;
 
+    if (m->cfg.barrier && !m->cfg.node_solve) {
+        jaos_status bst = jm_barrier(m, target, &p, pre_work);
+        jm_presolve_free(&p);
+        return bst;
+    }
+
     sx s;
     jaos_status st = sx_init(&s, target);
     if (st != JAOS_OK) {

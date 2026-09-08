@@ -66,7 +66,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
 	miplib miplib-baseline \
-	warm warm-kennington primal primal-kennington \
+	warm warm-kennington primal primal-kennington barrier \
 	shared python-test \
 	pgo clean
 
@@ -74,7 +74,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
 all: $(LIB)
 
-BENCH_TOOLS := $(B)/bench/run $(B)/bench/warm $(B)/bench/primal
+BENCH_TOOLS := $(B)/bench/run $(B)/bench/warm $(B)/bench/primal $(B)/bench/barrier
 
 CLI := $(B)/cli/jaos
 
@@ -179,6 +179,14 @@ primal: $(B)/bench/primal
 	@bench/fetch.sh
 	@mkdir -p bench/results
 	./$(B)/bench/primal -j $(J) -o bench/results/primal.txt
+
+$(B)/bench/barrier: bench/barrier.c $(LIB) | $(B)/bench
+	$(CC) $(RELEASE_CFLAGS) $(INC) -Isrc $< $(LIB) -o $@ $(LDLIBS)
+
+barrier: $(B)/bench/barrier
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/barrier -j $(J) -o bench/results/barrier.txt
 
 primal-kennington: $(B)/bench/primal
 	@bench/fetch.sh -m bench/netlib-kennington.manifest \

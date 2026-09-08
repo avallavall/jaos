@@ -89,7 +89,7 @@ static void test_options_reach_the_setters(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_cut_rounds", "three"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_cut_rounds", "3x"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_dive", "maybe"));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "algorithm", "barrier"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "algorithm", "newton"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_gap", "-1"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_get_option(m, "no_such", buf, 64));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_get_option(m, "mip_gap", buf, 2));

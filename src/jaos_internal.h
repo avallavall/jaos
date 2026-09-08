@@ -22,6 +22,7 @@ typedef struct {
     void *progress_user;
 
     bool force_primal;
+    bool barrier;
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
@@ -498,6 +499,9 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p);
 
 JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(
     jm_presolve *p, jaos_solve_status status);
+
+JAOS_NODISCARD jaos_status jm_barrier(jaos_model *m, jaos_model *target,
+                                      jm_presolve *p, jm_work pre_work);
 
 typedef struct {
     int64_t *idx;
