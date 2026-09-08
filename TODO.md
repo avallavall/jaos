@@ -6,9 +6,9 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 ## Milestone: reach and polish
 
 1. **Windows build, the rest.** The shim is in (`src/jaos_sys.h`),
-   mingw-w64 builds the library and the tool, and wine gives the Linux
-   answers. Missing: a native Windows run, clang-cl, and the Python binding
-   finding `jaos.dll`.
+   mingw-w64 builds the library and the tool, wine gives the Linux answers,
+   and the Python binding knows `jaos.dll`. Missing: a native Windows run
+   and clang-cl, both needing a machine this repository has not got.
 2. **Defect: a branched `grow15` never finishes cold, and a branched
    `pilotnov` publishes a point 5.4e-5 outside a row.** Both come from
    `bench/warm`, which branches on the first fractional column of the LP

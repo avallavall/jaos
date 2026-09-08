@@ -1,6 +1,7 @@
 """JAOS from Python.
 
-A ctypes wrapper over `libjaos.so`. The standard library and nothing else,
+A ctypes wrapper over `libjaos.so`, or `jaos.dll` on Windows. The standard
+library and nothing else,
 which is the same rule the C library holds itself to: a binding that needs a
 compiler, a header or a package index at install time is a dependency, and
 this project does not take those.
@@ -14,9 +15,13 @@ matters here.
 Finding the library, in order:
 
 1. the ``JAOS_LIBRARY`` environment variable, a full path;
-2. ``libjaos.so`` beside this file;
-3. ``build/release/libjaos.so`` under the current directory;
+2. the library beside this file;
+3. ``build/release/libjaos.so`` under the current directory, or the CMake
+   build's ``jaos.dll`` under ``build/cmake`` on Windows;
 4. the system loader's search path.
+
+The file name is ``libjaos.so`` on Linux, ``libjaos.dylib`` on macOS and
+``jaos.dll`` or ``libjaos.dll`` on Windows.
 
 Build it with ``make shared``.
 
@@ -158,6 +163,21 @@ Progress = namedtuple("Progress",
 Incumbent = namedtuple("Incumbent",
                        "node objective bound values by_rounding")
 
+def _library_names(platform=sys.platform):
+    """The file names the library may carry on this platform, in the order
+    they are tried, and the build directories that may hold them."""
+    if platform.startswith("win"):
+        return ["jaos.dll", "libjaos.dll"], [
+            os.path.join("build", "cmake"),
+            os.path.join("build", "cmake", "Release"),
+            os.path.join("build", "release")]
+    if platform == "darwin":
+        return ["libjaos.dylib", "libjaos.so"], [
+            os.path.join("build", "release"), os.path.join("build", "cmake")]
+    return ["libjaos.so"], [
+        os.path.join("build", "release"), os.path.join("build", "cmake")]
+
+
 def _find_library():
     env = os.environ.get("JAOS_LIBRARY")
     if env:
@@ -165,19 +185,24 @@ def _find_library():
             raise OSError(f"JAOS_LIBRARY is set to {env!r}, which does not "
                           f"exist")
         return env
-    here = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "libjaos.so")
-    if os.path.exists(here):
-        return here
-    built = os.path.join(os.getcwd(), "build", "release", "libjaos.so")
-    if os.path.exists(built):
-        return built
+    names, dirs = _library_names()
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in names:
+        p = os.path.join(here, name)
+        if os.path.exists(p):
+            return p
+    for d in dirs:
+        for name in names:
+            p = os.path.join(os.getcwd(), d, name)
+            if os.path.exists(p):
+                return p
     found = ctypes.util.find_library("jaos")
     if found:
         return found
     raise OSError(
-        "libjaos.so not found. Build it with `make shared`, then either run "
-        "from the repository root or set JAOS_LIBRARY to its full path.")
+        f"{names[0]} not found. Build it with `make shared` or the CMake "
+        "package, then either run from the repository root or set "
+        "JAOS_LIBRARY to its full path.")
 
 _LIB_PATH = _find_library()
 _lib = ctypes.CDLL(_LIB_PATH)

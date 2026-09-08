@@ -39,6 +39,19 @@ class TestLibrary(unittest.TestCase):
     def test_the_loaded_path_is_reported(self):
         self.assertTrue(os.path.exists(jaos.library_path()))
 
+    def test_the_library_name_follows_the_platform(self):
+        names, dirs = jaos._library_names("linux")
+        self.assertEqual(names, ["libjaos.so"])
+        self.assertIn(os.path.join("build", "release"), dirs)
+        names, dirs = jaos._library_names("win32")
+        self.assertEqual(names, ["jaos.dll", "libjaos.dll"])
+        self.assertIn(os.path.join("build", "cmake"), dirs)
+        names, _ = jaos._library_names("darwin")
+        self.assertEqual(names[0], "libjaos.dylib")
+        here, _ = jaos._library_names()
+        self.assertTrue(jaos.library_path().endswith(tuple(here))
+                        or "JAOS_LIBRARY" in os.environ)
+
 class TestSolving(unittest.TestCase):
     """The golden three-by-three, which tests/data/solve1.mps holds and
     tests/test_simplex.c solves to 29.0."""

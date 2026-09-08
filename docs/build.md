@@ -99,8 +99,9 @@ cmake --build build/win
 MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
 `nullptr`, which its C front end does not accept. clang-cl should, since the
 shim compiles under `_WIN32` with no GCC-only call in it, but no machine with
-clang-cl has run it yet. The Python binding still looks for `libjaos.so`
-only.
+clang-cl has run it yet. The Python binding looks for `jaos.dll` or
+`libjaos.dll` on Windows, beside itself or under `build/cmake`, and for
+`libjaos.dylib` on macOS; `JAOS_LIBRARY` overrides both.
 
 ## What stays in the shipping build
 
