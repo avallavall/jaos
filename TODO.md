@@ -28,15 +28,6 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: barrier
 
-12. **A deterministic sparse Cholesky.** For the normal equations
-    `A D A^T` of an LP: a minimum-degree ordering with ties broken by
-    index, the elimination tree and the symbolic factorisation once, the
-    numeric factorisation each iteration with a tiny pivot replaced by a
-    large one (the usual barrier regularisation), and the two triangular
-    solves. No reassociation, no address-dependent order, so the factor
-    is the same on every machine. Its own file, its own tests against
-    small systems solved by hand, and the work units of every pass
-    counted.
 13. **The barrier.** Mehrotra's predictor-corrector on the primal-dual
     pair with bounds, the normal equations solved by the Cholesky above,
     starting from the usual Mehrotra point, stopping at relative primal,

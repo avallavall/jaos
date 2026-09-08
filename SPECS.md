@@ -31,7 +31,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 |---|---|---|
 | Dual simplex | **done** | steepest-edge pricing, Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, a cost perturbation on the first stall and Bland's rule after |
 | Primal simplex | **partial** | steepest-edge pricing (Devex behind `cfg.primal_devex`, Dantzig behind `cfg.primal_dantzig`), composite phase 1, Harris ratio test; `jaos_set_algorithm` selects it. Missing: 6 of the 94 standard instances run past 10x the dual's work (`bench/results/primal.txt`): d6cube, degen3, dfl001, fit1d, fit2d, seba; none disagrees |
-| Barrier (interior point) | **missing** | needs a deterministic sparse Cholesky written here |
+| Barrier (interior point) | **partial** | the deterministic sparse Cholesky is in (`src/chol.c`): minimum-degree ordering with ties by index, elimination tree and symbolic factorisation once, numeric factorisation per call with a tiny pivot replaced by `CHOL_PIVOT_HUGE`, two triangular solves, every pass billed in work units. Missing: the barrier itself, Mehrotra's predictor-corrector on the normal equations, and its option, CLI switch and Python layer |
 | Crossover from an interior point | **missing** | |
 | First-order method (PDLP) | **missing** | |
 | Concurrent solve, deterministic | **missing** | |

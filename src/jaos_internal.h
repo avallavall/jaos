@@ -571,6 +571,42 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
 JAOS_NODISCARD jaos_status jm_lu_update(jm_lu *lu, int64_t col_out,
     const double *new_col, double min_pivot_ratio, jm_work *w);
 
+typedef struct {
+    int64_t n;
+    int64_t nnz;
+    int64_t replaced;
+    bool symbolic;
+
+    int64_t *perm;
+    int64_t *inv;
+    int64_t *parent;
+
+    int64_t *a_start;
+    int64_t *a_index;
+    int64_t *a_src;
+
+    int64_t *l_start;
+    int64_t *l_index;
+    double  *l_value;
+
+    int64_t *fill;
+    double  *x;
+    int64_t *s;
+    int64_t *path;
+    int64_t *mark;
+} jm_chol;
+
+void jm_chol_init(jm_chol *c);
+void jm_chol_free(jm_chol *c);
+
+JAOS_NODISCARD jaos_status jm_chol_symbolic(jm_chol *c, int64_t n,
+    const int64_t *start, const int64_t *index, jm_work *w);
+
+JAOS_NODISCARD jaos_status jm_chol_numeric(jm_chol *c, const double *value,
+                                           jm_work *w);
+
+void jm_chol_solve(const jm_chol *c, double *b, jm_work *w);
+
 #ifndef JM_EXACT_LIMBS
 #define JM_EXACT_LIMBS 128
 #endif

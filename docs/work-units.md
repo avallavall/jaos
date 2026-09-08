@@ -39,8 +39,8 @@ promise a run far cheaper than the one it buys.
 
 ## Where it is charged
 
-Everything below is in `src/lu.c`, `src/presolve.c` and `src/simplex.c`.
-Nothing else counts.
+Everything below is in `src/lu.c`, `src/chol.c`, `src/presolve.c` and
+`src/simplex.c`. Nothing else counts.
 
 **Presolve is one-way, and this is the door.** A work figure
 read before presolve existed and one read after are not comparable on any
@@ -174,6 +174,32 @@ buys.
 each column still resting on a bound phase 1 lent it. Most solves charge
 nothing here, because most models need no lent bounds and most that do are
 not held by them at the end.
+
+**The sparse Cholesky** (`src/chol.c`) bills its four passes by the same
+rule, one unit per position touched, and is the only kernel outside
+`src/lu.c` that charges `JM_WORK_FACTOR`.
+
+*The ordering* (`jm_chol_symbolic`, first pass) charges `JM_WORK_NONZERO`
+per adjacency entry it reads: the variable and element lists of the pivot
+when the new element is formed, and the element and variable lists of every
+variable in that element when their degrees are recomputed. A scan that
+skips a dead entry still pays for reading it.
+
+*The symbolic factorisation* (same call, second pass) charges
+`JM_WORK_NONZERO` per entry of the permuted upper triangle and one per node
+of every row's reach in the elimination tree, which is exactly one per
+nonzero of `L` below the diagonal.
+
+*The numeric factorisation* (`jm_chol_numeric`) charges `JM_WORK_FACTOR`
+once on entry, `JM_WORK_NONZERO` per input entry gathered and per row of
+`L` produced, and `JM_WORK_ELIMINATED` per multiply-add in the column
+updates, which is the sum over the columns of the reach of the entries
+already written in each. That last term is the flop count of the
+factorisation and dominates on anything but a tree.
+
+*The solve* (`jm_chol_solve`) charges `JM_WORK_NONZERO` per entry of `L`
+in each direction, the diagonal included, plus the two permutations at one
+per row. The test suite pins one three-row system exactly.
 
 ## What is outside the budget
 
