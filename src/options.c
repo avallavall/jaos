@@ -32,7 +32,7 @@ enum opt_id {
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_PROPAGATE,
-    O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS,
+    O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS,
     O_COUNT
 };
 
@@ -84,6 +84,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_POOL_SIZE] = {"mip_pool_size", OPT_INT, nullptr, 0},
     [O_CUTOFF] = {"mip_cutoff", OPT_DOUBLE, nullptr, 0},
     [O_CLIQUE_ROUNDS] = {"mip_clique_rounds", OPT_INT, nullptr, 0},
+    [O_ZERO_HALF_ROUNDS] = {"mip_zero_half_rounds", OPT_INT, nullptr, 0},
 };
 
 int64_t jaos_num_options(void)
@@ -235,6 +236,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_POOL_SIZE: return jaos_set_mip_pool_size(m, i);
     case O_CUTOFF: return jaos_set_mip_cutoff(m, x);
     case O_CLIQUE_ROUNDS: return jaos_set_mip_clique_rounds(m, i);
+    case O_ZERO_HALF_ROUNDS: return jaos_set_mip_zero_half_rounds(m, i);
     case O_COUNT: break;
     }
     return JAOS_ERR_INVALID_INPUT;
@@ -306,6 +308,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_POOL_SIZE: i = c->mip_pool_size > 0 ? c->mip_pool_size : 1; break;
     case O_CUTOFF: x = c->mip_cutoff_set ? c->mip_cutoff : INFINITY; break;
     case O_CLIQUE_ROUNDS: i = (int64_t)eff(c->mip_clique_rounds_set, (double)c->mip_clique_rounds, JM_DEF_CLIQUE_ROUNDS); break;
+    case O_ZERO_HALF_ROUNDS: i = (int64_t)eff(c->mip_zero_half_rounds_set, (double)c->mip_zero_half_rounds, JM_DEF_ZERO_HALF_ROUNDS); break;
     case O_COUNT: return JAOS_ERR_INVALID_INPUT;
     }
     int n;

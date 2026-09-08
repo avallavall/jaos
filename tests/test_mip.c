@@ -15,6 +15,7 @@ static jaos_model *fresh(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
     return m;
 }
 
@@ -569,6 +570,7 @@ static jaos_model *cover_model(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
@@ -628,6 +630,7 @@ static jaos_model *steer_model(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
@@ -2146,6 +2149,7 @@ static void test_the_pump_perturbs_a_rounding_that_repeats(void)
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
@@ -2675,6 +2679,7 @@ static void test_clique_fixing_at_a_node_shortens_the_tree(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
@@ -2705,6 +2710,78 @@ static void test_clique_fixing_at_a_node_shortens_the_tree(void)
         jaos_model_free(m);
     }
     TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
+}
+
+
+static jaos_model *zero_half_model(bool cycle)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    if (cycle) {
+        const double c[3] = {-1.0, -1.0, -1.0};
+        const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+        const double rl[3] = {-INFINITY, -INFINITY, -INFINITY};
+        const double ru[3] = {1.0, 1.0, 1.0};
+        const int64_t as[4] = {0, 2, 4, 6}, ai[6] = {0, 2, 0, 1, 1, 2};
+        const double av[6] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         6, as, ai, av));
+    } else {
+        const double c[3] = {-1.0, -1.0, -1.0};
+        const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {1.0, 1.0, 1.0};
+        const double rl[1] = {-INFINITY}, ru[1] = {3.0};
+        const int64_t as[4] = {0, 1, 2, 3}, ai[3] = {0, 0, 0};
+        const double av[3] = {2.0, 2.0, 2.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         3, as, ai, av));
+    }
+    for (int64_t j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    return m;
+}
+
+static void test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root(void)
+{
+    for (int cycle = 0; cycle < 2; cycle++) {
+        int64_t nodes[2] = {0, 0};
+        for (int on = 0; on < 2; on++) {
+            jaos_model *m = zero_half_model(cycle);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, on ? 1 : 0));
+            TEST_ASSERT_TRUE(m->cfg.mip_zero_half_rounds_set);
+            g_log[0] = '\0';
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            nodes[on] = rep.nodes;
+            if (on) {
+                TEST_ASSERT_NOT_NULL(strstr(g_log, " 1 zero-half and "));
+                TEST_ASSERT_EQUAL_INT64(1, rep.cuts);
+            }
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, -1));
+            TEST_ASSERT_FALSE(m->cfg.mip_zero_half_rounds_set);
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(nodes[0] > 1);
+        TEST_ASSERT_EQUAL_INT64(1, nodes[1]);
+    }
 }
 
 static void test_coefficient_tightening_is_a_switch(void)
@@ -2972,5 +3049,6 @@ int main(void)
     RUN_TEST(test_probing_fixes_a_binary_that_fits_one_way_only);
     RUN_TEST(test_probing_keeps_a_bound_both_settings_imply);
     RUN_TEST(test_clique_fixing_at_a_node_shortens_the_tree);
+    RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
     return UNITY_END();
 }

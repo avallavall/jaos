@@ -1116,6 +1116,15 @@ jaos_status jaos_set_mip_clique_rounds(jaos_model *m, int64_t rounds)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_zero_half_rounds(jaos_model *m, int64_t rounds)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_zero_half_rounds_set = rounds >= 0;
+    m->cfg.mip_zero_half_rounds = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_cut_stall(jaos_model *m, double fraction)
 {
     if (m == nullptr)

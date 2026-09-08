@@ -25,11 +25,6 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: steer and cut
 
-4. **Zero-half cuts** at the root, from pairs and triples of rows with
-   integer coefficients on integer columns whose sum has odd right-hand
-   side parity after the combination (Caprara and Fischetti). Measured on
-   the MIP set against the four cut families in; lands on or off by the
-   reading, behind `--zero-half-rounds`.
 5. **Write LP: names it cannot spell.** A column or row name LP cannot
    carry (leading digit, an operator or a space inside, too long) is
    written under a spelled name with the original in a comment map at the

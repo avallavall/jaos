@@ -22,6 +22,10 @@ constexpr int64_t MIP_NODE_CUT_CAP = 4;
 constexpr int64_t MIP_COVER_ROUNDS = 4;
 
 constexpr int64_t MIP_CLIQUE_ROUNDS = 4;
+constexpr int64_t MIP_ZERO_HALF_ROUNDS = 0;
+constexpr int64_t MIP_ZERO_HALF_ROW_CAP = 100;
+constexpr int64_t MIP_ZERO_HALF_TRIPLE_CAP = 40;
+constexpr int64_t MIP_ZERO_HALF_CUT_CAP = 50;
 constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
 
 constexpr double MIP_CUT_STALL = 0.0;
@@ -615,6 +619,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_NODE_CUT_CAP: return (double)MIP_NODE_CUT_CAP;
     case JM_DEF_COVER_ROUNDS: return (double)MIP_COVER_ROUNDS;
     case JM_DEF_CLIQUE_ROUNDS: return (double)MIP_CLIQUE_ROUNDS;
+    case JM_DEF_ZERO_HALF_ROUNDS: return (double)MIP_ZERO_HALF_ROUNDS;
     case JM_DEF_CUT_STALL: return MIP_CUT_STALL;
     case JM_DEF_NODE_CUT_STALL: return MIP_NODE_CUT_STALL;
     case JM_DEF_ROOT_CUT_DROP: return MIP_ROOT_CUT_DROP ? 1.0 : 0.0;
@@ -1671,6 +1676,228 @@ static int64_t clique_round(const jaos_model *m, const clique_table *t,
     return added;
 }
 
+
+
+typedef struct {
+    int64_t row;
+    double sign, slack, rhs;
+} zhrow;
+
+static int zhrow_cmp(const void *pa, const void *pb)
+{
+    const zhrow *p = pa, *q = pb;
+    if (p->slack != q->slack)
+        return p->slack < q->slack ? -1 : 1;
+    if (p->row != q->row)
+        return p->row < q->row ? -1 : 1;
+    return p->sign < q->sign ? -1 : p->sign > q->sign;
+}
+
+static bool zh_integral(double v)
+{
+    return v == floor(v) && fabs(v) < 4503599627370496.0;
+}
+
+static int zh_odd(double v)
+{
+    return (int)fmod(fabs(v), 2.0);
+}
+
+typedef struct {
+    const jaos_model *m, *lp;
+    const double *x;
+    cutbuf *cb;
+    double *cut;
+    int8_t *par;
+    int64_t *touched;
+    double *bslack, *brhs, *bsign;
+    double tol;
+    int64_t *work;
+} zhctx;
+
+static int zh_try(zhctx *z, const zhrow *rows, int nrows)
+{
+    const jaos_model *lp = z->lp;
+    int64_t nt = 0;
+    double cost = 0.0, rhs = 0.0;
+    int parity = 0;
+    for (int s = 0; s < nrows; s++) {
+        const int64_t i = rows[s].row;
+        cost += rows[s].slack;
+        rhs += rows[s].sign * (rows[s].sign > 0.0 ? lp->row_upper[i]
+                                                  : lp->row_lower[i]);
+        parity ^= zh_odd(rows[s].rhs);
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+            const int64_t j = lp->ar_index[k];
+            const double a = rows[s].sign * lp->ar_value[k];
+            if (a == 0.0)
+                continue;
+            if (z->par[j] < 0) {
+                z->par[j] = 0;
+                z->touched[nt++] = j;
+            }
+            z->par[j] ^= (int8_t)zh_odd(a);
+        }
+        *z->work += lp->ar_start[i + 1] - lp->ar_start[i];
+    }
+    bool ok = cost < 1.0 - z->tol;
+    for (int64_t t = 0; t < nt && ok; t++) {
+        const int64_t j = z->touched[t];
+        if (z->par[j] != 1)
+            continue;
+        if (!(z->bslack[j] < INFINITY)) {
+            ok = false;
+            break;
+        }
+        cost += z->bslack[j];
+        rhs += z->brhs[j];
+        parity ^= zh_odd(z->brhs[j]);
+        ok = cost < 1.0 - z->tol;
+    }
+    int added = 0;
+    if (ok && parity == 1) {
+        double nrm = 0.0;
+        for (int s = 0; s < nrows; s++) {
+            const int64_t i = rows[s].row;
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+                z->cut[lp->ar_index[k]] += rows[s].sign * lp->ar_value[k];
+        }
+        for (int64_t t = 0; t < nt; t++) {
+            const int64_t j = z->touched[t];
+            if (z->par[j] == 1)
+                z->cut[j] += z->bsign[j];
+            z->cut[j] = -0.5 * z->cut[j];
+            nrm += z->cut[j] * z->cut[j];
+        }
+        const double d = floor(0.5 * rhs);
+        if (nrm > 0.0 &&
+            cutbuf_push(z->cb, z->cut, z->m->num_col, -d,
+                        0.5 * (1.0 - cost) / sqrt(nrm)))
+            added = 1;
+        else if (nrm > 0.0)
+            added = -1;
+        for (int64_t t = 0; t < nt; t++)
+            z->cut[z->touched[t]] = 0.0;
+    }
+    for (int64_t t = 0; t < nt; t++)
+        z->par[z->touched[t]] = -1;
+    return added;
+}
+
+static int64_t zero_half_round(const jaos_model *m, jaos_model *lp,
+                               const double *x, cutbuf *cb, double *cut,
+                               int64_t *work)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double tol = jm_primal_tolerance(m);
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    zhrow *cand = malloc((size_t)(nr > 0 ? 2 * nr : 1) * sizeof *cand);
+    int8_t *par = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *par);
+    int64_t *touched = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *touched);
+    double *bnd = malloc((size_t)(nc > 0 ? 3 * nc : 1) * sizeof *bnd);
+    int64_t added = -1;
+    if (cand == nullptr || par == nullptr || touched == nullptr ||
+        bnd == nullptr)
+        goto out;
+    double *bslack = bnd, *brhs = bnd + nc, *bsign = bnd + 2 * nc;
+    for (int64_t j = 0; j < nc; j++) {
+        par[j] = -1;
+        cut[j] = 0.0;
+        bslack[j] = INFINITY;
+        brhs[j] = 0.0;
+        bsign[j] = 0.0;
+        if (!m->col_integer[j])
+            continue;
+        const double lo = lp->col_lower[j], hi = lp->col_upper[j];
+        if (isfinite(hi) && zh_integral(hi)) {
+            bslack[j] = hi - x[j];
+            brhs[j] = hi;
+            bsign[j] = 1.0;
+        }
+        if (isfinite(lo) && zh_integral(lo) && x[j] - lo < bslack[j]) {
+            bslack[j] = x[j] - lo;
+            brhs[j] = -lo;
+            bsign[j] = -1.0;
+        }
+        if (bslack[j] < 0.0)
+            bslack[j] = 0.0;
+    }
+    *work += m->num_nz + nc + nr;
+    int64_t n = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        bool fit = true;
+        double act = 0.0;
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && fit; k++) {
+            const int64_t j = lp->ar_index[k];
+            const double a = lp->ar_value[k];
+            fit = a == 0.0 || (m->col_integer[j] && zh_integral(a));
+            act += a * x[j];
+        }
+        if (!fit)
+            continue;
+        for (int side = 0; side < 2; side++) {
+            const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+            if (!isfinite(bound) || !zh_integral(bound))
+                continue;
+            const double sign = side == 0 ? 1.0 : -1.0;
+            double slack = sign * bound - sign * act;
+            if (slack < 0.0)
+                slack = 0.0;
+            if (!(slack < 1.0 - tol))
+                continue;
+            cand[n++] = (zhrow){ .row = i, .sign = sign, .slack = slack,
+                                 .rhs = sign * bound };
+        }
+    }
+    added = 0;
+    if (n == 0)
+        goto out;
+    qsort(cand, (size_t)n, sizeof *cand, zhrow_cmp);
+    if (n > MIP_ZERO_HALF_ROW_CAP)
+        n = MIP_ZERO_HALF_ROW_CAP;
+    zhctx z = { .m = m, .lp = lp, .x = x, .cb = cb, .cut = cut, .par = par,
+                .touched = touched, .bslack = bslack, .brhs = brhs,
+                .bsign = bsign, .tol = tol, .work = work };
+    for (int64_t a = 0; a < n && added < MIP_ZERO_HALF_CUT_CAP; a++) {
+        const int r = zh_try(&z, &cand[a], 1);
+        if (r < 0) { added = -1; goto out; }
+        added += r;
+    }
+    for (int64_t a = 0; a < n && added < MIP_ZERO_HALF_CUT_CAP; a++)
+        for (int64_t b = a + 1; b < n && added < MIP_ZERO_HALF_CUT_CAP; b++) {
+            if (cand[a].row == cand[b].row)
+                continue;
+            if (!(cand[a].slack + cand[b].slack < 1.0 - tol))
+                break;
+            const zhrow pair[2] = { cand[a], cand[b] };
+            const int r = zh_try(&z, pair, 2);
+            if (r < 0) { added = -1; goto out; }
+            added += r;
+        }
+    const int64_t nt = n < MIP_ZERO_HALF_TRIPLE_CAP ? n : MIP_ZERO_HALF_TRIPLE_CAP;
+    for (int64_t a = 0; a < nt && added < MIP_ZERO_HALF_CUT_CAP; a++)
+        for (int64_t b = a + 1; b < nt && added < MIP_ZERO_HALF_CUT_CAP; b++) {
+            if (cand[a].row == cand[b].row)
+                continue;
+            if (!(cand[a].slack + cand[b].slack < 1.0 - tol))
+                break;
+            for (int64_t c = b + 1; c < nt && added < MIP_ZERO_HALF_CUT_CAP; c++) {
+                if (cand[c].row == cand[a].row || cand[c].row == cand[b].row)
+                    continue;
+                if (!(cand[a].slack + cand[b].slack + cand[c].slack < 1.0 - tol))
+                    break;
+                const zhrow triple[3] = { cand[a], cand[b], cand[c] };
+                const int r = zh_try(&z, triple, 3);
+                if (r < 0) { added = -1; goto out; }
+                added += r;
+            }
+        }
+out:
+    free(cand); free(par); free(touched); free(bnd);
+    return added;
+}
+
 static bool shift_to_upper(double lo, double hi, double xj)
 {
     if (!isfinite(lo))
@@ -2686,6 +2913,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         root_rounds = mir_rounds;
     if (clique_rounds > root_rounds)
         root_rounds = clique_rounds;
+    const int64_t zh_rounds = m->cfg.mip_zero_half_rounds_set
+        ? m->cfg.mip_zero_half_rounds : MIP_ZERO_HALF_ROUNDS;
+    if (zh_rounds > root_rounds)
+        root_rounds = zh_rounds;
     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
@@ -2784,6 +3015,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     bool rins_seen = false;
     int64_t covers = 0;
     int64_t cliques = 0;
+    int64_t zero_halves = 0;
     kitem *items = nullptr;
     double *pbuf = nullptr;
     litval *porder = nullptr;
@@ -3212,6 +3444,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     cliques += qv;
                     got += qv;
                 }
+                if (r < zh_rounds) {
+                    const int64_t zv = zero_half_round(m, lp, x, &cb, cut,
+                                                       &work);
+                    if (zv < 0)
+                        goto done;
+                    zero_halves += zv;
+                    got += zv;
+                }
                 if (r < mir_rounds) {
                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
                                                  mbest, mdelta, magg, &work);
@@ -3291,9 +3531,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nfixed = root_cut_drop ? nperm : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
                    "root: relaxation %.17g after %lld cuts, %lld of them "
-                   "covers, %lld cliques and %lld MIR",
+                   "covers, %lld cliques, %lld zero-half and %lld MIR",
                    obj, (long long)cuts, (long long)covers,
-                   (long long)cliques, (long long)mirs);
+                   (long long)cliques, (long long)zero_halves,
+                   (long long)mirs);
         }
 
         if (nodes == 1 && m->mip_start != nullptr) {

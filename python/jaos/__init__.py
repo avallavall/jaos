@@ -589,6 +589,7 @@ _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_depth", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cover_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_clique_rounds", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_zero_half_rounds", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_node_cut_cap", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_cut_stall", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_node_cut_stall", ctypes.c_int, _VP, _D)
@@ -1187,6 +1188,13 @@ class Model:
         """Rounds of clique cuts at the root, from the conflicts the rows
         put between binary columns: 0 for none, negative for the default."""
         self._check(_lib.jaos_set_mip_clique_rounds(self._handle(), int(rounds)))
+
+    def set_mip_zero_half_rounds(self, rounds):
+        """Rounds of zero-half cuts at the root: one, two or three rows
+        with integer data on integer columns, halved with the bound rows
+        that make every coefficient even, and rounded down where the
+        right-hand side is odd. 0 for none, negative for the default."""
+        self._check(_lib.jaos_set_mip_zero_half_rounds(self._handle(), int(rounds)))
 
     def set_mip_node_cut_cap(self, cap):
         """At most `cap` cuts per node below the root, the most efficacious
@@ -3010,6 +3018,10 @@ class Problem:
 
     def set_mip_clique_rounds(self, rounds):
         self._m.set_mip_clique_rounds(rounds)
+        return self
+
+    def set_mip_zero_half_rounds(self, rounds):
+        self._m.set_mip_zero_half_rounds(rounds)
         return self
 
     def set_mip_node_cut_cap(self, cap):
