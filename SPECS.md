@@ -53,7 +53,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Warm start from the previous basis | **done** | |
 | Read and write a basis in the MPS basis format | **done** | |
 | Resume after a limit, in-process and from a file | **done** | |
-| Model statistics | **done** | `jaos_model_statistics`, `jaos stats` |
+| Model statistics | **done** | `jaos_model_statistics`, `jaos stats`; sizes, row and column kinds, integer, binary and semi-continuous counts, SOS sets, indicator rows, magnitudes |
 | Presolve statistics | **done** | |
 
 ## 4. Mixed-integer machinery

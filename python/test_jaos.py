@@ -1339,6 +1339,19 @@ class TestBranchAndBound(unittest.TestCase):
             else:
                 self.assertGreater(rep.nodes, 1)
 
+    def test_statistics_count_the_new_kinds(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=2, ub=10, semicontinuous=True, name="x")
+        z = p.add_var(binary=True, name="z")
+        y = p.add_var(ub=1, name="y")
+        p.add_indicator(z, 1, x + y <= 5)
+        p.add_sos(1, [x, y])
+        p.minimize(x + y + z)
+        st = p.statistics()
+        self.assertEqual((st.semicontinuous_col, st.sos_set, st.indicator_row),
+                         (1, 1, 1))
+        self.assertEqual(st.integer_col, 1)
+
     def test_the_module_runs_as_a_command(self):
         import os
         import subprocess

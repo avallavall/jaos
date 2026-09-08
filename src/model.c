@@ -1339,6 +1339,8 @@ jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
             if (flo && fhi && ceil(lo) == 0.0 && floor(hi) == 1.0)
                 st.binary_col++;
         }
+        if (m->col_semi != nullptr && m->col_semi[j])
+            st.semicontinuous_col++;
         if (m->col_cost[j] != 0.0) {
             const double a = fabs(m->col_cost[j]);
             st.obj_nz++;
@@ -1369,6 +1371,10 @@ jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
             st.empty_row += !touched[i];
         free(touched);
     }
+    st.sos_set = m->num_sos;
+    if (m->row_ind_col != nullptr)
+        for (int64_t i = 0; i < m->num_row; i++)
+            st.indicator_row += m->row_ind_col[i] >= 0;
     *out = st;
     return JAOS_OK;
 }

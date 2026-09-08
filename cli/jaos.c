@@ -286,7 +286,8 @@ static const char U_VERIFY[] =
 static const char U_STATS[] =
     "stats reads FILE and prints what the model is, one `name value`\n"
     "  line each: the three sizes, the row and column kinds, the\n"
-    "  integer and binary counts, the empty rows and columns, and the\n"
+    "  integer, binary and semi-continuous counts, the SOS sets and\n"
+    "  indicator rows, the empty rows and columns, and the\n"
     "  smallest and largest magnitude in the matrix and in the\n"
     "  objective. It solves nothing. Exit 0.\n";
 
@@ -2468,6 +2469,9 @@ static int cmd_stats(int argc, char **argv)
     print_int("empty_columns", st.empty_col);
     print_int("integer_columns", st.integer_col);
     print_int("binary_columns", st.binary_col);
+    print_int("semicontinuous_columns", st.semicontinuous_col);
+    print_int("sos_sets", st.sos_set);
+    print_int("indicator_rows", st.indicator_row);
     print_int("objective_nonzeros", st.obj_nz);
     print_num("min_abs", st.min_abs);
     print_num("max_abs", st.max_abs);

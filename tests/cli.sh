@@ -396,6 +396,13 @@ expect_exit 0 "and pseudocost branching by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --branching pseudocost
 expect_exit 5 "--branching refuses an unknown rule" \
     "$JAOS" solve "$DATA/nl_int.lp" --branching random
+expect_exit 0 "stats counts the SOS sets" \
+    "$JAOS" stats "$DATA/g_sos.lp"
+[ "$(line_of sos_sets)" = "sos_sets 2" ] && pass "two of them" || flunk "stats sos: $(line_of sos_sets)"
+expect_exit 0 "stats counts semi-continuous columns and indicator rows" \
+    "$JAOS" stats "$DATA/g_ind.lp"
+[ "$(line_of indicator_rows)" = "indicator_rows 1" ] && [ "$(line_of semicontinuous_columns)" = "semicontinuous_columns 0" ] \
+    && pass "one row, no column" || flunk "stats ind: $(line_of indicator_rows)"
 expect_exit 0 "options prints every option" \
     "$JAOS" options
 [ "$(line_of mip_cut_rounds)" = "mip_cut_rounds 1" ] && pass "with its default" \

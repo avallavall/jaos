@@ -226,6 +226,9 @@ free_columns 0
 empty_columns 0
 integer_columns 0
 binary_columns 0
+semicontinuous_columns 0
+sos_sets 0
+indicator_rows 0
 objective_nonzeros 12
 min_abs 0.109
 max_abs 2.386

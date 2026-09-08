@@ -271,6 +271,9 @@ class _ModelStats(ctypes.Structure):
         ("max_abs", _D),
         ("obj_min_abs", _D),
         ("obj_max_abs", _D),
+        ("semicontinuous_col", _I64),
+        ("sos_set", _I64),
+        ("indicator_row", _I64),
     ]
 
 class ProofKind(enum.IntEnum):

@@ -217,6 +217,7 @@ typedef struct jaos_model_stats {
     int64_t obj_nz;
     double  min_abs, max_abs;
     double  obj_min_abs, obj_max_abs;
+    int64_t semicontinuous_col, sos_set, indicator_row;
 } jaos_model_stats;
 
 typedef struct jaos_presolve_report {
