@@ -26,6 +26,32 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: symmetry
 
+## Milestone: barrier
 
-
-
+12. **A deterministic sparse Cholesky.** For the normal equations
+    `A D A^T` of an LP: a minimum-degree ordering with ties broken by
+    index, the elimination tree and the symbolic factorisation once, the
+    numeric factorisation each iteration with a tiny pivot replaced by a
+    large one (the usual barrier regularisation), and the two triangular
+    solves. No reassociation, no address-dependent order, so the factor
+    is the same on every machine. Its own file, its own tests against
+    small systems solved by hand, and the work units of every pass
+    counted.
+13. **The barrier.** Mehrotra's predictor-corrector on the primal-dual
+    pair with bounds, the normal equations solved by the Cholesky above,
+    starting from the usual Mehrotra point, stopping at relative primal,
+    dual and gap tolerances written in `docs/tolerances.md` with the
+    measurement that set them. Dense columns handled later if the set
+    asks for it. Reached by `jaos_set_algorithm(JAOS_ALGORITHM_BARRIER)`
+    and `--algorithm barrier`, `algorithm` in the options, Python at both
+    layers. Measured over the standard 94 against the dual in work
+    (`bench/results/barrier.txt`, its own runner in `bench/`); it lands as
+    an option whatever the reading, and becomes a default only on a
+    reading, like everything else here.
+14. **Crossover.** From the barrier's point to a basis: the columns
+    strictly between their bounds and the rows with a nonzero dual guess
+    the basic set, a crash basis where that set is not square, and the
+    simplex finishes from there under the existing warm start. Every
+    published answer goes through the checker as today, so the barrier
+    row in SPECS turns done only when the checker accepts what the
+    crossover publishes on the 94.
