@@ -758,6 +758,7 @@ static void compute_duals(sx *s, bool refine)
 }
 
 static void shift_to_feasible(sx *s, int64_t v);
+static bool shifts_costs(const sx *s);
 
 constexpr int REPAIR_ATTEMPTS = 4;
 
@@ -866,7 +867,7 @@ static jaos_status refresh(sx *s, bool *ok, bool refine)
     compute_primal(s, refine);
     compute_duals(s, refine);
 
-    if (!s->in_phase1) {
+    if (shifts_costs(s)) {
         bool sweep = repaired || s->shift_pending;
         s->shift_pending = false;
         if (sweep)
@@ -1489,12 +1490,17 @@ static void shift_to_feasible(sx *s, int64_t v)
     s->d[v] = 0.0;
 }
 
+static bool shifts_costs(const sx *s)
+{
+    return !s->in_phase1 && !s->m->cfg.force_primal;
+}
+
 static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
 {
     if (s->status[v] == JM_BASIC || v == q)
         return;
     s->d[v] -= theta_dual * s->alpha[v];
-    if (!s->in_phase1)
+    if (shifts_costs(s))
         shift_to_feasible(s, v);
 }
 
@@ -1665,7 +1671,7 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     if (s->devex_on && s->devex_stale)
         devex_reset(s);
 
-    if (!s->in_phase1)
+    if (shifts_costs(s))
         shift_to_feasible(s, leaving);
 
     if (s->lu.n_updates >= REFACTOR_EVERY) {

@@ -35,7 +35,10 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    (branched 1674, plain 11923, three unit tests fail). The next thing to
    try is a deterministic cost perturbation for a stalled dual, settled by
    the existing `settle_shifts`, measured on the three LP gates.
-3. **Primal simplex: the 17 of 94 standard instances that overrun or
-   disagree with the dual** (`bench/results/primal.txt`). One at a time,
-   each with its own diagnosis; the row in SPECS stays partial until the
-   count is zero.
+3. **Primal simplex: the 9 of 94 standard instances that overrun or
+   disagree with the dual** (`bench/results/primal.txt`), down from 17 once
+   phase 2 stopped shifting costs (02-31). Four stall in phase 1: d6cube,
+   degen3, dfl001, maros-r7; four run phase 2 past 10x the dual's work:
+   bnl2, fit1d, fit2d, scsd8; pilot87's phase 1 ends in a numerical error.
+   One at a time, each with its own diagnosis; the row in SPECS stays
+   partial until the count is zero.

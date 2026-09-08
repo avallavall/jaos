@@ -30,7 +30,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Dual simplex | **done** | steepest-edge pricing, Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, Bland fallback on a stall |
-| Primal simplex | **partial** | Devex pricing (Dantzig behind `cfg.primal_dantzig`), composite phase 1, Harris ratio test; `jaos_set_algorithm` selects it. Missing: 17 of the 94 standard instances overrun or disagree with the dual (`bench/results/primal.txt`) |
+| Primal simplex | **partial** | Devex pricing (Dantzig behind `cfg.primal_dantzig`), composite phase 1, Harris ratio test; `jaos_set_algorithm` selects it. Missing: 9 of the 94 standard instances overrun or disagree with the dual (`bench/results/primal.txt`): four stall in phase 1 (d6cube, degen3, dfl001, maros-r7), three run phase 2 past 10x the dual's work (bnl2, fit1d, fit2d, scsd8), pilot87's phase 1 ends in a numerical error |
 | Barrier (interior point) | **missing** | needs a deterministic sparse Cholesky written here |
 | Crossover from an interior point | **missing** | |
 | First-order method (PDLP) | **missing** | |
