@@ -23,23 +23,32 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    were tried and refused: pilot87 trips `PHASE1_RISE_MAX` under them at
    every switch point (`docs/tolerances.md`, `PSE_CHEAP_RESTARTS`).
    Reading the walk: 70% of the phase-2 pivots on d6cube and degen3 are
-   degenerate (step zero), and d6cube without a work limit runs 259012
-   iterations, switches to Bland's rule and trips the iteration guard a
-   million iterations later; fit1d has 2% degenerate pivots and simply
+   degenerate (step zero); fit1d has 2% degenerate pivots and simply
    takes 15x the dual's count. Bound perturbation and a hashed choice at
    a tie in the ratio test were refused (`bench/refusals.txt`,
    primal-bound-perturbation and primal-tie-hash), and so was a cost
    perturbation on the pricing side after a run of zero steps
-   (primal-cost-perturbation). What is left: why Bland's rule does not
-   terminate on d6cube, and the dense-column iteration counts. A lead on
-   the first: phase 2 measures progress by the dual infeasibility total
-   (`dinfeas_best`), not by the objective, and drops Bland's rule the
-   moment that total improves, so the walk alternates between steepest
-   edge and Bland's and the termination argument does not apply; the
-   published remedy is EXPAND's growing tolerance schedule (Gill, Murray,
-   Saunders, Wright 1989), which `PRIMAL_HARRIS_DELTA` in
-   `docs/tolerances.md` says JAOS does not carry. The row in SPECS stays
-   partial until the count is zero.
+   (primal-cost-perturbation). Where the five stand at the tree of
+   f1a5390, each run alone without a work limit (`jaos solve --algorithm
+   primal`): d6cube optimal in 18131 iterations at 92x the dual's work,
+   its best dual infeasibility flat at 868 from iteration 12000 to 16000,
+   never under Bland's rule; fit2d 7847 iterations at 23x; seba 344 at
+   17x; fit1d 1177 at 16x; dfl001 not finished at 300 s, 398528
+   iterations and 35x the dual's work. On dfl001 the progress measure is
+   broken: by iteration 39000 the carried reduced costs priced no
+   candidate, `dinfeas_best` took the total 0, the verification refresh
+   found breaches and the walk went on, but 0 cannot be improved, so
+   `last_gain` froze, Bland's rule came on at iteration 214429 and stayed
+   on for the remaining 184099 iterations without terminating. The
+   `q < 0` branch of `run_primal` must reset `dinfeas_best` after a
+   refresh that finds the point not optimal, or phase 2 must measure
+   progress by the objective, which the primal decreases monotonically.
+   Bland's rule itself runs with the ratio test's exact ties
+   (`jm_primal_row_wins`) and a zero-clamped distance, which is where the
+   published remedy, EXPAND's growing tolerance schedule (Gill, Murray,
+   Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
+   `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
+   stays partial until the count is zero.
 
 ## Milestone: symmetry
 
