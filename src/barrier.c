@@ -13,6 +13,7 @@ constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
 constexpr int64_t BARRIER_MAX_ITER = 200;
+constexpr double  BARRIER_DIVERGE  = 1e6;
 
 enum { HAS_LO = 1, HAS_UP = 2, FIXED = 4 };
 
@@ -44,6 +45,7 @@ typedef struct {
     double started;
     int64_t iters;
     int64_t bounded;
+    bool handoff;
 } bx;
 
 static void bx_free(bx *s)
@@ -618,12 +620,35 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                           "model may be infeasible or unbounded, which the "
                           "barrier does not certify; the dual simplex does",
                        (long long)s->iters);
+            s->handoff = true;
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
         }
         if (rel_p <= BARRIER_TOL && rel_d <= BARRIER_TOL && gap <= BARRIER_TOL) {
             *out = JAOS_SOLVE_OPTIMAL;
             return JAOS_OK;
+        }
+        {
+            const double pn = inf_norm(s->z, s->nvar);
+            double dn = inf_norm(s->y, s->nrow);
+            if ((t = inf_norm(s->zl, s->nvar)) > dn) dn = t;
+            if ((t = inf_norm(s->zu, s->nvar)) > dn) dn = t;
+            const double pgrow = pn / (1.0 + s->norm_b + s->norm_bound);
+            const double dgrow = dn / (1.0 + s->norm_c);
+            jm_work_add(&s->work, (3 * s->nvar + s->nrow) * JM_WORK_NONZERO);
+            jm_log(m, JAOS_LOG_DETAIL, "  iterate %.3e/%.3e of the data",
+                   pgrow, dgrow);
+            if (pgrow > BARRIER_DIVERGE || dgrow > BARRIER_DIVERGE) {
+                jm_set_err(m, "the barrier's iterate grew past %.3g times "
+                              "the data after %lld iterations (primal %.3e, "
+                              "dual %.3e): the model may be infeasible or "
+                              "unbounded, which the barrier does not "
+                              "certify; the dual simplex does",
+                           BARRIER_DIVERGE, (long long)s->iters, pgrow, dgrow);
+                s->handoff = true;
+                *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                return JAOS_OK;
+            }
         }
         if (m->cfg.work_limit > 0 && s->work.units >= m->cfg.work_limit) {
             *out = JAOS_SOLVE_WORK_LIMIT;
@@ -652,6 +677,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                           "be infeasible or unbounded, which the barrier does "
                           "not certify; the dual simplex does",
                        (long long)s->iters, rel_p, rel_d, gap);
+            s->handoff = true;
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
         }
@@ -867,9 +893,11 @@ done:
 }
 
 jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
-                       jm_work *work, bool *crossover, int64_t *iters)
+                       jm_work *work, bool *crossover, bool *handoff,
+                       int64_t *iters)
 {
     *crossover = false;
+    *handoff = false;
     *iters = 0;
     bx s;
     jaos_status st = bx_init(&s, target);
@@ -897,6 +925,17 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                (long long)s.iters, (long long)s.work.units);
         bx_free(&s);
         return st;
+    }
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff) {
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "barrier stopped after %lld iterations, %lld work units: %s; "
+               "the dual simplex takes over from the slack basis",
+               (long long)s.iters, (long long)s.work.units, target->err);
+        target->err[0] = '\0';
+        *work = s.work;
+        *handoff = true;
+        bx_free(&s);
+        return JAOS_OK;
     }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);

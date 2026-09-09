@@ -560,6 +560,16 @@ expect_exit 0 "--algorithm barrier solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm barrier
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
     || flunk "barrier: $(line_of objective) against $dual_obj"
+expect_exit 1 "--algorithm barrier on an infeasible model exits 1" \
+    "$JAOS" solve "$DATA/t1.mps" --algorithm barrier
+[ "$(line_of status)" = "status infeasible" ] \
+    && pass "and prints 'status infeasible'" \
+    || flunk "barrier on an infeasible model printed '$(line_of status)'"
+expect_exit 2 "--algorithm barrier on an unbounded model exits 2" \
+    "$JAOS" solve "$DATA/unbounded.mps" --algorithm barrier
+[ "$(line_of status)" = "status unbounded" ] \
+    && pass "and prints 'status unbounded'" \
+    || flunk "barrier on an unbounded model printed '$(line_of status)'"
 expect_exit 5 "--algorithm refuses an unknown method" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm newton
 expect_exit 0 "reliability zero still solves it" \

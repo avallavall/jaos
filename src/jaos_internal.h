@@ -504,7 +504,8 @@ JAOS_NODISCARD jaos_status jm_postsolve_infeasible_or_unbounded(
 
 JAOS_NODISCARD jaos_status jm_barrier(jaos_model *m, jaos_model *target,
                                       jm_presolve *p, jm_work *work,
-                                      bool *crossover, int64_t *iters);
+                                      bool *crossover, bool *handoff,
+                                      int64_t *iters);
 
 typedef struct {
     int64_t *idx;

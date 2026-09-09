@@ -1,103 +1,103 @@
 # instance    verdict   dual=iters/work  barrier=iters/work
-25fv47       overrun   dual=2644/71106234 barrier=26+15205/711141576 verdict=optimal/work limit reached obj=5501.8458882867444/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-80bau3b      ok        dual=3616/70128525 barrier=43+2737/255946644 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/barrier:ok 
-adlittle     ok        dual=70/142589 barrier=11+15/248997 verdict=optimal/optimal obj=225494.96316238036/225494.96316238039 checker=dual:ok/barrier:ok 
-afiro        ok        dual=18/13163 barrier=7+5/74416 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/barrier:ok 
-agg          overrun   dual=186/922872 barrier=14+0/9257191 verdict=optimal/work limit reached obj=-35991767.286576502/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-agg2         overrun   dual=288/1723971 barrier=12+0/17487430 verdict=optimal/work limit reached obj=-20239252.355977111/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-agg3         ok        dual=676/6086986 barrier=18+115/26408695 verdict=optimal/optimal obj=10312115.935089223/10312115.935089223 checker=dual:ok/barrier:ok 
-bandm        ok        dual=421/3243480 barrier=16+30/2938845 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/barrier:ok 
-beaconfd     ok        dual=78/89035 barrier=9+1/683657 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/barrier:ok 
-blend        ok        dual=93/181439 barrier=15+14/633078 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828227 checker=dual:ok/barrier:ok 
-bnl1         ok        dual=802/7804294 barrier=31+411/24240746 verdict=optimal/optimal obj=1977.6295615228885/1977.6295615228885 checker=dual:ok/barrier:ok 
-bnl2         overrun   dual=1719/23689124 barrier=16+0/239648399 verdict=optimal/work limit reached obj=1811.2365403585452/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-boeing1      ok        dual=374/1902706 barrier=21+49/5091135 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/barrier:ok 
-boeing2      ok        dual=118/327280 barrier=15+61/1272297 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/barrier:ok 
-bore3d       ok        dual=134/358586 barrier=13+43/1081777 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/barrier:ok 
-brandy       ok        dual=225/1465684 barrier=19+98/4088924 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/barrier:ok 
-capri        overrun   dual=258/444462 barrier=22+63/4448085 verdict=optimal/work limit reached obj=2690.0129137681615/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-cycle        overrun   dual=910/13166498 barrier=22+0/159732307 verdict=optimal/work limit reached obj=-5.2263930248941017/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-czprob       ok        dual=1154/13392644 barrier=30+102/9529685 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/barrier:ok 
-d2q06c       overrun   dual=27935/2247367748 barrier=30+237232/22473950791 verdict=optimal/work limit reached obj=122784.21081418946/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-d6cube       overrun   dual=419/25134728 barrier=20+180/251407956 verdict=optimal/work limit reached obj=315.49166666666667/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-degen2       ok        dual=577/5541513 barrier=12+577/45113133 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/barrier:ok 
-degen3       ok        dual=2364/79505576 barrier=17+2364/642709462 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/barrier:ok 
-dfl001       overrun   dual=21938/2861845048 barrier=20+0/29896431417 verdict=optimal/work limit reached obj=11266396.046671392/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-e226         ok        dual=265/1568492 barrier=17+17/2699485 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/barrier:ok 
-etamacro     ok        dual=560/3496723 barrier=24+212/16596495 verdict=optimal/optimal obj=-755.7152333749134/-755.71523335229574 checker=dual:ok/barrier:ok 
-fffff800     ok        dual=1200/10523250 barrier=31+246/31493728 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/barrier:ok 
-finnis       ok        dual=284/609944 barrier=26+129/4636697 verdict=optimal/optimal obj=172791.06559561161/172791.06559561161 checker=dual:ok/barrier:ok 
-fit1d        ok        dual=66/1686184 barrier=15+0/4631450 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/barrier:ok 
-fit1p        overrun   dual=494/13391536 barrier=1+0/176374907 verdict=optimal/work limit reached obj=9146.3780924209277/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-fit2d        ok        dual=131/72934684 barrier=19+566/177344258 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/barrier:ok 
-fit2p        overrun   dual=4663/657740846 barrier=0+0/9146816141 verdict=optimal/work limit reached obj=68464.293293832074/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-forplan      ok        dual=184/1155441 barrier=20+169/6209678 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/barrier:ok 
-ganges       ok        dual=1207/4941281 barrier=18+349/38185019 verdict=optimal/optimal obj=-109585.73612927823/-109585.73612927817 checker=dual:ok/barrier:ok 
-gfrd-pnc     ok        dual=547/3247915 barrier=14+220/4110670 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/barrier:ok 
-greenbea     overrun   dual=3601/156758480 barrier=57+20249/1567716743 verdict=optimal/work limit reached obj=-72555248.129845992/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-greenbeb     ok        dual=9795/563335939 barrier=40+9795/5131594059 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/barrier:ok 
-grow15       ok        dual=1871/37338266 barrier=23+9868/234084509 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/barrier:ok 
-grow22       ok        dual=14176/402265040 barrier=25+4159/156829408 verdict=optimal/optimal obj=-160834336.48256296/-160834336.48256296 checker=dual:ok/barrier:ok 
-grow7        ok        dual=614/8410510 barrier=19+201/6344323 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/barrier:ok 
-israel       overrun   dual=100/599654 barrier=4+0/6061087 verdict=optimal/work limit reached obj=-896644.82186304568/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-kb2          ok        dual=51/74189 barrier=10+0/233970 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/barrier:ok 
-lotfi        ok        dual=260/1044569 barrier=12+56/989655 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/barrier:ok 
-maros        overrun   dual=1133/13384653 barrier=22+0/137550808 verdict=optimal/work limit reached obj=-58063.743701125903/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-maros-r7     overrun   dual=2597/313496340 barrier=17+0/3221111847 verdict=optimal/work limit reached obj=1497185.1664796439/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-modszk1      ok        dual=646/7108221 barrier=18+448/24278307 verdict=optimal/optimal obj=320.61972906430327/320.61972906431458 checker=dual:ok/barrier:ok 
-nesm         ok        dual=2586/56641553 barrier=31+2359/103492217 verdict=optimal/optimal obj=14076036.487562733/14076036.487562731 checker=dual:ok/barrier:ok 
-perold       ok        dual=2299/64486376 barrier=33+115/77540515 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/barrier:ok 
-pilot        ok        dual=20304/4211570007 barrier=44+4822/4311416481 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/barrier:ok 
-pilot-ja     ok        dual=2218/83994010 barrier=29+1491/282096131 verdict=optimal/optimal obj=-6113.1364655813441/-6113.1364655813431 checker=dual:ok/barrier:ok 
-pilot-we     overrun   dual=2289/65295435 barrier=26+16989/653027323 verdict=optimal/work limit reached obj=-2720107.5328449644/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-pilot4       ok        dual=686/17302807 barrier=29+250/41580130 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/barrier:ok 
-pilot87      ok        dual=37362/18197512475 barrier=42+83342/69286369845 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/barrier:ok 
-pilotnov     overrun   dual=1705/61602732 barrier=20+9666/616186491 verdict=optimal/work limit reached obj=-4497.2761882188715/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-recipe       overrun   dual=42/24238 barrier=7+0/259073 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-sc105        ok        dual=100/125426 barrier=11+16/285897 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/barrier:ok 
-sc205        ok        dual=209/552814 barrier=13+14/557114 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707239 checker=dual:ok/barrier:ok 
-sc50a        ok        dual=46/35021 barrier=9+5/128994 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/barrier:ok 
-sc50b        ok        dual=48/34821 barrier=8+0/100051 verdict=optimal/optimal obj=-70/-70 checker=dual:ok/barrier:ok 
-scagr25      ok        dual=513/2317415 barrier=17+86/1924787 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/barrier:ok 
-scagr7       ok        dual=168/371430 barrier=15+0/338752 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/barrier:ok 
-scfxm1       ok        dual=413/1836873 barrier=17+131/4642408 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/barrier:ok 
-scfxm2       ok        dual=888/5674504 barrier=21+382/12943111 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/barrier:ok 
-scfxm3       ok        dual=1335/11294180 barrier=23+445/23879434 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/barrier:ok 
-scorpion     ok        dual=249/497284 barrier=11+77/1149318 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/barrier:ok 
-scrs8        ok        dual=490/1952791 barrier=18+260/6595841 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/barrier:ok 
-scsd1        ok        dual=98/499002 barrier=8+104/1158143 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/barrier:ok 
-scsd6        ok        dual=240/1634316 barrier=10+235/3154624 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/barrier:ok 
-scsd8        ok        dual=654/7444397 barrier=9+254/8816112 verdict=optimal/optimal obj=904.99999992546441/904.99999992546441 checker=dual:ok/barrier:ok 
-sctap1       ok        dual=184/582154 barrier=16+99/1739856 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/barrier:ok 
-sctap2       ok        dual=291/1181771 barrier=16+230/9641105 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/barrier:ok 
-sctap3       ok        dual=369/1558426 barrier=17+421/15412155 verdict=optimal/optimal obj=1424/1424 checker=dual:ok/barrier:ok 
-seba         overrun   dual=107/218688 barrier=0+0/12435459 verdict=optimal/work limit reached obj=15711.6/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-share1b      ok        dual=169/524273 barrier=19+0/1076094 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185783 checker=dual:ok/barrier:ok 
-share2b      ok        dual=97/188156 barrier=13+12/576995 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141962 checker=dual:ok/barrier:ok 
-shell        ok        dual=492/1908984 barrier=18+123/4292376 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/barrier:ok 
-ship04l      ok        dual=407/727430 barrier=14+43/2976256 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/barrier:ok 
-ship04s      ok        dual=333/492229 barrier=14+38/2044377 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/barrier:ok 
-ship08l      ok        dual=710/2785803 barrier=14+172/6711362 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891316 checker=dual:ok/barrier:ok 
-ship08s      ok        dual=461/1036607 barrier=13+79/2936445 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/barrier:ok 
-ship12l      ok        dual=1014/4514880 barrier=15+108/7697530 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/barrier:ok 
-ship12s      ok        dual=657/1718826 barrier=14+115/3668830 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/barrier:ok 
-sierra       ok        dual=610/1973610 barrier=19+294/12329299 verdict=optimal/optimal obj=15394362.183631929/15394362.183631931 checker=dual:ok/barrier:ok 
-stair        ok        dual=446/9482926 barrier=15+2/19608881 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/barrier:ok 
-standata     overrun   dual=55/99340 barrier=10+0/1014591 verdict=optimal/work limit reached obj=1257.6994999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-standmps     overrun   dual=197/404364 barrier=22+54/4107751 verdict=optimal/work limit reached obj=1406.0174999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-stocfor1     ok        dual=114/228369 barrier=12+30/430163 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/barrier:ok 
-stocfor2     ok        dual=2266/21234654 barrier=19+296/29609779 verdict=optimal/optimal obj=-39024.408537882031/-39024.408537882031 checker=dual:ok/barrier:ok 
-stocfor3     ok        dual=17980/708065523 barrier=35+17980/1575394579 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/barrier:ok 
-truss        ok        dual=17732/1163945417 barrier=17+17732/1930167106 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/barrier:ok 
-tuff         overrun   dual=199/839720 barrier=14+133/8398495 verdict=optimal/work limit reached obj=0.29214776509361279/0 checker=dual:ok/barrier:n/a over 10x the dual's work
-vtp-base     ok        dual=46/41935 barrier=16+3/300206 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/barrier:ok 
-wood1p       ok        dual=550/37326021 barrier=25+550/244281601 verdict=optimal/optimal obj=1.442902411573409/1.442902411573409 checker=dual:ok/barrier:ok 
-woodw        ok        dual=1186/39809598 barrier=30+933/116870268 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842293 checker=dual:ok/barrier:ok 
+25fv47       overrun   dual=2644/71106234 barrier=26+15199/711139538 verdict=optimal/work limit reached obj=5501.8458882867444/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+80bau3b      ok        dual=3616/70128525 barrier=43+2737/257465361 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/barrier:ok 
+adlittle     ok        dual=70/142589 barrier=11+15/254464 verdict=optimal/optimal obj=225494.96316238036/225494.96316238039 checker=dual:ok/barrier:ok 
+afiro        ok        dual=18/13163 barrier=7+5/75788 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/barrier:ok 
+agg          overrun   dual=186/922872 barrier=14+0/9288526 verdict=optimal/work limit reached obj=-35991767.286576502/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+agg2         overrun   dual=288/1723971 barrier=12+0/17524181 verdict=optimal/work limit reached obj=-20239252.355977111/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+agg3         ok        dual=676/6086986 barrier=18+115/26459581 verdict=optimal/optimal obj=10312115.935089223/10312115.935089223 checker=dual:ok/barrier:ok 
+bandm        ok        dual=421/3243480 barrier=16+30/2967597 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/barrier:ok 
+beaconfd     ok        dual=78/89035 barrier=9+1/691361 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/barrier:ok 
+blend        ok        dual=93/181439 barrier=15+14/641043 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828227 checker=dual:ok/barrier:ok 
+bnl1         ok        dual=802/7804294 barrier=31+411/24412889 verdict=optimal/optimal obj=1977.6295615228885/1977.6295615228885 checker=dual:ok/barrier:ok 
+bnl2         overrun   dual=1719/23689124 barrier=16+0/239958003 verdict=optimal/work limit reached obj=1811.2365403585452/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+boeing1      ok        dual=374/1902706 barrier=21+49/5139414 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/barrier:ok 
+boeing2      ok        dual=118/327280 barrier=15+61/1286232 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/barrier:ok 
+bore3d       ok        dual=134/358586 barrier=13+43/1094894 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/barrier:ok 
+brandy       ok        dual=225/1465684 barrier=19+98/4109273 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/barrier:ok 
+capri        overrun   dual=258/444462 barrier=22+56/4448786 verdict=optimal/work limit reached obj=2690.0129137681615/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+cycle        overrun   dual=910/13166498 barrier=22+0/160021057 verdict=optimal/work limit reached obj=-5.2263930248941017/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+czprob       ok        dual=1154/13392644 barrier=30+102/9860135 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/barrier:ok 
+d2q06c       overrun   dual=27935/2247367748 barrier=30+237226/22473931766 verdict=optimal/work limit reached obj=122784.21081418946/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+d6cube       overrun   dual=419/25134728 barrier=20+175/251384926 verdict=optimal/work limit reached obj=315.49166666666667/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+degen2       ok        dual=577/5541513 barrier=12+577/45153669 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/barrier:ok 
+degen3       ok        dual=2364/79505576 barrier=17+2364/642904384 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/barrier:ok 
+dfl001       overrun   dual=21938/2861845048 barrier=20+0/29897665629 verdict=optimal/work limit reached obj=11266396.046671392/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+e226         ok        dual=265/1568492 barrier=17+17/2723659 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/barrier:ok 
+etamacro     ok        dual=560/3496723 barrier=24+212/16666287 verdict=optimal/optimal obj=-755.7152333749134/-755.71523335229574 checker=dual:ok/barrier:ok 
+fffff800     ok        dual=1200/10523250 barrier=31+246/31628733 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/barrier:ok 
+finnis       ok        dual=284/609944 barrier=26+129/4718597 verdict=optimal/optimal obj=172791.06559561161/172791.06559561161 checker=dual:ok/barrier:ok 
+fit1d        ok        dual=66/1686184 barrier=15+0/4679060 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/barrier:ok 
+fit1p        overrun   dual=494/13391536 barrier=1+0/176386223 verdict=optimal/work limit reached obj=9146.3780924209277/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+fit2d        ok        dual=131/72934684 barrier=19+566/177944658 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/barrier:ok 
+fit2p        overrun   dual=4663/657740846 barrier=0+0/9146859716 verdict=optimal/work limit reached obj=68464.293293832074/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+forplan      ok        dual=184/1155441 barrier=20+169/6243438 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/barrier:ok 
+ganges       ok        dual=1207/4941281 barrier=18+349/38341025 verdict=optimal/optimal obj=-109585.73612927823/-109585.73612927817 checker=dual:ok/barrier:ok 
+gfrd-pnc     ok        dual=547/3247915 barrier=14+220/4188398 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/barrier:ok 
+greenbea     overrun   dual=3601/156758480 barrier=57+20234/1567741301 verdict=optimal/work limit reached obj=-72555248.129845992/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+greenbeb     ok        dual=9795/563335939 barrier=40+9795/5132397579 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/barrier:ok 
+grow15       ok        dual=1871/37338266 barrier=23+9868/234155234 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/barrier:ok 
+grow22       ok        dual=14176/402265040 barrier=25+4159/156942858 verdict=optimal/optimal obj=-160834336.48256296/-160834336.48256296 checker=dual:ok/barrier:ok 
+grow7        ok        dual=614/8410510 barrier=19+201/6370980 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/barrier:ok 
+israel       overrun   dual=100/599654 barrier=4+0/6066477 verdict=optimal/work limit reached obj=-896644.82186304568/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+kb2          ok        dual=51/74189 barrier=10+0/236770 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/barrier:ok 
+lotfi        ok        dual=260/1044569 barrier=12+56/1006599 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/barrier:ok 
+maros        overrun   dual=1133/13384653 barrier=22+0/137682808 verdict=optimal/work limit reached obj=-58063.743701125903/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+maros-r7     overrun   dual=2597/313496340 barrier=17+0/3221669271 verdict=optimal/work limit reached obj=1497185.1664796439/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+modszk1      ok        dual=646/7108221 barrier=18+448/24413289 verdict=optimal/optimal obj=320.61972906430327/320.61972906431458 checker=dual:ok/barrier:ok 
+nesm         ok        dual=2586/56641553 barrier=31+2359/103822491 verdict=optimal/optimal obj=14076036.487562733/14076036.487562731 checker=dual:ok/barrier:ok 
+perold       ok        dual=2299/64486376 barrier=33+115/77736535 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/barrier:ok 
+pilot        ok        dual=20304/4211570007 barrier=44+4822/4312106445 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/barrier:ok 
+pilot-ja     ok        dual=2218/83994010 barrier=29+1491/282323056 verdict=optimal/optimal obj=-6113.1364655813441/-6113.1364655813431 checker=dual:ok/barrier:ok 
+pilot-we     overrun   dual=2289/65295435 barrier=26+16984/653055023 verdict=optimal/work limit reached obj=-2720107.5328449644/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+pilot4       ok        dual=686/17302807 barrier=29+250/41701350 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/barrier:ok 
+pilot87      ok        dual=37362/18197512475 barrier=42+83342/69287285529 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/barrier:ok 
+pilotnov     overrun   dual=1705/61602732 barrier=20+9662/616178331 verdict=optimal/work limit reached obj=-4497.2761882188715/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+recipe       overrun   dual=42/24238 barrier=7+0/264489 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+sc105        ok        dual=100/125426 barrier=11+16/293872 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/barrier:ok 
+sc205        ok        dual=209/552814 barrier=13+14/575548 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707239 checker=dual:ok/barrier:ok 
+sc50a        ok        dual=46/35021 barrier=9+5/132054 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/barrier:ok 
+sc50b        ok        dual=48/34821 barrier=8+0/102739 verdict=optimal/optimal obj=-70/-70 checker=dual:ok/barrier:ok 
+scagr25      ok        dual=513/2317415 barrier=17+86/1972557 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/barrier:ok 
+scagr7       ok        dual=168/371430 barrier=15+0/350392 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/barrier:ok 
+scfxm1       ok        dual=413/1836873 barrier=17+131/4682834 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/barrier:ok 
+scfxm2       ok        dual=888/5674504 barrier=21+382/13042987 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/barrier:ok 
+scfxm3       ok        dual=1335/11294180 barrier=23+445/24043516 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/barrier:ok 
+scorpion     ok        dual=249/497284 barrier=11+77/1172891 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/barrier:ok 
+scrs8        ok        dual=490/1952791 barrier=18+260/6686723 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/barrier:ok 
+scsd1        ok        dual=98/499002 barrier=8+104/1178847 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/barrier:ok 
+scsd6        ok        dual=240/1634316 barrier=10+235/3201004 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/barrier:ok 
+scsd8        ok        dual=654/7444397 barrier=9+254/8904654 verdict=optimal/optimal obj=904.99999992546441/904.99999992546441 checker=dual:ok/barrier:ok 
+sctap1       ok        dual=184/582154 barrier=16+99/1775312 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/barrier:ok 
+sctap2       ok        dual=291/1181771 barrier=16+230/9774897 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/barrier:ok 
+sctap3       ok        dual=369/1558426 barrier=17+421/15602759 verdict=optimal/optimal obj=1424/1424 checker=dual:ok/barrier:ok 
+seba         overrun   dual=107/218688 barrier=0+0/12439143 verdict=optimal/work limit reached obj=15711.6/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+share1b      ok        dual=169/524273 barrier=19+0/1096310 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185783 checker=dual:ok/barrier:ok 
+share2b      ok        dual=97/188156 barrier=13+12/584912 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141962 checker=dual:ok/barrier:ok 
+shell        ok        dual=492/1908984 barrier=18+123/4407144 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/barrier:ok 
+ship04l      ok        dual=407/727430 barrier=14+43/3074438 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/barrier:ok 
+ship04s      ok        dual=333/492229 barrier=14+38/2112095 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/barrier:ok 
+ship08l      ok        dual=710/2785803 barrier=14+172/6872740 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891316 checker=dual:ok/barrier:ok 
+ship08s      ok        dual=461/1036607 barrier=13+79/3017045 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/barrier:ok 
+ship12l      ok        dual=1014/4514880 barrier=15+108/7928830 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/barrier:ok 
+ship12s      ok        dual=657/1718826 barrier=14+115/3776014 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/barrier:ok 
+sierra       ok        dual=610/1973610 barrier=19+294/12536323 verdict=optimal/optimal obj=15394362.183631929/15394362.183631931 checker=dual:ok/barrier:ok 
+stair        ok        dual=446/9482926 barrier=15+2/19647566 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/barrier:ok 
+standata     overrun   dual=55/99340 barrier=10+0/1061143 verdict=optimal/work limit reached obj=1257.6994999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+standmps     overrun   dual=197/404364 barrier=22+33/4112016 verdict=optimal/work limit reached obj=1406.0174999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+stocfor1     ok        dual=114/228369 barrier=12+30/438467 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/barrier:ok 
+stocfor2     ok        dual=2266/21234654 barrier=19+296/29886438 verdict=optimal/optimal obj=-39024.408537882031/-39024.408537882031 checker=dual:ok/barrier:ok 
+stocfor3     ok        dual=17980/708065523 barrier=35+17980/1579365574 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/barrier:ok 
+truss        ok        dual=17732/1163945417 barrier=17+17732/1930684212 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/barrier:ok 
+tuff         overrun   dual=199/839720 barrier=14+130/8406670 verdict=optimal/work limit reached obj=0.29214776509361279/0 checker=dual:ok/barrier:n/a over 10x the dual's work
+vtp-base     ok        dual=46/41935 barrier=16+3/307262 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/barrier:ok 
+wood1p       ok        dual=550/37326021 barrier=25+550/244433776 verdict=optimal/optimal obj=1.442902411573409/1.442902411573409 checker=dual:ok/barrier:ok 
+woodw        ok        dual=1186/39809598 barrier=30+933/117432768 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842293 checker=dual:ok/barrier:ok 
 
 -- barrier against dual --
 agreed 72 (checker accepts 72, interior 0), skipped 0, overrun 22, failed 0, disagreed 0, rejected 0, errors 0
-work units barrier/dual, geometric mean:        2.6894
+work units barrier/dual, geometric mean:        2.7237
 iterations (barrier+1)/(dual+1), geometric mean: 0.3832
-work ratio, best  grow22 at 0.3899
-work ratio, worst sctap3 at 9.8896
+work ratio, best  grow22 at 0.3901
+work ratio, worst sctap3 at 10.0119
 most barrier iterations: pilot87 at 83384

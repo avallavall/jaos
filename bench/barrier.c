@@ -162,6 +162,15 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         fail(r, B_OVERRUN, note);
         goto done;
     }
+    if (r->status_d == (int)JAOS_SOLVE_INFEASIBLE ||
+        r->status_d == (int)JAOS_SOLVE_UNBOUNDED) {
+        if (r->status_b != r->status_d) {
+            fail(r, B_DISAGREE, "different verdicts");
+            goto done;
+        }
+        r->verdict = (int)B_OK;
+        goto done;
+    }
     if (r->status_d != (int)JAOS_SOLVE_OPTIMAL) {
         fail(r, B_SKIPPED, "no optimum on the dual side");
         goto done;

@@ -4010,11 +4010,11 @@ jaos_status jm_dual_simplex(jaos_model *m)
 
     int64_t barrier_iters = 0;
     if (m->cfg.barrier && !m->cfg.node_solve) {
-        bool crossover = false;
+        bool crossover = false, handoff = false;
         jaos_status bst = jm_barrier(m, target, &p, &pre_work, &crossover,
-                                     &barrier_iters);
+                                     &handoff, &barrier_iters);
         m->solve_barrier_iters = barrier_iters;
-        if (bst != JAOS_OK || !crossover) {
+        if (bst != JAOS_OK || (!crossover && !handoff)) {
             jm_presolve_free(&p);
             return bst;
         }

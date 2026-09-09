@@ -56,12 +56,7 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **Barrier: an infeasible or unbounded verdict.** A run that does not
-   converge says `NUMERICAL_ERROR`; the SPECS row lists the verdict as
-   missing. The infeasibility detector of the homogeneous self-dual
-   form, or the growth of the primal or dual iterate against a shrinking
-   complementarity, decides; the 29 of `netlib-infeas` are the test.
-4. **First-order method (PDLP).** Primal-dual hybrid gradient on the LP
+3. **First-order method (PDLP).** Primal-dual hybrid gradient on the LP
    with restarts and the adaptive step, deterministic, every pass
    billed, an option at every layer like the barrier; its answer judged
    by the checker and, where accepted, finished by the crossover.

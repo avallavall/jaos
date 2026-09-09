@@ -1,0 +1,38 @@
+# instance    verdict   dual=iters/work  barrier=iters/work
+bgdbg1       ok        dual=0/68 barrier=0+0/68 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+bgetam       overrun   dual=15/37466 barrier=0+0/683568 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+bgindy       overrun   dual=2/390966 barrier=0+0/52807873 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+bgprtr       ok        dual=25/15075 barrier=6+25/60180 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+box1         ok        dual=16/25263 barrier=2+16/139063 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+ceria3d      ok        dual=0/23485 barrier=0+0/23485 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+chemcom      overrun   dual=6/21681 barrier=1+0/383457 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+cplex1       overrun   dual=1068/5642413 barrier=0+0/1160268517 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+cplex2       ok        dual=329/2320113 barrier=200+329/13970875 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+ex72a        ok        dual=137/140686 barrier=3+137/239772 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+ex73a        ok        dual=100/81284 barrier=2+100/155496 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+forest6      ok        dual=77/90679 barrier=8+77/191590 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+galenet      ok        dual=0/26 barrier=0+0/26 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+gosh         ok        dual=25171/2660816616 barrier=16+25171/3369562600 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+gran         ok        dual=0/311 barrier=0+0/311 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+greenbea     ok        dual=0/22800 barrier=0+0/22800 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+itest2       ok        dual=0/10 barrier=0+0/10 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+itest6       ok        dual=0/9 barrier=0+0/9 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+klein1       ok        dual=119/543694 barrier=24+119/2058124 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+klein2       overrun   dual=262/5214694 barrier=2+0/54566137 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+klein3       overrun   dual=426/18325164 barrier=1+0/301766467 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+mondou2      ok        dual=262/298328 barrier=6+262/518692 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+pang         overrun   dual=378/1466499 barrier=57+0/14838958 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+pilot4i      ok        dual=0/13185 barrier=0+0/13185 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+qual         ok        dual=364/1598035 barrier=22+364/5606970 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+reactor      ok        dual=0/1233 barrier=0+0/1233 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+refinery     ok        dual=319/1075241 barrier=13+319/3510792 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+vol1         ok        dual=343/1446494 barrier=24+343/5798513 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+woodinfe     ok        dual=0/1 barrier=0+0/1 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+
+-- barrier against dual --
+agreed 22 (checker accepts 22, interior 0), skipped 0, overrun 7, failed 0, disagreed 0, rejected 0, errors 0
+work units barrier/dual, geometric mean:        1.7862
+iterations (barrier+1)/(dual+1), geometric mean: 1.0610
+work ratio, best  bgdbg1 at 1.0000
+work ratio, worst cplex2 at 6.0216
+most barrier iterations: gosh at 25187

@@ -4,6 +4,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -215,17 +216,69 @@ static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
-    const double cost[2] = {1.0, 1.0}, cl[2] = {0.0, 0.0}, cu[2] = {1.0, 1.0};
-    const double rl[2] = {3.0, -jaos_infinity()}, ru[2] = {jaos_infinity(), 1.0};
+    const double cost[2] = {1.0, 1.0}, cl[2] = {0.0, 0.0}, cu[2] = {10.0, 10.0};
+    const double rl[2] = {1.0, -jaos_infinity()}, ru[2] = {jaos_infinity(), -1.0};
     const int64_t as[3] = {0, 2, 4}, ai[4] = {0, 1, 0, 1};
-    const double av[4] = {1.0, 1.0, 1.0, -1.0};
+    const double av[4] = {1.0, 1.0, -1.0, -1.0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0,
                                                 cost, cl, cu, rl, ru,
                                                 4, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_NOT_EQUAL(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    double ray[2];
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, ray));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, ray, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_TRUE(m->solve_barrier_iters > 0);
+    TEST_ASSERT_TRUE(jaos_iterations(m) > m->solve_barrier_iters);
     jaos_model_free(m);
+}
+
+static void test_the_barrier_hands_an_unbounded_lp_to_the_dual_for_its_ray(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/unbounded.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    double *ray = calloc((size_t)jaos_num_col(m), sizeof *ray);
+    TEST_ASSERT_NOT_NULL(ray);
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, ray));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, ray, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    free(ray);
+    jaos_model_free(m);
+}
+
+static void test_the_barrier_verdict_matches_the_dual_bit_for_bit(void)
+{
+    jaos_model *a = nullptr, *b = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&b));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(a, "tests/data/t1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, "tests/data/t1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(b, JAOS_ALGORITHM_BARRIER));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(b));
+    const int64_t nr = jaos_num_row(a);
+    double *ra = calloc((size_t)nr, sizeof *ra), *rb = calloc((size_t)nr, sizeof *rb);
+    TEST_ASSERT_NOT_NULL(ra);
+    TEST_ASSERT_NOT_NULL(rb);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(a, ra));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(b, rb));
+    TEST_ASSERT_EQUAL_MEMORY(ra, rb, (size_t)nr * sizeof *ra);
+    free(ra);
+    free(rb);
+    jaos_model_free(a);
+    jaos_model_free(b);
 }
 
 int main(void)
@@ -241,5 +294,7 @@ int main(void)
     RUN_TEST(test_the_crossover_reaches_the_dual_on_every_bound_kind);
     RUN_TEST(test_without_the_crossover_the_point_is_interior);
     RUN_TEST(test_the_barrier_does_not_call_an_infeasible_lp_optimal);
+    RUN_TEST(test_the_barrier_hands_an_unbounded_lp_to_the_dual_for_its_ray);
+    RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);
     return UNITY_END();
 }

@@ -88,7 +88,10 @@ here (`src/chol.c`, `src/barrier.c`), and a crossover since 2026-09-09: the
 interior point ranks the variables by primal against dual slack, the best
 `rows` of them are the basis guess, the LU repairs it where singular, and
 the dual simplex finishes from there. A MIP's relaxations stay on the dual.
-What keeps both rows from ●: the crossover is a crash and a warm start, not
+An infeasible or unbounded model, which the barrier cannot certify, goes to
+the dual simplex from the slack basis once the iterate diverges, so the
+verdict and its certificate are the dual's (since 2026-09-09,
+`bench/results/barrier-infeas.txt`). What keeps both rows from ●: the crossover is a crash and a warm start, not
 a primal and dual push, so on the degenerate instances the simplex that
 follows can cost more than a cold dual solve; `bench/results/barrier.txt`
 is the reading, and it is what decides whether the barrier ever becomes a

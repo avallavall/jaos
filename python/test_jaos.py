@@ -1602,6 +1602,19 @@ class TestBranchAndBound(unittest.TestCase):
         m.set_option("algorithm", "barrier")
         self.assertEqual(m.get_option("algorithm"), "barrier")
 
+    def test_the_barrier_says_infeasible_and_unbounded_like_the_dual(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=1, name="x")
+        y = p.add_var(lb=0, ub=1, name="y")
+        p.add(x + y >= 3)
+        p.minimize(x + y)
+        p.set_algorithm(jaos.Algorithm.BARRIER)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        with jaos.Model() as m:
+            m.read_mps(data("unbounded.mps"))
+            m.set_algorithm(jaos.Algorithm.BARRIER)
+            self.assertIs(m.solve(), jaos.SolveStatus.UNBOUNDED)
+
     def test_both_branching_rules_reach_the_knapsack_optimum(self):
 
         for rule in (jaos.Branching.MOST_FRACTIONAL, jaos.Branching.PSEUDOCOST):
