@@ -1,20 +1,16 @@
-# The QP of g_quad.lp in the QPLIB layout, written by hand:
-#   min x + y + (2 x^2 + 2 y^2) / 2   s.t.  x + y >= 2,  0 <= x, y <= 10
-gquad
-DCL
+# the value for infinity must be positive; here it is not
+eqinf
+LCL
 minimize
 2          # variables
 1          # constraints
-2          # objective Q entries
-1 1 2.0
-2 2 2.0
 1.0        # default objective coefficient
 0          # non-default objective coefficients
 0.0        # objective constant
 2          # constraint entries
 1 1 1.0
 1 2 1.0
-1e+20      # value for infinity
+-1e+20     # value for infinity, refused
 2.0        # default constraint lower bound
 0
 1e+20      # default constraint upper bound
@@ -29,8 +25,5 @@ minimize
 0
 0.0        # default initial reduced cost
 0
-2          # variable names
-1 x
-2 y
-1          # constraint names
-1 c1
+0          # non-default variable names
+0          # non-default constraint names

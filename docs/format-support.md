@@ -265,11 +265,21 @@ type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
 type come the sense, the counts, the objective `Q` entries (1-based,
 `½ x^T Q x` so the diagonal is `q` as JAOS holds it), the objective
 coefficients as a default plus exceptions, the constant, the constraint
-entries, the row bounds, the variable bounds, the types, the three
-initial-value vectors (read and dropped) and the names; `1e20` is
-infinity. Comments after `#` or `!` are dropped. The writer prints every
-section in that order with the most common value as each default, the
-type letters from what the model holds, and every name. SOS sets,
+entries, the value for infinity, the row bounds, the variable bounds,
+the types, the three initial-value vectors (read and dropped) and the
+two name sections. The order is Table 8 of Furini et al. (2019),
+checked against the instances of `qplib.zib.de`, which write
+`1.79769313486232E+308` on the infinity line. That value is a
+threshold: a bound at or past it in absolute value is infinite. The
+writer prints `1e+20` there. A line whose first character is `#`, `!`
+or `%` is a comment, and so is anything after `#` or `!` on a line;
+an exponent may be written with `D` as well as `E`, as `12.56D+2`. The
+count of non-default constraint names is present even when the model
+has no rows. The writer prints every section in that order with the
+most common value as each default, the type letters from what the model
+holds, and every name. A type whose third letter is `N` gives every
+column free bounds and no bound sections, which is what `(N)one`
+constraints mean in the taxonomy of §2.2.1. SOS sets,
 semi-continuous columns and indicator rows have no place in it and are
 refused by name.
 

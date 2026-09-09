@@ -23,7 +23,7 @@ typedef struct {
     int64_t *ei, *ej;
     double *ev;
     int64_t nent, ecap, jcap, vcap;
-    double offset;
+    double offset, inf;
     char **cname, **rname;
     char *pname;
 } qp;
@@ -65,11 +65,47 @@ static bool q_next(qp *p, char **out)
             s[--n] = '\0';
         while (*s == ' ' || *s == '\t')
             s++;
-        if (*s == '\0')
+        if (*s == '\0' || *s == '%')
             continue;
         *out = s;
         return true;
     }
+}
+
+static double q_strtod(const char *s, char **end)
+{
+    char *e;
+    const double v = strtod(s, &e);
+    if (e == s || (*e != 'D' && *e != 'd')) {
+        *end = e;
+        return v;
+    }
+    const char *q = e + 1;
+    if (*q == '+' || *q == '-')
+        q++;
+    if (!isdigit((unsigned char)*q)) {
+        *end = e;
+        return v;
+    }
+    while (isdigit((unsigned char)*q))
+        q++;
+    const size_t at = (size_t)(e - s), len = (size_t)(q - s);
+    char tmp[64];
+    if (len >= sizeof tmp) {
+        *end = e;
+        return v;
+    }
+    memcpy(tmp, s, len);
+    tmp[len] = '\0';
+    tmp[at] = 'e';
+    char *t;
+    const double w = strtod(tmp, &t);
+    if (t != tmp + len) {
+        *end = e;
+        return v;
+    }
+    *end = (char *)q;
+    return w;
 }
 
 static jaos_status q_int(qp *p, const char *what, int64_t *v)
@@ -86,11 +122,11 @@ static jaos_status q_int(qp *p, const char *what, int64_t *v)
     return JAOS_OK;
 }
 
-static double q_value(double v)
+static double q_value(const qp *p, double v)
 {
-    if (v >= QPLIB_INF)
+    if (v >= p->inf)
         return INFINITY;
-    if (v <= -QPLIB_INF)
+    if (v <= -p->inf)
         return -INFINITY;
     return v;
 }
@@ -102,7 +138,7 @@ static jaos_status q_num(qp *p, const char *what, double *v)
         FAIL("line %" PRId64 ": the file ends where %s was expected",
              p->line, what);
     char *end;
-    const double x = strtod(s, &end);
+    const double x = q_strtod(s, &end);
     if (end == s)
         FAIL("line %" PRId64 ": expected %s, found '%s'", p->line, what, s);
     *v = x;
@@ -121,8 +157,9 @@ static jaos_status q_index_value(qp *p, const char *what, int64_t limit,
     if (end == s)
         FAIL("line %" PRId64 ": expected an index in the %s entries",
              p->line, what);
-    const double x = strtod(end, &end);
-    if (end == s)
+    const char *num = end;
+    const double x = q_strtod(num, &end);
+    if (end == num)
         FAIL("line %" PRId64 ": expected a value in the %s entries",
              p->line, what);
     if (k < 1 || k > limit)
@@ -141,7 +178,7 @@ static jaos_status q_vector(qp *p, const char *what, int64_t n, double *out,
     if (st != JAOS_OK)
         return st;
     for (int64_t k = 0; k < n; k++)
-        out[k] = bound ? q_value(dflt) : dflt;
+        out[k] = bound ? q_value(p, dflt) : dflt;
     int64_t count;
     if ((st = q_int(p, what, &count)) != JAOS_OK)
         return st;
@@ -153,7 +190,7 @@ static jaos_status q_vector(qp *p, const char *what, int64_t n, double *out,
         double v;
         if ((st = q_index_value(p, what, n, &i, &v)) != JAOS_OK)
             return st;
-        out[i] = bound ? q_value(v) : v;
+        out[i] = bound ? q_value(p, v) : v;
     }
     return JAOS_OK;
 }
@@ -284,9 +321,19 @@ static jaos_status q_parse(qp *p)
                 FAIL("line %" PRId64 ": the file ends inside the Q entries",
                      p->line);
             char *end;
-            const long long i = strtoll(s, &end, 10);
-            const long long j = strtoll(end, &end, 10);
-            const double v = strtod(end, &end);
+            const char *at = s;
+            const long long i = strtoll(at, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a row index in the Q entries",
+                     p->line);
+            const long long j = strtoll(at = end, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a column index in the Q "
+                     "entries", p->line);
+            const double v = q_strtod(at = end, &end);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a value in the Q entries",
+                     p->line);
             if (i < 1 || i > p->nvar || j < 1 || j > p->nvar)
                 FAIL("line %" PRId64 ": a Q entry names variable %lld or %lld "
                      "outside 1 to %" PRId64, p->line, i, j, p->nvar);
@@ -314,9 +361,19 @@ static jaos_status q_parse(qp *p)
                 FAIL("line %" PRId64 ": the file ends inside the constraint "
                      "entries", p->line);
             char *end;
-            const long long i = strtoll(s, &end, 10);
-            const long long j = strtoll(end, &end, 10);
-            const double v = strtod(end, &end);
+            const char *at = s;
+            const long long i = strtoll(at, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a row index in the constraint "
+                     "entries", p->line);
+            const long long j = strtoll(at = end, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a column index in the "
+                     "constraint entries", p->line);
+            const double v = q_strtod(at = end, &end);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a value in the constraint "
+                     "entries", p->line);
             if (i < 1 || i > p->ncon)
                 FAIL("line %" PRId64 ": constraint %lld is outside 1 to %"
                      PRId64, p->line, i, p->ncon);
@@ -335,6 +392,13 @@ static jaos_status q_parse(qp *p)
             p->ev[p->nent] = v;
             p->nent++;
         }
+    }
+    if ((st = q_num(p, "the value for infinity", &p->inf)) != JAOS_OK)
+        return st;
+    if (!(p->inf > 0.0))
+        FAIL("line %" PRId64 ": the value for infinity is %g; it must be "
+             "positive", p->line, p->inf);
+    if (con == 'L') {
         if ((st = q_vector(p, "the constraint lower bounds", p->ncon, p->rl,
                            true)) != JAOS_OK)
             return st;
@@ -399,8 +463,7 @@ static jaos_status q_parse(qp *p)
         return st;
     if ((st = q_names(p, "variable names", p->nvar, &p->cname)) != JAOS_OK)
         return st;
-    if (con == 'L' &&
-        (st = q_names(p, "constraint names", p->ncon, &p->rname)) != JAOS_OK)
+    if ((st = q_names(p, "constraint names", p->ncon, &p->rname)) != JAOS_OK)
         return st;
     return JAOS_OK;
 }
@@ -532,6 +595,7 @@ jaos_status jaos_read_qplib(jaos_model *m, const char *path)
     qp *p = &pp;
     p->m = m;
     p->sense = JAOS_MINIMIZE;
+    p->inf = QPLIB_INF;
     jaos_status st = jm_slurp(m, path, &p->buf, &p->len);
     if (st != JAOS_OK)
         return st;

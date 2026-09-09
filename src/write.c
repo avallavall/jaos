@@ -1194,6 +1194,9 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
                 fprintf(f, "%" PRId64 " %" PRId64 " %s\n", m->a_index[k] + 1,
                         j + 1, num);
             }
+    }
+    fprintf(f, "1e+20   # value for infinity\n");
+    if (nr > 0) {
         qplib_vector(f, "constraint lower bound", nr, m->row_lower,
                      most_common(nr, m->row_lower, -INFINITY, 0.0), true);
         qplib_vector(f, "constraint upper bound", nr, m->row_upper,
@@ -1222,12 +1225,10 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
         col_name(m, nm, j);
         fprintf(f, "%" PRId64 " %s\n", j + 1, nm);
     }
-    if (nr > 0) {
-        fprintf(f, "%" PRId64 "   # constraint names\n", nr);
-        for (int64_t i = 0; i < nr; i++) {
-            row_name(m, nm, i);
-            fprintf(f, "%" PRId64 " %s\n", i + 1, nm);
-        }
+    fprintf(f, "%" PRId64 "   # constraint names\n", nr);
+    for (int64_t i = 0; i < nr; i++) {
+        row_name(m, nm, i);
+        fprintf(f, "%" PRId64 " %s\n", i + 1, nm);
     }
     return wr_close(w, path, &loc);
 }

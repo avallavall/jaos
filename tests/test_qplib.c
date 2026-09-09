@@ -156,6 +156,53 @@ static void test_qplib_reads_the_published_layout(void)
     jaos_model_free(m);
 }
 
+static void test_qplib_reads_the_paper_example(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_qplib(m, "tests/data/qplib_manual.qplib"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("MIPBAND", nm);
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(4, m->num_nz);
+    TEST_ASSERT_EQUAL_INT(JAOS_MINIMIZE, m->sense);
+    TEST_ASSERT_TRUE(m->obj_offset == 0.0);
+    const double cost[3] = {-0.2, -0.4, -0.2};
+    const double lower[3] = {0.0, 0.0, 0.0};
+    const double upper[3] = {1.0, 2.0, 1.0};
+    for (int64_t j = 0; j < 3; j++) {
+        TEST_ASSERT_TRUE(m->col_cost[j] == cost[j]);
+        TEST_ASSERT_TRUE(m->col_lower[j] == lower[j]);
+        TEST_ASSERT_TRUE(m->col_upper[j] == upper[j]);
+        double q = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, j, &q));
+        TEST_ASSERT_TRUE(q == 2.0);
+        bool is_int = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, j, &is_int));
+        TEST_ASSERT_EQUAL_INT(j == 2, is_int);
+    }
+    for (int64_t i = 0; i < 2; i++) {
+        TEST_ASSERT_TRUE(m->row_lower[i] == 1.0);
+        TEST_ASSERT_TRUE(isinf(m->row_upper[i]));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+    round_trip("tests/data/qplib_manual.qplib", jaos_read_qplib);
+}
+
+static void test_qplib_refuses_a_bad_infinity(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_qplib(m, "tests/data/e_qinf.qplib"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "value for infinity"));
+    jaos_model_free(m);
+}
+
 static void test_qplib_refuses_what_it_cannot_express(void)
 {
     jaos_model *m = fresh();
@@ -210,6 +257,8 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_qplib_round_trips_an_lp_a_qp_and_a_mip);
     RUN_TEST(test_qplib_reads_the_published_layout);
+    RUN_TEST(test_qplib_reads_the_paper_example);
+    RUN_TEST(test_qplib_refuses_a_bad_infinity);
     RUN_TEST(test_qplib_refuses_what_it_cannot_express);
     RUN_TEST(test_osil_carries_every_part_of_the_model);
     return UNITY_END();
