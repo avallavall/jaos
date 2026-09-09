@@ -101,7 +101,6 @@ typedef struct {
     bool devex_on;
     bool devex_stale;
     bool pse_on;
-    double *sigma;
     double *pse_tau;
 
     jm_lu lu;
@@ -239,7 +238,7 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
-    free(s->devex); free(s->devref); free(s->sigma); free(s->pse_tau);
+    free(s->devex); free(s->devref); free(s->pse_tau);
     free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
     free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
@@ -303,7 +302,6 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->devref = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->devex_on = false;
     s->devex_stale = false;
-    s->sigma   = jm_alloc_array(s->nvar, sizeof(double));
     s->pse_tau = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof(double));
     s->col    = jm_calloc_array(s->nrow, sizeof(double));
     s->raw    = jm_calloc_array(s->nrow, sizeof(double));
@@ -338,7 +336,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->devex || !s->devref ||
-        !s->sigma || !s->pse_tau ||
+        !s->pse_tau ||
         !s->col || !s->raw || !s->rhsc || !s->resc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
@@ -1713,45 +1711,34 @@ static void pse_update(sx *s, int64_t q, int64_t leaving, double alpha_q)
     jm_lu_btran(&s->lu, tau, &s->work);
 
     const jaos_model *m = s->m;
-    double *sigma = s->sigma;
-    memset(sigma, 0, (size_t)s->nvar * sizeof *sigma);
-    int64_t touched = 0;
-    for (int64_t i = 0; i < s->nrow; i++) {
-        const double w = tau[i];
-        if (w == 0.0)
-            continue;
-        sigma[s->ncol + i] = -w;
-        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
-            sigma[m->ar_index[p]] += w * s->arv[p];
-        touched += m->ar_start[i + 1] - m->ar_start[i] + 1;
-    }
-    jm_work_add(&s->work, touched * JM_WORK_NONZERO);
-
     const double inv = 1.0 / alpha_q;
-    if (s->anpat < 0) {
-        for (int64_t v = 0; v < s->nvar; v++) {
-            if (s->status[v] == JM_BASIC || v == q || s->alpha[v] == 0.0)
-                continue;
-            const double ratio = s->alpha[v] * inv;
-            const double w = s->devex[v] - 2.0 * ratio * sigma[v] +
-                             ratio * ratio * exact;
-            const double floor = 1.0 + ratio * ratio;
-            s->devex[v] = w > floor ? w : floor;
+    const int64_t nvisit = s->anpat < 0 ? s->nvar : s->anpat;
+    int64_t touched = 0;
+    for (int64_t t = 0; t < nvisit; t++) {
+        const int64_t v = s->anpat < 0 ? t : s->apat[t];
+        if (s->status[v] == JM_BASIC || v == q || s->alpha[v] == 0.0)
+            continue;
+        double sv;
+        if (v >= s->ncol) {
+            sv = -tau[v - s->ncol];
+            touched++;
+        } else {
+            sv = 0.0;
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+                const double w = tau[m->a_index[k]];
+                if (w == 0.0)
+                    continue;
+                sv += w * s->av[k];
+            }
+            touched += m->a_start[v + 1] - m->a_start[v];
         }
-        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
-    } else {
-        for (int64_t t = 0; t < s->anpat; t++) {
-            const int64_t v = s->apat[t];
-            if (s->status[v] == JM_BASIC || v == q || s->alpha[v] == 0.0)
-                continue;
-            const double ratio = s->alpha[v] * inv;
-            const double w = s->devex[v] - 2.0 * ratio * sigma[v] +
-                             ratio * ratio * exact;
-            const double floor = 1.0 + ratio * ratio;
-            s->devex[v] = w > floor ? w : floor;
-        }
-        jm_work_add(&s->work, s->anpat * JM_WORK_NONZERO);
+        const double ratio = s->alpha[v] * inv;
+        const double w = s->devex[v] - 2.0 * ratio * sv +
+                         ratio * ratio * exact;
+        const double floor = 1.0 + ratio * ratio;
+        s->devex[v] = w > floor ? w : floor;
     }
+    jm_work_add(&s->work, (touched + nvisit) * JM_WORK_NONZERO);
     const double wl = exact * inv * inv;
     const double floor_l = 1.0 + inv * inv;
     s->devex[leaving] = wl > floor_l ? wl : floor_l;

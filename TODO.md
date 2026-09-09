@@ -19,7 +19,7 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    basis instead of the slack basis's: degen3 had restarted on 10723 of
    its 15291 iterations and priced on the wrong weights throughout, and
    its phase 2 went from 12322 pivots to 772 (over the set: iterations
-   1.23x to 1.10x, work 2.65x to 2.53x). Exact weights in phase 1
+   1.23x to 1.10x, work 2.65x to 2.53x, and 2.34x on 2026-09-09 once the steepest-edge weight update stopped building its whole sigma vector to read a handful of it, which left the walk untouched and cleared no overrun). Exact weights in phase 1
    were tried and refused: pilot87 trips `PHASE1_RISE_MAX` under them at
    every switch point (`docs/tolerances.md`, `PSE_CHEAP_RESTARTS`).
    Reading the walk: 70% of the phase-2 pivots on d6cube and degen3 are
