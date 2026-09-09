@@ -56,3 +56,19 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
+3. **QPLIB and OSiL.** Read and write the QPLIB text format for the
+   classes JAOS holds (linear and separable quadratic objectives, linear
+   rows, bounds, integer columns), refusing by line what it does not;
+   write OSiL for the same; the tool by extension; Python at the ctypes
+   layer; `docs/format-support.md`. Closes the `Other formats` row.
+4. **Mixed-integer quadratic.** A MIP with a separable quadratic
+   objective solves its root and every node by the barrier instead of
+   the dual simplex, cold at each node, the rest of the tree unchanged
+   (bounds, cuts that touch the objective refused, heuristics on the
+   node point); the checker already judges the point. The SPECS row
+   goes partial with the reading on a handful of constructed models.
+5. **PDLP: infeasibility from the iterate.** The reference's test: the
+   difference of successive iterates converging to a ray that certifies
+   primal or dual infeasibility, checked every `PDLP_CHECK_EVERY`, so a
+   refused model ends before `PDLP_MAX_ITER`; the 29 infeasible
+   instances as the reading, `make pdlp-infeas` beside `barrier-infeas`.
