@@ -50,7 +50,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Add and delete rows and columns | **done** | |
 | Copy a model | **done** | |
 | Row, column and objective names | **done** | |
-| Warm start from the previous basis | **done** | |
+| Warm start from the previous basis | **done** | the basis a solve leaves is the next solve's start unless `jaos_clear_basis` drops it. Checked 2026-09-09 over 822 generated models: after a column bound moves, the warm re-solve and a cold one give the same objective on every one |
 | Read and write a basis in the MPS basis format | **done** | |
 | Resume after a limit, in-process and from a file | **done** | |
 | Model statistics | **done** | `jaos_model_statistics`, `jaos stats`; sizes, row and column kinds, integer, binary and semi-continuous counts, SOS sets, indicator rows, magnitudes |
@@ -101,7 +101,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Infeasibility and unboundedness certificates, floating and exact | **done** | |
 | Irreducible infeasible subsystem | **done** | `jaos_iis` and `jaos_iis_model`, the CLI's `iis` and its `--write`. A subsystem is a set of row and column bound sides, so integer and semi-continuous columns, SOS sets, indicator rows and a quadratic term are dropped before the search and the written model carries none of them: the answer explains the linear relaxation. A model the relaxation finds feasible has no such subsystem and says so by name. Checked 2026-09-09 over 2045 generated infeasible models, 1008 linear and 1037 integer: every reported subsystem is infeasible on its own and turns feasible when any one member is dropped |
 | The IIS written out as a model | **done** | |
-| Feasibility relaxation | **done** | |
+| Feasibility relaxation | **done** | `jaos_feasrelax` and the CLI's `relax`, over the rows, the columns or both. Checked 2026-09-09 over 2500 generated infeasible models: adding every reported move to the bound it names leaves a model with a feasible point, and `total`, `largest`, `rows_moved` and `cols_moved` match the moves. Over the columns alone a model whose rows contradict each other has no relaxation at all and says so |
 | Prove a basis another solver produced | **done** | |
 | Check a point another solver produced | **done** | |
 | Exact solving with no tolerances | **missing** | |
@@ -152,7 +152,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`, `jaos_num_options`, `jaos_option_name`; 42 options; `jaos solve --opt NAME=VALUE`, `--params FILE`; Python `set_option`, `get_option`, `read_options`, `Model.option_names()`; `jaos options` prints them all in the shape `--params` reads |
 | Steering callbacks: user cuts, lazy constraints, branching | **done** | one node callback (`jaos_set_node_callback`) sees every node's point once solved and cut, and every point a heuristic would make an incumbent; `jaos_node_add_row` adds a row that holds for every solution (a user cut at a fractional point, a lazy constraint against an integral one, which is then not taken), the node is solved again while a new row cuts its point, and `branch_col` names the column to branch on. Python at both layers |
 | Thread count | **done** | `jaos_set_threads`, `--threads N` and the `threads` option take 1 and refuse any other count with a message saying JAOS runs one thread |
-| Sensitivity and ranging | **done** | |
+| Sensitivity and ranging | **done** | `jaos_cost_ranging`, `jaos_rhs_ranging`, `jaos_bound_ranging` and the CLI's `ranging`: how far each cost and each bound may move, everything else held, before the optimal basis stops being optimal. Checked 2026-09-09 over 822 generated models, 3873 cost intervals, 3523 row bound intervals and 7736 column bound intervals: inside a cost interval the objective moves by the change times the column's value, and inside a bound interval it is linear in the bound, which is what an unchanged basis means |
 
 ## 10. Licence and distribution
 
