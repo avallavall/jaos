@@ -63,7 +63,7 @@ respectively, which is why those rows read "—" and not "○".
 | Crossover to a basic solution | ◐ | ● | — | ◐ | ● | ● | ? |
 | First-order method (PDLP / PDHG) | ◐ | ● | ○ | ○ | ○ | ● | ○ |
 | GPU acceleration | ○ | ● | ○ | ○ | ○ | ● | ○ |
-| Concurrent solve (race several methods) | ○ | ◐ | ○ | ○ | ● | ● | ? |
+| Concurrent solve (race several methods) | ◐ | ◐ | ○ | ○ | ● | ● | ? |
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
@@ -80,6 +80,17 @@ hand the solve to the dual. Stage 7, the unboundedness verdict, landed on
 2026-09-01: the primal declares a ray it meets in phase 2 on the same D19
 proof the dual already used, and the shared lent-bound verdict also
 proves a ray that needs several columns at once.
+
+**Concurrent reads ◐ since 2026-09-10, and the gap is threads.**
+`--algorithm concurrent` copies the model three times, sets the dual, the
+primal and the barrier on the copies and runs them in that order under a
+work budget that grows each round; the first to answer wins and the work
+billed is the sum over the three. Nothing reads a clock, so the winner is
+the same on every machine, which the threaded version in the other columns
+cannot promise. What it does not do is finish sooner in wall-clock time,
+because the three runs share one core. `bench/results/concurrent.txt`:
+94 of 94 agree inside 10x the dual's work, none disagrees, work geometric
+mean 1.090x the dual, and the primal wins `grow22` at 0.372x.
 
 **The barrier reads ◐ since 2026-09-08.** `--algorithm barrier` and
 `JAOS_ALGORITHM_BARRIER` select Mehrotra's predictor-corrector on the

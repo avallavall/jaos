@@ -418,6 +418,7 @@ typedef enum jaos_algorithm {
     JAOS_ALGORITHM_PRIMAL,
     JAOS_ALGORITHM_BARRIER,
     JAOS_ALGORITHM_PDLP,
+    JAOS_ALGORITHM_CONCURRENT,
 } jaos_algorithm;
 
 JAOS_NODISCARD jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg);

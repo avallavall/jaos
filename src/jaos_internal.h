@@ -24,6 +24,7 @@ typedef struct {
     bool force_primal;
     bool barrier;
     bool pdlp;
+    bool concurrent;
     bool barrier_no_crossover;
     bool primal_dantzig;
     bool primal_devex;
@@ -371,6 +372,8 @@ bool jm_lp_name_ok(const char *s);
 void jm_model_drop_exact(jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_branch_and_bound(jaos_model *m);
+
+JAOS_NODISCARD jaos_status jm_solve_concurrent(jaos_model *m);
 
 typedef struct {
     int64_t nc, ngen, norbit, largest;

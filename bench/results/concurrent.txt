@@ -1,0 +1,103 @@
+# instance    verdict   dual=iters/work  concurrent=iters/work
+25fv47       ok        dual=2644/71106234 concurrent=0+2644/71106234 verdict=optimal/optimal obj=5501.8458882867444/5501.8458882867444 checker=dual:ok/concurrent:ok 
+80bau3b      ok        dual=3616/70128525 concurrent=0+3616/70128525 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/concurrent:ok 
+adlittle     ok        dual=70/142589 concurrent=0+70/142589 verdict=optimal/optimal obj=225494.96316238036/225494.96316238036 checker=dual:ok/concurrent:ok 
+afiro        ok        dual=18/13163 concurrent=0+18/13163 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/concurrent:ok 
+agg          ok        dual=186/922872 concurrent=0+186/922872 verdict=optimal/optimal obj=-35991767.286576502/-35991767.286576502 checker=dual:ok/concurrent:ok 
+agg2         ok        dual=288/1723971 concurrent=0+288/1723971 verdict=optimal/optimal obj=-20239252.355977111/-20239252.355977111 checker=dual:ok/concurrent:ok 
+agg3         ok        dual=676/6086986 concurrent=0+676/6086986 verdict=optimal/optimal obj=10312115.935089223/10312115.935089223 checker=dual:ok/concurrent:ok 
+bandm        ok        dual=421/3243480 concurrent=0+421/3243480 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/concurrent:ok 
+beaconfd     ok        dual=78/89035 concurrent=0+78/89035 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/concurrent:ok 
+blend        ok        dual=93/181439 concurrent=0+93/181439 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/concurrent:ok 
+bnl1         ok        dual=802/7804294 concurrent=0+802/7804294 verdict=optimal/optimal obj=1977.6295615228885/1977.6295615228885 checker=dual:ok/concurrent:ok 
+bnl2         ok        dual=1719/23689124 concurrent=0+1719/23689124 verdict=optimal/optimal obj=1811.2365403585452/1811.2365403585452 checker=dual:ok/concurrent:ok 
+boeing1      ok        dual=374/1902706 concurrent=0+374/1902706 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/concurrent:ok 
+boeing2      ok        dual=118/327280 concurrent=0+118/327280 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/concurrent:ok 
+bore3d       ok        dual=134/358586 concurrent=0+134/358586 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/concurrent:ok 
+brandy       ok        dual=225/1465684 concurrent=0+225/1465684 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/concurrent:ok 
+capri        ok        dual=258/444462 concurrent=0+258/444462 verdict=optimal/optimal obj=2690.0129137681615/2690.0129137681615 checker=dual:ok/concurrent:ok 
+cycle        ok        dual=910/13166498 concurrent=0+910/13166498 verdict=optimal/optimal obj=-5.2263930248941017/-5.2263930248941017 checker=dual:ok/concurrent:ok 
+czprob       ok        dual=1154/13392644 concurrent=0+1154/13392644 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/concurrent:ok 
+d2q06c       ok        dual=27935/2247367748 concurrent=0+5937/2355771400 verdict=optimal/optimal obj=122784.21081418946/122784.21081418944 checker=dual:ok/concurrent:ok 
+d6cube       ok        dual=419/25134728 concurrent=0+419/25134728 verdict=optimal/optimal obj=315.49166666666667/315.49166666666667 checker=dual:ok/concurrent:ok 
+degen2       ok        dual=577/5541513 concurrent=0+577/5541513 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/concurrent:ok 
+degen3       ok        dual=2364/79505576 concurrent=0+2364/79505576 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/concurrent:ok 
+dfl001       ok        dual=21938/2861845048 concurrent=0+21938/9956938392 verdict=optimal/optimal obj=11266396.046671392/11266396.046671392 checker=dual:ok/concurrent:ok 
+e226         ok        dual=265/1568492 concurrent=0+265/1568492 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/concurrent:ok 
+etamacro     ok        dual=560/3496723 concurrent=0+560/3496723 verdict=optimal/optimal obj=-755.7152333749134/-755.7152333749134 checker=dual:ok/concurrent:ok 
+fffff800     ok        dual=1200/10523250 concurrent=0+1200/10523250 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/concurrent:ok 
+finnis       ok        dual=284/609944 concurrent=0+284/609944 verdict=optimal/optimal obj=172791.06559561161/172791.06559561161 checker=dual:ok/concurrent:ok 
+fit1d        ok        dual=66/1686184 concurrent=0+66/1686184 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/concurrent:ok 
+fit1p        ok        dual=494/13391536 concurrent=0+494/13391536 verdict=optimal/optimal obj=9146.3780924209277/9146.3780924209277 checker=dual:ok/concurrent:ok 
+fit2d        ok        dual=131/72934684 concurrent=0+131/72934684 verdict=optimal/optimal obj=-68464.293293832074/-68464.293293832074 checker=dual:ok/concurrent:ok 
+fit2p        ok        dual=4663/657740846 concurrent=0+3850/1043806629 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/concurrent:ok 
+forplan      ok        dual=184/1155441 concurrent=0+184/1155441 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220464 checker=dual:ok/concurrent:ok 
+ganges       ok        dual=1207/4941281 concurrent=0+1207/4941281 verdict=optimal/optimal obj=-109585.73612927823/-109585.73612927823 checker=dual:ok/concurrent:ok 
+gfrd-pnc     ok        dual=547/3247915 concurrent=0+547/3247915 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/concurrent:ok 
+greenbea     ok        dual=3601/156758480 concurrent=0+508/443030548 verdict=optimal/optimal obj=-72555248.129845992/-72555248.129845977 checker=dual:ok/concurrent:ok 
+greenbeb     ok        dual=9795/563335939 concurrent=0+5649/776373194 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/concurrent:ok 
+grow15       ok        dual=1871/37338266 concurrent=0+1871/37338266 verdict=optimal/optimal obj=-106870941.29357533/-106870941.29357533 checker=dual:ok/concurrent:ok 
+grow22       ok        dual=14176/402265040 concurrent=0+610/149728649 verdict=optimal/optimal obj=-160834336.48256296/-160834336.48256296 checker=dual:ok/concurrent:ok 
+grow7        ok        dual=614/8410510 concurrent=0+614/8410510 verdict=optimal/optimal obj=-47787811.814711504/-47787811.814711504 checker=dual:ok/concurrent:ok 
+israel       ok        dual=100/599654 concurrent=0+100/599654 verdict=optimal/optimal obj=-896644.82186304568/-896644.82186304568 checker=dual:ok/concurrent:ok 
+kb2          ok        dual=51/74189 concurrent=0+51/74189 verdict=optimal/optimal obj=-1749.9001299062058/-1749.9001299062058 checker=dual:ok/concurrent:ok 
+lotfi        ok        dual=260/1044569 concurrent=0+260/1044569 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/concurrent:ok 
+maros        ok        dual=1133/13384653 concurrent=0+1133/13384653 verdict=optimal/optimal obj=-58063.743701125903/-58063.743701125903 checker=dual:ok/concurrent:ok 
+maros-r7     ok        dual=2597/313496340 concurrent=0+1158/718011287 verdict=optimal/optimal obj=1497185.1664796439/1497185.1664796439 checker=dual:ok/concurrent:ok 
+modszk1      ok        dual=646/7108221 concurrent=0+646/7108221 verdict=optimal/optimal obj=320.61972906430327/320.61972906430327 checker=dual:ok/concurrent:ok 
+nesm         ok        dual=2586/56641553 concurrent=0+2586/56641553 verdict=optimal/optimal obj=14076036.487562733/14076036.487562733 checker=dual:ok/concurrent:ok 
+perold       ok        dual=2299/64486376 concurrent=0+2299/64486376 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/concurrent:ok 
+pilot        ok        dual=20304/4211570007 concurrent=44+4822/25236654977 verdict=optimal/optimal obj=-557.4897292893346/-557.48972928406818 checker=dual:ok/concurrent:ok 
+pilot-ja     ok        dual=2218/83994010 concurrent=0+2218/83994010 verdict=optimal/optimal obj=-6113.1364655813441/-6113.1364655813441 checker=dual:ok/concurrent:ok 
+pilot-we     ok        dual=2289/65295435 concurrent=0+2289/65295435 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/concurrent:ok 
+pilot4       ok        dual=686/17302807 concurrent=0+686/17302807 verdict=optimal/optimal obj=-2581.1392588838889/-2581.1392588838889 checker=dual:ok/concurrent:ok 
+pilot87      ok        dual=37362/18197512475 concurrent=0+43672/61897187347 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/concurrent:ok 
+pilotnov     ok        dual=1705/61602732 concurrent=0+1705/61602732 verdict=optimal/optimal obj=-4497.2761882188715/-4497.2761882188715 checker=dual:ok/concurrent:ok 
+recipe       ok        dual=42/24238 concurrent=0+42/24238 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/concurrent:ok 
+sc105        ok        dual=100/125426 concurrent=0+100/125426 verdict=optimal/optimal obj=-52.202061211707239/-52.202061211707239 checker=dual:ok/concurrent:ok 
+sc205        ok        dual=209/552814 concurrent=0+209/552814 verdict=optimal/optimal obj=-52.202061211707232/-52.202061211707232 checker=dual:ok/concurrent:ok 
+sc50a        ok        dual=46/35021 concurrent=0+46/35021 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/concurrent:ok 
+sc50b        ok        dual=48/34821 concurrent=0+48/34821 verdict=optimal/optimal obj=-70/-70 checker=dual:ok/concurrent:ok 
+scagr25      ok        dual=513/2317415 concurrent=0+513/2317415 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/concurrent:ok 
+scagr7       ok        dual=168/371430 concurrent=0+168/371430 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/concurrent:ok 
+scfxm1       ok        dual=413/1836873 concurrent=0+413/1836873 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/concurrent:ok 
+scfxm2       ok        dual=888/5674504 concurrent=0+888/5674504 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/concurrent:ok 
+scfxm3       ok        dual=1335/11294180 concurrent=0+1335/11294180 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/concurrent:ok 
+scorpion     ok        dual=249/497284 concurrent=0+249/497284 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/concurrent:ok 
+scrs8        ok        dual=490/1952791 concurrent=0+490/1952791 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/concurrent:ok 
+scsd1        ok        dual=98/499002 concurrent=0+98/499002 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/concurrent:ok 
+scsd6        ok        dual=240/1634316 concurrent=0+240/1634316 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/concurrent:ok 
+scsd8        ok        dual=654/7444397 concurrent=0+654/7444397 verdict=optimal/optimal obj=904.99999992546441/904.99999992546441 checker=dual:ok/concurrent:ok 
+sctap1       ok        dual=184/582154 concurrent=0+184/582154 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/concurrent:ok 
+sctap2       ok        dual=291/1181771 concurrent=0+291/1181771 verdict=optimal/optimal obj=1724.8071428571429/1724.8071428571429 checker=dual:ok/concurrent:ok 
+sctap3       ok        dual=369/1558426 concurrent=0+369/1558426 verdict=optimal/optimal obj=1424/1424 checker=dual:ok/concurrent:ok 
+seba         ok        dual=107/218688 concurrent=0+107/218688 verdict=optimal/optimal obj=15711.6/15711.6 checker=dual:ok/concurrent:ok 
+share1b      ok        dual=169/524273 concurrent=0+169/524273 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185667 checker=dual:ok/concurrent:ok 
+share2b      ok        dual=97/188156 concurrent=0+97/188156 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141922 checker=dual:ok/concurrent:ok 
+shell        ok        dual=492/1908984 concurrent=0+492/1908984 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/concurrent:ok 
+ship04l      ok        dual=407/727430 concurrent=0+407/727430 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/concurrent:ok 
+ship04s      ok        dual=333/492229 concurrent=0+333/492229 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/concurrent:ok 
+ship08l      ok        dual=710/2785803 concurrent=0+710/2785803 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891314 checker=dual:ok/concurrent:ok 
+ship08s      ok        dual=461/1036607 concurrent=0+461/1036607 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346196 checker=dual:ok/concurrent:ok 
+ship12l      ok        dual=1014/4514880 concurrent=0+1014/4514880 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/concurrent:ok 
+ship12s      ok        dual=657/1718826 concurrent=0+657/1718826 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/concurrent:ok 
+sierra       ok        dual=610/1973610 concurrent=0+610/1973610 verdict=optimal/optimal obj=15394362.183631929/15394362.183631929 checker=dual:ok/concurrent:ok 
+stair        ok        dual=446/9482926 concurrent=0+446/9482926 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/concurrent:ok 
+standata     ok        dual=55/99340 concurrent=0+55/99340 verdict=optimal/optimal obj=1257.6994999999999/1257.6994999999999 checker=dual:ok/concurrent:ok 
+standmps     ok        dual=197/404364 concurrent=0+197/404364 verdict=optimal/optimal obj=1406.0174999999999/1406.0174999999999 checker=dual:ok/concurrent:ok 
+stocfor1     ok        dual=114/228369 concurrent=0+114/228369 verdict=optimal/optimal obj=-41131.976219436408/-41131.976219436408 checker=dual:ok/concurrent:ok 
+stocfor2     ok        dual=2266/21234654 concurrent=0+2266/21234654 verdict=optimal/optimal obj=-39024.408537882031/-39024.408537882031 checker=dual:ok/concurrent:ok 
+stocfor3     ok        dual=17980/708065523 concurrent=0+17980/4781007549 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/concurrent:ok 
+truss        ok        dual=17732/1163945417 concurrent=0+14836/1416144183 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/concurrent:ok 
+tuff         ok        dual=199/839720 concurrent=0+199/839720 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361279 checker=dual:ok/concurrent:ok 
+vtp-base     ok        dual=46/41935 concurrent=0+46/41935 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/concurrent:ok 
+wood1p       ok        dual=550/37326021 concurrent=0+550/37326021 verdict=optimal/optimal obj=1.442902411573409/1.442902411573409 checker=dual:ok/concurrent:ok 
+woodw        ok        dual=1186/39809598 concurrent=0+1186/39809598 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/concurrent:ok 
+
+-- concurrent against dual --
+agreed 94 (checker accepts 94, interior 0), skipped 0, overrun 0, failed 0, disagreed 0, rejected 0, errors 0
+work units concurrent/dual, geometric mean:        1.0897
+iterations (concurrent+1)/(dual+1), geometric mean: 0.9024
+work ratio, best  grow22 at 0.3722
+work ratio, worst stocfor3 at 6.7522
+most concurrent iterations: pilot87 at 43672

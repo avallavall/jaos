@@ -1671,7 +1671,7 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertAlmostEqual(p.objective_value, 2.0, places=12)
             self.assertEqual((x.value, y.value), (2.0, 0.0))
         with self.assertRaises(jaos.JaosError):
-            p.set_algorithm(4)
+            p.set_algorithm(9)
         m = jaos.Model()
         self.assertIs(m.algorithm, jaos.Algorithm.DUAL)
         m.set_algorithm(jaos.Algorithm.PRIMAL)
@@ -1713,6 +1713,29 @@ class TestBranchAndBound(unittest.TestCase):
         m.set_option("algorithm", "pdlp")
         self.assertIs(m.algorithm, jaos.Algorithm.PDLP)
         self.assertEqual(m.get_option("algorithm"), "pdlp")
+
+    def test_concurrent_reaches_the_same_vertex(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=5, name="x")
+        y = p.add_var(lb=0, ub=5, name="y")
+        p.add(x + y >= 2)
+        p.minimize(x + 2 * y)
+        p.set_algorithm(jaos.Algorithm.CONCURRENT)
+        self.assertIs(p.algorithm, jaos.Algorithm.CONCURRENT)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertEqual(p.objective_value, 2.0)
+        self.assertEqual((x.value, y.value), (2.0, 0.0))
+        m = jaos.Model()
+        m.set_option("algorithm", "concurrent")
+        self.assertIs(m.algorithm, jaos.Algorithm.CONCURRENT)
+        self.assertEqual(m.get_option("algorithm"), "concurrent")
+        m.read_mps(data("solve1.mps"))
+        self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+        conc = m.objective()
+        with jaos.Model() as d:
+            d.read_mps(data("solve1.mps"))
+            self.assertIs(d.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertEqual(conc, d.objective())
 
     def test_the_barrier_says_infeasible_and_unbounded_like_the_dual(self):
         p = jaos.Problem()

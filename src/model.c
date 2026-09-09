@@ -755,7 +755,7 @@ jaos_status jaos_solve(jaos_model *m)
     jm_model_drop_exact(m);
 
     if (jm_model_has_quadratic(m)) {
-        if (m->cfg.force_primal || m->cfg.pdlp) {
+        if (m->cfg.force_primal || m->cfg.pdlp || m->cfg.concurrent) {
             jm_set_err(m, "the objective has a quadratic term, which only "
                           "the barrier solves; leave the algorithm at dual "
                           "or set it to barrier");
@@ -776,6 +776,8 @@ jaos_status jaos_solve(jaos_model *m)
 
     if (jm_model_has_integer(m))
         return jm_branch_and_bound(m);
+    if (m->cfg.concurrent && !m->cfg.node_solve)
+        return jm_solve_concurrent(m);
     return jm_dual_simplex(m);
 }
 
@@ -1089,13 +1091,16 @@ jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg)
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
     if (alg != JAOS_ALGORITHM_DUAL && alg != JAOS_ALGORITHM_PRIMAL &&
-        alg != JAOS_ALGORITHM_BARRIER && alg != JAOS_ALGORITHM_PDLP) {
-        jm_set_err(m, "the algorithm must be dual, primal, barrier or pdlp");
+        alg != JAOS_ALGORITHM_BARRIER && alg != JAOS_ALGORITHM_PDLP &&
+        alg != JAOS_ALGORITHM_CONCURRENT) {
+        jm_set_err(m, "the algorithm must be dual, primal, barrier, pdlp or "
+                      "concurrent");
         return JAOS_ERR_INVALID_INPUT;
     }
     m->cfg.force_primal = alg == JAOS_ALGORITHM_PRIMAL;
     m->cfg.barrier = alg == JAOS_ALGORITHM_BARRIER;
     m->cfg.pdlp = alg == JAOS_ALGORITHM_PDLP;
+    m->cfg.concurrent = alg == JAOS_ALGORITHM_CONCURRENT;
     return JAOS_OK;
 }
 
@@ -1103,6 +1108,8 @@ jaos_algorithm jaos_algorithm_of(const jaos_model *m)
 {
     if (m == nullptr)
         return JAOS_ALGORITHM_DUAL;
+    if (m->cfg.concurrent)
+        return JAOS_ALGORITHM_CONCURRENT;
     if (m->cfg.barrier)
         return JAOS_ALGORITHM_BARRIER;
     if (m->cfg.pdlp)

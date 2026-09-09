@@ -401,8 +401,12 @@ int main(int argc, char **argv)
             } else if (strcmp(a, "barrier") == 0) {
                 g_alg = JAOS_ALGORITHM_BARRIER;
                 g_label = "barrier";
+            } else if (strcmp(a, "concurrent") == 0) {
+                g_alg = JAOS_ALGORITHM_CONCURRENT;
+                g_label = "concurrent";
             } else {
-                fprintf(stderr, "-a takes barrier or pdlp, not %s\n", a);
+                fprintf(stderr, "-a takes barrier, pdlp or concurrent, "
+                                "not %s\n", a);
                 return 2;
             }
         } else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {

@@ -318,6 +318,7 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
     int64_t *drop = nullptr;
     int64_t ndrop = 0;
 
+    c->cfg.concurrent = false;
     free(c->col_integer);  c->col_integer = nullptr;
     free(c->col_semi);     c->col_semi = nullptr;
     free(c->col_quad);     c->col_quad = nullptr;

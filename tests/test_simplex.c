@@ -3193,7 +3193,7 @@ static void test_the_algorithm_is_a_caller_option(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_DUAL, jaos_algorithm_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_set_algorithm(m, (jaos_algorithm)4));
+                          jaos_set_algorithm(m, (jaos_algorithm)9));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
     TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_PRIMAL, jaos_algorithm_of(m));
     TEST_ASSERT_TRUE(m->cfg.force_primal);

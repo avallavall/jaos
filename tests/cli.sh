@@ -560,6 +560,14 @@ expect_exit 0 "--algorithm barrier solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm barrier
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
     || flunk "barrier: $(line_of objective) against $dual_obj"
+expect_exit 0 "--algorithm concurrent solves it as well" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent
+[ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
+    || flunk "concurrent: $(line_of objective) against $dual_obj"
+expect_exit 5 "--algorithm concurrent refuses a quadratic objective" \
+    "$JAOS" solve "$DATA/g_quad.lp" --algorithm concurrent
+expect_exit 5 "--algorithm needs a name it knows" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm sideways
 expect_exit 0 "a separable QP in LP format solves through the barrier" \
     "$JAOS" solve "$DATA/g_quad.lp"
 case "$(line_of objective)" in

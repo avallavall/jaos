@@ -73,7 +73,7 @@ static void test_pdlp_is_the_fourth_algorithm(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_get_option(m, "algorithm", buf, sizeof buf));
     TEST_ASSERT_EQUAL_STRING("pdlp", buf);
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_set_algorithm(m, (jaos_algorithm)4));
+                          jaos_set_algorithm(m, (jaos_algorithm)9));
     jaos_model_free(m);
 }
 
