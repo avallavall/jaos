@@ -46,6 +46,16 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
         m->sol_farkas != nullptr;
     const bool unbounded = ss == JAOS_SOLVE_UNBOUNDED && m->ray_ok &&
         m->sol_ray != nullptr;
+    if (infeasible && m->exact_farkas == nullptr) {
+        jaos_exact_ray_report rr;
+        (void)jaos_exact_certificate(m, &rr);
+        m->err[0] = 0;
+    }
+    if (unbounded && m->exact_uray == nullptr) {
+        jaos_exact_ray_report rr;
+        (void)jaos_exact_unbounded_ray(m, &rr);
+        m->err[0] = 0;
+    }
     if (!infeasible && !unbounded) {
 
         if (m->exact_col == nullptr || m->exact_dual == nullptr) {
@@ -124,6 +134,22 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
         jm_set_err(m, "cannot finish writing '%s'", path);
         remove(path);
         return JAOS_ERR_IO;
+    }
+    {
+        jaos_proof_report pr;
+        const jaos_status ck = jaos_check_proof(m, path, &pr);
+        if (ck != JAOS_OK) {
+            remove(path);
+            return ck;
+        }
+        if (!pr.certified) {
+            remove(path);
+            jm_set_err(m, "no proof written: the numbers this answer carries "
+                          "do not hold exactly, and the exact ones outgrew "
+                          "the limb budget, so a file of them would say "
+                          "broken to its own checker");
+            return JAOS_ERR_INVALID_INPUT;
+        }
     }
     return JAOS_OK;
 

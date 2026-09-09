@@ -692,6 +692,46 @@ static jaos_model *model_infeasible(void)
     return m;
 }
 
+static jaos_model *model_thirds(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[3] = {-2.0, 3.0, -5.0};
+    const double cl[3] = {0.0, 0.0, -1.0};
+    const double cu[3] = {INFINITY, 2.0, INFINITY};
+    const double rl[3] = {3.0, 2.0, -1.0};
+    const double ru[3] = {3.0, INFINITY, -1.0};
+    const int64_t start[4] = {0, 3, 6, 9};
+    const int64_t index[9] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+    const double value[9] = {-3.0, 3.0, -1.0, 3.0, 1.0, -3.0,
+                             -3.0, 3.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     9, start, index, value));
+    return m;
+}
+
+static void test_a_written_proof_is_one_its_own_checker_takes(void)
+{
+    jaos_model *m = model_thirds();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    const jaos_status w = jaos_write_proof(m, TMP_PROOF);
+    jaos_model_free(m);
+    if (w != JAOS_OK)
+        return;
+
+    jaos_model *a = model_thirds();
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(a, TMP_PROOF, &pr));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+    TEST_ASSERT_TRUE_MESSAGE(pr.certified,
+        "solve wrote a proof its own checker calls broken");
+    jaos_model_free(a);
+    remove(TMP_PROOF);
+}
+
 static void test_an_infeasibility_certificate_is_checked_exactly(void)
 {
     jaos_model *m = model_infeasible();
@@ -1181,6 +1221,7 @@ int main(void)
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
+    RUN_TEST(test_a_written_proof_is_one_its_own_checker_takes);
     RUN_TEST(test_an_infeasibility_certificate_is_checked_exactly);
     RUN_TEST(test_an_unbounded_ray_is_checked_exactly);
     RUN_TEST(test_the_exact_certificate_is_derived_and_certifies);
