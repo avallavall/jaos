@@ -56,3 +56,21 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
+
+   **Where a fresh session starts.** Not on cost per iteration: that was
+   read on 2026-09-09 and paid 7.6% over the set for nothing here, because
+   the gap is the iteration count. seba takes 344 primal iterations against
+   the dual's 107 and wants 2186880 work units; at 3367369 it would still
+   miss the bar with the arithmetic free. Three remedies are already refused
+   with their reopen conditions (`bench/refusals.txt`,
+   primal-bound-perturbation, primal-tie-hash, primal-cost-perturbation) and
+   the last of them closes with the instruction: read the degenerate phase 2
+   of d6cube, degen3 and dfl001 pivot by pivot. Two threads are named and
+   neither is measured. One is dfl001's edge above, a total dual
+   infeasibility of 1.0e-9 against `DUAL_TOL` 1e-9 held for 70000 pivots on
+   one vertex, which asks whether the tolerance or the measure is wrong
+   rather than the pricing. The other is EXPAND's growing tolerance schedule
+   (Gill, Murray, Saunders, Wright 1989), which `PRIMAL_HARRIS_DELTA` in
+   `docs/tolerances.md` records that JAOS does not carry. Either may end in a
+   fourth refusal line rather than a fix, and that is a fair outcome to plan
+   for.
