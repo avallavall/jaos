@@ -59,5 +59,4 @@ wsl -d Ubuntu-24.04 -- bash -c "cd /mnt/c/Users/vall-/Desktop/projectes/jaos && 
 
 Put a long command sequence in a script file and run the file. `$?` does not
 survive the Git Bash to WSL boundary. Push from Windows: the remote's SSH
-alias exists only there. Never `git add -A`; `bench/measurements/02-31/` is
-untracked on purpose. Stage explicit paths.
+alias exists only there. Never `git add -A`. Stage explicit paths.
