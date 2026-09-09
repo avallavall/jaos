@@ -89,6 +89,8 @@ constexpr int64_t MIP_PROPAGATE = 0;
 
 constexpr int64_t MIP_PROPAGATE_DEPTH = -1;
 
+constexpr int64_t MIP_QUAD_PROPAGATE = 4;
+
 constexpr double MIP_PROP_SLACK = 1e-9;
 constexpr double MIP_TIGHTEN_MIN = 1e-9;
 
@@ -3288,6 +3290,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const double t0 = now_seconds();
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    const bool quadratic = jm_model_has_quadratic(m);
     const double gap = m->cfg.mip_gap > 0.0 ? m->cfg.mip_gap : MIP_GAP;
     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
                                                      : MIP_CUT_ROUNDS;
@@ -3346,8 +3349,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ? m->cfg.mip_orbital : MIP_ORBITAL;
     const bool symmetry_on = (m->cfg.mip_symmetry_set
         ? m->cfg.mip_symmetry : MIP_SYMMETRY) || orbital_on;
-    const int64_t propagate = m->cfg.mip_propagate_set ? m->cfg.mip_propagate
-                                                       : MIP_PROPAGATE;
+    const int64_t propagate = m->cfg.mip_propagate_set
+        ? m->cfg.mip_propagate
+        : (quadratic ? MIP_QUAD_PROPAGATE : MIP_PROPAGATE);
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
         ? m->cfg.mip_propagate_depth : MIP_PROPAGATE_DEPTH;
 
@@ -3448,6 +3452,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t first_inc = 0;
     int64_t rcfixed = 0;
     int64_t tightened = 0;
+
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
@@ -3764,6 +3769,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             break;
         }
         if (ns != JAOS_SOLVE_OPTIMAL) {
+            if (ns == JAOS_SOLVE_NUMERICAL_ERROR)
+                jm_set_err(m, "node %lld: %s", (long long)nodes,
+                           jaos_model_error(lp));
             outcome = ns;
             break;
         }
