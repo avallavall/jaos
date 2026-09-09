@@ -41,7 +41,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| Presolve | **partial** | empty rows and columns, singleton rows, cost-0 singleton columns, fixed columns, forcing and redundant rows, implied free column singletons. Missing: duplicate rows and columns, dominated columns, bound tightening, dual fixing (each measured once and refused, `bench/refusals.txt`) |
+| Presolve | **partial** | empty rows and columns, singleton rows, cost-0 singleton columns, fixed columns, forcing and redundant rows, implied free column singletons. It answers infeasible on its own, because a proven contradiction holds whatever the objective, and it never answers unbounded: an empty column whose cost runs to an infinite bound says unbounded only where a feasible point exists, which presolve has not established, so it hands the model back and the simplex decides. Missing: duplicate rows and columns, dominated columns, bound tightening, dual fixing (each measured once and refused, `bench/refusals.txt`) |
 | Postsolve to the caller's indices, statuses and duals | **done** | |
 | Scaling | **done** | Curtis-Reid, powers of two |
 | Sparse LU, Markowitz pivoting, Forrest-Tomlin update | **done** | |

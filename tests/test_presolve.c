@@ -2808,6 +2808,38 @@ static jaos_model *make_maximised_empty_column(double lo, double hi)
     return m;
 }
 
+static jaos_model *empty_col_and_a_row(double c2_upper)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[3] = {0.0, -6.0, -6.0};
+    const double cl[3] = {-2.0, -1.0, -2.0};
+    const double cu[3] = {-1.0, c2_upper, INFINITY};
+    const double rl[1] = {5.0}, ru[1] = {5.0};
+    const int64_t as[4] = {0, 1, 2, 2};
+    const int64_t ai[2] = {0, 0};
+    const double av[2] = {-1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    return m;
+}
+
+static void test_an_empty_column_is_unbounded_only_where_a_point_exists(void)
+{
+    jaos_model *m = empty_col_and_a_row(1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m),
+        "the row leaves no point, so the empty column proves nothing");
+    jaos_model_free(m);
+
+    jaos_model *b = empty_col_and_a_row(4.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(b),
+        "the row holds now, so the empty column does make it unbounded");
+    jaos_model_free(b);
+}
+
 static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3101,6 +3133,7 @@ int main(void)
     RUN_TEST(test_a_frozen_row_missed_at_scale_is_refused);
 
     RUN_TEST(test_a_maximised_singleton_row_is_owed_its_multiplier);
+    RUN_TEST(test_an_empty_column_is_unbounded_only_where_a_point_exists);
     RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
     RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
     RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);

@@ -501,10 +501,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 double v;
                 if (!ps_empty_col_value(cur_cl[j], cur_cu[j],
                                         sigma * cur_cost[j], &v)) {
-                    p->outcome = JM_PRESOLVE_UNBOUNDED;
-
-                    p->proof_index = j;
-                    p->proof_sign = sigma * cur_cost[j] > 0.0 ? -1.0 : 1.0;
+                    p->outcome = JM_PRESOLVE_NONE;
+                    p->proof_index = -1;
                     goto done;
                 }
                 p->reduced.obj_offset += cur_cost[j] * v;
