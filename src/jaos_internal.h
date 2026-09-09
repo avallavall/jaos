@@ -617,6 +617,8 @@ typedef struct {
     int64_t *l_index;
     double  *l_value;
 
+    double  *d;
+
     int64_t *fill;
     double  *x;
     int64_t *s;
@@ -634,6 +636,12 @@ JAOS_NODISCARD jaos_status jm_chol_numeric(jm_chol *c, const double *value,
                                            jm_work *w);
 
 void jm_chol_solve(const jm_chol *c, double *b, jm_work *w);
+
+JAOS_NODISCARD jaos_status jm_ldlt_numeric(jm_chol *c, const double *value,
+                                           const int8_t *sign, double floor,
+                                           jm_work *w);
+
+void jm_ldlt_solve(const jm_chol *c, double *b, jm_work *w);
 
 #ifndef JM_EXACT_LIMBS
 #define JM_EXACT_LIMBS 128

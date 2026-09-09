@@ -399,6 +399,224 @@ static void test_rejects_bad_input(void)
     jm_chol_free(&c);
 }
 
+static void ldlt_factor(const sym *m, jm_chol *c, const int8_t *sign,
+                        jm_work *w)
+{
+    jm_chol_init(c);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_chol_symbolic(c, m->n, m->start,
+                                                    m->index, w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jm_ldlt_numeric(c, m->value, sign, 1e-12, w));
+}
+
+static double ldlt_residual(const sym *m, const jm_chol *c, const double *b)
+{
+    double x[MAXN], back[MAXN];
+    memcpy(x, b, sizeof(double) * (size_t)m->n);
+    jm_ldlt_solve(c, x, nullptr);
+    sym_mul(m, x, back);
+    double worst = 0.0, scale = 0.0;
+    for (int64_t i = 0; i < m->n; i++) {
+        const double t = fabs(back[i] - b[i]);
+        if (t > worst)
+            worst = t;
+        if (fabs(b[i]) > scale)
+            scale = fabs(b[i]);
+    }
+    return worst / (1.0 + scale);
+}
+
+/* The augmented system of an LP with a quadratic objective:
+
+       [ -(Q + T)   A^T ] [ dx ]   [ r1 ]
+       [    A        0  ] [ dy ] = [ r2 ]
+
+   which is quasi-definite when Q + T is positive definite: negative on
+   the first block's diagonal, positive on the second's.  This is the
+   system a full Q needs and the normal equations cannot take. */
+static void make_augmented(sym *m, int64_t ncol, int64_t nrow,
+                           double density, double delta, int8_t *sign)
+{
+    static double a[MAXN][MAXN];
+    memset(a, 0, sizeof a);
+    for (int64_t j = 0; j < ncol; j++) {
+        int64_t placed = 0;
+        for (int64_t i = 0; i < nrow; i++)
+            if (rng_unit() < density) {
+                a[i][j] = 2.0 * rng_unit() - 1.0;
+                placed++;
+            }
+        if (placed == 0)
+            a[(int64_t)(rng_unit() * (double)nrow) % nrow][j] = 1.0;
+    }
+    const int64_t n = ncol + nrow;
+    sym_clear(m, n);
+    for (int64_t j = 0; j < ncol; j++) {
+        m->a[j][j] = -(0.5 + rng_unit());
+        sign[j] = -1;
+    }
+    for (int64_t j = 0; j + 1 < ncol; j++)
+        if (rng_unit() < 0.3) {
+            const double q = -0.1 * rng_unit();
+            m->a[j][j + 1] += q;
+            m->a[j + 1][j] += q;
+            m->a[j][j] -= 0.2;
+            m->a[j + 1][j + 1] -= 0.2;
+        }
+    for (int64_t i = 0; i < nrow; i++) {
+        m->a[ncol + i][ncol + i] = delta;
+        sign[ncol + i] = 1;
+        for (int64_t j = 0; j < ncol; j++)
+            if (a[i][j] != 0.0) {
+                m->a[ncol + i][j] = a[i][j];
+                m->a[j][ncol + i] = a[i][j];
+            }
+    }
+    sym_pack(m);
+}
+
+static void test_ldlt_solves_a_quasi_definite_system(void)
+{
+    rng = 0x5eed1234u;
+    double worst = 0.0;
+    for (int trial = 0; trial < 60; trial++) {
+        const int64_t ncol = 2 + (int64_t)(rng_unit() * 18.0);
+        const int64_t nrow = 1 + (int64_t)(rng_unit() * 12.0);
+        sym m;
+        int8_t sign[MAXN];
+        make_augmented(&m, ncol, nrow, 0.35, 1e-8, sign);
+        jm_chol c;
+        jm_work w = {0};
+        ldlt_factor(&m, &c, sign, &w);
+        TEST_ASSERT_EQUAL_INT64(0, c.replaced);
+        double b[MAXN];
+        for (int64_t i = 0; i < m.n; i++)
+            b[i] = 2.0 * rng_unit() - 1.0;
+        const double res = ldlt_residual(&m, &c, b);
+        if (res > worst)
+            worst = res;
+        jm_chol_free(&c);
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(worst < 1e-6,
+        "with delta at 1e-8 the system's own condition bounds this; the "
+        "worst of the sixty measured 2.6e-8");
+}
+
+static void test_ldlt_keeps_the_sign_each_block_was_promised(void)
+{
+    rng = 0xabcdef01u;
+    sym m;
+    int8_t sign[MAXN];
+    make_augmented(&m, 8, 5, 0.4, 1e-8, sign);
+    jm_chol c;
+    jm_work w = {0};
+    ldlt_factor(&m, &c, sign, &w);
+    for (int64_t k = 0; k < c.n; k++) {
+        const int8_t want = sign[c.perm[k]];
+        TEST_ASSERT_TRUE_MESSAGE(c.d[k] * (double)want > 0.0,
+            "a quasi-definite factor keeps one sign per block");
+        TEST_ASSERT_TRUE(fabs(c.d[k]) >= 1e-12);
+    }
+    jm_chol_free(&c);
+}
+
+static void test_ldlt_replaces_a_pivot_of_the_wrong_sign(void)
+{
+
+    sym m;
+    sym_clear(&m, 2);
+    m.a[0][0] = -1.0;
+    m.a[1][1] = -3.0;
+    m.a[0][1] = m.a[1][0] = 0.5;
+    sym_pack(&m);
+    const int8_t sign[2] = {-1, 1};
+    jm_chol c;
+    jm_work w = {0};
+    ldlt_factor(&m, &c, sign, &w);
+    TEST_ASSERT_EQUAL_INT64(1, c.replaced);
+    for (int64_t k = 0; k < c.n; k++)
+        TEST_ASSERT_TRUE(c.d[k] * (double)sign[c.perm[k]] > 0.0);
+    jm_chol_free(&c);
+}
+
+static void test_ldlt_agrees_with_the_cholesky_on_a_definite_matrix(void)
+{
+    rng = 0x1357911u;
+    for (int trial = 0; trial < 20; trial++) {
+        sym m;
+        make_normal_equations(&m, 3 + (int64_t)(rng_unit() * 15.0),
+                              4 + (int64_t)(rng_unit() * 20.0), 0.4);
+        double b[MAXN];
+        for (int64_t i = 0; i < m.n; i++)
+            b[i] = 2.0 * rng_unit() - 1.0;
+
+        jm_chol c1;
+        jm_work w1 = {0};
+        must_factor(&m, &c1, &w1);
+        double x1[MAXN];
+        memcpy(x1, b, sizeof(double) * (size_t)m.n);
+        jm_chol_solve(&c1, x1, nullptr);
+        jm_chol_free(&c1);
+
+        jm_chol c2;
+        jm_work w2 = {0};
+        ldlt_factor(&m, &c2, nullptr, &w2);
+        double x2[MAXN];
+        memcpy(x2, b, sizeof(double) * (size_t)m.n);
+        jm_ldlt_solve(&c2, x2, nullptr);
+        jm_chol_free(&c2);
+
+        for (int64_t i = 0; i < m.n; i++)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, x1[i], x2[i]);
+    }
+}
+
+static void test_ldlt_is_bit_identical_across_runs(void)
+{
+    double first[MAXN];
+    for (int run = 0; run < 2; run++) {
+        rng = 0x777abcu;
+        sym m;
+        int8_t sign[MAXN];
+        make_augmented(&m, 12, 7, 0.4, 1e-8, sign);
+        jm_chol c;
+        jm_work w = {0};
+        ldlt_factor(&m, &c, sign, &w);
+        double x[MAXN];
+        for (int64_t i = 0; i < m.n; i++)
+            x[i] = 1.0 / (double)(i + 1);
+        jm_ldlt_solve(&c, x, nullptr);
+        if (run == 0)
+            memcpy(first, x, sizeof(double) * (size_t)m.n);
+        else
+            TEST_ASSERT_EQUAL_MEMORY(first, x,
+                                     sizeof(double) * (size_t)m.n);
+        jm_chol_free(&c);
+    }
+}
+
+static void test_ldlt_rejects_bad_input(void)
+{
+    jm_chol c;
+    jm_chol_init(&c);
+    jm_work w = {0};
+    double v = 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jm_ldlt_numeric(&c, &v, nullptr, 1e-12, &w));
+    sym m;
+    sym_clear(&m, 1);
+    m.a[0][0] = -2.0;
+    sym_pack(&m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_chol_symbolic(&c, m.n, m.start,
+                                                    m.index, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jm_ldlt_numeric(&c, m.value, nullptr, 0.0, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jm_ldlt_numeric(&c, m.value, nullptr, -1.0, &w));
+    jm_chol_free(&c);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -414,5 +632,11 @@ int main(void)
     RUN_TEST(test_work_is_counted);
     RUN_TEST(test_empty_system);
     RUN_TEST(test_rejects_bad_input);
+    RUN_TEST(test_ldlt_solves_a_quasi_definite_system);
+    RUN_TEST(test_ldlt_keeps_the_sign_each_block_was_promised);
+    RUN_TEST(test_ldlt_replaces_a_pivot_of_the_wrong_sign);
+    RUN_TEST(test_ldlt_agrees_with_the_cholesky_on_a_definite_matrix);
+    RUN_TEST(test_ldlt_is_bit_identical_across_runs);
+    RUN_TEST(test_ldlt_rejects_bad_input);
     return UNITY_END();
 }

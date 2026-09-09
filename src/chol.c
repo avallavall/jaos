@@ -283,6 +283,7 @@ void jm_chol_free(jm_chol *c)
     free(c->l_start);
     free(c->l_index);
     free(c->l_value);
+    free(c->d);
     free(c->fill);
     free(c->x);
     free(c->s);
@@ -408,7 +409,8 @@ jaos_status jm_chol_symbolic(jm_chol *c, int64_t n, const int64_t *start,
     c->nnz = c->l_start[n];
     c->l_index = jm_alloc_array(c->nnz, sizeof *c->l_index);
     c->l_value = jm_alloc_array(c->nnz, sizeof *c->l_value);
-    if (c->l_index == nullptr || c->l_value == nullptr)
+    c->d       = jm_alloc_array(n, sizeof *c->d);
+    if (c->l_index == nullptr || c->l_value == nullptr || c->d == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
     for (int64_t k = 0; k < n; k++)
         c->l_index[c->l_start[k]] = k;
@@ -471,6 +473,97 @@ jaos_status jm_chol_numeric(jm_chol *c, const double *value, jm_work *w)
         assert(c->fill[k] == c->l_start[k + 1]);
     jm_work_add(w, gathered * JM_WORK_NONZERO + eliminated * JM_WORK_ELIMINATED);
     return JAOS_OK;
+}
+
+jaos_status jm_ldlt_numeric(jm_chol *c, const double *value,
+                            const int8_t *sign, double floor, jm_work *w)
+{
+    if (!c->symbolic || (c->n > 0 && value == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    if (!(floor > 0.0))
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t n = c->n;
+    int64_t gathered = 0, eliminated = 0;
+
+    jm_work_add(w, JM_WORK_FACTOR);
+    c->replaced = 0;
+    for (int64_t k = 0; k < n; k++) {
+        c->fill[k] = c->l_start[k] + 1;
+        c->mark[k] = -1;
+        c->x[k] = 0.0;
+        c->l_value[c->l_start[k]] = 1.0;
+    }
+
+    for (int64_t k = 0; k < n; k++) {
+        const int64_t top = ereach(c, k);
+        double diag = 0.0;
+        for (int64_t p = c->a_start[k]; p < c->a_start[k + 1]; p++) {
+            const int64_t i = c->a_index[p];
+            const double v = value[c->a_src[p]];
+            if (i == k)
+                diag += v;
+            else
+                c->x[i] += v;
+        }
+        gathered += c->a_start[k + 1] - c->a_start[k];
+
+        double d = diag;
+        for (int64_t q = top; q < n; q++) {
+            const int64_t i = c->s[q];
+
+            const double xi = c->x[i];
+            const double lki = xi / c->d[i];
+            c->x[i] = 0.0;
+            const int64_t p0 = c->l_start[i] + 1, p1 = c->fill[i];
+            for (int64_t p = p0; p < p1; p++)
+                c->x[c->l_index[p]] -= c->l_value[p] * xi;
+            eliminated += p1 - p0;
+            d -= lki * xi;
+            c->l_index[p1] = k;
+            c->l_value[p1] = lki;
+            c->fill[i] = p1 + 1;
+        }
+        gathered += n - top;
+
+        const double want = sign == nullptr ? 1.0
+                                            : (double)sign[c->perm[k]];
+        if (!(d * want >= floor)) {
+            d = want * floor;
+            c->replaced++;
+        }
+        c->d[k] = d;
+    }
+    for (int64_t k = 0; k < n; k++)
+        assert(c->fill[k] == c->l_start[k + 1]);
+    jm_work_add(w, gathered * JM_WORK_NONZERO +
+                       eliminated * JM_WORK_ELIMINATED);
+    return JAOS_OK;
+}
+
+void jm_ldlt_solve(const jm_chol *c, double *b, jm_work *w)
+{
+    const int64_t n = c->n;
+    double *y = c->x;
+    for (int64_t k = 0; k < n; k++)
+        y[k] = b[c->perm[k]];
+    for (int64_t k = 0; k < n; k++) {
+        const int64_t p0 = c->l_start[k], p1 = c->l_start[k + 1];
+        const double yk = y[k];
+        for (int64_t p = p0 + 1; p < p1; p++)
+            y[c->l_index[p]] -= c->l_value[p] * yk;
+    }
+    for (int64_t k = 0; k < n; k++)
+        y[k] /= c->d[k];
+    for (int64_t k = n - 1; k >= 0; k--) {
+        const int64_t p0 = c->l_start[k], p1 = c->l_start[k + 1];
+        double s = y[k];
+        for (int64_t p = p0 + 1; p < p1; p++)
+            s -= c->l_value[p] * y[c->l_index[p]];
+        y[k] = s;
+    }
+    for (int64_t k = 0; k < n; k++)
+        b[c->perm[k]] = y[k];
+    jm_work_add(w, (2 * c->nnz + 3 * n) * JM_WORK_NONZERO);
 }
 
 void jm_chol_solve(const jm_chol *c, double *b, jm_work *w)
