@@ -118,9 +118,10 @@ static int settle_arm(jaos_model *m, jm_arm *a, int k, int64_t *spent)
     a->work += used;
     *spent += used;
     if (a->st != JAOS_OK) {
-        jm_set_err(m, "the concurrent %s run failed: %s", arm_name(k),
-                   jaos_model_error(a->m));
-        return -1;
+        jm_log(m, JAOS_LOG_DETAIL, "  concurrent %s: gave up, %s",
+               arm_name(k), jaos_model_error(a->m));
+        a->live = false;
+        return 0;
     }
     const jaos_solve_status ss = jaos_status_of(a->m);
     jm_log(m, JAOS_LOG_DETAIL, "  concurrent %s: %lld work units, status %s",
@@ -194,12 +195,7 @@ jaos_status jm_solve_concurrent(jaos_model *m)
             for (int k = 0; k < CONCURRENT_ARMS && winner < 0; k++) {
                 if (!arm[k].live)
                     continue;
-                const int r = settle_arm(m, &arm[k], k, &spent);
-                if (r < 0) {
-                    st = arm[k].st;
-                    goto out;
-                }
-                if (r > 0)
+                if (settle_arm(m, &arm[k], k, &spent) > 0)
                     winner = k;
             }
         } else {
@@ -218,12 +214,7 @@ jaos_status jm_solve_concurrent(jaos_model *m)
                 }
                 arm[k].m->cfg.work_limit = give;
                 run_arm(&arm[k]);
-                const int r = settle_arm(m, &arm[k], k, &spent);
-                if (r < 0) {
-                    st = arm[k].st;
-                    goto out;
-                }
-                if (r > 0)
+                if (settle_arm(m, &arm[k], k, &spent) > 0)
                     winner = k;
             }
         }
@@ -247,6 +238,8 @@ jaos_status jm_solve_concurrent(jaos_model *m)
            arm_name(winner), (long long)spent);
     st = take_answer(m, arm[winner].m, spent,
                      jm_monotonic_seconds() - started);
+    if (st == JAOS_OK && arm[winner].st != JAOS_OK)
+        st = arm[winner].st;
 
 out:
     for (int k = 0; k < CONCURRENT_ARMS; k++)

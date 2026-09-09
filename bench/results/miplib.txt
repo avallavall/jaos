@@ -27,8 +27,4 @@ stein45      optimal    rows=331 cols=45 shape=ok iters=867108 work=2586525352 n
 gate: PASS
 
 -- against baseline --
-dcmulti      changed      nodes: 775 -> 791 (work 1.03x)
-enigma       changed      nodes: 3734 -> 2918 (work 0.88x)
-lseu         changed      nodes: 6993 -> 7253 (work 1.02x)
-p0033        changed      nodes: 217 -> 267 (work 1.17x)
 baseline: 0 regressed, 0 improved, 0 new

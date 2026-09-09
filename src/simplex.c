@@ -1039,6 +1039,7 @@ bool jm_dse_update(int64_t n, double *w, int64_t r,
 static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
 {
     int64_t live = n;
+    double absorbed = 0.0;
 
     while (live > 0) {
         int64_t k = 0;
@@ -1058,6 +1059,7 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
         if (!(remaining - s->rden[k] * width > 0.0))
             break;
         remaining -= s->rden[k] * width;
+        absorbed += s->rden[k] * width;
 
         live--;
         int64_t ci = s->cand[k];
@@ -1068,7 +1070,7 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
         s->rrange[k] = s->rrange[live]; s->rrange[live] = c;
     }
 
-    if (live == 0 && remaining <= s->primal_tol) {
+    if (live == 0 && remaining <= s->primal_tol * (1.0 + absorbed)) {
 
         live = 1;
     }

@@ -2992,6 +2992,77 @@ static void test_every_work_limit_stops_honestly_and_resumes(void)
     }
 }
 
+static void test_a_bound_flip_of_1e10_does_not_read_as_infeasible(void)
+{
+
+    const double c[] = {2.0, 0.0};
+    const double cu[] = {0.0, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {-3.0, 4.0};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {-2.0, -1.5, -1.5, 2.0};
+
+    const double wide[] = {-1e6, -1e9, -1e10, -1e12, -INFINITY};
+    for (size_t k = 0; k < sizeof wide / sizeof *wide; k++) {
+        const double cl[] = {wide[k], -INFINITY};
+        for (int alg = 0; alg < 3; alg++) {
+            jaos_model *m = fresh();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                             4, as, ai, av));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m,
+                alg == 0 ? JAOS_ALGORITHM_DUAL
+                         : alg == 1 ? JAOS_ALGORITHM_PRIMAL
+                                    : JAOS_ALGORITHM_BARRIER));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL,
+                jaos_status_of(m),
+                "the only feasible point is x = (0, 2); a bound of -1e10 "
+                "does not make the model infeasible");
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, obj);
+            double x[2];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_solution(m, x, nullptr, nullptr,
+                                                nullptr));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, x[0]);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, 2.0, x[1]);
+            jaos_model_free(m);
+        }
+    }
+}
+
+static void test_an_empty_column_running_to_infinity_is_unbounded(void)
+{
+
+    const double inf = INFINITY;
+    const double c[] = {0.0, 0.0, 0.0, -3.0, 0.0, 0.0};
+    const double cl[] = {-3.0, -inf, -1.0, 0.0, 0.0, -5.0};
+    const double cu[] = {-3.0, 0.0, inf, inf, inf, inf};
+    const double rl[] = {-inf, -3.0, -inf, -3.0, -6.0};
+    const double ru[] = {5.0, -3.0, 4.0, inf, inf};
+    const int64_t as[] = {0, 1, 6, 9, 9, 14, 15};
+    const int64_t ai[] = {0, 0, 1, 2, 3, 4, 1, 2, 3, 0, 1, 2, 3, 4, 4};
+    const double av[] = {1.0, 3.0, -2.0, -1.5, 1.0, -1.0, -1.5, 2.0, 1.0,
+                         -2.0, 3.0, 3.0, 2.0, -3.0, 3.0};
+    for (int alg = 0; alg < 2; alg++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 6, 5, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         15, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m,
+            alg == 0 ? JAOS_ALGORITHM_DUAL : JAOS_ALGORITHM_PRIMAL));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+        double ray[6];
+        jaos_ray_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, ray));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, ray, 1e-6, &rep));
+        TEST_ASSERT_TRUE(rep.certified);
+        jaos_model_free(m);
+    }
+}
+
 static void test_a_ray_whose_direction_cancels_in_row_space(void)
 {
     const double c[] = {-1.0, -1.0};
@@ -3378,6 +3449,8 @@ int main(void)
     RUN_TEST(test_a_fixed_column_is_not_a_flip_candidate);
     RUN_TEST(test_a_row_repairable_only_by_fixed_columns_is_infeasible);
     RUN_TEST(test_every_work_limit_stops_honestly_and_resumes);
+    RUN_TEST(test_a_bound_flip_of_1e10_does_not_read_as_infeasible);
+    RUN_TEST(test_an_empty_column_running_to_infinity_is_unbounded);
     RUN_TEST(test_a_ray_whose_direction_cancels_in_row_space);
     RUN_TEST(test_an_inverted_column_box_is_infeasible);
     RUN_TEST(test_an_inverted_row_box_is_infeasible);

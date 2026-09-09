@@ -1,7 +1,7 @@
 bgdbg1       infeasible rows=348 cols=407 shape=ok iters=0 work=68 presolve=348/407/1440->0/0/0 expected=infeasible verdict=ok det=ok
 bgetam       infeasible rows=400 cols=688 shape=ok iters=15 work=37466 presolve=400/688/2409->340/516/1842 expected=infeasible verdict=ok det=ok
 bgindy       infeasible rows=2671 cols=10116 shape=ok iters=2 work=390966 presolve=2671/10116/65502->2657/10103/65436 expected=infeasible verdict=ok det=ok
-bgprtr       infeasible rows=20 cols=34 shape=ok iters=25 work=15075 presolve=20/34/64->20/34/64 expected=infeasible verdict=ok det=ok
+bgprtr       infeasible rows=20 cols=34 shape=ok iters=28 work=16247 presolve=20/34/64->20/34/64 expected=infeasible verdict=ok det=ok
 box1         infeasible rows=231 cols=261 shape=ok iters=16 work=25263 presolve=231/261/651->231/261/651 expected=infeasible verdict=ok det=ok
 ceria3d      infeasible rows=3576 cols=824 shape=ok iters=0 work=23485 presolve=3576/824/17602->0/0/0 expected=infeasible verdict=ok det=ok
 chemcom      infeasible rows=288 cols=720 shape=ok iters=6 work=21681 presolve=288/720/1566->288/624/1470 expected=infeasible verdict=ok det=ok

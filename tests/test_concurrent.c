@@ -237,6 +237,54 @@ static void test_concurrent_leaves_a_mip_to_the_tree(void)
     jaos_model_free(d);
 }
 
+static void test_an_arm_that_gives_up_does_not_end_the_solve(void)
+{
+
+    const double inf = jaos_infinity();
+    const double c[] = {5.0, -0.5, -1.0};
+    const double cl[] = {-inf, 0.0, 0.0};
+    const double cu[] = {3.0, 10.0, inf};
+    const double rl[] = {-inf, 6.0, -5.0, -3.0, -1.0};
+    const double ru[] = {-5.0, 9.0, -4.0, inf, 2.0};
+    const int64_t as[] = {0, 4, 6, 10};
+    const int64_t ai[] = {0, 2, 3, 4, 2, 3, 1, 2, 3, 4};
+    const double av[] = {2.0, 2.0, -1.5, -3.0, 1.0, -3.0,
+                         2.0, 2.0, -1.0, -1.5};
+
+    jaos_model *p = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(p, 3, 5, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     10, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_algorithm(p, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_ERR_NUMERICAL, jaos_solve(p),
+        "this model is the one the primal gives up on; if it stops doing "
+        "that, the test below no longer says what it means to say");
+    jaos_model_free(p);
+
+    jaos_model *d = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(d, 3, 5, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     10, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(d));
+    const jaos_solve_status want = jaos_status_of(d);
+    jaos_model_free(d);
+
+    for (int n = 1; n <= 3; n += 2) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 5, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         10, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_algorithm(m, JAOS_ALGORITHM_CONCURRENT));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, n));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+            "one run giving up is not the whole concurrent solve giving up");
+        TEST_ASSERT_EQUAL_INT(want, jaos_status_of(m));
+        jaos_model_free(m);
+    }
+}
+
 static void test_concurrent_refuses_a_quadratic_objective(void)
 {
     jaos_model *m = fresh();
@@ -353,6 +401,7 @@ int main(void)
     RUN_TEST(test_concurrent_certifies_an_unbounded_model);
     RUN_TEST(test_a_work_limit_stops_concurrent_and_it_resumes);
     RUN_TEST(test_concurrent_leaves_a_mip_to_the_tree);
+    RUN_TEST(test_an_arm_that_gives_up_does_not_end_the_solve);
     RUN_TEST(test_concurrent_refuses_a_quadratic_objective);
     RUN_TEST(test_three_threads_give_the_same_answer_and_the_same_work);
     RUN_TEST(test_a_work_limit_with_threads_still_stops_and_resumes);
