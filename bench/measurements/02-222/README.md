@@ -28,9 +28,9 @@ Pock-Chambolle pass with α = 1. The question is the round count.
 | 10 | **22** | 72 | 0 |
 | 20 | 20 | 74 | 0 |
 
-The sets overlap but move: 0 rounds has lotfi and fit2d that 10 lacks, 10
-has boeing1, gfrd-pnc and scfxm1's neighbours that 0 lacks; the count is
-what the campaign measures and 10 leads it by two. The geometric mean of
+The sets overlap but move: 0 rounds has fit2d and lotfi that 10 lacks;
+10 has boeing1, fit1d, gfrd-pnc, grow15, grow7 and pilotnov that 0 lacks.
+The count is what the campaign measures and 10 leads it by two. The geometric mean of
 work over the agreeing instances is not comparable across settings,
 because the sets differ. The ten small instances without a limit are in
 `docs/tolerances.md`, before against after at 10 rounds.
