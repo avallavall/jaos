@@ -41,4 +41,14 @@ int jm_strcasecmp(const char *a, const char *b);
 
 double jm_monotonic_seconds(void);
 
+typedef struct {
+    void *handle;
+    void (*fn)(void *);
+    void *arg;
+    bool started;
+} jm_thread;
+
+bool jm_thread_start(jm_thread *t, void (*fn)(void *), void *arg);
+void jm_thread_join(jm_thread *t);
+
 #endif

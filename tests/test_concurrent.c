@@ -249,6 +249,99 @@ static void test_concurrent_refuses_a_quadratic_objective(void)
     jaos_model_free(m);
 }
 
+static void test_three_threads_give_the_same_answer_and_the_same_work(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_threads(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_threads(m, -3));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
+    jaos_model_free(m);
+
+    static const char *const files[] = {"tests/data/solve1.mps",
+                                        "tests/data/t1.mps",
+                                        "tests/data/unbounded.mps"};
+    for (size_t f = 0; f < sizeof files / sizeof *files; f++) {
+        double obj[2] = {0.0, 0.0};
+        int64_t work[2] = {0, 0};
+        int status[2] = {0, 0};
+        double first[2][64];
+        int64_t nc = 0;
+        for (int run = 0; run < 2; run++) {
+            m = fresh();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, files[f]));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_algorithm(m, JAOS_ALGORITHM_CONCURRENT));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_threads(m, run == 0 ? 1 : 3));
+            TEST_ASSERT_EQUAL_INT64(run == 0 ? 1 : 3, jaos_threads_of(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            status[run] = (int)jaos_status_of(m);
+            work[run] = jaos_work_units(m);
+            nc = jaos_num_col(m);
+            TEST_ASSERT_TRUE(nc <= 64);
+            if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[run]));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                    jaos_solution(m, first[run], nullptr, nullptr, nullptr));
+            } else {
+                memset(first[run], 0, sizeof first[run]);
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_INT(status[0], status[1]);
+        TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+        TEST_ASSERT_TRUE(obj[0] == obj[1]);
+        TEST_ASSERT_EQUAL_MEMORY(first[0], first[1],
+                                 (size_t)nc * sizeof(double));
+    }
+}
+
+static void test_a_work_limit_with_threads_still_stops_and_resumes(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_algorithm(m, JAOS_ALGORITHM_CONCURRENT));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    const jaos_solve_status st = jaos_status_of(m);
+    TEST_ASSERT_TRUE(st == JAOS_SOLVE_WORK_LIMIT || st == JAOS_SOLVE_OPTIMAL);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
+typedef struct {
+    int64_t calls;
+} counter;
+
+static jaos_callback_action count_progress(const jaos_progress *p, void *user)
+{
+    (void)p;
+    counter *c = user;
+    c->calls++;
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_the_callers_progress_callback_still_runs_with_threads(void)
+{
+    counter c = {0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_algorithm(m, JAOS_ALGORITHM_CONCURRENT));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_progress_callback(m, count_progress, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_TRUE(c.calls > 0);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -261,5 +354,8 @@ int main(void)
     RUN_TEST(test_a_work_limit_stops_concurrent_and_it_resumes);
     RUN_TEST(test_concurrent_leaves_a_mip_to_the_tree);
     RUN_TEST(test_concurrent_refuses_a_quadratic_objective);
+    RUN_TEST(test_three_threads_give_the_same_answer_and_the_same_work);
+    RUN_TEST(test_a_work_limit_with_threads_still_stops_and_resumes);
+    RUN_TEST(test_the_callers_progress_callback_still_runs_with_threads);
     return UNITY_END();
 }

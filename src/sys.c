@@ -109,9 +109,41 @@ double jm_monotonic_seconds(void)
     return (double)now.QuadPart / (double)freq.QuadPart;
 }
 
+static DWORD WINAPI thread_body(LPVOID p)
+{
+    jm_thread *t = p;
+    t->fn(t->arg);
+    return 0;
+}
+
+bool jm_thread_start(jm_thread *t, void (*fn)(void *), void *arg)
+{
+    t->handle = nullptr;
+    t->fn = fn;
+    t->arg = arg;
+    t->started = false;
+    HANDLE h = CreateThread(nullptr, 0, thread_body, t, 0, nullptr);
+    if (h == nullptr)
+        return false;
+    t->handle = h;
+    t->started = true;
+    return true;
+}
+
+void jm_thread_join(jm_thread *t)
+{
+    if (!t->started)
+        return;
+    WaitForSingleObject((HANDLE)t->handle, INFINITE);
+    CloseHandle((HANDLE)t->handle);
+    t->handle = nullptr;
+    t->started = false;
+}
+
 #else
 
 #include <locale.h>
+#include <pthread.h>
 #include <strings.h>
 #include <time.h>
 
@@ -182,6 +214,41 @@ double jm_monotonic_seconds(void)
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
         return 0.0;
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
+}
+
+static void *thread_body(void *p)
+{
+    jm_thread *t = p;
+    t->fn(t->arg);
+    return nullptr;
+}
+
+bool jm_thread_start(jm_thread *t, void (*fn)(void *), void *arg)
+{
+    t->handle = nullptr;
+    t->fn = fn;
+    t->arg = arg;
+    t->started = false;
+    pthread_t *h = malloc(sizeof *h);
+    if (h == nullptr)
+        return false;
+    if (pthread_create(h, nullptr, thread_body, t) != 0) {
+        free(h);
+        return false;
+    }
+    t->handle = h;
+    t->started = true;
+    return true;
+}
+
+void jm_thread_join(jm_thread *t)
+{
+    if (!t->started)
+        return;
+    pthread_join(*(pthread_t *)t->handle, nullptr);
+    free(t->handle);
+    t->handle = nullptr;
+    t->started = false;
 }
 
 #endif

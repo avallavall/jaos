@@ -21,6 +21,8 @@ typedef struct {
     jaos_progress_fn progress_cb;
     void *progress_user;
 
+    int64_t threads;
+
     bool force_primal;
     bool barrier;
     bool pdlp;

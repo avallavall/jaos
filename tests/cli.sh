@@ -384,8 +384,18 @@ expect_exit 5 "--probing-cap refuses a negative" \
     || flunk "jaos options does not list mip_probing_cap"
 expect_exit 0 "--threads 1 is accepted" \
     "$JAOS" solve "$DATA/nl_int.lp" --threads 1
-expect_exit 5 "--threads 2 is refused" \
-    "$JAOS" solve "$DATA/nl_int.lp" --threads 2
+expect_exit 0 "--threads 3 is accepted" \
+    "$JAOS" solve "$DATA/nl_int.lp" --threads 3
+expect_exit 5 "--threads 0 is refused" \
+    "$JAOS" solve "$DATA/nl_int.lp" --threads 0
+expect_exit 0 "--algorithm concurrent on one thread" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent --threads 1
+conc_one="$(line_of objective) $(line_of work_units)"
+expect_exit 0 "and on three threads" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent --threads 3
+[ "$(line_of objective) $(line_of work_units)" = "$conc_one" ] \
+    && pass "gives the same objective and the same work units" \
+    || flunk "three threads: $(line_of objective) $(line_of work_units) against $conc_one"
 "$JAOS" options | grep -q '^threads ' \
     && pass "jaos options lists threads" \
     || flunk "jaos options does not list threads"

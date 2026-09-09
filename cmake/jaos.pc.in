@@ -8,5 +8,5 @@ Description: Just Another Optimization Solver
 URL: https://github.com/avallavall/jaos
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -ljaos
-Libs.private: -lm
+Libs.private: -lm -pthread
 Cflags: -I${includedir}

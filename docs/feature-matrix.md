@@ -81,14 +81,15 @@ hand the solve to the dual. Stage 7, the unboundedness verdict, landed on
 proof the dual already used, and the shared lent-bound verdict also
 proves a ray that needs several columns at once.
 
-**Concurrent reads ◐ since 2026-09-10, and the gap is threads.**
-`--algorithm concurrent` copies the model three times, sets the dual, the
-primal and the barrier on the copies and runs them in that order under a
-work budget that grows each round; the first to answer wins and the work
-billed is the sum over the three. Nothing reads a clock, so the winner is
-the same on every machine, which the threaded version in the other columns
-cannot promise. What it does not do is finish sooner in wall-clock time,
-because the three runs share one core. `bench/results/concurrent.txt`:
+**Concurrent reads ◐ since 2026-09-10, and the gap is the set that
+would show it paying.** `--algorithm concurrent` copies the model three
+times, sets the dual, the primal and the barrier on the copies and runs
+them under a work budget that grows each round; the first to answer wins
+and the work billed is the sum over the three. Nothing reads a clock, so
+the winner is the same on every machine, which the threaded version in the
+other columns cannot promise. `--threads N` above 1 starts the three at
+once and stops every arm behind one that has answered, and the answer and
+the work units do not move.  `bench/results/concurrent.txt`:
 94 of 94 agree inside 10x the dual's work, none disagrees, work geometric
 mean 1.090x the dual, and the primal wins `grow22` at 0.372x.
 
@@ -203,13 +204,21 @@ solver people buy.
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| Parallel LP solve | ○ | ● | ○ | ○ | ? | ● | ? |
+| Parallel LP solve | ◐ | ● | ○ | ○ | ? | ● | ? |
 | Parallel MIP solve | ○ | ◐ | — | — | ● | ● | ● |
-| Deterministic under parallelism | — | ? | — | — | ? | ● | ? |
+| Deterministic under parallelism | ● | ? | — | — | ? | ● | ? |
 
-JAOS is single-threaded per model by design. The "—" on the determinism row
-means the question does not arise, not that it fails. The benchmark runner's
-`-j N` is process-level concurrency, one instance per process, not threads.
+**JAOS reads ◐ on the LP row and ● on determinism since 2026-09-10.** The
+one thing that takes a second thread is `--algorithm concurrent
+--threads N`: the dual, the primal and the barrier run on the same LP at
+the same time and the first to answer is published. What the field means
+by a parallel LP solve is one method spreading a factorisation over N
+cores, and that is the gap. Determinism reads ● because the winner is the
+first arm in a fixed order to answer inside a work budget, and no clock
+enters that: over the standard 94 the work units and the objective are
+identical at 1 and at 3 threads, while the wall clock over the set falls
+from 132.6 s to 110.4 s. The benchmark runner's `-j N` is something else,
+process-level concurrency with one instance per process.
 
 ## 6. Correctness and verification
 

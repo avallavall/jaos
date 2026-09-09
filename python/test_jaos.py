@@ -126,14 +126,23 @@ class TestSolving(unittest.TestCase):
             self.assertGreaterEqual(m.solve_time, 0.0)
 
 class TestReadingFiles(unittest.TestCase):
-    def test_the_thread_count_takes_one_and_refuses_more(self):
+    def test_the_thread_count_is_kept_and_changes_no_answer(self):
         p = jaos.Problem()
         p.set_threads(1)
-        with self.assertRaises(jaos.JaosError) as ctx:
-            p.set_threads(4)
-        self.assertIn("one thread", str(ctx.exception))
         with self.assertRaises(jaos.JaosError):
             p.set_threads(0)
+        with self.assertRaises(jaos.JaosError):
+            p.set_threads(-2)
+        answers = []
+        for n in (1, 3):
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.set_algorithm(jaos.Algorithm.CONCURRENT)
+                m.set_threads(n)
+                self.assertEqual(m.threads, n)
+                self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+                answers.append((m.objective(), m.work_units))
+        self.assertEqual(answers[0], answers[1])
 
     def test_an_nl_file_reads_with_its_names_and_a_nonlinear_one_is_refused(self):
         with jaos.Model() as m:

@@ -75,6 +75,9 @@ else()
 endif()
 
 set(JAOS_LIBM $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+set(JAOS_THREADS Threads::Threads)
 
 set(JAOS_IPO OFF)
 if(JAOS_LTO)
@@ -94,7 +97,7 @@ add_library(jaos::jaos ALIAS jaos)
 target_include_directories(jaos PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(jaos PUBLIC ${JAOS_LIBM})
+target_link_libraries(jaos PUBLIC ${JAOS_LIBM} ${JAOS_THREADS})
 set_target_properties(jaos PROPERTIES OUTPUT_NAME jaos)
 if(MSVC)
   set_target_properties(jaos PROPERTIES OUTPUT_NAME jaos_static)
@@ -109,7 +112,7 @@ if(JAOS_BUILD_SHARED)
   target_include_directories(jaos_shared PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-  target_link_libraries(jaos_shared PUBLIC ${JAOS_LIBM})
+  target_link_libraries(jaos_shared PUBLIC ${JAOS_LIBM} ${JAOS_THREADS})
   set_target_properties(jaos_shared PROPERTIES
       OUTPUT_NAME jaos
       EXPORT_NAME shared
@@ -146,7 +149,7 @@ if(JAOS_BUILD_TESTS)
     get_filename_component(test_name ${test_source} NAME_WE)
     add_executable(${test_name} ${test_source} $<TARGET_OBJECTS:jaos_dev>)
     target_include_directories(${test_name} PRIVATE include src)
-    target_link_libraries(${test_name} PRIVATE jaos_unity ${JAOS_LIBM})
+    target_link_libraries(${test_name} PRIVATE jaos_unity ${JAOS_LIBM} ${JAOS_THREADS})
     target_compile_options(${test_name} PRIVATE
         ${JAOS_C_FLAGS} ${JAOS_DEV_FLAGS})
     add_test(NAME ${test_name} COMMAND ${test_name}

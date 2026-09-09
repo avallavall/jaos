@@ -14,7 +14,9 @@ INC  := -Iinclude
 
 FP := -ffp-contract=off
 
-LDLIBS := -lm
+THREADS := -pthread
+
+LDLIBS := -lm -pthread
 
 LTO    ?= 1
 NATIVE ?= 0
@@ -31,8 +33,8 @@ PGO_CFLAGS ?=
 
 EXTRA_CFLAGS ?=
 
-RELEASE_CFLAGS := $(STD) $(WARN) $(FP) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
-DEV_CFLAGS     := $(STD) $(WARN) $(FP) -Werror -g -Og $(EXTRA_CFLAGS)
+RELEASE_CFLAGS := $(STD) $(WARN) $(FP) $(THREADS) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
+DEV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -Og $(EXTRA_CFLAGS)
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 UNITY_DIR    := tests/vendor/unity
@@ -428,7 +430,7 @@ $(B)/jaos.pc: include/jaos.h Makefile | $(B)/release
 	@printf 'URL: https://github.com/avallavall/jaos\n'        >> $@
 	@printf 'Version: %s\n' '$(JAOS_VERSION)'                  >> $@
 	@printf 'Libs: -L$${libdir} -ljaos\n'                      >> $@
-	@printf 'Libs.private: -lm\n'                              >> $@
+	@printf 'Libs.private: -lm -pthread\n'                     >> $@
 	@printf 'Cflags: -I$${includedir}\n'                       >> $@
 
 pkgconfig: $(B)/jaos.pc

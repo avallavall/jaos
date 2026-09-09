@@ -72,9 +72,13 @@ static void test_options_reach_the_setters(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "threads", "1"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_get_option(m, "threads", buf, 64));
     TEST_ASSERT_EQUAL_STRING("1", buf);
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "threads", "2"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "one thread"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "threads", "3"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_get_option(m, "threads", buf, 64));
+    TEST_ASSERT_EQUAL_STRING("3", buf);
+    TEST_ASSERT_EQUAL_INT64(3, jaos_threads_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "threads", "0"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "must be positive"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "threads", "1"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_orbital", "off"));
     TEST_ASSERT_TRUE(m->cfg.mip_orbital_set && !m->cfg.mip_orbital);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_symmetry", "off"));

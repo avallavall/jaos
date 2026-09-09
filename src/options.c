@@ -324,7 +324,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_CLIQUE_ROUNDS: i = (int64_t)eff(c->mip_clique_rounds_set, (double)c->mip_clique_rounds, JM_DEF_CLIQUE_ROUNDS); break;
     case O_ZERO_HALF_ROUNDS: i = (int64_t)eff(c->mip_zero_half_rounds_set, (double)c->mip_zero_half_rounds, JM_DEF_ZERO_HALF_ROUNDS); break;
     case O_FLOW_COVER_ROUNDS: i = (int64_t)eff(c->mip_flow_cover_rounds_set, (double)c->mip_flow_cover_rounds, JM_DEF_FLOW_COVER_ROUNDS); break;
-    case O_THREADS: i = 1; break;
+    case O_THREADS: i = jaos_threads_of(m); break;
     case O_COUNT: return JAOS_ERR_INVALID_INPUT;
     }
     int n;

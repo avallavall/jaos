@@ -56,6 +56,17 @@ if command -v wine >/dev/null 2>&1; then
                 || { flunk "the Windows answer for $m differs from the Linux one"; \
                      diff "$ROOT/linux" "$ROOT/windows" | sed 's/^/     /'; }
         done
+        for n in 1 3; do
+            build/cli/jaos solve tests/data/solve1.mps --algorithm concurrent \
+                --threads "$n" 2>&1 | grep -v '^time ' > "$ROOT/linux"
+            WINEDEBUG=-all wine "$BUILD/jaos.exe" solve tests/data/solve1.mps \
+                --algorithm concurrent --threads "$n" 2>/dev/null \
+                | tr -d '\r' | grep -v '^time ' > "$ROOT/windows"
+            cmp -s "$ROOT/linux" "$ROOT/windows" \
+                && pass "and the concurrent solve on $n thread(s) agrees" \
+                || { flunk "the Windows concurrent answer on $n thread(s) differs"; \
+                     diff "$ROOT/linux" "$ROOT/windows" | sed 's/^/     /'; }
+        done
         build/cli/jaos convert tests/data/solve1.mps "$ROOT/linux.mps.gz"
         WINEDEBUG=-all wine "$BUILD/jaos.exe" convert tests/data/solve1.mps \
             "$ROOT/windows.mps.gz" 2>/dev/null

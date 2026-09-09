@@ -691,6 +691,7 @@ _sig("jaos_read_point", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_read_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_set_work_limit", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_threads", ctypes.c_int, _VP, _I64)
+_sig("jaos_threads_of", _I64, _VP)
 _sig("jaos_set_time_limit", ctypes.c_int, _VP, _D)
 _sig("jaos_set_primal_tolerance", ctypes.c_int, _VP, _D)
 _sig("jaos_set_dual_tolerance", ctypes.c_int, _VP, _D)
@@ -2023,11 +2024,20 @@ class Model:
         return self
 
     def set_threads(self, threads):
-        """The thread count. JAOS runs one thread, so 1 is accepted and
-        anything else raises with a message saying so, for a caller
-        ported from a solver that takes more."""
+        """The thread count, 1 by default. Only Algorithm.CONCURRENT
+        runs more than one: above 1 it runs the dual, the primal and
+        the barrier at once and stops the ones a winner has already
+        beaten. The answer and the work units are the same at any
+        count; the wall clock is not. Everything else runs one
+        thread whatever this says. Zero or a negative count
+        raises."""
         self._check(_lib.jaos_set_threads(self._handle(), int(threads)))
         return self
+
+    @property
+    def threads(self):
+        """The thread count set by set_threads; 1 by default."""
+        return _lib.jaos_threads_of(self._handle())
 
     def set_time_limit(self, seconds):
         self._check(_lib.jaos_set_time_limit(self._handle(), float(seconds)))
