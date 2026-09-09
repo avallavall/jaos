@@ -13,6 +13,7 @@ constexpr double  PDLP_RESTART_SUFFICIENT = 0.2;
 constexpr double  PDLP_RESTART_NECESSARY  = 0.8;
 constexpr double  PDLP_RESTART_ARTIFICIAL = 0.36;
 constexpr int64_t PDLP_STEP_TRIES         = 64;
+constexpr int64_t PDLP_RUIZ_ROUNDS        = 10;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 
@@ -20,7 +21,7 @@ typedef struct {
     jaos_model *m;
     int64_t nrow, ncol, nvar;
 
-    double *av;
+    double *av, *av0, *rs, *cs, *sl;
     double *lo, *up, *cost;
     uint8_t *kind;
     double norm_c, norm_bound;
@@ -45,7 +46,7 @@ typedef struct {
 
 static void px_free(px *s)
 {
-    free(s->av);
+    free(s->av);  free(s->av0); free(s->rs);   free(s->cs);   free(s->sl);
     free(s->lo);  free(s->up);  free(s->cost); free(s->kind);
     free(s->z);   free(s->y);   free(s->ez);   free(s->g);
     free(s->zn);  free(s->yn);  free(s->ezn);
@@ -53,6 +54,71 @@ static void px_free(px *s)
     free(s->za);  free(s->ya);  free(s->eza);  free(s->ga);
     free(s->zr);  free(s->yr);  free(s->lam);
     memset(s, 0, sizeof *s);
+}
+
+static void scale_pass(px *s, double *rowagg, double *colagg, bool by_max)
+{
+    const jaos_model *m = s->m;
+    const int64_t nr = s->nrow, nv = s->nvar;
+    memset(rowagg, 0, (size_t)nr * sizeof(double));
+    memset(colagg, 0, (size_t)nv * sizeof(double));
+    for (int64_t j = 0; j < s->ncol; j++) {
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double a = fabs(s->av0[k] * s->rs[i] * s->cs[j]);
+            if (by_max) {
+                if (a > rowagg[i]) rowagg[i] = a;
+                if (a > colagg[j]) colagg[j] = a;
+            } else {
+                rowagg[i] += a;
+                colagg[j] += a;
+            }
+        }
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        const double a = fabs(s->rs[i] * s->cs[s->ncol + i]);
+        if (by_max) {
+            if (a > rowagg[i]) rowagg[i] = a;
+            colagg[s->ncol + i] = a;
+        } else {
+            rowagg[i] += a;
+            colagg[s->ncol + i] += a;
+        }
+    }
+    for (int64_t i = 0; i < nr; i++)
+        if (rowagg[i] > 0.0)
+            s->rs[i] /= sqrt(rowagg[i]);
+    for (int64_t j = 0; j < nv; j++)
+        if (colagg[j] > 0.0)
+            s->cs[j] /= sqrt(colagg[j]);
+    jm_work_add(&s->work, (m->num_nz + 2 * nr + 2 * nv) * JM_WORK_NONZERO);
+}
+
+static void precondition(px *s)
+{
+    const jaos_model *m = s->m;
+    const int64_t nr = s->nrow, nv = s->nvar;
+    for (int64_t i = 0; i < nr; i++)
+        s->rs[i] = 1.0;
+    for (int64_t j = 0; j < nv; j++)
+        s->cs[j] = 1.0;
+    for (int64_t round = 0; round < PDLP_RUIZ_ROUNDS; round++)
+        scale_pass(s, s->ez, s->g, true);
+    scale_pass(s, s->ez, s->g, false);
+    memset(s->ez, 0, (size_t)nr * sizeof(double));
+    memset(s->g, 0, (size_t)nv * sizeof(double));
+
+    for (int64_t j = 0; j < s->ncol; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            s->av[k] = s->av0[k] * s->rs[m->a_index[k]] * s->cs[j];
+    for (int64_t i = 0; i < nr; i++)
+        s->sl[i] = s->rs[i] * s->cs[s->ncol + i];
+    for (int64_t j = 0; j < nv; j++) {
+        s->lo[j] /= s->cs[j];
+        s->up[j] /= s->cs[j];
+        s->cost[j] *= s->cs[j];
+    }
+    jm_work_add(&s->work, (m->num_nz + nr + 3 * nv) * JM_WORK_NONZERO);
 }
 
 static jaos_status px_init(px *s, jaos_model *m)
@@ -71,6 +137,10 @@ static jaos_status px_init(px *s, jaos_model *m)
 
     const int64_t nv = s->nvar, nr = s->nrow;
     s->av   = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof(double));
+    s->av0  = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof(double));
+    s->rs   = jm_alloc_array(nr > 0 ? nr : 1, sizeof(double));
+    s->cs   = jm_alloc_array(nv > 0 ? nv : 1, sizeof(double));
+    s->sl   = jm_alloc_array(nr > 0 ? nr : 1, sizeof(double));
     s->lo   = jm_alloc_array(nv > 0 ? nv : 1, sizeof(double));
     s->up   = jm_alloc_array(nv > 0 ? nv : 1, sizeof(double));
     s->cost = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
@@ -91,7 +161,8 @@ static jaos_status px_init(px *s, jaos_model *m)
     s->zr   = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
     s->yr   = jm_calloc_array(nr > 0 ? nr : 1, sizeof(double));
     s->lam  = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
-    if (!s->av || !s->lo || !s->up || !s->cost || !s->kind || !s->z ||
+    if (!s->av || !s->av0 || !s->rs || !s->cs || !s->sl ||
+        !s->lo || !s->up || !s->cost || !s->kind || !s->z ||
         !s->y || !s->ez || !s->g || !s->zn || !s->yn || !s->ezn || !s->zs ||
         !s->ys || !s->za || !s->ya || !s->eza || !s->ga || !s->zr || !s->yr ||
         !s->lam) {
@@ -114,6 +185,8 @@ static jaos_status px_init(px *s, jaos_model *m)
         s->lo[s->ncol + i] = m->row_lower[i] * rho[i];
         s->up[s->ncol + i] = m->row_upper[i] * rho[i];
     }
+    memcpy(s->av0, s->av, (size_t)m->num_nz * sizeof(double));
+    precondition(s);
 
     double c2 = 0.0, b2 = 0.0;
     for (int64_t j = 0; j < nv; j++) {
@@ -142,7 +215,7 @@ static void mul_e(px *s, const double *z, double *out)
 {
     const jaos_model *m = s->m;
     for (int64_t i = 0; i < s->nrow; i++)
-        out[i] = -z[s->ncol + i];
+        out[i] = -s->sl[i] * z[s->ncol + i];
     for (int64_t j = 0; j < s->ncol; j++) {
         const double zj = z[j];
         if (zj == 0.0)
@@ -163,7 +236,7 @@ static void mul_et(px *s, const double *y, double *out)
         out[j] = t;
     }
     for (int64_t i = 0; i < s->nrow; i++)
-        out[s->ncol + i] = -y[i];
+        out[s->ncol + i] = -s->sl[i] * y[i];
     jm_work_add(&s->work, (m->num_nz + s->nrow) * JM_WORK_NONZERO);
 }
 
@@ -303,11 +376,14 @@ static jaos_status px_run(px *s, jaos_solve_status *out)
     memset(s->g, 0, (size_t)nv * sizeof(double));
     s->omega = (s->norm_c > 0.0 && s->norm_bound > 0.0)
                    ? s->norm_c / s->norm_bound : 1.0;
-    double emax = 1.0;
+    double emax = 0.0;
     for (int64_t k = 0; k < m->num_nz; k++)
         if (fabs(s->av[k]) > emax)
             emax = fabs(s->av[k]);
-    s->eta = 1.0 / emax;
+    for (int64_t i = 0; i < nr; i++)
+        if (fabs(s->sl[i]) > emax)
+            emax = fabs(s->sl[i]);
+    s->eta = emax > 0.0 ? 1.0 / emax : 1.0;
     memcpy(s->zr, s->z, (size_t)nv * sizeof(double));
     memcpy(s->yr, s->y, (size_t)nr * sizeof(double));
     {
@@ -484,13 +560,14 @@ static jaos_status px_publish(px *s, jaos_solve_status status, jm_presolve *p)
     } else {
         const double *rho = m->row_scale, *gamma = m->col_scale;
         for (int64_t j = 0; j < m->num_col; j++) {
-            m->sol_col[j] = published(gamma[j] * s->z[j]);
-            m->sol_redcost[j] =
-                published(sigma * (s->cost[j] - s->g[j]) / gamma[j]);
+            m->sol_col[j] = published(gamma[j] * s->cs[j] * s->z[j]);
+            m->sol_redcost[j] = published(
+                sigma * (s->cost[j] - s->g[j]) / (s->cs[j] * gamma[j]));
         }
         for (int64_t i = 0; i < m->num_row; i++) {
-            m->sol_row[i] = published(s->z[m->num_col + i] / rho[i]);
-            m->sol_dual[i] = published(sigma * s->y[i] * rho[i]);
+            m->sol_row[i] =
+                published(s->cs[m->num_col + i] * s->z[m->num_col + i] / rho[i]);
+            m->sol_dual[i] = published(sigma * s->rs[i] * s->y[i] * rho[i]);
         }
         for (int64_t j = 0; j < s->nvar; j++) {
             const uint8_t k = s->kind[j];
@@ -543,16 +620,16 @@ static jaos_status px_crossover(px *s)
         const double r = s->cost[j] - s->g[j];
         const double l = dual_slack(s, j, r);
         if (k & HAS_LO) {
-            w[j] = s->z[j] - s->lo[j];
-            zl[j] = l > 0.0 ? l : 0.0;
+            w[j] = s->cs[j] * (s->z[j] - s->lo[j]);
+            zl[j] = (l > 0.0 ? l : 0.0) / s->cs[j];
         }
         if (k & HAS_UP) {
-            v[j] = s->up[j] - s->z[j];
-            zu[j] = l < 0.0 ? -l : 0.0;
+            v[j] = s->cs[j] * (s->up[j] - s->z[j]);
+            zu[j] = (l < 0.0 ? -l : 0.0) / s->cs[j];
         }
     }
     jm_work_add(&s->work, nv * JM_WORK_NONZERO);
-    st = jm_crash_basis(s->m, s->kind, w, v, zl, zu, s->av, &s->work);
+    st = jm_crash_basis(s->m, s->kind, w, v, zl, zu, s->av0, &s->work);
 done:
     free(w);
     free(v);

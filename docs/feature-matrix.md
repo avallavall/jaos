@@ -93,7 +93,8 @@ the dual simplex from the slack basis once the iterate diverges, so the
 verdict and its certificate are the dual's (since 2026-09-09,
 `bench/results/barrier-infeas.txt`). **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
-hybrid gradient on the scaled model (`src/pdlp.c`), with the adaptive step,
+hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
+preconditioning (`src/pdlp.c`), with the adaptive step,
 the restarts to the running average and the primal-weight rebalancing of
 Applegate et al. (2021), single-threaded and deterministic, finished by the
 same crossover and handing off the same way; `bench/results/pdlp.txt` is its

@@ -56,19 +56,13 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **PDLP: the reference's preconditioning.** Ruiz equilibration (10
-   rounds) followed by the Pock-Chambolle scaling with α = 1, applied on
-   top of the Curtis-Reid scaling the model already carries, inside
-   `src/pdlp.c` and undone at publication; the constants in
-   `docs/tolerances.md` with `make pdlp` as the reading against
-   `bench/results/pdlp.txt` (3 of 94 inside 10x, work 3.96x on those).
-4. **Barrier: dense columns.** A column with more than a threshold of
+3. **Barrier: dense columns.** A column with more than a threshold of
    nonzeros is left out of the normal matrix and reintroduced by the
    Sherman-Morrison-Woodbury update on the Cholesky solve; the
    threshold in `docs/tolerances.md` from a sweep, `make barrier` as
    the reading (72 of 94 accepted, 22 past 10x, fit2p and israel among
    the dense ones).
-5. **Convex QP with a separable objective.** A diagonal quadratic term
+4. **Convex QP with a separable objective.** A diagonal quadratic term
    `½ Σ q_j x_j²` with `q_j >= 0`: `jaos_set_col_quadratic` and its
    reader, MPS `QUADOBJ` and `QMATRIX` diagonals, the LP dialect's
    `[ q x^2 ] / 2` objective terms, both writers, the barrier carrying
