@@ -201,6 +201,8 @@ typedef struct {
 
     int64_t n_refactor;
     int64_t n_weight_restart;
+    int64_t n_pse_exact;
+    int64_t n_pse_cheap;
     int64_t n_bland;
 
     int64_t n_stability;
@@ -1643,10 +1645,45 @@ static void pse_reset(sx *s)
     s->devex_stale = false;
 }
 
+static void pse_exact(sx *s)
+{
+    double *col = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof *col);
+    if (col == nullptr)
+        return;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->status[v] == JM_BASIC) {
+            s->devex[v] = 1.0;
+            continue;
+        }
+        var_column(s, v, col);
+        jm_lu_ftran(&s->lu, col, &s->work);
+        double n = 1.0;
+        for (int64_t i = 0; i < s->nrow; i++)
+            n += col[i] * col[i];
+        s->devex[v] = n;
+    }
+    free(col);
+    jm_work_add(&s->work, (int64_t)s->nvar * (s->nrow + 1) * JM_WORK_NONZERO);
+    s->devex_stale = false;
+    s->n_pse_exact++;
+}
+
+constexpr int64_t PSE_CHEAP_RESTARTS = 64;
+
+static void pse_refresh(sx *s)
+{
+    if (s->in_phase1 || s->n_pse_cheap < PSE_CHEAP_RESTARTS) {
+        s->n_pse_cheap += !s->in_phase1;
+        pse_reset(s);
+    } else {
+        pse_exact(s);
+    }
+}
+
 static void primal_weights_reset(sx *s)
 {
     if (s->pse_on)
-        pse_reset(s);
+        pse_refresh(s);
     else
         devex_reset(s);
 }
@@ -1822,7 +1859,7 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     jm_nonbasic_remove(s->nbmark, q);
     s->where[q] = r;
 
-    if (s->devex_on && s->devex_stale)
+    if (s->devex_on && s->devex_stale && !s->pse_on)
         primal_weights_reset(s);
 
     if (shifts_costs(s))
@@ -3015,6 +3052,11 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 return JAOS_OK;
             }
         }
+        if (s->devex_on && s->pse_on && s->devex_stale) {
+            pse_refresh(s);
+            if (s->devex_stale)
+                return JAOS_ERR_OUT_OF_MEMORY;
+        }
 
         const double total = primal_phase1_costs(s);
 
@@ -3216,7 +3258,9 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
     s->devex_on = !s->m->cfg.primal_dantzig;
     s->pse_on = s->devex_on && !s->m->cfg.primal_devex;
-    if (s->devex_on)
+    if (s->pse_on)
+        s->devex_stale = true;
+    else if (s->devex_on)
         primal_weights_reset(s);
 
     bool ok = false;
@@ -3262,7 +3306,9 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
         s->last_gain = s->iters;
         s->bland = false;
         s->dinfeas_best = HUGE_VAL;
-        if (s->devex_on)
+        if (s->pse_on)
+            s->devex_stale = true;
+        else if (s->devex_on)
             primal_weights_reset(s);
     }
 
@@ -3318,6 +3364,11 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                 *out = JAOS_SOLVE_NUMERICAL_ERROR;
                 return JAOS_OK;
             }
+        }
+        if (s->devex_on && s->pse_on && s->devex_stale) {
+            pse_refresh(s);
+            if (s->devex_stale)
+                return JAOS_ERR_OUT_OF_MEMORY;
         }
 
         double total = 0.0;

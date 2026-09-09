@@ -121,7 +121,16 @@ outside a pivot, because that sweep is repairing rather than stepping
 . The
 steepest-edge weight update charges one per row, the exact weight that feeds
 it charges one per slot it adds up rather than one per row, and each
-swap attempted while settling up charges two per row.
+swap attempted while settling up charges two per row. The primal's
+steepest-edge weights, when the entering column's carried weight has drifted
+past `DSE_DRIFT` from its exact one, are reset to the slack basis's weights
+at `nnz + rows`, and in phase 2, after `PSE_CHEAP_RESTARTS` such resets,
+rebuilt exactly for the current basis instead: one FTRAN per variable, each
+billed by the solve itself, plus one per row per variable for the squares.
+Until 2026-09-09 every restart wrote the slack basis's weights, which are
+exact for no other basis, so on `degen3` the drift check fired again on the
+next iteration and 10723 of its 15291 iterations paid a reset and priced on
+wrong weights.
 
 **The primal phase 1** bills four things, all by the same rule as everything
 above: one unit per position touched. It had no entry here at all while its
