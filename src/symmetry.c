@@ -312,14 +312,21 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     g->uf = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->uf);
     double *vals = malloc((size_t)(nz > 0 ? nz : 1) * sizeof *vals);
     ckey *keys = malloc((size_t)(n > 0 ? n : 1) * sizeof *keys);
+    int64_t *indmark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *indmark);
     if (g->adj_start == nullptr || g->adj == nullptr || g->lab == nullptr ||
         g->color0 == nullptr || g->order == nullptr || g->key == nullptr ||
         g->cells == nullptr || g->inv == nullptr || g->perm == nullptr ||
-        g->uf == nullptr || vals == nullptr || keys == nullptr) {
+        g->uf == nullptr || vals == nullptr || keys == nullptr ||
+        indmark == nullptr) {
         free(vals);
         free(keys);
+        free(indmark);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
+    if (m->row_ind_col != nullptr)
+        for (int64_t i = 0; i < nr; i++)
+            if (m->row_ind_col[i] >= 0)
+                indmark[m->row_ind_col[i]] = m->row_ind_col[i] + 1;
     memcpy(vals, m->a_value, (size_t)nz * sizeof *vals);
     qsort(vals, (size_t)nz, sizeof *vals, dbl_cmp);
     int64_t nv = 0;
@@ -351,7 +358,8 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
                           .c = m->col_upper[j],
                           .e = m->col_quad != nullptr ? m->col_quad[j] : 0.0,
                           .d = (m->col_integer != nullptr && m->col_integer[j])
-                               + 2 * (m->col_semi != nullptr && m->col_semi[j]),
+                               + 2 * (m->col_semi != nullptr && m->col_semi[j])
+                               + 4 * indmark[j],
                           .who = j };
     }
     qsort(keys, (size_t)nc, sizeof *keys, ckey_cmp);
@@ -392,6 +400,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     }
     free(vals);
     free(keys);
+    free(indmark);
     return JAOS_OK;
 }
 

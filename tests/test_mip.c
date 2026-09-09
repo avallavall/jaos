@@ -215,6 +215,149 @@ static void test_a_quadratic_objective_matches_enumeration(void)
     }
 }
 
+static void test_symmetry_does_not_swap_a_column_an_indicator_reads(void)
+{
+    constexpr int64_t N = 6;
+    constexpr int64_t M = 1;
+    const double cost[N] = {-8, -9, -8, 4, -7, 10};
+    const double cl[N] = {0, -1, 0, 0, -1, 0};
+    const double cu[N] = {1, 2, 1, 1, 1, 2};
+    const double rl[M] = {-2.0}, ru[M] = {-2.0};
+    const int64_t as[N + 1] = {0, 1, 2, 3, 3, 4, 5};
+    const int64_t ai[5] = {0, 0, 0, 0, 0};
+    const double av[5] = {-1, -2, -1, 1, -1};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     5, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 0, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -33.0, obj);
+    if (fabs(x[0] - 1.0) < 0.5) {
+        const double act = -x[0] - 2.0 * x[1] - x[2] + x[4] - x[5];
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, -2.0, act);
+    }
+    jaos_model_free(m);
+}
+
+static void test_an_indicator_column_wider_than_a_binary_still_branches(void)
+{
+    constexpr int64_t N = 4;
+    constexpr int64_t M = 3;
+    const double cost[N] = {3, 8, -4, 9};
+    const double cl[N] = {-2, 0, 0, -2};
+    const double cu[N] = {1, 2, 2, 2};
+    const double rl[M] = {3.0, -INFINITY, -INFINITY};
+    const double ru[M] = {3.0, -1.0, -1.0};
+    const int64_t as[N + 1] = {0, 2, 5, 8, 11};
+    const int64_t ai[11] = {0, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
+    const double av[11] = {-2, -1, 1, 1, -2, 1, -2, 2, -1, -2, 2};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     11, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 2, 0, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 2000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -7.0, obj);
+    if (fabs(x[0]) < 0.5) {
+        const double act = -x[0] - 2.0 * x[1] + 2.0 * x[2] + 2.0 * x[3];
+        TEST_ASSERT_TRUE(act <= -1.0 + 1e-6);
+    }
+    jaos_model_free(m);
+}
+
+static void test_propagation_that_fixes_an_indicator_column_wakes_its_row(void)
+{
+    constexpr int64_t N = 6;
+    constexpr int64_t M = 3;
+    const double cost[N] = {2, -7, -5, 6, 3, 8};
+    const double cl[N] = {0, 0, 0, 0, 0, 0};
+    const double cu[N] = {1, 3, 3, 1, 1, 1};
+    const double rl[M] = {0.0, -2.0, -INFINITY};
+    const double ru[M] = {INFINITY, INFINITY, -2.0};
+    const int64_t as[N + 1] = {0, 3, 3, 5, 7, 10, 13};
+    const int64_t ai[13] = {0, 1, 2, 0, 1, 1, 2, 0, 1, 2, 0, 1, 2};
+    const double av[13] = {-2, -1, 1, -1, -2, 1, 1, -2, -1, 2, 1, 1, -2};
+
+    for (int64_t rounds = 0; rounds <= 8; rounds += 8) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         13, as, ai, av));
+        for (int64_t j = 0; j < N; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 2, 4, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, rounds));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1000));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+        double obj = 0.0, x[N];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, -18.0, obj);
+        if (fabs(x[4]) < 0.5) {
+            const double act = x[0] + x[3] + 2.0 * x[4] - 2.0 * x[5];
+            TEST_ASSERT_TRUE(act <= -2.0 + 1e-6);
+        }
+        jaos_model_free(m);
+    }
+}
+
+static void test_coefficient_tightening_leaves_an_indicator_row_alone(void)
+{
+    constexpr int64_t N = 5;
+    constexpr int64_t M = 1;
+    const double cost[N] = {2, -3, -1, -3, -9};
+    const double cl[N] = {0, 0, 0, 0, 0};
+    const double cu[N] = {3, 3, 2, 1, 1};
+    const double rl[M] = {-INFINITY}, ru[M] = {4.0};
+    const int64_t as[N + 1] = {0, 1, 1, 2, 3, 4};
+    const int64_t ai[4] = {0, 0, 0, 0};
+    const double av[4] = {-2.0, 1.0, 2.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 3, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -22.0, obj);
+    const double act = -2.0 * x[0] + x[2] + 2.0 * x[3] + x[4];
+    if (fabs(x[3] - 1.0) < 0.5)
+        TEST_ASSERT_TRUE(act <= 4.0 + 1e-6);
+    jaos_model_free(m);
+}
+
 static void test_a_quadratic_node_without_an_interior_still_solves(void)
 {
     constexpr int64_t N = 6;
@@ -3565,6 +3708,10 @@ int main(void)
     RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
     RUN_TEST(test_a_quadratic_objective_branches_on_barrier_relaxations);
     RUN_TEST(test_a_quadratic_objective_matches_enumeration);
+    RUN_TEST(test_symmetry_does_not_swap_a_column_an_indicator_reads);
+    RUN_TEST(test_an_indicator_column_wider_than_a_binary_still_branches);
+    RUN_TEST(test_propagation_that_fixes_an_indicator_column_wakes_its_row);
+    RUN_TEST(test_coefficient_tightening_leaves_an_indicator_row_alone);
     RUN_TEST(test_a_quadratic_node_without_an_interior_still_solves);
     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
