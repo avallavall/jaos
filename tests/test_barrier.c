@@ -281,6 +281,89 @@ static void test_the_barrier_verdict_matches_the_dual_bit_for_bit(void)
     jaos_model_free(b);
 }
 
+typedef struct {
+    int dense_lines;
+    long long dense_count;
+} dense_log;
+
+static void catch_dense(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    dense_log *d = user;
+    const char *p = strstr(line, " dense columns left out");
+    if (p == nullptr)
+        return;
+    const char *q = p;
+    while (q > line && q[-1] >= '0' && q[-1] <= '9')
+        q--;
+    d->dense_count = strtoll(q, nullptr, 10);
+    d->dense_lines++;
+}
+
+static jaos_model *dense_column_lp(void)
+{
+    constexpr int64_t R = 40;
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    double cost[R + 1], cl[R + 1], cu[R + 1], rl[R], ru[R];
+    int64_t as[R + 2], ai[2 * R];
+    double av[2 * R];
+    for (int64_t i = 0; i < R; i++) {
+        cost[i] = 1.0 + 0.01 * (double)i;
+        cl[i] = 0.0;
+        cu[i] = jaos_infinity();
+        rl[i] = -jaos_infinity();
+        ru[i] = 1.0 + 0.1 * (double)(i % 3);
+        as[i] = i;
+        ai[i] = i;
+        av[i] = 1.0;
+    }
+    cost[R] = 0.5;
+    cl[R] = 0.0;
+    cu[R] = jaos_infinity();
+    as[R] = R;
+    for (int64_t i = 0; i < R; i++) {
+        ai[R + i] = i;
+        av[R + i] = 1.0 + 0.5 * (double)(i % 2);
+    }
+    as[R + 1] = 2 * R;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, R + 1, R, JAOS_MAXIMIZE, 0.0,
+                                                cost, cl, cu, rl, ru,
+                                                2 * R, as, ai, av));
+    return m;
+}
+
+static void test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds(void)
+{
+    jaos_model *m = dense_column_lp();
+    const double dual = solve_with(m, JAOS_ALGORITHM_DUAL);
+    dense_log d = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_dense, &d));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    const double barrier = solve_with(m, JAOS_ALGORITHM_BARRIER);
+    TEST_ASSERT_EQUAL_INT(1, d.dense_lines);
+    TEST_ASSERT_EQUAL_INT64(1, d.dense_count);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(dual)), dual, barrier);
+    double x[41], y[40];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+
+    jaos_model *a = dense_column_lp(), *b = dense_column_lp();
+    (void)solve_with(a, JAOS_ALGORITHM_BARRIER);
+    (void)solve_with(b, JAOS_ALGORITHM_BARRIER);
+    TEST_ASSERT_EQUAL_INT64(jaos_work_units(a), jaos_work_units(b));
+    double xa[41], xb[41];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(a, xa, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(b, xb, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(xa, xb, sizeof xa);
+    jaos_model_free(a);
+    jaos_model_free(b);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -296,5 +379,6 @@ int main(void)
     RUN_TEST(test_the_barrier_does_not_call_an_infeasible_lp_optimal);
     RUN_TEST(test_the_barrier_hands_an_unbounded_lp_to_the_dual_for_its_ray);
     RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);
+    RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
     return UNITY_END();
 }

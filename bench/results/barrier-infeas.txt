@@ -6,7 +6,7 @@ bgprtr       ok        dual=25/15075 barrier=6+25/60180 verdict=infeasible/infea
 box1         ok        dual=16/25263 barrier=2+16/139063 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 ceria3d      ok        dual=0/23485 barrier=0+0/23485 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 chemcom      overrun   dual=6/21681 barrier=1+0/383457 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
-cplex1       overrun   dual=1068/5642413 barrier=0+0/1160268517 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
+cplex1       ok        dual=1068/5642413 barrier=9+1068/10203014 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 cplex2       ok        dual=329/2320113 barrier=200+329/13970875 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 ex72a        ok        dual=137/140686 barrier=3+137/239772 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 ex73a        ok        dual=100/81284 barrier=2+100/155496 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
@@ -30,9 +30,9 @@ vol1         ok        dual=343/1446494 barrier=24+343/5798513 verdict=infeasibl
 woodinfe     ok        dual=0/1 barrier=0+0/1 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 
 -- barrier against dual --
-agreed 22 (checker accepts 22, interior 0), skipped 0, overrun 7, failed 0, disagreed 0, rejected 0, errors 0
-work units barrier/dual, geometric mean:        1.7862
-iterations (barrier+1)/(dual+1), geometric mean: 1.0610
+agreed 23 (checker accepts 23, interior 0), skipped 0, overrun 6, failed 0, disagreed 0, rejected 0, errors 0
+work units barrier/dual, geometric mean:        1.7872
+iterations (barrier+1)/(dual+1), geometric mean: 1.0587
 work ratio, best  bgdbg1 at 1.0000
 work ratio, worst cplex2 at 6.0216
 most barrier iterations: gosh at 25187

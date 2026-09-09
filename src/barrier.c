@@ -14,6 +14,9 @@ constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
+constexpr double  BARRIER_DENSE_FACTOR = 10.0;
+constexpr int64_t BARRIER_DENSE_MIN    = 30;
+constexpr int64_t BARRIER_DENSE_MAX    = 100;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 
@@ -46,6 +49,11 @@ typedef struct {
     int64_t iters;
     int64_t bounded;
     bool handoff;
+
+    bool *dense;
+    int64_t *dense_idx;
+    int64_t ndense;
+    double *wmat, *smat, *tvec, *tvec2;
 } bx;
 
 static void bx_free(bx *s)
@@ -62,6 +70,8 @@ static void bx_free(bx *s)
     free(s->rhs);   free(s->tmp);   free(s->b);
     free(s->n_start); free(s->n_index); free(s->n_value);
     free(s->acc);   free(s->mark);
+    free(s->dense); free(s->dense_idx);
+    free(s->wmat);  free(s->smat);  free(s->tvec);  free(s->tvec2);
     jm_chol_free(&s->chol);
     memset(s, 0, sizeof *s);
 }
@@ -174,6 +184,42 @@ static jaos_status bx_init(bx *s, jaos_model *m)
     }
     for (int64_t i = 0; i < nr; i++)
         s->mark[i] = -1;
+
+    s->dense = jm_calloc_array(nv, sizeof(bool));
+    if (s->dense == nullptr) {
+        bx_free(s);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    {
+        const double avg = s->ncol > 0 ? (double)m->num_nz / (double)s->ncol
+                                       : 0.0;
+        double thr = BARRIER_DENSE_FACTOR * avg;
+        if (thr < (double)BARRIER_DENSE_MIN)
+            thr = (double)BARRIER_DENSE_MIN;
+        int64_t k = 0;
+        for (int64_t j = 0; j < s->ncol; j++)
+            if (s->kind[j] != FIXED &&
+                (double)(m->a_start[j + 1] - m->a_start[j]) > thr)
+                k++;
+        if (k > 0 && k <= BARRIER_DENSE_MAX && nr > 0) {
+            s->dense_idx = jm_alloc_array(k, sizeof(int64_t));
+            s->wmat = jm_alloc_array(k * nr, sizeof(double));
+            s->smat = jm_alloc_array(k * k, sizeof(double));
+            s->tvec = jm_alloc_array(k, sizeof(double));
+            s->tvec2 = jm_alloc_array(k, sizeof(double));
+            if (!s->dense_idx || !s->wmat || !s->smat || !s->tvec || !s->tvec2) {
+                bx_free(s);
+                return JAOS_ERR_OUT_OF_MEMORY;
+            }
+            for (int64_t j = 0; j < s->ncol; j++)
+                if (s->kind[j] != FIXED &&
+                    (double)(m->a_start[j + 1] - m->a_start[j]) > thr) {
+                    s->dense[j] = true;
+                    s->dense_idx[s->ndense++] = j;
+                }
+        }
+        jm_work_add(&s->work, s->ncol * JM_WORK_NONZERO);
+    }
     return JAOS_OK;
 }
 
@@ -226,7 +272,7 @@ static jaos_status build_normal_pattern(bx *s)
             nnz++;
             for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
                 const int64_t j = m->ar_index[p];
-                if (s->kind[j] == FIXED)
+                if (s->kind[j] == FIXED || s->dense[j])
                     continue;
                 for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
                     const int64_t k = m->a_index[q];
@@ -253,6 +299,106 @@ static jaos_status build_normal_pattern(bx *s)
     return jm_chol_symbolic(&s->chol, nr, s->n_start, s->n_index, &s->work);
 }
 
+static jaos_status dense_update(bx *s)
+{
+    const jaos_model *m = s->m;
+    const int64_t nr = s->nrow, k = s->ndense;
+    int64_t dnz = 0;
+    for (int64_t q = 0; q < k; q++) {
+        const int64_t j = s->dense_idx[q];
+        double *wq = s->wmat + q * nr;
+        memset(wq, 0, (size_t)nr * sizeof(double));
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            wq[m->a_index[p]] = s->av[p];
+        dnz += m->a_start[j + 1] - m->a_start[j];
+        jm_chol_solve(&s->chol, wq, &s->work);
+    }
+    for (int64_t q = 0; q < k; q++) {
+        const int64_t j = s->dense_idx[q];
+        for (int64_t r = 0; r <= q; r++) {
+            const double *wr = s->wmat + r * nr;
+            double t = 0.0;
+            for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+                t += s->av[p] * wr[m->a_index[p]];
+            if (r == q)
+                t += 1.0 / s->theta[j];
+            s->smat[q * k + r] = t;
+        }
+    }
+    for (int64_t q = 0; q < k; q++) {
+        for (int64_t r = 0; r <= q; r++) {
+            double t = s->smat[q * k + r];
+            for (int64_t p = 0; p < r; p++)
+                t -= s->smat[q * k + p] * s->smat[r * k + p];
+            if (r == q) {
+                if (!(t > 0.0) || !isfinite(t))
+                    return JAOS_ERR_NUMERICAL;
+                s->smat[q * k + q] = sqrt(t);
+            } else {
+                s->smat[q * k + r] = t / s->smat[r * k + r];
+            }
+        }
+    }
+    jm_work_add(&s->work,
+                (k * nr + k * dnz + (k * k * k) / 6 + k * k) * JM_WORK_NONZERO);
+    return JAOS_OK;
+}
+
+static void solve_normal(bx *s, double *x)
+{
+    jm_chol_solve(&s->chol, x, &s->work);
+    const int64_t k = s->ndense;
+    if (k == 0)
+        return;
+    const jaos_model *m = s->m;
+    const int64_t nr = s->nrow;
+    int64_t dnz = 0;
+    for (int64_t q = 0; q < k; q++) {
+        const int64_t j = s->dense_idx[q];
+        double t = 0.0;
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            t += s->av[p] * x[m->a_index[p]];
+        s->tvec[q] = t;
+        dnz += m->a_start[j + 1] - m->a_start[j];
+    }
+    for (int64_t q = 0; q < k; q++) {
+        double t = s->tvec[q];
+        for (int64_t p = 0; p < q; p++)
+            t -= s->smat[q * k + p] * s->tvec2[p];
+        s->tvec2[q] = t / s->smat[q * k + q];
+    }
+    for (int64_t q = k - 1; q >= 0; q--) {
+        double t = s->tvec2[q];
+        for (int64_t p = q + 1; p < k; p++)
+            t -= s->smat[p * k + q] * s->tvec[p];
+        s->tvec[q] = t / s->smat[q * k + q];
+    }
+    for (int64_t q = 0; q < k; q++) {
+        const double *wq = s->wmat + q * nr;
+        const double zq = s->tvec[q];
+        if (zq == 0.0)
+            continue;
+        for (int64_t i = 0; i < nr; i++)
+            x[i] -= wq[i] * zq;
+    }
+    jm_work_add(&s->work, (k * nr + dnz + k * k) * JM_WORK_NONZERO);
+}
+
+static jaos_status drop_dense(bx *s)
+{
+    jm_log(s->m, JAOS_LOG_DETAIL,
+           "the %lld dense columns' correction is not positive definite; "
+           "they rejoin the normal matrix", (long long)s->ndense);
+    memset(s->dense, 0, (size_t)s->nvar * sizeof(bool));
+    s->ndense = 0;
+    free(s->n_start);  s->n_start = nullptr;
+    free(s->n_index);  s->n_index = nullptr;
+    free(s->n_value);  s->n_value = nullptr;
+    jm_chol_free(&s->chol);
+    jm_chol_init(&s->chol);
+    return build_normal_pattern(s);
+}
+
 static jaos_status form_normal(bx *s)
 {
     const jaos_model *m = s->m;
@@ -260,7 +406,7 @@ static jaos_status form_normal(bx *s)
     for (int64_t i = 0; i < s->nrow; i++) {
         for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
             const int64_t j = m->ar_index[p];
-            if (s->kind[j] == FIXED)
+            if (s->kind[j] == FIXED || s->dense[j])
                 continue;
             const double t = s->arv[p] * s->theta[j];
             for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
@@ -277,7 +423,15 @@ static jaos_status form_normal(bx *s)
         }
     }
     jm_work_add(&s->work, (terms + s->n_start[s->nrow]) * JM_WORK_NONZERO);
-    return jm_chol_numeric(&s->chol, s->n_value, &s->work);
+    jaos_status st = jm_chol_numeric(&s->chol, s->n_value, &s->work);
+    if (st != JAOS_OK || s->ndense == 0)
+        return st;
+    if (dense_update(s) == JAOS_OK)
+        return JAOS_OK;
+    st = drop_dense(s);
+    if (st != JAOS_OK)
+        return st;
+    return form_normal(s);
 }
 
 static void newton(bx *s, const double *r, const double *rt, double *dy,
@@ -288,7 +442,7 @@ static void newton(bx *s, const double *r, const double *rt, double *dy,
     mul_e(s, s->tmp, s->rhs);
     for (int64_t i = 0; i < s->nrow; i++)
         dy[i] = r[i] + s->rhs[i];
-    jm_chol_solve(&s->chol, dy, &s->work);
+    solve_normal(s, dy);
     mul_et(s, dy, dz);
     for (int64_t j = 0; j < s->nvar; j++)
         dz[j] = s->kind[j] == FIXED ? 0.0 : s->theta[j] * (dz[j] - rt[j]);
@@ -916,9 +1070,10 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     s.started = jm_monotonic_seconds();
 
     jm_log(m, JAOS_LOG_SUMMARY,
-           "barrier: %lld rows, %lld columns, %lld nonzeros, tolerance %.3g",
+           "barrier: %lld rows, %lld columns, %lld nonzeros, tolerance %.3g, "
+           "%lld dense columns left out of the normal matrix",
            (long long)m->num_row, (long long)m->num_col,
-           (long long)m->num_nz, BARRIER_TOL);
+           (long long)m->num_nz, BARRIER_TOL, (long long)s.ndense);
 
     jaos_solve_status outcome = JAOS_SOLVE_NUMERICAL_ERROR;
     st = bx_run(&s, &outcome);
