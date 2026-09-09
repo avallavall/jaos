@@ -25,8 +25,9 @@ typedef struct {
     int64_t nrow, ncol, nvar;
 
     double *av, *arv;
-    double *lo, *up, *cost;
+    double *lo, *up, *cost, *quad;
     uint8_t *kind;
+    bool quadratic;
     double norm_b, norm_c, norm_bound;
     double fixed_obj;
 
@@ -60,6 +61,7 @@ static void bx_free(bx *s)
 {
     free(s->av);    free(s->arv);
     free(s->lo);    free(s->up);    free(s->cost);  free(s->kind);
+    free(s->quad);
     free(s->z);     free(s->w);     free(s->v);     free(s->y);
     free(s->zl);    free(s->zu);
     free(s->rp);    free(s->rw);    free(s->rv);    free(s->rd);
@@ -102,6 +104,7 @@ static jaos_status bx_init(bx *s, jaos_model *m)
     s->lo    = jm_alloc_array(nv, sizeof(double));
     s->up    = jm_alloc_array(nv, sizeof(double));
     s->cost  = jm_calloc_array(nv, sizeof(double));
+    s->quad  = jm_calloc_array(nv, sizeof(double));
     s->kind  = jm_calloc_array(nv, sizeof(uint8_t));
     s->z     = jm_calloc_array(nv, sizeof(double));
     s->w     = jm_calloc_array(nv, sizeof(double));
@@ -132,7 +135,8 @@ static jaos_status bx_init(bx *s, jaos_model *m)
     s->b     = jm_calloc_array(nr, sizeof(double));
     s->acc   = jm_calloc_array(nr, sizeof(double));
     s->mark  = jm_alloc_array(nr, sizeof(int64_t));
-    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->kind ||
+    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->quad ||
+        !s->kind ||
         !s->z || !s->w || !s->v || !s->y || !s->zl || !s->zu || !s->rp ||
         !s->rw || !s->rv || !s->rd || !s->rl || !s->ru || !s->rt ||
         !s->theta || !s->dz || !s->dw || !s->dv || !s->dy || !s->dzl ||
@@ -155,6 +159,10 @@ static jaos_status bx_init(bx *s, jaos_model *m)
         s->lo[j] = m->col_lower[j] / gamma[j];
         s->up[j] = m->col_upper[j] / gamma[j];
         s->cost[j] = sigma * m->col_cost[j] * gamma[j];
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+            s->quad[j] = sigma * m->col_quad[j] * gamma[j] * gamma[j];
+            s->quadratic = true;
+        }
     }
     for (int64_t i = 0; i < nr; i++) {
         s->lo[s->ncol + i] = m->row_lower[i] * rho[i];
@@ -464,7 +472,13 @@ static void residuals(bx *s, double *pobj, double *dobj, double *mu)
             continue;
         }
         po += s->cost[j] * s->z[j];
-        s->rd[j] = s->cost[j] - s->rd[j] - s->zl[j] + s->zu[j];
+        if (s->quad[j] != 0.0) {
+            const double half = 0.5 * s->quad[j] * s->z[j] * s->z[j];
+            po += half;
+            dob -= half;
+        }
+        s->rd[j] = s->cost[j] + s->quad[j] * s->z[j] - s->rd[j] - s->zl[j] +
+                   s->zu[j];
         s->rw[j] = (k & HAS_LO) ? s->lo[j] - s->z[j] + s->w[j] : 0.0;
         s->rv[j] = (k & HAS_UP) ? s->up[j] - s->z[j] - s->v[j] : 0.0;
         if (k & HAS_LO) { dob += s->lo[j] * s->zl[j]; prod += s->w[j] * s->zl[j]; }
@@ -698,8 +712,9 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
         mul_et(s, s->y, s->tmp);
         for (int64_t j = 0; j < m->num_col; j++) {
             m->sol_col[j] = published(gamma[j] * s->z[j]);
-            m->sol_redcost[j] =
-                published(sigma * (s->cost[j] - s->tmp[j]) / gamma[j]);
+            m->sol_redcost[j] = published(
+                sigma * (s->cost[j] + s->quad[j] * s->z[j] - s->tmp[j]) /
+                gamma[j]);
         }
         for (int64_t i = 0; i < m->num_row; i++) {
             m->sol_row[i] = published(s->z[m->num_col + i] / rho[i]);
@@ -846,7 +861,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                 s->theta[j] = 0.0;
                 continue;
             }
-            double inv = k == 0 ? BARRIER_FREE_REG : reg;
+            double inv = (k == 0 ? BARRIER_FREE_REG : reg) + s->quad[j];
             if (k & HAS_LO) inv += s->zl[j] / s->w[j];
             if (k & HAS_UP) inv += s->zu[j] / s->v[j];
             s->theta[j] = 1.0 / inv;
@@ -1079,7 +1094,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     st = bx_run(&s, &outcome);
     *iters = s.iters;
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
-        !m->cfg.barrier_no_crossover) {
+        !m->cfg.barrier_no_crossover && !s.quadratic) {
         st = crash_basis(&s);
         *work = s.work;
         *crossover = st == JAOS_OK;
@@ -1090,7 +1105,8 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         bx_free(&s);
         return st;
     }
-    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff) {
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff &&
+        !s.quadratic) {
         jm_log(m, JAOS_LOG_SUMMARY,
                "barrier stopped after %lld iterations, %lld work units: %s; "
                "the dual simplex takes over from the slack basis",

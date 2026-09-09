@@ -19,7 +19,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 |---|---|---|
 | Linear programming | **done** | |
 | Mixed-integer linear | **done** | integer, binary and semi-continuous columns, SOS1/SOS2, indicator constraints |
-| Convex quadratic (QP) | **missing** | |
+| Convex quadratic (QP) | **partial** | a separable objective `½ Σ q_j x_j²` on top of the linear one, `q_j >= 0` when minimising and `<= 0` when maximising, refused otherwise by column: `jaos_set_col_quadratic` and `jaos_col_quadratic`, kept through copy, add and delete, counted by the statistics; MPS `QUADOBJ` and `QMATRIX` diagonals read and `QUADOBJ` written, the LP dialect's `[ q x ^ 2 ] / 2` block (or `x * x`, or the block undivided) read and written, off-diagonal entries refused by line; the barrier carries `q_j` in `Θ^{-1}` and in the residuals, presolve is skipped, the crossover is not run because a QP optimum is not a vertex, and the checker judges the KKT conditions with the gradient `c + Q x` and the dual objective less `½ x^T Q x`. The dual is the default algorithm, so a quadratic model simply solves; `primal`, `pdlp` and a MIP with a quadratic objective are refused by name. Python `x * x` and `x ** 2` in an objective at both layers. Missing: a full `Q`, which the normal equations cannot take on the diagonal, and the row in SPECS stays partial until a QP set is measured |
 | Quadratically constrained, second-order cone | **missing** | |
 | Mixed-integer quadratic | **missing** | |
 | Nonlinear, mixed-integer nonlinear | **out of scope** | |
@@ -111,11 +111,11 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Read fixed and free MPS | **done** | `OBJNAME`, `RANGES`, all bound types, `MARKER` for integers |
-| Read LP | **partial** | CPLEX-style linear dialect: objective, constraints, ranges, bounds, General, Binary, Semi-continuous, SOS, indicators, Lazy Constraints, User Cuts. Missing: quadratic terms, which are QP |
+| Read LP | **partial** | CPLEX-style linear dialect: objective, constraints, ranges, bounds, General, Binary, Semi-continuous, SOS, indicators, Lazy Constraints, User Cuts, and the objective's `[ ... ] / 2` quadratic block for squares of single variables. Missing: products of two variables, which are a full `Q` |
 | Read and write gzip | **done** | inflate and deflate written here |
 | Direct load from arrays | **done** | |
-| Write MPS | **done** | |
-| Write LP | **partial** | a name LP cannot spell is written under `c<j+1>`, `r<i+1>` or `obj` with the original in a comment map at the top of the file. Missing: a free row, which the format has no place for; `convert --positional` and MPS are the escapes |
+| Write MPS | **done** | a quadratic objective goes out as a `QUADOBJ` section |
+| Write LP | **partial** | a name LP cannot spell is written under `c<j+1>`, `r<i+1>` or `obj` with the original in a comment map at the top of the file; a quadratic objective is written as `[ q x ^ 2 ] / 2`. Missing: a free row, which the format has no place for; `convert --positional` and MPS are the escapes |
 | Own solution file, written and read | **done** | |
 | Point and duals files | **done** | the smallest exchange format; `check --point` |
 | Read other solvers' solution files | **done** | `jaos_read_point` and `jaos_read_duals` detect and read Gurobi, MIPLIB, SCIP, HiGHS and CPLEX XML solution files, so `jaos check --point` judges them |

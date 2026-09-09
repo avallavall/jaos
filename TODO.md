@@ -56,11 +56,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **Convex QP with a separable objective.** A diagonal quadratic term
-   `½ Σ q_j x_j²` with `q_j >= 0`: `jaos_set_col_quadratic` and its
-   reader, MPS `QUADOBJ` and `QMATRIX` diagonals, the LP dialect's
-   `[ q x^2 ] / 2` objective terms, both writers, the barrier carrying
-   `q_j` in `Θ^{-1}`, the checker judging the KKT conditions with the
-   quadratic gradient, the crossover and the simplexes refusing a
-   quadratic model by name, Python at both layers. The SPECS row goes
-   partial with "diagonal Q only".

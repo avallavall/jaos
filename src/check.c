@@ -384,6 +384,14 @@ jaos_status jaos_check_solution(const jaos_model *m,
         const double e = jm_two_product_residue(c, x, t);
         if (e != 0.0)
             jm_obj_add(&primal_obj, &primal_objc, e);
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+            const double h = 0.5 * m->col_quad[j] * x;
+            const double tq = h * x;
+            jm_obj_add(&primal_obj, &primal_objc, tq);
+            const double eq = jm_two_product_residue(h, x, tq);
+            if (eq != 0.0)
+                jm_obj_add(&primal_obj, &primal_objc, eq);
+        }
     }
 
     const double pobj = acc_value(primal_obj, primal_objc);
@@ -483,6 +491,20 @@ jaos_status jaos_check_solution(const jaos_model *m,
         for (int64_t j = 0; j < m->num_col; j++) {
 
             double dw = m->col_cost[j], dwc = 0.0;
+            if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                const double q = m->col_quad[j], x = col_value[j];
+                const double qx = q * x;
+                jm_obj_add(&dw, &dwc, qx);
+                const double eq = jm_two_product_residue(q, x, qx);
+                if (eq != 0.0)
+                    jm_obj_add(&dw, &dwc, eq);
+                const double h = -0.5 * sigma * qx;
+                const double th = h * x;
+                jm_obj_add(&a.dual_obj, &a.dual_objc, th);
+                const double eh = jm_two_product_residue(h, x, th);
+                if (eh != 0.0)
+                    jm_obj_add(&a.dual_obj, &a.dual_objc, eh);
+            }
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
                 const double aij = m->a_value[k];
                 const double y = row_dual[m->a_index[k]];

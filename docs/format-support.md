@@ -109,6 +109,13 @@ header is a line whose first character is non-blank, `*` opens a comment.
 - **INDICATORS section**: after SOS. One line `IF row column value` per
   indicator: the row holds only while the integer column equals the value,
   0 or 1, and is free otherwise. The writer prints the same lines.
+- **QUADOBJ and QMATRIX sections**: after COLUMNS. One line
+  `column column value` per entry, the value being `q` in the objective
+  term `½ q x²`, which is how both sections spell the diagonal of `Q`.
+  Only diagonal entries are read: an entry naming two different columns
+  is refused by line, because JAOS solves separable quadratic objectives
+  only. A second entry for the same column is refused as well. The writer
+  prints every nonzero `q` under `QUADOBJ`, after BOUNDS.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
   per run of integer columns.
@@ -198,6 +205,14 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 - **`SOS`**: one set per line, `name: S1:: x:1 y:2` or `S2:: x:1 y:2 z:3`;
   the name is optional and `S1`/`S2` is the type. The writer prints every
   set as `SOSk: S1:: ...`.
+- **Quadratic objective**: a `[ ... ]` block among the objective's terms,
+  holding squares, `2 x ^ 2` or `2 x * x`, joined by `+` and `-`. A block
+  followed by `/ 2` contributes half its content, the CPLEX convention, so
+  `[ q x ^ 2 ] / 2` is the term `½ q x²`; a block not divided contributes
+  its content as written. A product of two different variables, a power
+  other than 2, a divisor other than 2, or a block inside a constraint is
+  refused by line. The writer prints every nonzero `q` as one block,
+  `[ q x ^ 2 + ... ] / 2`, after the linear terms.
 - **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
   `D` exponents here — they are not part of any LP dialect.
 - **`End` is required**; content after it is an error.

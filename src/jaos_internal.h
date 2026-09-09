@@ -209,6 +209,7 @@ struct jaos_model {
 
     bool *col_integer;
     bool *col_semi;
+    double *col_quad;
 
     int64_t *row_ind_col;
     int *row_ind_val;
@@ -381,6 +382,7 @@ JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
                                             jm_symmetry *out, int64_t *work);
 void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
+bool jm_model_has_quadratic(const jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
                                     char **out, int64_t *out_len);

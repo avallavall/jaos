@@ -1495,6 +1495,47 @@ static void test_the_model_name_is_jaos_until_given(void)
     jaos_model_free(m);
 }
 
+static void test_a_quadratic_term_follows_its_column_through_copy_add_and_delete(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, load_example(m));
+    double q = -1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_quadratic(m, 3, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_col_quadratic(m, 1, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 3.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, q);
+    jaos_model_stats st;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_statistics(m, &st));
+    TEST_ASSERT_EQUAL_INT64(1, st.quadratic_col);
+
+    jaos_model *c = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(c, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, q);
+    jaos_model_free(c);
+
+    const double cost[1] = {1.0}, cl[1] = {0.0}, cu[1] = {1.0};
+    const int64_t as[2] = {0, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cols(m, 1, cost, cl, cu, 0, as,
+                                                 nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 3, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, q);
+    const int64_t gone[1] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, gone));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 2, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, q);
+    jaos_model_free(m);
+}
+
 static void test_the_statistics_count_what_the_model_is(void)
 {
 
@@ -1600,6 +1641,7 @@ int main(void)
     RUN_TEST(test_a_name_the_formats_cannot_carry_is_refused);
     RUN_TEST(test_names_ride_with_their_rows_and_columns);
     RUN_TEST(test_a_copy_is_the_same_problem_and_not_the_same_answer);
+    RUN_TEST(test_a_quadratic_term_follows_its_column_through_copy_add_and_delete);
     RUN_TEST(test_the_model_name_is_jaos_until_given);
     return UNITY_END();
 }

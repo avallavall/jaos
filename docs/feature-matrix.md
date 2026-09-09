@@ -41,7 +41,7 @@ since 2026-08-13; only patch levels did.*
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Linear programming (LP) | ● | ● | ● | ● | ● | ● | ● |
-| Quadratic programming (QP) | ○ | ● | ○ | ○ | ● | ● | ● |
+| Quadratic programming (QP) | ◐ | ● | ○ | ○ | ● | ● | ● |
 | Quadratically constrained (QCP, SOCP) | ○ | ○ | ○ | ○ | ● | ● | ● |
 | Mixed-integer linear (MILP) | ◐ | ● | — | — | ● | ● | ● |
 | Mixed-integer quadratic (MIQP, MIQCP) | ○ | ○ | — | — | ● | ● | ● |
@@ -91,7 +91,12 @@ the dual simplex finishes from there. A MIP's relaxations stay on the dual.
 An infeasible or unbounded model, which the barrier cannot certify, goes to
 the dual simplex from the slack basis once the iterate diverges, so the
 verdict and its certificate are the dual's (since 2026-09-09,
-`bench/results/barrier-infeas.txt`). **The first-order row reads ◐ since
+`bench/results/barrier-infeas.txt`). **The QP row reads ◐ since 2026-09-09**: a
+separable quadratic objective, `½ Σ q_j x_j²`, through `jaos_set_col_quadratic`,
+MPS `QUADOBJ`/`QMATRIX` diagonals and the LP `[ ... ] / 2` block, solved by
+the barrier with `q_j` on the diagonal of its Newton system and judged by
+the checker with the gradient `c + Q x`; a full `Q` is what keeps it from
+●. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,

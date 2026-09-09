@@ -3938,16 +3938,23 @@ jaos_status jm_dual_simplex(jaos_model *m)
 
 #if !defined(JAOS_NO_PRESOLVE)
 
-    jaos_status pst = jm_presolve_run(m, &p, &pre_work);
+    const bool quadratic = jm_model_has_quadratic(m);
+    jaos_status pst = quadratic ? JAOS_OK : jm_presolve_run(m, &p, &pre_work);
     if (pst != JAOS_OK) {
         jm_presolve_free(&p);
         return pst;
+    }
+    if (quadratic) {
+        p.outcome = JM_PRESOLVE_NONE;
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "presolve: skipped, the objective has a quadratic term");
     }
 
     m->presolve_counts = p.counts;
 
     if (p.outcome == JM_PRESOLVE_NONE) {
-        jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
+        if (!quadratic)
+            jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
     } else if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
               p.outcome == JM_PRESOLVE_UNBOUNDED) {
         jm_log(m, JAOS_LOG_SUMMARY,
@@ -4009,7 +4016,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_nz  = target->num_nz;
 
     int64_t barrier_iters = 0;
-    if ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve) {
+    if ((m->cfg.barrier || m->cfg.pdlp || jm_model_has_quadratic(m)) &&
+        !m->cfg.node_solve) {
         bool crossover = false, handoff = false;
         jaos_status bst = m->cfg.pdlp
             ? jm_pdlp(m, target, &p, &pre_work, &crossover, &handoff,

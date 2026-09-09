@@ -2669,6 +2669,7 @@ static int cmd_stats(int argc, char **argv)
     print_int("semicontinuous_columns", st.semicontinuous_col);
     print_int("sos_sets", st.sos_set);
     print_int("indicator_rows", st.indicator_row);
+    print_int("quadratic_columns", st.quadratic_col);
     print_int("objective_nonzeros", st.obj_nz);
     print_num("min_abs", st.min_abs);
     print_num("max_abs", st.max_abs);

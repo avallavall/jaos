@@ -364,6 +364,69 @@ static void test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds(vo
     jaos_model_free(b);
 }
 
+static void test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_quad.lp"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ALGORITHM_DUAL, jaos_algorithm_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_TRUE(m->solve_barrier_iters > 0);
+    TEST_ASSERT_EQUAL_INT64(m->solve_barrier_iters, jaos_iterations(m));
+    double obj = 0.0, x[2], y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 4.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 1.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 1.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 3.0, y[0]);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 4.0, rep.primal_objective);
+
+    jaos_model *a = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(a, "tests/data/g_quad.lp"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT64(jaos_work_units(m), jaos_work_units(a));
+    double xa[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(a, xa, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(x, xa, sizeof x);
+    jaos_model_free(a);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_sense(m, JAOS_MAXIMIZE));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, -1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 1, -1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, -2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, -2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -4.0, obj);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "convex"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, -2.0));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "barrier"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PDLP));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "integer"));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -380,5 +443,6 @@ int main(void)
     RUN_TEST(test_the_barrier_hands_an_unbounded_lp_to_the_dual_for_its_ray);
     RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);
     RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
+    RUN_TEST(test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts);
     return UNITY_END();
 }

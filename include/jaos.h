@@ -137,6 +137,11 @@ JAOS_NODISCARD jaos_status jaos_set_col_semicontinuous(jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_col_semicontinuous(const jaos_model *m,
                                                    int64_t col, bool *is_semi);
 
+JAOS_NODISCARD jaos_status jaos_set_col_quadratic(jaos_model *m, int64_t col,
+                                                  double q);
+JAOS_NODISCARD jaos_status jaos_col_quadratic(const jaos_model *m,
+                                              int64_t col, double *q);
+
 JAOS_NODISCARD jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
                                         const int64_t *cols,
                                         const double *weights);
@@ -224,6 +229,7 @@ typedef struct jaos_model_stats {
     double  min_abs, max_abs;
     double  obj_min_abs, obj_max_abs;
     int64_t semicontinuous_col, sos_set, indicator_row;
+    int64_t quadratic_col;
 } jaos_model_stats;
 
 typedef struct jaos_presolve_report {

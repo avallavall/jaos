@@ -158,6 +158,38 @@ static void expect_reject(const char *path, const char *needle)
     jaos_model_free(m);
 }
 
+static void test_a_quadobj_section_reads_and_writes_back(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/g_quad.mps"));
+    double q = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    jaos_model_stats st;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_statistics(m, &st));
+    TEST_ASSERT_EQUAL_INT64(2, st.quadratic_col);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, "build/tm_quad.mps"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, "build/tm_quad.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    jaos_model_free(b);
+    remove("build/tm_quad.mps");
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, "tests/data/g_qmatrix.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    jaos_model_free(b);
+    jaos_model_free(m);
+
+    expect_reject("tests/data/e_quad_offdiag.mps", "off the diagonal");
+    expect_reject("tests/data/e_quad_offdiag.mps", "line 13");
+}
+
 static void test_rejections_carry_line_numbers(void)
 {
     expect_reject("tests/data/e_badnum.mps", "line 6");
@@ -259,5 +291,6 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_bound_marks_the_column);
     RUN_TEST(test_an_sos_section_builds_the_sets);
     RUN_TEST(test_an_indicators_section_marks_the_rows);
+    RUN_TEST(test_a_quadobj_section_reads_and_writes_back);
     return UNITY_END();
 }

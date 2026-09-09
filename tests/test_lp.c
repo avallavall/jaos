@@ -191,6 +191,43 @@ static void expect_reject(const char *path, const char *needle)
     jaos_model_free(m);
 }
 
+static void test_a_quadratic_objective_block_reads_and_writes_back(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_quad.lp"));
+    double q = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_cost[0]);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, "build/tl_quad.lp"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, "build/tl_quad.lp"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, b->col_cost[1]);
+    jaos_model_free(b);
+    remove("build/tl_quad.lp");
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, "tests/data/g_quad_nohalf.lp"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 1, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    jaos_model_free(b);
+    jaos_model_free(m);
+
+    expect_reject("tests/data/el_quad_cross.lp", "off the diagonal");
+    expect_reject("tests/data/el_quad_cross.lp", "line 3");
+    expect_reject("tests/data/el_quad_con.lp", "constraint");
+    expect_reject("tests/data/el_quad_con.lp", "line 5");
+}
+
 static void test_rejection_reasons_are_specific(void)
 {
     expect_reject("tests/data/el_int_unknown.lp", "not a variable");
@@ -315,5 +352,6 @@ int main(void)
     RUN_TEST(test_an_sos_section_builds_the_sets);
     RUN_TEST(test_an_indicator_arrow_marks_the_row);
     RUN_TEST(test_lazy_constraints_and_user_cuts_are_rows);
+    RUN_TEST(test_a_quadratic_objective_block_reads_and_writes_back);
     return UNITY_END();
 }

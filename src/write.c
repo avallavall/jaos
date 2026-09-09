@@ -404,6 +404,21 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             }
         }
 
+        if (m->col_quad != nullptr) {
+            bool any = false;
+            for (int64_t j = 0; j < m->num_col; j++)
+                any |= m->col_quad[j] != 0.0;
+            if (any) {
+                fprintf(w->f, "QUADOBJ\n");
+                for (int64_t j = 0; j < m->num_col; j++) {
+                    if (m->col_quad[j] == 0.0)
+                        continue;
+                    col_name(m, nm, j);
+                    wr_num(num, m->col_quad[j]);
+                    fprintf(w->f, "    %-9s %-9s %s\n", nm, nm, num);
+                }
+            }
+        }
         if (m->num_sos > 0) {
             fprintf(w->f, "SOS\n");
             for (int64_t k = 0; k < m->num_sos; k++) {
@@ -584,6 +599,36 @@ static jaos_status lp_write_body(wr *w, const char *path,
         for (int64_t j = 0; j < m->num_col; j++) {
             col_name(m, nm, j);
             lp_term(w, &col, &first, m->col_cost[j], nm);
+        }
+        if (m->col_quad != nullptr) {
+            bool any = false;
+            for (int64_t j = 0; j < m->num_col; j++)
+                any |= m->col_quad[j] != 0.0;
+            if (any) {
+                int n = fprintf(w->f, first ? " [" : " + [");
+                col += n > 0 ? n : 0;
+                bool qfirst = true;
+                for (int64_t j = 0; j < m->num_col; j++) {
+                    if (m->col_quad[j] == 0.0)
+                        continue;
+                    col_name(m, nm, j);
+                    wr_num(num, fabs(m->col_quad[j]));
+                    if (qfirst && m->col_quad[j] > 0.0)
+                        n = fprintf(w->f, " %s %s ^ 2", num, nm);
+                    else
+                        n = fprintf(w->f, " %s %s %s ^ 2",
+                                    m->col_quad[j] < 0.0 ? "-" : "+", num, nm);
+                    qfirst = false;
+                    col += n > 0 ? n : 0;
+                    if (col >= LP_WRAP) {
+                        fprintf(w->f, "\n   ");
+                        col = 3;
+                    }
+                }
+                n = fprintf(w->f, " ] / 2");
+                col += n > 0 ? n : 0;
+                first = false;
+            }
         }
         if (m->obj_offset != 0.0) {
             wr_num(num, fabs(m->obj_offset));

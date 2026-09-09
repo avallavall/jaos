@@ -149,6 +149,36 @@ class TestReadingFiles(unittest.TestCase):
                 m.read_nl(data("e_nonlin.nl"))
             self.assertIn("nonlinear", str(ctx.exception))
 
+    def test_a_separable_qp_reads_solves_and_is_written_by_expressions(self):
+        with jaos.Model() as m:
+            m.read_lp(data("g_quad.lp"))
+            self.assertEqual(m.col_quadratic(0), 2.0)
+            self.assertEqual(m.col_quadratic(1), 2.0)
+            self.assertEqual(m.statistics().quadratic_col, 2)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 4.0, places=6)
+            m.set_col_quadratic(0, -1.0)
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.solve()
+            self.assertIn("convex", str(ctx.exception))
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=10, name="x")
+        y = p.add_var(lb=0, ub=10, name="y")
+        p.add(x + y >= 2, name="c1")
+        p.minimize(x + y + x * x + y ** 2)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 4.0, places=6)
+        self.assertAlmostEqual(x.value, 1.0, places=5)
+        self.assertEqual(p._m.col_quadratic(0), 2.0)
+        with self.assertRaises(TypeError):
+            p.minimize(x * y)
+        with self.assertRaises(TypeError):
+            p.add(x * x <= 4)
+        p.minimize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertEqual(p._m.col_quadratic(0), 0.0)
+        self.assertAlmostEqual(p.objective_value, 2.0, places=9)
+
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_nl(data("t_lin.nl"))

@@ -305,6 +305,7 @@ class _ModelStats(ctypes.Structure):
         ("semicontinuous_col", _I64),
         ("sos_set", _I64),
         ("indicator_row", _I64),
+        ("quadratic_col", _I64),
     ]
 
 class ProofKind(enum.IntEnum):
@@ -584,6 +585,8 @@ _sig("jaos_set_col_integer", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_col_semicontinuous", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_semicontinuous", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
+_sig("jaos_set_col_quadratic", ctypes.c_int, _VP, _I64, _D)
+_sig("jaos_col_quadratic", ctypes.c_int, _VP, _I64, _P(_D))
 _sig("jaos_add_sos", ctypes.c_int, _VP, ctypes.c_int, _I64, _P(_I64), _P(_D))
 _sig("jaos_num_sos", _I64, _VP)
 _sig("jaos_set_row_indicator", ctypes.c_int, _VP, _I64, _I64, ctypes.c_int)
@@ -1147,6 +1150,20 @@ class Model:
         out = ctypes.c_bool()
         self._check(_lib.jaos_col_semicontinuous(self._handle(), int(col),
                                                  ctypes.byref(out)))
+        return out.value
+
+    def set_col_quadratic(self, col, q):
+        """Gives a column a quadratic objective term q/2 * x**2. A model
+        with one is a convex QP (q >= 0 when minimising, <= 0 when
+        maximising) and solves by the barrier; the two simplexes, PDLP
+        and branch and bound refuse it."""
+        self._check(_lib.jaos_set_col_quadratic(self._handle(), int(col),
+                                                float(q)))
+
+    def col_quadratic(self, col):
+        out = ctypes.c_double()
+        self._check(_lib.jaos_col_quadratic(self._handle(), int(col),
+                                            ctypes.byref(out)))
         return out.value
 
     def add_sos(self, sos_type, cols, weights):
@@ -2386,6 +2403,8 @@ def _merge_problem(a, b):
 
 _NOT_LINEAR = ("JAOS solves linear programs; a product or quotient "
                "involving two variables is not linear")
+_NOT_SEPARABLE = ("JAOS reads a separable quadratic objective only: x * x "
+                  "or x ** 2, never a product of two different variables")
 
 class Var:
     """One variable of a Problem. Made by add_var, never directly.
@@ -2445,8 +2464,17 @@ class Var:
         return (-_as_expr(self)) + o
 
     def __mul__(self, o):
+        if isinstance(o, Var):
+            if o is not self:
+                raise TypeError(_NOT_SEPARABLE)
+            return LinExpr({}, 0.0, self._p, {self: 1.0})
         return _as_expr(self) * o
     __rmul__ = __mul__
+
+    def __pow__(self, n):
+        if n != 2:
+            raise TypeError(_NOT_SEPARABLE)
+        return LinExpr({}, 0.0, self._p, {self: 1.0})
 
     def __truediv__(self, o):
         return _as_expr(self) / o
@@ -2479,12 +2507,13 @@ class LinExpr:
     every operation returns a new expression.
     """
 
-    __slots__ = ("_t", "_c", "_p")
+    __slots__ = ("_t", "_c", "_p", "_q")
 
-    def __init__(self, terms=None, constant=0.0, problem=None):
+    def __init__(self, terms=None, constant=0.0, problem=None, quad=None):
         self._t = dict(terms) if terms else {}
         self._c = float(constant)
         self._p = problem
+        self._q = dict(quad) if quad else {}
 
     def __add__(self, o):
         e = _as_expr(o)
@@ -2494,7 +2523,10 @@ class LinExpr:
         t = dict(self._t)
         for v, k in e._t.items():
             t[v] = t.get(v, 0.0) + k
-        return LinExpr(t, self._c + e._c, p)
+        q = dict(self._q)
+        for v, k in e._q.items():
+            q[v] = q.get(v, 0.0) + k
+        return LinExpr(t, self._c + e._c, p, q)
     __radd__ = __add__
 
     def __sub__(self, o):
@@ -2510,13 +2542,18 @@ class LinExpr:
         return e + (self * -1.0)
 
     def __mul__(self, o):
+        if isinstance(o, Var) and not self._q and len(self._t) == 1 \
+                and self._c == 0.0 and o in self._t:
+            return LinExpr({}, 0.0, self._p, {o: self._t[o]})
         if isinstance(o, (Var, LinExpr)):
-            raise TypeError(_NOT_LINEAR)
+            raise TypeError(_NOT_SEPARABLE if isinstance(o, Var)
+                            else _NOT_LINEAR)
         if not isinstance(o, (int, float)):
             return NotImplemented
         k = float(o)
         return LinExpr({v: c * k for v, c in self._t.items()},
-                       self._c * k, self._p)
+                       self._c * k, self._p,
+                       {v: c * k for v, c in self._q.items()})
     __rmul__ = __mul__
 
     def __truediv__(self, o):
@@ -2537,6 +2574,9 @@ class LinExpr:
         if e is None:
             return NotImplemented
         d = self - e
+        if d._q:
+            raise TypeError("a quadratic term belongs in the objective; "
+                            "JAOS has no quadratic constraints")
         lo = -d._c if lower else -INFINITY
         hi = -d._c if upper else INFINITY
         return Constraint(d._p, d._t, lo, hi)
@@ -2561,10 +2601,12 @@ class LinExpr:
         if self._p is None:
             return self._c
         col = self._p._solution().col_value
-        return self._c + sum(c * col[v._i] for v, c in self._t.items())
+        return (self._c + sum(c * col[v._i] for v, c in self._t.items())
+                + sum(c * col[v._i] ** 2 for v, c in self._q.items()))
 
     def __repr__(self):
         parts = [f"{c:g}*{v.name}" for v, c in self._t.items()]
+        parts += [f"{c:g}*{v.name}**2" for v, c in self._q.items()]
         if self._c or not parts:
             parts.append(f"{self._c:g}")
         return " + ".join(parts)
@@ -2672,6 +2714,7 @@ class Problem:
         self._sos = []
         self._ind = []
         self._obj = {}
+        self._objq = {}
         self._obj_c = 0.0
         self._sense = ObjSense.MINIMIZE
         self._loaded = False
@@ -2680,6 +2723,7 @@ class Problem:
 
         self._dirty_var_bounds = set()
         self._dirty_costs = set()
+        self._dirty_quad = set()
         self._dirty_objective = False
         self._dirty_row_bounds = set()
 
@@ -2770,6 +2814,7 @@ class Problem:
             raise ValueError(
                 "this objective's variables belong to a different Problem")
         new = {v: float(c) for v, c in e._t.items()}
+        newq = {v: 2.0 * float(c) for v, c in e._q.items() if c != 0.0}
         self._sol = None
         if self._loaded and not self._structural:
 
@@ -2778,7 +2823,11 @@ class Problem:
             for v in set(self._obj) | set(new):
                 if self._obj.get(v, 0.0) != new.get(v, 0.0):
                     self._dirty_costs.add(v._i)
+            for v in set(self._objq) | set(newq):
+                if self._objq.get(v, 0.0) != newq.get(v, 0.0):
+                    self._dirty_quad.add(v._i)
         self._obj = new
+        self._objq = newq
         self._obj_c = float(e._c)
         self._sense = sense
         return self
@@ -2829,6 +2878,7 @@ class Problem:
         return (not self._loaded or self._structural
                 or self._dirty_objective
                 or bool(self._dirty_costs) or bool(self._dirty_var_bounds)
+                or bool(self._dirty_quad)
                 or bool(self._dirty_row_bounds))
 
     def _build_and_load(self):
@@ -2867,6 +2917,9 @@ class Problem:
                 self._m.set_col_integer(v._i, True)
             if getattr(v, "semicontinuous", False):
                 self._m.set_col_semicontinuous(v._i, True)
+        for v, q in self._objq.items():
+            self._m.set_col_quadratic(v._i, q)
+        self._dirty_quad.clear()
         for t, vs, ws in self._sos:
             self._m.add_sos(t, [v._i for v in vs], ws)
         for c, z, v in self._ind:
@@ -2893,6 +2946,9 @@ class Problem:
                 self._dirty_objective = False
             for i in self._dirty_costs:
                 self._m.set_col_cost(i, self._obj.get(self._vars[i], 0.0))
+            for i in self._dirty_quad:
+                self._m.set_col_quadratic(i, self._objq.get(self._vars[i], 0.0))
+            self._dirty_quad.clear()
             for i in self._dirty_var_bounds:
                 v = self._vars[i]
                 self._m.set_col_bounds(i, v._lb, v._ub)

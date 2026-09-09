@@ -57,6 +57,7 @@ static void model_release_arrays(jaos_model *m)
     free(m->model_name);
     free(m->col_integer);
     free(m->col_semi);
+    free(m->col_quad);
     free(m->row_ind_col);
     free(m->row_ind_val);
     free(m->sos_type);
@@ -753,6 +754,32 @@ jaos_status jaos_solve(jaos_model *m)
 
     jm_model_drop_exact(m);
 
+    if (jm_model_has_quadratic(m)) {
+        if (jm_model_has_integer(m)) {
+            jm_set_err(m, "the objective has a quadratic term and the model "
+                          "has integer columns; JAOS solves quadratic "
+                          "objectives on plain LPs only");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (m->cfg.force_primal || m->cfg.pdlp) {
+            jm_set_err(m, "the objective has a quadratic term, which only "
+                          "the barrier solves; leave the algorithm at dual "
+                          "or set it to barrier");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (sigma * m->col_quad[j] < 0.0) {
+                jm_set_err(m, "column %lld has quadratic coefficient %.17g, "
+                              "which makes a %s objective non-convex; JAOS "
+                              "solves convex quadratic objectives only",
+                           (long long)j, m->col_quad[j],
+                           m->sense == JAOS_MAXIMIZE ? "maximised"
+                                                     : "minimised");
+                return JAOS_ERR_INVALID_INPUT;
+            }
+    }
+
     if (jm_model_has_integer(m))
         return jm_branch_and_bound(m);
     return jm_dual_simplex(m);
@@ -782,6 +809,42 @@ jaos_status jaos_col_integer(const jaos_model *m, int64_t j, bool *is_integer)
         return JAOS_ERR_INVALID_INPUT;
     *is_integer = m->col_integer != nullptr && m->col_integer[j];
     return JAOS_OK;
+}
+
+jaos_status jaos_set_col_quadratic(jaos_model *m, int64_t j, double q)
+{
+    if (m == nullptr || j < 0 || j >= m->num_col || !isfinite(q))
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->col_quad == nullptr) {
+        if (q == 0.0)
+            return JAOS_OK;
+        m->col_quad = jm_calloc_array(m->num_col, sizeof(double));
+        if (m->col_quad == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (m->col_quad[j] != q) {
+        m->col_quad[j] = q;
+        model_answer_is_stale(m);
+    }
+    return JAOS_OK;
+}
+
+jaos_status jaos_col_quadratic(const jaos_model *m, int64_t j, double *q)
+{
+    if (m == nullptr || q == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    *q = m->col_quad != nullptr ? m->col_quad[j] : 0.0;
+    return JAOS_OK;
+}
+
+bool jm_model_has_quadratic(const jaos_model *m)
+{
+    if (m->col_quad == nullptr)
+        return false;
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (m->col_quad[j] != 0.0)
+            return true;
+    return false;
 }
 
 jaos_status jaos_set_col_semicontinuous(jaos_model *m, int64_t j, bool is_semi)
@@ -1368,6 +1431,8 @@ jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
         }
         if (m->col_semi != nullptr && m->col_semi[j])
             st.semicontinuous_col++;
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            st.quadratic_col++;
         if (m->col_cost[j] != 0.0) {
             const double a = fabs(m->col_cost[j]);
             st.obj_nz++;
@@ -1785,6 +1850,14 @@ void jm_model_publish_objective(jaos_model *m)
             const double e = jm_two_product_residue(c, x, t);
             if (e != 0.0)
                 jm_obj_add(&sum, &comp, e);
+            if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                const double h = 0.5 * m->col_quad[j] * x;
+                const double tq = h * x;
+                jm_obj_add(&sum, &comp, tq);
+                const double eq = jm_two_product_residue(h, x, tq);
+                if (eq != 0.0)
+                    jm_obj_add(&sum, &comp, eq);
+            }
         }
     }
 
@@ -2224,6 +2297,17 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
             p[j] = false;
         m->col_integer = p;
     }
+    if (m->col_quad != nullptr) {
+        double *p = realloc(m->col_quad, (size_t)ncol * sizeof *p);
+        if (p == nullptr) {
+            free(arriving);
+            free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = m->num_col; j < ncol; j++)
+            p[j] = 0.0;
+        m->col_quad = p;
+    }
     if (m->col_semi != nullptr) {
         bool *p = realloc(m->col_semi, (size_t)ncol * sizeof *p);
         if (p == nullptr) {
@@ -2483,6 +2567,12 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
             if (keep[j])
                 m->col_integer[at++] = m->col_integer[j];
     }
+    if (m->col_quad != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (keep[j])
+                m->col_quad[at++] = m->col_quad[j];
+    }
     if (m->col_semi != nullptr) {
         int64_t at = 0;
         for (int64_t j = 0; j < m->num_col; j++)
@@ -2727,6 +2817,14 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
             goto oom;
         memcpy(m->col_integer, src->col_integer,
                (size_t)src->num_col * sizeof *m->col_integer);
+    }
+    if (src->col_quad != nullptr) {
+        m->col_quad = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)
+                             * sizeof *m->col_quad);
+        if (m->col_quad == nullptr)
+            goto oom;
+        memcpy(m->col_quad, src->col_quad,
+               (size_t)src->num_col * sizeof *m->col_quad);
     }
     if (src->col_semi != nullptr) {
         m->col_semi = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)

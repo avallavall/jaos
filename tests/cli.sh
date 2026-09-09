@@ -560,6 +560,28 @@ expect_exit 0 "--algorithm barrier solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm barrier
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
     || flunk "barrier: $(line_of objective) against $dual_obj"
+expect_exit 0 "a separable QP in LP format solves through the barrier" \
+    "$JAOS" solve "$DATA/g_quad.lp"
+case "$(line_of objective)" in
+    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    *) flunk "QP objective '$(line_of objective)'" ;;
+esac
+expect_exit 5 "--algorithm primal refuses a quadratic objective" \
+    "$JAOS" solve "$DATA/g_quad.lp" --algorithm primal
+expect_exit 0 "convert of a QP to MPS exits 0" \
+    "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.mps"
+grep -q '^QUADOBJ$' "$tmp/gq.mps" \
+    && pass "and writes a QUADOBJ section" \
+    || flunk "no QUADOBJ in the converted MPS"
+expect_exit 0 "the converted QP solves" "$JAOS" solve "$tmp/gq.mps"
+case "$(line_of objective)" in
+    "objective 4.0000"*|"objective 3.9999"*) pass "to the same objective" ;;
+    *) flunk "converted QP objective '$(line_of objective)'" ;;
+esac
+expect_exit 0 "stats of a QP exits 0" "$JAOS" stats "$DATA/g_quad.lp"
+[ "$(line_of quadratic_columns)" = "quadratic_columns 2" ] \
+    && pass "and counts the quadratic columns" \
+    || flunk "stats printed '$(line_of quadratic_columns)'"
 expect_exit 0 "--algorithm pdlp solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm pdlp
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \

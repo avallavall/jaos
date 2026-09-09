@@ -57,7 +57,7 @@ static bool parse_num(const char *t, double *out)
 
 enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
                S_RANGES,
-               S_BOUNDS, S_SOS, S_INDICATORS };
+               S_BOUNDS, S_SOS, S_INDICATORS, S_QUADOBJ };
 
 #define OBJ_ROW (-1)
 
@@ -91,6 +91,9 @@ typedef struct {
     bool *csemi;
     int64_t csemi_cap;
     bool any_semi;
+    double *cquad;
+    int64_t cquad_cap;
+    bool any_quad;
 
     int *st_type;
     int64_t *st_start;
@@ -139,6 +142,7 @@ static void rd_free(rd *r)
     free(r->modelname);
     free(r->cint);
     free(r->csemi);
+    free(r->cquad);
     free(r->st_type);
     free(r->st_start);
     free(r->st_col);
@@ -255,12 +259,14 @@ static jaos_status rd_columns_line(rd *r, char **tok, int nt)
             !JM_GROW(r->cflag, r->cflag_cap, j + 1) ||
             !JM_GROW(r->cint, r->cint_cap, j + 1) ||
             !JM_GROW(r->csemi, r->csemi_cap, j + 1) ||
+            !JM_GROW(r->cquad, r->cquad_cap, j + 1) ||
             !JM_GROW(r->as, r->as_cap, j + 2))
             FAIL_OOM();
         if (!jm_nmap_insert(&r->cmap, tok[0], j))
             FAIL_OOM();
         r->cint[j] = r->in_intorg;
         r->csemi[j] = false;
+        r->cquad[j] = 0.0;
         r->any_int |= r->in_intorg;
         r->cost[j] = 0.0;
         r->cl[j] = 0.0;
@@ -344,6 +350,33 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
             r->rhs[row] = v;
         }
     }
+done:
+    return st;
+}
+
+static jaos_status rd_quad_line(rd *r, char **tok, int nt)
+{
+    jaos_status st = JAOS_OK;
+    if (nt != 3)
+        FAIL("line %" PRId64 ": a quadratic entry is 'column column value'",
+             r->lno);
+    int64_t j, k;
+    if (!jm_nmap_get(&r->cmap, tok[0], &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[0]);
+    if (!jm_nmap_get(&r->cmap, tok[1], &k))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[1]);
+    if (j != k)
+        FAIL("line %" PRId64 ": the entry '%s' '%s' is off the diagonal; "
+             "JAOS reads a separable quadratic objective only", r->lno,
+             tok[0], tok[1]);
+    double v = 0.0;
+    if (!parse_num(tok[2], &v))
+        FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[2]);
+    if (r->cquad[j] != 0.0)
+        FAIL("line %" PRId64 ": a second quadratic entry for column '%s'",
+             r->lno, tok[0]);
+    r->cquad[j] = v;
+    r->any_quad |= v != 0.0;
 done:
     return st;
 }
@@ -656,6 +689,11 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (sec < S_COLUMNS)
                     FAIL("line %" PRId64 ": INDICATORS before COLUMNS", r->lno);
                 sec = S_INDICATORS;
+            } else if (strcmp(kw, "QUADOBJ") == 0 ||
+                       strcmp(kw, "QMATRIX") == 0) {
+                if (sec < S_COLUMNS)
+                    FAIL("line %" PRId64 ": %s before COLUMNS", r->lno, kw);
+                sec = S_QUADOBJ;
             } else if (strcmp(kw, "ENDATA") == 0) {
                 ended = true;
             } else {
@@ -715,6 +753,10 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             break;
         case S_INDICATORS:
             if ((st = rd_indicator_line(r, tok, nt)) != JAOS_OK)
+                goto done;
+            break;
+        case S_QUADOBJ:
+            if ((st = rd_quad_line(r, tok, nt)) != JAOS_OK)
                 goto done;
             break;
         default:
@@ -816,6 +858,12 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         if (r->any_semi && r->ncol > 0) {
             m->col_semi = r->csemi;
             r->csemi = nullptr;
+        }
+        free(m->col_quad);
+        m->col_quad = nullptr;
+        if (r->any_quad && r->ncol > 0) {
+            m->col_quad = r->cquad;
+            r->cquad = nullptr;
         }
         for (int64_t k = 0; k < r->nsos; k++) {
             const int64_t b = r->st_start[k], e = r->st_start[k + 1];

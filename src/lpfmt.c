@@ -14,6 +14,7 @@ constexpr int NAME_MAX_LEN = 255;
 
 typedef enum {
     T_EOF, T_NAME, T_NUM, T_PLUS, T_MINUS, T_LE, T_GE, T_EQ, T_COLON,
+    T_LBRACK, T_RBRACK, T_CARET, T_STAR, T_SLASH,
 } toktype;
 
 typedef struct {
@@ -34,8 +35,9 @@ typedef struct {
     bool has_pushed;
 
     jm_nmap cmap;
-    double *cost, *cl, *cu;
-    int64_t ncol, cost_cap, cl_cap, cu_cap;
+    double *cost, *cl, *cu, *cquad;
+    int64_t ncol, cost_cap, cl_cap, cu_cap, cquad_cap;
+    bool any_quad;
 
     int64_t *rs;
     double *rlb, *rub;
@@ -125,6 +127,11 @@ static jaos_status lx_next(lp *p)
     case '+': p->tok.t = T_PLUS;  p->pos++; return JAOS_OK;
     case '-': p->tok.t = T_MINUS; p->pos++; return JAOS_OK;
     case ':': p->tok.t = T_COLON; p->pos++; return JAOS_OK;
+    case '[': p->tok.t = T_LBRACK; p->pos++; return JAOS_OK;
+    case ']': p->tok.t = T_RBRACK; p->pos++; return JAOS_OK;
+    case '^': p->tok.t = T_CARET; p->pos++; return JAOS_OK;
+    case '*': p->tok.t = T_STAR;  p->pos++; return JAOS_OK;
+    case '/': p->tok.t = T_SLASH; p->pos++; return JAOS_OK;
     case '<':
         p->pos++;
         if (p->pos < p->len && p->buf[p->pos] == '=')
@@ -258,12 +265,14 @@ static bool get_or_create_col(lp *p, const char *name, int64_t *out)
     if (!JM_GROW(p->cost, p->cost_cap, j + 1) ||
         !JM_GROW(p->cl, p->cl_cap, j + 1) ||
         !JM_GROW(p->cu, p->cu_cap, j + 1) ||
+        !JM_GROW(p->cquad, p->cquad_cap, j + 1) ||
         !JM_GROW(p->stamp, p->stamp_cap, j + 1) ||
         !JM_GROW(p->slot, p->slot_cap, j + 1))
         return false;
     if (!jm_nmap_insert(&p->cmap, name, j))
         return false;
     p->cost[j] = 0.0;
+    p->cquad[j] = 0.0;
     p->cl[j] = 0.0;
     p->cu[j] = INFINITY;
     p->stamp[j] = 0;
@@ -271,6 +280,99 @@ static bool get_or_create_col(lp *p, const char *name, int64_t *out)
     p->ncol++;
     *out = j;
     return true;
+}
+
+static jaos_status parse_quadratic(lp *p, double sign)
+{
+    jaos_status st = JAOS_OK;
+    const int64_t open_line = p->tok.line;
+    int64_t *qcol = nullptr;
+    double *qval = nullptr;
+    int64_t nq = 0, qcol_cap = 0, qval_cap = 0;
+    if ((st = lx_next(p)) != JAOS_OK)
+        goto done;
+    while (p->tok.t != T_RBRACK) {
+        double coef = 1.0;
+        if (p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
+            coef = p->tok.t == T_MINUS ? -1.0 : 1.0;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        } else if (nq > 0) {
+            FAIL("line %" PRId64 ": expected + or - between quadratic terms",
+                 p->tok.line);
+        }
+        if (p->tok.t == T_NUM) {
+            coef *= p->tok.num;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        }
+        if (p->tok.t != T_NAME || is_reserved(p->tok.text))
+            FAIL("line %" PRId64 ": expected a variable in the quadratic "
+                 "term", p->tok.line);
+        int64_t j;
+        if (!get_or_create_col(p, p->tok.text, &j))
+            FAIL_OOM();
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+        if (p->tok.t == T_CARET) {
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (p->tok.t != T_NUM || p->tok.num != 2.0)
+                FAIL("line %" PRId64 ": only a square, '^ 2', is read in a "
+                     "quadratic term", p->tok.line);
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        } else if (p->tok.t == T_STAR) {
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            if (p->tok.t != T_NAME || is_reserved(p->tok.text))
+                FAIL("line %" PRId64 ": expected a variable after '*'",
+                     p->tok.line);
+            int64_t k;
+            if (!get_or_create_col(p, p->tok.text, &k))
+                FAIL_OOM();
+            if (k != j)
+                FAIL("line %" PRId64 ": the product '%s' is off the "
+                     "diagonal; JAOS reads a separable quadratic objective "
+                     "only, squares of single variables", p->tok.line,
+                     p->tok.text);
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+        } else {
+            FAIL("line %" PRId64 ": a term inside [ ] needs '^ 2' or '* "
+                 "variable'", p->tok.line);
+        }
+        if (!JM_GROW(qcol, qcol_cap, nq + 1) ||
+            !JM_GROW(qval, qval_cap, nq + 1))
+            FAIL_OOM();
+        qcol[nq] = j;
+        qval[nq] = coef;
+        nq++;
+        if (p->tok.t == T_EOF)
+            FAIL("line %" PRId64 ": the [ opened here is never closed",
+                 open_line);
+    }
+    if ((st = lx_next(p)) != JAOS_OK)
+        goto done;
+    double factor = 2.0;
+    if (p->tok.t == T_SLASH) {
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+        if (p->tok.t != T_NUM || p->tok.num != 2.0)
+            FAIL("line %" PRId64 ": a quadratic block is divided by 2 or "
+                 "not divided at all", p->tok.line);
+        factor = 1.0;
+        if ((st = lx_next(p)) != JAOS_OK)
+            goto done;
+    }
+    for (int64_t k = 0; k < nq; k++) {
+        p->cquad[qcol[k]] += factor * sign * qval[k];
+        p->any_quad = true;
+    }
+done:
+    free(qcol);
+    free(qval);
+    return st;
 }
 
 static jaos_status parse_expr(lp *p, int64_t row, double *konst)
@@ -294,6 +396,16 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             break;
         }
 
+        if (p->tok.t == T_LBRACK) {
+            if (row >= 0)
+                FAIL("line %" PRId64 ": a quadratic term in a constraint; "
+                     "JAOS reads a quadratic objective only", p->tok.line);
+            if ((st = parse_quadratic(p, sign)) != JAOS_OK)
+                goto done;
+            any = true;
+            continue;
+        }
+
         double coef = sign;
         bool have_num = false;
         if (p->tok.t == T_NUM) {
@@ -302,6 +414,13 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         }
+        if (p->tok.t == T_STAR || p->tok.t == T_CARET ||
+            p->tok.t == T_SLASH || p->tok.t == T_RBRACK)
+            FAIL("line %" PRId64 ": unexpected character '%c'; a product or "
+                 "a square belongs inside a [ ] block of the objective",
+                 p->tok.line,
+                 p->tok.t == T_STAR ? '*' : p->tok.t == T_CARET ? '^'
+                                          : p->tok.t == T_SLASH ? '/' : ']');
 
         if (p->tok.t == T_NAME && !is_reserved(p->tok.text)) {
             int64_t j;
@@ -858,6 +977,12 @@ static jaos_status parse(lp *p)
         p->m->col_integer = nullptr;
         free(p->m->col_semi);
         p->m->col_semi = nullptr;
+        free(p->m->col_quad);
+        p->m->col_quad = nullptr;
+        if (p->any_quad && p->ncol > 0) {
+            p->m->col_quad = p->cquad;
+            p->cquad = nullptr;
+        }
         if (p->ncint > 0 || p->ncsemi > 0) {
             bool *ci = jm_calloc_array(p->ncol, sizeof(bool));
             if (ci == nullptr)
@@ -918,6 +1043,7 @@ done:
     free(p->buf);
     jm_nmap_free(&p->cmap);
     free(p->cost);
+    free(p->cquad);
     free(p->cl);
     free(p->cu);
     free(p->rs);

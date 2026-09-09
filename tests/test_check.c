@@ -59,6 +59,26 @@ static void test_t1_accepts_the_true_optimum(void)
     jaos_model_free(m);
 }
 
+static void test_a_qp_point_is_judged_with_the_quadratic_gradient(void)
+{
+    jaos_model *m = make_t1();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 2.0));
+    const double x[] = {0.5, 0.5};
+    const double y_lp[] = {1.0}, y_qp[] = {2.0};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y_qp, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.5, r.primal_objective);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.5, r.dual_objective);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, r.objective_gap);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y_lp, TOL, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_FALSE(r.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_t1_flags_wrong_dual_sign(void)
 {
     jaos_model *m = make_t1();
@@ -1223,5 +1243,6 @@ int main(void)
     RUN_TEST(test_ray_lifted_through_a_singleton_column);
     RUN_TEST(test_ray_lifted_through_an_implied_free_column);
     RUN_TEST(test_a_wrong_ray_is_rejected);
+    RUN_TEST(test_a_qp_point_is_judged_with_the_quadratic_gradient);
     return UNITY_END();
 }
