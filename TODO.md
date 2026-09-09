@@ -34,16 +34,23 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    its best dual infeasibility flat at 868 from iteration 12000 to 16000,
    never under Bland's rule; fit2d 7847 iterations at 23x; seba 344 at
    17x; fit1d 1177 at 16x; dfl001 not finished at 300 s, 398528
-   iterations and 35x the dual's work. On dfl001 the progress measure is
-   broken: by iteration 39000 the carried reduced costs priced no
+   iterations and 35x the dual's work. On dfl001 the progress measure
+   was broken: by iteration 39000 the carried reduced costs priced no
    candidate, `dinfeas_best` took the total 0, the verification refresh
    found breaches and the walk went on, but 0 cannot be improved, so
    `last_gain` froze, Bland's rule came on at iteration 214429 and stayed
-   on for the remaining 184099 iterations without terminating. The
-   `q < 0` branch of `run_primal` must reset `dinfeas_best` after a
-   refresh that finds the point not optimal, or phase 2 must measure
-   progress by the objective, which the primal decreases monotonically.
-   Bland's rule itself runs with the ratio test's exact ties
+   on for the remaining 184099 iterations without terminating. Fixed on
+   2026-09-09: `run_primal` and the dual's `price_row` record a best
+   total only when the pricing found a candidate, so a stale zero never
+   enters it; the three gates and the primal campaign are byte-identical,
+   because the freeze only showed past the 10x limit. What dfl001 does
+   now, at the 10x work limit: 107923 iterations, never under Bland's
+   rule, and from iteration 38000 its best total dual infeasibility
+   sits at 1.0e-9 against `DUAL_TOL` 1e-9, one reduced cost a fraction
+   of a percent past the tolerance on a degenerate vertex, 70000
+   pivots without leaving it. That edge, and not Bland's rule, is the
+   next lead on dfl001. Bland's rule itself runs with the ratio test's
+   exact ties
    (`jm_primal_row_wins`) and a zero-clamped distance, which is where the
    published remedy, EXPAND's growing tolerance schedule (Gill, Murray,
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in

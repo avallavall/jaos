@@ -989,7 +989,7 @@ static int64_t price_row(sx *s, bool *below, double *violation)
     }
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 
-    if (total < s->infeas_best) {
+    if (best >= 0 && total < s->infeas_best) {
         s->infeas_best = total;
         s->last_gain = s->iters;
         s->bland = false;
@@ -3380,7 +3380,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                    (long long)s->iters, s->dinfeas_best,
                    (long long)s->work.units);
 
-        if (total < s->dinfeas_best) {
+        if (q >= 0 && total < s->dinfeas_best) {
             s->dinfeas_best = total;
             s->last_gain = s->iters;
             s->bland = false;
