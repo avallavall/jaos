@@ -297,6 +297,53 @@ static void test_an_infeasible_quadratic_model_says_so(void)
     jaos_model_free(m);
 }
 
+static void test_a_cut_never_shuts_out_every_point(void)
+{
+    constexpr int64_t N = 5;
+    constexpr int64_t M = 3;
+    const double cost[N] = {6.0, -1.0, 9.0, 8.0, 3.0};
+    const double dense[M][N] = {
+        {-3.0,  2.0,  2.0,  0.0,  2.0},
+        { 3.0,  0.0,  2.0,  1.0,  3.0},
+        { 0.0, -1.0, -1.0,  3.0,  3.0},
+    };
+    const double rl[M] = {-3.0, -INFINITY, 2.0};
+    const double ru[M] = {-1.0, 4.0, 2.0};
+    double lo[N], hi[N], av[M * N];
+    int64_t ai[M * N], as[N + 1], nz = 0;
+    for (int64_t j = 0; j < N; j++) {
+        lo[j] = 0.0;
+        hi[j] = 1.0;
+    }
+    as[0] = 0;
+    for (int64_t j = 0; j < N; j++) {
+        for (int64_t i = 0; i < M; i++)
+            if (dense[i][j] != 0.0) {
+                ai[nz] = i;
+                av[nz] = dense[i][j];
+                nz++;
+            }
+        as[j + 1] = nz;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, nz, as,
+                     ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 13.0, obj);
+    const double want[N] = {1.0, 1.0, 0.0, 1.0, 0.0};
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, want[j], x[j]);
+    jaos_model_free(m);
+}
+
 static void test_the_knapsack_finds_the_integer_optimum(void)
 {
     jaos_model *m = knapsack();
@@ -3436,5 +3483,6 @@ int main(void)
     RUN_TEST(test_a_quadratic_objective_matches_enumeration);
     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
+    RUN_TEST(test_a_cut_never_shuts_out_every_point);
     return UNITY_END();
 }

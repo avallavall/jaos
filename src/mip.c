@@ -106,6 +106,8 @@ constexpr double MIP_CUT_DROP = 1e-9;
 
 constexpr double MIP_CUT_DYNAMISM = 1e6;
 
+constexpr double MIP_CUT_SLACK = 1e-15;
+
 constexpr double MIP_PC_EPS = 1e-6;
 
 constexpr int64_t MIP_RELIABILITY = 0;
@@ -1016,11 +1018,29 @@ static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
     }
     if (nnz == 0 || amax / amin > MIP_CUT_DYNAMISM)
         return 0;
-    double act = 0.0, nrm = 0.0;
+    double act = 0.0, nrm = 0.0, reach = 0.0, span = fabs(rhs);
+    bool capped = true;
     for (int64_t k = 0; k < nc; k++) {
         act += cut[k] * x[k];
         nrm += cut[k] * cut[k];
+        if (cut[k] == 0.0)
+            continue;
+        const double l = lp->col_lower[k], u = lp->col_upper[k];
+        const double b = cut[k] > 0.0 ? u : l;
+        if (isfinite(b))
+            reach += cut[k] * b;
+        else
+            capped = false;
+        double w = 1.0;
+        if (isfinite(l) && fabs(l) > w)
+            w = fabs(l);
+        if (isfinite(u) && fabs(u) > w)
+            w = fabs(u);
+        span += fabs(cut[k]) * w;
     }
+    rhs -= MIP_CUT_SLACK * (1.0 + span);
+    if (capped && !(rhs <= reach))
+        return 0;
     if (!(rhs - act > 0.0))
         return 0;
     if (!cutbuf_push(cb, cut, nc, rhs, (rhs - act) / sqrt(nrm)))
