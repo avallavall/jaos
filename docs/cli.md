@@ -559,6 +559,14 @@ start from every finite side.
 A model may have several such subsystems. This finds one, the same one on
 every machine and every run, so the output is reproducible.
 
+A subsystem is a set of row and column bounds and nothing else. Integer and
+semi-continuous columns, SOS sets, indicator rows and a quadratic objective
+term are all dropped before the search, and the model `--write` produces
+carries none of them. So the answer explains the linear relaxation. When the
+relaxation is feasible and only one of the dropped things makes the model
+infeasible, there is no subsystem of bounds to find: the tool says so on
+stderr and exits 5.
+
 Exit 0 when a subsystem was printed. When the model is optimal or unbounded
 the tool prints its status line, says on stderr that there is nothing to
 find, and exits 1. Exit 5 on an error, including a re-solve that could not

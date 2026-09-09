@@ -526,6 +526,62 @@ static void test_the_subsystem_builder_rejects_bad_arguments(void)
     jaos_model_free(sub);
     jaos_model_free(m);
 }
+static void test_the_subsystem_of_a_mip_carries_no_integrality(void)
+{
+    const double cost[1] = {1.0}, cl[1] = {0.0}, cu[1] = {3.0};
+    const double rl[2] = {2.0, -INFINITY}, ru[2] = {INFINITY, 1.0};
+    const int64_t as[2] = {0, 2}, ai[2] = {0, 1};
+    const double av[2] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    jaos_iis_side rs[2], cs[1];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, rs, cs, &rep));
+    TEST_ASSERT_TRUE(rep.members > 0);
+
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    for (int64_t j = 0; j < jaos_num_col(sub); j++) {
+        bool is_int = true;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(sub, j, &is_int));
+        TEST_ASSERT_FALSE(is_int);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(sub));
+    jaos_model_free(sub);
+    jaos_model_free(m);
+}
+
+static void test_an_infeasible_only_by_integrality_model_says_so(void)
+{
+    const double cost[1] = {1.0}, cl[1] = {0.0}, cu[1] = {1.0};
+    const double rl[1] = {1.0}, ru[1] = {1.0};
+    const int64_t as[2] = {0, 1}, ai[1] = {0};
+    const double av[1] = {2.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    jaos_iis_side rs[1], cs[1];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL, jaos_iis(m, rs, cs, &rep));
+    TEST_ASSERT_NOT_NULL(
+        strstr(jaos_model_error(m), "explains its INFEASIBLE"));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -542,5 +598,7 @@ int main(void)
     RUN_TEST(test_the_subsystem_drops_what_is_not_a_member);
     RUN_TEST(test_a_subsystem_missing_a_member_is_feasible);
     RUN_TEST(test_the_subsystem_builder_rejects_bad_arguments);
+    RUN_TEST(test_the_subsystem_of_a_mip_carries_no_integrality);
+    RUN_TEST(test_an_infeasible_only_by_integrality_model_says_so);
     return UNITY_END();
 }

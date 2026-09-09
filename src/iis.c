@@ -252,9 +252,22 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
             goto out;
     }
     if (st != JAOS_SOLVE_INFEASIBLE) {
-        jm_set_err(m, "the model with every bound kept and no objective "
-                   "re-solved %s, so its INFEASIBLE does not repeat",
-                   jaos_solve_status_str(st));
+        bool relaxed = m->num_sos > 0 || m->row_ind_col != nullptr;
+        for (int64_t j = 0; !relaxed && j < g.ncol; j++)
+            relaxed = (m->col_integer != nullptr && m->col_integer[j]) ||
+                      (m->col_semi != nullptr && m->col_semi[j]) ||
+                      (m->col_quad != nullptr && m->col_quad[j] != 0.0);
+        if (relaxed)
+            jm_set_err(m, "a subsystem is a set of bound sides, so "
+                       "integrality, semi-continuity, the SOS sets, the "
+                       "indicator rows and the quadratic term are dropped; "
+                       "with them dropped the model re-solved %s, so no set "
+                       "of bounds explains its INFEASIBLE",
+                       jaos_solve_status_str(st));
+        else
+            jm_set_err(m, "the model with every bound kept and no objective "
+                       "re-solved %s, so its INFEASIBLE does not repeat",
+                       jaos_solve_status_str(st));
         rc = JAOS_ERR_NUMERICAL;
         goto out;
     }
@@ -304,6 +317,13 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
 
     int64_t *drop = nullptr;
     int64_t ndrop = 0;
+
+    free(c->col_integer);  c->col_integer = nullptr;
+    free(c->col_semi);     c->col_semi = nullptr;
+    free(c->col_quad);     c->col_quad = nullptr;
+    free(c->row_ind_col);  c->row_ind_col = nullptr;
+    free(c->row_ind_val);  c->row_ind_val = nullptr;
+    c->num_sos = 0;
 
     st = jaos_set_objective_offset(c, 0.0);
     for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++)

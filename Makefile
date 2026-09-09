@@ -127,7 +127,7 @@ install-test: $(LIB) $(SHLIB) $(CLI) $(B)/jaos.pc
 cmake-test:
 	@echo "== tests/cmake.sh"; bash tests/cmake.sh $(CC)
 
-windows-test:
+windows-test: $(CLI)
 	@echo "== tests/windows.sh"; bash tests/windows.sh
 
 sanitize: $(ASAN_TESTS)

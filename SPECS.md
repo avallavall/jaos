@@ -99,7 +99,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Proof file, written and checked from the model alone | **done** | optimal, infeasible and unbounded |
 | Certified bound on suboptimality | **partial** | sound; alone it cannot separate a wrong vertex from a right one |
 | Infeasibility and unboundedness certificates, floating and exact | **done** | |
-| Irreducible infeasible subsystem | **done** | |
+| Irreducible infeasible subsystem | **done** | `jaos_iis` and `jaos_iis_model`, the CLI's `iis` and its `--write`. A subsystem is a set of row and column bound sides, so integer and semi-continuous columns, SOS sets, indicator rows and a quadratic term are dropped before the search and the written model carries none of them: the answer explains the linear relaxation. A model the relaxation finds feasible has no such subsystem and says so by name. Checked 2026-09-09 over 2045 generated infeasible models, 1008 linear and 1037 integer: every reported subsystem is infeasible on its own and turns feasible when any one member is dropped |
 | The IIS written out as a model | **done** | |
 | Feasibility relaxation | **done** | |
 | Prove a basis another solver produced | **done** | |
