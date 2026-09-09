@@ -344,6 +344,55 @@ static void test_a_cut_never_shuts_out_every_point(void)
     jaos_model_free(m);
 }
 
+static void test_a_conflict_rests_only_on_rows_that_always_hold(void)
+{
+    constexpr int64_t N = 9;
+    constexpr int64_t M = 3;
+    const double cost[N] = {0.0, -8.0, 9.0, -1.0, 3.0, -2.0, -10.0, 10.0, -5.0};
+    const double dense[M][N] = {
+        { 2.0, -1.0,  3.0,  2.0,  0.0,  1.0, -3.0,  3.0,  0.0},
+        { 1.0, -3.0,  2.0,  3.0,  2.0,  2.0,  0.0,  3.0, -1.0},
+        {-1.0, -3.0,  1.0, -1.0, -2.0, -1.0, -3.0, -3.0,  1.0},
+    };
+    const double rl[M] = {3.0, 3.0, -7.0};
+    const double ru[M] = {3.0, 4.0, -7.0};
+    const double want[N] = {1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0};
+    double lo[N], hi[N], av[M * N];
+    int64_t ai[M * N], as[N + 1], nz = 0;
+    for (int64_t j = 0; j < N; j++) {
+        lo[j] = 0.0;
+        hi[j] = 1.0;
+    }
+    as[0] = 0;
+    for (int64_t j = 0; j < N; j++) {
+        for (int64_t i = 0; i < M; i++)
+            if (dense[i][j] != 0.0) {
+                ai[nz] = i;
+                av[nz] = dense[i][j];
+                nz++;
+            }
+        as[j + 1] = nz;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MAXIMIZE, 0.0, cost, lo, hi, rl, ru, nz, as,
+                     ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 4));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -6.0, obj);
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, want[j], x[j]);
+    jaos_model_free(m);
+}
+
 static void test_the_knapsack_finds_the_integer_optimum(void)
 {
     jaos_model *m = knapsack();
@@ -3484,5 +3533,6 @@ int main(void)
     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
     RUN_TEST(test_a_cut_never_shuts_out_every_point);
+    RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);
     return UNITY_END();
 }

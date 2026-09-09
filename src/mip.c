@@ -2951,9 +2951,9 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
 
 static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
                             const bnode *cur, const double *ilo,
-                            const double *ihi, double *ray, double *acol,
-                            int64_t *last, double *blo, double *bhi,
-                            rowbuf *rb, int64_t *work)
+                            const double *ihi, int64_t nperm, double *ray,
+                            double *acol, int64_t *last, double *blo,
+                            double *bhi, rowbuf *rb, int64_t *work)
 {
     const int64_t nc = m->num_col, nrl = lp->num_row;
     if (cur == nullptr || cur->nfix == 0 || m->row_ind_col != nullptr ||
@@ -2962,6 +2962,9 @@ static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
     if (jaos_certificate(lp, ray) != JAOS_OK)
         return 0;
     *work += lp->num_nz + nc + nrl;
+    for (int64_t i = nperm; i < nrl; i++)
+        if (ray[i] != 0.0)
+            return 0;
     double inf_rows = 0.0;
     for (int64_t i = 0; i < nrl; i++) {
         const double y = ray[i];
@@ -3763,8 +3766,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 }
                 if (!JM_GROW(cray, cray_cap, lp->num_row + 1))
                     goto done;
-                const int64_t got = conflict_row(m, lp, cur, ilo, ihi, cray,
-                                                 cacol, clast, cblo,
+                const int64_t got = conflict_row(m, lp, cur, ilo, ihi, nfixed,
+                                                 cray, cacol, clast, cblo,
                                                  cblo + nc, &sw.rb, &work);
                 if (got < 0)
                     goto done;
