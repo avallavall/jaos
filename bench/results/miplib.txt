@@ -2,23 +2,23 @@ air03        optimal    rows=124 cols=10757 shape=ok iters=443 work=53685903 nod
 bell3a       optimal    rows=123 cols=133 shape=ok iters=282032 work=1492637993 nodes=66767 cuts=53 heur=5 first=78 obj=878430.31599999999 ref=878430.31999999995[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=b6e19f8c677683b6 basis=60ce8c4284f80d9d
 bell5        optimal    rows=91 cols=104 shape=ok iters=287312 work=3144587459 nodes=190741 cuts=46 heur=4 first=1865 obj=8966406.4915200006 ref=8966406.4900000002[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=f5946f1dc805a26d basis=bb96942d19aa046e
 blend2       optimal    rows=274 cols=353 shape=ok iters=335572 work=1420634789 nodes=6344 cuts=25 heur=0 first=3251 obj=7.5989849999999999 ref=7.5989849999999999[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=01ba7cb9eb50c501 basis=9ff428e848083a1a
-dcmulti      optimal    rows=290 cols=548 shape=ok iters=55399 work=253082643 nodes=775 cuts=68 heur=0 first=689 obj=188182 ref=188182[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=ab8c1a45c47c0994 basis=65c9887a23eba88a
+dcmulti      optimal    rows=290 cols=548 shape=ok iters=58487 work=261466636 nodes=791 cuts=68 heur=0 first=709 obj=188182 ref=188182[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=ab8c1a45c47c0994 basis=65c9887a23eba88a
 egout        optimal    rows=98 cols=141 shape=ok iters=3778 work=20434774 nodes=1213 cuts=55 heur=1 first=1 obj=568.10069999999996 ref=568.10069999999996[miplib3] objective=ok checker=ok (col=0 row=1.87e-14 int=0) det=ok digest=f1567eced7be38c2 basis=cc0122d09df4417c
-enigma       optimal    rows=21 cols=100 shape=ok iters=40912 work=86255209 nodes=3734 cuts=59 heur=0 first=3734 obj=0 ref=0[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=803e19e599786a7a basis=f412271a0197bb5c
+enigma       optimal    rows=21 cols=100 shape=ok iters=36227 work=76289727 nodes=2918 cuts=59 heur=0 first=2918 obj=0 ref=0[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=85c3cfe896052103 basis=6f3187840b54f1f4
 flugpl       optimal    rows=18 cols=18 shape=ok iters=2363 work=17519705 nodes=2799 cuts=65 heur=0 first=1725 obj=1201500 ref=1201500[miplib3] objective=ok checker=ok (col=0 row=1.55e-15 int=0) det=ok digest=938e1d9978656ee3 basis=88c0915c9012ece9
 gen          optimal    rows=780 cols=870 shape=ok iters=500 work=3093082 nodes=5 cuts=147 heur=1 first=1 obj=112313.362718 ref=112313.3627[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=9a893d971629c86f basis=7e6dd209ef3a3964
 gt2          optimal    rows=29 cols=188 shape=ok iters=12071 work=34889812 nodes=905 cuts=106 heur=1 first=286 obj=21166 ref=21166[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=f80202480001f172 basis=8dc27b043c818d0d
 khb05250     optimal    rows=101 cols=1350 shape=ok iters=3329 work=30573735 nodes=83 cuts=74 heur=1 first=1 obj=106940226 ref=106940226[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=26195db74a4c8c59 basis=eab83015fb185729
 l152lav      optimal    rows=97 cols=1989 shape=ok iters=2336617 work=56784155762 nodes=2459 cuts=134 heur=4 first=1 obj=4722 ref=4722[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=c834f8e0f5c8a834 basis=9d88fb1890845ccd
-lseu         optimal    rows=28 cols=89 shape=ok iters=47666 work=160066883 nodes=6993 cuts=108 heur=4 first=1 obj=1120 ref=1120[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=9fc090791aa1a89a basis=4d9e4104e4ae136e
-misc03       optimal    rows=96 cols=160 shape=ok iters=27861 work=114307696 nodes=679 cuts=88 heur=0 first=35 obj=3360 ref=3360[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=10c6fd515b2d789d basis=7065578be24bbf71
+lseu         optimal    rows=28 cols=89 shape=ok iters=47816 work=163439616 nodes=7253 cuts=108 heur=4 first=1 obj=1120 ref=1120[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=9fc090791aa1a89a basis=4d9e4104e4ae136e
+misc03       optimal    rows=96 cols=160 shape=ok iters=27861 work=114303040 nodes=679 cuts=88 heur=0 first=35 obj=3360 ref=3360[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=10c6fd515b2d789d basis=7065578be24bbf71
 misc06       optimal    rows=820 cols=1808 shape=ok iters=46246 work=420948725 nodes=79 cuts=34 heur=1 first=1 obj=12850.86073738254 ref=12850.860699999999[miplib3] objective=ok checker=ok (col=0 row=8.87e-13 int=0) det=ok digest=7b1c5edd736c62d7 basis=ea7d63f3fb702133
 misc07       optimal    rows=212 cols=260 shape=ok iters=291921 work=1877391253 nodes=5945 cuts=80 heur=0 first=777 obj=2810 ref=2810[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=9efa558165728cab basis=ecfcfae6c6aa7235
 mod008       optimal    rows=6 cols=319 shape=ok iters=26756 work=173057661 nodes=2883 cuts=101 heur=2 first=1 obj=307 ref=307[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=8a0f7a065b1596da basis=16f639c307bc5430
 mod010       optimal    rows=146 cols=2655 shape=ok iters=822 work=18490702 nodes=1 cuts=45 heur=0 first=1 obj=6548 ref=6548[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=729b8ddc4fcf8763 basis=41673554649b9310
-p0033        optimal    rows=16 cols=33 shape=ok iters=997 work=3927773 nodes=217 cuts=89 heur=2 first=1 obj=3089 ref=3089[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=ed5c1931404dfac3 basis=e3587eed8dfc6e46
+p0033        optimal    rows=16 cols=33 shape=ok iters=1078 work=4587722 nodes=267 cuts=88 heur=2 first=1 obj=3089 ref=3089[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=ed5c1931404dfac3 basis=e3587eed8dfc6e46
 p0201        optimal    rows=133 cols=201 shape=ok iters=31590 work=203732232 nodes=465 cuts=177 heur=2 first=407 obj=7615 ref=7615[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=fd0b55fc5b75a93c basis=d8b5399963da6ca7
-p0282        optimal    rows=241 cols=282 shape=ok iters=84049 work=370152384 nodes=4929 cuts=287 heur=8 first=1 obj=258411 ref=258411[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=f7ce1664c4c697ba basis=2bb3873c9f77b927
+p0282        optimal    rows=241 cols=282 shape=ok iters=84106 work=370324566 nodes=4929 cuts=287 heur=8 first=1 obj=258411 ref=258411[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=f7ce1664c4c697ba basis=2bb3873c9f77b927
 rgn          optimal    rows=24 cols=180 shape=ok iters=4347 work=31213098 nodes=229 cuts=134 heur=1 first=1 obj=82.199999239999983 ref=82.199999239999997[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=47b368612fa81c0c basis=a63eeef90e1b4fb0
 stein27      optimal    rows=118 cols=27 shape=ok iters=10778 work=38008099 nodes=2801 cuts=43 heur=2 first=1 obj=18 ref=18[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=0efe44ae628c3883 basis=50473899f8436591
 stein45      optimal    rows=331 cols=45 shape=ok iters=867108 work=2586525352 nodes=106373 cuts=92 heur=3 first=1 obj=30 ref=30[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=53f3d26e2fbb1e5a basis=9086b318e53bf4f5
@@ -26,4 +26,9 @@ stein45      optimal    rows=331 cols=45 shape=ok iters=867108 work=2586525352 n
 24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
 gate: PASS
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+dcmulti      changed      nodes: 775 -> 791 (work 1.03x)
+enigma       changed      nodes: 3734 -> 2918 (work 0.88x)
+lseu         changed      nodes: 6993 -> 7253 (work 1.02x)
+p0033        changed      nodes: 217 -> 267 (work 1.17x)
+baseline: 0 regressed, 0 improved, 0 new
