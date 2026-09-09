@@ -75,7 +75,28 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    `bench/results/barrier.txt`; or the tree branches on rather than
    aborting at a node it cannot relax, taking the parent's bound and
    bisecting an integer column, which is always sound.
-4. **PDLP: infeasibility from the iterate.** The reference's test: the
+4. **A Gomory cut at a node can shut out a point of its own node.**
+   Found 2026-09-09 by generating small MIPs, enumerating every integer
+   point and comparing, 1 model of 20000 (`mipenum`, seed 99991, run
+   12321). The model maximises `0 x0 -8 x1 +9 x2 -1 x3 +3 x4 -2 x5 -10 x6
+   +10 x7 -5 x8` over binaries with `2 -1 3 2 0 1 -3 3 0 == 3`,
+   `1 -3 2 3 2 2 0 3 -1 in [3,4]` and `-1 -3 1 -1 -2 -1 -3 -3 1 == -7`.
+   The answer is -6 at (1,1,0,1,1,0,0,0,0); JAOS returns -10 and calls it
+   optimal. It takes diving, zero-half cuts and all four default cut
+   families together to reach it, and `--cut-depth 0` makes it right, so
+   the cut is generated below the root. Two of the node's Gomory cuts
+   shut out that point while the point is inside the node's own column
+   bounds, which no valid cut may do. One reads
+   `-7 x0 + 14/3 x1 - 35/3 x2 - 7/3 x3 + 7/6 x4 - 7/6 x5 + 70/3 x6
+   - 28/3 x7 >= 7`; the point gives -3.5, so it misses by 10.5, which is
+   far past any rounding. The cut is not caught by `MIP_CUT_DYNAMISM`
+   (its coefficient spread is 20) and `MIP_CUT_AWAY` is not the cause
+   either (`bench/refusals.txt`, mip-cut-away-wider). What is left to
+   read is `gomory_round` itself against the node's tableau: the bounds
+   it takes for each nonbasic variable, and whether the row it reads from
+   `jm_tableau_row` matches the model the node is solving once cut rows
+   are in it.
+5. **PDLP: infeasibility from the iterate.** The reference's test: the
    difference of successive iterates converging to a ray that certifies
    primal or dual infeasibility, checked every `PDLP_CHECK_EVERY`, so a
    refused model ends before `PDLP_MAX_ITER`; the 29 infeasible
