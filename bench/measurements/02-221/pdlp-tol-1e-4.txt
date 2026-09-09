@@ -1,3 +1,4 @@
+# PDLP_TOL 1e-4 at 10d000fee4650ce6fc2ddcada56d6893a002fc94, the standard 94 at 10x the dual's work
 # instance    verdict   dual=iters/work  pdlp=iters/work
 25fv47       overrun   dual=2644/71106234 pdlp=20304+0/711090196 verdict=optimal/work limit reached obj=5501.8458882867444/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 80bau3b      overrun   dual=3616/70128525 pdlp=7098+0/701325185 verdict=optimal/work limit reached obj=987224.19240909023/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
@@ -101,3 +102,4 @@ iterations (pdlp+1)/(dual+1), geometric mean: 5.3641
 work ratio, best  pilot87 at 3.0082
 work ratio, worst pilot at 6.2696
 most pdlp iterations: pilot87 at 237362
+done

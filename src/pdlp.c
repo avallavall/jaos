@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-constexpr double  PDLP_TOL                = 1e-6;
+constexpr double  PDLP_TOL                = 1e-4;
 constexpr int64_t PDLP_MAX_ITER           = 200000;
 constexpr int64_t PDLP_CHECK_EVERY        = 64;
 constexpr double  PDLP_RESTART_SUFFICIENT = 0.2;
