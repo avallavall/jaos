@@ -4016,6 +4016,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_nz  = target->num_nz;
 
     int64_t barrier_iters = 0;
+    bool quad_probe = false;
     if (jm_model_has_quadratic(m) ||
         ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve)) {
         bool crossover = false, handoff = false;
@@ -4029,6 +4030,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
             jm_presolve_free(&p);
             return bst;
         }
+        quad_probe = handoff && jm_model_has_quadratic(m);
     }
 
     sx s;
@@ -4136,6 +4138,19 @@ jaos_status jm_dual_simplex(jaos_model *m)
         if (outcome == JAOS_SOLVE_OPTIMAL)
             st = retire_lent_bounds(&s);
         break;
+    }
+
+    if (quad_probe) {
+        if (st == JAOS_OK && outcome == JAOS_SOLVE_INFEASIBLE) {
+            m->err[0] = '\0';
+            target->err[0] = '\0';
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the rows and bounds are infeasible, so the quadratic "
+                   "model is infeasible");
+        } else {
+            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+            st = JAOS_OK;
+        }
     }
 
     if (target != m && target->err[0] != '\0' &&

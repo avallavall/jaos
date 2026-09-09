@@ -4,6 +4,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -95,6 +96,204 @@ static void test_a_quadratic_objective_branches_on_barrier_relaxations(void)
     m = miqp(true);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    jaos_model_free(m);
+}
+
+static uint64_t miqp_next(uint64_t *s)
+{
+    *s = *s * 6364136223846793005u + 1442695040888963407u;
+    return *s >> 33;
+}
+
+static void test_a_quadratic_objective_matches_enumeration(void)
+{
+    constexpr int64_t N = 6;
+    constexpr int64_t M = 3;
+    constexpr int64_t POINTS = 729;
+    uint64_t seed = 20260909u;
+    for (int inst = 0; inst < 24; inst++) {
+        const double scale = inst % 2 == 0 ? 1.0 : 1000.0;
+        double cost[N], quad[N], cl[N], cu[N], rl[M], ru[M], dense[M][N];
+        double av[M * N];
+        int64_t ai[M * N], as[N + 1], pt[N];
+        for (int64_t j = 0; j < N; j++) {
+            cost[j] = scale * ((double)(int64_t)(miqp_next(&seed) % 21) - 10.0);
+            quad[j] = scale * (double)(1 + (int64_t)(miqp_next(&seed) % 6));
+            cl[j] = 0.0;
+            cu[j] = 2.0;
+        }
+        for (int64_t i = 0; i < M; i++)
+            for (int64_t j = 0; j < N; j++)
+                dense[i][j] = (double)(int64_t)(miqp_next(&seed) % 7) - 3.0;
+        for (int64_t i = 0; i < M; i++) {
+            rl[i] = -INFINITY;
+            ru[i] = (double)(int64_t)(miqp_next(&seed) % 8);
+        }
+        int64_t nz = 0;
+        as[0] = 0;
+        for (int64_t j = 0; j < N; j++) {
+            for (int64_t i = 0; i < M; i++)
+                if (dense[i][j] != 0.0) {
+                    ai[nz] = i;
+                    av[nz] = dense[i][j];
+                    nz++;
+                }
+            as[j + 1] = nz;
+        }
+        double best = INFINITY;
+        for (int64_t code = 0; code < POINTS; code++) {
+            int64_t c = code;
+            for (int64_t j = 0; j < N; j++) {
+                pt[j] = c % 3;
+                c /= 3;
+            }
+            bool ok = true;
+            for (int64_t i = 0; ok && i < M; i++) {
+                double a = 0.0;
+                for (int64_t j = 0; j < N; j++)
+                    a += dense[i][j] * (double)pt[j];
+                if (a > ru[i])
+                    ok = false;
+            }
+            if (!ok)
+                continue;
+            double v = 0.0;
+            for (int64_t j = 0; j < N; j++) {
+                const double xj = (double)pt[j];
+                v += cost[j] * xj + 0.5 * quad[j] * xj * xj;
+            }
+            if (v < best)
+                best = v;
+        }
+        TEST_ASSERT_TRUE(best < INFINITY);
+
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         nz, as, ai, av));
+        for (int64_t j = 0; j < N; j++) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_col_quadratic(m, j, quad[j]));
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[N];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(m, x, nullptr, nullptr, nullptr));
+        const double slack = 1e-6 * (1.0 + fabs(best));
+        TEST_ASSERT_TRUE(obj <= best + slack);
+        TEST_ASSERT_TRUE(obj >= best - slack);
+        for (int64_t j = 0; j < N; j++) {
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, floor(x[j] + 0.5), x[j]);
+            TEST_ASSERT_TRUE(x[j] >= -1e-6 && x[j] <= 2.0 + 1e-6);
+        }
+        for (int64_t i = 0; i < M; i++) {
+            double a = 0.0;
+            for (int64_t j = 0; j < N; j++)
+                a += dense[i][j] * x[j];
+            TEST_ASSERT_TRUE(a <= ru[i] + 1e-6);
+        }
+        jaos_model *b = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(b, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         nz, as, ai, av));
+        for (int64_t j = 0; j < N; j++) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(b, j, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_col_quadratic(b, j, quad[j]));
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+        TEST_ASSERT_EQUAL_INT64(jaos_work_units(m), jaos_work_units(b));
+        double xb[N];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(b, xb, nullptr, nullptr, nullptr));
+        TEST_ASSERT_EQUAL_MEMORY(x, xb, sizeof x);
+        jaos_model_free(b);
+        jaos_model_free(m);
+    }
+}
+
+static void test_a_quadratic_objective_breaks_the_symmetry(void)
+{
+    constexpr int64_t N = 6;
+    const double cost[N] = {-10.0, -10.0, -10.0, -10.0, -10.0, -10.0};
+    const double q[N] = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
+    double lo[N], hi[N], av[N];
+    int64_t as[N + 1], ai[N];
+    for (int64_t j = 0; j < N; j++) {
+        lo[j] = 0.0;
+        hi[j] = 1.0;
+        as[j] = j;
+        ai[j] = 0;
+        av[j] = 1.0;
+    }
+    as[N] = N;
+    const double rl[1] = {-INFINITY}, ru[1] = {3.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, 1, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, N, as,
+                     ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_mip_report sym;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &sym));
+    TEST_ASSERT_TRUE(sym.symmetry_generators > 0);
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, 1, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, N, as,
+                     ai, av));
+    for (int64_t j = 0; j < N; j++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, q[j]));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.symmetry_generators);
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -24.0, obj);
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, j < 3 ? 1.0 : 0.0, x[j]);
+    jaos_model_free(m);
+}
+
+static void test_an_infeasible_quadratic_model_says_so(void)
+{
+    const double cost[2] = {1.0, 1.0}, lo[2] = {0.0, 0.0}, hi[2] = {1.0, 1.0};
+    const double rl[1] = {3.0}, ru[1] = {INFINITY};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, 2, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, 2, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
     jaos_model_free(m);
 }
 
@@ -3234,5 +3433,8 @@ int main(void)
     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
     RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
     RUN_TEST(test_a_quadratic_objective_branches_on_barrier_relaxations);
+    RUN_TEST(test_a_quadratic_objective_matches_enumeration);
+    RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
+    RUN_TEST(test_an_infeasible_quadratic_model_says_so);
     return UNITY_END();
 }

@@ -271,7 +271,7 @@ static int64_t rank_of(const double *sorted, int64_t n, double v)
 }
 
 typedef struct {
-    double a, b, c;
+    double a, b, c, e;
     int64_t d;
     int64_t who;
 } ckey;
@@ -282,13 +282,15 @@ static int ckey_cmp(const void *pa, const void *pb)
     if (p->a != q->a) return p->a < q->a ? -1 : 1;
     if (p->b != q->b) return p->b < q->b ? -1 : 1;
     if (p->c != q->c) return p->c < q->c ? -1 : 1;
+    if (p->e != q->e) return p->e < q->e ? -1 : 1;
     if (p->d != q->d) return p->d < q->d ? -1 : 1;
     return p->who < q->who ? -1 : p->who > q->who;
 }
 
 static bool ckey_same(const ckey *p, const ckey *q)
 {
-    return p->a == q->a && p->b == q->b && p->c == q->c && p->d == q->d;
+    return p->a == q->a && p->b == q->b && p->c == q->c && p->e == q->e &&
+           p->d == q->d;
 }
 
 static jaos_status sg_build(sg *g, const jaos_model *m)
@@ -347,6 +349,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     for (int64_t j = 0; j < nc; j++) {
         keys[j] = (ckey){ .a = m->col_cost[j], .b = m->col_lower[j],
                           .c = m->col_upper[j],
+                          .e = m->col_quad != nullptr ? m->col_quad[j] : 0.0,
                           .d = (m->col_integer != nullptr && m->col_integer[j])
                                + 2 * (m->col_semi != nullptr && m->col_semi[j]),
                           .who = j };
@@ -361,6 +364,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     const int64_t col_colors = nc > 0 ? rank + 1 : 0;
     for (int64_t i = 0; i < nr; i++)
         keys[i] = (ckey){ .a = m->row_lower[i], .b = m->row_upper[i], .c = 0.0,
+                          .e = 0.0,
                           .d = m->row_ind_col != nullptr ? m->row_ind_col[i] : -1,
                           .who = i };
     qsort(keys, (size_t)nr, sizeof *keys, ckey_cmp);

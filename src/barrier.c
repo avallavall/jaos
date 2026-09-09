@@ -1105,13 +1105,20 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         bx_free(&s);
         return st;
     }
-    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff &&
-        !s.quadratic) {
-        jm_log(m, JAOS_LOG_SUMMARY,
-               "barrier stopped after %lld iterations, %lld work units: %s; "
-               "the dual simplex takes over from the slack basis",
-               (long long)s.iters, (long long)s.work.units, target->err);
-        target->err[0] = '\0';
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff) {
+        if (s.quadratic)
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "barrier stopped after %lld iterations, %lld work units: "
+                   "%s; the dual simplex decides feasibility over the same "
+                   "rows and bounds, which the quadratic term does not change",
+                   (long long)s.iters, (long long)s.work.units, target->err);
+        else
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "barrier stopped after %lld iterations, %lld work units: "
+                   "%s; the dual simplex takes over from the slack basis",
+                   (long long)s.iters, (long long)s.work.units, target->err);
+        if (!s.quadratic)
+            target->err[0] = '\0';
         *work = s.work;
         *handoff = true;
         bx_free(&s);
