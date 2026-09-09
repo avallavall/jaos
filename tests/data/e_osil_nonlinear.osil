@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osil xmlns="os.optimizationservices.org">
+<instanceData>
+<variables numberOfVariables="1">
+<var name="x" type="C"/>
+</variables>
+<objectives numberOfObjectives="1">
+<obj name="obj" maxOrMin="min" numberOfObjCoef="1" constant="0">
+<coef idx="0">1</coef>
+</obj>
+</objectives>
+<constraints numberOfConstraints="1">
+<con name="r1" lb="1"/>
+</constraints>
+<nonlinearExpressions numberOfNonlinearExpressions="1">
+<nl idx="0"><square><variable coef="1.0" idx="0"/></square></nl>
+</nonlinearExpressions>
+</instanceData>
+</osil>

@@ -248,7 +248,7 @@ static const char U_SOLVE_E[] =
 static const char U_CONVERT[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
     "  .mps, .lp, .nl (the names beside it in .col and .row), .qplib or\n"
-    "  .osil (write only). A .gz after any of them compresses the file,\n"
+    "  .osil. A .gz after any of them compresses the file,\n"
     "  which every writer here takes and every reader already took. Exit\n"
     "  0 when written.\n"
     "  --positional     take every name off first, so the file is written\n"
@@ -503,6 +503,11 @@ static bool is_qplib_name(const char *path)
     return has_suffix(path, ".qplib") || has_suffix(path, ".qplib.gz");
 }
 
+static bool is_osil_name(const char *path)
+{
+    return has_suffix(path, ".osil") || has_suffix(path, ".osil.gz");
+}
+
 static jaos_status read_model(jaos_model *m, const char *path)
 {
     if (is_lp_name(path))
@@ -511,6 +516,8 @@ static jaos_status read_model(jaos_model *m, const char *path)
         return jaos_read_nl(m, path);
     if (is_qplib_name(path))
         return jaos_read_qplib(m, path);
+    if (is_osil_name(path))
+        return jaos_read_osil(m, path);
     return jaos_read_mps(m, path);
 }
 

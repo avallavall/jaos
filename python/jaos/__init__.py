@@ -666,6 +666,7 @@ _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_qplib", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_qplib", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
@@ -928,10 +929,20 @@ class Model:
         self._check(_lib.jaos_write_qplib(self._handle(), _path(path)))
         return self
 
+    def read_osil(self, path):
+        """Reads an OSiL XML file: variables with bounds and types, one
+        objective with its constant and its diagonal quadratic terms,
+        constraints and the matrix in either the column-wise or the
+        row-wise layout. A nonlinear or quadratic-constraint block, an
+        off-diagonal quadratic term and a second objective are refused
+        by line. gzip is accepted here too."""
+        self._check(_lib.jaos_read_osil(self._handle(), _path(path)))
+        return self
+
     def write_osil(self, path):
         """Writes the model as OSiL XML: variables with bounds and types,
         one objective with its quadratic terms, constraints and the
-        column-wise matrix. JAOS does not read OSiL back."""
+        column-wise matrix."""
         self._check(_lib.jaos_write_osil(self._handle(), _path(path)))
         return self
 

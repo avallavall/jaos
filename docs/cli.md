@@ -269,8 +269,9 @@ exists to shrink.
 `OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
 LP, `.nl` writes AMPL's text `.nl` with the names in `.col` and `.row`
 beside it, `.qplib` writes the QPLIB text format, `.osil` writes OSiL
-XML (which JAOS does not read back), and any other extension is a usage
-error. The readers take `.mps`, `.lp`, `.nl` and `.qplib` by extension. The output name is
+XML, and any other extension is a usage
+error. The readers take `.mps`, `.lp`, `.nl`, `.qplib` and `.osil` by
+extension. The output name is
 checked before the input is read. The `.nl` writer lists the integer
 columns last, as the format does, so a model whose integer columns sit
 before a continuous one comes back in that order, names carried; it

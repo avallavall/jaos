@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- a hand-written OSiL file in the row-wise layout -->
+<osil xmlns="os.optimizationservices.org">
+<instanceHeader><name>rowwise</name><description>row-wise</description></instanceHeader>
+<instanceData>
+<variables numberOfVariables="3">
+<var name="&#120;" type="C" ub="10"/>
+<var name="y" type="B"/>
+<var name="z" type="I" lb="-2" ub="5"/>
+</variables>
+<objectives numberOfObjectives="1">
+<obj name="cost" maxOrMin="min" numberOfObjCoef="3" constant="4">
+<coef idx="0">1</coef>
+<coef idx="1">2</coef>
+<coef idx="2">3</coef>
+</obj>
+</objectives>
+<constraints numberOfConstraints="2">
+<con name="r1" lb="1"/>
+<con name="r2" lb="2" ub="8"/>
+</constraints>
+<linearConstraintCoefficients numberOfValues="5">
+<start><el>0</el><el>3</el><el>5</el></start>
+<colIdx><el mult="3" incr="1">0</el><el>0</el><el>1</el></colIdx>
+<value><el mult="3">1</el><el>1</el><el>2</el></value>
+</linearConstraintCoefficients>
+</instanceData>
+</osil>

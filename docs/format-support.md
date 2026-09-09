@@ -291,14 +291,28 @@ refused by name.
 `<constraints>` with names and bounds, `<linearConstraintCoefficients>`
 column-wise, and `<quadraticCoefficients>` with one `qTerm` per
 quadratic column at `coef = q / 2`, the objective's `idx="-1"`. SOS sets
-and indicator rows are refused by name. JAOS does not read OSiL.
+and indicator rows are refused by name.
+
+`jaos_read_osil` and the tool by extension read the same content back.
+The reader takes both matrix layouts: `<start>` over the columns with a
+`<rowIdx>` block, which is what JAOS writes, and `<start>` over the rows
+with a `<colIdx>` block. An `<el>` carries the format's `mult` and
+`incr` attributes. Variable types are `C`, `B`, `I`, `S` and `D`; a `B`
+column reads as an integer column with an upper bound of 1. A bound of
+`INF`, `-INF` or a magnitude of 1e30 or more is an infinite bound. XML
+comments, the declaration, namespace prefixes and the five named
+entities plus the numeric ones are handled. Refused by line: a
+`<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
+off the diagonal or on a constraint, a second `<obj>`, an SOS block, a
+`<var>` or `<con>` repeated by `mult`, a `<con>` with a non-zero
+`constant`, a count that disagrees with what the file carries, and a
+file that ends inside a tag.
 
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,
 `jaos_write_nl`, added 2026-09-09, and `jaos_write_qplib` and
-`jaos_write_osil` the same day. One rule shapes all of them but OSiL,
-which has no reader: **what JAOS
+`jaos_write_osil` the same day. One rule shapes all of them: **what JAOS
 writes, JAOS reads back as the same model.** Where a format cannot express
 what the model holds, the call fails, `jaos_model_error` names the row or
 the column, and no file is left behind.

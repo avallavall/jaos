@@ -740,6 +740,22 @@ expect_exit 0 "convert to OSiL exits 0" \
 grep -q '<qTerm idx="-1"' "$tmp/gq.osil" \
     && pass "and the OSiL carries the quadratic term" \
     || flunk "no qTerm in the written OSiL"
+expect_exit 0 "the written OSiL solves" "$JAOS" solve "$tmp/gq.osil"
+case "$(line_of objective)" in
+    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    *) flunk "OSiL QP objective '$(line_of objective)'" ;;
+esac
+expect_exit 0 "convert OSiL back to MPS exits 0" \
+    "$JAOS" convert "$tmp/gq.osil" "$tmp/gq_osil.mps"
+expect_exit 0 "the MPS written from OSiL solves" "$JAOS" solve "$tmp/gq_osil.mps"
+expect_exit 0 "convert to a compressed OSiL exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1z.osil.gz"
+expect_exit 0 "the compressed OSiL solves" "$JAOS" solve "$tmp/solve1z.osil.gz"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line as the MPS" \
+    || flunk "OSiL objective '$(line_of objective)' vs MPS '$mps_objective'"
+expect_exit 5 "an OSiL with a nonlinear block is refused" \
+    "$JAOS" solve "$DATA/e_osil_nonlinear.osil"
 expect_exit 5 "convert to an unknown extension is a usage error" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.xyz"
 expect_exit 0 "convert to a compressed NL exits 0" \

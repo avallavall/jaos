@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osil xmlns="os.optimizationservices.org">
+<instanceData>
+<variables numberOfVariables="2">
+<var name="x" type="C"/>
+<var name="y" type="C"/>
+</variables>
+<objectives numberOfObjectives="1">
+<obj name="obj" maxOrMin="min" numberOfObjCoef="1" constant="0">
+<coef idx="0">1</coef>
+</obj>
+</objectives>
+<constraints numberOfConstraints="0"/>
+<quadraticCoefficients numberOfQuadraticTerms="1">
+<qTerm idx="-1" idxOne="0" idxTwo="1" coef="1"/>
+</quadraticCoefficients>
+</instanceData>
+</osil>

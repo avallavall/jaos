@@ -208,6 +208,22 @@ class TestReadingFiles(unittest.TestCase):
                 text = f.read()
             self.assertIn('<var name="x"', text)
             self.assertIn('<qTerm idx="-1"', text)
+            with jaos.Model() as back:
+                back.read_osil(osil)
+                self.assertEqual((back.num_col, back.num_row), (2, 1))
+                self.assertEqual(back.col_name(0), "x")
+                self.assertEqual(back.row_name(0), "c1")
+                self.assertEqual(back.col_quadratic(0), 2.0)
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), 4.0, places=6)
+            with jaos.Model() as back:
+                back.read_osil(data("g_osil_rowwise.osil"))
+                self.assertEqual((back.num_col, back.num_row), (3, 2))
+                self.assertEqual(back.col_name(0), "x")
+                self.assertTrue(back.col_integer(1))
+                with self.assertRaises(jaos.JaosError) as ctx:
+                    back.read_osil(data("e_osil_offdiag.osil"))
+                self.assertIn("off-diagonal", str(ctx.exception))
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=4, name="x", integer=True)
         p.add(x >= 1.5, name="floor")
@@ -222,6 +238,11 @@ class TestReadingFiles(unittest.TestCase):
                 self.assertEqual(back.objective(), 2.0)
             p.write_osil(os.path.join(d, "p.osil"))
             self.assertTrue(os.path.exists(os.path.join(d, "p.osil")))
+            with jaos.Model() as back:
+                back.read_osil(os.path.join(d, "p.osil"))
+                self.assertTrue(back.col_integer(0))
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertEqual(back.objective(), 2.0)
 
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:

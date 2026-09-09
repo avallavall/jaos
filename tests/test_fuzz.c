@@ -205,9 +205,15 @@ static void feed(const unsigned char *b, size_t n)
     tmp_write(b, n);
     cases_run++;
 
-    for (int which = 0; which < 2; which++) {
-        const char *name = which == 0 ? "MPS" : "LP";
-        reader_fn   rd   = which == 0 ? jaos_read_mps : jaos_read_lp;
+    static const char     *names[] = {"MPS", "LP", "OSiL", "QPLIB", "NL"};
+    static const reader_fn readers[] = {jaos_read_mps, jaos_read_lp,
+                                        jaos_read_osil, jaos_read_qplib,
+                                        jaos_read_nl};
+
+    for (int which = 0; which < (int)(sizeof readers / sizeof *readers);
+         which++) {
+        const char *name = names[which];
+        reader_fn   rd   = readers[which];
 
         outcome o;
         read_once(rd, &o);
@@ -246,7 +252,7 @@ static void feed(const unsigned char *b, size_t n)
 }
 
 static const unsigned char interesting[] =
-    "0123456789.eEdD+-* \t\n\r:<>=\\'NLGE";
+    "0123456789.eEdD+-* \t\n\r:<>=\\'NLGE&\"/?!;#%";
 
 static unsigned char pick_byte(void)
 {
