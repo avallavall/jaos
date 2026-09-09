@@ -266,8 +266,12 @@ exists to shrink.
 
 `convert` reads `IN` and writes `OUT`. The output format is chosen by
 `OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
-LP, and any other extension is a usage error. The output name is checked
-before the input is read.
+LP, `.nl` writes AMPL's text `.nl` with the names in `.col` and `.row`
+beside it, and any other extension is a usage error. The output name is
+checked before the input is read. The `.nl` writer lists the integer
+columns last, as the format does, so a model whose integer columns sit
+before a continuous one comes back in that order, names carried; it
+refuses SOS sets, semi-continuous columns and indicator rows by name.
 
 **`--positional` takes every name off the model before writing**,
 so the file comes out with `R1`, `C1` and `COST`. It is the escape hatch
@@ -858,7 +862,7 @@ Usage:
   jaos convert IN OUT
 
 convert reads IN and writes OUT in the format OUT's extension names,
-  .mps or .lp. ...
+  .mps, .lp or .nl (the names beside it in .col and .row). A .gz ...
 ```
 
 A word that is not a command is a usage error with exit 5, and so is more

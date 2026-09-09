@@ -657,6 +657,7 @@ _sig("jaos_read_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_mps", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
      _P(_D), _P(_D), _P(ctypes.c_int),
@@ -892,6 +893,16 @@ class Model:
 
     def write_lp(self, path):
         self._check(_lib.jaos_write_lp(self._handle(), _path(path)))
+        return self
+
+    def write_nl(self, path):
+        """Writes an AMPL .nl file in its text form, with the names in
+        .col and .row files beside it. The format lists the integer
+        columns last, so a model with an integer column before a
+        continuous one reads back with its columns in that order, names
+        carried. SOS sets, semi-continuous columns and indicator rows
+        are refused; write MPS for those."""
+        self._check(_lib.jaos_write_nl(self._handle(), _path(path)))
         return self
 
     def write_solution(self, path):
@@ -3524,6 +3535,12 @@ class Problem:
         if self._pending():
             self._build_and_load()
         self._m.write_lp(path)
+        return self
+
+    def write_nl(self, path):
+        if self._pending():
+            self._build_and_load()
+        self._m.write_nl(path)
         return self
 
     def write_solution(self, path):

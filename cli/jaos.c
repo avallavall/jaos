@@ -246,9 +246,9 @@ static const char U_SOLVE_E[] =
     "  by Ctrl-C, 4 numerical failure.\n";
 static const char U_CONVERT[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
-    "  .mps or .lp. A .gz after either compresses the file, which every\n"
-    "  writer here takes and both readers already took. Exit 0 when\n"
-    "  written.\n"
+    "  .mps, .lp or .nl (the names beside it in .col and .row). A .gz\n"
+    "  after any of them compresses the file, which every writer here\n"
+    "  takes and every reader already took. Exit 0 when written.\n"
     "  --positional     take every name off first, so the file is written\n"
     "                   with R1, C1 and COST. It is the escape hatch for\n"
     "                   a name the LP dialect cannot spell -- one holding\n"
@@ -275,7 +275,7 @@ static const char U_IIS[] =
     "  infeasible subsystem: `row I lower|upper` and `col J lower|upper`\n"
     "  lines, then the counts. Exit 0 with an IIS, 1 when the model is not\n"
     "  infeasible.\n"
-    "  --write OUT      write the subsystem itself to OUT, .mps or .lp:\n"
+    "  --write OUT      write the subsystem itself to OUT, .mps, .lp or .nl:\n"
     "                   the member sides kept, every other side relaxed,\n"
     "                   the rows and columns nothing is left to say about\n"
     "                   dropped, and every cost zeroed, so the file is a\n"
@@ -294,7 +294,7 @@ static const char U_RELAX[] =
     "  --rows           only row bounds may move\n"
     "  --cols           only column bounds may move\n"
     "  --apply OUT      write the model with every move applied to\n"
-    "                   OUT, .mps or .lp: the same file the moves\n"
+    "                   OUT, .mps, .lp or .nl: the same file the moves\n"
     "                   describe, so it can be solved rather than\n"
     "                   read\n"
     "  --positional     take every name off before writing OUT, the same\n"
@@ -512,6 +512,8 @@ static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)
         return jaos_write_mps;
     if (has_suffix(path, ".lp") || (gz && has_suffix(path, ".lp.gz")))
         return jaos_write_lp;
+    if (has_suffix(path, ".nl") || (gz && has_suffix(path, ".nl.gz")))
+        return jaos_write_nl;
     return nullptr;
 }
 
@@ -1670,7 +1672,7 @@ static int cmd_convert(int argc, char **argv)
 
     jaos_status (*write)(jaos_model *, const char *) = writer_for(out);
     if (write == nullptr)
-        return usage_error("convert writes .mps or .lp, either with a .gz "
+        return usage_error("convert writes .mps, .lp or .nl, any with a .gz "
                            "after it, and '%s' is none of those", out);
 
     jaos_model *m = nullptr;
@@ -1971,7 +1973,7 @@ static int cmd_iis(int argc, char **argv)
     if (write != nullptr) {
         write_fn = writer_for(write);
         if (write_fn == nullptr)
-            return usage_error("--write writes .mps or .lp, either with a "
+            return usage_error("--write writes .mps, .lp or .nl, any with a "
                                ".gz after it, and '%s' is none of those",
                                write);
     }
@@ -2087,7 +2089,7 @@ static int cmd_relax(int argc, char **argv)
     if (apply != nullptr) {
         write = writer_for(apply);
         if (write == nullptr)
-            return usage_error("--apply writes .mps or .lp, either with a "
+            return usage_error("--apply writes .mps, .lp or .nl, any with a "
                                ".gz after it, and '%s' is none of those",
                                apply);
     }

@@ -779,6 +779,255 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
     return st;
 }
 
+static void nl_bound_line(FILE *f, double lo, double hi)
+{
+    char a[NUM_LEN], b[NUM_LEN];
+    if (lo == -INFINITY && hi == INFINITY) {
+        fputs("3\n", f);
+    } else if (lo == hi) {
+        wr_num(a, lo);
+        fprintf(f, "4 %s\n", a);
+    } else if (lo == -INFINITY) {
+        wr_num(b, hi);
+        fprintf(f, "1 %s\n", b);
+    } else if (hi == INFINITY) {
+        wr_num(a, lo);
+        fprintf(f, "2 %s\n", a);
+    } else {
+        wr_num(a, lo);
+        wr_num(b, hi);
+        fprintf(f, "0 %s %s\n", a, b);
+    }
+}
+
+static void nl_names_file(wr *w, const char *base, const char *ext,
+                          int64_t n, const int64_t *order)
+{
+    if (w->st != JAOS_OK)
+        return;
+    char *path = malloc(strlen(base) + strlen(ext) + 1);
+    if (path == nullptr) {
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        return;
+    }
+    strcpy(path, base);
+    strcat(path, ext);
+    FILE *f = fopen(path, "w");
+    if (f == nullptr) {
+        wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
+        free(path);
+        return;
+    }
+    char nm[NAME_LEN];
+    for (int64_t k = 0; k < n; k++) {
+        if (order != nullptr)
+            col_name(w->m, nm, order[k]);
+        else
+            row_name(w->m, nm, k);
+        fprintf(f, "%s\n", nm);
+    }
+    if (order == nullptr)
+        fprintf(f, "%s\n", jm_obj_name(w->m));
+    if (ferror(f))
+        wr_fail(w, JAOS_ERR_IO, "writing '%s' failed", path);
+    if (fclose(f) != 0)
+        wr_fail(w, JAOS_ERR_IO, "closing '%s' failed", path);
+    if (w->st != JAOS_OK)
+        remove(path);
+    free(path);
+}
+
+static bool nl_binary(const jaos_model *m, int64_t j)
+{
+    return m->col_integer != nullptr && m->col_integer[j] &&
+           m->col_lower[j] == 0.0 && m->col_upper[j] == 1.0;
+}
+
+static bool nl_general_integer(const jaos_model *m, int64_t j)
+{
+    return m->col_integer != nullptr && m->col_integer[j] && !nl_binary(m, j);
+}
+
+jaos_status jaos_write_nl(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    jaos_status rs = jm_model_ensure_rowwise(m);
+    if (rs != JAOS_OK) {
+        jm_set_err(m, "out of memory building the row-wise copy");
+        return rs;
+    }
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    char nm[NAME_LEN], num[NUM_LEN];
+
+    if (m->num_sos > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " SOS sets, which .nl carries only "
+                "as solver suffixes JAOS does not write; write MPS instead",
+                m->num_sos);
+    for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++) {
+        if (m->col_semi != nullptr && m->col_semi[j]) {
+            col_name(m, nm, j);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' is semi-continuous, which .nl cannot "
+                    "express; write MPS instead", nm);
+        }
+    }
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++) {
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' is an indicator constraint, which .nl cannot "
+                    "express; write MPS instead", nm);
+        }
+    }
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    if (w->st != JAOS_OK)
+        return w->st;
+
+    int64_t *order = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *order);
+    int64_t *pos = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pos);
+    if (order == nullptr || pos == nullptr) {
+        free(order);
+        free(pos);
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        return w->st;
+    }
+    int64_t n = 0, nbv = 0, niv = 0;
+    for (int64_t j = 0; j < nc; j++)
+        if (!nl_binary(m, j) && !nl_general_integer(m, j)) {
+            pos[j] = n;
+            order[n++] = j;
+        }
+    for (int64_t j = 0; j < nc; j++)
+        if (nl_binary(m, j)) {
+            pos[j] = n;
+            order[n++] = j;
+            nbv++;
+        }
+    for (int64_t j = 0; j < nc; j++)
+        if (nl_general_integer(m, j)) {
+            pos[j] = n;
+            order[n++] = j;
+            niv++;
+        }
+
+    int64_t nranges = 0, neqns = 0, nzo = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        const double rl = m->row_lower[i], ru = m->row_upper[i];
+        if (rl == ru)
+            neqns++;
+        else if (rl != -INFINITY && ru != INFINITY)
+            nranges++;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        if (m->col_cost[j] != 0.0)
+            nzo++;
+    size_t maxrow = strlen(jm_obj_name(m)), maxcol = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        row_name(m, nm, i);
+        if (strlen(nm) > maxrow)
+            maxrow = strlen(nm);
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        col_name(m, nm, j);
+        if (strlen(nm) > maxcol)
+            maxcol = strlen(nm);
+    }
+
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc)) {
+        free(order);
+        free(pos);
+        return w->st;
+    }
+    FILE *f = w->f;
+    fprintf(f, "g3 1 1 0\t# written by JAOS %s\n", JAOS_VERSION_STRING);
+    fprintf(f, " %" PRId64 " %" PRId64 " 1 %" PRId64 " %" PRId64 " 0\n",
+            nc, nr, nranges, neqns);
+    fputs(" 0 0\n 0 0\n 0 0 0\n 0 0 0 1\n", f);
+    fprintf(f, " %" PRId64 " %" PRId64 " 0 0 0\n", nbv, niv);
+    fprintf(f, " %" PRId64 " %" PRId64 "\n", m->num_nz, nzo);
+    fprintf(f, " %zu %zu\n", maxrow, maxcol);
+    fputs(" 0 0 0 0 0\n", f);
+
+    for (int64_t i = 0; i < nr; i++)
+        fprintf(f, "C%" PRId64 "\nn0\n", i);
+    wr_num(num, m->obj_offset);
+    fprintf(f, "O0 %d\nn%s\n", m->sense == JAOS_MAXIMIZE ? 1 : 0, num);
+
+    fputs("r\n", f);
+    for (int64_t i = 0; i < nr; i++)
+        nl_bound_line(f, m->row_lower[i], m->row_upper[i]);
+    fputs("b\n", f);
+    for (int64_t k = 0; k < nc; k++)
+        nl_bound_line(f, m->col_lower[order[k]], m->col_upper[order[k]]);
+
+    if (nc > 0) {
+        fprintf(f, "k%" PRId64 "\n", nc - 1);
+        int64_t cum = 0;
+        for (int64_t k = 0; k + 1 < nc; k++) {
+            const int64_t j = order[k];
+            cum += m->a_start[j + 1] - m->a_start[j];
+            fprintf(f, "%" PRId64 "\n", cum);
+        }
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        fprintf(f, "J%" PRId64 " %" PRId64 "\n", i,
+                m->ar_start[i + 1] - m->ar_start[i]);
+        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+            wr_num(num, m->ar_value[p]);
+            fprintf(f, "%" PRId64 " %s\n", pos[m->ar_index[p]], num);
+        }
+    }
+    fprintf(f, "G0 %" PRId64 "\n", nzo);
+    for (int64_t k = 0; k < nc; k++) {
+        const int64_t j = order[k];
+        if (m->col_cost[j] == 0.0)
+            continue;
+        wr_num(num, m->col_cost[j]);
+        fprintf(f, "%" PRId64 " %s\n", k, num);
+    }
+
+    if (wr_close(w, path, &loc) == JAOS_OK) {
+        size_t len = strlen(path);
+        char *base = malloc(len + 1);
+        if (base == nullptr) {
+            wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
+        } else {
+            memcpy(base, path, len + 1);
+            if (len > 3 && strcmp(base + len - 3, ".gz") == 0) {
+                base[len - 3] = '\0';
+                len -= 3;
+            }
+            if (len > 3 && strcmp(base + len - 3, ".nl") == 0)
+                base[len - 3] = '\0';
+            nl_names_file(w, base, ".col", nc, order);
+            nl_names_file(w, base, ".row", nr, nullptr);
+            if (w->st != JAOS_OK) {
+                char *col = malloc(strlen(base) + 5);
+                if (col != nullptr) {
+                    strcpy(col, base);
+                    strcat(col, ".col");
+                    remove(col);
+                    free(col);
+                }
+            }
+            free(base);
+        }
+        if (w->st != JAOS_OK)
+            remove(path);
+    }
+    free(order);
+    free(pos);
+    return w->st;
+}
+
 static const char *basis_word(jaos_basis_status s)
 {
     switch (s) {

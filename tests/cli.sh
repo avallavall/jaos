@@ -669,6 +669,22 @@ expect_exit 0 "the written MPS solves" "$JAOS" solve "$tmp/solve1b.mps"
     && pass "and gives the same objective line" \
     || flunk "MPS objective '$(line_of objective)' vs '$mps_objective'"
 
+expect_exit 0 "convert MPS to NL exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.nl"
+[ -f "$tmp/solve1.col" ] && [ -f "$tmp/solve1.row" ] \
+    && pass "and writes the .col and .row files beside it" \
+    || flunk "no .col or .row beside the written .nl"
+expect_exit 0 "the written NL solves" "$JAOS" solve "$tmp/solve1.nl"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line as the MPS" \
+    || flunk "NL objective '$(line_of objective)' vs MPS '$mps_objective'"
+expect_exit 0 "convert to a compressed NL exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1z.nl.gz"
+[ -f "$tmp/solve1z.col" ] \
+    && pass "and the names file sits under the name without .gz" \
+    || flunk "no solve1z.col beside solve1z.nl.gz"
+expect_exit 0 "the compressed NL solves" "$JAOS" solve "$tmp/solve1z.nl.gz"
+
 expect_exit 0 "an LP file solves" "$JAOS" solve "$DATA/g1.lp"
 lp_objective=$(line_of objective)
 expect_exit 0 "a gzip LP file solves" "$JAOS" solve "$DATA/g1.lp.gz"

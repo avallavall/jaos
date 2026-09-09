@@ -384,6 +384,8 @@ JAOS_NODISCARD jaos_status jaos_write_mps(jaos_model *m, const char *path);
 
 JAOS_NODISCARD jaos_status jaos_write_lp(jaos_model *m, const char *path);
 
+JAOS_NODISCARD jaos_status jaos_write_nl(jaos_model *m, const char *path);
+
 JAOS_NODISCARD jaos_status jaos_write_solution(jaos_model *m,
                                                const char *path);
 

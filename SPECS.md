@@ -122,7 +122,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Reject unsupported constructs with a line number | **done** | |
 | `diff` and `show` commands | **done** | |
 | Indicator constraints in MPS and LP | **done** | |
-| Other formats (`.nl`, OSiL, QPLIB) | **partial** | `.nl` read in its text form, the linear part with bounds, integers and the `.col`/`.row` names, by `jaos_read_nl` and the tool by extension; nonlinear bodies refused by line. Missing: writing `.nl`, OSiL, QPLIB |
+| Other formats (`.nl`, OSiL, QPLIB) | **partial** | `.nl` read in its text form, the linear part with bounds, integers and the `.col`/`.row` names, by `jaos_read_nl` and the tool by extension; nonlinear bodies refused by line. `.nl` written in the same form by `jaos_write_nl`, `convert OUT.nl` and Python `write_nl` at both layers, the names to `.col` and `.row` beside it, the integer columns last as the format orders them; SOS, semi-continuous and indicator refused by name. Missing: OSiL, QPLIB |
 
 ## 8. Using it from another language
 

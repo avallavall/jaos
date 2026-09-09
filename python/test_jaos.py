@@ -149,6 +149,41 @@ class TestReadingFiles(unittest.TestCase):
                 m.read_nl(data("e_nonlin.nl"))
             self.assertIn("nonlinear", str(ctx.exception))
 
+    def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_nl(data("t_lin.nl"))
+            path = os.path.join(d, "out.nl")
+            m.write_nl(path)
+            self.assertTrue(os.path.exists(os.path.join(d, "out.col")))
+            self.assertTrue(os.path.exists(os.path.join(d, "out.row")))
+            with jaos.Model() as back:
+                back.read_nl(path)
+                self.assertEqual((back.num_col, back.num_row, back.num_nz),
+                                 (3, 3, 6))
+                self.assertEqual(back.col_name(1), "z")
+                self.assertEqual(back.row_name(1), "c2")
+                self.assertEqual(back.objective_name, "obj")
+                self.assertTrue(back.col_integer(2))
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), -4.0, places=9)
+        p = jaos.Problem()
+        n = p.add_var(lb=0, ub=5, name="n", integer=True)
+        x = p.add_var(lb=0, ub=4, name="x")
+        p.add(n + x <= 6, name="cap")
+        p.maximize(2 * n + x)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "p.nl")
+            p.write_nl(path)
+            with jaos.Model() as back:
+                back.read_nl(path)
+                self.assertEqual(back.col_name(0), "x")
+                self.assertEqual(back.col_name(1), "n")
+                self.assertTrue(back.col_integer(1))
+                self.assertFalse(back.col_integer(0))
+                self.assertEqual(back.row_name(0), "cap")
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), 11.0, places=9)
+
     def test_t1_mps_matches_what_the_c_suite_asserts(self):
         with jaos.Model() as m:
             m.read_mps(data("t1.mps"))

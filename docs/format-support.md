@@ -29,9 +29,10 @@ damaged instance is never solved as though it were a different model.
 ## Compressed output
 
 **Every writer here compresses when the path ends in `.gz`**, and
-that is the whole rule: `jaos_write_mps`, `jaos_write_lp`,
+that is the whole rule: `jaos_write_mps`, `jaos_write_lp`, `jaos_write_nl`,
 `jaos_write_solution` and `jaos_write_mps_basis` share one open and one
-close, so all four take it. `jaos convert in.mps out.lp.gz` follows, and so
+close, so all five take it (the `.col` and `.row` files beside a `.nl.gz`
+stay plain, under the name without `.gz`). `jaos convert in.mps out.lp.gz` follows, and so
 do `solve --solution`, `solve --write-basis` and `relax --apply`. The name
 says compression and says nothing about the format, so `out.lp.gz` is an LP
 file and `out.mps.gz` an MPS one.
@@ -217,16 +218,31 @@ objective's name is the line after the rows in `.row`. Refused by line:
 a binary `.nl` (starts with `b`; write it with the text option), a
 nonlinear body in a row or objective, nonlinear or network counts in
 the header, user functions, defined variables (`V`), logical
-constraints (`L`) and complementarity bounds (code 5). JAOS does not
-write `.nl`.
+constraints (`L`) and complementarity bounds (code 5).
+
+`jaos_write_nl`, and the tool for an output name ending in `.nl` or
+`.nl.gz`, writes the same text form: the ten header lines, a `C` row
+with body `n0` per row, `O0` with the sense flag and the objective
+constant, `r` and `b` in the five bound codes, `k` with the cumulative
+column counts, `J` per row and `G0`. The names go to `.col` and `.row`
+beside the file, the objective's name last in `.row`, so the file reads
+back with them; a `.gz` output writes the names files uncompressed under
+the name without `.gz`. The format lists the integer columns last, so
+the writer orders the columns continuous, then binary (integer with
+bounds 0 and 1), then general integer, and header line 7 carries the
+two counts: a model whose integer columns are not already last reads
+back with its columns in that order, names carried, and everything else
+the same. SOS sets, semi-continuous columns and indicator rows have no
+place in the linear part of the format and are refused by name; write
+MPS for those.
 
 ## Writing
 
-`jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31
-. One rule shapes all three: **what JAOS writes, JAOS reads back as the
-same model.** Where a format cannot express what the model holds, the call
-fails, `jaos_model_error` names the row or the column, and no file is left
-behind.
+`jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,
+and `jaos_write_nl`, added 2026-09-09. One rule shapes all four: **what JAOS
+writes, JAOS reads back as the same model.** Where a format cannot express
+what the model holds, the call fails, `jaos_model_error` names the row or
+the column, and no file is left behind.
 
 - **Names.** Rows and columns are written under the model's names:
   the file's, where the model was read from one, and positional --
