@@ -12,6 +12,7 @@ constexpr double  BARRIER_STEP     = 0.99995;
 constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
+constexpr double  BARRIER_START_MIN = 1e-6;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
 constexpr double  BARRIER_DENSE_FACTOR = 10.0;
@@ -649,7 +650,7 @@ static jaos_status starting_point(bx *s)
     }
     double add_p = sum_d > 0.0 ? 0.5 * prod / sum_d : 0.0;
     double add_d = sum_p > 0.0 ? 0.5 * prod / sum_p : 0.0;
-    if (prod <= 0.0)
+    if (prod <= 0.0 || add_p < BARRIER_START_MIN || add_d < BARRIER_START_MIN)
         add_p = add_d = 1.0;
     for (int64_t j = 0; j < nv; j++) {
         const uint8_t k = s->kind[j];

@@ -56,26 +56,7 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **The barrier on a degenerate quadratic node.** The barrier needs a
-   strictly feasible point. A node with an equality row plus branching
-   bounds often has none: the primal residual falls to 1e-11, the dual
-   iterate runs to 1e+7, `BARRIER_DIVERGE` fires, and the node comes back
-   `NUMERICAL_ERROR`. Two of the three causes are closed. The dual
-   simplex now decides feasibility over the same rows and bounds, so an
-   infeasible node is reported infeasible. `MIP_QUAD_PROPAGATE` turns
-   node bound propagation on for a quadratic objective, which fixes the
-   columns the rows have forced, and that took a 400-model cardinality
-   set from 28 failures to 3 (`docs/tolerances.md`). What is left is the
-   barrier itself: it stops on nodes whose bounds propagation cannot
-   tighten. Reproducer, which fails at its second node: minimise
-   `-19 Σ x_j + ½ Σ q_j x_j²` with `q = 4, 2, 6, 4, 8, 12`, `x_j` binary,
-   `Σ x_j = 3` and `2 x_2 + x_3 + x_4 + x_5 = 1`; the dual iterate reaches
-   2.9e+7 after one iteration. Two routes: a dual regularisation in the
-   normal equations that survives an empty interior, measured against
-   `bench/results/barrier.txt`; or the tree branches on rather than
-   aborting at a node it cannot relax, taking the parent's bound and
-   bisecting an integer column, which is always sound.
-4. **PDLP: infeasibility from the iterate.** The reference's test: the
+3. **PDLP: infeasibility from the iterate.** The reference's test: the
    difference of successive iterates converging to a ray that certifies
    primal or dual infeasibility, checked every `PDLP_CHECK_EVERY`, so a
    refused model ends before `PDLP_MAX_ITER`; the 29 infeasible

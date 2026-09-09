@@ -429,6 +429,43 @@ static void test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts(vo
     jaos_model_free(m);
 }
 
+static void test_a_qp_whose_rows_leave_no_interior_still_solves(void)
+{
+    constexpr int64_t N = 6;
+    constexpr int64_t M = 2;
+    const double cost[N] = {-19, -19, -19, -19, -19, -19};
+    const double quad[N] = {4, 2, 6, 4, 8, 12};
+    const double cl[N] = {0, 0, 0, 0, 0, 0};
+    const double cu[N] = {1, 0, 1, 0, 1, 1};
+    const double rl[M] = {3.0, 1.0}, ru[M] = {3.0, 1.0};
+    const int64_t as[N + 1] = {0, 1, 3, 5, 7, 9, 10};
+    const int64_t ai[10] = {0, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+    const double av[10] = {1, 1, 2, 1, 1, 1, 1, 1, 1, 1};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     10, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, quad[j]));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0, x[N];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -331.0 / 7.0, obj);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 4.0 / 7.0, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 3.0 / 7.0, x[4]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, x[5]);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -446,5 +483,6 @@ int main(void)
     RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);
     RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
     RUN_TEST(test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts);
+    RUN_TEST(test_a_qp_whose_rows_leave_no_interior_still_solves);
     return UNITY_END();
 }
