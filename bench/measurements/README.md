@@ -12,9 +12,8 @@ baseline.
 **The table below stops at `02-11` and the directories do not.** Every
 directory from `02-04` on carries its own `README.md` saying what it decided,
 which is where the answer is; keeping a second copy here is what let this table
-fall 60 entries behind without anyone noticing. Two directories have no
-`README.md` at all — `02-31/`, which is untracked and not this project's, and
-`02-63/`. Read the directory, not this table.
+fall 60 entries behind without anyone noticing. One directory, `02-63/`, has
+no `README.md`. Read the directory, not this table.
 
 | directory | what it decided |
 |---|---|

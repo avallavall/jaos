@@ -1,0 +1,126 @@
+# probing sweep, tree ebd591c, 2026-09-08T12:40Z
+# name arm status work nodes | probing line
+air03 0 optimal 40530169 1 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 12786738 work against the root's 24653972
+air03 0.5 optimal 40170657 1 | probing: 34 of 35 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 12427226 work against the root's 24653972
+air03 1 optimal 40530169 1 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 12786738 work against the root's 24653972
+air03 2 optimal 40530169 1 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 12786738 work against the root's 24653972
+air03 base optimal 27743431 1 | 
+bell3a 0 optimal 3517693898 117317 | probing: 19 of 19 fractional binaries probed, 0 fixed, 16 other bounds implied, 58463 work against the root's 86626
+bell3a 0.5 optimal 3517681590 117317 | probing: 15 of 19 fractional binaries probed before the cap, 0 fixed, 16 other bounds implied, 46155 work against the root's 86626
+bell3a 1 optimal 3517693898 117317 | probing: 19 of 19 fractional binaries probed, 0 fixed, 16 other bounds implied, 58463 work against the root's 86626
+bell3a 2 optimal 3517693898 117317 | probing: 19 of 19 fractional binaries probed, 0 fixed, 16 other bounds implied, 58463 work against the root's 86626
+bell3a base optimal 1387889178 64077 | 
+bell5 0 optimal 2286939137 140595 | probing: 12 of 12 fractional binaries probed, 0 fixed, 14 other bounds implied, 28368 work against the root's 61317
+bell5 0.5 optimal 2286939137 140595 | probing: 12 of 12 fractional binaries probed, 0 fixed, 14 other bounds implied, 28368 work against the root's 61317
+bell5 1 optimal 2286939137 140595 | probing: 12 of 12 fractional binaries probed, 0 fixed, 14 other bounds implied, 28368 work against the root's 61317
+bell5 2 optimal 2286939137 140595 | probing: 12 of 12 fractional binaries probed, 0 fixed, 14 other bounds implied, 28368 work against the root's 61317
+bell5 base optimal 2286981564 140595 | 
+blend2 0 optimal 951399986 5879 | probing: 5 of 5 fractional binaries probed, 0 fixed, 9 other bounds implied, 33257 work against the root's 441778
+blend2 0.5 optimal 951399986 5879 | probing: 5 of 5 fractional binaries probed, 0 fixed, 9 other bounds implied, 33257 work against the root's 441778
+blend2 1 optimal 951399986 5879 | probing: 5 of 5 fractional binaries probed, 0 fixed, 9 other bounds implied, 33257 work against the root's 441778
+blend2 2 optimal 951399986 5879 | probing: 5 of 5 fractional binaries probed, 0 fixed, 9 other bounds implied, 33257 work against the root's 441778
+blend2 base optimal 951348814 5879 | 
+dcmulti 0 optimal 157512044 415 | probing: 49 of 49 fractional binaries probed, 0 fixed, 0 other bounds implied, 429221 work against the root's 714921
+dcmulti 0.5 optimal 157442171 415 | probing: 40 of 49 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 359348 work against the root's 714921
+dcmulti 1 optimal 157512044 415 | probing: 49 of 49 fractional binaries probed, 0 fixed, 0 other bounds implied, 429221 work against the root's 714921
+dcmulti 2 optimal 157512044 415 | probing: 49 of 49 fractional binaries probed, 0 fixed, 0 other bounds implied, 429221 work against the root's 714921
+dcmulti base optimal 157082823 415 | 
+egout 0 optimal 62502116 6841 | probing: 40 of 40 fractional binaries probed, 0 fixed, 0 other bounds implied, 69880 work against the root's 56103
+egout 0.5 optimal 62461935 6841 | probing: 17 of 40 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 29699 work against the root's 56103
+egout 1 optimal 62489887 6841 | probing: 33 of 40 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 57651 work against the root's 56103
+egout 2 optimal 62502116 6841 | probing: 40 of 40 fractional binaries probed, 0 fixed, 0 other bounds implied, 69880 work against the root's 56103
+egout base optimal 62432236 6841 | 
+enigma 0 optimal 42968245 2814 | probing: 6 of 6 fractional binaries probed, 0 fixed, 0 other bounds implied, 10380 work against the root's 102366
+enigma 0.5 optimal 42968245 2814 | probing: 6 of 6 fractional binaries probed, 0 fixed, 0 other bounds implied, 10380 work against the root's 102366
+enigma 1 optimal 42968245 2814 | probing: 6 of 6 fractional binaries probed, 0 fixed, 0 other bounds implied, 10380 work against the root's 102366
+enigma 2 optimal 42968245 2814 | probing: 6 of 6 fractional binaries probed, 0 fixed, 0 other bounds implied, 10380 work against the root's 102366
+enigma base optimal 42957865 2814 | 
+flugpl 0 optimal 15218997 2445 | 
+flugpl 0.5 optimal 15218997 2445 | 
+flugpl 1 optimal 15218997 2445 | 
+flugpl 2 optimal 15218997 2445 | 
+flugpl base optimal 15218997 2445 | 
+gen 0 optimal 4019184 5 | probing: 21 of 36 fractional binaries probed, 0 fixed, 42 other bounds implied, 447678 work against the root's 753779
+gen 0.5 optimal 3955230 5 | probing: 18 of 36 fractional binaries probed before the cap, 0 fixed, 42 other bounds implied, 383724 work against the root's 753779
+gen 1 optimal 4019184 5 | probing: 21 of 36 fractional binaries probed, 0 fixed, 42 other bounds implied, 447678 work against the root's 753779
+gen 2 optimal 4019184 5 | probing: 21 of 36 fractional binaries probed, 0 fixed, 42 other bounds implied, 447678 work against the root's 753779
+gen base optimal 2654318 5 | 
+gt2 0 optimal 16976371 445 | 
+gt2 0.5 optimal 16976371 445 | 
+gt2 1 optimal 16976371 445 | 
+gt2 2 optimal 16976371 445 | 
+gt2 base optimal 16976371 445 | 
+khb05250 0 optimal 34387071 81 | probing: 19 of 19 fractional binaries probed, 0 fixed, 0 other bounds implied, 285988 work against the root's 499033
+khb05250 0.5 optimal 34356967 81 | probing: 17 of 19 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 255884 work against the root's 499033
+khb05250 1 optimal 34387071 81 | probing: 19 of 19 fractional binaries probed, 0 fixed, 0 other bounds implied, 285988 work against the root's 499033
+khb05250 2 optimal 34387071 81 | probing: 19 of 19 fractional binaries probed, 0 fixed, 0 other bounds implied, 285988 work against the root's 499033
+khb05250 base optimal 34101083 81 | 
+l152lav 0 optimal 46022748842 1981 | probing: 55 of 55 fractional binaries probed, 0 fixed, 0 other bounds implied, 2528295 work against the root's 7446084
+l152lav 0.5 optimal 46022748842 1981 | probing: 55 of 55 fractional binaries probed, 0 fixed, 0 other bounds implied, 2528295 work against the root's 7446084
+l152lav 1 optimal 46022748842 1981 | probing: 55 of 55 fractional binaries probed, 0 fixed, 0 other bounds implied, 2528295 work against the root's 7446084
+l152lav 2 optimal 46022748842 1981 | probing: 55 of 55 fractional binaries probed, 0 fixed, 0 other bounds implied, 2528295 work against the root's 7446084
+l152lav base optimal 46020220547 1981 | 
+lseu 0 optimal 134945386 5949 | probing: 12 of 12 fractional binaries probed, 0 fixed, 0 other bounds implied, 20676 work against the root's 24562
+lseu 0.5 optimal 134938494 5949 | probing: 8 of 12 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 13784 work against the root's 24562
+lseu 1 optimal 134945386 5949 | probing: 12 of 12 fractional binaries probed, 0 fixed, 0 other bounds implied, 20676 work against the root's 24562
+lseu 2 optimal 134945386 5949 | probing: 12 of 12 fractional binaries probed, 0 fixed, 0 other bounds implied, 20676 work against the root's 24562
+lseu base optimal 134924710 5949 | 
+misc03 0 optimal 159531469 1271 | probing: 14 of 14 fractional binaries probed, 0 fixed, 0 other bounds implied, 98942 work against the root's 198261
+misc03 0.5 optimal 159531469 1271 | probing: 14 of 14 fractional binaries probed, 0 fixed, 0 other bounds implied, 98942 work against the root's 198261
+misc03 1 optimal 159531469 1271 | probing: 14 of 14 fractional binaries probed, 0 fixed, 0 other bounds implied, 98942 work against the root's 198261
+misc03 2 optimal 159531469 1271 | probing: 14 of 14 fractional binaries probed, 0 fixed, 0 other bounds implied, 98942 work against the root's 198261
+misc03 base optimal 159432527 1271 | 
+misc06 0 optimal 419578687 73 | probing: 9 of 9 fractional binaries probed, 0 fixed, 0 other bounds implied, 234126 work against the root's 4819811
+misc06 0.5 optimal 419578687 73 | probing: 9 of 9 fractional binaries probed, 0 fixed, 0 other bounds implied, 234126 work against the root's 4819811
+misc06 1 optimal 419578687 73 | probing: 9 of 9 fractional binaries probed, 0 fixed, 0 other bounds implied, 234126 work against the root's 4819811
+misc06 2 optimal 419578687 73 | probing: 9 of 9 fractional binaries probed, 0 fixed, 0 other bounds implied, 234126 work against the root's 4819811
+misc06 base optimal 419344561 73 | 
+misc07 0 optimal 8475532509 35287 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 572760 work against the root's 1131806
+misc07 0.5 optimal 8475532509 35287 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 572760 work against the root's 1131806
+misc07 1 optimal 8475532509 35287 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 572760 work against the root's 1131806
+misc07 2 optimal 8475532509 35287 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 572760 work against the root's 1131806
+misc07 base optimal 8474959749 35287 | 
+mod008 0 optimal 158202461 2631 | probing: 5 of 5 fractional binaries probed, 0 fixed, 0 other bounds implied, 23655 work against the root's 44444
+mod008 0.5 optimal 158202461 2631 | probing: 5 of 5 fractional binaries probed, 0 fixed, 0 other bounds implied, 23655 work against the root's 44444
+mod008 1 optimal 158202461 2631 | probing: 5 of 5 fractional binaries probed, 0 fixed, 0 other bounds implied, 23655 work against the root's 44444
+mod008 2 optimal 158202461 2631 | probing: 5 of 5 fractional binaries probed, 0 fixed, 0 other bounds implied, 23655 work against the root's 44444
+mod008 base optimal 158178806 2631 | 
+mod010 0 optimal 19555670 1 | probing: 39 of 39 fractional binaries probed, 0 fixed, 0 other bounds implied, 2156193 work against the root's 10300496
+mod010 0.5 optimal 19555670 1 | probing: 39 of 39 fractional binaries probed, 0 fixed, 0 other bounds implied, 2156193 work against the root's 10300496
+mod010 1 optimal 19555670 1 | probing: 39 of 39 fractional binaries probed, 0 fixed, 0 other bounds implied, 2156193 work against the root's 10300496
+mod010 2 optimal 19555670 1 | probing: 39 of 39 fractional binaries probed, 0 fixed, 0 other bounds implied, 2156193 work against the root's 10300496
+mod010 base optimal 17399477 1 | 
+p0033 0 optimal 5327738 329 | probing: 8 of 8 fractional binaries probed, 0 fixed, 0 other bounds implied, 4407 work against the root's 12636
+p0033 0.5 optimal 5327738 329 | probing: 8 of 8 fractional binaries probed, 0 fixed, 0 other bounds implied, 4407 work against the root's 12636
+p0033 1 optimal 5327738 329 | probing: 8 of 8 fractional binaries probed, 0 fixed, 0 other bounds implied, 4407 work against the root's 12636
+p0033 2 optimal 5327738 329 | probing: 8 of 8 fractional binaries probed, 0 fixed, 0 other bounds implied, 4407 work against the root's 12636
+p0033 base optimal 5323331 329 | 
+p0201 0 optimal 371887377 1369 | probing: 20 of 20 fractional binaries probed, 0 fixed, 6 other bounds implied, 157777 work against the root's 66608
+p0201 0.5 optimal 371762961 1369 | probing: 4 of 20 fractional binaries probed before the cap, 0 fixed, 6 other bounds implied, 33361 work against the root's 66608
+p0201 1 optimal 371801841 1369 | probing: 9 of 20 fractional binaries probed before the cap, 0 fixed, 6 other bounds implied, 72241 work against the root's 66608
+p0201 2 optimal 371864049 1369 | probing: 17 of 20 fractional binaries probed before the cap, 0 fixed, 6 other bounds implied, 134449 work against the root's 66608
+p0201 base optimal 198336670 797 | 
+p0282 0 optimal 359363414 4997 | probing: 26 of 26 fractional binaries probed, 0 fixed, 0 other bounds implied, 220846 work against the root's 50256
+p0282 0.5 optimal 359175587 4997 | probing: 4 of 26 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 33019 work against the root's 50256
+p0282 1 optimal 359193341 4997 | probing: 6 of 26 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 50773 work against the root's 50256
+p0282 2 optimal 359244114 4997 | probing: 12 of 26 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 101546 work against the root's 50256
+p0282 base optimal 359142568 4997 | 
+rgn 0 optimal 158597023 4233 | probing: 18 of 18 fractional binaries probed, 0 fixed, 0 other bounds implied, 52056 work against the root's 81028
+rgn 0.5 optimal 158588347 4233 | probing: 15 of 18 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 43380 work against the root's 81028
+rgn 1 optimal 158597023 4233 | probing: 18 of 18 fractional binaries probed, 0 fixed, 0 other bounds implied, 52056 work against the root's 81028
+rgn 2 optimal 158597023 4233 | probing: 18 of 18 fractional binaries probed, 0 fixed, 0 other bounds implied, 52056 work against the root's 81028
+rgn base optimal 158544967 4233 | 
+stein27 0 optimal 119709623 9181 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 24801 work against the root's 30516
+stein27 0.5 optimal 119700175 9181 | probing: 13 of 21 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 15353 work against the root's 30516
+stein27 1 optimal 119709623 9181 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 24801 work against the root's 30516
+stein27 2 optimal 119709623 9181 | probing: 21 of 21 fractional binaries probed, 0 fixed, 0 other bounds implied, 24801 work against the root's 30516
+stein27 base optimal 119684822 9181 | 
+stein45 0 optimal 2819189114 120987 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 109395 work against the root's 117216
+stein45 0.5 optimal 2819140394 120987 | probing: 19 of 35 fractional binaries probed before the cap, 0 fixed, 0 other bounds implied, 60675 work against the root's 117216
+stein45 1 optimal 2819189114 120987 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 109395 work against the root's 117216
+stein45 2 optimal 2819189114 120987 | probing: 35 of 35 fractional binaries probed, 0 fixed, 0 other bounds implied, 109395 work against the root's 117216
+stein45 base optimal 2819079719 120987 | 
+cap 0.5  geomean 1.108x over 24, 0 better, 7 worse, 1 past 2x, 0 unfinished
+cap 1    geomean 1.109x over 24, 0 better, 7 worse, 1 past 2x, 0 unfinished
+cap 2    geomean 1.109x over 24, 0 better, 8 worse, 1 past 2x, 0 unfinished
+cap 0    geomean 1.109x over 24, 0 better, 8 worse, 1 past 2x, 0 unfinished
