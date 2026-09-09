@@ -566,6 +566,12 @@ case "$(line_of objective)" in
     "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "QP objective '$(line_of objective)'" ;;
 esac
+expect_exit 0 "a mixed-integer QP solves through the tree" \
+    "$JAOS" solve "$DATA/g_miqp.lp"
+case "$(line_of objective)" in
+    "objective -8"|"objective -8.0000"*|"objective -7.9999"*) pass "to objective -8" ;;
+    *) flunk "MIQP objective '$(line_of objective)'" ;;
+esac
 expect_exit 5 "--algorithm primal refuses a quadratic objective" \
     "$JAOS" solve "$DATA/g_quad.lp" --algorithm primal
 expect_exit 0 "convert of a QP to MPS exits 0" \

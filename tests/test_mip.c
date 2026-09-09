@@ -37,6 +37,67 @@ static jaos_model *knapsack(void)
     return m;
 }
 
+static jaos_model *miqp(bool with_row)
+{
+    jaos_model *m = fresh();
+    const double cost[2] = {-5.2, -2.6}, cl[2] = {0.0, 0.0}, cu[2] = {5.0, 5.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {3.0};
+    const int64_t as[3] = {0, 1, 2}, as0[3] = {0, 0, 0}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, with_row ? 1 : 0, JAOS_MINIMIZE, 0.0, cost, cl, cu,
+                     rl, ru, with_row ? 2 : 0, with_row ? as : as0, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 2.0));
+    return m;
+}
+
+static void test_a_quadratic_objective_branches_on_barrier_relaxations(void)
+{
+    jaos_model *m = miqp(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -8.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 2.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, x[1]);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.nodes >= 1);
+    jaos_check_report chk;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, nullptr, 1e-6, &chk));
+    TEST_ASSERT_TRUE(chk.primal_feasible);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -8.0, chk.primal_objective);
+
+    jaos_model *b = miqp(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT64(jaos_work_units(m), jaos_work_units(b));
+    double xb[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(b, xb, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(x, xb, sizeof x);
+    jaos_model_free(b);
+    jaos_model_free(m);
+
+    m = miqp(false);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -8.2, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 3.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, x[1]);
+    jaos_model_free(m);
+
+    m = miqp(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    jaos_model_free(m);
+}
+
 static void test_the_knapsack_finds_the_integer_optimum(void)
 {
     jaos_model *m = knapsack();
@@ -3172,5 +3233,6 @@ int main(void)
     RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
     RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
+    RUN_TEST(test_a_quadratic_objective_branches_on_barrier_relaxations);
     return UNITY_END();
 }

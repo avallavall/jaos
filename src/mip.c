@@ -466,7 +466,7 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
             st = jaos_set_row_bounds(lp, i, on ? m->row_lower[i] : -INFINITY,
                                      on ? m->row_upper[i] : INFINITY);
         }
-    if (st == JAOS_OK && n != nullptr) {
+    if (st == JAOS_OK && n != nullptr && !jm_model_has_quadratic(lp)) {
         if (n->nrow == lp->num_row) {
             st = jaos_set_basis(lp, n->cs, n->rs);
         } else {
@@ -911,7 +911,7 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                 continue;
             st = d == 0 ? jaos_set_col_bounds(lp, j, lo0, floor(x[j]))
                         : jaos_set_col_bounds(lp, j, ceil(x[j]), hi0);
-            if (st == JAOS_OK)
+            if (st == JAOS_OK && !jm_model_has_quadratic(lp))
                 st = jaos_set_basis(lp, cs, rs);
             const int64_t caller_limit = lp->cfg.work_limit;
             const bool capping = cap > 0 &&
@@ -945,7 +945,7 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
     if (st != JAOS_OK)
         return st;
 
-    st = jaos_set_basis(lp, cs, rs);
+    st = jm_model_has_quadratic(lp) ? JAOS_OK : jaos_set_basis(lp, cs, rs);
     if (st == JAOS_OK)
         st = jaos_solve(lp);
     (*solves)++;
@@ -1032,6 +1032,8 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
 {
     const int64_t nc = lp->num_col, nr = lp->num_row, nv = nc + nr;
     jm_tableau *tb = nullptr;
+    if (jm_model_has_quadratic(lp) || !lp->sol_basis_ok)
+        return 0;
     if (jm_tableau_build(lp, &tb) != JAOS_OK)
         return -1;
     int64_t added = 0;

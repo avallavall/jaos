@@ -755,12 +755,6 @@ jaos_status jaos_solve(jaos_model *m)
     jm_model_drop_exact(m);
 
     if (jm_model_has_quadratic(m)) {
-        if (jm_model_has_integer(m)) {
-            jm_set_err(m, "the objective has a quadratic term and the model "
-                          "has integer columns; JAOS solves quadratic "
-                          "objectives on plain LPs only");
-            return JAOS_ERR_INVALID_INPUT;
-        }
         if (m->cfg.force_primal || m->cfg.pdlp) {
             jm_set_err(m, "the objective has a quadratic term, which only "
                           "the barrier solves; leave the algorithm at dual "

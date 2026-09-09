@@ -44,7 +44,7 @@ since 2026-08-13; only patch levels did.*
 | Quadratic programming (QP) | ◐ | ● | ○ | ○ | ● | ● | ● |
 | Quadratically constrained (QCP, SOCP) | ○ | ○ | ○ | ○ | ● | ● | ● |
 | Mixed-integer linear (MILP) | ◐ | ● | — | — | ● | ● | ● |
-| Mixed-integer quadratic (MIQP, MIQCP) | ○ | ○ | — | — | ● | ● | ● |
+| Mixed-integer quadratic (MIQP, MIQCP) | ◐ | ○ | — | — | ● | ● | ● |
 | Nonlinear (NLP) | ○ | ○ | — | — | ● | ● | ● |
 | Mixed-integer nonlinear (MINLP) | ○ | ○ | — | — | ● | ● | ● |
 | Constraint programming | ○ | ○ | — | — | ◐ | ○ | ● |

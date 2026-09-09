@@ -4016,8 +4016,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_nz  = target->num_nz;
 
     int64_t barrier_iters = 0;
-    if ((m->cfg.barrier || m->cfg.pdlp || jm_model_has_quadratic(m)) &&
-        !m->cfg.node_solve) {
+    if (jm_model_has_quadratic(m) ||
+        ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve)) {
         bool crossover = false, handoff = false;
         jaos_status bst = m->cfg.pdlp
             ? jm_pdlp(m, target, &p, &pre_work, &crossover, &handoff,

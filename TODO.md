@@ -56,13 +56,7 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **Mixed-integer quadratic.** A MIP with a separable quadratic
-   objective solves its root and every node by the barrier instead of
-   the dual simplex, cold at each node, the rest of the tree unchanged
-   (bounds, cuts that touch the objective refused, heuristics on the
-   node point); the checker already judges the point. The SPECS row
-   goes partial with the reading on a handful of constructed models.
-4. **PDLP: infeasibility from the iterate.** The reference's test: the
+3. **PDLP: infeasibility from the iterate.** The reference's test: the
    difference of successive iterates converging to a ray that certifies
    primal or dual infeasibility, checked every `PDLP_CHECK_EVERY`, so a
    refused model ends before `PDLP_MAX_ITER`; the 29 infeasible
