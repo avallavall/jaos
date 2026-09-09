@@ -23,6 +23,7 @@ typedef struct {
 
     bool force_primal;
     bool barrier;
+    bool pdlp;
     bool barrier_no_crossover;
     bool primal_dantzig;
     bool primal_devex;
@@ -506,6 +507,18 @@ JAOS_NODISCARD jaos_status jm_barrier(jaos_model *m, jaos_model *target,
                                       jm_presolve *p, jm_work *work,
                                       bool *crossover, bool *handoff,
                                       int64_t *iters);
+
+JAOS_NODISCARD jaos_status jm_pdlp(jaos_model *m, jaos_model *target,
+                                   jm_presolve *p, jm_work *work,
+                                   bool *crossover, bool *handoff,
+                                   int64_t *iters);
+
+enum { JM_BX_LO = 1, JM_BX_UP = 2, JM_BX_FIXED = 4 };
+
+JAOS_NODISCARD jaos_status jm_crash_basis(jaos_model *m, const uint8_t *kind,
+                                          const double *w, const double *v,
+                                          const double *zl, const double *zu,
+                                          const double *av, jm_work *work);
 
 typedef struct {
     int64_t *idx;

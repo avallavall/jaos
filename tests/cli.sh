@@ -560,6 +560,12 @@ expect_exit 0 "--algorithm barrier solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm barrier
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
     || flunk "barrier: $(line_of objective) against $dual_obj"
+expect_exit 0 "--algorithm pdlp solves it as well" \
+    "$JAOS" solve "$DATA/solve1.mps" --algorithm pdlp
+[ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \
+    || flunk "pdlp: $(line_of objective) against $dual_obj"
+expect_exit 1 "--algorithm pdlp on an infeasible model exits 1" \
+    "$JAOS" solve "$DATA/t1.mps" --algorithm pdlp
 expect_exit 1 "--algorithm barrier on an infeasible model exits 1" \
     "$JAOS" solve "$DATA/t1.mps" --algorithm barrier
 [ "$(line_of status)" = "status infeasible" ] \

@@ -48,7 +48,7 @@ static const char U_SYNOPSIS[] =
     "                  [--symmetry | --no-symmetry] [--orbital | --no-orbital]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
-    "                  [--algorithm dual|primal|barrier] [--no-heuristics]\n"
+    "                  [--algorithm dual|primal|barrier|pdlp] [--no-heuristics]\n"
     "                  [--opt NAME=VALUE]... [--params FILE]\n"
     "                  [--node-limit N] [--branching RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
@@ -220,7 +220,8 @@ static const char U_SOLVE_D2[] =
     "                   three from the model alone, with no tolerance\n";
 
 static const char U_SOLVE_E[] =
-    "  --algorithm A    what solves an LP: dual (default), primal or barrier\n"
+    "  --algorithm A    what solves an LP: dual (default), primal, barrier\n"
+    "                   or pdlp (the first-order method)\n"
     "  --opt NAME=VALUE any option by name (jaos options lists them); repeats\n"
     "  --params FILE    options from a file, one 'name value' per line\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
@@ -987,8 +988,10 @@ static int parse_solve_options(int argc, char **argv, int first,
                 o->algorithm = JAOS_ALGORITHM_PRIMAL;
             else if (strcmp(v, "barrier") == 0)
                 o->algorithm = JAOS_ALGORITHM_BARRIER;
+            else if (strcmp(v, "pdlp") == 0)
+                o->algorithm = JAOS_ALGORITHM_PDLP;
             else
-                return usage_error("--algorithm needs dual, primal or barrier, not '%s'", v);
+                return usage_error("--algorithm needs dual, primal, barrier or pdlp, not '%s'", v);
         } else if (strcmp(a, "--branching") == 0) {
             if (strcmp(v, "pseudocost") == 0)
                 o->branching = JAOS_BRANCH_PSEUDOCOST;

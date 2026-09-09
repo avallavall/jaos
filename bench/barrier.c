@@ -18,6 +18,8 @@ constexpr int MAX_INSTANCES = 256;
 constexpr double CHECK_TOL = 1e-6;
 constexpr double OBJ_TOL = 1e-6;
 constexpr int64_t WORK_FACTOR = 10;
+static jaos_algorithm g_alg = JAOS_ALGORITHM_BARRIER;
+static const char *g_label = "barrier";
 
 typedef struct {
     char name[64];
@@ -137,8 +139,8 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
 
     jaos_clear_basis(m);
     if (jaos_set_work_limit(m, factor * (r->work_d + 1)) != JAOS_OK ||
-        jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER) != JAOS_OK) {
-        fail(r, B_ERROR, "cannot configure the barrier");
+        jaos_set_algorithm(m, g_alg) != JAOS_OK) {
+        fail(r, B_ERROR, "cannot configure the method");
         goto done;
     }
     t0 = now_seconds();
@@ -146,7 +148,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     r->secs_b = now_seconds() - t0;
     if (st != JAOS_OK) {
         const char *why = jaos_model_error(m);
-        fail(r, B_ERROR, why != nullptr && why[0] ? why : "barrier solve failed");
+        fail(r, B_ERROR, why != nullptr && why[0] ? why : "the method's solve failed");
         goto done;
     }
     r->status_b = (int)jaos_status_of(m);
@@ -196,7 +198,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         goto done;
     }
     if (r->check_b == 0) {
-        fail(r, B_INTERIOR, "checker-refused=the-barrier");
+        fail(r, B_INTERIOR, "checker-refused=the-method");
         goto done;
     }
     r->verdict = (int)B_OK;
@@ -235,14 +237,14 @@ static void print_result(const result *r)
              verdict_str((verdict)r->verdict), r->iters_d, r->work_d, r->note);
         return;
     }
-    emit("%-12s %-9s dual=%lld/%lld barrier=%lld+%lld/%lld verdict=%s/%s "
-         "obj=%.17g/%.17g checker=dual:%s/barrier:%s %s\n",
+    emit("%-12s %-9s dual=%lld/%lld %s=%lld+%lld/%lld verdict=%s/%s "
+         "obj=%.17g/%.17g checker=dual:%s/%s:%s %s\n",
          r->name, verdict_str((verdict)r->verdict),
-         r->iters_d, r->work_d, r->ipm_iters, r->iters_b - r->ipm_iters, r->work_b,
+         r->iters_d, r->work_d, g_label, r->ipm_iters, r->iters_b - r->ipm_iters, r->work_b,
          jaos_solve_status_str((jaos_solve_status)r->status_d),
          jaos_solve_status_str((jaos_solve_status)r->status_b),
-         r->obj_d, r->obj_b, check_str(r->check_d), check_str(r->check_b),
-         r->note);
+         r->obj_d, r->obj_b, check_str(r->check_d), g_label,
+         check_str(r->check_b), r->note);
 }
 
 static bool worker_path(char *buf, size_t cap, const char *tmp, int k)
@@ -391,6 +393,18 @@ int main(int argc, char **argv)
             factor = atoll(argv[++i]);
             if (factor < 1)
                 factor = 1;
+        } else if (strcmp(argv[i], "-a") == 0 && i + 1 < argc) {
+            const char *a = argv[++i];
+            if (strcmp(a, "pdlp") == 0) {
+                g_alg = JAOS_ALGORITHM_PDLP;
+                g_label = "pdlp";
+            } else if (strcmp(a, "barrier") == 0) {
+                g_alg = JAOS_ALGORITHM_BARRIER;
+                g_label = "barrier";
+            } else {
+                fprintf(stderr, "-a takes barrier or pdlp, not %s\n", a);
+                return 2;
+            }
         } else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1)
@@ -438,12 +452,13 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("the barrier against the dual simplex, same model, nothing perturbed\n");
-    printf("the barrier is bounded at %lldx the dual's work per instance; "
+    printf("the %s against the dual simplex, same model, nothing perturbed\n",
+           g_label);
+    printf("the %s is bounded at %lldx the dual's work per instance; "
            "'overrun' is that bound.\n"
            "'interior' is an answer that agrees with the dual's objective but "
            "whose point the checker refuses at %g: an interior point without "
-           "a crossover.\n", (long long)factor, CHECK_TOL);
+           "a crossover.\n", g_label, (long long)factor, CHECK_TOL);
     if (jobs > 1)
         printf("-j %d: the seconds below are inflated by contention and are "
                "not comparable across runs\n", jobs);
@@ -460,12 +475,12 @@ int main(int argc, char **argv)
     }
     const double elapsed = now_seconds() - t_all;
 
-    emit("# instance    verdict   dual=iters/work  barrier=iters/work\n");
+    emit("# instance    verdict   dual=iters/work  %s=iters/work\n", g_label);
     for (int k = 0; k < n_selected; k++) {
         print_result(&results[k]);
         if (results[k].verdict == (int)B_OK || results[k].verdict == (int)B_INTERIOR)
-            printf("      %-12s dual %.3f s, barrier %.3f s\n", results[k].name,
-                   results[k].secs_d, results[k].secs_b);
+            printf("      %-12s dual %.3f s, %s %.3f s\n", results[k].name,
+                   results[k].secs_d, g_label, results[k].secs_b);
     }
 
     int agreed = 0, ok = 0, interior = 0, skipped = 0, overrun = 0, failed = 0,
@@ -498,19 +513,20 @@ int main(int argc, char **argv)
         }
     }
 
-    emit("\n-- barrier against dual --\n");
+    emit("\n-- %s against dual --\n", g_label);
     emit("agreed %d (checker accepts %d, interior %d), skipped %d, overrun %d, "
          "failed %d, disagreed %d, rejected %d, errors %d\n",
          agreed, ok, interior, skipped, overrun, failed, disagreed, rejected,
          errors);
     if (agreed > 0) {
-        emit("work units barrier/dual, geometric mean:        %.4f\n",
+        emit("work units %s/dual, geometric mean:        %.4f\n", g_label,
              exp(sum_work / agreed));
-        emit("iterations (barrier+1)/(dual+1), geometric mean: %.4f\n",
+        emit("iterations (%s+1)/(dual+1), geometric mean: %.4f\n", g_label,
              exp(sum_iters / agreed));
         emit("work ratio, best  %s at %.4f\n", best_name, best);
         emit("work ratio, worst %s at %.4f\n", worst_name, worst);
-        emit("most barrier iterations: %s at %lld\n", max_iters_name, max_iters);
+        emit("most %s iterations: %s at %lld\n", g_label, max_iters_name,
+             max_iters);
     }
     printf("elapsed %.1f s\n", elapsed);
     if (g_record != nullptr)

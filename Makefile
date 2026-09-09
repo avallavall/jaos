@@ -66,7 +66,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
 	miplib miplib-baseline \
-	warm warm-kennington primal primal-kennington barrier barrier-infeas \
+	warm warm-kennington primal primal-kennington barrier barrier-infeas pdlp \
 	shared python-test \
 	pgo clean
 
@@ -187,6 +187,11 @@ barrier: $(B)/bench/barrier
 	@bench/fetch.sh
 	@mkdir -p bench/results
 	./$(B)/bench/barrier -j $(J) -o bench/results/barrier.txt
+
+pdlp: $(B)/bench/barrier
+	@bench/fetch.sh
+	@mkdir -p bench/results
+	./$(B)/bench/barrier -a pdlp -j $(J) -o bench/results/pdlp.txt
 
 barrier-infeas: $(B)/bench/barrier
 	@bench/fetch.sh -m bench/netlib-infeas.manifest \

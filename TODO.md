@@ -56,7 +56,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **First-order method (PDLP).** Primal-dual hybrid gradient on the LP
-   with restarts and the adaptive step, deterministic, every pass
-   billed, an option at every layer like the barrier; its answer judged
-   by the checker and, where accepted, finished by the crossover.

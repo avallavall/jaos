@@ -126,10 +126,13 @@ class Branching(enum.IntEnum):
 
 class Algorithm(enum.IntEnum):
     """What solves an LP; jaos_algorithm. The barrier is an interior point
-    method for plain LPs; a MIP's relaxations stay on the dual simplex."""
+    method and PDLP a first-order one, both for plain LPs and both
+    finished by a crossover to the dual simplex; a MIP's relaxations stay
+    on the dual simplex."""
     DUAL = 0
     PRIMAL = 1
     BARRIER = 2
+    PDLP = 3
 
 class DiveChild(enum.IntEnum):
     """Which child a dive solves first (D295); jaos_dive_child."""
@@ -1484,7 +1487,8 @@ class Model:
     def set_algorithm(self, alg):
         """What solves an LP: an `Algorithm`, DUAL by default. DUAL and
         PRIMAL also solve the root relaxation and every node of a MIP;
-        BARRIER solves plain LPs only and leaves a MIP to the dual."""
+        BARRIER and PDLP solve plain LPs only and leave a MIP to the
+        dual."""
         self._check(_lib.jaos_set_algorithm(self._handle(), int(alg)))
 
     @property

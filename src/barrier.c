@@ -15,7 +15,7 @@ constexpr double  BARRIER_DELTA    = 1e-10;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
 
-enum { HAS_LO = 1, HAS_UP = 2, FIXED = 4 };
+enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 
 typedef struct {
     jaos_model *m;
@@ -759,10 +759,13 @@ static int by_score(const void *a, const void *b)
     return x->index < y->index ? -1 : x->index > y->index;
 }
 
-static jaos_status crash_basis(bx *s)
+jaos_status jm_crash_basis(jaos_model *m, const uint8_t *kind,
+                           const double *w, const double *v,
+                           const double *zl, const double *zu,
+                           const double *av, jm_work *work)
 {
-    jaos_model *m = s->m;
-    const int64_t nv = s->nvar, nr = s->nrow;
+    const int64_t nv = m->num_col + m->num_row, nr = m->num_row;
+    const int64_t ncol = m->num_col;
     ranked *order = jm_alloc_array(nv > 0 ? nv : 1, sizeof *order);
     jaos_basis_status *want = jm_alloc_array(nv > 0 ? nv : 1, sizeof *want);
     int64_t *basis = jm_alloc_array(nr > 0 ? nr : 1, sizeof *basis);
@@ -778,7 +781,7 @@ static jaos_status crash_basis(bx *s)
         goto done;
 
     for (int64_t j = 0; j < nv; j++) {
-        const uint8_t k = s->kind[j];
+        const uint8_t k = kind[j];
         double sc;
         if (k == FIXED)
             sc = -1.0;
@@ -786,10 +789,10 @@ static jaos_status crash_basis(bx *s)
             sc = 2.0;
         else {
             double pd = HUGE_VAL, dd = 0.0;
-            if (k & HAS_LO) { pd = s->w[j]; dd = s->zl[j]; }
+            if (k & HAS_LO) { pd = w[j]; dd = zl[j]; }
             if (k & HAS_UP) {
-                if (s->v[j] < pd) pd = s->v[j];
-                if (s->zu[j] > dd) dd = s->zu[j];
+                if (v[j] < pd) pd = v[j];
+                if (zu[j] > dd) dd = zu[j];
             }
             sc = pd + dd > 0.0 ? pd / (pd + dd) : 0.5;
         }
@@ -801,16 +804,16 @@ static jaos_status crash_basis(bx *s)
         int64_t bits = 0;
         for (int64_t t = nv; t > 1; t >>= 1)
             bits++;
-        jm_work_add(&s->work, nv * (bits + 2) * JM_WORK_NONZERO);
+        jm_work_add(work, nv * (bits + 2) * JM_WORK_NONZERO);
     }
 
     for (int64_t j = 0; j < nv; j++) {
-        const uint8_t k = s->kind[j];
+        const uint8_t k = kind[j];
         if (k == 0)
             want[j] = JAOS_BASIS_FREE;
         else if (k == HAS_UP)
             want[j] = JAOS_BASIS_AT_UPPER;
-        else if (k == (HAS_LO | HAS_UP) && s->v[j] < s->w[j])
+        else if (k == (HAS_LO | HAS_UP) && v[j] < w[j])
             want[j] = JAOS_BASIS_AT_UPPER;
         else
             want[j] = JAOS_BASIS_AT_LOWER;
@@ -824,21 +827,21 @@ static jaos_status crash_basis(bx *s)
         int64_t p = 0;
         for (int64_t q = 0; q < nr; q++) {
             bs[q] = p;
-            const int64_t v = basis[q];
-            if (v < s->ncol) {
-                for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+            const int64_t var = basis[q];
+            if (var < ncol) {
+                for (int64_t k = m->a_start[var]; k < m->a_start[var + 1]; k++) {
                     bi[p] = m->a_index[k];
-                    bv[p] = s->av[k];
+                    bv[p] = av[k];
                     p++;
                 }
             } else {
-                bi[p] = v - s->ncol;
+                bi[p] = var - ncol;
                 bv[p] = -1.0;
                 p++;
             }
         }
         bs[nr] = p;
-        st = jm_lu_factor(&lu, nr, bs, bi, bv, LU_PIVOT_TOL, &s->work);
+        st = jm_lu_factor(&lu, nr, bs, bi, bv, LU_PIVOT_TOL, work);
         if (st != JAOS_OK)
             goto done;
         if (lu.rank == nr)
@@ -853,19 +856,19 @@ static jaos_status crash_basis(bx *s)
         for (int64_t q = 0; q < nr; q++) {
             if (used[q])
                 continue;
-            while (i < nr && (covered[i] || want[s->ncol + i] == JAOS_BASIS_BASIC))
+            while (i < nr && (covered[i] || want[ncol + i] == JAOS_BASIS_BASIC))
                 i++;
             if (i >= nr)
                 break;
             const int64_t leaving = basis[q];
-            want[leaving] = s->kind[leaving] == 0 ? JAOS_BASIS_FREE
-                            : (s->kind[leaving] == HAS_UP ? JAOS_BASIS_AT_UPPER
-                                                          : JAOS_BASIS_AT_LOWER);
-            basis[q] = s->ncol + i;
-            want[s->ncol + i] = JAOS_BASIS_BASIC;
+            want[leaving] = kind[leaving] == 0 ? JAOS_BASIS_FREE
+                            : (kind[leaving] == HAS_UP ? JAOS_BASIS_AT_UPPER
+                                                       : JAOS_BASIS_AT_LOWER);
+            basis[q] = ncol + i;
+            want[ncol + i] = JAOS_BASIS_BASIC;
             i++;
         }
-        jm_work_add(&s->work, 2 * nr * JM_WORK_NONZERO);
+        jm_work_add(work, 2 * nr * JM_WORK_NONZERO);
     }
 
     st = jm_model_ensure_solution_arrays(m);
@@ -878,7 +881,7 @@ static jaos_status crash_basis(bx *s)
     st = jm_model_remember_basis(m);
     int64_t structural = 0;
     for (int64_t q = 0; q < nr; q++)
-        structural += basis[q] < s->ncol;
+        structural += basis[q] < ncol;
     jm_log(m, JAOS_LOG_DETAIL,
            "crossover: %lld of %lld basics are structural, the guess "
            "factored at rank %lld",
@@ -890,6 +893,12 @@ done:
     free(bs);     free(bi);    free(bv);
     free(covered); free(used);
     return st;
+}
+
+static jaos_status crash_basis(bx *s)
+{
+    return jm_crash_basis(s->m, s->kind, s->w, s->v, s->zl, s->zu, s->av,
+                          &s->work);
 }
 
 jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,

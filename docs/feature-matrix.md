@@ -61,7 +61,7 @@ respectively, which is why those rows read "—" and not "○".
 | Primal simplex | ◐ | ● | ● | ● | ● | ● | ? |
 | Barrier / interior point | ◐ | ● | ○ | ● | ● | ● | ? |
 | Crossover to a basic solution | ◐ | ● | — | ◐ | ● | ● | ? |
-| First-order method (PDLP / PDHG) | ○ | ● | ○ | ○ | ○ | ● | ○ |
+| First-order method (PDLP / PDHG) | ◐ | ● | ○ | ○ | ○ | ● | ○ |
 | GPU acceleration | ○ | ● | ○ | ○ | ○ | ● | ○ |
 | Concurrent solve (race several methods) | ○ | ◐ | ○ | ○ | ● | ● | ? |
 
@@ -91,7 +91,14 @@ the dual simplex finishes from there. A MIP's relaxations stay on the dual.
 An infeasible or unbounded model, which the barrier cannot certify, goes to
 the dual simplex from the slack basis once the iterate diverges, so the
 verdict and its certificate are the dual's (since 2026-09-09,
-`bench/results/barrier-infeas.txt`). What keeps both rows from ●: the crossover is a crash and a warm start, not
+`bench/results/barrier-infeas.txt`). **The first-order row reads ◐ since
+2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
+hybrid gradient on the scaled model (`src/pdlp.c`), with the adaptive step,
+the restarts to the running average and the primal-weight rebalancing of
+Applegate et al. (2021), single-threaded and deterministic, finished by the
+same crossover and handing off the same way; `bench/results/pdlp.txt` is its
+reading, and what keeps it from ● is that reading against the dual, and no
+GPU. What keeps the barrier rows from ●: the crossover is a crash and a warm start, not
 a primal and dual push, so on the degenerate instances the simplex that
 follows can cost more than a cold dual solve; `bench/results/barrier.txt`
 is the reading, and it is what decides whether the barrier ever becomes a

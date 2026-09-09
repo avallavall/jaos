@@ -18,7 +18,7 @@ typedef struct {
     int nwords;
 } opt_def;
 
-static const char *const ALG_WORDS[] = {"dual", "primal", "barrier"};
+static const char *const ALG_WORDS[] = {"dual", "primal", "barrier", "pdlp"};
 static const char *const LOG_WORDS[] = {"off", "summary", "progress", "detail"};
 static const char *const BRANCH_WORDS[] = {"pseudocost", "most-fractional"};
 static const char *const DIVE_WORDS[] = {"nearer", "up", "down", "pseudocost"};
@@ -41,7 +41,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_TIME_LIMIT] = {"time_limit", OPT_DOUBLE, nullptr, 0},
     [O_PRIMAL_TOL] = {"primal_tolerance", OPT_DOUBLE, nullptr, 0},
     [O_DUAL_TOL] = {"dual_tolerance", OPT_DOUBLE, nullptr, 0},
-    [O_ALGORITHM] = {"algorithm", OPT_ENUM, ALG_WORDS, 3},
+    [O_ALGORITHM] = {"algorithm", OPT_ENUM, ALG_WORDS, 4},
     [O_LOG_LEVEL] = {"log_level", OPT_ENUM, LOG_WORDS, 4},
     [O_MIP_GAP] = {"mip_gap", OPT_DOUBLE, nullptr, 0},
     [O_NODE_LIMIT] = {"mip_node_limit", OPT_INT, nullptr, 0},

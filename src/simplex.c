@@ -4009,10 +4009,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
     m->presolve_num_nz  = target->num_nz;
 
     int64_t barrier_iters = 0;
-    if (m->cfg.barrier && !m->cfg.node_solve) {
+    if ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve) {
         bool crossover = false, handoff = false;
-        jaos_status bst = jm_barrier(m, target, &p, &pre_work, &crossover,
-                                     &handoff, &barrier_iters);
+        jaos_status bst = m->cfg.pdlp
+            ? jm_pdlp(m, target, &p, &pre_work, &crossover, &handoff,
+                      &barrier_iters)
+            : jm_barrier(m, target, &p, &pre_work, &crossover, &handoff,
+                         &barrier_iters);
         m->solve_barrier_iters = barrier_iters;
         if (bst != JAOS_OK || (!crossover && !handoff)) {
             jm_presolve_free(&p);
