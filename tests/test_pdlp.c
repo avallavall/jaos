@@ -203,9 +203,56 @@ static void test_pdlp_hands_an_infeasible_lp_to_the_dual(void)
     jaos_model_free(m);
 }
 
+static jaos_model *refused_lp(void)
+{
+    const double inf = jaos_infinity();
+    const double cost[4] = {2.0, -1.0, -4.0, 4.0};
+    const double cl[4] = {0.0, 0.0, 0.0, 0.0};
+    const double cu[4] = {3.0, 4.0, 3.0, 2.0};
+    const double rl[4] = {-inf, -inf, 4.0, -2.0};
+    const double ru[4] = {2.0, 5.0, inf, -2.0};
+    const int64_t as[5] = {0, 3, 6, 9, 13};
+    const int64_t ai[13] = {0, 1, 3, 1, 2, 3, 0, 1, 2, 0, 1, 2, 3};
+    const double av[13] = {2.0, -2.0, -1.0, -1.0, 1.0, 1.0,
+                           2.0, 1.0, -1.0, 1.0, 1.0, 1.0, -1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 4, 4, JAOS_MINIMIZE, 0.0,
+                                                cost, cl, cu, rl, ru,
+                                                13, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PDLP));
+    return m;
+}
+
+static void test_a_ray_in_the_iterates_ends_a_refused_lp_early(void)
+{
+    jaos_model *m = refused_lp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+
+    TEST_ASSERT_TRUE(jaos_iterations(m) > 4096);
+    TEST_ASSERT_TRUE(jaos_iterations(m) < 50000);
+
+    double ray[4];
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, ray));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, ray, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+
+    jaos_model *b = refused_lp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT64(jaos_work_units(m), jaos_work_units(b));
+    TEST_ASSERT_EQUAL_INT64(jaos_iterations(m), jaos_iterations(b));
+    jaos_model_free(b);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_ray_in_the_iterates_ends_a_refused_lp_early);
     RUN_TEST(test_pdlp_is_the_fourth_algorithm);
     RUN_TEST(test_pdlp_solves_the_two_column_lp_to_a_vertex);
     RUN_TEST(test_pdlp_agrees_with_the_dual_on_every_bound_kind);

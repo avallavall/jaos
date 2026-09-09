@@ -1,0 +1,38 @@
+# instance    verdict   dual=iters/work  pdlp=iters/work
+bgdbg1       ok        dual=0/68 pdlp=0+0/68 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+bgetam       overrun   dual=15/37466 pdlp=39+0/376977 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+bgindy       overrun   dual=2/390966 pdlp=18+0/3960402 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+bgprtr       overrun   dual=25/15075 pdlp=318+0/150782 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+box1         overrun   dual=16/25263 pdlp=52+0/256371 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+ceria3d      ok        dual=0/23485 pdlp=0+0/23485 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+chemcom      overrun   dual=6/21681 pdlp=24+0/217446 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+cplex1       overrun   dual=1068/5642413 pdlp=1010+0/56478393 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+cplex2       overrun   dual=329/2320113 pdlp=4349+0/23204798 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+ex72a        overrun   dual=137/140686 pdlp=366+0/1409543 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+ex73a        overrun   dual=100/81284 pdlp=215+0/816401 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+forest6      overrun   dual=77/90679 pdlp=621+0/907104 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+galenet      ok        dual=0/26 pdlp=0+0/26 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+gosh         overrun   dual=25171/2660816616 pdlp=104252+0/26608220322 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+gran         ok        dual=0/311 pdlp=0+0/311 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+greenbea     ok        dual=0/22800 pdlp=0+0/22800 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+itest2       ok        dual=0/10 pdlp=0+0/10 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+itest6       ok        dual=0/9 pdlp=0+0/9 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+klein1       overrun   dual=119/543694 pdlp=2490+0/5438388 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+klein2       overrun   dual=262/5214694 pdlp=3594+0/52151785 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+klein3       overrun   dual=426/18325164 pdlp=5169+0/183280739 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+mondou2      ok        dual=262/298328 pdlp=0+173/545230 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+pang         overrun   dual=378/1466499 pdlp=1464+0/14668189 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+pilot4i      ok        dual=0/13185 pdlp=0+0/13185 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+qual         overrun   dual=364/1598035 pdlp=2118+0/15981405 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+reactor      ok        dual=0/1233 pdlp=0+0/1233 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+refinery     overrun   dual=319/1075241 pdlp=1425+0/10758650 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+vol1         overrun   dual=343/1446494 pdlp=1919+0/14472055 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+woodinfe     ok        dual=0/1 pdlp=0+0/1 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
+
+-- pdlp against dual --
+agreed 11 (checker accepts 11, interior 0), skipped 0, overrun 18, failed 0, disagreed 0, rejected 0, errors 0
+work units pdlp/dual, geometric mean:        1.0563
+iterations (pdlp+1)/(dual+1), geometric mean: 0.9631
+work ratio, best  bgdbg1 at 1.0000
+work ratio, worst mondou2 at 1.8276
+most pdlp iterations: mondou2 at 173

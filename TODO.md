@@ -56,8 +56,3 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Saunders, Wright 1989), would go; `PRIMAL_HARRIS_DELTA` in
    `docs/tolerances.md` says JAOS does not carry it. The row in SPECS
    stays partial until the count is zero.
-3. **PDLP: infeasibility from the iterate.** The reference's test: the
-   difference of successive iterates converging to a ray that certifies
-   primal or dual infeasibility, checked every `PDLP_CHECK_EVERY`, so a
-   refused model ends before `PDLP_MAX_ITER`; the 29 infeasible
-   instances as the reading, `make pdlp-infeas` beside `barrier-infeas`.

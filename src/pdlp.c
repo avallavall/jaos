@@ -14,6 +14,8 @@ constexpr double  PDLP_RESTART_NECESSARY  = 0.8;
 constexpr double  PDLP_RESTART_ARTIFICIAL = 0.36;
 constexpr int64_t PDLP_STEP_TRIES         = 64;
 constexpr int64_t PDLP_RUIZ_ROUNDS        = 10;
+constexpr double  PDLP_INFEAS_TOL         = 1e-8;
+constexpr int64_t PDLP_INFEAS_FROM        = 4096;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 
@@ -33,6 +35,8 @@ typedef struct {
     double *za, *ya, *eza, *ga;
     double *zr, *yr;
     double *lam;
+    double *zc, *yc, *dz, *dy, *dg, *de;
+    bool snapped;
 
     double eta, omega;
     double kkt_restart, kkt_prev;
@@ -53,6 +57,8 @@ static void px_free(px *s)
     free(s->zs);  free(s->ys);
     free(s->za);  free(s->ya);  free(s->eza);  free(s->ga);
     free(s->zr);  free(s->yr);  free(s->lam);
+    free(s->zc);  free(s->yc);  free(s->dz);
+    free(s->dy);  free(s->dg);  free(s->de);
     memset(s, 0, sizeof *s);
 }
 
@@ -161,11 +167,18 @@ static jaos_status px_init(px *s, jaos_model *m)
     s->zr   = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
     s->yr   = jm_calloc_array(nr > 0 ? nr : 1, sizeof(double));
     s->lam  = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
+    s->zc   = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
+    s->yc   = jm_calloc_array(nr > 0 ? nr : 1, sizeof(double));
+    s->dz   = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
+    s->dy   = jm_calloc_array(nr > 0 ? nr : 1, sizeof(double));
+    s->dg   = jm_calloc_array(nv > 0 ? nv : 1, sizeof(double));
+    s->de   = jm_calloc_array(nr > 0 ? nr : 1, sizeof(double));
     if (!s->av || !s->av0 || !s->rs || !s->cs || !s->sl ||
         !s->lo || !s->up || !s->cost || !s->kind || !s->z ||
         !s->y || !s->ez || !s->g || !s->zn || !s->yn || !s->ezn || !s->zs ||
         !s->ys || !s->za || !s->ya || !s->eza || !s->ga || !s->zr || !s->yr ||
-        !s->lam) {
+        !s->lam || !s->zc || !s->yc || !s->dz || !s->dy || !s->dg ||
+        !s->de) {
         px_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
@@ -308,6 +321,58 @@ static bool converged(const px *s, const kkt *k)
            k->gap <= PDLP_TOL * (1.0 + fabs(k->pobj) + fabs(k->dobj));
 }
 
+static double bound_value(const px *s, int64_t j, double l)
+{
+    if (l > 0.0)
+        return s->lo[j] * l;
+    if (l < 0.0)
+        return s->up[j] * l;
+    return 0.0;
+}
+
+static bool dual_ray(px *s, double *worth)
+{
+    mul_et(s, s->dy, s->dg);
+    double res2 = 0.0, q = 0.0;
+    for (int64_t j = 0; j < s->nvar; j++) {
+        const double r = -s->dg[j];
+        const double l = dual_slack(s, j, r);
+        const double d = r - l;
+        res2 += d * d;
+        q += bound_value(s, j, l);
+    }
+    jm_work_add(&s->work, 2 * s->nvar * JM_WORK_NONZERO);
+    *worth = q;
+    return isfinite(q) && q > 0.0 && sqrt(res2) <= PDLP_INFEAS_TOL * q;
+}
+
+static bool primal_ray(px *s, double *worth)
+{
+    mul_e(s, s->dz, s->de);
+    double res2 = 0.0, drop = 0.0;
+    for (int64_t i = 0; i < s->nrow; i++)
+        res2 += s->de[i] * s->de[i];
+    for (int64_t j = 0; j < s->nvar; j++) {
+        const uint8_t k = s->kind[j];
+        const double d = s->dz[j];
+        double out = 0.0;
+        if (k == FIXED)
+            out = fabs(d);
+        else {
+            if ((k & HAS_LO) && d < 0.0)
+                out = -d;
+            if ((k & HAS_UP) && d > 0.0)
+                out = d;
+        }
+        res2 += out * out;
+        drop += s->cost[j] * d;
+    }
+    jm_work_add(&s->work, 2 * s->nvar * JM_WORK_NONZERO);
+    *worth = drop;
+    return isfinite(drop) && drop < 0.0 &&
+           sqrt(res2) <= PDLP_INFEAS_TOL * -drop;
+}
+
 static bool finite_point(const px *s, const double *z, const double *y)
 {
     for (int64_t j = 0; j < s->nvar; j++)
@@ -444,6 +509,36 @@ static jaos_status px_run(px *s, jaos_solve_status *out)
                 restart_at(s, use_avg, wb);
             else
                 s->kkt_prev = wb;
+
+            if (s->snapped && s->iters >= PDLP_INFEAS_FROM) {
+                for (int64_t j = 0; j < nv; j++)
+                    s->dz[j] = s->z[j] - s->zc[j];
+                for (int64_t i = 0; i < nr; i++)
+                    s->dy[i] = s->y[i] - s->yc[i];
+                double worth = 0.0;
+                const char *side = nullptr;
+                if (dual_ray(s, &worth))
+                    side = "dual";
+                else if (primal_ray(s, &worth))
+                    side = "primal";
+                if (side != nullptr) {
+                    jm_set_err(m, "the difference of the first-order method's "
+                                  "iterates walks a %s ray worth %.3e after "
+                                  "%lld iterations, so the model is "
+                                  "infeasible or unbounded, which the ray "
+                                  "does not tell apart; the dual simplex "
+                                  "does", side, worth, (long long)s->iters);
+                    s->handoff = true;
+                    *out = JAOS_SOLVE_NUMERICAL_ERROR;
+                    return JAOS_OK;
+                }
+            }
+            if (s->iters + PDLP_CHECK_EVERY >= PDLP_INFEAS_FROM) {
+                memcpy(s->zc, s->z, (size_t)nv * sizeof(double));
+                memcpy(s->yc, s->y, (size_t)nr * sizeof(double));
+                s->snapped = true;
+                jm_work_add(&s->work, (nv + nr) * JM_WORK_NONZERO);
+            }
         }
 
         if (m->cfg.work_limit > 0 && s->work.units >= m->cfg.work_limit) {
