@@ -1,0 +1,6 @@
+# A quadratically constrained problem, which JAOS refuses at the type line.
+eqcon
+QCQ
+minimize
+2
+1

@@ -1073,6 +1073,309 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
     return w->st;
 }
 
+static void qplib_num(char *buf, double v)
+{
+    if (v == INFINITY)
+        snprintf(buf, NUM_LEN, "1e+20");
+    else if (v == -INFINITY)
+        snprintf(buf, NUM_LEN, "-1e+20");
+    else
+        wr_num(buf, v);
+}
+
+static void qplib_vector(FILE *f, const char *what, int64_t n,
+                         const double *v, double dflt, bool bound)
+{
+    char num[NUM_LEN];
+    int64_t count = 0;
+    for (int64_t k = 0; k < n; k++)
+        count += v[k] != dflt;
+    (void)bound;
+    qplib_num(num, dflt);
+    fprintf(f, "%s   # default %s\n", num, what);
+    fprintf(f, "%" PRId64 "   # non-default %s\n", count, what);
+    for (int64_t k = 0; k < n; k++) {
+        if (v[k] == dflt)
+            continue;
+        qplib_num(num, v[k]);
+        fprintf(f, "%" PRId64 " %s\n", k + 1, num);
+    }
+}
+
+static double most_common(int64_t n, const double *v, double a, double b)
+{
+    int64_t na = 0, nb = 0;
+    for (int64_t k = 0; k < n; k++) {
+        na += v[k] == a;
+        nb += v[k] == b;
+    }
+    return nb > na ? b : a;
+}
+
+jaos_status jaos_write_qplib(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    char nm[NAME_LEN], num[NUM_LEN];
+
+    if (m->num_sos > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " SOS sets, which QPLIB cannot "
+                "express; write MPS instead", m->num_sos);
+    for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++)
+        if (m->col_semi != nullptr && m->col_semi[j]) {
+            col_name(m, nm, j);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' is semi-continuous, which QPLIB cannot "
+                    "express; write MPS instead", nm);
+        }
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++)
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' is an indicator constraint, which QPLIB cannot "
+                    "express; write MPS instead", nm);
+        }
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    if (w->st != JAOS_OK)
+        return w->st;
+
+    bool any_int = false, all_int = nc > 0, any_quad = false;
+    for (int64_t j = 0; j < nc; j++) {
+        const bool is_int = m->col_integer != nullptr && m->col_integer[j];
+        any_int |= is_int;
+        all_int &= is_int;
+        any_quad |= m->col_quad != nullptr && m->col_quad[j] != 0.0;
+    }
+    const char kind[4] = {any_quad ? 'D' : 'L',
+                          !any_int ? 'C' : (all_int ? 'I' : 'G'),
+                          nr > 0 ? 'L' : 'B', '\0'};
+
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc))
+        return w->st;
+    FILE *f = w->f;
+    fprintf(f, "# written by JAOS %s\n", JAOS_VERSION_STRING);
+    {
+        char mn[NAME_LEN];
+        if (jaos_model_name(m, mn, sizeof mn) != JAOS_OK || mn[0] == '\0')
+            snprintf(mn, sizeof mn, "jaos");
+        fprintf(f, "%s\n", mn);
+    }
+    fprintf(f, "%s   # problem type\n", kind);
+    fprintf(f, "%s\n", m->sense == JAOS_MAXIMIZE ? "maximize" : "minimize");
+    fprintf(f, "%" PRId64 "   # variables\n", nc);
+    if (nr > 0)
+        fprintf(f, "%" PRId64 "   # constraints\n", nr);
+    if (any_quad) {
+        int64_t nq = 0;
+        for (int64_t j = 0; j < nc; j++)
+            nq += m->col_quad[j] != 0.0;
+        fprintf(f, "%" PRId64 "   # objective Q entries, lower triangle\n", nq);
+        for (int64_t j = 0; j < nc; j++) {
+            if (m->col_quad[j] == 0.0)
+                continue;
+            wr_num(num, m->col_quad[j]);
+            fprintf(f, "%" PRId64 " %" PRId64 " %s\n", j + 1, j + 1, num);
+        }
+    }
+    qplib_vector(f, "objective coefficient", nc, m->col_cost, 0.0, false);
+    wr_num(num, m->obj_offset);
+    fprintf(f, "%s   # objective constant\n", num);
+    if (nr > 0) {
+        fprintf(f, "%" PRId64 "   # constraint entries\n", m->num_nz);
+        for (int64_t j = 0; j < nc; j++)
+            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+                wr_num(num, m->a_value[k]);
+                fprintf(f, "%" PRId64 " %" PRId64 " %s\n", m->a_index[k] + 1,
+                        j + 1, num);
+            }
+        qplib_vector(f, "constraint lower bound", nr, m->row_lower,
+                     most_common(nr, m->row_lower, -INFINITY, 0.0), true);
+        qplib_vector(f, "constraint upper bound", nr, m->row_upper,
+                     most_common(nr, m->row_upper, INFINITY, 0.0), true);
+    }
+    qplib_vector(f, "variable lower bound", nc, m->col_lower,
+                 most_common(nc, m->col_lower, 0.0, -INFINITY), true);
+    qplib_vector(f, "variable upper bound", nc, m->col_upper,
+                 most_common(nc, m->col_upper, INFINITY, 1.0), true);
+    if (kind[1] == 'G') {
+        int64_t nint = 0;
+        for (int64_t j = 0; j < nc; j++)
+            nint += m->col_integer[j];
+        fprintf(f, "0   # default variable type, continuous\n");
+        fprintf(f, "%" PRId64 "   # integer variables\n", nint);
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_integer[j])
+                fprintf(f, "%" PRId64 " 1\n", j + 1);
+    }
+    fprintf(f, "0   # default initial primal value\n0\n");
+    if (nr > 0)
+        fprintf(f, "0   # default initial dual value\n0\n");
+    fprintf(f, "0   # default initial reduced cost\n0\n");
+    fprintf(f, "%" PRId64 "   # variable names\n", nc);
+    for (int64_t j = 0; j < nc; j++) {
+        col_name(m, nm, j);
+        fprintf(f, "%" PRId64 " %s\n", j + 1, nm);
+    }
+    if (nr > 0) {
+        fprintf(f, "%" PRId64 "   # constraint names\n", nr);
+        for (int64_t i = 0; i < nr; i++) {
+            row_name(m, nm, i);
+            fprintf(f, "%" PRId64 " %s\n", i + 1, nm);
+        }
+    }
+    return wr_close(w, path, &loc);
+}
+
+static void xml_text(FILE *f, const char *s)
+{
+    for (; *s; s++) {
+        switch (*s) {
+        case '&':  fputs("&amp;", f);  break;
+        case '<':  fputs("&lt;", f);   break;
+        case '>':  fputs("&gt;", f);   break;
+        case '"':  fputs("&quot;", f); break;
+        case '\'': fputs("&apos;", f); break;
+        default:   fputc(*s, f);       break;
+        }
+    }
+}
+
+jaos_status jaos_write_osil(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    char nm[NAME_LEN], num[NUM_LEN];
+
+    if (m->num_sos > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " SOS sets, which JAOS does not "
+                "write to OSiL; write MPS instead", m->num_sos);
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++)
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' is an indicator constraint, which JAOS does "
+                    "not write to OSiL; write MPS instead", nm);
+        }
+    if (w->st == JAOS_OK)
+        names_unique(w);
+    if (w->st != JAOS_OK)
+        return w->st;
+
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc))
+        return w->st;
+    FILE *f = w->f;
+    fprintf(f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    fprintf(f, "<osil xmlns=\"os.optimizationservices.org\">\n");
+    fprintf(f, "<instanceHeader><name>");
+    {
+        char mn[NAME_LEN];
+        if (jaos_model_name(m, mn, sizeof mn) != JAOS_OK)
+            mn[0] = '\0';
+        xml_text(f, mn);
+    }
+    fprintf(f, "</name><description>written by JAOS %s</description>"
+               "</instanceHeader>\n", JAOS_VERSION_STRING);
+    fprintf(f, "<instanceData>\n");
+    fprintf(f, "<variables numberOfVariables=\"%" PRId64 "\">\n", nc);
+    for (int64_t j = 0; j < nc; j++) {
+        col_name(m, nm, j);
+        const bool is_int = m->col_integer != nullptr && m->col_integer[j];
+        const bool is_semi = m->col_semi != nullptr && m->col_semi[j];
+        const char *type = is_semi ? (is_int ? "D" : "S") : (is_int ? "I" : "C");
+        fprintf(f, "<var name=\"");
+        xml_text(f, nm);
+        fprintf(f, "\" type=\"%s\"", type);
+        if (m->col_lower[j] != 0.0) {
+            wr_num(num, m->col_lower[j]);
+            fprintf(f, " lb=\"%s\"", m->col_lower[j] == -INFINITY ? "-INF" : num);
+        }
+        if (m->col_upper[j] != INFINITY) {
+            wr_num(num, m->col_upper[j]);
+            fprintf(f, " ub=\"%s\"", num);
+        }
+        fprintf(f, "/>\n");
+    }
+    fprintf(f, "</variables>\n");
+    int64_t nobj = 0;
+    for (int64_t j = 0; j < nc; j++)
+        nobj += m->col_cost[j] != 0.0;
+    wr_num(num, m->obj_offset);
+    fprintf(f, "<objectives numberOfObjectives=\"1\">\n<obj name=\"");
+    xml_text(f, jm_obj_name(m));
+    fprintf(f, "\" maxOrMin=\"%s\" numberOfObjCoef=\"%" PRId64
+               "\" constant=\"%s\">\n",
+            m->sense == JAOS_MAXIMIZE ? "max" : "min", nobj, num);
+    for (int64_t j = 0; j < nc; j++) {
+        if (m->col_cost[j] == 0.0)
+            continue;
+        wr_num(num, m->col_cost[j]);
+        fprintf(f, "<coef idx=\"%" PRId64 "\">%s</coef>\n", j, num);
+    }
+    fprintf(f, "</obj>\n</objectives>\n");
+    fprintf(f, "<constraints numberOfConstraints=\"%" PRId64 "\">\n", nr);
+    for (int64_t i = 0; i < nr; i++) {
+        row_name(m, nm, i);
+        fprintf(f, "<con name=\"");
+        xml_text(f, nm);
+        fprintf(f, "\"");
+        if (m->row_lower[i] != -INFINITY) {
+            wr_num(num, m->row_lower[i]);
+            fprintf(f, " lb=\"%s\"", num);
+        }
+        if (m->row_upper[i] != INFINITY) {
+            wr_num(num, m->row_upper[i]);
+            fprintf(f, " ub=\"%s\"", num);
+        }
+        fprintf(f, "/>\n");
+    }
+    fprintf(f, "</constraints>\n");
+    if (m->num_nz > 0) {
+        fprintf(f, "<linearConstraintCoefficients numberOfValues=\"%" PRId64
+                   "\">\n<start>\n", m->num_nz);
+        for (int64_t j = 0; j <= nc; j++)
+            fprintf(f, "<el>%" PRId64 "</el>\n", m->a_start[j]);
+        fprintf(f, "</start>\n<rowIdx>\n");
+        for (int64_t k = 0; k < m->num_nz; k++)
+            fprintf(f, "<el>%" PRId64 "</el>\n", m->a_index[k]);
+        fprintf(f, "</rowIdx>\n<value>\n");
+        for (int64_t k = 0; k < m->num_nz; k++) {
+            wr_num(num, m->a_value[k]);
+            fprintf(f, "<el>%s</el>\n", num);
+        }
+        fprintf(f, "</value>\n</linearConstraintCoefficients>\n");
+    }
+    if (m->col_quad != nullptr) {
+        int64_t nq = 0;
+        for (int64_t j = 0; j < nc; j++)
+            nq += m->col_quad[j] != 0.0;
+        if (nq > 0) {
+            fprintf(f, "<quadraticCoefficients numberOfQuadraticTerms=\"%"
+                       PRId64 "\">\n", nq);
+            for (int64_t j = 0; j < nc; j++) {
+                if (m->col_quad[j] == 0.0)
+                    continue;
+                wr_num(num, 0.5 * m->col_quad[j]);
+                fprintf(f, "<qTerm idx=\"-1\" idxOne=\"%" PRId64 "\" idxTwo=\"%"
+                           PRId64 "\" coef=\"%s\"/>\n", j, j, num);
+            }
+            fprintf(f, "</quadraticCoefficients>\n");
+        }
+    }
+    fprintf(f, "</instanceData>\n</osil>\n");
+    return wr_close(w, path, &loc);
+}
+
 static const char *basis_word(jaos_basis_status s)
 {
     switch (s) {

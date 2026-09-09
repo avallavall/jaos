@@ -247,9 +247,10 @@ static const char U_SOLVE_E[] =
     "  by Ctrl-C, 4 numerical failure.\n";
 static const char U_CONVERT[] =
     "convert reads IN and writes OUT in the format OUT's extension names,\n"
-    "  .mps, .lp or .nl (the names beside it in .col and .row). A .gz\n"
-    "  after any of them compresses the file, which every writer here\n"
-    "  takes and every reader already took. Exit 0 when written.\n"
+    "  .mps, .lp, .nl (the names beside it in .col and .row), .qplib or\n"
+    "  .osil (write only). A .gz after any of them compresses the file,\n"
+    "  which every writer here takes and every reader already took. Exit\n"
+    "  0 when written.\n"
     "  --positional     take every name off first, so the file is written\n"
     "                   with R1, C1 and COST. It is the escape hatch for\n"
     "                   a name the LP dialect cannot spell -- one holding\n"
@@ -497,12 +498,19 @@ static bool is_nl_name(const char *path)
     return has_suffix(path, ".nl") || has_suffix(path, ".nl.gz");
 }
 
+static bool is_qplib_name(const char *path)
+{
+    return has_suffix(path, ".qplib") || has_suffix(path, ".qplib.gz");
+}
+
 static jaos_status read_model(jaos_model *m, const char *path)
 {
     if (is_lp_name(path))
         return jaos_read_lp(m, path);
     if (is_nl_name(path))
         return jaos_read_nl(m, path);
+    if (is_qplib_name(path))
+        return jaos_read_qplib(m, path);
     return jaos_read_mps(m, path);
 }
 
@@ -515,6 +523,10 @@ static jaos_status (*writer_for(const char *path))(jaos_model *, const char *)
         return jaos_write_lp;
     if (has_suffix(path, ".nl") || (gz && has_suffix(path, ".nl.gz")))
         return jaos_write_nl;
+    if (has_suffix(path, ".qplib") || (gz && has_suffix(path, ".qplib.gz")))
+        return jaos_write_qplib;
+    if (has_suffix(path, ".osil") || (gz && has_suffix(path, ".osil.gz")))
+        return jaos_write_osil;
     return nullptr;
 }
 
@@ -1675,8 +1687,9 @@ static int cmd_convert(int argc, char **argv)
 
     jaos_status (*write)(jaos_model *, const char *) = writer_for(out);
     if (write == nullptr)
-        return usage_error("convert writes .mps, .lp or .nl, any with a .gz "
-                           "after it, and '%s' is none of those", out);
+        return usage_error("convert writes .mps, .lp, .nl, .qplib or .osil, "
+                           "any with a .gz after it, and '%s' is none of "
+                           "those", out);
 
     jaos_model *m = nullptr;
     if (jaos_model_new(&m) != JAOS_OK) {

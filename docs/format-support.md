@@ -251,10 +251,44 @@ the same. SOS sets, semi-continuous columns and indicator rows have no
 place in the linear part of the format and are refused by name; write
 MPS for those.
 
+## QPLIB
+
+The QPLIB text format of Furini et al. (2019), read by `jaos_read_qplib`
+and by the tool for a name ending in `.qplib` or `.qplib.gz`, written by
+`jaos_write_qplib` and `convert OUT.qplib`. JAOS reads the classes it
+holds: the three-letter type's first letter `L` (linear objective) or
+`D`, `C`, `Q` with a diagonal `Q` only, an off-diagonal entry refused by
+line; its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
+with `B` giving every variable bounds 0 and 1 and `M` or `G` reading the
+type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
+`B` or `L`, a quadratic constraint type refused at that line. After the
+type come the sense, the counts, the objective `Q` entries (1-based,
+`½ x^T Q x` so the diagonal is `q` as JAOS holds it), the objective
+coefficients as a default plus exceptions, the constant, the constraint
+entries, the row bounds, the variable bounds, the types, the three
+initial-value vectors (read and dropped) and the names; `1e20` is
+infinity. Comments after `#` or `!` are dropped. The writer prints every
+section in that order with the most common value as each default, the
+type letters from what the model holds, and every name. SOS sets,
+semi-continuous columns and indicator rows have no place in it and are
+refused by name.
+
+## OSiL
+
+`jaos_write_osil` and `convert OUT.osil` write the model as OSiL XML:
+`<variables>` with names, bounds and types (`C`, `I`, `S`, `D`), one
+`<obj>` with its sense, constant and linear coefficients,
+`<constraints>` with names and bounds, `<linearConstraintCoefficients>`
+column-wise, and `<quadraticCoefficients>` with one `qTerm` per
+quadratic column at `coef = q / 2`, the objective's `idx="-1"`. SOS sets
+and indicator rows are refused by name. JAOS does not read OSiL.
+
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,
-and `jaos_write_nl`, added 2026-09-09. One rule shapes all four: **what JAOS
+`jaos_write_nl`, added 2026-09-09, and `jaos_write_qplib` and
+`jaos_write_osil` the same day. One rule shapes all of them but OSiL,
+which has no reader: **what JAOS
 writes, JAOS reads back as the same model.** Where a format cannot express
 what the model holds, the call fails, `jaos_model_error` names the row or
 the column, and no file is left behind.

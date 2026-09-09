@@ -49,6 +49,7 @@ set(JAOS_SOURCES
     src/pdlp.c
     src/presolve.c
     src/proof.c
+    src/qplib.c
     src/ranging.c
     src/relax.c
     src/scale.c

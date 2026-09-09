@@ -179,6 +179,41 @@ class TestReadingFiles(unittest.TestCase):
         self.assertEqual(p._m.col_quadratic(0), 0.0)
         self.assertAlmostEqual(p.objective_value, 2.0, places=9)
 
+    def test_qplib_round_trips_and_osil_is_written(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_qplib(data("g_quad.qplib"))
+            self.assertEqual((m.num_col, m.num_row), (2, 1))
+            self.assertEqual(m.col_name(1), "y")
+            self.assertEqual(m.col_quadratic(0), 2.0)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 4.0, places=6)
+            path = os.path.join(d, "out.qplib")
+            m.write_qplib(path)
+            with jaos.Model() as back:
+                back.read_qplib(path)
+                self.assertEqual(back.row_name(0), "c1")
+                self.assertEqual(back.col_quadratic(1), 2.0)
+            osil = os.path.join(d, "out.osil")
+            m.write_osil(osil)
+            with open(osil) as f:
+                text = f.read()
+            self.assertIn('<var name="x"', text)
+            self.assertIn('<qTerm idx="-1"', text)
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=4, name="x", integer=True)
+        p.add(x >= 1.5, name="floor")
+        p.minimize(x)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "p.qplib")
+            p.write_qplib(path)
+            with jaos.Model() as back:
+                back.read_qplib(path)
+                self.assertTrue(back.col_integer(0))
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertEqual(back.objective(), 2.0)
+            p.write_osil(os.path.join(d, "p.osil"))
+            self.assertTrue(os.path.exists(os.path.join(d, "p.osil")))
+
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_nl(data("t_lin.nl"))

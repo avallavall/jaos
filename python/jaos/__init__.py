@@ -664,6 +664,9 @@ _sig("jaos_read_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_mps", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_nl", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_qplib", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_qplib", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
      _P(_D), _P(_D), _P(ctypes.c_int),
@@ -909,6 +912,27 @@ class Model:
         carried. SOS sets, semi-continuous columns and indicator rows
         are refused; write MPS for those."""
         self._check(_lib.jaos_write_nl(self._handle(), _path(path)))
+        return self
+
+    def read_qplib(self, path):
+        """Reads a QPLIB file: a linear or separable quadratic objective,
+        linear rows, bounds, integer columns and the names. An
+        off-diagonal Q entry or a quadratic constraint is refused by
+        line. gzip is accepted here too."""
+        self._check(_lib.jaos_read_qplib(self._handle(), _path(path)))
+        return self
+
+    def write_qplib(self, path):
+        """Writes the model in the QPLIB format; SOS sets, semi-continuous
+        columns and indicator rows are refused, write MPS for those."""
+        self._check(_lib.jaos_write_qplib(self._handle(), _path(path)))
+        return self
+
+    def write_osil(self, path):
+        """Writes the model as OSiL XML: variables with bounds and types,
+        one objective with its quadratic terms, constraints and the
+        column-wise matrix. JAOS does not read OSiL back."""
+        self._check(_lib.jaos_write_osil(self._handle(), _path(path)))
         return self
 
     def write_solution(self, path):
@@ -3601,6 +3625,18 @@ class Problem:
         if self._pending():
             self._build_and_load()
         self._m.write_nl(path)
+        return self
+
+    def write_qplib(self, path):
+        if self._pending():
+            self._build_and_load()
+        self._m.write_qplib(path)
+        return self
+
+    def write_osil(self, path):
+        if self._pending():
+            self._build_and_load()
+        self._m.write_osil(path)
         return self
 
     def write_solution(self, path):

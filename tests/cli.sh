@@ -716,6 +716,26 @@ expect_exit 0 "the written NL solves" "$JAOS" solve "$tmp/solve1.nl"
 [ "$(line_of objective)" = "$mps_objective" ] \
     && pass "and gives the same objective line as the MPS" \
     || flunk "NL objective '$(line_of objective)' vs MPS '$mps_objective'"
+expect_exit 0 "convert MPS to QPLIB exits 0" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.qplib"
+expect_exit 0 "the written QPLIB solves" "$JAOS" solve "$tmp/solve1.qplib"
+[ "$(line_of objective)" = "$mps_objective" ] \
+    && pass "and gives the same objective line as the MPS" \
+    || flunk "QPLIB objective '$(line_of objective)' vs MPS '$mps_objective'"
+expect_exit 0 "a QP converts to QPLIB and solves" \
+    "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.qplib"
+expect_exit 0 "the QPLIB QP solves" "$JAOS" solve "$tmp/gq.qplib"
+case "$(line_of objective)" in
+    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    *) flunk "QPLIB QP objective '$(line_of objective)'" ;;
+esac
+expect_exit 0 "convert to OSiL exits 0" \
+    "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.osil"
+grep -q '<qTerm idx="-1"' "$tmp/gq.osil" \
+    && pass "and the OSiL carries the quadratic term" \
+    || flunk "no qTerm in the written OSiL"
+expect_exit 5 "convert to an unknown extension is a usage error" \
+    "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1.xyz"
 expect_exit 0 "convert to a compressed NL exits 0" \
     "$JAOS" convert "$DATA/solve1.mps" "$tmp/solve1z.nl.gz"
 [ -f "$tmp/solve1z.col" ] \

@@ -1,0 +1,22 @@
+# An off-diagonal Q entry, which JAOS refuses.
+eoff
+DCB
+minimize
+2
+2
+1 1 2.0
+1 2 1.0
+0.0
+0
+0.0
+0.0
+0
+1e+20
+0
+0.0
+0
+0.0
+0
+0.0
+0
+0
