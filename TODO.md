@@ -31,8 +31,15 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    primal-bound-perturbation and primal-tie-hash), and so was a cost
    perturbation on the pricing side after a run of zero steps
    (primal-cost-perturbation). What is left: why Bland's rule does not
-   terminate on d6cube, and the dense-column iteration counts. The row in
-   SPECS stays partial until the count is zero.
+   terminate on d6cube, and the dense-column iteration counts. A lead on
+   the first: phase 2 measures progress by the dual infeasibility total
+   (`dinfeas_best`), not by the objective, and drops Bland's rule the
+   moment that total improves, so the walk alternates between steepest
+   edge and Bland's and the termination argument does not apply; the
+   published remedy is EXPAND's growing tolerance schedule (Gill, Murray,
+   Saunders, Wright 1989), which `PRIMAL_HARRIS_DELTA` in
+   `docs/tolerances.md` says JAOS does not carry. The row in SPECS stays
+   partial until the count is zero.
 
 ## Milestone: symmetry
 
