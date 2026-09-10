@@ -296,6 +296,13 @@ jaos_status jaos_cost_ranging(jaos_model *m, double *lower, double *upper)
                       "a quadratic term");
         return JAOS_ERR_INVALID_INPUT;
     }
+    if (jm_model_has_integer(m)) {
+        jm_set_err(m, "ranging is about the basis behind an answer, and this "
+                      "model is a MIP: the basis is the last node's, with "
+                      "that node's branching bounds, so an interval read off "
+                      "it says nothing about the model as loaded");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     if (!rg_has_optimum(m)) {
         jm_set_err(m, "ranging needs the optimum of the last solve, and "
                       "there is none");
@@ -465,6 +472,13 @@ static jaos_status rg_bounds(jaos_model *m, bool rows, double *lo_lo,
     if (jm_model_has_quadratic(m)) {
         jm_set_err(m, "ranging is about a linear objective, and this one has "
                       "a quadratic term");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (jm_model_has_integer(m)) {
+        jm_set_err(m, "ranging is about the basis behind an answer, and this "
+                      "model is a MIP: the basis is the last node's, with "
+                      "that node's branching bounds, so an interval read off "
+                      "it says nothing about the model as loaded");
         return JAOS_ERR_INVALID_INPUT;
     }
     if (!rg_has_optimum(m)) {

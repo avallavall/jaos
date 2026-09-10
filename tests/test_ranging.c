@@ -589,11 +589,46 @@ static void test_a_quadratic_objective_is_refused_by_name(void)
     jaos_model_free(m);
 }
 
+static void test_a_mip_is_refused_by_name(void)
+{
+    const int64_t cols[] = {0, 1};
+    const double  w[]    = {1.0, 2.0};
+    double lo[2], hi[2];
+
+    jaos_model *m = make_textbook(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_rhs_ranging(m, lo, hi, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_bound_ranging(m, lo, hi, nullptr, nullptr));
+    jaos_model_free(m);
+
+    m = make_textbook(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, cols, w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+    jaos_model_free(m);
+
+    m = make_textbook(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 0, 2.0, 4.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_nothing_to_range_before_an_optimum);
     RUN_TEST(test_a_quadratic_objective_is_refused_by_name);
+    RUN_TEST(test_a_mip_is_refused_by_name);
     RUN_TEST(test_a_model_with_no_rows_ranges_its_costs);
     RUN_TEST(test_a_mutual_singleton_on_an_open_row_ranges);
     RUN_TEST(test_textbook_cost_ranging);

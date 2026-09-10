@@ -790,6 +790,14 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
         *out = rep;
         return JAOS_ERR_INVALID_INPUT;
     }
+    if (jm_model_has_integer(m)) {
+        jm_set_err(m, "the exact proof is about the basis behind an answer, "
+                      "and this model is a MIP: the basis is the last node's, "
+                      "with that node's branching bounds, so the proof would "
+                      "judge a linear program the model as loaded is not");
+        *out = rep;
+        return JAOS_ERR_INVALID_INPUT;
+    }
 
     vbasis b;
     vrowwise rw = {0};

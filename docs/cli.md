@@ -433,6 +433,11 @@ its bounds carries a zero multiplier — and those three together are
 sufficient, so a file that passes is proved optimal rather than consistent
 with somebody else's basis.
 
+Those three conditions are the ones a linear program has. The checker
+refuses a model that carries integer columns, SOS sets, semi-continuous
+columns or a quadratic objective, and exits 5, because a file holding a
+point and its multipliers says nothing about any of them.
+
 ```
 $ jaos solve model.mps --proof model.proof
 ...
@@ -670,7 +675,10 @@ arithmetic with no tolerance anywhere. The basis is rebuilt over the
 integers and eliminated exactly; the verdict is `optimal` when every basic
 value lies inside its bounds and every reduced cost points into the model.
 A quadratic objective is refused by name and exits 5. The proof is about a
-linear cost, and a QP answer carries no basis.
+linear cost, and a QP answer carries no basis. A MIP is refused the same
+way, together with SOS sets and semi-continuous columns: the basis behind
+a MIP answer is the last node's, so the proof would judge a linear program
+the file does not hold.
 
 ```
 status optimal
@@ -845,6 +853,14 @@ has no basis to range; the tool prints its status line, says so on stderr,
 and exits 5. A quadratic objective is refused the same way. Ranging is
 about a linear cost, and a QP optimum is not a vertex, so it carries no
 basis.
+
+A MIP is refused too, and so is a model with SOS sets or semi-continuous
+columns. The basis behind a MIP answer belongs to the last node of the
+tree and carries that node's branching bounds. An interval read off it is
+about that node's linear program. On `max 5x + 4y` over `6x + 4y <= 24`
+and `x + 2y <= 6` with both columns integer, the answer is `x = 4, y = 0`
+and the interval for the cost of `x` came out `[-inf, 6]`; drop that cost
+to 4 and the optimum moves to `x = 3, y = 1`.
 
 ## Which reader is used
 

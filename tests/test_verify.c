@@ -470,6 +470,35 @@ static void test_refuses_a_quadratic_objective_by_name(void)
     jaos_model_free(m);
 }
 
+static void test_refuses_a_mip_by_name(void)
+{
+    const int64_t cols[] = {0, 1};
+    const double  w[]    = {1.0, 2.0};
+    jaos_verify_report r;
+
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_verify(m, &r));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_REFUSED, r.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+
+    const jaos_basis_status cs[2] = { JAOS_BASIS_BASIC, JAOS_BASIS_AT_LOWER };
+    const jaos_basis_status rs[1] = { JAOS_BASIS_AT_UPPER };
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_verify_basis(m, cs, rs, &r));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+    jaos_model_free(m);
+
+    m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, cols, w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_verify(m, &r));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MIP"));
+    jaos_model_free(m);
+}
+
 static jaos_model *model_third(jaos_obj_sense sense)
 {
     jaos_model *m = nullptr;
@@ -577,6 +606,40 @@ static void test_a_nonbasic_column_reads_its_bound_and_the_two_by_two_its_solve(
 }
 
 static const char *TMP_PROOF = "build/tv_tmp.proof";
+
+static void test_a_proof_file_is_not_judged_against_a_mip(void)
+{
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_verify_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_verify(m, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_model_free(m);
+
+    jaos_model *lp = model_two();
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(lp, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.primal);
+    jaos_model_free(lp);
+
+    jaos_model *mip = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(mip, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(mip, TMP_PROOF, &pr));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(mip), "MIP"));
+    TEST_ASSERT_FALSE(pr.certified);
+    jaos_model_free(mip);
+
+    jaos_model *qp = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(qp, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_check_proof(qp, TMP_PROOF, &pr));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(qp), "quadratic"));
+    jaos_model_free(qp);
+
+    remove(TMP_PROOF);
+}
 
 static bool proof_edit(const char *from, const char *to)
 {
@@ -1245,6 +1308,8 @@ int main(void)
     RUN_TEST(test_is_reproducible);
     RUN_TEST(test_refuses_a_model_that_was_not_solved);
     RUN_TEST(test_refuses_a_quadratic_objective_by_name);
+    RUN_TEST(test_refuses_a_mip_by_name);
+    RUN_TEST(test_a_proof_file_is_not_judged_against_a_mip);
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);

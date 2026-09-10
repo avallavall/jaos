@@ -310,6 +310,37 @@ class TestReadingFiles(unittest.TestCase):
             p.verify()
         self.assertIn("quadratic", str(ctx.exception))
 
+    def test_a_mip_is_refused_by_ranging_and_by_the_proof_at_both_layers(self):
+        with jaos.Model() as m:
+            m.load(2, 2, [5.0, 4.0], [0.0, 0.0],
+                   [float("inf"), float("inf")],
+                   [-float("inf"), -float("inf")], [24.0, 6.0],
+                   [0, 2, 4], [0, 1, 0, 1], [6.0, 1.0, 4.0, 2.0],
+                   sense=jaos.ObjSense.MAXIMIZE)
+            m.set_col_integer(0, True)
+            m.set_col_integer(1, True)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.cost_ranging()
+            self.assertIn("MIP", str(ctx.exception))
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.verify()
+            self.assertIn("MIP", str(ctx.exception))
+
+        p = jaos.Problem()
+        x = p.add_var(lb=0, name="x", integer=True)
+        y = p.add_var(lb=0, name="y", integer=True)
+        p.add(6 * x + 4 * y <= 24, name="a")
+        p.add(x + 2 * y <= 6, name="b")
+        p.maximize(5 * x + 4 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        with self.assertRaises(jaos.JaosError) as ctx:
+            p.cost_ranging()
+        self.assertIn("MIP", str(ctx.exception))
+        with self.assertRaises(jaos.JaosError) as ctx:
+            p.verify()
+        self.assertIn("MIP", str(ctx.exception))
+
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_nl(data("t_lin.nl"))

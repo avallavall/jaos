@@ -1361,6 +1361,29 @@ case "$err" in
     *) flunk "verify of a QP said '$err'" ;;
 esac
 
+expect_exit 5 "ranging of a MIP exits 5" "$JAOS" ranging "$DATA/t4_int.mps"
+case "$err" in
+    *MIP*) pass "and says the model is a MIP" ;;
+    *) flunk "ranging of a MIP said '$err'" ;;
+esac
+expect_exit 5 "verify of a MIP exits 5" "$JAOS" verify "$DATA/t4_int.mps"
+case "$err" in
+    *MIP*) pass "and says the model is a MIP" ;;
+    *) flunk "verify of a MIP said '$err'" ;;
+esac
+expect_exit 5 "ranging of an SOS model exits 5" "$JAOS" ranging "$DATA/g_sos.mps"
+case "$err" in
+    *MIP*) pass "and says the model is a MIP" ;;
+    *) flunk "ranging of an SOS model said '$err'" ;;
+esac
+"$JAOS" verify "$DATA/solve1.mps" --proof "$tmp/lp.proof" > /dev/null 2>&1
+expect_exit 5 "an LP's proof is not checked against a MIP" \
+    "$JAOS" check "$DATA/t4_int.mps" --proof "$tmp/lp.proof"
+case "$err" in
+    *MIP*) pass "and says the model is a MIP" ;;
+    *) flunk "check --proof against a MIP said '$err'" ;;
+esac
+
 if [ "$fail" -ne 0 ]; then
     echo "tests/cli.sh: FAILED"
     exit 1

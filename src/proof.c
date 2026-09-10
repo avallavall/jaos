@@ -226,6 +226,18 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
                                 .certified = false };
     jaos_proof_kind kind = JAOS_PROOF_FILE_OPTIMAL;
 
+    if (jm_model_has_quadratic(m)) {
+        jm_set_err(m, "a proof file is about a linear objective, and this "
+                      "model has a quadratic term");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (jm_model_has_integer(m)) {
+        jm_set_err(m, "a proof file is about a linear program, and this "
+                      "model is a MIP: nothing in the file speaks to its "
+                      "integer, semi-continuous or SOS columns");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
     x = calloc((size_t)(nc > 0 ? nc : 1), sizeof *x);
     y = calloc((size_t)(nr > 0 ? nr : 1), sizeof *y);
     seen_col = calloc((size_t)(nc > 0 ? nc : 1), sizeof *seen_col);
