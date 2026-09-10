@@ -784,6 +784,13 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
                                .bytes_held = 0,
                                .terms = 0 };
 
+    if (jm_model_has_quadratic(m)) {
+        jm_set_err(m, "the exact proof is about a linear objective, and this "
+                      "one has a quadratic term");
+        *out = rep;
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
     vbasis b;
     vrowwise rw = {0};
     vsccs s = {0};

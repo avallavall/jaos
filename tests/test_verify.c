@@ -444,6 +444,32 @@ static void test_refuses_a_model_that_was_not_solved(void)
     jaos_model_free(m);
 }
 
+static void test_refuses_a_quadratic_objective_by_name(void)
+{
+    const int64_t qr[] = {0, 1, 1};
+    const int64_t qc[] = {0, 0, 1};
+    const double  qv[] = {2.0, 1.0, 2.0};
+    jaos_verify_report r;
+
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_verify(m, &r));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_REFUSED, r.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    jaos_model_free(m);
+
+    m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_verify(m, &r));
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_REFUSED, r.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    jaos_model_free(m);
+}
+
 static jaos_model *model_third(jaos_obj_sense sense)
 {
     jaos_model *m = nullptr;
@@ -1218,6 +1244,7 @@ int main(void)
     RUN_TEST(test_a_unit_basis_costs_no_bits);
     RUN_TEST(test_is_reproducible);
     RUN_TEST(test_refuses_a_model_that_was_not_solved);
+    RUN_TEST(test_refuses_a_quadratic_objective_by_name);
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);

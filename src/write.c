@@ -971,6 +971,11 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
                     "express; write MPS instead", nm);
         }
     }
+    if (w->st == JAOS_OK && jm_model_has_quadratic(m))
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the objective has a quadratic term, which .nl carries only "
+                "as a nonlinear body JAOS does not write; write MPS, LP, "
+                "QPLIB or OSiL instead");
     if (w->st == JAOS_OK)
         names_unique(w);
     if (w->st != JAOS_OK)

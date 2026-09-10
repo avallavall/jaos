@@ -320,6 +320,32 @@ static void test_the_nl_writer_refuses_what_the_format_has_no_place_for(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_nl(nullptr, "x"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_nl(m, nullptr));
     jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_nl(m, "build/tn_bad.nl"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    TEST_ASSERT_FALSE(file_exists("build/tn_bad.nl"));
+    jaos_model_free(m);
+
+    const int64_t qr[] = {0, 1, 1};
+    const int64_t qc[] = {0, 0, 1};
+    const double  qv[] = {2.0, 1.0, 2.0};
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_nl(m, "build/tn_bad.nl"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    TEST_ASSERT_FALSE(file_exists("build/tn_bad.nl"));
+    jaos_model_free(m);
 }
 
 int main(void)

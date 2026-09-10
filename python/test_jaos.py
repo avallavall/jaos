@@ -273,6 +273,43 @@ class TestReadingFiles(unittest.TestCase):
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(m.objective(), -12.0, places=6)
 
+    def test_what_a_quadratic_objective_is_refused_for_at_both_layers(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.load(2, 1, [-3.0, -3.0], [0.0, 0.0], [3.0, 3.0],
+                   [-float("inf")], [4.0], [0, 1, 2], [0, 0], [1.0, 1.0])
+            m.set_quadratic([(0, 0, 2.0), (1, 1, 2.0), (1, 0, 1.0)])
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            path = os.path.join(d, "q.nl")
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.write_nl(path)
+            self.assertIn("quadratic", str(ctx.exception))
+            self.assertFalse(os.path.exists(path))
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.cost_ranging()
+            self.assertIn("quadratic", str(ctx.exception))
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.verify()
+            self.assertIn("quadratic", str(ctx.exception))
+
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=3, name="x")
+        y = p.add_var(lb=0, ub=3, name="y")
+        p.add(x + y <= 4, name="cap")
+        p.minimize(-3 * x - 3 * y + x * x + y * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "q.nl")
+            with self.assertRaises(jaos.JaosError) as ctx:
+                p.write_nl(path)
+            self.assertIn("quadratic", str(ctx.exception))
+            self.assertFalse(os.path.exists(path))
+        with self.assertRaises(jaos.JaosError) as ctx:
+            p.cost_ranging()
+        self.assertIn("quadratic", str(ctx.exception))
+        with self.assertRaises(jaos.JaosError) as ctx:
+            p.verify()
+        self.assertIn("quadratic", str(ctx.exception))
+
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_nl(data("t_lin.nl"))

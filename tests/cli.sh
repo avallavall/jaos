@@ -763,6 +763,14 @@ case "$(line_of objective)" in
     "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "OSiL QP objective '$(line_of objective)'" ;;
 esac
+expect_exit 5 "a QP does not convert to .nl" \
+    "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.nl"
+case "$err" in
+    *quadratic*) pass "and says the objective has a quadratic term" ;;
+    *) flunk "the refused convert said '$err'" ;;
+esac
+[ -f "$tmp/gq.nl" ] && flunk "the refused convert left a .nl behind" \
+    || pass "and wrote no .nl"
 expect_exit 0 "convert OSiL back to MPS exits 0" \
     "$JAOS" convert "$tmp/gq.osil" "$tmp/gq_osil.mps"
 expect_exit 0 "the MPS written from OSiL solves" "$JAOS" solve "$tmp/gq_osil.mps"
@@ -1341,6 +1349,17 @@ expect_exit 5 "ranging of an infeasible model exits 5" "$JAOS" ranging "$DATA/t1
 [ -n "$err" ] && pass "and says so on stderr" || flunk "no message on stderr"
 expect_exit 5 "ranging with two files is a usage error" \
     "$JAOS" ranging "$DATA/solve1.mps" "$DATA/t1.mps"
+
+expect_exit 5 "ranging of a QP exits 5" "$JAOS" ranging "$DATA/g_quad.lp"
+case "$err" in
+    *quadratic*) pass "and names the quadratic term" ;;
+    *) flunk "ranging of a QP said '$err'" ;;
+esac
+expect_exit 5 "verify of a QP exits 5" "$JAOS" verify "$DATA/g_quad.lp"
+case "$err" in
+    *quadratic*) pass "and names the quadratic term" ;;
+    *) flunk "verify of a QP said '$err'" ;;
+esac
 
 if [ "$fail" -ne 0 ]; then
     echo "tests/cli.sh: FAILED"

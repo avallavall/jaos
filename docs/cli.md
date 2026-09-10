@@ -275,7 +275,9 @@ extension. The output name is
 checked before the input is read. The `.nl` writer lists the integer
 columns last, as the format does, so a model whose integer columns sit
 before a continuous one comes back in that order, names carried; it
-refuses SOS sets, semi-continuous columns and indicator rows by name.
+refuses SOS sets, semi-continuous columns, indicator rows and a
+quadratic objective by name. Write MPS, LP, QPLIB or OSiL for a
+quadratic objective, since `.nl` carries one only as a nonlinear body.
 
 **`--positional` takes every name off the model before writing**,
 so the file comes out with `R1`, `C1` and `COST`. It is the escape hatch
@@ -667,6 +669,8 @@ that the published basis certifies it, in exact
 arithmetic with no tolerance anywhere. The basis is rebuilt over the
 integers and eliminated exactly; the verdict is `optimal` when every basic
 value lies inside its bounds and every reduced cost points into the model.
+A quadratic objective is refused by name and exits 5. The proof is about a
+linear cost, and a QP answer carries no basis.
 
 ```
 status optimal
@@ -838,7 +842,9 @@ for that basis.
 
 Exit 0 when the intervals were printed. A model whose solve is not optimal
 has no basis to range; the tool prints its status line, says so on stderr,
-and exits 5.
+and exits 5. A quadratic objective is refused the same way. Ranging is
+about a linear cost, and a QP optimum is not a vertex, so it carries no
+basis.
 
 ## Which reader is used
 

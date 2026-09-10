@@ -561,10 +561,39 @@ static void test_a_degenerate_optimum_ranges_like_any_other(void)
     }
 }
 
+static void test_a_quadratic_objective_is_refused_by_name(void)
+{
+    const int64_t qr[] = {0, 1, 1};
+    const int64_t qc[] = {0, 0, 1};
+    const double  qv[] = {2.0, 1.0, 2.0};
+    double lo[2], hi[2];
+
+    jaos_model *m = make_textbook(false);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_rhs_ranging(m, lo, hi, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_bound_ranging(m, lo, hi, nullptr, nullptr));
+    jaos_model_free(m);
+
+    m = make_textbook(false);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_cost_ranging(m, lo, hi));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_nothing_to_range_before_an_optimum);
+    RUN_TEST(test_a_quadratic_objective_is_refused_by_name);
     RUN_TEST(test_a_model_with_no_rows_ranges_its_costs);
     RUN_TEST(test_a_mutual_singleton_on_an_open_row_ranges);
     RUN_TEST(test_textbook_cost_ranging);

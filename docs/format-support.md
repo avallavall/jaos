@@ -257,7 +257,9 @@ two counts: a model whose integer columns are not already last reads
 back with its columns in that order, names carried, and everything else
 the same. SOS sets, semi-continuous columns and indicator rows have no
 place in the linear part of the format and are refused by name; write
-MPS for those.
+MPS for those. A quadratic objective is refused the same way. The
+format carries one only as a nonlinear body, which JAOS does not write
+and its own reader refuses; write MPS, LP, QPLIB or OSiL instead.
 
 ## QPLIB
 
