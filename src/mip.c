@@ -2915,6 +2915,28 @@ static void steer_free(steer *sw)
     memset(&sw->rb, 0, sizeof sw->rb);
 }
 
+/* The rows a node callback handed in go on `lp`, and adding a row drops the
+ * answer `lp` is carrying, every published vector with it.  A row the point
+ * breaks is followed by a re-solve at the call site, so that case restores
+ * the answer on its own.  A row the point already satisfies is not, and the
+ * point is still the optimum of the tightened node, so the caller went on to
+ * read an answer that had just been freed: a callback adding a row that cuts
+ * nothing off, which is what a valid cut looks like, ended the solve in a
+ * segmentation fault.  The re-solve belongs here, where the rows go in, so
+ * that every call site is covered by it.  A node with no rows to flush
+ * returns above and pays nothing.  Should the re-solve not land on an
+ * optimum, which the point standing feasible says it must, the row counts as
+ * broken and the caller's own path for that takes it from there.
+ *
+ * The value it lands on is the one it left, since the point it had is still
+ * feasible and was optimal over more; the point itself need not be, because
+ * an optimal face holds more than one vertex and the walk can stop on
+ * another. So a caller holding a point across the flush has to read it back
+ * afterwards. The node loop does, and it matters: it decided the node was
+ * integral from the point it held, and taking the answer without reading it
+ * again copied a fractional point under that verdict and rounded it, which
+ * published an incumbent no row of the model admits.
+ */
 static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
                                const cutbuf *pool, const cutlist *in_copy,
                                int64_t *nfixed, int64_t *nperm,
@@ -2959,6 +2981,14 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     *work += rb->nnz + m->num_col;
     sw->rows += rb->n;
     rb->n = rb->nnz = 0;
+    if (x != nullptr && !*violated) {
+        const jaos_status rs = jaos_solve(lp);
+        if (rs != JAOS_OK)
+            return rs;
+        *work += jaos_work_units(lp);
+        if (jaos_status_of(lp) != JAOS_SOLVE_OPTIMAL)
+            *violated = true;
+    }
     return JAOS_OK;
 }
 
@@ -4359,6 +4389,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     break;
                 }
                 if (!violated) {
+
+                    if (jaos_objective(lp, &obj) != JAOS_OK ||
+                        jaos_solution(lp, x, nullptr, nullptr, nullptr)
+                        != JAOS_OK)
+                        goto done;
+                    key = sigma * obj;
+                    branch = select_branch(m, x, rule, pc_sum, pc_n);
                     if (want != branch && steer_branch_ok(m, x, want)) {
                         branch = want;
                         sw.steered++;

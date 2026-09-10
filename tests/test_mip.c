@@ -3638,6 +3638,95 @@ static void test_special_ordered_sets_branch_to_their_optimum(void)
 #endif
 }
 
+/* A row the node's point already satisfies, which is what a valid cut looks
+   like from the tree's side.  It still goes on the node LP, and adding a row
+   drops the answer that LP is carrying.  The re-solve that follows a row the
+   point breaks did not run here, so the tree read vectors that had just been
+   freed and the solve ended in a segmentation fault; and once the answer was
+   restored, the re-solve could land on another vertex of the same optimal
+   face, so a tree still holding its own copy of the point took a fractional
+   one under a verdict of integral and rounded it into an incumbent no row
+   admits.  The first model below is the crash, the second the incumbent: it
+   answered -16 at (2, 1, 0, 1, 1), where its second row reads 3 against a
+   bound of 1, and enumeration says -10. */
+static jaos_callback_action wide_row(jaos_node *ev, void *user)
+{
+    int64_t *calls = user;
+    (*calls)++;
+    const int64_t idx[5] = {0, 1, 2, 3, 4};
+    const double val[5] = {1.0, 1.0, 1.0, 1.0, 1.0};
+    const int64_t n = ev->num_col < 5 ? ev->num_col : 5;
+    double room = 0.0;
+    for (int64_t j = 0; j < n; j++)
+        room += 100.0;
+    (void)jaos_node_add_row(ev, n, idx, val, -INFINITY, room);
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_a_node_row_that_cuts_nothing_off_leaves_the_answer(void)
+{
+    {
+        const double c[2] = {-1.0, -1.0};
+        const double cl[2] = {0.0, 0.0}, cu[2] = {1.0, 1.0};
+        const double rl[1] = {-INFINITY}, ru[1] = {1.0};
+        const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+        const double av[2] = {1.0, 1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         2, as, ai, av));
+        for (int64_t j = 0; j < 2; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        int64_t calls = 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_node_callback(m, wide_row, &calls));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[2];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_TRUE(x[0] + x[1] <= 1.0 + 1e-9);
+        TEST_ASSERT_TRUE(calls > 0);
+        jaos_model_free(m);
+    }
+    {
+        const double c[5] = {-2.0, 0.0, 6.0, -6.0, -6.0};
+        const double cl[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+        const double cu[5] = {2.0, 1.0, 1.0, 1.0, 2.0};
+        const double rl[2] = {-INFINITY, -INFINITY}, ru[2] = {1.0, 1.0};
+        const int64_t as[6] = {0, 1, 3, 5, 7, 9};
+        const int64_t ai[9] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
+        const double av[9] = {-2.0, 1.0, 1.0, 1.0, -2.0,
+                              -1.0, 3.0, 1.0, 3.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         9, as, ai, av));
+        for (int64_t j = 0; j < 5; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        int64_t calls = 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_node_callback(m, wide_row, &calls));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[5];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, -10.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x, nullptr, nullptr, nullptr));
+        const double r0 = x[1] + x[2] - x[3] + x[4];
+        const double r1 = -2.0 * x[0] + x[1] - 2.0 * x[2] + 3.0 * x[3]
+                          + 3.0 * x[4];
+        TEST_ASSERT_TRUE(r0 <= 1.0 + 1e-9);
+        TEST_ASSERT_TRUE(r1 <= 1.0 + 1e-9);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3717,5 +3806,6 @@ int main(void)
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
     RUN_TEST(test_a_cut_never_shuts_out_every_point);
     RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);
+    RUN_TEST(test_a_node_row_that_cuts_nothing_off_leaves_the_answer);
     return UNITY_END();
 }
