@@ -61,7 +61,6 @@ sub(sx, """static bool improves_without_limit(sx *s, int64_t j)
     var_column(s, j, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
-    /* dx_j leaves a lower loan downwards and an upper loan upwards. */
     const double sgn = (s->fake[j] == FAKE_LO) ? 1.0 : -1.0;
 
     bool unlimited = true;
