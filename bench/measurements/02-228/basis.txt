@@ -1,0 +1,41 @@
+# The reading, six seeds of 4000 models
+
+seed 1:
+built=2091 round_trips=2091 solved_from_it=2091 skipped=1909 bad=0
+  columns basic=3499 lower=3160 upper=2676 free=51
+  rows    basic=4615 lower=1673 upper=1826 free=0
+seed 2:
+built=2130 round_trips=2130 solved_from_it=2130 skipped=1870 bad=0
+  columns basic=3495 lower=3255 upper=2956 free=45
+  rows    basic=4533 lower=1668 upper=1827 free=0
+seed 3:
+built=2061 round_trips=2061 solved_from_it=2061 skipped=1939 bad=0
+  columns basic=3475 lower=3286 upper=2814 free=43
+  rows    basic=4490 lower=1641 upper=1834 free=0
+seed 4:
+built=2055 round_trips=2055 solved_from_it=2055 skipped=1945 bad=0
+  columns basic=3435 lower=3177 upper=2683 free=51
+  rows    basic=4530 lower=1657 upper=1778 free=0
+seed 5:
+built=2142 round_trips=2142 solved_from_it=2142 skipped=1858 bad=0
+  columns basic=3611 lower=3318 upper=2848 free=49
+  rows    basic=4707 lower=1695 upper=1916 free=0
+seed 6:
+built=2100 round_trips=2100 solved_from_it=2100 skipped=1900 bad=0
+  columns basic=3510 lower=3115 upper=2745 free=48
+  rows    basic=4601 lower=1709 upper=1801 free=0
+
+# The two controls, 2000 models at seed 1
+
+Each breaks one letter in the writer. The reading above is not
+vacuous: both come back with hundreds of round trips wrong.
+
+=== A. as it is ===
+built=1061 round_trips=1061 solved_from_it=1061 skipped=939 bad=0
+=== B. the writer calls a column at its upper bound LL ===
+  patched: 1
+built=1061 round_trips=697 solved_from_it=697 skipped=939 bad=956
+=== C. the writer swaps XU and XL ===
+  patched: 1
+built=1061 round_trips=780 solved_from_it=780 skipped=939 bad=1382
+restored: 1
