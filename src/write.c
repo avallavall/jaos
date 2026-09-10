@@ -620,29 +620,50 @@ static jaos_status lp_write_body(wr *w, const char *path,
             col_name(m, nm, j);
             lp_term(w, &col, &first, m->col_cost[j], nm);
         }
-        if (m->col_quad != nullptr) {
-            bool any = false;
-            for (int64_t j = 0; j < m->num_col; j++)
+        {
+            bool any = m->q_nz > 0;
+            for (int64_t j = 0; m->col_quad != nullptr && j < m->num_col; j++)
                 any |= m->col_quad[j] != 0.0;
             if (any) {
+                char nm2[NAME_LEN];
                 int n = fprintf(w->f, first ? " [" : " + [");
                 col += n > 0 ? n : 0;
                 bool qfirst = true;
                 for (int64_t j = 0; j < m->num_col; j++) {
-                    if (m->col_quad[j] == 0.0)
-                        continue;
-                    col_name(m, nm, j);
-                    wr_num(num, fabs(m->col_quad[j]));
-                    if (qfirst && m->col_quad[j] > 0.0)
-                        n = fprintf(w->f, " %s %s ^ 2", num, nm);
-                    else
-                        n = fprintf(w->f, " %s %s %s ^ 2",
-                                    m->col_quad[j] < 0.0 ? "-" : "+", num, nm);
-                    qfirst = false;
-                    col += n > 0 ? n : 0;
-                    if (col >= LP_WRAP) {
-                        fprintf(w->f, "\n   ");
-                        col = 3;
+                    if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                        col_name(m, nm, j);
+                        wr_num(num, fabs(m->col_quad[j]));
+                        if (qfirst && m->col_quad[j] > 0.0)
+                            n = fprintf(w->f, " %s %s ^ 2", num, nm);
+                        else
+                            n = fprintf(w->f, " %s %s %s ^ 2",
+                                        m->col_quad[j] < 0.0 ? "-" : "+",
+                                        num, nm);
+                        qfirst = false;
+                        col += n > 0 ? n : 0;
+                        if (col >= LP_WRAP) {
+                            fprintf(w->f, "\n   ");
+                            col = 3;
+                        }
+                    }
+
+                    for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+                         m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
+                        const double v = 2.0 * m->q_value[p];
+                        col_name(m, nm, m->q_index[p]);
+                        col_name(m, nm2, j);
+                        wr_num(num, fabs(v));
+                        if (qfirst && v > 0.0)
+                            n = fprintf(w->f, " %s %s * %s", num, nm, nm2);
+                        else
+                            n = fprintf(w->f, " %s %s %s * %s",
+                                        v < 0.0 ? "-" : "+", num, nm, nm2);
+                        qfirst = false;
+                        col += n > 0 ? n : 0;
+                        if (col >= LP_WRAP) {
+                            fprintf(w->f, "\n   ");
+                            col = 3;
+                        }
                     }
                 }
                 n = fprintf(w->f, " ] / 2");

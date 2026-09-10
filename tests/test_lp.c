@@ -222,8 +222,16 @@ static void test_a_quadratic_objective_block_reads_and_writes_back(void)
     jaos_model_free(b);
     jaos_model_free(m);
 
-    expect_reject("tests/data/el_quad_cross.lp", "off the diagonal");
-    expect_reject("tests/data/el_quad_cross.lp", "line 3");
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_lp(b, "tests/data/el_quad_cross.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+    TEST_ASSERT_EQUAL_INT64(1, b->q_nz);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, b->q_value[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, q);
+    jaos_model_free(b);
     expect_reject("tests/data/el_quad_con.lp", "constraint");
     expect_reject("tests/data/el_quad_con.lp", "line 5");
 }

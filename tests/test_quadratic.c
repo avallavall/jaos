@@ -406,6 +406,78 @@ static void test_mps_refuses_two_halves_that_disagree(void)
     remove("build/tq_bad.mps");
 }
 
+/* The LP dialect writes the objective as c'x + [ ... ] / 2, so a square
+   carries Q[j][j] and a product carries twice Q[i][j]: the block is
+   halved and the pair counts on both sides of the diagonal. */
+static void test_lp_carries_a_paired_q_both_ways(void)
+{
+    static const char *const lines[] = {
+        "Minimize",
+        " obj: - 3 x - 3 y + [ 2 x ^ 2 + 2 y ^ 2 + 2 x * y ] / 2",
+        "Subject To",
+        " c1: x + y <= 4",
+        "Bounds",
+        " 0 <= x <= 3",
+        " 0 <= y <= 3",
+        "End", nullptr};
+    write_lines("build/tq_pair.lp", lines);
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "build/tq_pair.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->q_value[0]);
+    double q = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, obj);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, "build/tq_back.lp"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, "build/tq_back.lp"));
+    TEST_ASSERT_EQUAL_INT64(m->q_nz, b->q_nz);
+    TEST_ASSERT_TRUE(m->q_value[0] == b->q_value[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    double ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_TRUE(obj == ob);
+    jaos_model_free(b);
+    jaos_model_free(m);
+    remove("build/tq_pair.lp");
+    remove("build/tq_back.lp");
+}
+
+/* Without the / 2 the block is not halved, so the same Q needs half the
+   coefficients. Both spellings have to reach the same model. */
+static void test_lp_takes_the_block_undivided(void)
+{
+    static const char *const halved[] = {
+        "Minimize",
+        " obj: - 3 x - 3 y + [ x ^ 2 + y ^ 2 + x * y ]",
+        "Subject To",
+        " c1: x + y <= 4",
+        "Bounds", " 0 <= x <= 3", " 0 <= y <= 3",
+        "End", nullptr};
+    write_lines("build/tq_undiv.lp", halved);
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "build/tq_undiv.lp"));
+    TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->q_value[0]);
+    double q = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, obj);
+    jaos_model_free(m);
+    remove("build/tq_undiv.lp");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -423,6 +495,8 @@ int main(void)
     RUN_TEST(test_mps_carries_a_paired_q_both_ways);
     RUN_TEST(test_mps_reads_both_halves_when_the_file_gives_them);
     RUN_TEST(test_mps_refuses_two_halves_that_disagree);
+    RUN_TEST(test_lp_carries_a_paired_q_both_ways);
+    RUN_TEST(test_lp_takes_the_block_undivided);
     return UNITY_END();
 }
 
