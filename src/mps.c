@@ -93,6 +93,9 @@ typedef struct {
     bool any_semi;
     double *cquad;
     int64_t cquad_cap;
+    int64_t *qri, *qci;
+    double  *qvv;
+    int64_t nqoff, qoff_cap;
     bool any_quad;
 
     int *st_type;
@@ -143,6 +146,9 @@ static void rd_free(rd *r)
     free(r->cint);
     free(r->csemi);
     free(r->cquad);
+    free(r->qri);
+    free(r->qci);
+    free(r->qvv);
     free(r->st_type);
     free(r->st_start);
     free(r->st_col);
@@ -365,17 +371,49 @@ static jaos_status rd_quad_line(rd *r, char **tok, int nt)
         FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[0]);
     if (!jm_nmap_get(&r->cmap, tok[1], &k))
         FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[1]);
-    if (j != k)
-        FAIL("line %" PRId64 ": the entry '%s' '%s' is off the diagonal; "
-             "JAOS reads a separable quadratic objective only", r->lno,
-             tok[0], tok[1]);
     double v = 0.0;
     if (!parse_num(tok[2], &v))
         FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[2]);
-    if (r->cquad[j] != 0.0)
-        FAIL("line %" PRId64 ": a second quadratic entry for column '%s'",
-             r->lno, tok[0]);
-    r->cquad[j] = v;
+    if (j == k) {
+        if (r->cquad[j] != 0.0)
+            FAIL("line %" PRId64 ": a second quadratic entry for column '%s'",
+                 r->lno, tok[0]);
+        r->cquad[j] = v;
+        r->any_quad |= v != 0.0;
+        goto done;
+    }
+
+    if (j < k) {
+        const int64_t t = j;
+        j = k;
+        k = t;
+    }
+    for (int64_t p = 0; p < r->nqoff; p++)
+        if (r->qri[p] == j && r->qci[p] == k) {
+            if (r->qvv[p] != v)
+                FAIL("line %" PRId64 ": the pair '%s' '%s' is given twice "
+                     "and the two values differ, %.17g and %.17g; Q is "
+                     "symmetric, so the two halves have to agree", r->lno,
+                     tok[0], tok[1], r->qvv[p], v);
+            goto done;
+        }
+    {
+
+        int64_t cap = r->qoff_cap;
+        if (!JM_GROW(r->qri, cap, r->nqoff + 1))
+            FAIL_OOM();
+        cap = r->qoff_cap;
+        if (!JM_GROW(r->qci, cap, r->nqoff + 1))
+            FAIL_OOM();
+        cap = r->qoff_cap;
+        if (!JM_GROW(r->qvv, cap, r->nqoff + 1))
+            FAIL_OOM();
+        r->qoff_cap = cap;
+    }
+    r->qri[r->nqoff] = j;
+    r->qci[r->nqoff] = k;
+    r->qvv[r->nqoff] = v;
+    r->nqoff++;
     r->any_quad |= v != 0.0;
 done:
     return st;
@@ -861,9 +899,35 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
         }
         free(m->col_quad);
         m->col_quad = nullptr;
-        if (r->any_quad && r->ncol > 0) {
+        if (r->any_quad && r->ncol > 0 && r->nqoff == 0) {
             m->col_quad = r->cquad;
             r->cquad = nullptr;
+        } else if (r->any_quad && r->ncol > 0) {
+
+            int64_t n = r->nqoff;
+            for (int64_t j = 0; j < r->ncol; j++)
+                n += r->cquad[j] != 0.0;
+            int64_t *qr = jm_alloc_array(n, sizeof *qr);
+            int64_t *qc = jm_alloc_array(n, sizeof *qc);
+            double *qv = jm_alloc_array(n, sizeof *qv);
+            if (qr == nullptr || qc == nullptr || qv == nullptr) {
+                free(qr); free(qc); free(qv);
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+            int64_t at = 0;
+            for (int64_t j = 0; j < r->ncol; j++)
+                if (r->cquad[j] != 0.0) {
+                    qr[at] = j; qc[at] = j; qv[at] = r->cquad[j]; at++;
+                }
+            for (int64_t p = 0; p < r->nqoff; p++) {
+                qr[at] = r->qri[p]; qc[at] = r->qci[p]; qv[at] = r->qvv[p];
+                at++;
+            }
+            st = jaos_set_quadratic(m, at, qr, qc, qv);
+            free(qr); free(qc); free(qv);
+            if (st != JAOS_OK)
+                goto done;
         }
         for (int64_t k = 0; k < r->nsos; k++) {
             const int64_t b = r->st_start[k], e = r->st_start[k + 1];

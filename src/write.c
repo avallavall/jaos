@@ -408,16 +408,36 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
             bool any = false;
             for (int64_t j = 0; j < m->num_col; j++)
                 any |= m->col_quad[j] != 0.0;
+            any |= m->q_nz > 0;
             if (any) {
+                char nm2[NAME_LEN];
                 fprintf(w->f, "QUADOBJ\n");
+
                 for (int64_t j = 0; j < m->num_col; j++) {
-                    if (m->col_quad[j] == 0.0)
-                        continue;
-                    col_name(m, nm, j);
-                    wr_num(num, m->col_quad[j]);
-                    fprintf(w->f, "    %-9s %-9s %s\n", nm, nm, num);
+                    if (m->col_quad[j] != 0.0) {
+                        col_name(m, nm, j);
+                        wr_num(num, m->col_quad[j]);
+                        fprintf(w->f, "    %-9s %-9s %s\n", nm, nm, num);
+                    }
+                    for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+                         m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
+                        col_name(m, nm, m->q_index[p]);
+                        col_name(m, nm2, j);
+                        wr_num(num, m->q_value[p]);
+                        fprintf(w->f, "    %-9s %-9s %s\n", nm, nm2, num);
+                    }
                 }
             }
+        } else if (m->q_nz > 0) {
+            char nm2[NAME_LEN];
+            fprintf(w->f, "QUADOBJ\n");
+            for (int64_t j = 0; j < m->num_col; j++)
+                for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+                    col_name(m, nm, m->q_index[p]);
+                    col_name(m, nm2, j);
+                    wr_num(num, m->q_value[p]);
+                    fprintf(w->f, "    %-9s %-9s %s\n", nm, nm2, num);
+                }
         }
         if (m->num_sos > 0) {
             fprintf(w->f, "SOS\n");

@@ -186,8 +186,26 @@ static void test_a_quadobj_section_reads_and_writes_back(void)
     jaos_model_free(b);
     jaos_model_free(m);
 
-    expect_reject("tests/data/e_quad_offdiag.mps", "off the diagonal");
-    expect_reject("tests/data/e_quad_offdiag.mps", "line 13");
+
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(b, "tests/data/e_quad_offdiag.mps"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+    TEST_ASSERT_EQUAL_INT64(1, b->q_nz);
+    TEST_ASSERT_EQUAL_INT64(1, b->q_index[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, b->q_value[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(b, "build/tm_off.mps"));
+    jaos_model *c = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(c, "build/tm_off.mps"));
+    TEST_ASSERT_EQUAL_INT64(1, c->q_nz);
+    TEST_ASSERT_EQUAL_INT64(b->q_index[0], c->q_index[0]);
+    TEST_ASSERT_TRUE(b->q_value[0] == c->q_value[0]);
+    jaos_model_free(c);
+    jaos_model_free(b);
+    remove("build/tm_off.mps");
 }
 
 static void test_rejections_carry_line_numbers(void)

@@ -110,12 +110,15 @@ header is a line whose first character is non-blank, `*` opens a comment.
   indicator: the row holds only while the integer column equals the value,
   0 or 1, and is free otherwise. The writer prints the same lines.
 - **QUADOBJ and QMATRIX sections**: after COLUMNS. One line
-  `column column value` per entry, the value being `q` in the objective
-  term `½ q x²`, which is how both sections spell the diagonal of `Q`.
-  Only diagonal entries are read: an entry naming two different columns
-  is refused by line, because JAOS solves separable quadratic objectives
-  only. A second entry for the same column is refused as well. The writer
-  prints every nonzero `q` under `QUADOBJ`, after BOUNDS.
+  `column column value` per entry. The objective is `c'x + ½ x'Qx`, so a
+  line naming one column twice is that column's `q` in `½ q x²`, and a
+  line naming two is the pair `Q[i][j] = Q[j][i]`. `QUADOBJ` names the
+  lower triangle once and `QMATRIX` names both halves, and one rule reads
+  either: a pair given twice has to carry the same value, and two halves
+  that disagree are refused by line. A second entry for the same
+  diagonal is refused as well. The writer prints the diagonal and then
+  the lower triangle under `QUADOBJ`, after BOUNDS, so a model written
+  and read back is the model that was written.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
   per run of integer columns.

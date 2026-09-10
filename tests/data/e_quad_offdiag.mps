@@ -1,4 +1,4 @@
-* A QUADOBJ entry off the diagonal, which JAOS refuses.
+* A QUADOBJ entry off the diagonal: the pair Q[x][y] = Q[y][x].
 NAME          EQUADOFF
 ROWS
  N  obj

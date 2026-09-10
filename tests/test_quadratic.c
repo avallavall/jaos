@@ -4,6 +4,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -286,6 +287,125 @@ static void test_the_other_algorithms_still_refuse_a_quadratic(void)
     }
 }
 
+static void test_mps_carries_a_paired_q_both_ways(void)
+{
+    jaos_model *a = paired_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(a, "build/tqq.mps"));
+
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, "build/tqq.mps"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+    TEST_ASSERT_EQUAL_INT64(a->q_nz, b->q_nz);
+    TEST_ASSERT_EQUAL_INT64(jaos_quadratic_nz(a), jaos_quadratic_nz(b));
+    for (int64_t j = 0; j < jaos_num_col(a); j++) {
+        double qa = 0.0, qb = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(a, j, &qa));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, j, &qb));
+        TEST_ASSERT_TRUE(qa == qb);
+    }
+    for (int64_t p = 0; p < a->q_nz; p++) {
+        TEST_ASSERT_EQUAL_INT64(a->q_index[p], b->q_index[p]);
+        TEST_ASSERT_TRUE(a->q_value[p] == b->q_value[p]);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    double oa = 0.0, ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_TRUE(oa == ob);
+    jaos_model_free(a);
+    jaos_model_free(b);
+    remove("build/tqq.mps");
+}
+
+static void write_lines(const char *path, const char *const *lines)
+{
+    FILE *f = fopen(path, "wb");
+    TEST_ASSERT_NOT_NULL(f);
+    for (int64_t k = 0; lines[k] != nullptr; k++)
+        fprintf(f, "%s\n", lines[k]);
+    fclose(f);
+}
+
+/* QUADOBJ names the lower triangle once and QMATRIX names both halves.
+   One rule reads either: a pair given twice has to agree. */
+static void test_mps_reads_both_halves_when_the_file_gives_them(void)
+{
+    static const char *const lower[] = {
+        "NAME          PAIR",
+        "ROWS", " N  COST", " L  R1",
+        "COLUMNS",
+        "    X         COST      -3.0       R1        1.0",
+        "    Y         COST      -3.0       R1        1.0",
+        "QUADOBJ",
+        "    X         X         2.0",
+        "    Y         Y         2.0",
+        "    Y         X         1.0",
+        "RHS", "    RHS       R1        4.0",
+        "BOUNDS",
+        " UP BND       X         3.0",
+        " UP BND       Y         3.0",
+        "ENDATA", nullptr};
+    static const char *const both[] = {
+        "NAME          PAIR",
+        "ROWS", " N  COST", " L  R1",
+        "COLUMNS",
+        "    X         COST      -3.0       R1        1.0",
+        "    Y         COST      -3.0       R1        1.0",
+        "QMATRIX",
+        "    X         X         2.0",
+        "    Y         Y         2.0",
+        "    Y         X         1.0",
+        "    X         Y         1.0",
+        "RHS", "    RHS       R1        4.0",
+        "BOUNDS",
+        " UP BND       X         3.0",
+        " UP BND       Y         3.0",
+        "ENDATA", nullptr};
+
+    write_lines("build/tq_lower.mps", lower);
+    write_lines("build/tq_both.mps", both);
+
+    double obj[2];
+    static const char *const files[2] = {"build/tq_lower.mps",
+                                         "build/tq_both.mps"};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, files[k]));
+        TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+        TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[k]));
+        jaos_model_free(m);
+        remove(files[k]);
+    }
+    TEST_ASSERT_TRUE(obj[0] == obj[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, obj[0]);
+}
+
+static void test_mps_refuses_two_halves_that_disagree(void)
+{
+    static const char *const bad[] = {
+        "NAME          PAIR",
+        "ROWS", " N  COST", " L  R1",
+        "COLUMNS",
+        "    X         COST      -3.0       R1        1.0",
+        "    Y         COST      -3.0       R1        1.0",
+        "QMATRIX",
+        "    Y         X         1.0",
+        "    X         Y         2.0",
+        "RHS", "    RHS       R1        4.0",
+        "ENDATA", nullptr};
+    write_lines("build/tq_bad.mps", bad);
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_mps(m, "build/tq_bad.mps"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "have to agree"));
+    jaos_model_free(m);
+    remove("build/tq_bad.mps");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -300,5 +420,9 @@ int main(void)
     RUN_TEST(test_set_quadratic_refuses_what_it_cannot_take);
     RUN_TEST(test_a_paired_q_is_bit_identical_across_runs);
     RUN_TEST(test_the_other_algorithms_still_refuse_a_quadratic);
+    RUN_TEST(test_mps_carries_a_paired_q_both_ways);
+    RUN_TEST(test_mps_reads_both_halves_when_the_file_gives_them);
+    RUN_TEST(test_mps_refuses_two_halves_that_disagree);
     return UNITY_END();
 }
+
