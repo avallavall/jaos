@@ -2469,6 +2469,74 @@ out:
     return rc;
 }
 
+static void diff_sos(const jaos_model *a, const jaos_model *b, int64_t *diffs)
+{
+    const int64_t ka = jaos_num_sos(a), kb = jaos_num_sos(b);
+    if (ka != kb) {
+        printf("sos_sets %" PRId64 " %" PRId64 "\n", ka, kb);
+        (*diffs)++;
+        return;
+    }
+    for (int64_t k = 0; k < ka; k++) {
+        int ta = 0, tb = 0;
+        int64_t na = 0, nb = 0;
+        if (jaos_sos(a, k, &ta, &na, nullptr, nullptr) != JAOS_OK ||
+            jaos_sos(b, k, &tb, &nb, nullptr, nullptr) != JAOS_OK)
+            return;
+        if (ta != tb || na != nb) {
+            printf("sos %" PRId64 " S%d/%" PRId64 " S%d/%" PRId64 "\n",
+                   k, ta, na, tb, nb);
+            (*diffs)++;
+            continue;
+        }
+        int64_t *ca = zeroed(na, sizeof *ca), *cb = zeroed(na, sizeof *cb);
+        double *wa = zeroed(na, sizeof *wa), *wb = zeroed(na, sizeof *wb);
+        if (ca != nullptr && cb != nullptr && wa != nullptr && wb != nullptr &&
+            jaos_sos(a, k, &ta, &na, ca, wa) == JAOS_OK &&
+            jaos_sos(b, k, &tb, &nb, cb, wb) == JAOS_OK) {
+            for (int64_t t = 0; t < na; t++)
+                if (ca[t] != cb[t] || wa[t] != wb[t]) {
+                    namebuf x, y;
+                    printf("sos_member %" PRId64 " %s %.17g %s %.17g\n", k,
+                           col_name(a, ca[t], x), wa[t],
+                           col_name(b, cb[t], y), wb[t]);
+                    (*diffs)++;
+                }
+        }
+        free(ca); free(cb); free(wa); free(wb);
+    }
+}
+
+static void diff_offdiagonal(const jaos_model *a, const jaos_model *b,
+                             int64_t *diffs)
+{
+    const int64_t na = jaos_quadratic_nz(a), nb = jaos_quadratic_nz(b);
+    if (na != nb) {
+        printf("quadratic_nz %" PRId64 " %" PRId64 "\n", na, nb);
+        (*diffs)++;
+        return;
+    }
+    if (na == 0)
+        return;
+    int64_t *ra = zeroed(na, sizeof *ra), *rb = zeroed(na, sizeof *rb);
+    int64_t *cra = zeroed(na, sizeof *cra), *crb = zeroed(na, sizeof *crb);
+    double *va = zeroed(na, sizeof *va), *vb = zeroed(na, sizeof *vb);
+    if (ra != nullptr && rb != nullptr && cra != nullptr && crb != nullptr &&
+        va != nullptr && vb != nullptr &&
+        jaos_quadratic(a, ra, cra, va) == JAOS_OK &&
+        jaos_quadratic(b, rb, crb, vb) == JAOS_OK) {
+        for (int64_t k = 0; k < na; k++)
+            if (ra[k] != rb[k] || cra[k] != crb[k] || va[k] != vb[k]) {
+                namebuf x, y;
+                printf("quadratic_pair %s %s %.17g %.17g\n",
+                       col_name(a, ra[k], x), col_name(a, cra[k], y),
+                       va[k], vb[k]);
+                (*diffs)++;
+            }
+    }
+    free(ra); free(rb); free(cra); free(crb); free(va); free(vb);
+}
+
 static int cmd_diff(int argc, char **argv)
 {
     if (argc != 4)
@@ -2530,6 +2598,14 @@ static int cmd_diff(int argc, char **argv)
             if (jaos_col_integer(a, j, &ia) == JAOS_OK &&
                 jaos_col_integer(b, j, &ib) == JAOS_OK && ia != ib)
                 DIFF("integer %s %s %s\n", n, yesno(ia), yesno(ib));
+            bool sa2 = false, sb2 = false;
+            if (jaos_col_semicontinuous(a, j, &sa2) == JAOS_OK &&
+                jaos_col_semicontinuous(b, j, &sb2) == JAOS_OK && sa2 != sb2)
+                DIFF("semicontinuous %s %s %s\n", n, yesno(sa2), yesno(sb2));
+            double qa = 0.0, qb = 0.0;
+            if (jaos_col_quadratic(a, j, &qa) == JAOS_OK &&
+                jaos_col_quadratic(b, j, &qb) == JAOS_OK && qa != qb)
+                DIFF("quadratic %s %.17g %.17g\n", n, qa, qb);
         }
         for (int64_t i = 0; i < nra; i++) {
             double la = 0.0, ua = 0.0, lb = 0.0, ub = 0.0;
@@ -2542,7 +2618,20 @@ static int cmd_diff(int argc, char **argv)
             if (la != lb || ua != ub)
                 DIFF("row_bounds %s %.17g %.17g %.17g %.17g\n",
                      n, la, ua, lb, ub);
+            int64_t ica = -1, icb = -1;
+            int iva = 0, ivb = 0;
+            if (jaos_row_indicator(a, i, &ica, &iva) == JAOS_OK &&
+                jaos_row_indicator(b, i, &icb, &ivb) == JAOS_OK &&
+                (ica != icb || (ica >= 0 && iva != ivb))) {
+                namebuf ca, cb;
+                DIFF("indicator %s %s %s\n", n,
+                     ica < 0 ? "none" : col_name(a, ica, ca),
+                     icb < 0 ? "none" : col_name(b, icb, cb));
+            }
         }
+
+        diff_sos(a, b, &diffs);
+        diff_offdiagonal(a, b, &diffs);
 
         for (int64_t j = 0; j < nca; j++) {
             int64_t ka = 0, kb = 0;

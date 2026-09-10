@@ -517,6 +517,15 @@ way. Values are compared **exactly**; a caller who wants a tolerance wants
 `check`, which judges a point against a model rather than a model against a
 model.
 
+It compares the discrete structure too, because a model that carries it is
+a different model and answers a different question: the semi-continuous
+mark on every column (`semicontinuous`), the quadratic coefficient on every
+column and every off-diagonal pair of `Q` (`quadratic`, `quadratic_pair`,
+`quadratic_nz`), the SOS sets with their type, members and weights
+(`sos_sets`, `sos`, `sos_member`), and the indicator column on every row
+(`indicator`). Two models that differ only in an SOS set reach different
+answers, so `diff` says so.
+
 A size that differs stops the walk, because every index after it means
 something else and a per-row report on two models of different shapes is
 noise.
