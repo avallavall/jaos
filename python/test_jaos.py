@@ -1401,6 +1401,45 @@ class TestBranchAndBound(unittest.TestCase):
     """Integer columns through both layers (D288). The knapsack is the one
     tests/test_mip.c solves to 9 against a relaxation of 10.67."""
 
+    def test_a_run_of_changes_agrees_with_a_fresh_build(self):
+        """The cases above move one thing each. This one interleaves the
+        two paths, since a change that rebuilds and a change that goes
+        through the setters have to leave the same model behind whichever
+        order they arrive in."""
+        p = jaos.Problem()
+        xs = [p.add_var(ub=4.0), p.add_var(ub=3.0),
+              p.add_var(ub=2.0, integer=True)]
+        p.add(xs[0] + xs[1] + xs[2] <= 5)
+        p.minimize(-xs[0] - 2 * xs[1] - 3 * xs[2])
+        p.solve()
+
+        xs[0].ub = 2.0
+        p.solve()
+        p.add(2 * xs[0] + xs[1] <= 3)
+        p.solve()
+        p.maximize(xs[0] + 2 * xs[1] + 3 * xs[2])
+        p.solve()
+        xs[1].lb = 1.0
+        p.solve()
+        xs.append(p.add_var(ub=1.0))
+        p.maximize(xs[0] + 2 * xs[1] + 3 * xs[2] + 5 * xs[3])
+        p.solve()
+
+        got = p.objective_value
+        self.assertEqual(p.status, jaos.SolveStatus.OPTIMAL)
+        p.close()
+
+        fresh = jaos.Problem()
+        ys = [fresh.add_var(ub=2.0), fresh.add_var(lb=1.0, ub=3.0),
+              fresh.add_var(ub=2.0, integer=True), fresh.add_var(ub=1.0)]
+        fresh.add(ys[0] + ys[1] + ys[2] <= 5)
+        fresh.add(2 * ys[0] + ys[1] <= 3)
+        fresh.maximize(ys[0] + 2 * ys[1] + 3 * ys[2] + 5 * ys[3])
+        fresh.solve()
+        self.assertEqual(fresh.status, jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(got, fresh.objective_value, places=9)
+        fresh.close()
+
     def test_the_knapsack_through_the_problem_layer(self):
         p = jaos.Problem()
         a = p.add_var(binary=True, name="a")

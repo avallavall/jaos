@@ -130,7 +130,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 |---|---|---|
 | C API, one header | **done** | |
 | Command-line tool | **done** | `docs/cli.md` |
-| Python: ctypes wrapper and modeling layer | **done** | standard library only |
+| Python: ctypes wrapper and modeling layer | **done** | standard library only. `Problem` keeps a `Model` underneath and reaches it two ways: a bound or an objective coefficient moved after a solve goes through the C setters and the next solve resumes warm, while a new variable or row rebuilds and the next runs cold. **Read 2026-09-10** against the two things it has to agree with: the same model built fresh at its final state through `Problem`, and the same model loaded straight into a `Model` by `load`, which is the C API with nothing on top. 1600 generated models over four seeds, 4012 changes applied in runs of one to four, each kind between 149 and 188 times, moving a lower bound, an upper bound, a cost, the sense, and adding a row or a column; 3200 comparisons and none disagreeing. What the cases in `TestProblemResolves` did not cover is a run of changes rather than one, since the two paths have to leave the same model behind whichever order they arrive in, and one stays (`test_a_run_of_changes_agrees_with_a_fresh_build`) |
 | Python package installable with pip | **done** | `pyproject.toml` and `setup.py` build `libjaos.so` and install the `jaos` package; `python -m jaos solve FILE` |
 | Julia | **missing** | |
 | Java, .NET | **missing** | |
