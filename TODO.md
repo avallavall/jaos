@@ -6,6 +6,10 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 ## Milestone: reach and polish
 
 0. **`relax --cols` does not finish on a model with no integer point.**
+   Since 2026-09-10 `relax`, `iis`, `verify` and `ranging` take
+   `--work-limit N`, so the runaway can be stopped and says `work limit
+   reached` when it is. That is an escape hatch and not the fix; the rest
+   of this row still stands.
    The elastic copy frees every column so each one can leave its box at a
    price, and an integer column freed that way gives the tree an unbounded
    space. Where the rows plus the integrality admit no point at all, the

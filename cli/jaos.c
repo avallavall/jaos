@@ -63,10 +63,12 @@ static const char U_SYNOPSIS[] =
     "  jaos options [--opt NAME=VALUE]... [--params FILE]\n"
     "  jaos diff A B\n"
     "  jaos show FILE (--row NAME | --col NAME)\n"
-    "  jaos iis FILE [--write OUT] [--positional]\n"
+    "  jaos iis FILE [--write OUT] [--positional] [--work-limit N]\n"
     "  jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]\n"
+    "               [--work-limit N]\n"
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
-    "  jaos ranging FILE\n"
+    "               [--work-limit N]\n"
+    "  jaos ranging FILE [--work-limit N]\n"
     "  jaos --version\n"
     "  jaos --help [COMMAND]\n"
     "\n";
@@ -291,7 +293,8 @@ static const char U_IIS[] =
     "                   feasibility question and solves infeasible. The\n"
     "                   names survive, the indices do not\n"
     "  --positional     take every name off the subsystem first, the same\n"
-    "                   escape hatch `convert` has\n";
+    "                   escape hatch `convert` has\n"
+    "  --work-limit N   stop after N deterministic work units (N > 0)\n";
 
 static const char U_RELAX[] =
     "relax reads FILE and prints the smallest total change to the bounds\n"
@@ -308,6 +311,11 @@ static const char U_RELAX[] =
     "                   read\n"
     "  --positional     take every name off before writing OUT, the same\n"
     "                   escape hatch `convert` has\n"
+    "  --work-limit N   stop the elastic copy after N deterministic work\n"
+    "                   units (N > 0). --cols frees every column, and a\n"
+    "                   free integer column gives the tree an unbounded\n"
+    "                   space, so a model whose rows admit no integer point\n"
+    "                   needs this to stop\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n";
 
@@ -337,7 +345,9 @@ static const char U_VERIFY[] =
     "                   solved, so the verdict is about the basis brought\n"
     "                   in -- another solver's, say -- and about nothing\n"
     "                   JAOS did. Same three verdicts, same exit codes,\n"
-    "                   and --values and --proof work off it\n";
+    "                   and --values and --proof work off it\n"
+    "  --work-limit N   stop the solve after N deterministic work units\n"
+    "                   (N > 0); with --basis there is no solve to stop\n";
 
 static const char U_STATS[] =
     "stats reads FILE and prints what the model is, one `name value`\n"
@@ -375,7 +385,9 @@ static const char U_RANGING[] =
     "ranging solves FILE and prints, for the optimal basis, the interval\n"
     "  every cost, row bound and column bound may move in:\n"
     "  `cost J lo hi`, `rhs I lower_lo lower_hi upper_lo upper_hi`,\n"
-    "  `bound J lower_lo lower_hi upper_lo upper_hi`. Exit 0.\n";
+    "  `bound J lower_lo lower_hi upper_lo upper_hi`. Exit 0.\n"
+    "  --work-limit N   stop the solve after N deterministic work units\n"
+    "                   (N > 0)\n";
 
 static const char U_FOOTER[] =
     "\n"
@@ -474,6 +486,24 @@ static bool parse_int64(const char *s, int64_t *out)
         return false;
     *out = (int64_t)v;
     return true;
+}
+
+static int take_work_limit(int argc, char **argv, int *i, int64_t *out)
+{
+    if (*i + 1 >= argc)
+        return usage_error("--work-limit needs a count of work units");
+    const char *v = argv[++(*i)];
+    if (!parse_int64(v, out) || *out <= 0)
+        return usage_error("--work-limit needs a positive integer, not '%s'",
+                           v);
+    return -1;
+}
+
+static int set_work_limit(jaos_model *m, const char *file, int64_t units)
+{
+    if (units > 0 && jaos_set_work_limit(m, units) != JAOS_OK)
+        return library_error("set the work limit for", file, m);
+    return -1;
 }
 
 static bool parse_double(const char *s, double *out)
@@ -1982,10 +2012,15 @@ static int cmd_iis(int argc, char **argv)
 {
     const char *file = nullptr, *write = nullptr;
     bool positional = false;
+    int64_t work_limit = 0;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
         if (strcmp(a, "--positional") == 0) {
             positional = true;
+        } else if (strcmp(a, "--work-limit") == 0) {
+            const int e = take_work_limit(argc, argv, &i, &work_limit);
+            if (e >= 0)
+                return e;
         } else if (strcmp(a, "--write") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--write needs a path to write");
@@ -2018,6 +2053,9 @@ static int cmd_iis(int argc, char **argv)
 
     jaos_solve_status ss;
     jaos_iis_side *rows = nullptr, *cols = nullptr;
+    rc = set_work_limit(m, file, work_limit);
+    if (rc >= 0)
+        goto out;
     rc = solve_for_report(m, file, &ss);
     if (rc >= 0)
         goto out;
@@ -2093,6 +2131,7 @@ static int cmd_relax(int argc, char **argv)
 {
     const char *file = nullptr, *apply = nullptr;
     bool positional = false;
+    int64_t work_limit = 0;
     jaos_relax_scope scope = JAOS_RELAX_BOTH;
     for (int i = 2; i < argc; i++) {
         const char *a = argv[i];
@@ -2102,6 +2141,10 @@ static int cmd_relax(int argc, char **argv)
             scope = JAOS_RELAX_COLS;
         } else if (strcmp(a, "--positional") == 0) {
             positional = true;
+        } else if (strcmp(a, "--work-limit") == 0) {
+            const int e = take_work_limit(argc, argv, &i, &work_limit);
+            if (e >= 0)
+                return e;
         } else if (strcmp(a, "--apply") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--apply needs a path to write");
@@ -2132,6 +2175,10 @@ static int cmd_relax(int argc, char **argv)
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
+
+    rc = set_work_limit(m, file, work_limit);
+    if (rc >= 0)
+        goto out;
 
     const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
     rm = zeroed(nr, sizeof *rm);
@@ -2228,9 +2275,14 @@ static int cmd_verify(int argc, char **argv)
 {
     const char *file = nullptr, *proof = nullptr, *basis = nullptr;
     bool values = false;
+    int64_t work_limit = 0;
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--values") == 0) {
             values = true;
+        } else if (strcmp(argv[i], "--work-limit") == 0) {
+            const int e = take_work_limit(argc, argv, &i, &work_limit);
+            if (e >= 0)
+                return e;
         } else if (strcmp(argv[i], "--proof") == 0) {
             if (i + 1 >= argc)
                 return usage_error("--proof needs a path to write");
@@ -2255,6 +2307,10 @@ static int cmd_verify(int argc, char **argv)
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
+
+    rc = set_work_limit(m, file, work_limit);
+    if (rc >= 0)
+        goto out;
 
     jaos_verify_report rep;
     memset(&rep, 0, sizeof rep);
@@ -2711,9 +2767,25 @@ static int cmd_stats(int argc, char **argv)
 
 static int cmd_ranging(int argc, char **argv)
 {
-    if (argc != 3)
-        return usage_error("ranging takes exactly one file");
-    const char *file = argv[2];
+    const char *file = nullptr;
+    int64_t work_limit = 0;
+    for (int i = 2; i < argc; i++) {
+        const char *a = argv[i];
+        if (strcmp(a, "--work-limit") == 0) {
+            const int e = take_work_limit(argc, argv, &i, &work_limit);
+            if (e >= 0)
+                return e;
+        } else if (a[0] == '-' && a[1] != '\0') {
+            return usage_error("unknown option '%s'", a);
+        } else if (file != nullptr) {
+            return usage_error("ranging takes one file, and got '%s' and "
+                               "'%s'", file, a);
+        } else {
+            file = a;
+        }
+    }
+    if (file == nullptr)
+        return usage_error("ranging needs a file");
 
     jaos_model *m = nullptr;
     int rc = load(file, &m);
@@ -2722,6 +2794,9 @@ static int cmd_ranging(int argc, char **argv)
 
     jaos_solve_status ss;
     double *cost = nullptr, *rhs = nullptr, *bnd = nullptr;
+    rc = set_work_limit(m, file, work_limit);
+    if (rc >= 0)
+        goto out;
     rc = solve_for_report(m, file, &ss);
     if (rc >= 0)
         goto out;

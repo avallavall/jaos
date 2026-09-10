@@ -1173,6 +1173,26 @@ expect_exit 5 "relax --apply to a name neither writer takes is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.txt"
 expect_exit 5 "relax --apply without a path is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply
+expect_exit 5 "relax --cols on the runaway model stops at a work limit" \
+    "$JAOS" relax "$DATA/relax_runaway.mps" --cols --work-limit 2000000
+case "$err" in
+    *"work limit"*) pass "and says the work limit stopped it" ;;
+    *) flunk "the stopped relax said '$err'" ;;
+esac
+expect_exit 5 "relax --work-limit needs a number" \
+    "$JAOS" relax "$DATA/t1.mps" --work-limit x
+expect_exit 5 "relax --work-limit needs a positive number" \
+    "$JAOS" relax "$DATA/t1.mps" --work-limit 0
+expect_exit 5 "relax --work-limit needs a value" \
+    "$JAOS" relax "$DATA/t1.mps" --work-limit
+expect_exit 5 "ranging --work-limit stops the solve" \
+    "$JAOS" ranging "$DATA/solve1.mps" --work-limit 100
+expect_exit 5 "iis --work-limit stops the solve" \
+    "$JAOS" iis "$DATA/t1.mps" --work-limit 100
+expect_exit 5 "verify --work-limit stops the solve" \
+    "$JAOS" verify "$DATA/solve1.mps" --work-limit 100
+expect_exit 0 "verify --work-limit large enough still proves" \
+    "$JAOS" verify "$DATA/solve1.mps" --work-limit 100000000
 expect_exit 5 "relax without a file is a usage error" "$JAOS" relax
 expect_exit 5 "relax of a missing file exits 5" "$JAOS" relax "$tmp/no-such.mps"
 expect_exit 5 "relax with an unknown option is a usage error" \

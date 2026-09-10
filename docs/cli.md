@@ -47,10 +47,11 @@ jaos check FILE --point POINT [--duals DUALS] [--tol T]
 jaos stats FILE
 jaos diff A B
 jaos show FILE (--row NAME | --col NAME)
-jaos iis FILE [--write OUT] [--positional]
+jaos iis FILE [--write OUT] [--positional] [--work-limit N]
 jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
-jaos verify FILE [--values] [--proof PATH] [--basis BAS]
-jaos ranging FILE
+                [--work-limit N]
+jaos verify FILE [--values] [--proof PATH] [--basis BAS] [--work-limit N]
+jaos ranging FILE [--work-limit N]
 jaos --version
 jaos --help [COMMAND]
 ```
@@ -580,6 +581,11 @@ the tool prints its status line, says on stderr that there is nothing to
 find, and exits 1. Exit 5 on an error, including a re-solve that could not
 decide its side.
 
+`--work-limit N` stops the solve after N deterministic work units. The
+first solve is what decides whether there is a subsystem at all, so a solve
+that stops early ends the command: the tool says the solve did not finish
+and exits 5.
+
 ### `iis FILE --write OUT`
 
 **`--write OUT` writes the subsystem itself as a model**, `.mps` or
@@ -644,6 +650,7 @@ number of bounds moved, which is a different and much harder problem.
 | `--rows` | only row bounds may move |
 | `--cols` | only column bounds may move |
 | `--apply OUT` | write the model with every move applied, `.mps` or `.lp` |
+| `--work-limit N` | stop the elastic copy after N deterministic work units |
 
 `--apply` makes the answer actionable: it adds each move to the bound it
 names and writes the model out, so the relaxation can be solved rather
@@ -670,9 +677,11 @@ bound moves like any other.
 
 Over the columns alone the copy frees every column, and a free integer
 column gives the branch and bound an unbounded space to search. On a model
-whose rows admit no integer point at all, `relax --cols` may not finish.
-`relax` takes no work limit of its own yet, so there is nothing to stop it
-with; `SPECS.md` carries the measurement and `TODO.md` the row.
+whose rows admit no integer point at all, `relax --cols` does not finish on
+its own. `--work-limit N` stops it: the copy ends `work_limit`, the tool
+says so on stderr and exits 5. `tests/data/relax_runaway.mps` is four rows
+of such a model, `SPECS.md` carries the measurement and `TODO.md` the row
+for a real fix.
 
 Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
 lower bound above its upper is a contradiction between two of the file's
@@ -692,6 +701,10 @@ linear cost, and a QP answer carries no basis. A MIP is refused the same
 way, together with SOS sets and semi-continuous columns: the basis behind
 a MIP answer is the last node's, so the proof would judge a linear program
 the file does not hold.
+
+`--work-limit N` stops the solve after N deterministic work units. There is
+then no answer to prove, so the tool prints its status line and exits 5.
+With `--basis` there is no solve, so the option does nothing.
 
 ```
 status optimal
@@ -866,6 +879,10 @@ has no basis to range; the tool prints its status line, says so on stderr,
 and exits 5. A quadratic objective is refused the same way. Ranging is
 about a linear cost, and a QP optimum is not a vertex, so it carries no
 basis.
+
+`--work-limit N` stops the solve after N deterministic work units. There is
+then no optimal basis to range, so the tool prints its status line and
+exits 5.
 
 A MIP is refused too, and so is a model with SOS sets or semi-continuous
 columns. The basis behind a MIP answer belongs to the last node of the
