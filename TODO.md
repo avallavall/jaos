@@ -97,26 +97,32 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    this thread is the reading used to end the walk rather than to price it,
    or a floor stated in the model's units.
 
-   **The second thread was called a refusal on 2026-09-10 and that was
-   wrong; it is open.** What was changed is the `step` that
-   `primal_ratio_test` returns, and nothing moves the point by it: the caller
-   reads it only to ask whether the entering column reaches its own opposite
-   bound first, and `pivot` works out its own move from the leaving row,
-   `theta_primal = (xb[r] - bound) / alpha_q`. Widening the relaxation to
-   5e-8, 1e-4, 1e-2 and 1e3 raises every one of d6cube's 16761 steps and the
-   mean rise tracks the width, 6.11e-08 to 1.06e-02, while the walk stays
-   byte-identical at 18131 iterations and 2117056964 work units, and degen3
-   at 3741. A step that changed the walk could not leave the work units
-   alone, so what was measured is the bound-flip threshold. fit2d moving from
-   7847 to 8161 is that threshold flipping a bound where it did not before.
-   The refusal line carries a withdrawal beside it
-   (`bench/refusals.txt`, primal-expand-step-WITHDRAWN).
+   **The second thread is measured and refused** (`bench/refusals.txt`,
+   primal-expand-step), on the second attempt. The first changed the `step`
+   that `primal_ratio_test` returns and refused the method on what came back;
+   nothing moves the point by that value, which the caller reads only to ask
+   whether the entering column reaches its own opposite bound first, so it
+   measured the bound-flip threshold. Widening it to 1e-2 leaves d6cube's
+   walk byte-identical at 18131 iterations and 2117056964 work units, which
+   is what a step that does nothing looks like. The step the pivot takes is
+   the leaving row's own distance, `theta_primal = (xb[r] - bound) / alpha_q`
+   in `pivot`, and EXPAND's has to be handed to it there.
 
-   **Where a real attempt goes**: `bound` in `pivot`, so the leaving column
-   may finish `delta` past it. The point then carries an infeasibility of
-   that size until something puts it back, which is the schedule and the
-   reset, the half of EXPAND nobody here has built. Whether it pays is
-   unmeasured.
+   Handed there, with the plumbing checked first by passing the ratio test's
+   own step and reproducing the committed reading over the whole set: **it is
+   the largest move any idea has made on d6cube and it is still not enough.**
+   d6cube 18131 iterations and 2117056964 work units to 8906 and 953362179,
+   0.45x; seba 0.978x; fit1d 0.993x; degen3 1.016x; fit2d 1.087x; every
+   objective unchanged. Over the standard 94 the work geometric mean goes
+   2.3410x to 2.3508x, nothing disagrees, and **the overrun count stays 5**,
+   because 0.45x lands d6cube at 37.9x the dual's work against a bar of 10x,
+   down from 84.2x. The set pays 0.4% for a trip that crosses nothing.
+
+   The width it uses is `PRIMAL_HARRIS_DELTA * primal_tol`, the overshoot
+   pass one already permits, so nothing about the feasibility contract had to
+   move for this. **What is left on d6cube is a factor of 3.8**, and the step
+   is already paid for, so the growing schedule and the periodic reset that
+   are the rest of EXPAND are the first place to look. Neither is built.
 
    **Both named threads are now measured and both are refused, so the row
    needs a new lead rather than a fresh session on the old ones.** What the
