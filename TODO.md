@@ -132,12 +132,30 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    between distinct bases of the same degenerate points rather than returning
    to one.
 
-   What is left is the entering column, and the three pricing rules on offer
-   are all already measured on the set (the SPECS row), so a fresh session
-   should not re-measure them. The unread question is what those 16761 bases
-   sit on: how many distinct points, and whether the entering choice keeps
-   coming back to a point it has already left. That wants a record of the
-   points, and the objective is the wrong key to record them by, which was
-   tried and thrown away the same day: a leaving column snapping to its bound
-   moves the objective in its last bits while the point stands still, so the
-   count comes out above the number of non-zero steps, which is impossible.
+   **What those bases sit on, read the same day, and it splits the five in
+   two.** The key is the active set, which variables sit at a bound and at
+   which one, since every basis of one degenerate vertex carries the same and
+   it does not wobble when a leaving column snaps; the objective was tried
+   first and thrown away, because a snap moves it in its last bits while the
+   point stands still and the count came out above the number of non-zero
+   steps, which cannot happen. Phase-2 bases against the points under them:
+   **d6cube 16761 over 732, with 8508 of them in a row on one point**;
+   degen3 772 over 57, longest run 121; seba 134 over 124, longest run 3;
+   fit1d 775 over 762, longest run 2.
+
+   So d6cube spends more than half of its phase 2 standing on a single
+   vertex, degen3 does the same in miniature, and **seba and fit1d are not
+   stalling at all** -- they leave for a new point at nearly every pivot, and
+   whatever makes them slow is not degeneracy. The five are two faults, not
+   one, and a remedy aimed at either will read as noise over the set unless
+   it is measured on its own group.
+
+   This is also why EXPAND read as nothing. It made every step positive at a
+   mean of 6e-08, which is a real move, but `primal_tol` is 1e-7 and bounds
+   what the method may take, so the point moves without the active set
+   changing and the vertex is not left. The escape from d6cube's vertex is
+   larger than the feasibility tolerance allows, which is the reopen
+   condition already written against primal-expand-step and now has a
+   measurement behind it. For seba and fit1d it is the entering column, and
+   the three pricing rules on offer are all already measured on the set (the
+   SPECS row), so a fresh session should not re-measure them there.
