@@ -2,7 +2,7 @@
 bgdbg1       ok        dual=0/68 pdlp=0+0/68 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
 bgetam       overrun   dual=15/37466 pdlp=39+0/376977 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
 bgindy       overrun   dual=2/390966 pdlp=18+0/3960402 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
-bgprtr       overrun   dual=25/15075 pdlp=318+0/150782 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
+bgprtr       overrun   dual=28/16247 pdlp=343+0/162880 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
 box1         overrun   dual=16/25263 pdlp=52+0/256371 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
 ceria3d      ok        dual=0/23485 pdlp=0+0/23485 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/pdlp:n/a 
 chemcom      overrun   dual=6/21681 pdlp=24+0/217446 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/pdlp:n/a over 10x the dual's work
