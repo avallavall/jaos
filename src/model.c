@@ -58,6 +58,9 @@ static void model_release_arrays(jaos_model *m)
     free(m->col_integer);
     free(m->col_semi);
     free(m->col_quad);
+    free(m->q_start);
+    free(m->q_index);
+    free(m->q_value);
     free(m->row_ind_col);
     free(m->row_ind_val);
     free(m->sos_type);
@@ -746,6 +749,95 @@ void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
     m->cfg.log_cb(m->cfg.log_user, level, line);
 }
 
+/* Is sigma * Q positive semi-definite?  A quadratic objective is convex
+ * exactly when it is, and a diagonal Q answers by inspection, which the
+ * caller has already done.  With off-diagonal entries there is no test
+ * by inspection, so the model factors sigma * Q plus a ridge with the
+ * quasi-definite LDL and asks every pivot to come out positive: a ridge
+ * of eps times the largest entry keeps a semi-definite Q above zero and
+ * leaves an indefinite one below it.  The factor is thrown away; only
+ * the answer is kept.
+ */
+static jaos_status quadratic_convex(jaos_model *m, double sigma)
+{
+    const int64_t nc = m->num_col;
+    int64_t *start = jm_calloc_array(nc + 1, sizeof *start);
+    int64_t *fill = jm_calloc_array(nc > 0 ? nc : 1, sizeof *fill);
+    const int64_t nnz = nc + 2 * m->q_nz;
+    int64_t *index = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *index);
+    double *value = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *value);
+    jm_chol c;
+    jm_chol_init(&c);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (start == nullptr || fill == nullptr || index == nullptr ||
+        value == nullptr)
+        goto done;
+
+    double biggest = 0.0;
+    for (int64_t j = 0; j < nc; j++) {
+        start[j + 1] = 1;
+        if (m->col_quad != nullptr && fabs(m->col_quad[j]) > biggest)
+            biggest = fabs(m->col_quad[j]);
+    }
+    for (int64_t j = 0; j < nc; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            start[j + 1]++;
+            start[m->q_index[p] + 1]++;
+            if (fabs(m->q_value[p]) > biggest)
+                biggest = fabs(m->q_value[p]);
+        }
+    for (int64_t j = 0; j < nc; j++)
+        start[j + 1] += start[j];
+
+    const double ridge = 1e-10 * (biggest > 0.0 ? biggest : 1.0);
+    for (int64_t j = 0; j < nc; j++) {
+        const int64_t at = start[j] + fill[j]++;
+        index[at] = j;
+        value[at] = sigma * (m->col_quad != nullptr ? m->col_quad[j] : 0.0) +
+                    ridge;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            const int64_t i = m->q_index[p];
+            const double v = sigma * m->q_value[p];
+            int64_t at = start[j] + fill[j]++;
+            index[at] = i;
+            value[at] = v;
+            at = start[i] + fill[i]++;
+            index[at] = j;
+            value[at] = v;
+        }
+
+    jm_work w = {0};
+    st = jm_chol_symbolic(&c, nc, start, index, &w);
+    if (st != JAOS_OK)
+        goto done;
+    st = jm_ldlt_numeric(&c, value, nullptr, ridge * 1e-6, &w);
+    if (st != JAOS_OK)
+        goto done;
+    for (int64_t k = 0; k < c.n; k++)
+        if (c.d[k] < ridge * 0.5) {
+            jm_set_err(m, "the quadratic objective is not convex: with the "
+                          "objective %s, the matrix Q is not positive "
+                          "semi-definite, and JAOS solves convex quadratic "
+                          "objectives only",
+                       m->sense == JAOS_MAXIMIZE ? "maximised" : "minimised");
+            st = JAOS_ERR_INVALID_INPUT;
+            goto done;
+        }
+    st = JAOS_OK;
+
+done:
+    jm_chol_free(&c);
+    free(start);
+    free(fill);
+    free(index);
+    free(value);
+    if (st == JAOS_ERR_OUT_OF_MEMORY)
+        jm_set_err(m, "out of memory");
+    return st;
+}
+
 jaos_status jaos_solve(jaos_model *m)
 {
     if (m == nullptr)
@@ -762,16 +854,23 @@ jaos_status jaos_solve(jaos_model *m)
             return JAOS_ERR_INVALID_INPUT;
         }
         const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
-        for (int64_t j = 0; j < m->num_col; j++)
-            if (sigma * m->col_quad[j] < 0.0) {
-                jm_set_err(m, "column %lld has quadratic coefficient %.17g, "
-                              "which makes a %s objective non-convex; JAOS "
-                              "solves convex quadratic objectives only",
-                           (long long)j, m->col_quad[j],
-                           m->sense == JAOS_MAXIMIZE ? "maximised"
-                                                     : "minimised");
-                return JAOS_ERR_INVALID_INPUT;
-            }
+        if (m->col_quad != nullptr)
+            for (int64_t j = 0; j < m->num_col; j++)
+                if (sigma * m->col_quad[j] < 0.0) {
+                    jm_set_err(m, "column %lld has quadratic coefficient "
+                                  "%.17g, which makes a %s objective "
+                                  "non-convex; JAOS solves convex quadratic "
+                                  "objectives only",
+                               (long long)j, m->col_quad[j],
+                               m->sense == JAOS_MAXIMIZE ? "maximised"
+                                                         : "minimised");
+                    return JAOS_ERR_INVALID_INPUT;
+                }
+        if (m->q_nz > 0) {
+            const jaos_status st = quadratic_convex(m, sigma);
+            if (st != JAOS_OK)
+                return st;
+        }
     }
 
     if (jm_model_has_integer(m))
@@ -835,12 +934,192 @@ jaos_status jaos_col_quadratic(const jaos_model *m, int64_t j, double *q)
 
 bool jm_model_has_quadratic(const jaos_model *m)
 {
+    if (m->q_nz > 0)
+        return true;
     if (m->col_quad == nullptr)
         return false;
     for (int64_t j = 0; j < m->num_col; j++)
         if (m->col_quad[j] != 0.0)
             return true;
     return false;
+}
+
+bool jm_model_has_offdiagonal(const jaos_model *m)
+{
+    return m != nullptr && m->q_nz > 0;
+}
+
+static void drop_offdiagonal(jaos_model *m)
+{
+    free(m->q_start);
+    free(m->q_index);
+    free(m->q_value);
+    m->q_start = nullptr;
+    m->q_index = nullptr;
+    m->q_value = nullptr;
+    m->q_nz = 0;
+}
+
+/* The whole quadratic objective at once: the objective becomes
+ * c'x + 1/2 x'Qx with Q symmetric.  Every off-diagonal pair is given
+ * once, as (i, j) or as (j, i); the diagonal goes to col_quad, where the
+ * separable form already lives, and the rest is kept as the strict lower
+ * triangle so nothing that reads only the diagonal has to change.
+ */
+jaos_status jaos_set_quadratic(jaos_model *m, int64_t nnz,
+                               const int64_t *rows, const int64_t *cols,
+                               const double *values)
+{
+    if (m == nullptr || nnz < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (nnz > 0 && (rows == nullptr || cols == nullptr || values == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t nc = m->num_col;
+
+    for (int64_t k = 0; k < nnz; k++) {
+        if (rows[k] < 0 || rows[k] >= nc || cols[k] < 0 || cols[k] >= nc) {
+            jm_set_err(m, "the quadratic entry %lld names columns %lld and "
+                          "%lld, and the model has %lld",
+                       (long long)k, (long long)rows[k], (long long)cols[k],
+                       (long long)nc);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (!isfinite(values[k])) {
+            jm_set_err(m, "the quadratic entry %lld is not finite",
+                       (long long)k);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+    }
+
+    double *diag = nullptr;
+    int64_t *start = nullptr, *index = nullptr, *fill = nullptr;
+    double *value = nullptr;
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+
+    diag = jm_calloc_array(nc > 0 ? nc : 1, sizeof *diag);
+    start = jm_calloc_array(nc + 1, sizeof *start);
+    fill = jm_calloc_array(nc > 0 ? nc : 1, sizeof *fill);
+    if (diag == nullptr || start == nullptr || fill == nullptr)
+        goto done;
+
+    int64_t off = 0;
+    for (int64_t k = 0; k < nnz; k++) {
+        int64_t i = rows[k], j = cols[k];
+        if (i == j) {
+            diag[i] += values[k];
+            continue;
+        }
+        if (i < j) {
+            const int64_t t = i;
+            i = j;
+            j = t;
+        }
+        start[j + 1]++;
+        off++;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        start[j + 1] += start[j];
+    index = jm_alloc_array(off > 0 ? off : 1, sizeof *index);
+    value = jm_alloc_array(off > 0 ? off : 1, sizeof *value);
+    if (index == nullptr || value == nullptr)
+        goto done;
+    for (int64_t k = 0; k < nnz; k++) {
+        int64_t i = rows[k], j = cols[k];
+        if (i == j)
+            continue;
+        if (i < j) {
+            const int64_t t = i;
+            i = j;
+            j = t;
+        }
+        const int64_t p = start[j] + fill[j]++;
+        index[p] = i;
+        value[p] = values[k];
+    }
+
+    for (int64_t j = 0; j < nc; j++) {
+        for (int64_t p = start[j]; p < start[j + 1]; p++)
+            for (int64_t q = p + 1; q < start[j + 1]; q++)
+                if (index[p] == index[q]) {
+                    jm_set_err(m, "the quadratic entry for columns %lld and "
+                                  "%lld is given twice; a symmetric Q takes "
+                                  "each pair once",
+                               (long long)index[p], (long long)j);
+                    st = JAOS_ERR_INVALID_INPUT;
+                    goto done;
+                }
+    }
+
+    bool any_diag = false;
+    for (int64_t j = 0; j < nc; j++)
+        any_diag |= diag[j] != 0.0;
+    if (any_diag) {
+        free(m->col_quad);
+        m->col_quad = diag;
+        diag = nullptr;
+    } else {
+        free(m->col_quad);
+        m->col_quad = nullptr;
+    }
+    drop_offdiagonal(m);
+    if (off > 0) {
+        m->q_start = start;
+        m->q_index = index;
+        m->q_value = value;
+        m->q_nz = off;
+        start = nullptr;
+        index = nullptr;
+        value = nullptr;
+    }
+    model_answer_is_stale(m);
+    st = JAOS_OK;
+
+done:
+    free(diag);
+    free(start);
+    free(index);
+    free(value);
+    free(fill);
+    if (st == JAOS_ERR_OUT_OF_MEMORY)
+        jm_set_err(m, "out of memory");
+    return st;
+}
+
+int64_t jaos_quadratic_nz(const jaos_model *m)
+{
+    if (m == nullptr)
+        return 0;
+    int64_t n = m->q_nz;
+    if (m->col_quad != nullptr)
+        for (int64_t j = 0; j < m->num_col; j++)
+            n += m->col_quad[j] != 0.0;
+    return n;
+}
+
+jaos_status jaos_quadratic(const jaos_model *m, int64_t *rows, int64_t *cols,
+                           double *values)
+{
+    if (m == nullptr || rows == nullptr || cols == nullptr ||
+        values == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    int64_t k = 0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+            rows[k] = j;
+            cols[k] = j;
+            values[k] = m->col_quad[j];
+            k++;
+        }
+        if (m->q_start == nullptr)
+            continue;
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            rows[k] = m->q_index[p];
+            cols[k] = j;
+            values[k] = m->q_value[p];
+            k++;
+        }
+    }
+    return JAOS_OK;
 }
 
 jaos_status jaos_set_col_semicontinuous(jaos_model *m, int64_t j, bool is_semi)
@@ -1860,6 +2139,19 @@ void jm_model_publish_objective(jaos_model *m)
                     jm_obj_add(&sum, &comp, eq);
             }
         }
+
+        for (int64_t j = 0; m->q_start != nullptr && j < m->num_col; j++)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+
+                const double q = m->q_value[p];
+                const double xi = m->sol_col[m->q_index[p]];
+                const double h = q * xi;
+                const double t = h * m->sol_col[j];
+                jm_obj_add(&sum, &comp, t);
+                const double e = jm_two_product_residue(h, m->sol_col[j], t);
+                if (e != 0.0)
+                    jm_obj_add(&sum, &comp, e);
+            }
     }
 
     m->objective = (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
@@ -2309,6 +2601,17 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
             p[j] = 0.0;
         m->col_quad = p;
     }
+    if (m->q_start != nullptr) {
+        int64_t *p = realloc(m->q_start, (size_t)(ncol + 1) * sizeof *p);
+        if (p == nullptr) {
+            free(arriving);
+            free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = m->num_col + 1; j <= ncol; j++)
+            p[j] = p[m->num_col];
+        m->q_start = p;
+    }
     if (m->col_semi != nullptr) {
         bool *p = realloc(m->col_semi, (size_t)ncol * sizeof *p);
         if (p == nullptr) {
@@ -2511,7 +2814,8 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
     if (keep == nullptr)
         return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
     int64_t *newidx = nullptr;
-    if (m->num_sos > 0 || m->row_ind_col != nullptr) {
+    if (m->num_sos > 0 || m->row_ind_col != nullptr ||
+        m->q_start != nullptr) {
         newidx = malloc((size_t)m->num_col * sizeof *newidx);
         if (newidx == nullptr) {
             free(keep);
@@ -2573,6 +2877,32 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
         for (int64_t j = 0; j < m->num_col; j++)
             if (keep[j])
                 m->col_quad[at++] = m->col_quad[j];
+    }
+    if (m->q_start != nullptr) {
+
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            newidx[j] = keep[j] ? at++ : -1;
+        at = 0;
+        int64_t col = 0;
+        for (int64_t j = 0; j < m->num_col; j++) {
+            const int64_t from = m->q_start[j], to = m->q_start[j + 1];
+            if (!keep[j])
+                continue;
+            m->q_start[col] = at;
+            for (int64_t p = from; p < to; p++) {
+                if (!keep[m->q_index[p]])
+                    continue;
+                m->q_index[at] = newidx[m->q_index[p]];
+                m->q_value[at] = m->q_value[p];
+                at++;
+            }
+            col++;
+        }
+        m->q_start[col] = at;
+        m->q_nz = at;
+        if (at == 0)
+            drop_offdiagonal(m);
     }
     if (m->col_semi != nullptr) {
         int64_t at = 0;
@@ -2826,6 +3156,21 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
             goto oom;
         memcpy(m->col_quad, src->col_quad,
                (size_t)src->num_col * sizeof *m->col_quad);
+    }
+    if (src->q_start != nullptr && src->q_nz > 0) {
+        m->q_start = malloc((size_t)(src->num_col + 1) * sizeof *m->q_start);
+        m->q_index = malloc((size_t)src->q_nz * sizeof *m->q_index);
+        m->q_value = malloc((size_t)src->q_nz * sizeof *m->q_value);
+        if (m->q_start == nullptr || m->q_index == nullptr ||
+            m->q_value == nullptr)
+            goto oom;
+        memcpy(m->q_start, src->q_start,
+               (size_t)(src->num_col + 1) * sizeof *m->q_start);
+        memcpy(m->q_index, src->q_index,
+               (size_t)src->q_nz * sizeof *m->q_index);
+        memcpy(m->q_value, src->q_value,
+               (size_t)src->q_nz * sizeof *m->q_value);
+        m->q_nz = src->q_nz;
     }
     if (src->col_semi != nullptr) {
         m->col_semi = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)

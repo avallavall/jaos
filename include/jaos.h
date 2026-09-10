@@ -142,6 +142,14 @@ JAOS_NODISCARD jaos_status jaos_set_col_quadratic(jaos_model *m, int64_t col,
 JAOS_NODISCARD jaos_status jaos_col_quadratic(const jaos_model *m,
                                               int64_t col, double *q);
 
+JAOS_NODISCARD jaos_status jaos_set_quadratic(jaos_model *m, int64_t num_nz,
+                                              const int64_t *rows,
+                                              const int64_t *cols,
+                                              const double *values);
+JAOS_NODISCARD int64_t jaos_quadratic_nz(const jaos_model *m);
+JAOS_NODISCARD jaos_status jaos_quadratic(const jaos_model *m, int64_t *rows,
+                                          int64_t *cols, double *values);
+
 JAOS_NODISCARD jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
                                         const int64_t *cols,
                                         const double *weights);

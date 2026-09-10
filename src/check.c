@@ -335,13 +335,53 @@ jaos_status jaos_check_solution(const jaos_model *m,
 
     double *traffics = jm_calloc_array(m->num_row, sizeof(double));
     double *trafficc = jm_calloc_array(m->num_row, sizeof(double));
+
+    double *qx = nullptr, *qxc = nullptr;
+    const bool has_q = m->col_quad != nullptr || m->q_nz > 0;
+    if (has_q) {
+        qx = jm_calloc_array(m->num_col > 0 ? m->num_col : 1, sizeof(double));
+        qxc = jm_calloc_array(m->num_col > 0 ? m->num_col : 1, sizeof(double));
+    }
     if (acts == nullptr || actc == nullptr ||
-        traffics == nullptr || trafficc == nullptr) {
+        traffics == nullptr || trafficc == nullptr ||
+        (has_q && (qx == nullptr || qxc == nullptr))) {
         free(acts);
         free(actc);
         free(traffics);
         free(trafficc);
+        free(qx);
+        free(qxc);
         return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (has_q) {
+
+        for (int64_t j = 0; j < m->num_col; j++) {
+            if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                const double q = m->col_quad[j], x = col_value[j];
+                const double t = q * x;
+                jm_obj_add(&qx[j], &qxc[j], t);
+                const double e = jm_two_product_residue(q, x, t);
+                if (e != 0.0)
+                    jm_obj_add(&qx[j], &qxc[j], e);
+            }
+        }
+        for (int64_t j = 0; m->q_start != nullptr && j < m->num_col; j++)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+                const int64_t i = m->q_index[p];
+                const double q = m->q_value[p];
+                double t = q * col_value[j];
+                jm_obj_add(&qx[i], &qxc[i], t);
+                double e = jm_two_product_residue(q, col_value[j], t);
+                if (e != 0.0)
+                    jm_obj_add(&qx[i], &qxc[i], e);
+                t = q * col_value[i];
+                jm_obj_add(&qx[j], &qxc[j], t);
+                e = jm_two_product_residue(q, col_value[i], t);
+                if (e != 0.0)
+                    jm_obj_add(&qx[j], &qxc[j], e);
+            }
+        for (int64_t j = 0; j < m->num_col; j++)
+            qx[j] = acc_value(qx[j], qxc[j]);
     }
     for (int64_t j = 0; j < m->num_col; j++) {
         const double xj = col_value[j];
@@ -384,8 +424,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         const double e = jm_two_product_residue(c, x, t);
         if (e != 0.0)
             jm_obj_add(&primal_obj, &primal_objc, e);
-        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
-            const double h = 0.5 * m->col_quad[j] * x;
+        if (qx != nullptr && qx[j] != 0.0) {
+            const double h = 0.5 * qx[j];
             const double tq = h * x;
             jm_obj_add(&primal_obj, &primal_objc, tq);
             const double eq = jm_two_product_residue(h, x, tq);
@@ -491,14 +531,11 @@ jaos_status jaos_check_solution(const jaos_model *m,
         for (int64_t j = 0; j < m->num_col; j++) {
 
             double dw = m->col_cost[j], dwc = 0.0;
-            if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
-                const double q = m->col_quad[j], x = col_value[j];
-                const double qx = q * x;
-                jm_obj_add(&dw, &dwc, qx);
-                const double eq = jm_two_product_residue(q, x, qx);
-                if (eq != 0.0)
-                    jm_obj_add(&dw, &dwc, eq);
-                const double h = -0.5 * sigma * qx;
+            if (qx != nullptr && qx[j] != 0.0) {
+                const double x = col_value[j];
+                const double gq = qx[j];
+                jm_obj_add(&dw, &dwc, gq);
+                const double h = -0.5 * sigma * gq;
                 const double th = h * x;
                 jm_obj_add(&a.dual_obj, &a.dual_objc, th);
                 const double eh = jm_two_product_residue(h, x, th);
@@ -579,6 +616,8 @@ jaos_status jaos_check_solution(const jaos_model *m,
         free(rui);
     }
 
+    free(qx);
+    free(qxc);
     free(acts);
     free(traffics);
     return JAOS_OK;

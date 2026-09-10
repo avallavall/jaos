@@ -28,6 +28,11 @@ typedef struct {
 
     double *av, *arv;
     double *lo, *up, *cost, *quad;
+    int64_t *qs, *qi;
+    double  *qv, *qz;
+    int64_t *qt_start, *qt_index;
+    double  *qt_value;
+    int64_t qnz;
     uint8_t *kind;
     bool quadratic;
     double norm_b, norm_c, norm_bound;
@@ -85,6 +90,8 @@ static void bx_free(bx *s)
     free(s->acc);   free(s->mark);
     free(s->dense); free(s->dense_idx);
     free(s->wmat);  free(s->smat);  free(s->tvec);  free(s->tvec2);
+    free(s->qs); free(s->qi); free(s->qv); free(s->qz);
+    free(s->qt_start); free(s->qt_index); free(s->qt_value);
     free(s->aug_start); free(s->aug_index); free(s->aug_value);
     free(s->aug_rhs);   free(s->aug_of);    free(s->aug_sign);
     free(s->inv);
@@ -180,6 +187,50 @@ static jaos_status bx_init(bx *s, jaos_model *m)
             s->quadratic = true;
         }
     }
+    if (m->q_nz > 0) {
+
+        s->qs = jm_alloc_array(s->ncol + 1, sizeof *s->qs);
+        s->qi = jm_alloc_array(m->q_nz, sizeof *s->qi);
+        s->qv = jm_alloc_array(m->q_nz, sizeof *s->qv);
+        s->qz = jm_calloc_array(nv, sizeof *s->qz);
+        if (!s->qs || !s->qi || !s->qv || !s->qz) {
+            bx_free(s);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = 0; j <= s->ncol; j++)
+            s->qs[j] = m->q_start[j];
+        for (int64_t j = 0; j < s->ncol; j++)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+                s->qi[p] = m->q_index[p];
+                s->qv[p] = sigma * m->q_value[p] * gamma[m->q_index[p]] *
+                           gamma[j];
+            }
+        s->qnz = m->q_nz;
+        s->quadratic = true;
+
+        s->qt_start = jm_calloc_array(s->ncol + 1, sizeof *s->qt_start);
+        s->qt_index = jm_alloc_array(m->q_nz, sizeof *s->qt_index);
+        s->qt_value = jm_alloc_array(m->q_nz, sizeof *s->qt_value);
+        int64_t *fill = jm_calloc_array(s->ncol > 0 ? s->ncol : 1,
+                                        sizeof *fill);
+        if (!s->qt_start || !s->qt_index || !s->qt_value || !fill) {
+            free(fill);
+            bx_free(s);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t p = 0; p < m->q_nz; p++)
+            s->qt_start[s->qi[p] + 1]++;
+        for (int64_t j = 0; j < s->ncol; j++)
+            s->qt_start[j + 1] += s->qt_start[j];
+        for (int64_t j = 0; j < s->ncol; j++)
+            for (int64_t p = s->qs[j]; p < s->qs[j + 1]; p++) {
+                const int64_t i = s->qi[p];
+                const int64_t at = s->qt_start[i] + fill[i]++;
+                s->qt_index[at] = j;
+                s->qt_value[at] = s->qv[p];
+            }
+        free(fill);
+    }
     for (int64_t i = 0; i < nr; i++) {
         s->lo[s->ncol + i] = m->row_lower[i] * rho[i];
         s->up[s->ncol + i] = m->row_upper[i] * rho[i];
@@ -214,7 +265,7 @@ static jaos_status bx_init(bx *s, jaos_model *m)
         bx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
-    s->augmented = m->cfg.barrier_augmented;
+    s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
     if (!s->augmented) {
         const double avg = s->ncol > 0 ? (double)m->num_nz / (double)s->ncol
                                        : 0.0;
@@ -246,6 +297,32 @@ static jaos_status bx_init(bx *s, jaos_model *m)
         jm_work_add(&s->work, s->ncol * JM_WORK_NONZERO);
     }
     return JAOS_OK;
+}
+
+/* The quadratic gradient Q z, with Q held as its diagonal in `quad` and
+ * its strict lower triangle in qs/qi/qv.  Every off-diagonal entry is
+ * stored once and counts twice, once on each side. */
+static void mul_q(bx *s, const double *z, double *out)
+{
+    for (int64_t j = 0; j < s->nvar; j++)
+        out[j] = s->quad[j] * z[j];
+    if (s->qnz == 0)
+        return;
+    for (int64_t j = 0; j < s->ncol; j++)
+        for (int64_t p = s->qs[j]; p < s->qs[j + 1]; p++) {
+            const int64_t i = s->qi[p];
+            out[i] += s->qv[p] * z[j];
+            out[j] += s->qv[p] * z[i];
+        }
+    jm_work_add(&s->work, 2 * s->qnz * JM_WORK_NONZERO);
+}
+
+static const double *grad_q(bx *s, const double *z)
+{
+    if (s->qnz == 0)
+        return nullptr;
+    mul_q(s, z, s->qz);
+    return s->qz;
 }
 
 static void mul_e(bx *s, const double *z, double *out)
@@ -376,6 +453,25 @@ static jaos_status build_aug_pattern(bx *s)
             }
             nnz++;
             if (j < s->ncol) {
+
+                for (int64_t p = s->qs != nullptr ? s->qs[j] : 0;
+                     s->qs != nullptr && p < s->qs[j + 1]; p++) {
+                    const int64_t r = s->aug_of[s->qi[p]];
+                    if (r < 0)
+                        continue;
+                    if (pass == 1)
+                        s->aug_index[nnz] = r;
+                    nnz++;
+                }
+                for (int64_t p = s->qt_start != nullptr ? s->qt_start[j] : 0;
+                     s->qt_start != nullptr && p < s->qt_start[j + 1]; p++) {
+                    const int64_t r = s->aug_of[s->qt_index[p]];
+                    if (r < 0)
+                        continue;
+                    if (pass == 1)
+                        s->aug_index[nnz] = r;
+                    nnz++;
+                }
                 for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
                     if (pass == 1)
                         s->aug_index[nnz] = live + m->a_index[p];
@@ -433,6 +529,14 @@ static jaos_status form_aug(bx *s)
             continue;
         s->aug_value[p++] = -s->inv[j];
         if (j < s->ncol) {
+            if (s->qs != nullptr)
+                for (int64_t q = s->qs[j]; q < s->qs[j + 1]; q++)
+                    if (s->aug_of[s->qi[q]] >= 0)
+                        s->aug_value[p++] = -s->qv[q];
+            if (s->qt_start != nullptr)
+                for (int64_t q = s->qt_start[j]; q < s->qt_start[j + 1]; q++)
+                    if (s->aug_of[s->qt_index[q]] >= 0)
+                        s->aug_value[p++] = -s->qt_value[q];
             for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
                 s->aug_value[p++] = s->av[q];
         } else {
@@ -635,6 +739,7 @@ static void residuals(bx *s, double *pobj, double *dobj, double *mu)
     for (int64_t i = 0; i < s->nrow; i++)
         s->rp[i] = -s->rp[i];
     mul_et(s, s->y, s->rd);
+    const double *qz = grad_q(s, s->z);
     double po = s->fixed_obj, dob = 0.0, prod = 0.0;
     for (int64_t j = 0; j < s->nvar; j++) {
         const uint8_t k = s->kind[j];
@@ -644,13 +749,13 @@ static void residuals(bx *s, double *pobj, double *dobj, double *mu)
             continue;
         }
         po += s->cost[j] * s->z[j];
-        if (s->quad[j] != 0.0) {
-            const double half = 0.5 * s->quad[j] * s->z[j] * s->z[j];
+        const double gq = qz != nullptr ? qz[j] : s->quad[j] * s->z[j];
+        if (gq != 0.0) {
+            const double half = 0.5 * gq * s->z[j];
             po += half;
             dob -= half;
         }
-        s->rd[j] = s->cost[j] + s->quad[j] * s->z[j] - s->rd[j] - s->zl[j] +
-                   s->zu[j];
+        s->rd[j] = s->cost[j] + gq - s->rd[j] - s->zl[j] + s->zu[j];
         s->rw[j] = (k & HAS_LO) ? s->lo[j] - s->z[j] + s->w[j] : 0.0;
         s->rv[j] = (k & HAS_UP) ? s->up[j] - s->z[j] - s->v[j] : 0.0;
         if (k & HAS_LO) { dob += s->lo[j] * s->zl[j]; prod += s->w[j] * s->zl[j]; }
@@ -885,11 +990,12 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
     } else {
         const double *rho = m->row_scale, *gamma = m->col_scale;
         mul_et(s, s->y, s->tmp);
+        const double *qz = grad_q(s, s->z);
         for (int64_t j = 0; j < m->num_col; j++) {
+            const double gq = qz != nullptr ? qz[j] : s->quad[j] * s->z[j];
             m->sol_col[j] = published(gamma[j] * s->z[j]);
             m->sol_redcost[j] = published(
-                sigma * (s->cost[j] + s->quad[j] * s->z[j] - s->tmp[j]) /
-                gamma[j]);
+                sigma * (s->cost[j] + gq - s->tmp[j]) / gamma[j]);
         }
         for (int64_t i = 0; i < m->num_row; i++) {
             m->sol_row[i] = published(s->z[m->num_col + i] / rho[i]);
@@ -933,7 +1039,7 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
 static jaos_status bx_run(bx *s, jaos_solve_status *out)
 {
     jaos_model *m = s->m;
-    s->augmented = m->cfg.barrier_augmented;
+    s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
     jaos_status st = s->augmented ? build_aug_pattern(s)
                                   : build_normal_pattern(s);
     if (st != JAOS_OK)
