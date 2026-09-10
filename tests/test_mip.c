@@ -2941,6 +2941,56 @@ static void test_a_starting_point_and_a_cutoff(void)
     jaos_model_free(m);
 }
 
+static void test_a_starting_point_moves_with_the_columns_it_speaks_for(void)
+{
+    const double start[5] = { 1.0, 1.0, 0.0, 0.0, 0.0 };
+
+    {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+
+        const double cost[3] = { 0.0, 0.0, 0.0 };
+        const double cl[3] = { 2.0, -INFINITY, -2.0 };
+        const double cu[3] = { 5.0, -3.0, 4.0 };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_add_cols(m, 3, cost, cl, cu, 0, nullptr, nullptr, nullptr));
+
+        for (int64_t j = 0; j < 5; j++)
+            TEST_ASSERT_EQUAL_DOUBLE(start[j], m->mip_start[j]);
+        TEST_ASSERT_EQUAL_DOUBLE_MESSAGE(2.0, m->mip_start[5],
+            "a column that cannot reach zero starts at its lower bound");
+        TEST_ASSERT_EQUAL_DOUBLE_MESSAGE(-3.0, m->mip_start[6],
+            "a column held below zero starts at its upper bound");
+        TEST_ASSERT_EQUAL_DOUBLE_MESSAGE(0.0, m->mip_start[7],
+            "a box that holds zero starts there");
+
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+        jaos_model_free(m);
+    }
+
+    {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+        const int64_t gone[1] = { 0 };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, gone));
+
+        for (int64_t j = 0; j < 4; j++)
+            TEST_ASSERT_EQUAL_DOUBLE_MESSAGE(start[j + 1], m->mip_start[j],
+                "every surviving column keeps its own value");
+
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 21.0, obj);
+        jaos_model_free(m);
+    }
+}
+
 static void test_a_proved_incumbent_publishes_a_basis_of_the_model(void)
 {
     for (int cuts = 1; cuts >= 0; cuts--) {
@@ -3034,7 +3084,7 @@ static void test_a_semicontinuous_column_rests_at_zero_or_above_its_floor(void)
 #endif
 }
 
-static jaos_model *indicator_model(void)
+[[maybe_unused]] static jaos_model *indicator_model(void)
 {
     const double cost[] = {-1.0, 3.0};
     const double cl[]   = {0.0, 0.0};
@@ -3549,7 +3599,7 @@ static void test_clique_cuts_close_a_pairwise_conflict_at_the_root(void)
 #endif
 }
 
-static jaos_model *three_unit_columns(void)
+[[maybe_unused]] static jaos_model *three_unit_columns(void)
 {
     const double cost[] = {-1.0, -1.0, -1.0};
     const double cl[]   = {0.0, 0.0, 0.0};
@@ -3851,6 +3901,7 @@ int main(void)
     RUN_TEST(test_reduced_cost_fixing_keeps_the_optimum);
     RUN_TEST(test_the_pump_may_run_where_an_incumbent_exists);
     RUN_TEST(test_a_starting_point_and_a_cutoff);
+    RUN_TEST(test_a_starting_point_moves_with_the_columns_it_speaks_for);
     RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
     RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
     RUN_TEST(test_an_sos_member_that_cannot_be_zero);

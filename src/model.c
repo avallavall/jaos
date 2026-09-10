@@ -873,8 +873,14 @@ jaos_status jaos_solve(jaos_model *m)
         }
     }
 
-    if (jm_model_has_integer(m))
+    if (jm_model_has_integer(m)) {
+        if (m->col_integer == nullptr) {
+            m->col_integer = jm_calloc_array(m->num_col, sizeof(bool));
+            if (m->col_integer == nullptr)
+                return JAOS_ERR_OUT_OF_MEMORY;
+        }
         return jm_branch_and_bound(m);
+    }
     if (m->cfg.concurrent && !m->cfg.node_solve)
         return jm_solve_concurrent(m);
     return jm_dual_simplex(m);
@@ -2457,6 +2463,15 @@ static jaos_basis_status arriving_status(double lower, double upper)
     return JAOS_BASIS_FREE;
 }
 
+static double arriving_start(double lower, double upper)
+{
+    if (isfinite(lower) && lower > 0.0)
+        return lower;
+    if (isfinite(upper) && upper < 0.0)
+        return upper;
+    return 0.0;
+}
+
 static void basis_extend(jaos_basis_status **arr, int64_t old_n, int64_t add,
                          const jaos_basis_status *fill, jaos_model *m)
 {
@@ -2641,6 +2656,18 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
         for (int64_t j = m->num_col; j < ncol; j++)
             p[j] = false;
         m->col_semi = p;
+    }
+    if (m->mip_start != nullptr) {
+        double *p = realloc(m->mip_start, (size_t)ncol * sizeof *p);
+        if (p == nullptr) {
+            free(arriving);
+            free(cost); free(cl); free(cu); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t j = m->num_col; j < ncol; j++)
+            p[j] = arriving_start(col_lower[j - m->num_col],
+                                  col_upper[j - m->num_col]);
+        m->mip_start = p;
     }
 
     free(m->col_cost);  free(m->col_lower); free(m->col_upper);
@@ -2943,6 +2970,12 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
         for (int64_t j = 0; j < m->num_col; j++)
             if (keep[j])
                 m->col_semi[at++] = m->col_semi[j];
+    }
+    if (m->mip_start != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            if (keep[j])
+                m->mip_start[at++] = m->mip_start[j];
     }
     if (m->num_sos > 0 && newidx != nullptr) {
         int64_t at = 0;

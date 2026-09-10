@@ -69,7 +69,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Rounding heuristic, root dive, feasibility pump | **done** | |
 | RINS, local branching, other improvement heuristics | **partial** | RINS exists behind a switch and is off |
 | Solution pool | **done** | |
-| MIP start and cutoff | **done** | |
+| MIP start and cutoff | **done** | the starting point follows its columns through `jaos_add_cols` and `jaos_delete_cols`; an arriving column starts at the point of its own box nearest zero |
 | Node limit, incumbent callback | **done** | |
 | Bound propagation, reduced-cost fixing | **partial** | both exist behind switches and are off |
 | MIP presolve: probing, clique table, coefficient tightening | **done** | coefficient tightening of binary columns in one-sided rows at the root, on behind `--tighten`; a clique table built once after the root solve from the all-binary rows and probing's implications, feeding the clique cuts, with fixing by conflict at each node behind `--clique-fix` and off (1.026x, `enigma` 1.853x); probing of the root's fractional binaries under a work cap behind `--probing` and off (1.109x with no column fixed on the MIP set) |
