@@ -136,3 +136,21 @@ the commit that took it, named here by hash.
    points", but it makes two vertices of one optimal face one entry, and a
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
+
+6. **Twenty-five SPECS rows say `done` and say nothing else.** A row with an
+   empty description is a feature nobody has written down, and twice on
+   2026-09-10 it was also a feature nobody had read. Row 71, the solution
+   pool, held one point twice (02-227). Rows 54 and 119, the basis file and
+   the solution file, came back clean (02-228). Two of the three were worth
+   the sweep.
+   The shape that works: pick a row, write down the properties its answer
+   must satisfy, generate models, and check them. Then fill the row in with
+   what the feature is, and break the code on purpose to prove the sweep
+   would have seen it.
+   `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
+   an answer to check, rather than a shape: postsolve to the caller's
+   indices (45), copy a model (51), presolve statistics (57), the incumbent
+   callback (73), bit-identical across machines (95), exact rational values
+   (98), the certificates (101), the IIS written as a model (103), a basis
+   or point another solver produced (105, 106), direct load from arrays
+   (116), and the progress callback that can stop (150).

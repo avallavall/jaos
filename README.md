@@ -100,6 +100,7 @@ mingw-w64 through the CMake package; see [`docs/build.md`](docs/build.md).
 make              # build/release/libjaos.a
 make test         # unit suite, the CLI's test, the install, CMake and Windows checks
 make sanitize     # unit suite under ASan and UBSan
+make configs      # the above over all five build configurations, clean between each
 make cli          # build/cli/jaos
 make shared       # build/release/libjaos.so, which the Python binding loads
 make python-test  # the binding's own suite
@@ -168,7 +169,7 @@ python/               the jaos package, over ctypes and the standard library onl
 cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers
-bench/measurements/   raw readings behind the refusals
+bench/measurements/   raw readings behind every measured verdict
 docs/                 formats, tolerances, scaling, work units, the build, the CLI
 docs/research/        designs worked out on paper
 ```

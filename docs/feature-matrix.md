@@ -194,7 +194,13 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
 **The solution pool moved from ○ to ● on 2026-09-06.**
 `jaos_set_mip_pool_size` keeps the best distinct integer points a branch
 and bound meets, best first, and `jaos_mip_pool_solution` reads them; the
-default of 1 is the incumbent alone, so the search is unchanged.
+default of 1 is the incumbent alone, so the search is unchanged. "Distinct"
+was the intent and not the behaviour until 2026-09-10: the check compared
+the two points by their bytes, so a column at `-0` against `+0` read as a
+difference, and 69 pools of 24000 held one point twice
+(`bench/measurements/02-227/`). Two entries can still be the same point
+where a continuous column differs in the last bits, which `TODO.md` row 5
+carries.
 
 This whole section is out of scope for the current milestone and is not
 scheduled. It is here because it is most of what separates an LP solver from a
