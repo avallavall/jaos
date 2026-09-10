@@ -120,7 +120,24 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    69% of its phase-2 ratio tests on a zero step and still walks 18131
    iterations whatever the step is offered, which points at the entering
    choice and not the leaving one, and steepest edge, Devex and Dantzig are
-   all already measured on the set (the SPECS row). The unread thing is the
-   sequence of entering columns itself: whether the walk revisits bases, and
-   if it does, what a record of the visited bases would cost against what the
-   18131 iterations cost.
+   all already measured on the set (the SPECS row).
+
+   **The walk does not revisit a basis**, read on 2026-09-10, and that is the
+   third thing measured away. Hashing every phase-2 basis, the set of basic
+   columns together with the bound each nonbasic sits at, and comparing it
+   against every earlier one: d6cube visits 16761 of them and repeats none,
+   degen3 772 and repeats none, fit1d 775 and seba 134 the same. So there is
+   no cycle for an anti-cycling rule to break, which is why Bland's rule
+   never pays here, and the 69% of steps that are zero are the walk crossing
+   between distinct bases of the same degenerate points rather than returning
+   to one.
+
+   What is left is the entering column, and the three pricing rules on offer
+   are all already measured on the set (the SPECS row), so a fresh session
+   should not re-measure them. The unread question is what those 16761 bases
+   sit on: how many distinct points, and whether the entering choice keeps
+   coming back to a point it has already left. That wants a record of the
+   points, and the objective is the wrong key to record them by, which was
+   tried and thrown away the same day: a leaving column snapping to its bound
+   moves the objective in its last bits while the point stands still, so the
+   count comes out above the number of non-zero steps, which is impossible.
