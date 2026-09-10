@@ -19,6 +19,7 @@ constexpr double CHECK_TOL = 1e-6;
 constexpr double OBJ_TOL = 1e-6;
 constexpr int64_t WORK_FACTOR = 10;
 static jaos_algorithm g_alg = JAOS_ALGORITHM_BARRIER;
+static bool g_augmented = false;
 static const char *g_label = "barrier";
 
 typedef struct {
@@ -138,6 +139,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
     r->check_d = verified(m, r->status_d, x, y);
 
     jaos_clear_basis(m);
+    m->cfg.barrier_augmented = g_augmented;
     if (jaos_set_work_limit(m, factor * (r->work_d + 1)) != JAOS_OK ||
         jaos_set_algorithm(m, g_alg) != JAOS_OK) {
         fail(r, B_ERROR, "cannot configure the method");
@@ -409,6 +411,9 @@ int main(int argc, char **argv)
                                 "not %s\n", a);
                 return 2;
             }
+        } else if (strcmp(argv[i], "-x") == 0) {
+            g_augmented = true;
+            g_label = "augmented";
         } else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1)

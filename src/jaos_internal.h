@@ -28,6 +28,7 @@ typedef struct {
     bool pdlp;
     bool concurrent;
     bool barrier_no_crossover;
+    bool barrier_augmented;
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;

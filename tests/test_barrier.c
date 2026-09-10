@@ -466,6 +466,114 @@ static void test_a_qp_whose_rows_leave_no_interior_still_solves(void)
     jaos_model_free(m);
 }
 
+/* The augmented system and the normal equations answer the same
+   question: eliminating dz from the first turns it into the second.  So
+   a model solved through either must give the same optimum.  The
+   augmented form is the one that keeps its shape when Q stops being
+   diagonal, which is what a full Q needs. */
+static void solve_both_ways(const char *path, double tol)
+{
+    double obj[2] = {0.0, 0.0};
+    int st[2] = {0, 0};
+    for (int way = 0; way < 2; way++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+        m->cfg.barrier_augmented = way == 1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        st[way] = (int)jaos_status_of(m);
+        if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[way]));
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT_MESSAGE(st[0], st[1],
+        "the augmented system and the normal equations must agree");
+    if (st[0] == JAOS_SOLVE_OPTIMAL)
+        TEST_ASSERT_DOUBLE_WITHIN(tol * (1.0 + fabs(obj[0])), obj[0], obj[1]);
+}
+
+static void test_the_augmented_system_agrees_with_the_normal_equations(void)
+{
+    solve_both_ways("tests/data/solve1.mps", 1e-6);
+    solve_both_ways("tests/data/t1.mps", 1e-6);
+    solve_both_ways("tests/data/unbounded.mps", 1e-6);
+    solve_both_ways("tests/data/t4_int.mps", 1e-6);
+}
+
+static void test_the_augmented_system_takes_every_bound_kind(void)
+{
+    double obj[2] = {0.0, 0.0};
+    double x[2][4];
+    for (int way = 0; way < 2; way++) {
+        jaos_model *m = every_bound_kind_lp();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+        m->cfg.barrier_augmented = way == 1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[way]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x[way], nullptr, nullptr, nullptr));
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6 * (1.0 + fabs(obj[0])), obj[0], obj[1]);
+    for (int j = 0; j < 4; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-5, x[0][j], x[1][j]);
+}
+
+static void test_the_augmented_system_takes_a_fixed_column(void)
+{
+
+    for (int way = 0; way < 2; way++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        const double inf = jaos_infinity();
+        const double cost[3] = {1.0, 2.0, -1.0};
+        const double cl[3] = {0.0, 3.0, 0.0};
+        const double cu[3] = {inf, 3.0, 4.0};
+        const double rl[2] = {2.0, -inf}, ru[2] = {inf, 9.0};
+        const int64_t as[4] = {0, 2, 4, 6};
+        const int64_t ai[6] = {0, 1, 0, 1, 0, 1};
+        const double av[6] = {1.0, 1.0, 1.0, 2.0, 1.0, 1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         6, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+        m->cfg.barrier_augmented = way == 1;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double v[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, v, nullptr, nullptr, nullptr));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, 3.0, v[1]);
+        jaos_model_free(m);
+    }
+}
+
+static void test_the_augmented_system_is_bit_identical_across_runs(void)
+{
+    double first[4];
+    for (int run = 0; run < 2; run++) {
+        jaos_model *m = every_bound_kind_lp();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_algorithm(m, JAOS_ALGORITHM_BARRIER));
+        m->cfg.barrier_augmented = true;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double x[4];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x, nullptr, nullptr, nullptr));
+        if (run == 0)
+            memcpy(first, x, sizeof x);
+        else
+            TEST_ASSERT_EQUAL_MEMORY(first, x, sizeof x);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -484,5 +592,9 @@ int main(void)
     RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
     RUN_TEST(test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts);
     RUN_TEST(test_a_qp_whose_rows_leave_no_interior_still_solves);
+    RUN_TEST(test_the_augmented_system_agrees_with_the_normal_equations);
+    RUN_TEST(test_the_augmented_system_takes_every_bound_kind);
+    RUN_TEST(test_the_augmented_system_takes_a_fixed_column);
+    RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
     return UNITY_END();
 }

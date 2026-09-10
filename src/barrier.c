@@ -12,6 +12,7 @@ constexpr double  BARRIER_STEP     = 0.99995;
 constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
+constexpr double  BARRIER_AUG_FLOOR = 1e-30;
 constexpr double  BARRIER_START_MIN = 1e-6;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
@@ -46,6 +47,15 @@ typedef struct {
     int64_t *mark;
     jm_chol chol;
 
+    bool augmented;
+    int64_t naug, nlive;
+    int64_t *aug_start, *aug_index;
+    double  *aug_value, *aug_rhs;
+    int64_t *aug_of;
+    int8_t  *aug_sign;
+    double  *inv;
+    jm_chol aug;
+
     jm_work work;
     double started;
     int64_t iters;
@@ -75,7 +85,11 @@ static void bx_free(bx *s)
     free(s->acc);   free(s->mark);
     free(s->dense); free(s->dense_idx);
     free(s->wmat);  free(s->smat);  free(s->tvec);  free(s->tvec2);
+    free(s->aug_start); free(s->aug_index); free(s->aug_value);
+    free(s->aug_rhs);   free(s->aug_of);    free(s->aug_sign);
+    free(s->inv);
     jm_chol_free(&s->chol);
+    jm_chol_free(&s->aug);
     memset(s, 0, sizeof *s);
 }
 
@@ -83,6 +97,7 @@ static jaos_status bx_init(bx *s, jaos_model *m)
 {
     memset(s, 0, sizeof *s);
     jm_chol_init(&s->chol);
+    jm_chol_init(&s->aug);
     s->m = m;
     s->nrow = m->num_row;
     s->ncol = m->num_col;
@@ -199,7 +214,8 @@ static jaos_status bx_init(bx *s, jaos_model *m)
         bx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
-    {
+    s->augmented = m->cfg.barrier_augmented;
+    if (!s->augmented) {
         const double avg = s->ncol > 0 ? (double)m->num_nz / (double)s->ncol
                                        : 0.0;
         double thr = BARRIER_DENSE_FACTOR * avg;
@@ -306,6 +322,157 @@ static jaos_status build_normal_pattern(bx *s)
     s->n_start[nr] = nnz;
     jm_work_add(&s->work, 2 * nnz * JM_WORK_NONZERO);
     return jm_chol_symbolic(&s->chol, nr, s->n_start, s->n_index, &s->work);
+}
+
+/* The augmented system the Newton step really solves:
+ *
+ *     [ -inv   E^T ] [ dz ]   [ rt ]
+ *     [   E    dI  ] [ dy ] = [ r  ]
+ *
+ * where inv is the diagonal of Theta^{-1}.  Eliminating dz gives the
+ * normal equations `form_normal` builds, so the two paths answer the
+ * same question; this one keeps its shape when inv stops being diagonal,
+ * which is what a full Q costs.  A fixed column has dz = 0 and is left
+ * out, so the live variables come first and the rows after them.
+ */
+static jaos_status build_aug_pattern(bx *s)
+{
+    const jaos_model *m = s->m;
+    const int64_t nr = s->nrow, nv = s->nvar;
+
+    s->aug_of = jm_alloc_array(nv > 0 ? nv : 1, sizeof *s->aug_of);
+    if (s->aug_of == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    int64_t live = 0;
+    for (int64_t j = 0; j < nv; j++)
+        s->aug_of[j] = s->kind[j] == FIXED ? -1 : live++;
+    s->nlive = live;
+    s->naug = live + nr;
+
+    s->aug_start = jm_alloc_array(s->naug + 1, sizeof *s->aug_start);
+    s->aug_sign = jm_alloc_array(s->naug > 0 ? s->naug : 1,
+                                 sizeof *s->aug_sign);
+    s->aug_rhs = jm_alloc_array(s->naug > 0 ? s->naug : 1,
+                                sizeof *s->aug_rhs);
+    s->inv = jm_alloc_array(nv > 0 ? nv : 1, sizeof *s->inv);
+    if (s->aug_start == nullptr || s->aug_sign == nullptr ||
+        s->aug_rhs == nullptr || s->inv == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t k = 0; k < live; k++)
+        s->aug_sign[k] = -1;
+    for (int64_t i = 0; i < nr; i++)
+        s->aug_sign[live + i] = 1;
+
+    int64_t nnz = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        nnz = 0;
+        for (int64_t j = 0; j < nv; j++) {
+            const int64_t c = s->aug_of[j];
+            if (c < 0)
+                continue;
+            if (pass == 1) {
+                s->aug_start[c] = nnz;
+                s->aug_index[nnz] = c;
+            }
+            nnz++;
+            if (j < s->ncol) {
+                for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+                    if (pass == 1)
+                        s->aug_index[nnz] = live + m->a_index[p];
+                    nnz++;
+                }
+            } else {
+                if (pass == 1)
+                    s->aug_index[nnz] = live + (j - s->ncol);
+                nnz++;
+            }
+        }
+
+        for (int64_t i = 0; i < nr; i++) {
+            if (pass == 1) {
+                s->aug_start[live + i] = nnz;
+                s->aug_index[nnz] = live + i;
+            }
+            nnz++;
+            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+                const int64_t c = s->aug_of[m->ar_index[p]];
+                if (c < 0)
+                    continue;
+                if (pass == 1)
+                    s->aug_index[nnz] = c;
+                nnz++;
+            }
+            if (s->aug_of[s->ncol + i] >= 0) {
+                if (pass == 1)
+                    s->aug_index[nnz] = s->aug_of[s->ncol + i];
+                nnz++;
+            }
+        }
+        if (pass == 0) {
+            s->aug_index = jm_alloc_array(nnz > 0 ? nnz : 1,
+                                          sizeof *s->aug_index);
+            s->aug_value = jm_alloc_array(nnz > 0 ? nnz : 1,
+                                          sizeof *s->aug_value);
+            if (s->aug_index == nullptr || s->aug_value == nullptr)
+                return JAOS_ERR_OUT_OF_MEMORY;
+        }
+    }
+    s->aug_start[s->naug] = nnz;
+    jm_work_add(&s->work, 2 * nnz * JM_WORK_NONZERO);
+    return jm_chol_symbolic(&s->aug, s->naug, s->aug_start, s->aug_index,
+                            &s->work);
+}
+
+static jaos_status form_aug(bx *s)
+{
+    const jaos_model *m = s->m;
+    const int64_t nv = s->nvar, live = s->nlive;
+    int64_t p = 0;
+    for (int64_t j = 0; j < nv; j++) {
+        if (s->aug_of[j] < 0)
+            continue;
+        s->aug_value[p++] = -s->inv[j];
+        if (j < s->ncol) {
+            for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+                s->aug_value[p++] = s->av[q];
+        } else {
+            s->aug_value[p++] = -1.0;
+        }
+    }
+    for (int64_t i = 0; i < s->nrow; i++) {
+        s->aug_value[p++] = BARRIER_DELTA;
+        for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++)
+            if (s->aug_of[m->ar_index[q]] >= 0)
+                s->aug_value[p++] = s->arv[q];
+        if (s->aug_of[s->ncol + i] >= 0)
+            s->aug_value[p++] = -1.0;
+    }
+    (void)live;
+    jm_work_add(&s->work, p * JM_WORK_NONZERO);
+    const jaos_status st = jm_ldlt_numeric(&s->aug, s->aug_value, s->aug_sign,
+                                           BARRIER_AUG_FLOOR, &s->work);
+    if (st == JAOS_OK && s->aug.replaced > 0)
+        jm_log(s->m, JAOS_LOG_DETAIL,
+               "  augmented: %lld pivots replaced at the floor",
+               (long long)s->aug.replaced);
+    return st;
+}
+
+static void newton_aug(bx *s, const double *r, const double *rt, double *dy,
+                       double *dz)
+{
+    const int64_t live = s->nlive;
+    for (int64_t j = 0; j < s->nvar; j++)
+        if (s->aug_of[j] >= 0)
+            s->aug_rhs[s->aug_of[j]] = rt[j];
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->aug_rhs[live + i] = r[i];
+    jm_ldlt_solve(&s->aug, s->aug_rhs, &s->work);
+    for (int64_t j = 0; j < s->nvar; j++)
+        dz[j] = s->aug_of[j] < 0 ? 0.0 : s->aug_rhs[s->aug_of[j]];
+    for (int64_t i = 0; i < s->nrow; i++)
+        dy[i] = s->aug_rhs[live + i];
+    jm_work_add(&s->work, 2 * s->naug * JM_WORK_NONZERO);
 }
 
 static jaos_status dense_update(bx *s)
@@ -446,6 +613,10 @@ static jaos_status form_normal(bx *s)
 static void newton(bx *s, const double *r, const double *rt, double *dy,
                    double *dz)
 {
+    if (s->augmented) {
+        newton_aug(s, r, rt, dy, dz);
+        return;
+    }
     for (int64_t j = 0; j < s->nvar; j++)
         s->tmp[j] = s->kind[j] == FIXED ? 0.0 : s->theta[j] * rt[j];
     mul_e(s, s->tmp, s->rhs);
@@ -582,9 +753,12 @@ static void step_lengths(bx *s, const double *dw, const double *dv,
 static jaos_status starting_point(bx *s)
 {
     const int64_t nv = s->nvar;
-    for (int64_t j = 0; j < nv; j++)
+    for (int64_t j = 0; j < nv; j++) {
         s->theta[j] = s->kind[j] == FIXED ? 0.0 : 1.0;
-    jaos_status st = form_normal(s);
+        if (s->augmented)
+            s->inv[j] = 1.0;
+    }
+    jaos_status st = s->augmented ? form_aug(s) : form_normal(s);
     if (st != JAOS_OK)
         return st;
 
@@ -759,7 +933,9 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
 static jaos_status bx_run(bx *s, jaos_solve_status *out)
 {
     jaos_model *m = s->m;
-    jaos_status st = build_normal_pattern(s);
+    s->augmented = m->cfg.barrier_augmented;
+    jaos_status st = s->augmented ? build_aug_pattern(s)
+                                  : build_normal_pattern(s);
     if (st != JAOS_OK)
         return st;
     st = starting_point(s);
@@ -865,9 +1041,11 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
             double inv = (k == 0 ? BARRIER_FREE_REG : reg) + s->quad[j];
             if (k & HAS_LO) inv += s->zl[j] / s->w[j];
             if (k & HAS_UP) inv += s->zu[j] / s->v[j];
+            if (s->augmented)
+                s->inv[j] = inv;
             s->theta[j] = 1.0 / inv;
         }
-        st = form_normal(s);
+        st = s->augmented ? form_aug(s) : form_normal(s);
         if (st != JAOS_OK)
             return st;
 
