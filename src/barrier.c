@@ -519,7 +519,13 @@ static jaos_status build_aug_pattern(bx *s)
                             &s->work);
 }
 
-static jaos_status form_aug(bx *s)
+/* `with_q` is false only for the starting point, which solves a plain
+ * least-squares system: the normal path builds it with theta at 1,
+ * which leaves Q's diagonal out, so Q's off-diagonal entries have to
+ * stay out too. Half of Q makes the block indefinite, the LDL
+ * replaces the pivots it cannot sign, and the dual iterate leaves
+ * the model on the first step. */
+static jaos_status form_aug(bx *s, bool with_q)
 {
     const jaos_model *m = s->m;
     const int64_t nv = s->nvar, live = s->nlive;
@@ -532,11 +538,11 @@ static jaos_status form_aug(bx *s)
             if (s->qs != nullptr)
                 for (int64_t q = s->qs[j]; q < s->qs[j + 1]; q++)
                     if (s->aug_of[s->qi[q]] >= 0)
-                        s->aug_value[p++] = -s->qv[q];
+                        s->aug_value[p++] = with_q ? -s->qv[q] : 0.0;
             if (s->qt_start != nullptr)
                 for (int64_t q = s->qt_start[j]; q < s->qt_start[j + 1]; q++)
                     if (s->aug_of[s->qt_index[q]] >= 0)
-                        s->aug_value[p++] = -s->qt_value[q];
+                        s->aug_value[p++] = with_q ? -s->qt_value[q] : 0.0;
             for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
                 s->aug_value[p++] = s->av[q];
         } else {
@@ -863,7 +869,8 @@ static jaos_status starting_point(bx *s)
         if (s->augmented)
             s->inv[j] = 1.0;
     }
-    jaos_status st = s->augmented ? form_aug(s) : form_normal(s);
+    jaos_status st = s->augmented ? form_aug(s, false)
+                                  : form_normal(s);
     if (st != JAOS_OK)
         return st;
 
@@ -1151,7 +1158,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                 s->inv[j] = inv;
             s->theta[j] = 1.0 / inv;
         }
-        st = s->augmented ? form_aug(s) : form_normal(s);
+        st = s->augmented ? form_aug(s, true) : form_normal(s);
         if (st != JAOS_OK)
             return st;
 

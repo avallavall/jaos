@@ -529,6 +529,65 @@ static void test_osil_carries_a_paired_q_both_ways(void)
     round_trip_paired(jaos_write_osil, jaos_read_osil, "build/tqq.osil");
 }
 
+/* The starting point solves a plain least-squares system, with theta at
+   1, which leaves Q's diagonal out.  Its off-diagonal entries have to
+   stay out too: half of Q makes the block indefinite, the LDL replaces
+   the pivots it cannot sign, and the dual iterate leaves the model on
+   the first step.  These are models where that happened, taken from
+   generated ones; each is convex by construction, Q = L L' + eps I. */
+static void solve_convex(int64_t nc, int64_t nr, const double *cost,
+                         const double *cl, const double *cu,
+                         const double *rl, const double *ru,
+                         const int64_t *as, const int64_t *ai,
+                         const double *av, int64_t nq, const int64_t *qr,
+                         const int64_t *qc, const double *qv)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, nc, nr, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     as[nc], as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, nq, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+        "a convex Q the barrier solves with the diagonal alone must not "
+        "defeat it with the pairs in");
+    jaos_model_free(m);
+}
+
+static void test_a_paired_q_reaches_the_optimum_the_diagonal_does(void)
+{
+
+    const double inf = jaos_infinity();
+    {
+        const double cost[3] = {1.0, -2.0, 0.0};
+        const double cl[3] = {0.0, -2.0, -inf};
+        const double cu[3] = {5.0, 5.0, inf};
+        const double rl[2] = {-inf, 1.0}, ru[2] = {4.0, inf};
+        const int64_t as[4] = {0, 2, 4, 5};
+        const int64_t ai[5] = {0, 1, 0, 1, 0};
+        const double av[5] = {1.0, 1.0, 2.0, -1.0, 1.0};
+
+        const int64_t qr[5] = {0, 1, 1, 2, 2};
+        const int64_t qc[5] = {0, 0, 1, 1, 2};
+        const double qv[5] = {4.25, 2.0, 5.25, -1.5, 2.5};
+        solve_convex(3, 2, cost, cl, cu, rl, ru, as, ai, av, 5, qr, qc, qv);
+    }
+    {
+
+        const double cost[2] = {-1.0, 1.0};
+        const double cl[2] = {-inf, 0.0};
+        const double cu[2] = {inf, 3.0};
+        const double rl[1] = {-inf}, ru[1] = {6.0};
+        const int64_t as[3] = {0, 1, 2};
+        const int64_t ai[2] = {0, 0};
+        const double av[2] = {1.0, 1.0};
+        const int64_t qr[3] = {0, 1, 1};
+        const int64_t qc[3] = {0, 0, 1};
+        const double qv[3] = {1.0, -1.0, 1.0};
+        solve_convex(2, 1, cost, cl, cu, rl, ru, as, ai, av, 3, qr, qc, qv);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -550,6 +609,7 @@ int main(void)
     RUN_TEST(test_lp_takes_the_block_undivided);
     RUN_TEST(test_qplib_carries_a_paired_q_both_ways);
     RUN_TEST(test_osil_carries_a_paired_q_both_ways);
+    RUN_TEST(test_a_paired_q_reaches_the_optimum_the_diagonal_does);
     return UNITY_END();
 }
 
