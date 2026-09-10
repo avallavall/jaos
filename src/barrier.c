@@ -739,6 +739,14 @@ static void newton(bx *s, const double *r, const double *rt, double *dy,
     jm_work_add(&s->work, 2 * s->nvar * JM_WORK_NONZERO);
 }
 
+/* A fixed column has no residual and no complementarity, so it drops out of
+ * the Newton system, but it still stands in the objective: `fixed_obj`
+ * carries its linear part and its share of `1/2 z'Qz` is added here.  It
+ * goes to both objectives with the same sign, because their difference is
+ * the complementarity of the columns that are not fixed and a fixed column
+ * has none; adding it to one side only would put a term in the gap that
+ * nothing drives to zero.
+ */
 static void residuals(bx *s, double *pobj, double *dobj, double *mu)
 {
     mul_e(s, s->z, s->rp);
@@ -752,6 +760,12 @@ static void residuals(bx *s, double *pobj, double *dobj, double *mu)
         if (k == FIXED) {
             s->rd[j] = 0.0;
             s->rw[j] = s->rv[j] = 0.0;
+            const double gqf = qz != nullptr ? qz[j] : s->quad[j] * s->z[j];
+            if (gqf != 0.0) {
+                const double half = 0.5 * gqf * s->z[j];
+                po += half;
+                dob += half;
+            }
             continue;
         }
         po += s->cost[j] * s->z[j];

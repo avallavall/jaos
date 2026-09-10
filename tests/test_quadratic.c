@@ -629,6 +629,72 @@ static void test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum(void)
     jaos_model_free(m);
 }
 
+typedef struct {
+    double last;
+    int lines;
+} barrier_log;
+
+static void catch_objective(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    barrier_log *b = user;
+    if (strncmp(line, "barrier ", 8) != 0)
+        return;
+    const char *p = strstr(line, "objective ");
+    if (p == nullptr)
+        return;
+    b->last = strtod(p + 10, nullptr);
+    b->lines++;
+}
+
+/* A fixed column drops out of the Newton system, and its share of
+   1/2 z'Qz used to drop out of the barrier's objectives with it: on this
+   model, whose optimum is 20/9 at (1/9, 1/6, 1, 1), the barrier reported
+   -5.444444445 where the two fixed columns account for 7.666666667.  The
+   share belongs to both objectives, so the gap and the walk do not move;
+   what moves is the number the barrier reports. */
+static void test_the_barrier_counts_a_fixed_column_in_its_objective(void)
+{
+    const double inf = jaos_infinity();
+    const double cost[4] = {-5.0, -2.0, -4.0, -1.0};
+    const double cl[4] = {0.0, 0.0, 1.0, 1.0};
+    const double cu[4] = {1.0, 1.0, 1.0, 1.0};
+    const double rl[2] = {-inf, -inf}, ru[2] = {2.0, 4.0};
+    const int64_t as[5] = {0, 2, 4, 5, 7};
+    const int64_t ai[7] = {0, 1, 0, 1, 0, 0, 1};
+    const double av[7] = {-1.0, 2.0, -2.0, 2.0, -2.0, 2.0, 1.0};
+    const int64_t qr[9] = {0, 1, 2, 1, 2, 3, 2, 3, 3};
+    const int64_t qc[9] = {0, 0, 0, 1, 1, 1, 2, 2, 3};
+    const double qv[9] = {9.0, 6.0, 3.0, 8.0, 4.0, -4.0, 6.0, -2.0, 13.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     7, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 9, qr, qc, qv));
+
+    barrier_log b = {0.0, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_objective, &b));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(TOL, 20.0 / 9.0, obj);
+    TEST_ASSERT_TRUE(b.lines > 0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, obj, b.last);
+
+    double x[4];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0 / 9.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0 / 6.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, x[3]);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -652,6 +718,7 @@ int main(void)
     RUN_TEST(test_osil_carries_a_paired_q_both_ways);
     RUN_TEST(test_a_paired_q_reaches_the_optimum_the_diagonal_does);
     RUN_TEST(test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum);
+    RUN_TEST(test_the_barrier_counts_a_fixed_column_in_its_objective);
     return UNITY_END();
 }
 

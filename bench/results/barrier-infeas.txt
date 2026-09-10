@@ -2,7 +2,7 @@
 bgdbg1       ok        dual=0/68 barrier=0+0/68 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 bgetam       overrun   dual=15/37466 barrier=0+0/683568 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
 bgindy       overrun   dual=2/390966 barrier=0+0/52807873 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
-bgprtr       ok        dual=25/15075 barrier=6+25/60180 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
+bgprtr       ok        dual=28/16247 barrier=6+28/61352 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 box1         ok        dual=16/25263 barrier=2+16/139063 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 ceria3d      ok        dual=0/23485 barrier=0+0/23485 verdict=infeasible/infeasible obj=0/0 checker=dual:n/a/barrier:n/a 
 chemcom      overrun   dual=6/21681 barrier=1+0/383457 verdict=infeasible/work limit reached obj=0/0 checker=dual:n/a/barrier:n/a over 10x the dual's work
@@ -31,8 +31,8 @@ woodinfe     ok        dual=0/1 barrier=0+0/1 verdict=infeasible/infeasible obj=
 
 -- barrier against dual --
 agreed 23 (checker accepts 23, interior 0), skipped 0, overrun 6, failed 0, disagreed 0, rejected 0, errors 0
-work units barrier/dual, geometric mean:        1.7872
-iterations (barrier+1)/(dual+1), geometric mean: 1.0587
+work units barrier/dual, geometric mean:        1.7829
+iterations (barrier+1)/(dual+1), geometric mean: 1.0578
 work ratio, best  bgdbg1 at 1.0000
 work ratio, worst cplex2 at 6.0216
 most barrier iterations: gosh at 25187
