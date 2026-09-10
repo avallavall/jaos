@@ -26,6 +26,25 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    Reaching it needs a reading over the MIP set, because the same
    propagation would run on every node.
 
+0b. **A resume does not follow the path the uninterrupted run took.**
+   Measured 2026-09-10 (the SPECS row): of 33102 runs stopped at a work
+   limit and then finished, 15 reach a different answer. 9 of them keep the
+   objective bit for bit and stand on another point of the same optimal
+   face; the other 6 move the objective by about 2e-15. 10 on the dual, 5
+   on the primal, none on the barrier. Two runs at the same limit still
+   agree exactly, which is what `docs/cli.md` promises, so nothing
+   documented is broken. What is missing is the stronger property a caller
+   would expect: a stop should not change the answer.
+
+   The cause is the re-entry. `sx_init` builds the factorisation again and
+   the pricing weights with it, so the walk after the stop is not the walk
+   that would have happened. Carrying that state across the stop is the
+   fix, and it is a real piece of work: the LU, its update chain, the
+   steepest-edge weights and the Harris pass's state all have to survive.
+   It changes `simplex.c`, so it needs the four gates. Measure the cost of
+   holding the state as well as the benefit, because a solve that never
+   stops would pay for it too.
+
 1. **Windows build, the rest.** The shim is in (`src/jaos_sys.h`),
    mingw-w64 builds the library and the tool, wine gives the Linux answers,
    and the Python binding knows `jaos.dll`. Missing: a native Windows run

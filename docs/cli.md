@@ -127,6 +127,14 @@ clock, and where a clock cuts is not reproducible. Its `iterations` and
 `work_units` lines can differ between runs. A run that stops on
 `--work-limit` is reproducible, because the work counter is deterministic.
 
+Resuming is a weaker promise than that. Two runs at the same `--work-limit`
+give the same output, byte for byte. A run that stops and is then finished
+does not always reach the answer an uninterrupted run reaches: the re-entry
+rebuilds the factorisation, which moves the walk, so it may stand on another
+point of the same optimal face or move the objective in its last bits.
+Measured over 33102 stopped runs, 15 land elsewhere, 9 of them with the
+objective still bit for bit the same. `SPECS.md` carries the reading.
+
 The solver's log, when `--log` asks for one, goes to stderr and never to
 stdout. Logging never changes an answer: a model solved at `--log detail`
 prints the same facts as the same model solved silently.
