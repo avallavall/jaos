@@ -460,6 +460,107 @@ static void test_a_mutual_singleton_on_an_open_row_ranges(void)
 #endif
 }
 
+/* A degenerate optimum: three constraints are tight at (1, 1) where two
+   columns need only two, because r0 and r1 are the same row written twice.
+   Several bases hold that point and they do not all report the same
+   interval, so this is where ranging can be wrong while every non-degenerate
+   model agrees. What ranging claims is that the basis holds across the
+   interval, which makes the objective linear in the parameter; the check is
+   that and needs no sign convention. */
+static jaos_model *degenerate_pair(void)
+{
+    const double c[]  = {-2.0, -1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {3.0, 3.0};
+    const double rl[] = {-INFINITY, -INFINITY, -INFINITY};
+    const double ru[] = {2.0, 2.0, 1.0};
+    const int64_t s[]  = {0, 3, 5};
+    const int64_t ix[] = {0, 1, 2, 0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     5, s, ix, v));
+    return m;
+}
+
+static double solve_variant(int which, int64_t k, double value)
+{
+    jaos_model *m = degenerate_pair();
+    if (which == 0)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, k, value));
+    else if (which == 1)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_row_bounds(m, k, -INFINITY, value));
+    else {
+        double lo, up;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, k, &lo, &up));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, which == 2
+            ? jaos_set_col_bounds(m, k, value, up)
+            : jaos_set_col_bounds(m, k, lo, value));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double z = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &z));
+    jaos_model_free(m);
+    return z;
+}
+
+static void linear_across(int which, int64_t k, double lo, double hi)
+{
+    if (!isfinite(lo) || !isfinite(hi) || hi <= lo)
+        return;
+    const double za = solve_variant(which, k, lo);
+    const double zb = solve_variant(which, k, hi);
+    const double zm = solve_variant(which, k, lo + 0.5 * (hi - lo));
+    const double want = 0.5 * (za + zb);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(want)), want, zm);
+}
+
+static void test_a_degenerate_optimum_ranges_like_any_other(void)
+{
+    jaos_model *m = degenerate_pair();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double x[2], act[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, nullptr, nullptr));
+    NEAR(1.0, x[0]);
+    NEAR(1.0, x[1]);
+    NEAR(2.0, act[0]);
+    NEAR(2.0, act[1]);
+    NEAR(1.0, act[2]);
+
+    double z0 = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &z0));
+    NEAR(-3.0, z0);
+
+    double clo[2], cup[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cost_ranging(m, clo, cup));
+    double rll[3], rlh[3], rul[3], ruh[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_rhs_ranging(m, rll, rlh, rul, ruh));
+    double bll[2], blh[2], bul[2], buh[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_bound_ranging(m, bll, blh, bul, buh));
+    jaos_model_free(m);
+
+    for (int64_t j = 0; j < 2; j++) {
+        const double c0 = j == 0 ? -2.0 : -1.0;
+        if (isfinite(clo[j]))
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(z0)),
+                z0 + (clo[j] - c0) * x[j], solve_variant(0, j, clo[j]));
+        if (isfinite(cup[j]))
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(z0)),
+                z0 + (cup[j] - c0) * x[j], solve_variant(0, j, cup[j]));
+    }
+    for (int64_t i = 0; i < 3; i++)
+        linear_across(1, i, rul[i], ruh[i]);
+    for (int64_t j = 0; j < 2; j++) {
+        linear_across(2, j, bll[j], blh[j]);
+        linear_across(3, j, bul[j], buh[j]);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -473,5 +574,6 @@ int main(void)
     RUN_TEST(test_the_solver_agrees_with_every_range);
     RUN_TEST(test_the_oracle_rejects_a_widened_range);
     RUN_TEST(test_ranging_is_reproducible);
+    RUN_TEST(test_a_degenerate_optimum_ranges_like_any_other);
     return UNITY_END();
 }
