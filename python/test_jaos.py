@@ -794,6 +794,20 @@ class TestGrowingAndShrinking(unittest.TestCase):
             with self.assertRaises(jaos.JaosError):
                 m.delete_cols([0, 0])
 
+    def test_deleting_an_indicator_s_switch_is_refused(self):
+        with jaos.Model() as m:
+            m.load(3, 1, [1.0, 1.0, 0.0], [0.0, 0.0, 0.0], [4.0, 4.0, 1.0],
+                   [6.0], [8.0], [0, 1, 2, 2], [0, 0], [1.0, 1.0])
+            m.set_col_integer(2, True)
+            m.set_row_indicator(0, 2, 1)
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.delete_cols([2])
+            self.assertIn("indicator", str(ctx.exception))
+            self.assertEqual(m.num_col, 3)
+            m.delete_rows([0])
+            m.delete_cols([2])
+            self.assertEqual((m.num_col, m.num_row), (2, 0))
+
 class TestBasisRoundTrip(unittest.TestCase):
     def test_a_basis_read_out_can_be_handed_back(self):
         with jaos.Model() as a:

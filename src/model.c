@@ -2822,6 +2822,21 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
     bool *keep = deletion_mask(m, num_del, cols, m->num_col, "column");
     if (keep == nullptr)
         return m->err[0] ? JAOS_ERR_INVALID_INPUT : JAOS_ERR_OUT_OF_MEMORY;
+
+    if (m->row_ind_col != nullptr) {
+        for (int64_t i = 0; i < m->num_row; i++) {
+            const int64_t c = m->row_ind_col[i];
+            if (c >= 0 && !keep[c]) {
+                jm_set_err(m, "column %lld switches indicator row %lld on and "
+                              "off, and deleting it would leave that row "
+                              "holding always; delete the row first",
+                           (long long)c, (long long)i);
+                free(keep);
+                return JAOS_ERR_INVALID_INPUT;
+            }
+        }
+    }
+
     int64_t *newidx = nullptr;
     if (m->num_sos > 0 || m->row_ind_col != nullptr ||
         m->q_start != nullptr) {

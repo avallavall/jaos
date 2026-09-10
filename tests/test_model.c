@@ -1536,6 +1536,84 @@ static void test_a_quadratic_term_follows_its_column_through_copy_add_and_delete
     jaos_model_free(m);
 }
 
+static void test_deleting_an_indicator_s_switch_is_refused(void)
+{
+    const double cost[3] = {1.0, 1.0, 0.0};
+    const double cl[3]   = {0.0, 0.0, 0.0};
+    const double cu[3]   = {4.0, 4.0, 1.0};
+    const double rl[1]   = {6.0};
+    const double ru[1]   = {8.0};
+    const int64_t as[4]  = {0, 1, 2, 2};
+    const int64_t ai[2]  = {0, 0};
+    const double  av[2]  = {1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 2, 1));
+
+    /* The row is off while column 2 may be zero, so nothing has to hold. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = -1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, obj);
+
+    const int64_t gone[1] = {2};
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_delete_cols(m, 1, gone));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "indicator"));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+
+    int64_t col = -2;
+    int val = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(m, 0, &col, &val));
+    TEST_ASSERT_EQUAL_INT64(2, col);
+    TEST_ASSERT_EQUAL_INT(1, val);
+
+    /* Dropping the row first is the way through, and then the column goes. */
+    const int64_t row[1] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, row));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, gone));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_row(m));
+    jaos_model_free(m);
+}
+
+static void test_a_column_beside_an_indicator_still_deletes(void)
+{
+    const double cost[3] = {1.0, 1.0, 0.0};
+    const double cl[3]   = {0.0, 0.0, 0.0};
+    const double cu[3]   = {4.0, 4.0, 1.0};
+    const double rl[1]   = {6.0};
+    const double ru[1]   = {8.0};
+    const int64_t as[4]  = {0, 1, 2, 2};
+    const int64_t ai[2]  = {0, 0};
+    const double  av[2]  = {1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 2, 1));
+
+    const int64_t gone[1] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, gone));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+
+    int64_t col = -2;
+    int val = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_indicator(m, 0, &col, &val));
+    TEST_ASSERT_EQUAL_INT64(1, col);
+    TEST_ASSERT_EQUAL_INT(1, val);
+    jaos_model_free(m);
+}
+
 static void test_the_statistics_count_what_the_model_is(void)
 {
 
@@ -1642,6 +1720,8 @@ int main(void)
     RUN_TEST(test_names_ride_with_their_rows_and_columns);
     RUN_TEST(test_a_copy_is_the_same_problem_and_not_the_same_answer);
     RUN_TEST(test_a_quadratic_term_follows_its_column_through_copy_add_and_delete);
+    RUN_TEST(test_deleting_an_indicator_s_switch_is_refused);
+    RUN_TEST(test_a_column_beside_an_indicator_still_deletes);
     RUN_TEST(test_the_model_name_is_jaos_until_given);
     return UNITY_END();
 }
