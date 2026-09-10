@@ -47,7 +47,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Sparse LU, Markowitz pivoting, Forrest-Tomlin update | **done** | |
 | Hyper-sparse triangular solves | **done** | both directions, FTRAN behind a density prediction per kind of vector; closed on instruction counts |
 | Modify bounds, costs, coefficients, objective sense and constant | **done** | each reads back |
-| Add and delete rows and columns | **done** | |
+| Add and delete rows and columns | **done** | Read 2026-09-10 against the same model built from nothing: a spec holds what the model should be, each edit is applied to the spec and to a live model at once, and at the end the spec is loaded into a second model and the two are compared field by field, including every coefficient, every SOS member and weight, and every row's indicator. 12000 models over four seeds, 40920 edits of ten kinds, 3314 of them deletes, with SOS sets on about a third, indicator rows on about a third, and semi-continuous and quadratic columns throughout: none differ. 428 edits that the two refusals below forbid were asked for anyway and all 428 were refused. The sweep is not vacuous: dropping the SOS renumbering from `jaos_delete_cols` makes it report 91 wrong of 3000 at one seed |
 | Copy a model | **done** | |
 | Row, column and objective names | **done** | |
 | Warm start from the previous basis | **done** | the basis a solve leaves is the next solve's start unless `jaos_clear_basis` drops it. Checked 2026-09-09 over 822 generated models: after a column bound moves, the warm re-solve and a cold one give the same objective on every one |
