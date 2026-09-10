@@ -74,3 +74,26 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    `docs/tolerances.md` records that JAOS does not carry. Either may end in a
    fourth refusal line rather than a fix, and that is a fair outcome to plan
    for.
+
+   **The first thread is read, and it ended in the fourth refusal**
+   (`bench/refusals.txt`, primal-noise-floor). The measure is the one at
+   fault and the tolerance is not: a reduced cost is a difference of sums the
+   size of `column_traffic(v)`, dfl001's traffic reaches 2.0e7, and past
+   iteration 37000 the pricing walks candidates whose breach is five decades
+   under the rounding of those sums. At the iterations logged there, 0 of the
+   candidates stood over their own noise and 7 under it, the chosen column's
+   breach 1.79e-9 against 4.45e-4 of noise; on one of them the steepest-edge
+   score preferred a column under its noise while a real candidate was there.
+   The settle path beside it already refuses to move such a column
+   (`can_move`, `wants_a_pivot`), and the pricing does not. What the refusal
+   settles is that the reading cannot go in the pricing in either form. As a
+   filter it decides optimality, and a floor that grows with the column
+   discards reduced costs the checker calls real breaches: dfl001 came back
+   `DISAGREE`. As an order it is sound and it is idle, because d6cube, fit1d,
+   fit2d and seba never produce a candidate under its floor and walk to the
+   same iteration and the same work unit either way. So the phenomenon is
+   dfl001's alone and the other four are a different fault: **they are not
+   chasing noise, and whatever holds them is still unnamed.** What is left of
+   this thread is the reading used to end the walk rather than to price it,
+   or a floor stated in the model's units. The second thread, EXPAND, is
+   still unmeasured.
