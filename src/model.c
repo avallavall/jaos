@@ -884,6 +884,16 @@ jaos_status jaos_set_col_integer(jaos_model *m, int64_t j, bool is_integer)
 {
     if (m == nullptr || j < 0 || j >= m->num_col)
         return JAOS_ERR_INVALID_INPUT;
+    if (!is_integer && m->row_ind_col != nullptr) {
+        for (int64_t i = 0; i < m->num_row; i++)
+            if (m->row_ind_col[i] == j) {
+                jm_set_err(m, "column %lld switches indicator row %lld on and "
+                              "off, and an indicator column has to be "
+                              "integer; clear the row's indicator first",
+                           (long long)j, (long long)i);
+                return JAOS_ERR_INVALID_INPUT;
+            }
+    }
     if (m->col_integer == nullptr) {
         if (!is_integer)
             return JAOS_OK;

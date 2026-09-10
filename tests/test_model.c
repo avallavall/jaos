@@ -1583,6 +1583,46 @@ static void test_deleting_an_indicator_s_switch_is_refused(void)
     jaos_model_free(m);
 }
 
+static void test_taking_the_integer_mark_off_an_indicator_s_switch(void)
+{
+    const double cost[3] = {1.0, 1.0, 0.0};
+    const double cl[3]   = {0.0, 0.0, 0.0};
+    const double cu[3]   = {4.0, 4.0, 1.0};
+    const double rl[1]   = {6.0};
+    const double ru[1]   = {8.0};
+    const int64_t as[4]  = {0, 1, 2, 2};
+    const int64_t ai[2]  = {0, 0};
+    const double  av[2]  = {1.0, 1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 2, 1));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_col_integer(m, 2, false));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "indicator"));
+    bool is_int = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 2, &is_int));
+    TEST_ASSERT_TRUE(is_int);
+
+    /* Setting it again is not a change and is allowed. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    /* A column no indicator reads may lose its mark. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, false));
+
+    /* Clearing the indicator is the way through. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, -1, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 2, &is_int));
+    TEST_ASSERT_FALSE(is_int);
+    jaos_model_free(m);
+}
+
 static void test_a_column_beside_an_indicator_still_deletes(void)
 {
     const double cost[3] = {1.0, 1.0, 0.0};
@@ -1721,6 +1761,7 @@ int main(void)
     RUN_TEST(test_a_copy_is_the_same_problem_and_not_the_same_answer);
     RUN_TEST(test_a_quadratic_term_follows_its_column_through_copy_add_and_delete);
     RUN_TEST(test_deleting_an_indicator_s_switch_is_refused);
+    RUN_TEST(test_taking_the_integer_mark_off_an_indicator_s_switch);
     RUN_TEST(test_a_column_beside_an_indicator_still_deletes);
     RUN_TEST(test_the_model_name_is_jaos_until_given);
     return UNITY_END();
