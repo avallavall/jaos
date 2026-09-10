@@ -695,6 +695,123 @@ static void test_the_barrier_counts_a_fixed_column_in_its_objective(void)
     jaos_model_free(m);
 }
 
+/* Maximised, a paired Q runs the other way through the convexity test, the
+   barrier and the checker: convex there means -Q positive semi-definite.
+   maximise 3x0 + 3x1 - x0^2 - x1^2 - x0 x1 has its optimum at (1, 1), inside
+   every bound, worth 3.  Negating the objective and minimising must give the
+   same point and -3.  Widening the pair to -3 makes -Q indefinite, det
+   4 - 9 = -5, and the model has to be refused by name. */
+static void test_a_paired_q_maximised(void)
+{
+    const double inf = jaos_infinity();
+    const double cost[2] = {3.0, 3.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {3.0, 3.0};
+    const double rl[1] = {-inf}, ru[1] = {4.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    const int64_t qr[3] = {0, 1, 1}, qc[3] = {0, 1, 0};
+
+    {
+        const double qv[3] = {-2.0, -2.0, -1.0};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[2];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, 3.0, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-5, 1.0, x[0]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-5, 1.0, x[1]);
+        jaos_model_free(m);
+    }
+    {
+        const double negcost[2] = {-3.0, -3.0};
+        const double qv[3] = {2.0, 2.0, 1.0};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, negcost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, -3.0, obj);
+        jaos_model_free(m);
+    }
+    {
+        const double qv[3] = {-2.0, -2.0, -3.0};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "not convex"));
+        jaos_model_free(m);
+    }
+    {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        const double qv[3] = {-2.0, -2.0, -1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 1.0));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+        jaos_model_free(m);
+    }
+}
+
+/* The model keeps Q as a diagonal in col_quad and a strict lower triangle
+   beside it, and two calls write into that.  Whichever way the same matrix
+   goes in, the same matrix has to read back. */
+static void test_the_two_quadratic_calls_reach_the_same_matrix(void)
+{
+    const int64_t qr[5] = {0, 1, 1, 2, 2}, qc[5] = {0, 1, 0, 2, 1};
+    const double qv[5] = {4.0, 5.0, 2.0, 6.0, -1.0};
+    const int64_t off_r[2] = {1, 2}, off_c[2] = {0, 1};
+    const double off_v[2] = {2.0, -1.0};
+
+    jaos_model *a = paired_qp();
+    jaos_model *b = paired_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(a, 1, (const double[]){0.0}, (const double[]){0.0},
+                      (const double[]){3.0}, 0, (const int64_t[]){0, 0},
+                      (const int64_t[]){0}, (const double[]){0.0}));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(b, 1, (const double[]){0.0}, (const double[]){0.0},
+                      (const double[]){3.0}, 0, (const int64_t[]){0, 0},
+                      (const int64_t[]){0}, (const double[]){0.0}));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(a, 5, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(b, 2, off_r, off_c, off_v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(b, 0, 4.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(b, 1, 5.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(b, 2, 6.0));
+
+    const int64_t n = jaos_quadratic_nz(a);
+    TEST_ASSERT_EQUAL_INT64(5, n);
+    TEST_ASSERT_EQUAL_INT64(n, jaos_quadratic_nz(b));
+
+    int64_t ra[5], ca[5], rb[5], cb[5];
+    double va[5], vb[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_quadratic(a, ra, ca, va));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_quadratic(b, rb, cb, vb));
+    for (int64_t k = 0; k < n; k++) {
+        TEST_ASSERT_EQUAL_INT64(ra[k], rb[k]);
+        TEST_ASSERT_EQUAL_INT64(ca[k], cb[k]);
+        TEST_ASSERT_DOUBLE_WITHIN(0.0, va[k], vb[k]);
+    }
+    jaos_model_free(a);
+    jaos_model_free(b);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -719,6 +836,8 @@ int main(void)
     RUN_TEST(test_a_paired_q_reaches_the_optimum_the_diagonal_does);
     RUN_TEST(test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum);
     RUN_TEST(test_the_barrier_counts_a_fixed_column_in_its_objective);
+    RUN_TEST(test_a_paired_q_maximised);
+    RUN_TEST(test_the_two_quadratic_calls_reach_the_same_matrix);
     return UNITY_END();
 }
 
