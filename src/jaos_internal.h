@@ -394,6 +394,7 @@ JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
 void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
 bool jm_model_has_quadratic(const jaos_model *m);
+void jm_model_drop_quadratic(jaos_model *m);
 bool jm_model_has_offdiagonal(const jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,

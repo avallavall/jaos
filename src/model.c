@@ -960,6 +960,15 @@ static void drop_offdiagonal(jaos_model *m)
     m->q_nz = 0;
 }
 
+void jm_model_drop_quadratic(jaos_model *m)
+{
+    if (m == nullptr)
+        return;
+    free(m->col_quad);
+    m->col_quad = nullptr;
+    drop_offdiagonal(m);
+}
+
 /* The whole quadratic objective at once: the objective becomes
  * c'x + 1/2 x'Qx with Q symmetric.  Every off-diagonal pair is given
  * once, as (i, j) or as (j, i); the diagonal goes to col_quad, where the

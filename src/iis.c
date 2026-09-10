@@ -252,7 +252,8 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
             goto out;
     }
     if (st != JAOS_SOLVE_INFEASIBLE) {
-        bool relaxed = m->num_sos > 0 || m->row_ind_col != nullptr;
+        bool relaxed = m->num_sos > 0 || m->row_ind_col != nullptr ||
+                       m->q_nz > 0;
         for (int64_t j = 0; !relaxed && j < g.ncol; j++)
             relaxed = (m->col_integer != nullptr && m->col_integer[j]) ||
                       (m->col_semi != nullptr && m->col_semi[j]) ||
@@ -321,7 +322,7 @@ jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side,
     c->cfg.concurrent = false;
     free(c->col_integer);  c->col_integer = nullptr;
     free(c->col_semi);     c->col_semi = nullptr;
-    free(c->col_quad);     c->col_quad = nullptr;
+    jm_model_drop_quadratic(c);
     free(c->row_ind_col);  c->row_ind_col = nullptr;
     free(c->row_ind_val);  c->row_ind_val = nullptr;
     c->num_sos = 0;

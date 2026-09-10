@@ -419,12 +419,21 @@ void jm_symmetry_free(jm_symmetry *s)
     memset(s, 0, sizeof *s);
 }
 
+/* The graph carries the rows, and the colour carries the cost, the bounds,
+ * the integrality and the diagonal of Q.  Nothing in it carries a pair off
+ * the diagonal, so two columns that Q tells apart come out the same colour
+ * with the same neighbours and the search reports a generator the model has
+ * not got.  Orbital fixing acts on that generator, so an off-diagonal Q
+ * stops the search rather than misinform it.  What would let it run is the
+ * pairs as edges between the two columns, labelled by value as the row
+ * entries are.
+ */
 jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
                              jm_symmetry *out, int64_t *work)
 {
     memset(out, 0, sizeof *out);
     out->nc = m->num_col;
-    if (m->num_col == 0 || m->num_sos > 0)
+    if (m->num_col == 0 || m->num_sos > 0 || m->q_nz > 0)
         return JAOS_OK;
     sg g = {0};
     jaos_status st = sg_build(&g, m);

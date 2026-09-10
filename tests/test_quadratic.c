@@ -588,6 +588,47 @@ static void test_a_paired_q_reaches_the_optimum_the_diagonal_does(void)
     }
 }
 
+/* The tree scores a rounded heuristic point itself, and it used to score it
+   with the diagonal of Q alone.  Off the diagonal the score can come out
+   better than any point really is; the point becomes the incumbent and the
+   bound it hands the tree cuts off the true optimum.  Two separable blocks
+   and one lone column, so every point is walkable by hand: the answer is
+   x = (0, 0, 1, 0, 0) at -3, and the diagonal alone scores (0, 0, 1, 0, 1)
+   at -3.5, which is what used to do the cutting. */
+static void test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum(void)
+{
+    jaos_model *m = fresh();
+    const double cost[5] = {1.0, -2.0, -5.0, 6.0, -3.0};
+    const double cl[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    const double cu[5] = {2.0, 1.0, 1.0, 2.0, 1.0};
+    const double rl[1] = {0.0}, ru[1] = {0.0};
+    const int64_t as[6] = {0, 0, 0, 0, 0, 0}, ai[1] = {0};
+    const double av[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     0, as, ai, av));
+    const int64_t qr[7] = {0, 1, 1, 2, 3, 4, 4};
+    const int64_t qc[7] = {0, 0, 1, 2, 3, 2, 4};
+    const double qv[7] = {1.0, -2.0, 13.0, 4.0, 9.0, 2.0, 5.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 7, qr, qc, qv));
+    for (int64_t j = 0; j < 5; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(TOL, -3.0, obj);
+
+    double x[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_solution(m, x, nullptr, nullptr, nullptr));
+    const double want[5] = {0.0, 0.0, 1.0, 0.0, 0.0};
+    for (int j = 0; j < 5; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, want[j], x[j]);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -610,6 +651,7 @@ int main(void)
     RUN_TEST(test_qplib_carries_a_paired_q_both_ways);
     RUN_TEST(test_osil_carries_a_paired_q_both_ways);
     RUN_TEST(test_a_paired_q_reaches_the_optimum_the_diagonal_does);
+    RUN_TEST(test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum);
     return UNITY_END();
 }
 

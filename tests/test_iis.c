@@ -559,6 +559,41 @@ static void test_the_subsystem_of_a_mip_carries_no_integrality(void)
     jaos_model_free(m);
 }
 
+/* A subsystem is a set of bound sides with no objective, so the quadratic
+   term goes with the objective.  The builder used to free the diagonal and
+   leave the pairs behind, which left the subsystem a QP. */
+static void test_the_subsystem_of_a_quadratic_carries_no_quadratic(void)
+{
+    const double cost[2] = {0.0, 0.0}, cl[2] = {0.0, 0.0}, cu[2] = {3.0, 3.0};
+    const double rl[2] = {3.0, -INFINITY}, ru[2] = {INFINITY, 1.0};
+    const int64_t as[3] = {0, 2, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {1.0, 1.0, 1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    const int64_t qr[3] = {0, 1, 1}, qc[3] = {0, 0, 1};
+    const double qv[3] = {2.0, 1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_quadratic_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    jaos_iis_side rs[2], cs[2];
+    jaos_iis_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis(m, rs, cs, &rep));
+    TEST_ASSERT_TRUE(rep.members > 0);
+
+    jaos_model *sub = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_iis_model(m, rs, cs, &sub));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_quadratic_nz(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(sub));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(sub));
+    jaos_model_free(sub);
+    jaos_model_free(m);
+}
+
 static void test_an_infeasible_only_by_integrality_model_says_so(void)
 {
     const double cost[1] = {1.0}, cl[1] = {0.0}, cu[1] = {1.0};
@@ -599,6 +634,7 @@ int main(void)
     RUN_TEST(test_a_subsystem_missing_a_member_is_feasible);
     RUN_TEST(test_the_subsystem_builder_rejects_bad_arguments);
     RUN_TEST(test_the_subsystem_of_a_mip_carries_no_integrality);
+    RUN_TEST(test_the_subsystem_of_a_quadratic_carries_no_quadratic);
     RUN_TEST(test_an_infeasible_only_by_integrality_model_says_so);
     return UNITY_END();
 }

@@ -201,6 +201,50 @@ static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)
     jaos_model_free(m);
 }
 
+/* Columns 0 to 3 agree in cost, in bounds, in integrality and in the one
+   row.  They differ only off the diagonal of Q: column 3 pairs with column
+   4 and the other three do not.  The graph carries no pair, so the search
+   used to report three generators on a model with no symmetry, and orbital
+   fixing acted on them.  The answer is x3 = x4 = 1 at -3. */
+static void test_an_off_diagonal_q_stops_the_search(void)
+{
+    const double cost[5] = {-1.0, -1.0, -1.0, -1.0, -3.0};
+    const double cl[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    const double cu[5] = {1.0, 1.0, 1.0, 1.0, 1.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {1.0};
+    const int64_t as[6] = {0, 1, 2, 3, 4, 4}, ai[4] = {0, 0, 0, 0};
+    const double av[4] = {1.0, 1.0, 1.0, 1.0};
+    const int64_t qr[6] = {0, 1, 2, 3, 4, 4};
+    const int64_t qc[6] = {0, 1, 2, 3, 3, 4};
+    const double qv[6] = {1.0, 1.0, 1.0, 1.0, -2.0, 5.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 6, qr, qc, qv));
+    for (int64_t j = 0; j < 5; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+
+    jm_symmetry s;
+    int64_t work = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jm_symmetry_find(m, 1000000, &s, &work));
+    TEST_ASSERT_EQUAL_INT64(0, s.ngen);
+    jm_symmetry_free(&s);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -3.0, obj);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.symmetry_generators);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -211,5 +255,6 @@ int main(void)
     RUN_TEST(test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection);
     RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
+    RUN_TEST(test_an_off_diagonal_q_stops_the_search);
     return UNITY_END();
 }

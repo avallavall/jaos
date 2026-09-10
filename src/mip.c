@@ -2829,6 +2829,9 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             ra[m->a_index[k]] += m->a_value[k] * v;
     }
+    for (int64_t j = 0; m->q_start != nullptr && j < nc; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++)
+            z += m->q_value[p] * xr[m->q_index[p]] * xr[j];
     for (int64_t i = 0; i < nr; i++)
         if (!ind_inactive(m, xr, i) &&
             (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol))
