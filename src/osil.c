@@ -878,7 +878,7 @@ static jaos_status o_build(ox *p)
         any_semi |= p->csemi[j];
         any_quad |= p->quad[j] != 0.0;
     }
-    if (any_int) {
+    if (any_int || any_semi) {
         free(m->col_integer);
         m->col_integer = p->cint;
         p->cint = nullptr;

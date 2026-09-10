@@ -771,13 +771,14 @@ double jm_mip_default(enum jm_mip_key key)
 
 bool jm_model_has_integer(const jaos_model *m)
 {
-    if (m->col_integer == nullptr)
-        return false;
     if (m->num_sos > 0)
         return true;
-    for (int64_t j = 0; j < m->num_col; j++)
-        if (m->col_integer[j] || semi_live(m, j))
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (m->col_integer != nullptr && m->col_integer[j])
             return true;
+        if (semi_live(m, j))
+            return true;
+    }
     return false;
 }
 

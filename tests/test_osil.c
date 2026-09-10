@@ -69,6 +69,13 @@ static void round_trip(const char *src,
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(b, "build/to_tmp.osil"));
     TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
     assert_same_model(a, b);
+    /* Under either presolve fault build the restored point lands on the
+     * wrong column, so the tree on `g_semi.lp` never settles and the test
+     * ran for an hour without a limit. The dearest of these models takes 3
+     * nodes when presolve is right, so 1000 only stops that walk. Both
+     * copies stop in the same place, because they are the same model. */
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(a, 1000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(b, 1000));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
     TEST_ASSERT_EQUAL_INT(jaos_status_of(a), jaos_status_of(b));
@@ -92,6 +99,54 @@ static void test_osil_round_trips_an_lp_a_qp_and_a_mip(void)
     round_trip("tests/data/g_revbounds.lp", jaos_read_lp);
     round_trip("tests/data/g_semi.lp", jaos_read_lp);
     round_trip("tests/data/g_miqp.lp", jaos_read_lp);
+}
+
+static void test_a_semicontinuous_column_survives_a_model_with_no_integer_column(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    /* min x + y/2 over x + y >= 1, with x in {0} u [2, 10] and y in [0, 1].
+     * Taking the zero costs 0.5 and standing on the floor costs 2. The
+     * reader used to install the semi-continuous marks and leave
+     * `col_integer` null, and `jm_model_has_integer` reads that pointer
+     * first, so the copy went to the LP, where x cannot leave [2, 10]. */
+    const double cost[] = {1.0, 0.5};
+    const double cl[] = {2.0, 0.0}, cu[] = {10.0, 1.0};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 2}, ai[] = {0, 0};
+    const double av[] = {1.0, 1.0};
+
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(a, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_osil(a, "build/semi_tmp.osil"));
+
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(b, "build/semi_tmp.osil"));
+    assert_same_model(a, b);
+    TEST_ASSERT_NOT_NULL_MESSAGE(b->col_integer,
+        "a model that carries a semi-continuous column has to reach the "
+        "tree, and the tree reads col_integer");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(b));
+
+    double oa = 0.0, ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, oa);
+    TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-9, 0.5, ob,
+        "the copy read back from OSiL has to take the zero as well");
+
+    jaos_model_free(a);
+    jaos_model_free(b);
+    remove("build/semi_tmp.osil");
+#endif
 }
 
 static void test_osil_round_trips_through_gzip(void)
@@ -249,6 +304,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_osil_round_trips_an_lp_a_qp_and_a_mip);
+    RUN_TEST(test_a_semicontinuous_column_survives_a_model_with_no_integer_column);
     RUN_TEST(test_osil_round_trips_through_gzip);
     RUN_TEST(test_osil_reads_the_row_wise_layout);
     RUN_TEST(test_osil_refuses_what_it_cannot_carry);
