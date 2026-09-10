@@ -16,9 +16,33 @@ the commit that took it, named here by hash.
    `relax --work-limit N` stops the runaway and the copy ends `work_limit`,
    which `jaos_feasrelax` reports as a refusal with its reason. That is an
    escape hatch and not the fix.
-   The fix: propagate the rows onto the freed columns and take the finite
-   bounds where they exist. The same propagation runs at every node, so it
-   needs a reading over the MIP set.
+   **Propagating the rows onto the freed columns does not fix it.** Read
+   off the model below. `r3` is a singleton and fixes `x3` at 2. After
+   that every remaining row still holds two or more freed columns, so no
+   finite bound follows from any of them. What refuses the model is parity:
+   substitute `x2` out and `r1` becomes `6 x1 + 4 x4 = -19`, whose left
+   side is even for every integer pair. The tree does not see that.
+
+   The fix: give the freed columns a finite box and grow it. Hold every
+   freed column in `[lo - M, hi + M]` and solve. When the total move `V`
+   comes out at or below `M`, that `V` is the answer for the free box too.
+   Any point cheaper than `V` would have to hold a column more than `M`
+   outside its own box, and that alone costs more than `M`. Otherwise
+   double `M` and solve again. Every round then ends, so a work limit stops
+   one bounded search.
+
+   Start `M` from the elastic copy solved with the integer marks dropped.
+   That value is a lower bound on `V`, so `M = max(1, 2 V_lp)` usually ends
+   in one round. A model with no integer column keeps the free box and its
+   single solve, so no LP answer moves.
+
+   A model whose rows plus integrality admit no point still never
+   terminates. That stays a limit of `relax --cols`, and SPECS row 104
+   already says it.
+
+   It changes `relax.c` only, so no gate applies. It needs a reading over
+   generated models: no answer may move, and the cost of the extra rounds
+   has to be read.
    Model: `tests/data/relax_runaway.mps`. Reading: 980c565.
 
 0b. **A resume does not follow the path the uninterrupted run took.**
@@ -41,15 +65,6 @@ the commit that took it, named here by hash.
    mingw-w64 builds the library and the tool, wine gives the Linux answers,
    and the Python binding knows `jaos.dll`. Missing: a native Windows run
    and clang-cl, both needing a machine this repository has not got.
-
-2. **`make configs` cannot pass.** `make test` runs `windows-test`, and
-   `tests/windows.sh` builds the Windows side through cmake with its own
-   toolchain file, so `EXTRA_CFLAGS` never reaches it. Under
-   `-DJAOS_NO_PRESOLVE` the Linux binary has presolve off and the Windows
-   binary has it on, and seven checks fail comparing one against the other.
-   The fix: pass the flags through to the cmake build, or skip
-   `windows-test` when `EXTRA_CFLAGS` is set.
-   Measured 2026-09-10, the same seven failures at 3bf0585 and at its child.
 
 3. **Primal simplex: 5 of the 94 standard instances run past 10x the dual's
    work** (`bench/results/primal.txt`): d6cube, dfl001, fit1d, fit2d, seba.
@@ -78,3 +93,24 @@ the commit that took it, named here by hash.
 
    The walk revisits no basis, so there is no cycle for an anti-cycling
    rule to break, which is why Bland's rule never pays here (f954aee).
+
+4. **`ranging` and `verify` solve the model before they refuse it.**
+   `jaos_cost_ranging` refuses a MIP and a QP by name before it needs an
+   optimum, which is right. `cmd_ranging` in `cli/jaos.c` calls
+   `solve_for_report` first and only then calls the library, so
+   `jaos ranging` on a MIP pays for the whole tree to be told the command
+   does not apply. `cmd_verify` has the same order.
+   Under either presolve fault build the tree on `tests/data/g_sos.mps`
+   never settles, so the command runs for ever. That was one of the four
+   reasons `make configs` could not pass, and it is the only one this
+   session did not close: `tests/cli.sh` skips the check under a fault
+   build until this lands.
+   Measured 2026-09-10: the hang is the same at 74005b9 and at its child,
+   so it is older than that session.
+   The fix needs a decision first. The CLI cannot ask the library whether a
+   model is a MIP, because `jm_model_has_integer` is internal. Either
+   publish that question as a call, or have the CLI ask
+   `jaos_num_sos`, `jaos_col_integer` and `jaos_col_semicontinuous` itself.
+   The second repeats the rule that `semi_live` holds, that a
+   semi-continuous column counts only where its lower bound is above zero,
+   and a copy of a rule is what let the OSiL defect of 02-226 through.

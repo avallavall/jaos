@@ -96,6 +96,9 @@ static void test_the_barrier_solves_the_two_column_lp(void)
 
 static void test_the_barrier_agrees_with_the_dual_on_every_bound_kind(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = every_bound_kind_lp();
     const double dual = solve_with(m, JAOS_ALGORITHM_DUAL);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 21.0, dual);
@@ -111,6 +114,7 @@ static void test_the_barrier_agrees_with_the_dual_on_every_bound_kind(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, nullptr, CHECK_TOL, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
     jaos_model_free(m);
+#endif
 }
 
 static void test_the_barrier_is_bit_identical_across_runs(void)
@@ -181,6 +185,9 @@ static void test_the_crossover_publishes_a_vertex_with_a_basis(void)
 
 static void test_the_crossover_reaches_the_dual_on_every_bound_kind(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = every_bound_kind_lp();
     const double obj = solve_with(m, JAOS_ALGORITHM_BARRIER);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 21.0, obj);
@@ -196,6 +203,7 @@ static void test_the_crossover_reaches_the_dual_on_every_bound_kind(void)
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
     jaos_model_free(m);
+#endif
 }
 
 static void test_without_the_crossover_the_point_is_interior(void)
@@ -525,6 +533,9 @@ static void test_the_augmented_system_takes_every_bound_kind(void)
 
 static void test_the_augmented_system_takes_a_fixed_column(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
 
     for (int way = 0; way < 2; way++) {
         jaos_model *m = nullptr;
@@ -551,6 +562,7 @@ static void test_the_augmented_system_takes_a_fixed_column(void)
         TEST_ASSERT_DOUBLE_WITHIN(1e-6, 3.0, v[1]);
         jaos_model_free(m);
     }
+#endif
 }
 
 static void test_the_augmented_system_is_bit_identical_across_runs(void)

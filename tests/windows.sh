@@ -23,8 +23,14 @@ flunk() { echo "FAIL $1"; fail=1; }
 run() { "$@" > "$ROOT/log" 2>&1; }
 show() { sed 's/^/     /' "$ROOT/log"; }
 
+CMAKE_EXTRA=()
+if [ -n "${JAOS_WINDOWS_TEST_FLAGS:-}" ]; then
+    CMAKE_EXTRA+=(-DCMAKE_C_FLAGS="$JAOS_WINDOWS_TEST_FLAGS")
+fi
+
 if run cmake -S . -B "$BUILD" -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake \
-        -DCMAKE_BUILD_TYPE=Release -DJAOS_BUILD_TESTS=OFF -DJAOS_LTO=OFF; then
+        -DCMAKE_BUILD_TYPE=Release -DJAOS_BUILD_TESTS=OFF -DJAOS_LTO=OFF \
+        "${CMAKE_EXTRA[@]}"; then
     pass "cmake configures for Windows"
 else
     flunk "cmake did not configure for Windows"; show; exit 1

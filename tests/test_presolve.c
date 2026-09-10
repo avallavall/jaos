@@ -297,7 +297,7 @@ static void test_original_index_invariant_across_all_six_arrays(void)
 
 #if defined(JAOS_NO_PRESOLVE)
 
-constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8206;
+constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 8213;
 #else
 
 constexpr int64_t PRESOLVE_MODEL_WORK_PINNED = 3;

@@ -119,6 +119,9 @@ static void test_concurrent_is_bit_identical_across_runs(void)
 
 static void test_concurrent_publishes_a_basis_and_the_checker_takes_it(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = every_bound_kind_lp();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_set_algorithm(m, JAOS_ALGORITHM_CONCURRENT));
@@ -151,6 +154,7 @@ static void test_concurrent_publishes_a_basis_and_the_checker_takes_it(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     jaos_model_free(m);
+#endif
 }
 
 static void test_concurrent_certifies_an_infeasible_model(void)

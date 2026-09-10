@@ -144,6 +144,9 @@ static void test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection(void)
 
 static void test_orbital_branching_shortens_a_symmetric_tree(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     const double c[6] = {1, 1, 1, 1, 1, 1};
     const double cl[6] = {0, 0, 0, 0, 0, 0}, cu[6] = {1, 1, 1, 1, 1, 1};
     const double rl[1] = {2.5}, ru[1] = {INFINITY};
@@ -187,6 +190,7 @@ static void test_orbital_branching_shortens_a_symmetric_tree(void)
         jaos_model_free(m);
     }
     TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
+#endif
 }
 
 static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)

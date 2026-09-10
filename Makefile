@@ -131,7 +131,8 @@ cmake-test:
 	@echo "== tests/cmake.sh"; bash tests/cmake.sh $(CC)
 
 windows-test: $(CLI)
-	@echo "== tests/windows.sh"; bash tests/windows.sh
+	@echo "== tests/windows.sh"; \
+	JAOS_WINDOWS_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/windows.sh
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail

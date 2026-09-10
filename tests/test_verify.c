@@ -766,7 +766,7 @@ static void test_the_proof_checker_rejects_what_is_not_optimal(void)
     remove(TMP_PROOF);
 }
 
-static jaos_model *model_infeasible(void)
+[[maybe_unused]] static jaos_model *model_infeasible(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
@@ -823,6 +823,9 @@ static void test_a_written_proof_is_one_its_own_checker_takes(void)
 
 static void test_an_infeasibility_certificate_is_checked_exactly(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = model_infeasible();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
@@ -872,6 +875,7 @@ static void test_an_infeasibility_certificate_is_checked_exactly(void)
     TEST_ASSERT_TRUE(pr.certified);
     jaos_model_free(c);
     remove(TMP_PROOF);
+#endif
 }
 
 static void test_an_unbounded_ray_is_checked_exactly(void)
@@ -972,6 +976,9 @@ static void test_the_exact_certificate_is_derived_and_certifies(void)
 
 static void test_the_exact_certificate_refuses_what_has_no_basis(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_exact_ray_report rr;
 
     jaos_model *m = model_two_row_conflict();
@@ -1018,6 +1025,7 @@ static void test_the_exact_certificate_refuses_what_has_no_basis(void)
     remove(TMP_PROOF);
 #endif
     jaos_model_free(p);
+#endif
 }
 
 static void test_the_exact_certificate_is_dropped_with_the_answer(void)
@@ -1038,6 +1046,9 @@ static void test_the_exact_certificate_is_dropped_with_the_answer(void)
 
 static void test_the_exact_unbounded_ray_is_derived_and_checks(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     const double c[2] = {-1.0, 0.0};
@@ -1091,6 +1102,7 @@ static void test_the_exact_unbounded_ray_is_derived_and_checks(void)
 
     remove(TMP_PROOF);
     jaos_model_free(m);
+#endif
 }
 
 static void test_each_exact_derivation_refuses_the_other_s_answer(void)

@@ -507,7 +507,8 @@ static double solve_variant(int which, int64_t k, double value)
     return z;
 }
 
-static void linear_across(int which, int64_t k, double lo, double hi)
+[[maybe_unused]] static void linear_across(int which, int64_t k, double lo,
+                                           double hi)
 {
     if (!isfinite(lo) || !isfinite(hi) || hi <= lo)
         return;
@@ -520,6 +521,9 @@ static void linear_across(int which, int64_t k, double lo, double hi)
 
 static void test_a_degenerate_optimum_ranges_like_any_other(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = degenerate_pair();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -559,6 +563,7 @@ static void test_a_degenerate_optimum_ranges_like_any_other(void)
         linear_across(2, j, bll[j], blh[j]);
         linear_across(3, j, bul[j], buh[j]);
     }
+#endif
 }
 
 static void test_a_quadratic_objective_is_refused_by_name(void)

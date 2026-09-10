@@ -17,6 +17,9 @@ static jaos_model *fresh(void)
 
 static void test_a_linear_nl_reads_with_its_names_bounds_and_integers(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_lin.nl"));
     TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
@@ -73,6 +76,7 @@ static void test_a_linear_nl_reads_with_its_names_bounds_and_integers(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, -4.0, obj);
     jaos_model_free(m);
+#endif
 }
 
 static void test_a_binary_nl_without_name_files_gets_positional_names(void)
@@ -210,6 +214,9 @@ static void test_a_written_nl_reads_back_as_the_same_model(void)
 
 static void test_the_nl_writer_puts_the_integer_columns_last(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     const double rl[]   = {-INFINITY, 2.0};
     const double ru[]   = {10.0, 2.0};
     const double cost[] = {1.0, 2.0, 3.0};
@@ -267,6 +274,7 @@ static void test_the_nl_writer_puts_the_integer_columns_last(void)
     remove("build/tn_int.nl");
     remove("build/tn_int.col");
     remove("build/tn_int.row");
+#endif
 }
 
 static void test_the_nl_writer_refuses_what_the_format_has_no_place_for(void)

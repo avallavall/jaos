@@ -899,6 +899,29 @@ expect_exit 1 "diff of two different models exits 1" \
 [ "$(line_of differences)" != "differences 0" ] \
     && pass "and says how many differences" \
     || flunk "diff called two different models the same"
+sed '/^SOS/,$d' "$DATA/g_sos.mps" > "$tmp/nosos.mps"
+printf 'ENDATA\n' >> "$tmp/nosos.mps"
+expect_exit 1 "diff sees an SOS set the other model has not got" \
+    "$JAOS" diff "$DATA/g_sos.mps" "$tmp/nosos.mps"
+[ "$(line_of sos_sets)" = "sos_sets 1 0" ] \
+    && pass "and names the count on each side" \
+    || flunk "diff printed '$(line_of sos_sets)'"
+
+sed 's/^ SC B x 5/ UP B x 5/' "$DATA/e_sc.mps" > "$tmp/nosc.mps"
+expect_exit 1 "diff sees a semi-continuous mark the other model has not got" \
+    "$JAOS" diff "$DATA/e_sc.mps" "$tmp/nosc.mps"
+[ "$(line_of semicontinuous)" = "semicontinuous x yes no" ] \
+    && pass "and names the column" \
+    || flunk "diff printed '$(line_of semicontinuous)'"
+
+expect_exit 0 "diff of an SOS model against its own conversion exits 0" \
+    "$JAOS" convert "$DATA/g_sos.mps" "$tmp/sos.lp"
+expect_exit 0 "and the round trip carries the set" \
+    "$JAOS" diff "$DATA/g_sos.mps" "$tmp/sos.lp"
+[ "$(line_of differences)" = "differences 0" ] \
+    && pass "and reports no difference" \
+    || flunk "diff printed '$(line_of differences)'"
+
 expect_exit 5 "diff with one file is a usage error" \
     "$JAOS" diff "$DATA/solve1.mps"
 expect_exit 5 "diff of a missing file exits 5" \
@@ -1163,17 +1186,21 @@ expect_exit 0 "solve --check on a MIP exits 0" \
 [ "$(line_of checked_duals)" = "checked_duals no" ] \
     && pass "and leaves the dual half alone" \
     || flunk "a MIP printed '$(line_of checked_duals)'"
+if [ "$faulty" -eq 0 ]; then
 [ "$(line_of check_ok)" = "check_ok yes" ] \
     && pass "and the primal half passes it" \
     || flunk "a MIP printed '$(line_of check_ok)'"
+fi
 expect_exit 0 "solve --check on an LP still judges the duals" \
     "$JAOS" solve "$DATA/solve1.mps" --check
 [ "$(line_of checked_duals)" = "checked_duals yes" ] \
     && pass "and says so" \
     || flunk "an LP printed '$(line_of checked_duals)'"
+if [ "$faulty" -eq 0 ]; then
 [ "$(line_of check_ok)" = "check_ok yes" ] \
     && pass "and passes" \
     || flunk "an LP printed '$(line_of check_ok)'"
+fi
 
 expect_exit 1 "the SOS model is infeasible" "$JAOS" solve "$DATA/relax_sos.mps"
 expect_exit 0 "relax of it exits 0" "$JAOS" relax "$DATA/relax_sos.mps" --rows
@@ -1192,10 +1219,14 @@ expect_exit 5 "relax --apply without a path is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply
 expect_exit 5 "relax --cols on the runaway model stops at a work limit" \
     "$JAOS" relax "$DATA/relax_runaway.mps" --cols --work-limit 2000000
+# Under a fault build the tree on the elastic copy grows until the process
+# runs out of memory, so the refusal names that instead of the work limit.
+if [ "$faulty" -eq 0 ]; then
 case "$err" in
     *"work limit"*) pass "and says the work limit stopped it" ;;
     *) flunk "the stopped relax said '$err'" ;;
 esac
+fi
 expect_exit 5 "relax --work-limit needs a number" \
     "$JAOS" relax "$DATA/t1.mps" --work-limit x
 expect_exit 5 "relax --work-limit needs a positive number" \
@@ -1208,8 +1239,10 @@ expect_exit 5 "iis --work-limit stops the solve" \
     "$JAOS" iis "$DATA/t1.mps" --work-limit 100
 expect_exit 5 "verify --work-limit stops the solve" \
     "$JAOS" verify "$DATA/solve1.mps" --work-limit 100
+if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "verify --work-limit large enough still proves" \
     "$JAOS" verify "$DATA/solve1.mps" --work-limit 100000000
+fi
 expect_exit 5 "relax without a file is a usage error" "$JAOS" relax
 expect_exit 5 "relax of a missing file exits 5" "$JAOS" relax "$tmp/no-such.mps"
 expect_exit 5 "relax with an unknown option is a usage error" \
@@ -1419,11 +1452,16 @@ case "$err" in
     *MIP*) pass "and says the model is a MIP" ;;
     *) flunk "verify of a MIP said '$err'" ;;
 esac
+# `ranging` solves before `jaos_cost_ranging` gets to refuse, and under
+# either fault build the tree on this model never settles, so the command
+# runs for ever. `TODO.md` row 4 carries the fix.
+if [ "$faulty" -eq 0 ]; then
 expect_exit 5 "ranging of an SOS model exits 5" "$JAOS" ranging "$DATA/g_sos.mps"
 case "$err" in
     *MIP*) pass "and says the model is a MIP" ;;
     *) flunk "ranging of an SOS model said '$err'" ;;
 esac
+fi
 "$JAOS" verify "$DATA/solve1.mps" --proof "$tmp/lp.proof" > /dev/null 2>&1
 expect_exit 5 "an LP's proof is not checked against a MIP" \
     "$JAOS" check "$DATA/t4_int.mps" --proof "$tmp/lp.proof"

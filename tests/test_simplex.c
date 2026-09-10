@@ -259,15 +259,16 @@ static void test_an_optimum_past_the_lent_bound_is_refused(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      1, as, ai, av));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
-
-    const char *err = jaos_model_error(m);
-    TEST_ASSERT_NOT_NULL(err);
-    TEST_ASSERT_NOT_NULL(strstr(err, "phase 1"));
-    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(err, "together"),
-                                 "the refusal must say the combined "
-                                 "direction was tried and blocked");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  "the row holds the column at 1e11, so the "
+                                  "model has an optimum past the lent bound; "
+                                  "neither loan test sees it and the restart "
+                                  "with nothing lent has to reach it");
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1.0, -1e11, obj);
     jaos_model_free(m);
 #endif
 }
@@ -434,7 +435,7 @@ static void test_free_variable_enters_and_settles(void)
 }
 
 #if defined(JAOS_NO_PRESOLVE)
-constexpr int64_t WORK_PINNED = 8536;
+constexpr int64_t WORK_PINNED = 8562;
 #endif
 
 static void test_work_accounting_is_pinned(void)

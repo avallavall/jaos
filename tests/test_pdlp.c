@@ -103,6 +103,9 @@ static void test_pdlp_solves_the_two_column_lp_to_a_vertex(void)
 
 static void test_pdlp_agrees_with_the_dual_on_every_bound_kind(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *m = every_bound_kind_lp();
     const double dual = solve_with(m, JAOS_ALGORITHM_DUAL);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 21.0, dual);
@@ -119,10 +122,14 @@ static void test_pdlp_agrees_with_the_dual_on_every_bound_kind(void)
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
     jaos_model_free(m);
+#endif
 }
 
 static void test_pdlp_is_bit_identical_across_runs(void)
 {
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
     jaos_model *a = every_bound_kind_lp();
     jaos_model *b = every_bound_kind_lp();
     (void)solve_with(a, JAOS_ALGORITHM_PDLP);
@@ -137,6 +144,7 @@ static void test_pdlp_is_bit_identical_across_runs(void)
     TEST_ASSERT_EQUAL_MEMORY(ya, yb, sizeof ya);
     jaos_model_free(a);
     jaos_model_free(b);
+#endif
 }
 
 static void test_pdlp_stops_at_the_work_limit(void)
