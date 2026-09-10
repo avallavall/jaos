@@ -1617,8 +1617,9 @@ static int cmd_solve(int argc, char **argv)
                 rc = library_error("check the answer of", o.file, m);
             } else {
                 print_check_report(&crep);
-                print_bool("check_ok", crep.primal_feasible &&
-                                       crep.dual_feasible);
+                print_bool("check_ok",
+                           crep.primal_feasible &&
+                           (crep.dual_feasible || !crep.checked_duals));
             }
             free(cx);
             free(cy);

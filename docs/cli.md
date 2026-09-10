@@ -362,6 +362,14 @@ of them decide nothing on their own. The two that decide are
 `primal_feasible` and `dual_feasible`. The exit code is 0 when both are
 `yes` and 1 otherwise.
 
+On a model with integer columns, SOS sets, semi-continuous columns or
+indicator rows the dual half does not run and `checked_duals` reads `no`.
+The duals such an answer carries belong to the last node of the tree, and
+LP duality does not close a MIP's gap, so the dual test would measure the
+integrality gap and call a right answer wrong. The primal half decides
+there, and it already counts the integrality violation and the SOS
+nonzeros.
+
 For a certificate the file carries one `ray` record per row when the
 model was proved infeasible, or per column when it was proved unbounded,
 and the matching checker judges it from the model alone. The report is

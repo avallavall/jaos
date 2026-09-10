@@ -4705,17 +4705,22 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nfd = nfu = 0;
             for (int64_t t = 0; t < n; t++) {
                 const int64_t j = m->sos_col[b + t];
+                /* A member is held at zero, and zero has to be inside the
+                   column's own box. Where it is not, the two ends cross and
+                   the child is the infeasible node it really is. */
+                const double zlo = fmax(0.0, m->col_lower[j]);
+                const double zhi = fmin(0.0, m->col_upper[j]);
                 if (t > r) {
                     fcol[nfd] = j;
-                    flo[nfd] = 0.0;
-                    fhi[nfd] = 0.0;
+                    flo[nfd] = zlo;
+                    fhi[nfd] = zhi;
                     nfd++;
                 }
                 const bool zero_up = m->sos_type[sos] == 1 ? t <= r : t < r;
                 if (zero_up) {
                     ucol[nfu] = j;
-                    ulo[nfu] = 0.0;
-                    uhi[nfu] = 0.0;
+                    ulo[nfu] = zlo;
+                    uhi[nfu] = zhi;
                     nfu++;
                 }
             }

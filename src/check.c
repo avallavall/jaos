@@ -480,7 +480,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
     out->primal_feasible = col_viol <= tol && row_viol <= tol &&
                            int_viol <= tol;
 
-    if (row_dual != nullptr) {
+    if (row_dual != nullptr && !jm_model_has_integer(m)) {
         const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
         double dual_viol = 0.0;
         dual_acc a = {0};

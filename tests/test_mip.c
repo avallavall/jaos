@@ -3566,6 +3566,47 @@ static jaos_model *three_unit_columns(void)
     return m;
 }
 
+static void test_an_sos_member_that_cannot_be_zero(void)
+{
+    /* C2 lives in [2, 6], so it is never zero and never the member the set
+       switches off. C1 has to be zero then, and the row asks C1 >= 1, so
+       the model has no point at all. The branch used to hold C2 at zero by
+       overwriting its box, and published C1 = 1, C2 = 0 as an optimum. */
+    const double cost[2] = {-2.0, 1.0};
+    const double cl[2]   = { 0.0, 2.0};
+    const double cu[2]   = { 6.0, 6.0};
+    const double rl[1]   = { 1.0};
+    const double ru[1]   = { INFINITY};
+    const int64_t as[3]  = {0, 1, 1};
+    const int64_t ai[1]  = {0};
+    const double  av[1]  = {1.0};
+    const int64_t cols[2] = {0, 1};
+    const double  w[2]    = {1.0, 2.0};
+
+    for (int type = 1; type <= 2; type++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         1, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, type, 2, cols, w));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        if (type == 1) {
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+        } else {
+            /* SOS2 lets both be nonzero, so this one has an answer. */
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double x[2];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, x, nullptr, nullptr, nullptr));
+            TEST_ASSERT_TRUE_MESSAGE(x[1] >= 2.0 - 1e-9,
+                                     "column 1 may not leave its own box");
+        }
+        jaos_model_free(m);
+    }
+}
+
 static void test_special_ordered_sets_branch_to_their_optimum(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3785,6 +3826,7 @@ int main(void)
     RUN_TEST(test_a_starting_point_and_a_cutoff);
     RUN_TEST(test_a_semicontinuous_column_rests_at_zero_or_above_its_floor);
     RUN_TEST(test_special_ordered_sets_branch_to_their_optimum);
+    RUN_TEST(test_an_sos_member_that_cannot_be_zero);
     RUN_TEST(test_an_indicator_row_holds_only_while_its_column_says_so);
     RUN_TEST(test_clique_cuts_close_a_pairwise_conflict_at_the_root);
     RUN_TEST(test_coefficient_tightening_closes_a_loose_binary_row);

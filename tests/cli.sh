@@ -1158,6 +1158,23 @@ expect_exit 0 "and the model it wrote solves" \
 [ "$(line_of status)" = "status optimal" ] \
     && pass "to an optimum, where the original was infeasible" \
     || flunk "the relaxed model solved '$(line_of status)'"
+expect_exit 0 "solve --check on a MIP exits 0" \
+    "$JAOS" solve "$DATA/t4_int.mps" --check
+[ "$(line_of checked_duals)" = "checked_duals no" ] \
+    && pass "and leaves the dual half alone" \
+    || flunk "a MIP printed '$(line_of checked_duals)'"
+[ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and the primal half passes it" \
+    || flunk "a MIP printed '$(line_of check_ok)'"
+expect_exit 0 "solve --check on an LP still judges the duals" \
+    "$JAOS" solve "$DATA/solve1.mps" --check
+[ "$(line_of checked_duals)" = "checked_duals yes" ] \
+    && pass "and says so" \
+    || flunk "an LP printed '$(line_of checked_duals)'"
+[ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and passes" \
+    || flunk "an LP printed '$(line_of check_ok)'"
+
 expect_exit 1 "the SOS model is infeasible" "$JAOS" solve "$DATA/relax_sos.mps"
 expect_exit 0 "relax of it exits 0" "$JAOS" relax "$DATA/relax_sos.mps" --rows
 [ "$(line_of total)" = "total 2" ] \
