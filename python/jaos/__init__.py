@@ -589,6 +589,11 @@ _sig("jaos_col_integer", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_col_semicontinuous", ctypes.c_int, _VP, _I64, ctypes.c_bool)
 _sig("jaos_col_semicontinuous", ctypes.c_int, _VP, _I64, _P(ctypes.c_bool))
 _sig("jaos_set_col_quadratic", ctypes.c_int, _VP, _I64, _D)
+_sig("jaos_set_quadratic", ctypes.c_int, _VP, _I64, _P(_I64),
+     _P(_I64), _P(_D))
+_sig("jaos_quadratic_nz", _I64, _VP)
+_sig("jaos_quadratic", ctypes.c_int, _VP, _P(_I64), _P(_I64),
+     _P(_D))
 _sig("jaos_col_quadratic", ctypes.c_int, _VP, _I64, _P(_D))
 _sig("jaos_add_sos", ctypes.c_int, _VP, ctypes.c_int, _I64, _P(_I64), _P(_D))
 _sig("jaos_num_sos", _I64, _VP)
@@ -1204,6 +1209,40 @@ class Model:
         self._check(_lib.jaos_col_quadratic(self._handle(), int(col),
                                             ctypes.byref(out)))
         return out.value
+
+    def set_quadratic(self, entries):
+        """The whole quadratic objective at once, as (row, col, value)
+        triples: the objective becomes c'x + 1/2 x'Qx. Q is symmetric, so
+        each off-diagonal pair is given once, as (i, j) or as (j, i), and
+        a pair given twice raises. An empty list clears it. A pair needs
+        the barrier, which takes it on the augmented system; the two
+        simplexes, PDLP, the concurrent solve and branch and bound refuse
+        a quadratic objective as they always did."""
+        entries = list(entries)
+        n = len(entries)
+        rows, _ = _int64s([int(e[0]) for e in entries], "rows", n)
+        cols, _ = _int64s([int(e[1]) for e in entries], "cols", n)
+        vals, _ = _doubles([float(e[2]) for e in entries], "values", n)
+        self._check(_lib.jaos_set_quadratic(self._handle(), n, rows, cols,
+                                            vals))
+        return self
+
+    def quadratic_nz(self):
+        """How many entries the lower triangle of Q holds, the diagonal
+        included."""
+        return _lib.jaos_quadratic_nz(self._handle())
+
+    def quadratic(self):
+        """Q back as (row, col, value) triples, the lower triangle with
+        the diagonal, in column order."""
+        n = self.quadratic_nz()
+        if n == 0:
+            return []
+        rows = (_I64 * n)()
+        cols = (_I64 * n)()
+        vals = (_D * n)()
+        self._check(_lib.jaos_quadratic(self._handle(), rows, cols, vals))
+        return [(rows[k], cols[k], vals[k]) for k in range(n)]
 
     def add_sos(self, sos_type, cols, weights):
         """A special ordered set of type 1 (at most one member nonzero) or

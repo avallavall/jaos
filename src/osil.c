@@ -30,6 +30,9 @@ typedef struct {
 
     int64_t nvar, ncon, ccap, rcap;
     double *cost, *cl, *cu, *rl, *ru, *quad;
+    int64_t *qri, *qci;
+    double  *qvv;
+    int64_t nqoff, qoff_cap;
     bool *cint, *csemi;
     char **cname, **rname;
     char *pname, *oname;
@@ -522,16 +525,45 @@ static jaos_status o_qterm(ox *p)
         FAIL("line %" PRId64 ": <qTerm> names variables %" PRId64 " and %"
              PRId64 ", and the file declared %" PRId64, p->line, j1, j2,
              p->nvar);
-    if (j1 != j2)
-        FAIL("line %" PRId64 ": <qTerm> is the off-diagonal product of "
-             "variables %" PRId64 " and %" PRId64 ", and JAOS carries a "
-             "separable quadratic objective only", p->line, j1, j2);
     const char *sc = x_attr(p, "coef");
     double c;
     if (sc == nullptr || !x_num(sc, &c))
         FAIL("line %" PRId64 ": <qTerm> has no readable coef attribute",
              p->line);
-    p->quad[j1] += 2.0 * c;
+    if (j1 == j2) {
+        p->quad[j1] += 2.0 * c;
+        return JAOS_OK;
+    }
+
+    int64_t lo = j1, hi = j2;
+    if (lo < hi) {
+        const int64_t t = lo;
+        lo = hi;
+        hi = t;
+    }
+    int64_t slot = -1;
+    for (int64_t k = 0; k < p->nqoff; k++)
+        if (p->qri[k] == lo && p->qci[k] == hi) {
+            slot = k;
+            break;
+        }
+    if (slot < 0) {
+        int64_t cap = p->qoff_cap;
+        if (!JM_GROW(p->qri, cap, p->nqoff + 1))
+            FAIL_OOM();
+        cap = p->qoff_cap;
+        if (!JM_GROW(p->qci, cap, p->nqoff + 1))
+            FAIL_OOM();
+        cap = p->qoff_cap;
+        if (!JM_GROW(p->qvv, cap, p->nqoff + 1))
+            FAIL_OOM();
+        p->qoff_cap = cap;
+        slot = p->nqoff++;
+        p->qri[slot] = lo;
+        p->qci[slot] = hi;
+        p->qvv[slot] = 0.0;
+    }
+    p->qvv[slot] += c;
     return JAOS_OK;
 }
 
@@ -856,10 +888,35 @@ static jaos_status o_build(ox *p)
         m->col_semi = p->csemi;
         p->csemi = nullptr;
     }
-    if (any_quad) {
+    if (any_quad && p->nqoff == 0) {
         free(m->col_quad);
         m->col_quad = p->quad;
         p->quad = nullptr;
+    } else if (any_quad || p->nqoff > 0) {
+
+        int64_t n = p->nqoff;
+        for (int64_t j = 0; j < nc; j++)
+            n += p->quad[j] != 0.0;
+        int64_t *qr = jm_alloc_array(n > 0 ? n : 1, sizeof *qr);
+        int64_t *qc = jm_alloc_array(n > 0 ? n : 1, sizeof *qc);
+        double *qv = jm_alloc_array(n > 0 ? n : 1, sizeof *qv);
+        if (qr == nullptr || qc == nullptr || qv == nullptr) {
+            free(qr); free(qc); free(qv);
+            FAIL_OOM();
+        }
+        int64_t at = 0;
+        for (int64_t j = 0; j < nc; j++)
+            if (p->quad[j] != 0.0) {
+                qr[at] = j; qc[at] = j; qv[at] = p->quad[j]; at++;
+            }
+        for (int64_t k = 0; k < p->nqoff; k++) {
+            qr[at] = p->qri[k]; qc[at] = p->qci[k]; qv[at] = p->qvv[k];
+            at++;
+        }
+        const jaos_status qst = jaos_set_quadratic(m, at, qr, qc, qv);
+        free(qr); free(qc); free(qv);
+        if (qst != JAOS_OK)
+            return qst;
     }
     if ((st = o_names(p)) != JAOS_OK)
         return st;
@@ -880,6 +937,9 @@ static void o_free(ox *p)
     free(p->rl);
     free(p->ru);
     free(p->quad);
+    free(p->qri);
+    free(p->qci);
+    free(p->qvv);
     free(p->cint);
     free(p->csemi);
     if (p->cname != nullptr)

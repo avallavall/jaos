@@ -16,6 +16,9 @@ typedef struct {
     char *buf;
     int64_t len, pos, line;
     char kind[4];
+    int64_t *qri, *qci;
+    double  *qvv;
+    int64_t nqoff, qoff_cap;
     jaos_obj_sense sense;
     int64_t nvar, ncon;
     double *cost, *cl, *cu, *rl, *ru, *quad;
@@ -337,13 +340,42 @@ static jaos_status q_parse(qp *p)
             if (i < 1 || i > p->nvar || j < 1 || j > p->nvar)
                 FAIL("line %" PRId64 ": a Q entry names variable %lld or %lld "
                      "outside 1 to %" PRId64, p->line, i, j, p->nvar);
-            if (i != j)
-                FAIL("line %" PRId64 ": the Q entry (%lld, %lld) is off the "
-                     "diagonal; JAOS reads a separable quadratic objective "
-                     "only", p->line, i, j);
             if (!isfinite(v))
                 FAIL("line %" PRId64 ": a Q entry is not finite", p->line);
-            p->quad[i - 1] += v;
+            if (i == j) {
+                p->quad[i - 1] += v;
+                continue;
+            }
+
+            int64_t lo = i - 1, hi = j - 1;
+            if (lo < hi) {
+                const int64_t t = lo;
+                lo = hi;
+                hi = t;
+            }
+            int64_t slot = -1;
+            for (int64_t k = 0; k < p->nqoff; k++)
+                if (p->qri[k] == lo && p->qci[k] == hi) {
+                    slot = k;
+                    break;
+                }
+            if (slot < 0) {
+                int64_t cap = p->qoff_cap;
+                if (!JM_GROW(p->qri, cap, p->nqoff + 1))
+                    FAIL_OOM();
+                cap = p->qoff_cap;
+                if (!JM_GROW(p->qci, cap, p->nqoff + 1))
+                    FAIL_OOM();
+                cap = p->qoff_cap;
+                if (!JM_GROW(p->qvv, cap, p->nqoff + 1))
+                    FAIL_OOM();
+                p->qoff_cap = cap;
+                slot = p->nqoff++;
+                p->qri[slot] = lo;
+                p->qci[slot] = hi;
+                p->qvv[slot] = 0.0;
+            }
+            p->qvv[slot] += v;
         }
     }
     if ((st = q_vector(p, "the objective coefficients", p->nvar, p->cost,
@@ -508,10 +540,37 @@ static jaos_status q_build(qp *p)
         m->col_integer = p->cint;
         p->cint = nullptr;
     }
-    if (any_quad) {
+    if (any_quad && p->nqoff == 0) {
         free(m->col_quad);
         m->col_quad = p->quad;
         p->quad = nullptr;
+    } else if (any_quad || p->nqoff > 0) {
+
+        int64_t n = p->nqoff;
+        for (int64_t j = 0; j < nc; j++)
+            n += p->quad[j] != 0.0;
+        int64_t *qr = jm_alloc_array(n > 0 ? n : 1, sizeof *qr);
+        int64_t *qc = jm_alloc_array(n > 0 ? n : 1, sizeof *qc);
+        double *qv = jm_alloc_array(n > 0 ? n : 1, sizeof *qv);
+        if (qr == nullptr || qc == nullptr || qv == nullptr) {
+            free(qr); free(qc); free(qv);
+            jm_set_err(m, "out of memory");
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto out;
+        }
+        int64_t at = 0;
+        for (int64_t j = 0; j < nc; j++)
+            if (p->quad[j] != 0.0) {
+                qr[at] = j; qc[at] = j; qv[at] = p->quad[j]; at++;
+            }
+        for (int64_t k = 0; k < p->nqoff; k++) {
+            qr[at] = p->qri[k]; qc[at] = p->qci[k]; qv[at] = p->qvv[k];
+            at++;
+        }
+        st = jaos_set_quadratic(m, at, qr, qc, qv);
+        free(qr); free(qc); free(qv);
+        if (st != JAOS_OK)
+            goto out;
     }
     if (p->cname != nullptr || p->rname != nullptr) {
         if (p->cname == nullptr) {
@@ -575,6 +634,7 @@ static void q_free(qp *p)
     free(p->buf);
     free(p->cost); free(p->cl); free(p->cu); free(p->rl); free(p->ru);
     free(p->quad); free(p->cint);
+    free(p->qri); free(p->qci); free(p->qvv);
     free(p->ei); free(p->ej); free(p->ev);
     if (p->cname != nullptr)
         for (int64_t j = 0; j < p->nvar; j++)

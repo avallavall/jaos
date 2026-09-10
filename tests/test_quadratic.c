@@ -478,6 +478,57 @@ static void test_lp_takes_the_block_undivided(void)
     remove("build/tq_undiv.lp");
 }
 
+/* QPLIB names the lower triangle of Q and OSiL names each qTerm as
+   coef * x_i * x_j, so a pair is Q[i][j] there and a square is half of
+   Q[j][j].  Both have to come back as the model that was written. */
+static void round_trip_paired(jaos_status (*write)(jaos_model *,
+                                                   const char *),
+                              jaos_status (*read)(jaos_model *,
+                                                  const char *),
+                              const char *path)
+{
+    jaos_model *a = paired_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, write(a, path));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(a));
+
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, read(b, path));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+    TEST_ASSERT_EQUAL_INT64(a->q_nz, b->q_nz);
+    TEST_ASSERT_EQUAL_INT64(jaos_quadratic_nz(a), jaos_quadratic_nz(b));
+    for (int64_t p = 0; p < a->q_nz; p++) {
+        TEST_ASSERT_EQUAL_INT64(a->q_index[p], b->q_index[p]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, a->q_value[p], b->q_value[p]);
+    }
+    for (int64_t j = 0; j < jaos_num_col(a); j++) {
+        double qa = 0.0, qb = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(a, j, &qa));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, j, &qb));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, qa, qb);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(b));
+    double oa = 0.0, ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, oa, ob);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, ob);
+    jaos_model_free(a);
+    jaos_model_free(b);
+    remove(path);
+}
+
+static void test_qplib_carries_a_paired_q_both_ways(void)
+{
+    round_trip_paired(jaos_write_qplib, jaos_read_qplib, "build/tqq.qplib");
+}
+
+static void test_osil_carries_a_paired_q_both_ways(void)
+{
+    round_trip_paired(jaos_write_osil, jaos_read_osil, "build/tqq.osil");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -497,6 +548,8 @@ int main(void)
     RUN_TEST(test_mps_refuses_two_halves_that_disagree);
     RUN_TEST(test_lp_carries_a_paired_q_both_ways);
     RUN_TEST(test_lp_takes_the_block_undivided);
+    RUN_TEST(test_qplib_carries_a_paired_q_both_ways);
+    RUN_TEST(test_osil_carries_a_paired_q_both_ways);
     return UNITY_END();
 }
 

@@ -1192,7 +1192,10 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
         all_int &= is_int;
         any_quad |= m->col_quad != nullptr && m->col_quad[j] != 0.0;
     }
-    const char kind[4] = {any_quad ? 'D' : 'L',
+    const bool paired = m->q_nz > 0;
+    any_quad |= paired;
+
+    const char kind[4] = {any_quad ? (paired ? 'C' : 'D') : 'L',
                           !any_int ? 'C' : (all_int ? 'I' : 'G'),
                           nr > 0 ? 'L' : 'B', '\0'};
 
@@ -1213,15 +1216,21 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
     if (nr > 0)
         fprintf(f, "%" PRId64 "   # constraints\n", nr);
     if (any_quad) {
-        int64_t nq = 0;
-        for (int64_t j = 0; j < nc; j++)
+        int64_t nq = m->q_nz;
+        for (int64_t j = 0; m->col_quad != nullptr && j < nc; j++)
             nq += m->col_quad[j] != 0.0;
         fprintf(f, "%" PRId64 "   # objective Q entries, lower triangle\n", nq);
         for (int64_t j = 0; j < nc; j++) {
-            if (m->col_quad[j] == 0.0)
-                continue;
-            wr_num(num, m->col_quad[j]);
-            fprintf(f, "%" PRId64 " %" PRId64 " %s\n", j + 1, j + 1, num);
+            if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                wr_num(num, m->col_quad[j]);
+                fprintf(f, "%" PRId64 " %" PRId64 " %s\n", j + 1, j + 1, num);
+            }
+            for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+                 m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
+                wr_num(num, m->q_value[p]);
+                fprintf(f, "%" PRId64 " %" PRId64 " %s\n",
+                        m->q_index[p] + 1, j + 1, num);
+            }
         }
     }
     qplib_vector(f, "objective coefficient", nc, m->col_cost, 0.0, false);
@@ -1397,19 +1406,28 @@ jaos_status jaos_write_osil(jaos_model *m, const char *path)
         }
         fprintf(f, "</value>\n</linearConstraintCoefficients>\n");
     }
-    if (m->col_quad != nullptr) {
-        int64_t nq = 0;
-        for (int64_t j = 0; j < nc; j++)
+    {
+        int64_t nq = m->q_nz;
+        for (int64_t j = 0; m->col_quad != nullptr && j < nc; j++)
             nq += m->col_quad[j] != 0.0;
         if (nq > 0) {
             fprintf(f, "<quadraticCoefficients numberOfQuadraticTerms=\"%"
                        PRId64 "\">\n", nq);
             for (int64_t j = 0; j < nc; j++) {
-                if (m->col_quad[j] == 0.0)
-                    continue;
-                wr_num(num, 0.5 * m->col_quad[j]);
-                fprintf(f, "<qTerm idx=\"-1\" idxOne=\"%" PRId64 "\" idxTwo=\"%"
-                           PRId64 "\" coef=\"%s\"/>\n", j, j, num);
+                if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+                    wr_num(num, 0.5 * m->col_quad[j]);
+                    fprintf(f, "<qTerm idx=\"-1\" idxOne=\"%" PRId64
+                               "\" idxTwo=\"%" PRId64 "\" coef=\"%s\"/>\n",
+                            j, j, num);
+                }
+
+                for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+                     m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
+                    wr_num(num, m->q_value[p]);
+                    fprintf(f, "<qTerm idx=\"-1\" idxOne=\"%" PRId64
+                               "\" idxTwo=\"%" PRId64 "\" coef=\"%s\"/>\n",
+                            m->q_index[p], j, num);
+                }
             }
             fprintf(f, "</quadraticCoefficients>\n");
         }

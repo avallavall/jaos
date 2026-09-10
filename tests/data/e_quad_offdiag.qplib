@@ -1,22 +1,38 @@
-# An off-diagonal Q entry, which JAOS refuses.
+# An off-diagonal Q entry: the pair Q[1][2] = Q[2][1].
+#   min -3 x - 3 y + (2 x^2 + 2 y^2 + 2 x y) / 2
+#   s.t.  x + y <= 4,  0 <= x, y <= 3
 eoff
-DCB
+CCL
 minimize
-2
-2
+2          # variables
+1          # constraints
+3          # objective Q entries, lower triangle
 1 1 2.0
+2 2 2.0
+2 1 1.0
+-3.0       # default objective coefficient
+0          # non-default objective coefficients
+0.0        # objective constant
+2          # constraint entries
+1 1 1.0
 1 2 1.0
-0.0
+1e+20      # value for infinity
+-1e+20     # default constraint lower bound
 0
-0.0
-0.0
+4.0        # default constraint upper bound
 0
-1e+20
+0.0        # default variable lower bound
 0
-0.0
+3.0        # default variable upper bound
 0
-0.0
+0.0        # default initial primal
 0
-0.0
+0.0        # default initial dual
 0
+0.0        # default initial reduced cost
 0
+2          # variable names
+1 x
+2 y
+1          # constraint names
+1 c1

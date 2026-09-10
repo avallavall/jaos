@@ -186,9 +186,11 @@ static void test_osil_refuses_what_it_cannot_carry(void)
                           jaos_read_osil(m, "tests/data/e_osil_nonlinear.osil"));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "nonlinearExpressions"));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "line 15"));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_osil(m, "tests/data/e_osil_offdiag.osil"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "off-diagonal"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO, jaos_read_osil(m, "tests/data/no.osil"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_read_osil(nullptr, "x"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_read_osil(m, nullptr));

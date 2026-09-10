@@ -265,8 +265,8 @@ The QPLIB text format of Furini et al. (2019), read by `jaos_read_qplib`
 and by the tool for a name ending in `.qplib` or `.qplib.gz`, written by
 `jaos_write_qplib` and `convert OUT.qplib`. JAOS reads the classes it
 holds: the three-letter type's first letter `L` (linear objective) or
-`D`, `C`, `Q` with a diagonal `Q` only, an off-diagonal entry refused by
-line; its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
+`D`, `C`, `Q`, the objective's `Q` read as the lower triangle it names,
+a diagonal entry or a pair alike; its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
 with `B` giving every variable bounds 0 and 1 and `M` or `G` reading the
 type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
 `B` or `L`, a quadratic constraint type refused at that line. After the
@@ -297,9 +297,12 @@ refused by name.
 `<variables>` with names, bounds and types (`C`, `I`, `S`, `D`), one
 `<obj>` with its sense, constant and linear coefficients,
 `<constraints>` with names and bounds, `<linearConstraintCoefficients>`
-column-wise, and `<quadraticCoefficients>` with one `qTerm` per
-quadratic column at `coef = q / 2`, the objective's `idx="-1"`. SOS sets
-and indicator rows are refused by name.
+column-wise, and `<quadraticCoefficients>` with one `qTerm` per entry of
+`Q`, the objective's `idx="-1"`. A `qTerm` is `coef * x[idxOne] *
+x[idxTwo]`, and the objective is `c'x + ½ x'Qx`, so a term naming one
+column twice carries `coef = q / 2` and a term naming two carries
+`coef = Q[i][j]`, the pair counting on both sides of the diagonal. SOS
+sets and indicator rows are refused by name.
 
 `jaos_read_osil` and the tool by extension read the same content back.
 The reader takes both matrix layouts: `<start>` over the columns with a
@@ -311,7 +314,7 @@ column reads as an integer column with an upper bound of 1. A bound of
 comments, the declaration, namespace prefixes and the five named
 entities plus the numeric ones are handled. Refused by line: a
 `<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
-off the diagonal or on a constraint, a second `<obj>`, an SOS block, a
+on a constraint, a second `<obj>`, an SOS block, a
 `<var>` or `<con>` repeated by `mult`, a `<con>` with a non-zero
 `constant`, a count that disagrees with what the file carries, and a
 file that ends inside a tag.

@@ -143,10 +143,20 @@ static void test_qplib_reads_the_published_layout(void)
     jaos_model_free(m);
 
     m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_qplib(m, "tests/data/e_quad_offdiag.qplib"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "off the diagonal"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "line 8"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
+    TEST_ASSERT_EQUAL_INT64(1, m->q_index[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->q_value[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, obj);
+    jaos_model_free(m);
+    m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
                           jaos_read_qplib(m, "tests/data/e_qcon.qplib"));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic constraints"));

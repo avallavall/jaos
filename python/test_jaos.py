@@ -230,9 +230,8 @@ class TestReadingFiles(unittest.TestCase):
                 self.assertEqual((back.num_col, back.num_row), (3, 2))
                 self.assertEqual(back.col_name(0), "x")
                 self.assertTrue(back.col_integer(1))
-                with self.assertRaises(jaos.JaosError) as ctx:
-                    back.read_osil(data("e_osil_offdiag.osil"))
-                self.assertIn("off-diagonal", str(ctx.exception))
+                back.read_osil(data("e_osil_offdiag.osil"))
+                self.assertEqual(back.quadratic_nz(), 1)
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=4, name="x", integer=True)
         p.add(x >= 1.5, name="floor")
@@ -252,6 +251,27 @@ class TestReadingFiles(unittest.TestCase):
                 self.assertTrue(back.col_integer(0))
                 self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
                 self.assertEqual(back.objective(), 2.0)
+
+    def test_a_paired_q_reaches_python_and_solves(self):
+        with jaos.Model() as m:
+            m.load(2, 1, [-3.0, -3.0], [0.0, 0.0], [3.0, 3.0],
+                   [-float("inf")], [4.0], [0, 1, 2], [0, 0], [1.0, 1.0])
+            m.set_quadratic([(0, 0, 2.0), (1, 1, 2.0), (1, 0, 1.0)])
+            self.assertEqual(m.quadratic_nz(), 3)
+            back = m.quadratic()
+            self.assertEqual(len(back), 3)
+            for r, c, _ in back:
+                self.assertGreaterEqual(r, c)
+            self.assertIn((1, 0, 1.0), back)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -3.0, places=5)
+
+            with self.assertRaises(jaos.JaosError):
+                m.set_quadratic([(0, 1, 1.0), (1, 0, 1.0)])
+            m.set_quadratic([])
+            self.assertEqual(m.quadratic_nz(), 0)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -12.0, places=6)
 
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
