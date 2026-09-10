@@ -1,0 +1,37 @@
+Taken 2026-09-10 with the three fixes in the tree. Same script, same seeds,
+same 6000 models per seed.
+
+mip seed 1: built=6000 compared=6000 skipped=0 bad=0
+mip seed 2: built=6000 compared=6000 skipped=0 bad=0
+mip seed 3: built=6000 compared=6000 skipped=0 bad=0
+mip seed 4: built=6000 compared=6000 skipped=0 bad=0
+mip seed 5: built=6000 compared=6000 skipped=0 bad=0
+mip seed 6: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 1: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 2: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 3: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 4: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 5: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 6: built=6000 compared=6000 skipped=0 bad=0
+
+72000 pairs, none disagreeing. `skipped` is 0 as well, so every one of the
+24 models that both orders used to refuse now answers.
+
+The model of `STATUS t=1249`, written out as MPS, under each algorithm:
+
+dual: unbounded
+primal: unbounded
+barrier: unbounded
+
+All five said `numerical_error` before, `pdlp` and `concurrent` included,
+because all five give an LP's refusal verdict to the dual simplex.
+
+The log of that solve, which is what the restart looks like:
+
+presolve: 3 rows, 4 columns, 7 nonzeros -> 1 rows, 3 columns, 3 nonzeros
+dual simplex: 3 rows, 4 columns, 7 nonzeros
+neither test decides the bound dual phase 1 lent (column 2 improves past
+the bound dual phase 1 lent it; ...); restarting cold on the primal with
+nothing lent, where a column with no bound of its own is nonbasic free and
+the pricing moves it either way
+unbounded after 2 iterations, 20831 work units

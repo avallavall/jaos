@@ -2840,6 +2840,42 @@ static void test_an_empty_column_is_unbounded_only_where_a_point_exists(void)
     jaos_model_free(b);
 }
 
+static void test_an_empty_free_column_rests_on_no_bound(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[] = {1.0, 0.0};
+    const double cl[] = {0.0, -INFINITY};
+    const double cu[] = {4.0, INFINITY};
+    const double rl[] = {1.0}, ru[] = {INFINITY};
+    const int64_t as[] = {0, 1, 1};
+    const int64_t ai[] = {0};
+    const double av[] = {1.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, as, ai, av));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    jaos_basis_status cs[2], rs[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_BASIS_FREE, cs[1],
+        "the column has neither bound, so it can rest on neither");
+
+    double lo_lo[2], lo_hi[2], hi_lo[2], hi_hi[2];
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_bound_ranging(m, lo_lo, lo_hi, hi_lo, hi_hi),
+        "a basis that names a bound the column has not got is one no "
+        "tableau can be read from");
+    jaos_model_free(m);
+#endif
+}
+
 static void test_a_maximised_empty_column_takes_its_upper_bound(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3134,6 +3170,7 @@ int main(void)
 
     RUN_TEST(test_a_maximised_singleton_row_is_owed_its_multiplier);
     RUN_TEST(test_an_empty_column_is_unbounded_only_where_a_point_exists);
+    RUN_TEST(test_an_empty_free_column_rests_on_no_bound);
     RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
     RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
     RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);

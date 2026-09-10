@@ -1065,8 +1065,15 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
     jm_tableau *tb = nullptr;
     if (jm_model_has_quadratic(lp) || !lp->sol_basis_ok)
         return 0;
-    if (jm_tableau_build(lp, &tb) != JAOS_OK)
-        return -1;
+    {
+        const jaos_status tst = jm_tableau_build(lp, &tb);
+        if (tst == JAOS_ERR_OUT_OF_MEMORY)
+            return -1;
+        if (tst != JAOS_OK) {
+            lp->err[0] = '\0';
+            return 0;
+        }
+    }
     int64_t added = 0;
     for (int64_t j = 0; j < nc; j++) {
         if (!m->col_integer[j])

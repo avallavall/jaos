@@ -183,6 +183,9 @@ typedef struct {
     bool costs_perturbed;
     int64_t n_perturb;
 
+    bool primal_run;
+    bool no_loans;
+
     bool dse_guess;
     int64_t n_guess_restart;
     bool dse_exact_pending;
@@ -272,6 +275,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
 
     s->primal_tol = m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
     s->dual_tol   = m->cfg.dual_tol   > 0.0 ? m->cfg.dual_tol   : DUAL_TOL;
+    s->primal_run = m->cfg.force_primal;
 
     if (!m->scale_valid) {
         jaos_status st = jm_model_scale(m, JM_SCALE_CURTIS_REID);
@@ -468,7 +472,16 @@ static void build_initial_basis(sx *s)
         bool has_lo = isfinite(s->lo[j]);
         bool has_up = isfinite(s->up[j]);
 
-        if (s->cost[j] > 0.0) {
+        if (s->no_loans) {
+            if (s->cost[j] < 0.0 && has_up)
+                s->status[j] = JM_AT_UPPER;
+            else if (has_lo)
+                s->status[j] = JM_AT_LOWER;
+            else if (has_up)
+                s->status[j] = JM_AT_UPPER;
+            else
+                s->status[j] = JM_FREE;
+        } else if (s->cost[j] > 0.0) {
             if (!has_lo) {
                 s->lo[j] = -ARTIFICIAL_BOUND;
                 s->fake[j] = FAKE_LO;
@@ -589,7 +602,7 @@ static bool build_warm_basis(sx *s)
 
     for (int64_t i = 0; i < s->nrow; i++)
         s->dse[i] = 1.0;
-    s->dse_guess = !m->cfg.node_solve && !m->cfg.force_primal;
+    s->dse_guess = !m->cfg.node_solve && !s->primal_run;
     s->n_guess_restart = 0;
     s->dse_exact_pending = false;
 
@@ -1552,7 +1565,7 @@ static void shift_to_feasible(sx *s, int64_t v)
 
 static bool shifts_costs(const sx *s)
 {
-    return !s->in_phase1 && !s->m->cfg.force_primal;
+    return !s->in_phase1 && !s->primal_run;
 }
 
 static void update_dual(sx *s, int64_t v, int64_t q, double theta_dual)
@@ -2378,8 +2391,8 @@ static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped)
     if (!save_best(s))
         return JAOS_ERR_OUT_OF_MEMORY;
 
-    const int64_t rounds = s->m->cfg.force_primal ? SETTLE_ROUNDS_PRIMAL
-                                                  : SETTLE_ROUNDS;
+    const int64_t rounds = s->primal_run ? SETTLE_ROUNDS_PRIMAL
+                                         : SETTLE_ROUNDS;
 
     for (int64_t round = 0; round < rounds; round++) {
 
@@ -4035,12 +4048,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jm_log(m, JAOS_LOG_SUMMARY,
            "%s simplex: %lld rows, %lld columns, %lld nonzeros, "
            "primal tol %.3g, dual tol %.3g",
-           m->cfg.force_primal ? "primal" : "dual",
+           s.primal_run ? "primal" : "dual",
            (long long)m->num_row, (long long)m->num_col,
            (long long)m->num_nz, s.primal_tol, s.dual_tol);
 
     jaos_solve_status outcome;
     bool allow_warm = true;
+    bool allow_loan_free = true;
     for (;;) {
         const bool warm = allow_warm && build_warm_basis(&s);
         if (!warm)
@@ -4048,8 +4062,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
         jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
                warm ? "the basis on the model" : "the slack basis");
 
-        st = m->cfg.force_primal ? run_primal(&s, &outcome)
-                                 : run(&s, &outcome);
+        st = s.primal_run ? run_primal(&s, &outcome)
+                          : run(&s, &outcome);
 
         if (st == JAOS_ERR_NUMERICAL && warm) {
             jm_log(m, JAOS_LOG_SUMMARY,
@@ -4123,6 +4137,33 @@ jaos_status jm_dual_simplex(jaos_model *m)
             break;
         }
         outcome = classify_optimum(&s);
+
+        if (outcome == JAOS_SOLVE_NUMERICAL_ERROR && allow_loan_free) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "neither test decides the bound dual phase 1 lent (%s); "
+                   "restarting cold on the primal with nothing lent, where "
+                   "a column with no bound of its own is nonbasic free and "
+                   "the pricing moves it either way",
+                   target->err);
+            const jm_work carried = s.work;
+            const double t0 = s.started;
+            sx_free(&s);
+            st = sx_init(&s, target);
+            if (st != JAOS_OK) {
+                jm_presolve_free(&p);
+                return st;
+            }
+            s.work = carried;
+            s.started = t0;
+            s.primal_run = true;
+            s.no_loans = true;
+
+            target->err[0] = '\0';
+            m->err[0] = '\0';
+            allow_warm = false;
+            allow_loan_free = false;
+            continue;
+        }
 
         if (outcome == JAOS_SOLVE_OPTIMAL)
             st = retire_lent_bounds(&s);

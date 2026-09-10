@@ -3704,6 +3704,33 @@ static jaos_callback_action wide_row(jaos_node *ev, void *user)
     return JAOS_CALLBACK_CONTINUE;
 }
 
+static void test_a_node_whose_tableau_cannot_be_read_skips_its_cuts(void)
+{
+    const double c[6] = {-2.0, -4.0, -5.0, -2.0, -1.0, 0.0};
+    const double cl[6] = {0.0, -2.0, 0.0, 2.0, 0.0, -INFINITY};
+    const double cu[6] = {3.0, 3.0, 1.0, 4.0, 1.0, INFINITY};
+    const double rl[2] = {3.0, 3.0}, ru[2] = {3.0, 5.0};
+    const int64_t as[7] = {0, 2, 4, 6, 8, 9, 9};
+    const int64_t ai[9] = {0, 1, 0, 1, 0, 1, 0, 1, 1};
+    const double av[9] = {1.0, -1.0, 1.0, 3.0, -3.0, -1.0, 1.0, 3.0, 2.0};
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 6, 2, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru,
+                     9, as, ai, av));
+    for (int64_t j = 0; j < 6; j++)
+        if (j != 3 && j != 5)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 1, 2, 0));
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+        "the Gomory round is optional, so a node it cannot read a tableau "
+        "from skips its cuts instead of ending the search");
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 static void test_a_node_row_that_cuts_nothing_off_leaves_the_answer(void)
 {
     {
@@ -3848,6 +3875,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
     RUN_TEST(test_a_cut_never_shuts_out_every_point);
     RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);
+    RUN_TEST(test_a_node_whose_tableau_cannot_be_read_skips_its_cuts);
     RUN_TEST(test_a_node_row_that_cuts_nothing_off_leaves_the_answer);
     return UNITY_END();
 }

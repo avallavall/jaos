@@ -2814,15 +2814,56 @@ static void test_two_held_columns_whose_sum_is_still_blocked(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
                      2, as, ai, av));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
-    const char *err = jaos_model_error(m);
-    TEST_ASSERT_NOT_NULL(err);
-    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(err, "together"),
-                                 "the refusal must say the combined "
-                                 "direction was tried and blocked");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  "the rows bound both columns at 1e11, so "
+                                  "the model has an optimum; neither loan "
+                                  "test sees it, and the restart with "
+                                  "nothing lent has to reach it");
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1.0, -2e11, obj);
     jaos_model_free(m);
 #endif
+}
+
+static void test_a_ray_no_loan_test_sees_is_still_unbounded(void)
+{
+    const double c[] = {-3.0, -4.0, -3.0, -4.0};
+    const double cl[] = {0.0, -2.0, 0.0, 0.0};
+    const double cu[] = {1.0, 3.0, INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, -INFINITY, -INFINITY};
+    const double ru[] = {6.0, 4.0, 2.0};
+    const int64_t as[] = {0, 2, 3, 5, 7};
+    const int64_t ai[] = {0, 2, 0, 0, 2, 1, 2};
+    const double av[] = {-3.0, 3.0, 2.0, -1.0, 3.0, -1.0, -3.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     7, as, ai, av));
+    solved_both_ways_as_unbounded(m);
+    jaos_model_free(m);
+}
+
+static void test_the_column_order_does_not_decide_that_ray(void)
+{
+    const double c[] = {-4.0, -3.0, -4.0, -3.0};
+    const double cl[] = {0.0, 0.0, -2.0, 0.0};
+    const double cu[] = {INFINITY, INFINITY, 3.0, 1.0};
+    const double rl[] = {-INFINITY, -INFINITY, -INFINITY};
+    const double ru[] = {2.0, 4.0, 6.0};
+    const int64_t as[] = {0, 2, 4, 5, 7};
+    const int64_t ai[] = {0, 1, 0, 2, 2, 0, 2};
+    const double av[] = {-3.0, -1.0, 3.0, -1.0, 2.0, 3.0, -3.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     7, as, ai, av));
+    solved_both_ways_as_unbounded(m);
+    jaos_model_free(m);
 }
 
 static void test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible(void)
@@ -3444,6 +3485,8 @@ int main(void)
     RUN_TEST(test_a_bounded_neighbour_of_that_model_is_not_a_ray);
     RUN_TEST(test_a_ray_needing_two_columns_is_answered);
     RUN_TEST(test_two_held_columns_whose_sum_is_still_blocked);
+    RUN_TEST(test_a_ray_no_loan_test_sees_is_still_unbounded);
+    RUN_TEST(test_the_column_order_does_not_decide_that_ray);
     RUN_TEST(test_a_sub_tolerance_flip_gap_is_repaired_not_infeasible);
     RUN_TEST(test_a_real_flip_gap_past_tolerance_stays_infeasible);
     RUN_TEST(test_a_fixed_column_is_not_a_flip_candidate);

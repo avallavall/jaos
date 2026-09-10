@@ -1,0 +1,39 @@
+Taken 2026-09-10 at 3bf0585, the tree before the three fixes.
+`bench/measurements/02-224/perm.sh`, 6000 generated models per seed, each
+solved twice: as generated, and with its rows and columns permuted.
+
+mip seed 1: built=6000 compared=5997 skipped=3 bad=2
+mip seed 2: built=6000 compared=5996 skipped=4 bad=1
+mip seed 3: built=6000 compared=5996 skipped=3 bad=2
+mip seed 4: built=6000 compared=5996 skipped=4 bad=2
+mip seed 5: built=6000 compared=5993 skipped=7 bad=0
+mip seed 6: built=6000 compared=5997 skipped=3 bad=1
+lp  seed 1: built=6000 compared=6000 skipped=0 bad=1
+lp  seed 2: built=6000 compared=6000 skipped=0 bad=1
+lp  seed 3: built=6000 compared=6000 skipped=0 bad=1
+lp  seed 4: built=6000 compared=6000 skipped=0 bad=1
+lp  seed 5: built=6000 compared=6000 skipped=0 bad=0
+lp  seed 6: built=6000 compared=6000 skipped=0 bad=1
+
+8 of 36000 pairs disagree over the MIP set and 5 of 36000 over the LP set.
+The LP set is the same 36000 generated models with the integer marks, the
+SOS sets, the semi-continuous marks and the indicator rows taken off, so a
+model can appear in both counts.
+
+Every disagreement but one is `unbounded` against `numerical error`. The
+lines the dump flag printed:
+
+STATUS t=74   a=unbounded        b=numerical error   (mip, seed 1)
+STATUS t=1249 a=numerical error  b=unbounded         (mip and lp, seed 1)
+STATUS t=1798 a=unbounded        b=numerical error   (mip and lp, seed 2)
+STATUS t=3442 a=unbounded        b=numerical error   (mip, seed 3)
+STATUS t=1683 a=unbounded        b=numerical error   (mip, seed 4)
+STATUS t=2444 a=unbounded        b=numerical error   (mip and lp, seed 4)
+STATUS t=596  a=numerical error  b=unbounded         (lp, seed 6)
+RC     t=3439 a=out of memory    b=ok                (mip, seed 3)
+
+The remaining lines, one on mip seed 3's lp counterpart and one on mip seed
+6, were not dumped one by one; the counts above are the whole reading.
+
+A pair where both orders refuse the same way is counted as `skipped` and not
+compared, which is where the 24 skips come from.

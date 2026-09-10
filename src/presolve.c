@@ -1071,6 +1071,8 @@ static jaos_basis_status ps_fixed_status(const jaos_model *orig, int64_t j,
 {
     if (orig->col_lower[j] == orig->col_upper[j])
         return dc < 0.0 ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+    if (!isfinite(orig->col_lower[j]) && !isfinite(orig->col_upper[j]))
+        return JAOS_BASIS_FREE;
     return (value == orig->col_upper[j] && value != orig->col_lower[j])
                ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
 }
