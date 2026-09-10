@@ -95,5 +95,32 @@ When the file is empty, pick the next rows from SPECS and fill it again.
    dfl001's alone and the other four are a different fault: **they are not
    chasing noise, and whatever holds them is still unnamed.** What is left of
    this thread is the reading used to end the walk rather than to price it,
-   or a floor stated in the model's units. The second thread, EXPAND, is
-   still unmeasured.
+   or a floor stated in the model's units.
+
+   **The second thread is read too, and it is the fifth refusal**
+   (`bench/refusals.txt`, primal-expand-step). EXPAND's step is the one piece
+   of the method that fits the contract `docs/tolerances.md` already states,
+   and it is fully available and worth nothing here. The ratio test took the
+   chosen candidate's own distance, zero on a degenerate vertex; taking the
+   Harris window instead leaves every basic at most `width` outside, which is
+   the overshoot pass one already permits, and can only make the step larger.
+   On d6cube all 16761 phase-2 steps were raised, the 11507 zero ones to a
+   mean window of 6.0e-08, and no basic had ever been past `width` so no
+   allowance had been spent; the walk still takes 18131 iterations, the count
+   it takes without it. degen3 takes 3741 either way, seba 344, and fit2d
+   goes from 7847 to 8161. **So the degeneracy of d6cube and degen3 is not a
+   step-length matter**, and the growing schedule that is the rest of EXPAND
+   would multiply a 6e-08 step by two on a walk that a 6e-08 step does not
+   shorten.
+
+   **Both named threads are now measured and both are refused, so the row
+   needs a new lead rather than a fresh session on the old ones.** What the
+   two readings leave standing: the five are not chasing noise (the first
+   thread) and they are not short of step length (the second). d6cube spends
+   69% of its phase-2 ratio tests on a zero step and still walks 18131
+   iterations whatever the step is offered, which points at the entering
+   choice and not the leaving one, and steepest edge, Devex and Dantzig are
+   all already measured on the set (the SPECS row). The unread thing is the
+   sequence of entering columns itself: whether the walk revisits bases, and
+   if it does, what a record of the visited bases would cost against what the
+   18131 iterations cost.
