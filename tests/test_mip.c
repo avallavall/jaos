@@ -1612,7 +1612,13 @@ static void test_the_solution_pool_holds_the_best_points_best_first(void)
                 TEST_ASSERT_EQUAL_MEMORY(inc, x, sizeof inc);
                 TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
             } else {
-                TEST_ASSERT_TRUE(memcmp(best, x, sizeof best) != 0);
+                bool held_twice = true;
+                for (int j = 0; j < 5 && held_twice; j++)
+                    if (best[j] != x[j])
+                        held_twice = false;
+                TEST_ASSERT_FALSE_MESSAGE(held_twice,
+                    "two entries of the pool are the same point; comparing "
+                    "them by their bytes calls a signed zero a difference");
             }
         }
         if (size == 1)
@@ -1624,6 +1630,53 @@ static void test_the_solution_pool_holds_the_best_points_best_first(void)
         TEST_ASSERT_EQUAL_INT64(0, m->cfg.mip_pool_size);
         jaos_model_free(m);
     }
+}
+
+static void test_the_pool_never_holds_one_point_twice(void)
+{
+    /* The tree reaches this point twice, once with a column at +0 and once
+     * at -0. They are the same point, and `spool_offer` compared the two by
+     * their bytes, so the pool kept both and reported two answers where the
+     * model has one. */
+    const double cost[5] = { -1.0, -5.0, -2.0, 3.0, 3.0 };
+    const double cl[5] = { -1.0, -3.0, 0.0, 0.0, 0.0 };
+    const double cu[5] = { 2.0, 1.0, 1.0, 1.0, 4.0 };
+    const double rl[6] = { -INFINITY, 0.0, -5.0, -1.0, -INFINITY, -3.0 };
+    const double ru[6] = { 3.0, 8.0, 0.0, 0.0, 10.0, 3.0 };
+    const int64_t ap[6] = { 0, 2, 6, 10, 13, 15 };
+    const int64_t ai[15] = { 1, 5,  0, 1, 2, 5,  1, 2, 3, 4,  1, 3, 4,  3, 5 };
+    const double av[15] = { -1.0, -3.0,  -3.0, 2.0, 1.0, -2.0,
+                            3.0, -2.0, -1.0, -2.0,  -2.0, -3.0, 2.0,
+                            -2.0, 2.0 };
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 6, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     15, ap, ai, av));
+    for (int64_t j = 0; j < 5; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 4, 3, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pool_size(m, 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    int64_t held = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_count(m, &held));
+    for (int64_t k = 0; k < held; k++)
+        for (int64_t p = k + 1; p < held; p++) {
+            double a[5], b[5], oa = 0.0, ob = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, k, a, &oa));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, p, b, &ob));
+            bool twice = true;
+            for (int64_t j = 0; j < 5 && twice; j++)
+                if (a[j] != b[j])
+                    twice = false;
+            TEST_ASSERT_FALSE_MESSAGE(twice,
+                "the pool holds one point twice, and a signed zero is what "
+                "told the two apart");
+        }
+    jaos_model_free(m);
 }
 
 static void test_a_cover_cut_closes_the_knapsack_at_the_root(void)
@@ -3877,6 +3930,7 @@ int main(void)
     RUN_TEST(test_dropping_slack_cuts_keeps_the_optimum);
     RUN_TEST(test_probing_at_the_root_only_reaches_the_same_optimum);
     RUN_TEST(test_the_solution_pool_holds_the_best_points_best_first);
+    RUN_TEST(test_the_pool_never_holds_one_point_twice);
     RUN_TEST(test_a_cover_cut_closes_the_knapsack_at_the_root);
     RUN_TEST(test_a_cap_on_a_nodes_cuts_keeps_the_optimum);
     RUN_TEST(test_a_stalled_root_round_is_the_last);

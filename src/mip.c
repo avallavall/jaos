@@ -3209,10 +3209,19 @@ static void spool_offer(spool *sp, const double *x, double key, double obj)
     const int64_t nc = sp->nc;
     if (sp->n == sp->cap && !(key < sp->key[sp->n - 1]))
         return;
-    for (int64_t i = 0; i < sp->n; i++)
-        if (sp->key[i] == key &&
-            (nc == 0 || memcmp(sp->x + i * nc, x, (size_t)nc * sizeof *x) == 0))
+    /* A point the pool already holds is a point it already holds, whatever
+     * objective this offer carries: the tree reaches one point down two
+     * branches and the two values differ in the last bits, and it reaches
+     * one point with a column at +0 and at -0. Neither makes a second
+     * answer, so the point alone decides. */
+    for (int64_t i = 0; i < sp->n; i++) {
+        bool held = true;
+        for (int64_t j = 0; j < nc && held; j++)
+            if (sp->x[i * nc + j] != x[j])
+                held = false;
+        if (held)
             return;
+    }
     int64_t pos = 0;
     while (pos < sp->n && !(key < sp->key[pos]))
         pos++;

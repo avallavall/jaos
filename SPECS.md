@@ -68,7 +68,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Flow cover, zero-half, lifted cover cuts | **partial** | all three exist behind switches and are off by measurement: flow covers behind `--flow-cover-rounds` (1.012x, the structure on two of the 24, dcmulti 1.49x), zero-half behind `--zero-half-rounds` (1.182x at best, gt2 2.91x), lifted covers behind `--cover-lift`. Missing: a reading that lands one of them on |
 | Rounding heuristic, root dive, feasibility pump | **done** | |
 | RINS, local branching, other improvement heuristics | **partial** | RINS exists behind a switch and is off |
-| Solution pool | **done** | |
+| Solution pool | **done** | `jaos_set_mip_pool_size`, `jaos_mip_pool_count` and `jaos_mip_pool_solution`, the CLI's `--pool-size` and `--pool-out`; the entries run best first and no two of them are the same point |
 | MIP start and cutoff | **done** | the starting point follows its columns through `jaos_add_cols` and `jaos_delete_cols`; an arriving column starts at the point of its own box nearest zero |
 | Node limit, incumbent callback | **done** | |
 | Bound propagation, reduced-cost fixing | **partial** | both exist behind switches and are off |

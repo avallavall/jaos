@@ -1,0 +1,10 @@
+# The sweep against src/mip.c at 74005b9
+
+4000 models per seed, six seeds. Only the duplicate check differs.
+
+seed 1: built=4000 with_a_pool=4000 entries=4377 of_them_more_than_one=342 skipped=0 bad=10 near_duplicates=0
+seed 2: built=4000 with_a_pool=4000 entries=4385 of_them_more_than_one=355 skipped=0 bad=11 near_duplicates=0
+seed 3: built=4000 with_a_pool=4000 entries=4389 of_them_more_than_one=355 skipped=0 bad=12 near_duplicates=0
+seed 4: built=4000 with_a_pool=4000 entries=4377 of_them_more_than_one=345 skipped=0 bad=12 near_duplicates=0
+seed 5: built=4000 with_a_pool=4000 entries=4357 of_them_more_than_one=329 skipped=0 bad=9 near_duplicates=1
+seed 6: built=4000 with_a_pool=4000 entries=4389 of_them_more_than_one=352 skipped=0 bad=15 near_duplicates=3

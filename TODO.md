@@ -114,3 +114,25 @@ the commit that took it, named here by hash.
    The second repeats the rule that `semi_live` holds, that a
    semi-continuous column counts only where its lower bound is above zero,
    and a copy of a rule is what let the OSiL defect of 02-226 through.
+
+5. **The pool can hold one point twice when a continuous column differs in
+   the last bits.** 02-227 closed the two ways an exact duplicate got in.
+   Four pools of 24000 still hold two entries whose integer columns agree
+   exactly and whose continuous column does not:
+
+       x[4]  1.5000000000000266  against  1.5000000000000178
+       objectives 9.5000000000001332 and 9.5000000000000888
+
+   A caller who asked for the two best points got one point twice, so it is
+   the same complaint as the two that are fixed. The fix is not the same,
+   because `spool_offer` cannot tell one vertex reached twice from two
+   vertices of one optimal face without a tolerance, and JAOS has not got a
+   constant for "these two points are the same point".
+   What it needs, in order: decide whether identity in the pool is the
+   integer assignment alone or the whole point; if the whole point, set the
+   tolerance from a measurement and write it into `docs/tolerances.md`; then
+   compare on it. Deciding by the integer columns alone is the cheaper
+   answer and it matches what `docs/cli.md` promises, "the K best integer
+   points", but it makes two vertices of one optimal face one entry, and a
+   caller reading the pool for a spread of answers wants both.
+   Reading: `bench/measurements/02-227/`.

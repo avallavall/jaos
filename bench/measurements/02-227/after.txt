@@ -1,0 +1,10 @@
+# The sweep with the fix in
+
+4000 models per seed, six seeds.
+
+seed 1: built=4000 with_a_pool=4000 entries=4368 of_them_more_than_one=335 skipped=0 bad=0 near_duplicates=0
+seed 2: built=4000 with_a_pool=4000 entries=4375 of_them_more_than_one=349 skipped=0 bad=0 near_duplicates=0
+seed 3: built=4000 with_a_pool=4000 entries=4377 of_them_more_than_one=344 skipped=0 bad=0 near_duplicates=0
+seed 4: built=4000 with_a_pool=4000 entries=4365 of_them_more_than_one=336 skipped=0 bad=0 near_duplicates=0
+seed 5: built=4000 with_a_pool=4000 entries=4348 of_them_more_than_one=320 skipped=0 bad=0 near_duplicates=1
+seed 6: built=4000 with_a_pool=4000 entries=4376 of_them_more_than_one=343 skipped=0 bad=0 near_duplicates=3
