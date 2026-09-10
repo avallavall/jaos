@@ -1,0 +1,18 @@
+# The sweep with both fixes in
+
+Six seeds, 6000 models each, once with every discrete shape and once
+with them off. Four routes per model: add_cols, add_rows, delete and
+copy, each against the model loaded whole.
+
+mip seed 1: built=5999 compared=23996 skipped=1 bad=0
+mip seed 2: built=6000 compared=24000 skipped=0 bad=0
+mip seed 3: built=5998 compared=23992 skipped=2 bad=0
+mip seed 4: built=6000 compared=24000 skipped=0 bad=0
+mip seed 5: built=6000 compared=24000 skipped=0 bad=0
+mip seed 6: built=5999 compared=23996 skipped=1 bad=0
+lp  seed 1: built=6000 compared=24000 skipped=0 bad=0
+lp  seed 2: built=6000 compared=24000 skipped=0 bad=0
+lp  seed 3: built=6000 compared=24000 skipped=0 bad=0
+lp  seed 4: built=6000 compared=24000 skipped=0 bad=0
+lp  seed 5: built=6000 compared=24000 skipped=0 bad=0
+lp  seed 6: built=6000 compared=24000 skipped=0 bad=0

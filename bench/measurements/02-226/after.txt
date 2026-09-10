@@ -1,0 +1,12 @@
+# The sweep with the fixes in
+
+Six seeds, 3000 models each. Each model goes to every format that can
+express it, comes back, and is solved: the status, the objective and
+the node count all have to match.
+
+seed 1: built=3000 round_trips=9515 refused=5485 skipped=0 bad=0 (nodes only 0) node_checked=2403 of_those_used_the_tree=2339
+seed 2: built=3000 round_trips=9538 refused=5462 skipped=0 bad=0 (nodes only 0) node_checked=2503 of_those_used_the_tree=2463
+seed 3: built=3000 round_trips=9581 refused=5419 skipped=0 bad=0 (nodes only 0) node_checked=2492 of_those_used_the_tree=2436
+seed 4: built=3000 round_trips=9556 refused=5444 skipped=0 bad=0 (nodes only 0) node_checked=2518 of_those_used_the_tree=2478
+seed 5: built=3000 round_trips=9404 refused=5596 skipped=0 bad=0 (nodes only 0) node_checked=2405 of_those_used_the_tree=2349
+seed 6: built=3000 round_trips=9483 refused=5517 skipped=0 bad=0 (nodes only 0) node_checked=2545 of_those_used_the_tree=2489

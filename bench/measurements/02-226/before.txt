@@ -1,0 +1,42 @@
+# The sweep against the code before the fixes
+
+src/osil.c, src/mip.c and src/model.c reverted to 74005b9; 400 models,
+seed 1. Reverting src/osil.c alone reports 0, because the guard in
+jm_model_has_integer catches the same models on its own.
+
+NODES t=8 fmt=osil whole=1 back=0 obj=368.91632042399982
+OBJ t=12 fmt=osil whole=-2.5 back=2.5
+NODES t=19 fmt=osil whole=3 back=0 obj=-5.6666666658173526
+OBJ t=38 fmt=osil whole=1 back=2
+NODES t=41 fmt=osil whole=1 back=0 obj=7
+OBJ t=44 fmt=osil whole=31.666666666666664 back=26.666666666666664
+NODES t=57 fmt=osil whole=1 back=0 obj=-4.5
+NODES t=60 fmt=osil whole=1 back=0 obj=-13
+OBJ t=67 fmt=osil whole=-3.6000000000000001 back=-1.6000000000000003
+STATUS t=74 fmt=osil whole=optimal back=infeasible
+NODES t=85 fmt=osil whole=1 back=0 obj=-13.500000018031498
+STATUS t=97 fmt=osil whole=optimal back=infeasible
+NODES t=115 fmt=osil whole=1 back=0 obj=-9
+NODES t=127 fmt=osil whole=3 back=0 obj=-10.25
+NODES t=133 fmt=osil whole=1 back=0 obj=-2
+NODES t=143 fmt=osil whole=1 back=0 obj=2
+NODES t=145 fmt=osil whole=1 back=0 obj=1.25
+OBJ t=164 fmt=osil whole=-4 back=-6.6666666666666661
+NODES t=196 fmt=osil whole=1 back=0 obj=42
+OBJ t=220 fmt=osil whole=-28 back=-26
+OBJ t=221 fmt=osil whole=-36.499999999272831 back=-30.24999999935266
+NODES t=226 fmt=osil whole=1 back=0 obj=4
+NODES t=239 fmt=osil whole=1 back=0 obj=2.9166666665952294
+OBJ t=240 fmt=osil whole=19.800970873781495 back=20.427184466013106
+NODES t=269 fmt=osil whole=1 back=0 obj=-4
+OBJ t=278 fmt=osil whole=30.666666666666668 back=27.666666666666668
+OBJ t=296 fmt=osil whole=-15 back=-13
+OBJ t=304 fmt=osil whole=-11.333333333333332 back=-10.666666666666666
+NODES t=330 fmt=osil whole=1 back=0 obj=11.749999999999357
+NODES t=341 fmt=osil whole=1 back=0 obj=-8
+OBJ t=349 fmt=osil whole=-12 back=-6
+OBJ t=356 fmt=osil whole=46.5 back=44.5
+OBJ t=357 fmt=osil whole=-3 back=-0.66666666666666685
+NODES t=368 fmt=osil whole=1 back=0 obj=-24
+OBJ t=381 fmt=osil whole=-32.791666663833112 back=-22.791666656570399
+built=400 round_trips=1266 refused=734 skipped=0 bad=35 (nodes only 18) node_checked=342 of_those_used_the_tree=338

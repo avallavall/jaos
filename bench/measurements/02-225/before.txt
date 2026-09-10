@@ -1,0 +1,55 @@
+# The sweep against the code before the two fixes
+
+Built with -fsanitize=address so the overflow is visible; 400 models,
+seed 1. src/model.c and src/osil.c reverted to 74005b9.
+
+=================================================================
+==446==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000008c18 at pc 0x56bc11f728f7 bp 0x7fff8c2ed250 sp 0x7fff8c2ed240
+READ of size 8 at 0x502000008c18 thread T0
+    #0 0x56bc11f728f6 in jaos_set_mip_start src/model.c:1782
+    #1 0x56bc11f79c75 in jaos_model_copy src/model.c:3247
+    #2 0x56bc11f58523 in jm_branch_and_bound src/mip.c:3552
+    #3 0x56bc11f7068b in jaos_solve src/model.c:877
+    #4 0x56bc11ef868f in main bench/measurements/02-225/edits.c:431
+    #5 0x79a7f062a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #6 0x79a7f062a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #7 0x56bc11ef3ce4 in _start (/home/vall/sw/eb+0x1dce4) (BuildId: 1103f0233f8b09284f5094a23f24d04d0d518bc2)
+
+0x502000008c18 is located 0 bytes after 8-byte region [0x502000008c10,0x502000008c18)
+allocated by thread T0 here:
+    #0 0x79a7f0afd9c7 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x56bc11f72802 in jaos_set_mip_start src/model.c:1787
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow src/model.c:1782 in jaos_set_mip_start
+Shadow bytes around the buggy address:
+  0x502000008980: fa fa fd fa fa fa fd fd fa fa fd fd fa fa fd fd
+  0x502000008a00: fa fa fd fd fa fa fd fa fa fa fd fd fa fa fd fd
+  0x502000008a80: fa fa fd fd fa fa fd fa fa fa fd fd fa fa fd fd
+  0x502000008b00: fa fa fd fa fa fa fd fd fa fa fd fa fa fa fd fd
+  0x502000008b80: fa fa fd fa fa fa fd fa fa fa fd fa fa fa fd fd
+=>0x502000008c00: fa fa 00[fa]fa fa fd fd fa fa fd fd fa fa fd fd
+  0x502000008c80: fa fa 04 fa fa fa fd fa fa fa 04 fa fa fa fa fa
+  0x502000008d00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x502000008d80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x502000008e00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x502000008e80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==446==ABORTING
