@@ -363,9 +363,108 @@ static void test_a_second_solve_reaches_the_same_verdict(void)
     jaos_model_free(m);
 }
 
+static void test_an_sos_set_the_rows_alone_do_not_break(void)
+{
+    /* x >= 2 and y >= 2, and an SOS1 set that lets only one of them be
+       nonzero. The rows alone are satisfiable and the set is what breaks
+       the model, so a relaxation that drops the set moves nothing. */
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {1.0, 1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {10.0, 10.0};
+    const double rl[2] = {2.0, 2.0}, ru[2] = {INFINITY, INFINITY};
+    const int64_t s[3] = {0, 1, 2};
+    const int64_t ix[2] = {0, 1};
+    const double v[2] = {1.0, 1.0};
+    const int64_t sc[2] = {0, 1};
+    const double sw[2] = {1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, sc, sw));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    double rm[2], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_ROWS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.total);
+    TEST_ASSERT_EQUAL_INT64(1, rep.rows_moved);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, after_moving(m, rm, cm));
+    jaos_model_free(m);
+}
+
+static void test_a_semi_continuous_column_may_take_its_zero(void)
+{
+    /* x is zero or between 5 and 10, and the row caps it at zero. The
+       zero satisfies both, so nothing has to move. A copy that forgets
+       the column is semi-continuous sees 5 <= x <= 0 and moves a bound. */
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[1] = {1.0};
+    const double cl[1] = {5.0}, cu[1] = {10.0};
+    const double rl[1] = {-INFINITY}, ru[1] = {0.0};
+    const int64_t s[2] = {0, 1};
+    const int64_t ix[1] = {0};
+    const double v[1] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double rm[1], cm[1];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_BOTH, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.total);
+    TEST_ASSERT_EQUAL_INT64(0, rep.rows_moved);
+    TEST_ASSERT_EQUAL_INT64(0, rep.cols_moved);
+    jaos_model_free(m);
+}
+
+static void test_an_indicator_row_that_is_switched_off_holds_nothing(void)
+{
+    /* Row 0 holds only while z is 1, and z is fixed at 0, so x <= 3 and
+       the row asking x >= 5 never applies. A copy that forgets the
+       indicator reads the row as always on and moves a bound. */
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {1.0, 0.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {3.0, 0.0};
+    const double rl[1] = {5.0}, ru[1] = {INFINITY};
+    const int64_t s[3] = {0, 1, 1};
+    const int64_t ix[1] = {0};
+    const double v[1] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 1, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    double rm[1], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_BOTH, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.total);
+    TEST_ASSERT_EQUAL_INT64(0, rep.rows_moved);
+    TEST_ASSERT_EQUAL_INT64(0, rep.cols_moved);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_an_sos_set_the_rows_alone_do_not_break);
+    RUN_TEST(test_a_semi_continuous_column_may_take_its_zero);
+    RUN_TEST(test_an_indicator_row_that_is_switched_off_holds_nothing);
     RUN_TEST(test_a_hostile_warm_start_still_reaches_the_answer);
     RUN_TEST(test_a_second_solve_reaches_the_same_verdict);
     RUN_TEST(test_a_row_that_asks_more_than_the_columns_can_give);

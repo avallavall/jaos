@@ -2759,6 +2759,29 @@ class TestFeasibilityRelaxation(unittest.TestCase):
         self.assertEqual(cols.report.cols_moved, 1)
         self.assertAlmostEqual(rows.report.total, cols.report.total, places=9)
 
+    def test_an_sos_set_reaches_the_relaxation_at_both_layers(self):
+        with jaos.Model() as m:
+            m.load(2, 2, [1.0, 1.0], [0.0, 0.0], [10.0, 10.0],
+                   [2.0, 2.0], [float("inf"), float("inf")],
+                   [0, 1, 2], [0, 1], [1.0, 1.0])
+            m.add_sos(1, [0, 1], [1.0, 2.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            r = m.feasrelax(jaos.RelaxScope.ROWS)
+            self.assertAlmostEqual(r.report.total, 2.0, places=9)
+            self.assertEqual(r.report.rows_moved, 1)
+
+        p = jaos.Problem()
+        x = p.add_var(lb=0.0, ub=10.0, name="x")
+        y = p.add_var(lb=0.0, ub=10.0, name="y")
+        p.add(x >= 2.0, "r1")
+        p.add(y >= 2.0, "r2")
+        p.add_sos(1, [x, y], [1.0, 2.0])
+        p.minimize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        r = p.feasrelax(jaos.RelaxScope.ROWS)
+        self.assertAlmostEqual(r.report.total, 2.0, places=9)
+        self.assertEqual(r.report.rows_moved, 1)
+
     def test_a_feasible_problem_moves_nothing(self):
         p = jaos.Problem()
         x = p.add_var(lb=0.0, ub=10.0)

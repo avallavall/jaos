@@ -1158,6 +1158,17 @@ expect_exit 0 "and the model it wrote solves" \
 [ "$(line_of status)" = "status optimal" ] \
     && pass "to an optimum, where the original was infeasible" \
     || flunk "the relaxed model solved '$(line_of status)'"
+expect_exit 1 "the SOS model is infeasible" "$JAOS" solve "$DATA/relax_sos.mps"
+expect_exit 0 "relax of it exits 0" "$JAOS" relax "$DATA/relax_sos.mps" --rows
+[ "$(line_of total)" = "total 2" ] \
+    && pass "and the SOS set costs a move of 2" \
+    || flunk "relax of the SOS model printed '$(line_of total)'"
+expect_exit 0 "relax --apply on it exits 0" \
+    "$JAOS" relax "$DATA/relax_sos.mps" --rows --apply "$tmp/rsos.mps"
+expect_exit 0 "and the model it wrote solves" "$JAOS" solve "$tmp/rsos.mps"
+[ "$(line_of status)" = "status optimal" ] \
+    && pass "to an optimum, the SOS set carried through" \
+    || flunk "the relaxed SOS model solved '$(line_of status)'"
 expect_exit 5 "relax --apply to a name neither writer takes is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.txt"
 expect_exit 5 "relax --apply without a path is a usage error" \

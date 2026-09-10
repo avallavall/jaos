@@ -5,6 +5,23 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 
 ## Milestone: reach and polish
 
+0. **`relax --cols` does not finish on a model with no integer point.**
+   The elastic copy frees every column so each one can leave its box at a
+   price, and an integer column freed that way gives the tree an unbounded
+   space. Where the rows plus the integrality admit no point at all, the
+   search has to exhaust that space to say so. Measured 2026-09-10 on the
+   copy of a 4-column, 3-row model: 27 nodes with the integer columns held
+   to ±10, 507 at ±100, 5307 at ±1000, no answer at ±100000 or free. The
+   model is in the sweep at `SWEEP_ONLY=475 ./sweep_relax 600 1`
+   (`bench/measurements/` is not carrying it; it is four rows of MPS and
+   the SPECS row states them). Three ways out, none measured: propagate the
+   rows onto the freed columns to get finite bounds where they exist; give
+   `jaos_feasrelax` a work limit of its own and report `work_limit` in
+   `jaos_relax_report.status`, which the struct already carries; or refuse
+   the shape by name. The first is the only one that answers the question.
+   Reaching it needs a reading over the MIP set, because the same
+   propagation would run on every node.
+
 1. **Windows build, the rest.** The shim is in (`src/jaos_sys.h`),
    mingw-w64 builds the library and the tool, wine gives the Linux answers,
    and the Python binding knows `jaos.dll`. Missing: a native Windows run

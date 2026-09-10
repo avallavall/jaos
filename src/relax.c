@@ -19,6 +19,14 @@ static rx_sides rx_sides_of(double lower, double upper, bool in_scope)
     return s;
 }
 
+static rx_sides rx_col_sides(const jaos_model *m, int64_t j, bool in_scope)
+{
+    rx_sides s = rx_sides_of(m->col_lower[j], m->col_upper[j], in_scope);
+    if (m->col_semi != nullptr && m->col_semi[j])
+        s.lo = false;
+    return s;
+}
+
 typedef struct {
     jaos_model *c;
     int64_t nc, nr;
@@ -68,8 +76,7 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
         ecol += (s.lo ? 1 : 0) + (s.hi ? 1 : 0);
     }
     for (int64_t j = 0; j < nc; j++) {
-        const rx_sides s = rx_sides_of(m->col_lower[j], m->col_upper[j],
-                                       do_cols);
+        const rx_sides s = rx_col_sides(m, j, do_cols);
         if (!s.lo && !s.hi)
             continue;
         erow++;
@@ -107,8 +114,7 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
             av[nz] = m->a_value[k];
             nz++;
         }
-        const rx_sides s = rx_sides_of(m->col_lower[j], m->col_upper[j],
-                                       do_cols);
+        const rx_sides s = rx_col_sides(m, j, do_cols);
         if (s.lo || s.hi) {
             rl[r] = s.lo ? m->col_lower[j] : -INFINITY;
             ru[r] = s.hi ? m->col_upper[j] : INFINITY;
@@ -143,8 +149,7 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
     }
     r = nr;
     for (int64_t j = 0; j < nc; j++) {
-        const rx_sides s = rx_sides_of(m->col_lower[j], m->col_upper[j],
-                                       do_cols);
+        const rx_sides s = rx_col_sides(m, j, do_cols);
         if (!s.lo && !s.hi)
             continue;
         if (s.lo) {
@@ -180,6 +185,29 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
             if (rc != JAOS_OK)
                 goto out;
         }
+        if (m->col_semi != nullptr && m->col_semi[j]) {
+            rc = jaos_set_col_semicontinuous(g->c, j, true);
+            if (rc != JAOS_OK)
+                goto out;
+        }
+    }
+
+    for (int64_t i = 0; i < nr; i++) {
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            rc = jaos_set_row_indicator(g->c, i, m->row_ind_col[i],
+                                        m->row_ind_val[i]);
+            if (rc != JAOS_OK)
+                goto out;
+        }
+    }
+
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t n = m->sos_start[k + 1] - m->sos_start[k];
+        rc = jaos_add_sos(g->c, m->sos_type[k], n,
+                          m->sos_col + m->sos_start[k],
+                          m->sos_weight + m->sos_start[k]);
+        if (rc != JAOS_OK)
+            goto out;
     }
 
     g->c->cfg.work_limit = m->cfg.work_limit;

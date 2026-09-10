@@ -661,6 +661,19 @@ The model itself is never solved. An elastic copy is, carrying this
 command's own limits and tolerances, and `work_units` is what that cost.
 The answer is the same on every machine and every run.
 
+The copy carries the whole model: the integer marks, the SOS sets, the
+semi-continuous columns and the indicator rows. One bound is left out. A
+semi-continuous column's lower bound is the floor it must clear when it is
+not zero, and the elastic form frees the column, which would remove the
+floor rather than move it, so that bound never moves. The column's upper
+bound moves like any other.
+
+Over the columns alone the copy frees every column, and a free integer
+column gives the branch and bound an unbounded space to search. On a model
+whose rows admit no integer point at all, `relax --cols` may not finish.
+`relax` takes no work limit of its own yet, so there is nothing to stop it
+with; `SPECS.md` carries the measurement and `TODO.md` the row.
+
 Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
 lower bound above its upper is a contradiction between two of the file's
 own numbers on one row, and no amount of moving that row's two ends
