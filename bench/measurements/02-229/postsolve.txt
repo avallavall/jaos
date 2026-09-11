@@ -1,0 +1,50 @@
+# The reading, six seeds of 4000 models
+
+seed 1:
+checked 2454, skipped 1546 (infeasible 0, unbounded 1546, other 0), presolve reduced 2454 of them
+rows removed 8893, columns removed 9498
+column statuses basic 3627 lower 6043 upper 5107 free 1236
+row statuses basic 10511 lower 1699 upper 1928 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2454 copies
+wrong 0
+seed 2:
+checked 2516, skipped 1484 (infeasible 0, unbounded 1484, other 0), presolve reduced 2516 of them
+rows removed 9215, columns removed 9668
+column statuses basic 3815 lower 6224 upper 5332 free 1275
+row statuses basic 10932 lower 1702 upper 2113 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2516 copies
+wrong 0
+seed 3:
+checked 2444, skipped 1556 (infeasible 0, unbounded 1556, other 0), presolve reduced 2444 of them
+rows removed 8669, columns removed 9427
+column statuses basic 3582 lower 6367 upper 5145 free 1272
+row statuses basic 10554 lower 1604 upper 1978 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2444 copies
+wrong 0
+seed 4:
+checked 2489, skipped 1511 (infeasible 0, unbounded 1511, other 0), presolve reduced 2489 of them
+rows removed 8994, columns removed 9879
+column statuses basic 3658 lower 6264 upper 5261 free 1298
+row statuses basic 10610 lower 1709 upper 1949 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2489 copies
+wrong 0
+seed 5:
+checked 2463, skipped 1537 (infeasible 0, unbounded 1537, other 0), presolve reduced 2463 of them
+rows removed 8806, columns removed 9430
+column statuses basic 3540 lower 6210 upper 5114 free 1306
+row statuses basic 10702 lower 1582 upper 1958 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2463 copies
+wrong 0
+seed 6:
+checked 2465, skipped 1535 (infeasible 0, unbounded 1535, other 0), presolve reduced 2465 of them
+rows removed 8924, columns removed 9528
+column statuses basic 3648 lower 6109 upper 5210 free 1286
+row statuses basic 10668 lower 1695 upper 1953 free 0
+activity 0 box 0 rowbound 0 objective 0 redcost 0 status 0 count 0 slack 0
+load 0, copy 0 over 2465 copies
+wrong 0

@@ -137,20 +137,27 @@ the commit that took it, named here by hash.
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
 
-6. **Twenty-five SPECS rows say `done` and say nothing else.** A row with an
-   empty description is a feature nobody has written down, and twice on
+6. **Twenty-two SPECS rows say `done` and say nothing else.** A row with an
+   empty description is a feature nobody has written down, and once on
    2026-09-10 it was also a feature nobody had read. Row 71, the solution
    pool, held one point twice (02-227). Rows 54 and 119, the basis file and
-   the solution file, came back clean (02-228). Two of the three were worth
-   the sweep.
+   the solution file, came back clean (02-228). Rows 45, 51 and 116,
+   postsolve to the caller's indices, copy a model and direct load from
+   arrays, came back clean (02-229). One of the six was worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep
    would have seen it.
+   **A fault build is not always a control.** Under
+   `JAOS_PRESOLVE_FAULT_OFFBYONE` the library dies on the second model
+   02-229 generates, before it publishes anything, so the run reports no
+   count and proves nothing about the checks. What proved them was a
+   one-line edit to `jaos_solution` that publishes the point one column out
+   of step and changes nothing else. Write the control that breaks the step
+   the property is about.
    `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
-   an answer to check, rather than a shape: postsolve to the caller's
-   indices (45), copy a model (51), presolve statistics (57), the incumbent
-   callback (73), bit-identical across machines (95), exact rational values
-   (98), the certificates (101), the IIS written as a model (103), a basis
-   or point another solver produced (105, 106), direct load from arrays
-   (116), and the progress callback that can stop (150).
+   an answer to check, rather than a shape: presolve statistics (57), the
+   incumbent callback (73), bit-identical across machines (95), exact
+   rational values (98), the certificates (101), the IIS written as a model
+   (103), a basis or point another solver produced (105, 106), and the
+   progress callback that can stop (150).
