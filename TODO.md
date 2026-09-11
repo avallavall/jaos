@@ -107,13 +107,24 @@ the commit that took it, named here by hash.
    build until this lands.
    Measured 2026-09-10: the hang is the same at 74005b9 and at its child,
    so it is older than that session.
-   The fix needs a decision first. The CLI cannot ask the library whether a
-   model is a MIP, because `jm_model_has_integer` is internal. Either
-   publish that question as a call, or have the CLI ask
-   `jaos_num_sos`, `jaos_col_integer` and `jaos_col_semicontinuous` itself.
-   The second repeats the rule that `semi_live` holds, that a
-   semi-continuous column counts only where its lower bound is above zero,
-   and a copy of a rule is what let the OSiL defect of 02-226 through.
+   The CLI cannot ask the library whether a model is a MIP, because
+   `jm_model_has_integer` is internal. The other way round is to have the
+   CLI ask `jaos_num_sos`, `jaos_col_integer` and
+   `jaos_col_semicontinuous` itself. That repeats the rule `semi_live`
+   holds, that a semi-continuous column counts only where its lower bound
+   is above zero, and a copy of a rule is what let the OSiL defect of
+   02-226 through.
+   **Decided 2026-09-11: publish the question as a call.** One rule in one
+   place. `jaos_model_statistics` does not answer it: it counts a
+   semi-continuous column by its mark alone, so it says MIP where
+   `semi_live` says no. The new call wraps `jm_model_has_integer` and
+   nothing else. It reaches `include/jaos.h`, a test in `tests/`, the CLI
+   in `cli/jaos.c` with a check in `tests/cli.sh`, and `python/jaos.py` at
+   both layers with a test. `cmd_ranging` and `cmd_verify` then call it
+   before `solve_for_report`, and `tests/cli.sh` drops the skip it carries
+   under a fault build.
+   It adds a row to `SPECS.md`, which is otherwise closed. That is the one
+   thing this decision costs.
 
 5. **The pool can hold one point twice when a continuous column differs in
    the last bits.** 02-227 closed the two ways an exact duplicate got in.
