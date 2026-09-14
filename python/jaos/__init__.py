@@ -2142,6 +2142,12 @@ class Model:
         The callback may look and it may stop; it may not call back into
         JAOS on this model — jaos.h owns that rule and the reasons.
 
+        An LP calls every 64 iterations, from iteration 0, with the work
+        so far and the best total primal infeasibility seen so far, which
+        is infinite while the dual's phase 1 runs. A MIP calls from every
+        relaxation it solves, with the tree's running totals of iterations
+        and work, so the numbers never go back within one solve.
+
         An exception in `fn` cannot cross the C frame, so it is reported
         through sys.excepthook and the solve is stopped: a callback that is
         broken should not silently wave the solve on.

@@ -1229,6 +1229,100 @@ static jaos_model *neighbour_model(void)
     return m;
 }
 
+typedef struct {
+    int64_t calls, last_work, last_iters;
+    bool work_never_went_back, iters_never_went_back;
+    bool infeasibility_is_a_number;
+    int64_t stop_at;
+} tree_watch;
+
+static jaos_callback_action watch_tree(const jaos_progress *p, void *user)
+{
+    tree_watch *w = user;
+    if (p->work_units < w->last_work)
+        w->work_never_went_back = false;
+    if (p->iterations < w->last_iters)
+        w->iters_never_went_back = false;
+    if (!isfinite(p->primal_infeasibility) || p->primal_infeasibility < 0.0)
+        w->infeasibility_is_a_number = false;
+    w->last_work = p->work_units;
+    w->last_iters = p->iterations;
+    w->calls++;
+    return w->stop_at > 0 && w->calls >= w->stop_at ? JAOS_CALLBACK_STOP
+                                                     : JAOS_CALLBACK_CONTINUE;
+}
+
+static jaos_model *wide_model(void)
+{
+    enum { NC = 14, NR = 2 };
+    double cost[NC], cl[NC], cu[NC], rl[NR], ru[NR];
+    int64_t ap[NC + 1], ai[NC * NR];
+    double av[NC * NR];
+    int64_t nz = 0;
+    double wsum = 0.0, vsum = 0.0;
+    for (int64_t j = 0; j < NC; j++) {
+        const double w = (double)((j * 7) % 13 + 2);
+        const double v = w + (double)((j * 5) % 3);
+        cost[j] = v;
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        ap[j] = nz;
+        ai[nz] = 0; av[nz] = w; nz++;
+        ai[nz] = 1; av[nz] = v; nz++;
+        wsum += w;
+        vsum += v;
+    }
+    ap[NC] = nz;
+    rl[0] = -INFINITY;
+    ru[0] = floor(wsum / 2.0) + 0.5;
+    rl[1] = floor(vsum / 3.0);
+    ru[1] = INFINITY;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     nz, ap, ai, av));
+    for (int64_t j = 0; j < NC; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    return m;
+}
+
+static void test_a_trees_progress_calls_carry_the_running_total(void)
+{
+    jaos_model *m = wide_model();
+    tree_watch w = {.work_never_went_back = true,
+                    .iters_never_went_back = true,
+                    .infeasibility_is_a_number = true};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch_tree, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_TRUE(w.calls >= 2);
+    TEST_ASSERT_TRUE(w.work_never_went_back);
+    TEST_ASSERT_TRUE(w.iters_never_went_back);
+    TEST_ASSERT_TRUE(w.infeasibility_is_a_number);
+    TEST_ASSERT_TRUE(w.last_work <= jaos_work_units(m));
+    TEST_ASSERT_TRUE(w.last_iters <= jaos_iterations(m));
+    TEST_ASSERT_TRUE(w.last_work > 0);
+    double obj;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.lp_solves >= 2);
+
+    jaos_model *again = wide_model();
+    tree_watch v = {.stop_at = 2, .work_never_went_back = true,
+                    .iters_never_went_back = true,
+                    .infeasibility_is_a_number = true};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(again, watch_tree, &v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(again));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(again));
+    TEST_ASSERT_EQUAL_INT64(2, v.calls);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_objective(again, &obj));
+    jaos_model_free(again);
+    jaos_model_free(m);
+}
+
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
 {
     jaos_model *m = neighbour_model();
@@ -3946,6 +4040,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
+    RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
     RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
     RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);
     RUN_TEST(test_the_node_callback_chooses_the_branching_column);

@@ -1509,6 +1509,7 @@ typedef struct {
     int64_t last_work;
     bool iters_on_the_beat;
     bool work_never_went_back;
+    bool infeasibility_is_a_number;
 } watcher;
 
 static jaos_callback_action watch(const jaos_progress *p, void *user)
@@ -1518,6 +1519,8 @@ static jaos_callback_action watch(const jaos_progress *p, void *user)
         w->work_never_went_back = false;
     if (p->iterations % 64 != 0)
         w->iters_on_the_beat = false;
+    if (!isfinite(p->primal_infeasibility) || p->primal_infeasibility < 0.0)
+        w->infeasibility_is_a_number = false;
     w->last_iters = p->iterations;
     w->last_work = p->work_units;
     w->calls++;
@@ -1528,7 +1531,8 @@ static jaos_callback_action watch(const jaos_progress *p, void *user)
 static watcher fresh_watcher(int stop_after)
 {
     return (watcher){.stop_after = stop_after, .iters_on_the_beat = true,
-                     .work_never_went_back = true};
+                     .work_never_went_back = true,
+                     .infeasibility_is_a_number = true};
 }
 
 static void test_a_watcher_is_asked_and_changes_nothing(void)
@@ -1554,6 +1558,7 @@ static void test_a_watcher_is_asked_and_changes_nothing(void)
     TEST_ASSERT_TRUE(w.calls > 0);
     TEST_ASSERT_TRUE(w.iters_on_the_beat);
     TEST_ASSERT_TRUE(w.work_never_went_back);
+    TEST_ASSERT_TRUE(w.infeasibility_is_a_number);
 
     TEST_ASSERT_EQUAL_MEMORY(&qobj, &sobj, sizeof qobj);
     TEST_ASSERT_EQUAL_MEMORY(qx, sx_, sizeof qx);

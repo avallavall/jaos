@@ -624,12 +624,15 @@ static void incumbent_free(incumbent *inc)
 
 static bool republish_at_the_incumbent(jaos_model *m, const double *point,
                                        int64_t nc, int64_t nr,
+                                       const jaos_model *like,
                                        int64_t *extra_work)
 {
     jaos_model *fin = nullptr;
     bool ok = false;
     if (jaos_model_copy(m, &fin) != JAOS_OK)
         return false;
+    fin->cfg.progress_cb = like->cfg.progress_cb;
+    fin->cfg.progress_user = like->cfg.progress_user;
     fin->cfg.node_solve = true;
 
     free(fin->col_integer);
@@ -3166,6 +3169,24 @@ static int steer_point(const jaos_model *m, steer *sw, jaos_model *lp,
     return STEER_OK;
 }
 
+typedef struct {
+    jaos_progress_fn cb;
+    void *user;
+    const int64_t *work, *iters;
+} progress_relay;
+
+static jaos_callback_action progress_relay_fire(const jaos_progress *p,
+                                                void *user)
+{
+    const progress_relay *r = user;
+    const jaos_progress total = {
+        .iterations = *r->iters + p->iterations,
+        .work_units = *r->work + p->work_units,
+        .primal_infeasibility = p->primal_infeasibility,
+    };
+    return r->cb(&total, r->user);
+}
+
 static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
                                int64_t node, double bound, bool by_rounding)
 {
@@ -3572,6 +3593,13 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     free(lp->row_ind_val);
     lp->row_ind_val = nullptr;
     lp->cfg.log_cb = nullptr;
+    progress_relay relay = {.cb = m->cfg.progress_cb,
+                            .user = m->cfg.progress_user,
+                            .work = &work, .iters = &iters};
+    if (m->cfg.progress_cb != nullptr) {
+        lp->cfg.progress_cb = progress_relay_fire;
+        lp->cfg.progress_user = &relay;
+    }
     jaos_clear_basis(lp);
 
     x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x);
@@ -4877,7 +4905,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         m->sol_basis_ok = jm_model_basis_count_ok(m);
         if (!m->sol_basis_ok) {
             int64_t extra = 0;
-            if (republish_at_the_incumbent(m, m->mip_inc_x, nc, nr, &extra))
+            if (republish_at_the_incumbent(m, m->mip_inc_x, nc, nr, lp,
+                                           &extra))
                 m->sol_basis_ok = jm_model_basis_count_ok(m);
 
             m->solve_work += extra;

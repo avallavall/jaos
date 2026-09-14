@@ -79,14 +79,16 @@ the commit that took it, named here by hash.
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
 
-6. **Twenty-one SPECS rows say `done` and say nothing else.** A row with an
+6. **Twenty SPECS rows say `done` and say nothing else.** A row with an
    empty description is a feature nobody has written down, and once on
    2026-09-10 it was also a feature nobody had read. Row 72, the solution
    pool, held one point twice (02-227). Rows 54 and 120, the basis file and
    the solution file, came back clean (02-228). Rows 45, 51 and 117,
    postsolve to the caller's indices, copy a model and direct load from
    arrays, came back clean (02-229). Row 74, the incumbent callback, came
-   back clean (02-231). One of the seven was worth the sweep.
+   back clean (02-231). Row 151, the progress callback, had two defects a
+   MIP caller met on nearly every call (02-232). Two of the eight were
+   worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep
@@ -102,5 +104,4 @@ the commit that took it, named here by hash.
    an answer to check, rather than a shape: presolve statistics (57),
    bit-identical across machines (96), exact
    rational values (99), the certificates (102), the IIS written as a model
-   (104), a basis or point another solver produced (106, 107), and the
-   progress callback that can stop (151).
+   (104), and a basis or point another solver produced (106, 107).

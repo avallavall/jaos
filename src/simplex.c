@@ -3018,19 +3018,6 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             return JAOS_OK;
         }
 
-        if (s->m->cfg.progress_cb != nullptr &&
-            s->iters % PROGRESS_EVERY == 0) {
-            const jaos_progress p = {
-                .iterations = s->iters,
-                .work_units = s->work.units,
-                .primal_infeasibility = s->infeas_best,
-            };
-            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
-                JAOS_CALLBACK_STOP) {
-                *out = JAOS_SOLVE_INTERRUPTED;
-                return JAOS_OK;
-            }
-        }
         if (s->iters > iter_cap) {
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
                              "iterations in the primal phase 1 (%lld into the "
@@ -3078,6 +3065,19 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             s->infeas_best = total;
             s->last_gain = s->iters;
             s->bland = false;
+        }
+        if (s->m->cfg.progress_cb != nullptr &&
+            s->iters % PROGRESS_EVERY == 0) {
+            const jaos_progress p = {
+                .iterations = s->iters,
+                .work_units = s->work.units,
+                .primal_infeasibility = s->infeas_best,
+            };
+            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                *out = JAOS_SOLVE_INTERRUPTED;
+                return JAOS_OK;
+            }
         }
 
         if (!isfinite(total) ||
@@ -3519,19 +3519,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             return JAOS_OK;
         }
 
-        if (s->m->cfg.progress_cb != nullptr &&
-            s->iters % PROGRESS_EVERY == 0) {
-            const jaos_progress p = {
-                .iterations = s->iters,
-                .work_units = s->work.units,
-                .primal_infeasibility = s->infeas_best,
-            };
-            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
-                JAOS_CALLBACK_STOP) {
-                *out = JAOS_SOLVE_INTERRUPTED;
-                return JAOS_OK;
-            }
-        }
         if (s->iters > iter_cap) {
 
             jm_set_err(s->m, "internal iteration guard tripped after %lld "
@@ -3574,6 +3561,19 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                    "iter %lld: best infeasibility %.6g, work %lld",
                    (long long)s->iters, s->infeas_best,
                    (long long)s->work.units);
+        if (s->m->cfg.progress_cb != nullptr &&
+            s->iters % PROGRESS_EVERY == 0) {
+            const jaos_progress p = {
+                .iterations = s->iters,
+                .work_units = s->work.units,
+                .primal_infeasibility = s->infeas_best,
+            };
+            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                *out = JAOS_SOLVE_INTERRUPTED;
+                return JAOS_OK;
+            }
+        }
         if (r < 0) {
 
             if (!verified_fresh(s)) {
