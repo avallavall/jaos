@@ -79,7 +79,7 @@ the commit that took it, named here by hash.
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
 
-6. **Twenty SPECS rows say `done` and say nothing else.** A row with an
+6. **Nineteen SPECS rows say `done` and say nothing else.** A row with an
    empty description is a feature nobody has written down, and once on
    2026-09-10 it was also a feature nobody had read. Row 72, the solution
    pool, held one point twice (02-227). Rows 54 and 120, the basis file and
@@ -87,8 +87,9 @@ the commit that took it, named here by hash.
    postsolve to the caller's indices, copy a model and direct load from
    arrays, came back clean (02-229). Row 74, the incumbent callback, came
    back clean (02-231). Row 151, the progress callback, had two defects a
-   MIP caller met on nearly every call (02-232). Two of the eight were
-   worth the sweep.
+   MIP caller met on nearly every call (02-232). Row 57, the presolve
+   report, counted what presolve had discarded and missed what a forcing
+   row fixed (02-233). Three of the nine were worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep
@@ -101,7 +102,7 @@ the commit that took it, named here by hash.
    of step and changes nothing else. Write the control that breaks the step
    the property is about.
    `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
-   an answer to check, rather than a shape: presolve statistics (57),
-   bit-identical across machines (96), exact
+   an answer to check, rather than a shape: bit-identical across machines
+   (96), exact
    rational values (99), the certificates (102), the IIS written as a model
    (104), and a basis or point another solver produced (106, 107).

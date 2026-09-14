@@ -501,6 +501,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 double v;
                 if (!ps_empty_col_value(cur_cl[j], cur_cu[j],
                                         sigma * cur_cost[j], &v)) {
+                    memset(&p->counts, 0, sizeof p->counts);
                     p->outcome = JM_PRESOLVE_NONE;
                     p->proof_index = -1;
                     goto done;
@@ -770,6 +771,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     }
                     row_dead[i] = true;
                     p->counts.forcing_row++;
+                    p->counts.fixed_col += nfix;
                     changed = true;
                     continue;
                 }

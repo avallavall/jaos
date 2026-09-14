@@ -898,6 +898,36 @@ static void test_a_row_two_singleton_columns_free_publishes_no_free_status(void)
 #endif
 }
 
+static void test_a_presolve_that_hands_the_model_back_reports_nothing(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {1.0, 1.0, -1.0};
+    const double cl[] = {2.0, 0.0, 0.0}, cu[] = {2.0, 5.0, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {4.0};
+    const int64_t s[]  = {0, 1, 2, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[]   = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_presolve_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(1, r.num_row);
+    TEST_ASSERT_EQUAL_INT64(3, r.num_col);
+    TEST_ASSERT_EQUAL_INT64(2, r.num_nz);
+    TEST_ASSERT_EQUAL_INT64(0, r.fixed_col);
+    TEST_ASSERT_EQUAL_INT64(0, r.empty_col);
+    TEST_ASSERT_EQUAL_INT64(0, r.singleton_row);
+    jaos_model_free(m);
+#endif
+}
+
 static void test_a_row_freed_in_the_copy_starts_basic_when_a_basis_arrives(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -2080,6 +2110,7 @@ static void test_activity_range_counters_are_exact(void)
         jm_presolve_init(&p);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
         TEST_ASSERT_EQUAL_INT64(1, p.counts.forcing_row);
+        TEST_ASSERT_EQUAL_INT64(2, p.counts.fixed_col);
         TEST_ASSERT_EQUAL_INT64(0, p.counts.redundant_row);
         TEST_ASSERT_EQUAL_INT64(0, p.counts.tightened_bound);
         jm_presolve_free(&p);
@@ -3200,6 +3231,7 @@ int main(void)
     RUN_TEST(test_an_interior_recovery_takes_the_row_out_whatever_the_ulps_say);
     RUN_TEST(test_a_row_two_singleton_columns_free_publishes_no_free_status);
     RUN_TEST(test_a_row_freed_in_the_copy_starts_basic_when_a_basis_arrives);
+    RUN_TEST(test_a_presolve_that_hands_the_model_back_reports_nothing);
     RUN_TEST(test_a_column_a_row_fixed_inside_its_box_is_basic);
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
     RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);

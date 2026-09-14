@@ -1736,9 +1736,14 @@ class Model:
 
     def presolve_report(self):
         """What presolve did on the last solve: the sizes the simplex ran
-        on, the round count, and how many of each family fired. All zero
-        before a solve, and all zero under a build with presolve compiled
-        out, which is what it did."""
+        on, the round count, and how many of each family fired. A column
+        a forcing row fixes counts as a fixed column, so the columns left
+        are the columns loaded less every column count, and the rows left
+        are the rows loaded less every row count, a free column singleton
+        and an implied free column taking one of each. All zero before a
+        solve, all zero when presolve hands the model back whole, and all
+        zero under a build with presolve compiled out, which is what it
+        did."""
         rep = _PresolveReport()
         self._check(_lib.jaos_presolve_result(self._handle(),
                                               ctypes.byref(rep)))
