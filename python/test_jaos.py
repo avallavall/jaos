@@ -896,6 +896,25 @@ class TestCertificates(unittest.TestCase):
             self.assertAlmostEqual(r.sup_columns, 2.0, places=9)
             self.assertAlmostEqual(r.gap, 2.0, places=9)
 
+    def test_a_mips_certificate_is_its_relaxations_when_that_is_infeasible(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=1, integer=True, name="x")
+        p.add(x >= 2, "r")
+        p.minimize(x)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        y = p.certificate()
+        self.assertEqual(len(y), 1)
+        self.assertTrue(p._m.check_certificate(y).certified)
+        self.assertEqual(p._m.certificate(), y)
+
+        q = jaos.Problem()
+        z = q.add_var(ub=1, integer=True, name="z")
+        q.add(2 * z == 1, "parity")
+        q.minimize(z)
+        self.assertIs(q.solve(), jaos.SolveStatus.INFEASIBLE)
+        with self.assertRaises(jaos.JaosError):
+            q.certificate()
+
     def test_a_feasible_model_has_no_certificate(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

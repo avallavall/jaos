@@ -79,7 +79,7 @@ the commit that took it, named here by hash.
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
 
-6. **Eighteen SPECS rows say `done` and say nothing else.** A row with an
+6. **Seventeen SPECS rows say `done` and say nothing else.** A row with an
    empty description is a feature nobody has written down, and once on
    2026-09-10 it was also a feature nobody had read. Row 72, the solution
    pool, held one point twice (02-227). Rows 54 and 120, the basis file and
@@ -91,7 +91,9 @@ the commit that took it, named here by hash.
    report, counted what presolve had discarded and missed what a forcing
    row fixed (02-233). Row 96, bit-identical across machines, was not: the
    mingw libm's `round` fixed a column at 1 where glibc fixed it at 0, on
-   one model in 300 (02-234). Four of the ten were worth the sweep.
+   one model in 300 (02-234). Row 102, the certificates: a MIP whose root
+   relaxation was infeasible published none (02-235). Five of the eleven
+   were worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep
@@ -105,5 +107,5 @@ the commit that took it, named here by hash.
    the property is about.
    `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
    an answer to check, rather than a shape: exact
-   rational values (99), the certificates (102), the IIS written as a model
-   (104), and a basis or point another solver produced (106, 107).
+   rational values (99), the IIS written as a model (104), and a basis or
+   point another solver produced (106, 107).

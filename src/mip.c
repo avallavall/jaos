@@ -3390,6 +3390,22 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
     return moved;
 }
 
+static void root_certificate(jaos_model *m, const jaos_model *lp)
+{
+    if (!lp->farkas_ok || lp->sol_farkas == nullptr ||
+        lp->num_row != m->num_row)
+        return;
+    jaos_certificate_report cr;
+    if (jaos_check_certificate(m, lp->sol_farkas, jm_primal_tolerance(m),
+                               &cr) != JAOS_OK || !cr.certified)
+        return;
+    if (jm_model_ensure_solution_arrays(m) != JAOS_OK)
+        return;
+    memcpy(m->sol_farkas, lp->sol_farkas,
+           (size_t)m->num_row * sizeof *m->sol_farkas);
+    m->farkas_ok = true;
+}
+
 jaos_status jm_branch_and_bound(jaos_model *m)
 {
     const double t0 = now_seconds();
@@ -3577,6 +3593,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_has_incumbent = false;
 
     m->sol_basis_ok = false;
+    m->farkas_ok = false;
+    m->ray_ok = false;
 
     if (m->row_ind_col != nullptr && jm_model_ensure_rowwise(m) != JAOS_OK)
         goto done;
@@ -3848,6 +3866,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
         jaos_solve_status ns = jaos_status_of(lp);
         if (ns == JAOS_SOLVE_INFEASIBLE) {
+            if (nodes == 1)
+                root_certificate(m, lp);
             if (conflicts_on && nodes > 1) {
                 if (cacol == nullptr) {
                     cacol = malloc((size_t)(nc > 0 ? 3 * nc : 1) * sizeof *cacol);

@@ -1323,6 +1323,42 @@ static void test_a_trees_progress_calls_carry_the_running_total(void)
     jaos_model_free(m);
 }
 
+static void test_an_infeasible_relaxation_is_the_mips_certificate(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/mip_infeasible_root.mps"));
+    TEST_ASSERT_TRUE(jaos_model_has_integer(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    const int64_t nr = jaos_num_row(m);
+    double *y = malloc((size_t)nr * sizeof *y);
+    TEST_ASSERT_NOT_NULL(y);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    jaos_certificate_report cr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-9, &cr));
+    TEST_ASSERT_TRUE(cr.certified);
+    free(y);
+    jaos_model_free(m);
+
+    const double c[1] = {1.0}, cl[1] = {0.0}, cu[1] = {1.0};
+    const double rl[1] = {1.0}, ru[1] = {1.0};
+    const int64_t s[2] = {0, 1}, ix[1] = {0};
+    const double v[1] = {2.0};
+    jaos_model *parity = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(parity, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(parity, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(parity));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(parity));
+    double none[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_certificate(parity, none));
+    jaos_model_free(parity);
+}
+
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
 {
     jaos_model *m = neighbour_model();
@@ -4040,6 +4076,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
+    RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
     RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
     RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);

@@ -165,6 +165,13 @@ expect_exit 1 "--solution on an infeasible model keeps exit 1" \
 grep -q '^status infeasible$' "$tmp/b.sol" 2>/dev/null \
     && pass "and writes the certificate (D285)" \
     || flunk "no certificate file for an infeasible model: $(head -n 3 "$tmp/b.sol" 2>&1)"
+if [ "$faulty" -eq 0 ]; then
+expect_exit 1 "--solution on a MIP whose relaxation is infeasible keeps exit 1" \
+    "$JAOS" solve "$DATA/mip_infeasible_root.mps" --solution "$tmp/m.sol"
+grep -q '^status infeasible$' "$tmp/m.sol" 2>/dev/null && grep -q '^ray ' "$tmp/m.sol" \
+    && pass "and writes the root relaxation's certificate" \
+    || flunk "no certificate file for a MIP with an infeasible relaxation: $(head -n 3 "$tmp/m.sol" 2>&1)"
+fi
 expect_exit 3 "--solution on a work-limited solve keeps exit 3" \
     "$JAOS" solve "$DATA/solve1.mps" --work-limit 1 --solution "$tmp/w.sol"
 [ ! -e "$tmp/w.sol" ] && pass "and writes no file" \

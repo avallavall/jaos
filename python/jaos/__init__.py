@@ -2260,7 +2260,9 @@ class Model:
         """The Farkas ray behind the last solve's INFEASIBLE, one value per
         row. Raises unless the last solve answered INFEASIBLE with a ray to
         publish; a model whose own bounds are inverted has none, and the
-        bounds are its proof (jaos_certificate in jaos.h)."""
+        bounds are its proof, and a MIP has one only when its relaxation
+        is infeasible, since integrality alone leaves no ray
+        (jaos_certificate in jaos.h)."""
         nr = self.num_row
         y = (_D * max(nr, 1))()
         self._check(_lib.jaos_certificate(self._handle(), y))
