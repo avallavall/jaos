@@ -640,6 +640,7 @@ _sig("jaos_set_mip_dive_degrade", ctypes.c_int, _VP, ctypes.c_double)
 _sig("jaos_set_mip_heuristics", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_mip_result", ctypes.c_int, _VP, _P(_MipReport))
 _sig("jaos_model_statistics", ctypes.c_int, _VP, _P(_ModelStats))
+_sig("jaos_model_has_integer", ctypes.c_bool, _VP)
 _sig("jaos_presolve_result", ctypes.c_int, _VP, _P(_PresolveReport))
 _sig("jaos_set_mip_start", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_set_mip_cutoff", ctypes.c_int, _VP, ctypes.c_double)
@@ -1753,6 +1754,14 @@ class Model:
         self._check(_lib.jaos_model_statistics(self._handle(),
                                                ctypes.byref(st)))
         return ModelStats(*[getattr(st, f) for f, _ in _ModelStats._fields_])
+
+    def has_integer(self):
+        """Whether a solve runs the branch and bound: an integer column, an
+        SOS set, or a semi-continuous column whose lower bound is above
+        zero. The one rule the tree reads, so it can differ from
+        `statistics()`, which counts a semi-continuous column by its mark
+        alone."""
+        return bool(_lib.jaos_model_has_integer(self._handle()))
 
     def set_mip_start(self, col_value):
         """Hand the tree an integer point before it runs, or None to clear.
@@ -3559,6 +3568,13 @@ class Problem:
         if self._pending():
             self._build_and_load()
         return self._m.statistics()
+
+    def has_integer(self):
+        """Whether solve() runs the branch and bound. Loads the problem
+        first if it changed, the way statistics does."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.has_integer()
 
     def set_mip_start(self, point):
         """Hand the tree a point before it runs (D326).

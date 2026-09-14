@@ -3898,6 +3898,34 @@ static void test_a_node_row_that_cuts_nothing_off_leaves_the_answer(void)
     }
 }
 
+static void test_has_integer_is_the_one_rule_the_tree_reads(void)
+{
+    TEST_ASSERT_FALSE(jaos_model_has_integer(nullptr));
+    jaos_model *m = three_unit_columns();
+    jaos_model_stats st;
+    TEST_ASSERT_FALSE(jaos_model_has_integer(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_TRUE(jaos_model_has_integer(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, false));
+    TEST_ASSERT_FALSE(jaos_model_has_integer(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(m, 2, true));
+    TEST_ASSERT_FALSE(jaos_model_has_integer(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_statistics(m, &st));
+    TEST_ASSERT_EQUAL_INT64(1, st.semicontinuous_col);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 2, 0.5, 1.0));
+    TEST_ASSERT_TRUE(jaos_model_has_integer(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, 2, 0.0, 1.0));
+    TEST_ASSERT_FALSE(jaos_model_has_integer(m));
+
+    const int64_t cols[] = {0, 1};
+    const double w[] = {1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, cols, w));
+    TEST_ASSERT_TRUE(jaos_model_has_integer(m));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3973,6 +4001,7 @@ int main(void)
     RUN_TEST(test_a_quadratic_objective_matches_enumeration);
     RUN_TEST(test_symmetry_does_not_swap_a_column_an_indicator_reads);
     RUN_TEST(test_an_indicator_column_wider_than_a_binary_still_branches);
+    RUN_TEST(test_has_integer_is_the_one_rule_the_tree_reads);
     RUN_TEST(test_propagation_that_fixes_an_indicator_column_wakes_its_row);
     RUN_TEST(test_coefficient_tightening_leaves_an_indicator_row_alone);
     RUN_TEST(test_a_quadratic_node_without_an_interior_still_solves);

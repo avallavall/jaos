@@ -726,6 +726,9 @@ linear cost, and a QP answer carries no basis. A MIP is refused the same
 way, together with SOS sets and semi-continuous columns: the basis behind
 a MIP answer is the last node's, so the proof would judge a linear program
 the file does not hold.
+The refusal comes before the solve: the tool asks
+`jaos_model_has_integer` as soon as the file is read, so no tree runs to
+be told the command does not apply.
 
 `--work-limit N` stops the solve after N deterministic work units. There is
 then no answer to prove, so the tool prints its status line and exits 5.
@@ -912,7 +915,9 @@ exits 5.
 A MIP is refused too, and so is a model with SOS sets or semi-continuous
 columns. The basis behind a MIP answer belongs to the last node of the
 tree and carries that node's branching bounds. An interval read off it is
-about that node's linear program. On `max 5x + 4y` over `6x + 4y <= 24`
+about that node's linear program. The refusal comes before the solve,
+from `jaos_model_has_integer`, so no tree runs to be told the command does
+not apply. On `max 5x + 4y` over `6x + 4y <= 24`
 and `x + 2y <= 6` with both columns integer, the answer is `x = 4, y = 0`
 and the interval for the cost of `x` came out `[-inf, 6]`; drop that cost
 to 4 and the optimum moves to `x = 3, y = 1`.

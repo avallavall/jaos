@@ -55,6 +55,7 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 | Resume after a limit, in-process and from a file | **partial** | Two runs at the same work limit agree exactly, which is what `docs/cli.md` promises. A run stopped and then finished does not always reach the answer the straight run reaches: 15 of 33102 stops land elsewhere, 9 of them on another point of the same optimal face and the other 6 moving the objective by about 2e-15. The difference appears at the first stop and does not compound. Missing: a resume that follows the same path, which means carrying the factorisation and the pricing state across the stop rather than rebuilding them (`TODO.md`) |
 | Model statistics | **done** | `jaos_model_statistics`, `jaos stats`; sizes, row and column kinds, integer, binary and semi-continuous counts, SOS sets, indicator rows, magnitudes |
 | Presolve statistics | **done** | |
+| Whether the model is a MIP | **done** | `jaos_model_has_integer`, `has_integer()` at both Python layers. The one rule the branch and bound reads, published so a caller and the CLI never copy it: an integer column, an SOS set, or a semi-continuous column whose lower bound is above zero. It differs from `jaos_model_statistics`, which counts a semi-continuous column by its mark alone. `jaos ranging` and `jaos verify` ask it before they solve, so a MIP is refused as soon as the file is read and no tree runs. Added 2026-09-14 for `TODO.md` row 4 |
 
 ## 4. Mixed-integer machinery
 

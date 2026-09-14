@@ -1776,6 +1776,11 @@ jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
     return JAOS_OK;
 }
 
+bool jaos_model_has_integer(const jaos_model *m)
+{
+    return m != nullptr && jm_model_has_integer(m);
+}
+
 jaos_status jaos_set_mip_start(jaos_model *m, const double *col_value)
 {
     if (m == nullptr)

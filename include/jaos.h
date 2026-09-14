@@ -259,6 +259,8 @@ JAOS_NODISCARD jaos_status jaos_presolve_result(const jaos_model *m,
 JAOS_NODISCARD jaos_status jaos_model_statistics(const jaos_model *m,
                                                  jaos_model_stats *out);
 
+JAOS_NODISCARD bool jaos_model_has_integer(const jaos_model *m);
+
 JAOS_NODISCARD jaos_status jaos_set_mip_start(jaos_model *m,
                                               const double *col_value);
 

@@ -1768,6 +1768,33 @@ class TestBranchAndBound(unittest.TestCase):
                          (1, 1, 1))
         self.assertEqual(st.integer_col, 1)
 
+    def test_has_integer_is_the_rule_the_tree_reads(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=10, name="x")
+        y = p.add_var(ub=1, name="y")
+        p.add(x + y <= 5)
+        p.minimize(x + y)
+        self.assertFalse(p.has_integer())
+        self.assertFalse(p._m.has_integer())
+        z = p.add_var(binary=True, name="z")
+        p.minimize(x + y + z)
+        self.assertTrue(p.has_integer())
+        self.assertTrue(p._m.has_integer())
+        p._m.set_col_integer(2, False)
+        self.assertFalse(p._m.has_integer())
+        p._m.set_col_semicontinuous(0, True)
+        self.assertFalse(p._m.has_integer())
+        self.assertEqual(p._m.statistics().semicontinuous_col, 1)
+        p._m.set_col_bounds(0, 2.0, 10.0)
+        self.assertTrue(p._m.has_integer())
+        q = jaos.Problem()
+        a = q.add_var(ub=1, name="a")
+        b = q.add_var(ub=1, name="b")
+        q.add(a + b <= 2)
+        q.maximize(a + b)
+        q.add_sos(1, [a, b])
+        self.assertTrue(q.has_integer())
+
     def test_the_module_runs_as_a_command(self):
         import os
         import subprocess

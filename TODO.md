@@ -37,7 +37,7 @@ the commit that took it, named here by hash.
    single solve, so no LP answer moves.
 
    A model whose rows plus integrality admit no point still never
-   terminates. That stays a limit of `relax --cols`, and SPECS row 104
+   terminates. That stays a limit of `relax --cols`, and SPECS row 105
    already says it.
 
    It changes `relax.c` only, so no gate applies. It needs a reading over
@@ -94,38 +94,6 @@ the commit that took it, named here by hash.
    The walk revisits no basis, so there is no cycle for an anti-cycling
    rule to break, which is why Bland's rule never pays here (f954aee).
 
-4. **`ranging` and `verify` solve the model before they refuse it.**
-   `jaos_cost_ranging` refuses a MIP and a QP by name before it needs an
-   optimum, which is right. `cmd_ranging` in `cli/jaos.c` calls
-   `solve_for_report` first and only then calls the library, so
-   `jaos ranging` on a MIP pays for the whole tree to be told the command
-   does not apply. `cmd_verify` has the same order.
-   Under either presolve fault build the tree on `tests/data/g_sos.mps`
-   never settles, so the command runs for ever. That was one of the four
-   reasons `make configs` could not pass, and it is the only one this
-   session did not close: `tests/cli.sh` skips the check under a fault
-   build until this lands.
-   Measured 2026-09-10: the hang is the same at 74005b9 and at its child,
-   so it is older than that session.
-   The CLI cannot ask the library whether a model is a MIP, because
-   `jm_model_has_integer` is internal. The other way round is to have the
-   CLI ask `jaos_num_sos`, `jaos_col_integer` and
-   `jaos_col_semicontinuous` itself. That repeats the rule `semi_live`
-   holds, that a semi-continuous column counts only where its lower bound
-   is above zero, and a copy of a rule is what let the OSiL defect of
-   02-226 through.
-   **Decided 2026-09-11: publish the question as a call.** One rule in one
-   place. `jaos_model_statistics` does not answer it: it counts a
-   semi-continuous column by its mark alone, so it says MIP where
-   `semi_live` says no. The new call wraps `jm_model_has_integer` and
-   nothing else. It reaches `include/jaos.h`, a test in `tests/`, the CLI
-   in `cli/jaos.c` with a check in `tests/cli.sh`, and `python/jaos.py` at
-   both layers with a test. `cmd_ranging` and `cmd_verify` then call it
-   before `solve_for_report`, and `tests/cli.sh` drops the skip it carries
-   under a fault build.
-   It adds a row to `SPECS.md`, which is otherwise closed. That is the one
-   thing this decision costs.
-
 5. **The pool can hold one point twice when a continuous column differs in
    the last bits.** 02-227 closed the two ways an exact duplicate got in.
    Four pools of 24000 still hold two entries whose integer columns agree
@@ -150,9 +118,9 @@ the commit that took it, named here by hash.
 
 6. **Twenty-two SPECS rows say `done` and say nothing else.** A row with an
    empty description is a feature nobody has written down, and once on
-   2026-09-10 it was also a feature nobody had read. Row 71, the solution
-   pool, held one point twice (02-227). Rows 54 and 119, the basis file and
-   the solution file, came back clean (02-228). Rows 45, 51 and 116,
+   2026-09-10 it was also a feature nobody had read. Row 72, the solution
+   pool, held one point twice (02-227). Rows 54 and 120, the basis file and
+   the solution file, came back clean (02-228). Rows 45, 51 and 117,
    postsolve to the caller's indices, copy a model and direct load from
    arrays, came back clean (02-229). One of the six was worth the sweep.
    The shape that works: pick a row, write down the properties its answer
@@ -168,7 +136,7 @@ the commit that took it, named here by hash.
    the property is about.
    `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
    an answer to check, rather than a shape: presolve statistics (57), the
-   incumbent callback (73), bit-identical across machines (95), exact
-   rational values (98), the certificates (101), the IIS written as a model
-   (103), a basis or point another solver produced (105, 106), and the
-   progress callback that can stop (150).
+   incumbent callback (74), bit-identical across machines (96), exact
+   rational values (99), the certificates (102), the IIS written as a model
+   (104), a basis or point another solver produced (106, 107), and the
+   progress callback that can stop (151).

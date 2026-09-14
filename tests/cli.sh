@@ -1452,16 +1452,30 @@ case "$err" in
     *MIP*) pass "and says the model is a MIP" ;;
     *) flunk "verify of a MIP said '$err'" ;;
 esac
-# `ranging` solves before `jaos_cost_ranging` gets to refuse, and under
-# either fault build the tree on this model never settles, so the command
-# runs for ever. `TODO.md` row 4 carries the fix.
-if [ "$faulty" -eq 0 ]; then
+# A work limit of one unit would end a solve as work_limit before any
+# answer, so a refusal that still names the MIP came before the solve.
+expect_exit 5 "ranging refuses a MIP before it solves" \
+    "$JAOS" ranging "$DATA/t4_int.mps" --work-limit 1
+case "$err" in
+    *MIP*) pass "and names the MIP, not the work limit" ;;
+    *) flunk "ranging of a MIP under a work limit said '$err'" ;;
+esac
+expect_exit 5 "verify refuses a MIP before it solves" \
+    "$JAOS" verify "$DATA/t4_int.mps" --work-limit 1
+case "$err" in
+    *MIP*) pass "and names the MIP, not the work limit" ;;
+    *) flunk "verify of a MIP under a work limit said '$err'" ;;
+esac
 expect_exit 5 "ranging of an SOS model exits 5" "$JAOS" ranging "$DATA/g_sos.mps"
 case "$err" in
     *MIP*) pass "and says the model is a MIP" ;;
     *) flunk "ranging of an SOS model said '$err'" ;;
 esac
-fi
+expect_exit 5 "verify of an SOS model exits 5" "$JAOS" verify "$DATA/g_sos.mps"
+case "$err" in
+    *MIP*) pass "and says the model is a MIP" ;;
+    *) flunk "verify of an SOS model said '$err'" ;;
+esac
 "$JAOS" verify "$DATA/solve1.mps" --proof "$tmp/lp.proof" > /dev/null 2>&1
 expect_exit 5 "an LP's proof is not checked against a MIP" \
     "$JAOS" check "$DATA/t4_int.mps" --proof "$tmp/lp.proof"

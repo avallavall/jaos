@@ -2312,6 +2312,15 @@ static int cmd_verify(int argc, char **argv)
     rc = set_work_limit(m, file, work_limit);
     if (rc >= 0)
         goto out;
+    if (jaos_model_has_integer(m)) {
+        fprintf(stderr, "jaos: cannot verify %s: the exact proof is about "
+                "the basis behind an answer, and this model is a MIP: the "
+                "basis would be the last node's, with that node's branching "
+                "bounds, so the proof would judge a linear program the model "
+                "as loaded is not\n", file);
+        rc = EXIT_USAGE;
+        goto out;
+    }
 
     jaos_verify_report rep;
     memset(&rep, 0, sizeof rep);
@@ -2887,6 +2896,15 @@ static int cmd_ranging(int argc, char **argv)
     rc = set_work_limit(m, file, work_limit);
     if (rc >= 0)
         goto out;
+    if (jaos_model_has_integer(m)) {
+        fprintf(stderr, "jaos: cannot range %s: ranging is about the basis "
+                "behind an answer, and this model is a MIP: the basis would "
+                "be the last node's, with that node's branching bounds, so "
+                "an interval read off it says nothing about the model as "
+                "loaded\n", file);
+        rc = EXIT_USAGE;
+        goto out;
+    }
     rc = solve_for_report(m, file, &ss);
     if (rc >= 0)
         goto out;
