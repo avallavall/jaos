@@ -299,6 +299,24 @@ static void test_ordinary_matrix_is_not_reported_as_clamped(void)
     }
 }
 
+static void test_the_rounding_is_the_same_on_every_libm(void)
+{
+    const double half_less = 0x1.fffffffffffffp-2;
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jm_round(half_less));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, jm_round(-half_less));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, jm_round(0.5));
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, jm_round(-0.5));
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, jm_round(2.5));
+    TEST_ASSERT_EQUAL_DOUBLE(-3.0, jm_round(-2.5));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, jm_round(0x1.7ffffffffffffp+0));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, jm_round(1.5));
+    TEST_ASSERT_EQUAL_DOUBLE(4503599627370497.0, jm_round(4503599627370497.0));
+    TEST_ASSERT_EQUAL_DOUBLE(-7.0, jm_round(-7.0));
+    TEST_ASSERT_TRUE(isinf(jm_round(INFINITY)));
+    TEST_ASSERT_TRUE(isnan(jm_round(NAN)));
+    TEST_ASSERT_EQUAL_DOUBLE(jm_round(half_less), floor(half_less + 0.5) - 1.0);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -314,5 +332,6 @@ int main(void)
     RUN_TEST(test_extreme_magnitudes_do_not_overflow);
     RUN_TEST(test_underflowing_product_still_scales_the_row);
     RUN_TEST(test_ordinary_matrix_is_not_reported_as_clamped);
+    RUN_TEST(test_the_rounding_is_the_same_on_every_libm);
     return UNITY_END();
 }

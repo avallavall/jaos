@@ -18,7 +18,7 @@ static double pow2_of(double exponent, bool *clamped)
         *clamped = true;
         return 1.0;
     }
-    double r = round(exponent);
+    double r = jm_round(exponent);
     if (r > EXP_LIMIT) {
         r = EXP_LIMIT;
         *clamped = true;

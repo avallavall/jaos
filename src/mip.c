@@ -791,8 +791,8 @@ static int64_t most_fractional(const jaos_model *m, const double *x)
     double worst = MIP_INT_TOL;
     for (int64_t j = 0; j < m->num_col; j++) {
         double f;
-        if (m->col_integer[j] && fabs(x[j] - round(x[j])) > MIP_INT_TOL)
-            f = fabs(x[j] - round(x[j]));
+        if (m->col_integer[j] && fabs(x[j] - jm_round(x[j])) > MIP_INT_TOL)
+            f = fabs(x[j] - jm_round(x[j]));
         else if (semi_broken(m, j, x[j]))
             f = fmin(x[j], m->col_lower[j] - x[j]) / m->col_lower[j];
         else
@@ -2490,7 +2490,7 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
                 continue;
             if (!isfinite(agree_a[j]) || !isfinite(agree_b[j]))
                 continue;
-            const double a = round(agree_a[j]);
+            const double a = jm_round(agree_a[j]);
             if (fabs(agree_a[j] - a) > MIP_INT_TOL ||
                 fabs(agree_b[j] - a) > MIP_INT_TOL)
                 continue;
@@ -2528,7 +2528,7 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
             rc = 1;
             break;
         }
-        double v = round(out[pick]);
+        double v = jm_round(out[pick]);
         if (v < hv->col_lower[pick])
             v = hv->col_lower[pick];
         if (v > hv->col_upper[pick])
@@ -2708,7 +2708,7 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
                     integral = false;
                 continue;
             }
-            double v = round(out[j]);
+            double v = jm_round(out[j]);
             if (v < m->col_lower[j])
                 v = ceil(m->col_lower[j]);
             if (v > m->col_upper[j])
@@ -2813,7 +2813,7 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
     const int64_t nc = m->num_col, nr = m->num_row;
     const double tol = jm_primal_tolerance(m);
     for (int64_t j = 0; j < nc; j++) {
-        double v = m->col_integer[j] ? round(x[j]) : x[j];
+        double v = m->col_integer[j] ? jm_round(x[j]) : x[j];
         const bool semi = semi_live(m, j);
         if (semi && v < m->col_lower[j] - tol) {
             const double l = m->col_lower[j];
@@ -4593,7 +4593,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 first_inc = nodes;
             for (int64_t j = 0; j < nc; j++)
                 if (m->col_integer[j])
-                    inc.x[j] = round(inc.x[j]);
+                    inc.x[j] = jm_round(inc.x[j]);
             for (int64_t k = 0; k < m->num_sos; k++)
                 for (int64_t t = m->sos_start[k]; t < m->sos_start[k + 1]; t++)
                     if (fabs(inc.x[m->sos_col[t]]) <= MIP_INT_TOL)

@@ -200,6 +200,9 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
     g->c->cfg.dual_tol = m->cfg.dual_tol;
     g->c->cfg.progress_cb = m->cfg.progress_cb;
     g->c->cfg.progress_user = m->cfg.progress_user;
+    g->c->cfg.log_cb = m->cfg.log_cb;
+    g->c->cfg.log_user = m->cfg.log_user;
+    g->c->cfg.log_level = m->cfg.log_level;
     g->c->cfg.force_primal = m->cfg.force_primal;
     rc = JAOS_OK;
 out:

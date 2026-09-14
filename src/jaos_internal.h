@@ -5,6 +5,7 @@
 #include "jaos.h"
 
 #include <float.h>
+#include <math.h>
 #include <stddef.h>
 
 typedef struct {
@@ -393,6 +394,17 @@ JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
                                             jm_symmetry *out, int64_t *work);
 void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
+
+static inline double jm_round(double x)
+{
+    const double t = trunc(x);
+    const double d = x - t;
+    if (d >= 0.5)
+        return t + 1.0;
+    if (d <= -0.5)
+        return t - 1.0;
+    return t;
+}
 bool jm_model_has_quadratic(const jaos_model *m);
 void jm_model_drop_quadratic(jaos_model *m);
 bool jm_model_has_offdiagonal(const jaos_model *m);

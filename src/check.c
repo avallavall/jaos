@@ -452,7 +452,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
     if (m->col_integer != nullptr)
         for (int64_t j = 0; j < m->num_col; j++)
             if (m->col_integer[j]) {
-                const double f = fabs(col_value[j] - round(col_value[j]));
+                const double f = fabs(col_value[j] - jm_round(col_value[j]));
                 if (f > int_viol)
                     int_viol = f;
             }
