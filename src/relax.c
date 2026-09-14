@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+constexpr double RELAX_BOX_FLOOR = 1.0;
+constexpr double RELAX_BOX_START = 2.0;
+constexpr double RELAX_BOX_GROWTH = 2.0;
+
 typedef struct {
     bool lo, hi;
 } rx_sides;
@@ -35,6 +39,9 @@ typedef struct {
 
     int64_t *row_s, *row_t;
     int64_t *col_s, *col_t;
+
+    int64_t *box;
+    int64_t nbox;
 } rx;
 
 static void rx_free(rx *g)
@@ -44,7 +51,8 @@ static void rx_free(rx *g)
     g->c = nullptr;
     free(g->row_s); free(g->row_t);
     free(g->col_s); free(g->col_t);
-    g->row_s = g->row_t = g->col_s = g->col_t = nullptr;
+    free(g->box);
+    g->row_s = g->row_t = g->col_s = g->col_t = g->box = nullptr;
 }
 
 static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
@@ -63,11 +71,18 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
     g->row_t = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *g->row_t);
     g->col_s = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->col_s);
     g->col_t = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->col_t);
+    g->box   = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->box);
     if (g->row_s == nullptr || g->row_t == nullptr ||
-        g->col_s == nullptr || g->col_t == nullptr)
+        g->col_s == nullptr || g->col_t == nullptr || g->box == nullptr)
         goto out;
     for (int64_t i = 0; i < nr; i++) g->row_s[i] = g->row_t[i] = -1;
     for (int64_t j = 0; j < nc; j++) g->col_s[j] = g->col_t[j] = -1;
+    g->nbox = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        const rx_sides s = rx_col_sides(m, j, do_cols);
+        if ((s.lo || s.hi) && m->col_integer != nullptr && m->col_integer[j])
+            g->box[g->nbox++] = j;
+    }
 
     int64_t ecol = 0, erow = 0;
     for (int64_t i = 0; i < nr; i++) {
@@ -179,37 +194,6 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
         goto out;
     }
 
-    for (int64_t j = 0; j < nc; j++) {
-        if (m->col_integer != nullptr && m->col_integer[j]) {
-            rc = jaos_set_col_integer(g->c, j, true);
-            if (rc != JAOS_OK)
-                goto out;
-        }
-        if (m->col_semi != nullptr && m->col_semi[j]) {
-            rc = jaos_set_col_semicontinuous(g->c, j, true);
-            if (rc != JAOS_OK)
-                goto out;
-        }
-    }
-
-    for (int64_t i = 0; i < nr; i++) {
-        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
-            rc = jaos_set_row_indicator(g->c, i, m->row_ind_col[i],
-                                        m->row_ind_val[i]);
-            if (rc != JAOS_OK)
-                goto out;
-        }
-    }
-
-    for (int64_t k = 0; k < m->num_sos; k++) {
-        const int64_t n = m->sos_start[k + 1] - m->sos_start[k];
-        rc = jaos_add_sos(g->c, m->sos_type[k], n,
-                          m->sos_col + m->sos_start[k],
-                          m->sos_weight + m->sos_start[k]);
-        if (rc != JAOS_OK)
-            goto out;
-    }
-
     g->c->cfg.work_limit = m->cfg.work_limit;
     g->c->cfg.time_limit = m->cfg.time_limit;
     g->c->cfg.primal_tol = m->cfg.primal_tol;
@@ -222,6 +206,69 @@ out:
     free(cost); free(cl); free(cu); free(rl); free(ru);
     free(ap); free(ai); free(av);
     return rc;
+}
+
+static jaos_status rx_discrete(rx *g, const jaos_model *m)
+{
+    jaos_status rc;
+    for (int64_t j = 0; j < g->nc; j++) {
+        if (m->col_integer != nullptr && m->col_integer[j]) {
+            rc = jaos_set_col_integer(g->c, j, true);
+            if (rc != JAOS_OK)
+                return rc;
+        }
+        if (m->col_semi != nullptr && m->col_semi[j]) {
+            rc = jaos_set_col_semicontinuous(g->c, j, true);
+            if (rc != JAOS_OK)
+                return rc;
+        }
+    }
+    for (int64_t i = 0; i < g->nr; i++) {
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            rc = jaos_set_row_indicator(g->c, i, m->row_ind_col[i],
+                                        m->row_ind_val[i]);
+            if (rc != JAOS_OK)
+                return rc;
+        }
+    }
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t n = m->sos_start[k + 1] - m->sos_start[k];
+        rc = jaos_add_sos(g->c, m->sos_type[k], n,
+                          m->sos_col + m->sos_start[k],
+                          m->sos_weight + m->sos_start[k]);
+        if (rc != JAOS_OK)
+            return rc;
+    }
+    return JAOS_OK;
+}
+
+static jaos_status rx_box(rx *g, const jaos_model *m, double width)
+{
+    for (int64_t k = 0; k < g->nbox; k++) {
+        const int64_t j = g->box[k];
+        const rx_sides s = rx_col_sides(m, j, true);
+        const double lo = s.lo ? m->col_lower[j] - width : m->col_lower[j];
+        const double hi = s.hi ? m->col_upper[j] + width : m->col_upper[j];
+        const jaos_status rc = jaos_set_col_bounds(g->c, j, lo, hi);
+        if (rc != JAOS_OK)
+            return rc;
+    }
+    return JAOS_OK;
+}
+
+static jaos_status rx_solve(rx *g, jaos_model *m, int64_t *used)
+{
+    const int64_t limit = m->cfg.work_limit;
+    if (limit > 0)
+        g->c->cfg.work_limit = limit > *used ? limit - *used : 1;
+    const jaos_status rc = jaos_solve(g->c);
+    if (rc != JAOS_OK) {
+        jm_set_err(m, "the relaxation's solve failed: %s (%s)",
+                   jaos_status_str(rc), jaos_model_error(g->c));
+        return rc;
+    }
+    *used += jaos_work_units(g->c);
+    return JAOS_OK;
 }
 
 static double rx_at(const double *x, int64_t e)
@@ -255,14 +302,56 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
     if (rc != JAOS_OK)
         goto out;
 
-    rc = jaos_solve(g.c);
-    if (rc != JAOS_OK) {
-        jm_set_err(m, "the relaxation's solve failed: %s (%s)",
-                   jaos_status_str(rc), jaos_model_error(g.c));
-        goto out;
+    int64_t used = 0;
+    double width = 0.0;
+    if (g.nbox > 0) {
+        rc = rx_solve(&g, m, &used);
+        if (rc != JAOS_OK)
+            goto out;
+        out->work_units = used;
+        out->status = jaos_status_of(g.c);
+        if (out->status == JAOS_SOLVE_OPTIMAL) {
+            double v_lp;
+            rc = jaos_objective(g.c, &v_lp);
+            if (rc != JAOS_OK)
+                goto out;
+            width = ceil(fmax(RELAX_BOX_FLOOR, RELAX_BOX_START * v_lp));
+        }
     }
-    out->work_units = jaos_work_units(g.c);
-    out->status = jaos_status_of(g.c);
+    if (g.nbox == 0 || out->status == JAOS_SOLVE_OPTIMAL) {
+        rc = rx_discrete(&g, m);
+        if (rc != JAOS_OK)
+            goto out;
+        for (;;) {
+            if (g.nbox > 0) {
+                rc = rx_box(&g, m, width);
+                if (rc != JAOS_OK)
+                    goto out;
+            }
+            rc = rx_solve(&g, m, &used);
+            if (rc != JAOS_OK)
+                goto out;
+            out->work_units = used;
+            out->status = jaos_status_of(g.c);
+            if (g.nbox == 0)
+                break;
+            if (out->status == JAOS_SOLVE_INFEASIBLE) {
+                width *= RELAX_BOX_GROWTH;
+                continue;
+            }
+            if (out->status == JAOS_SOLVE_OPTIMAL) {
+                double v;
+                rc = jaos_objective(g.c, &v);
+                if (rc != JAOS_OK)
+                    goto out;
+                if (v > width) {
+                    width *= RELAX_BOX_GROWTH;
+                    continue;
+                }
+            }
+            break;
+        }
+    }
     if (out->status != JAOS_SOLVE_OPTIMAL) {
 
         jm_set_err(m, "the relaxation's solve answered %s, so there is no "
@@ -299,12 +388,30 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
             out->at_col = -1;
         }
     }
+    double sum = 0.0;
+    bool integer_moved = false;
+    for (int64_t i = 0; i < g.nr; i++)
+        sum += fabs(rx_at(x, g.row_t[i]) - rx_at(x, g.row_s[i]));
     for (int64_t j = 0; j < g.nc; j++) {
-        const double v = rx_at(x, g.col_t[j]) - rx_at(x, g.col_s[j]);
+        double v = rx_at(x, g.col_t[j]) - rx_at(x, g.col_s[j]);
+        if (v < 0.0) {
+            const double lo = m->col_lower[j];
+            v = x[j] < lo ? x[j] - lo : 0.0;
+            while (v < 0.0 && lo + v > x[j])
+                v = nextafter(v, -INFINITY);
+        } else if (v > 0.0) {
+            const double hi = m->col_upper[j];
+            v = x[j] > hi ? x[j] - hi : 0.0;
+            while (v > 0.0 && hi + v < x[j])
+                v = nextafter(v, INFINITY);
+        }
         if (col_move != nullptr)
             col_move[j] = v;
         if (v == 0.0)
             continue;
+        sum += fabs(v);
+        if (m->col_integer != nullptr && m->col_integer[j])
+            integer_moved = true;
         out->cols_moved++;
         if (fabs(v) > out->largest) {
             out->largest = fabs(v);
@@ -312,6 +419,8 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
             out->at_col = j;
         }
     }
+    if (integer_moved)
+        out->total = sum;
     rc = JAOS_OK;
 out:
     free(x);

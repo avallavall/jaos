@@ -52,6 +52,88 @@ static jaos_solve_status after_moving(const jaos_model *src,
     return st;
 }
 
+static jaos_model *two_pinned_integers(double a, double b, double rhs)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {0.0, 0.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {0.0, 0.0};
+    const double rl[1] = {rhs}, ru[1] = {rhs};
+    const int64_t s[3] = {0, 1, 2};
+    const int64_t ix[2] = {0, 0};
+    const double v[2] = {a, b};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    return m;
+}
+
+static void test_a_freed_integer_column_lives_in_a_box_that_grows(void)
+{
+    jaos_model *m = two_pinned_integers(4.0, -6.0, 2.0);
+    double rm[1], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, rep.total);
+    TEST_ASSERT_EQUAL_INT64(2, rep.cols_moved);
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, cm[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, cm[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, after_moving(m, rm, cm));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_ROWS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, rep.total);
+    TEST_ASSERT_EQUAL_INT64(1, rep.rows_moved);
+    TEST_ASSERT_EQUAL_INT64(0, rep.cols_moved);
+    jaos_model_free(m);
+}
+
+static void test_a_box_with_no_integer_point_grows_until_one_fits(void)
+{
+    jaos_model *m = two_pinned_integers(5.0, -7.0, 1.0);
+    double rm[1], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, rep.total);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, cm[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, cm[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, after_moving(m, rm, cm));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, rep.status);
+    jaos_model_free(m);
+}
+
+static void test_an_integer_columns_move_lands_on_the_integer(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/relax_snap.mps"));
+    double rm[5], cm[5];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(12.0, rep.total);
+    for (int64_t j = 0; j < 5; j++) {
+        bool is_int = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, j, &is_int));
+        if (is_int)
+            TEST_ASSERT_TRUE(cm[j] == floor(cm[j] + 0.5));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, after_moving(m, rm, cm));
+    jaos_model_free(m);
+}
+
 static void test_a_row_that_asks_more_than_the_columns_can_give(void)
 {
     jaos_model *m = over_reach();
@@ -467,6 +549,9 @@ int main(void)
     RUN_TEST(test_an_indicator_row_that_is_switched_off_holds_nothing);
     RUN_TEST(test_a_hostile_warm_start_still_reaches_the_answer);
     RUN_TEST(test_a_second_solve_reaches_the_same_verdict);
+    RUN_TEST(test_a_freed_integer_column_lives_in_a_box_that_grows);
+    RUN_TEST(test_a_box_with_no_integer_point_grows_until_one_fits);
+    RUN_TEST(test_an_integer_columns_move_lands_on_the_integer);
     RUN_TEST(test_a_row_that_asks_more_than_the_columns_can_give);
     RUN_TEST(test_the_scope_decides_which_bound_moves);
     RUN_TEST(test_a_feasible_model_moves_nothing);

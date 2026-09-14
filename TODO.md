@@ -8,43 +8,6 @@ the commit that took it, named here by hash.
 
 ## Milestone: reach and polish
 
-0. **`relax --cols` does not finish on a model with no integer point.**
-   The elastic copy frees every column, so an integer column freed that way
-   hands the tree an unbounded space, and a model whose rows plus
-   integrality admit no point at all has to exhaust it to say so. The node
-   count grows with the width of the box.
-   `relax --work-limit N` stops the runaway and the copy ends `work_limit`,
-   which `jaos_feasrelax` reports as a refusal with its reason. That is an
-   escape hatch and not the fix.
-   **Propagating the rows onto the freed columns does not fix it.** Read
-   off the model below. `r3` is a singleton and fixes `x3` at 2. After
-   that every remaining row still holds two or more freed columns, so no
-   finite bound follows from any of them. What refuses the model is parity:
-   substitute `x2` out and `r1` becomes `6 x1 + 4 x4 = -19`, whose left
-   side is even for every integer pair. The tree does not see that.
-
-   The fix: give the freed columns a finite box and grow it. Hold every
-   freed column in `[lo - M, hi + M]` and solve. When the total move `V`
-   comes out at or below `M`, that `V` is the answer for the free box too.
-   Any point cheaper than `V` would have to hold a column more than `M`
-   outside its own box, and that alone costs more than `M`. Otherwise
-   double `M` and solve again. Every round then ends, so a work limit stops
-   one bounded search.
-
-   Start `M` from the elastic copy solved with the integer marks dropped.
-   That value is a lower bound on `V`, so `M = max(1, 2 V_lp)` usually ends
-   in one round. A model with no integer column keeps the free box and its
-   single solve, so no LP answer moves.
-
-   A model whose rows plus integrality admit no point still never
-   terminates. That stays a limit of `relax --cols`, and SPECS row 105
-   already says it.
-
-   It changes `relax.c` only, so no gate applies. It needs a reading over
-   generated models: no answer may move, and the cost of the extra rounds
-   has to be read.
-   Model: `tests/data/relax_runaway.mps`. Reading: 980c565.
-
 0b. **A resume does not follow the path the uninterrupted run took.**
    Two runs at the same work limit agree exactly, which is what
    `docs/cli.md` promises. A run stopped and then finished does not always

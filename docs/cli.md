@@ -700,13 +700,25 @@ not zero, and the elastic form frees the column, which would remove the
 floor rather than move it, so that bound never moves. The column's upper
 bound moves like any other.
 
-Over the columns alone the copy frees every column, and a free integer
-column gives the branch and bound an unbounded space to search. On a model
-whose rows admit no integer point at all, `relax --cols` does not finish on
-its own. `--work-limit N` stops it: the copy ends `work_limit`, the tool
-says so on stderr and exits 5. `tests/data/relax_runaway.mps` is four rows
-of such a model, `SPECS.md` carries the measurement and `TODO.md` the row
-for a real fix.
+Over the columns the copy frees every column, and a free integer column
+would give the branch and bound an unbounded space to search. So a freed
+integer column is held in a box instead, its own bounds widened by `M` on
+each freed side, and the box grows: the copy is solved once with the
+integer marks dropped, which gives a lower bound on the answer and sets
+`M` to twice it, at least 1, rounded up. When the total comes out at or
+below `M` it is the answer for the free box too, because any cheaper
+point would hold a column more than `M` outside its own bounds, and that
+alone costs more than `M`. Otherwise, or when the box holds no integer
+point, `M` doubles and the copy is solved again. Every round ends, so
+`--work-limit` bounds the whole search, and `work_units` is the sum over
+the rounds. A model with no integer column keeps the free box and its
+single solve. `tests/data/relax_rounds.mps` needs four rounds.
+
+What the box does not settle is a model whose rows plus integrality admit
+no point at all: no box is ever wide enough, and `relax --cols` on it does
+not finish on its own. `--work-limit N` stops it: the copy ends
+`work_limit`, the tool says so on stderr and exits 5.
+`tests/data/relax_runaway.mps` is four rows of such a model.
 
 Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
 lower bound above its upper is a contradiction between two of the file's

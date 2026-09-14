@@ -655,7 +655,7 @@ exists.
 
 | constant | value | what it decides |
 |---|---|---|
-| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer. Not swept: every line of `bench/results/miplib.txt` reads `int=0`, so no instance of the set sits near it and a sweep would move nothing |
+| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded, on the incumbent's own publication since 2026-09-14 and before that only on the republished point, so a caller who read the incumbent straight from a solve saw the relaxation's last bits. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer. Not swept: every line of `bench/results/miplib.txt` reads `int=0`, so no instance of the set sits near it and a sweep would move nothing |
 | `MIP_CLIQUE_ROUNDS` | 4 | Rounds of clique cuts at the root. Measured on the MIP set against none: 0.9697x the work over the 24, `gen` 0.6224x and `p0282` 0.6881x, 22 instances within 0.1% and `mod010` 1.0963x at the root, none past 2x. Not swept beyond on and off |
 | `MIP_ZERO_HALF_ROUNDS` | 0 | rounds of zero-half cuts at the root beside the other families: each row with integer coefficients on integer columns and an integer side, alone, in pairs and in triples, is halved with the bound rows that make every coefficient even, and rounded down where the right-hand side is odd and the slacks at the point sum below 1 (Caprara and Fischetti's {0, 1/2}-cuts, in the pairs-and-bounds heuristic). `jaos_set_mip_zero_half_rounds` and `--zero-half-rounds` override it. **Swept at 1, 2 and 4** over the MIP set (02-31): 1.210x, 1.182x, 1.219x, 1 to 4 better, 10 to 12 worse, 2 or 3 past 2x. The cuts are real and the trees they leave are longer: gt2 445 to 1175 nodes at 2.91x, enigma 2814 to 6749 at 2.50x, misc07 35287 to 66603 at 2.02x, against stein45 0.890x; and where none is found the scan is the cost (mod010 1.98x, 0 cuts). Off |
 | `MIP_ZERO_HALF_ROW_CAP` | 100 | the tightest candidate rows a zero-half round pairs; pairs are cut off by their slack sum so the cap rarely binds. Not swept |
@@ -716,3 +716,19 @@ exists.
 | `MIP_PROBE_CAP` | 0.0 | the work cap on each strong-branching probe as a multiple of the work the node's own relaxation took; a probe that reaches it stops and teaches nothing; 0 is no cap. `jaos_set_mip_probe_cap` overrides it. **Swept at 0, 0.5, 1 and 2** at reliability 1 and at 2 over the MIP set: at reliability 1, 0.971x uncapped, 1.228x at 0.5, 0.998x at 1, 1.018x at 2; at reliability 2, 1.064x, 1.307x, 1.081x, 1.091x. Every capped arm has an instance past 2x (`mod010` 4.51x at 1 with its tree unchanged at 7 nodes). A probe that reaches the cap pays its work and teaches nothing, so no cap is the default and the cap is refused as a default |
 | `MIP_PROBE_DEPTH` | -1 | the deepest node at which strong branching probes, the root being 0; negative is every depth. `jaos_set_mip_probe_depth` overrides it. **Swept at 0 with reliability 1, 2, 4 and 8, and at 1 and 2 with reliability 4** over the MIP set: 0.987x at the root only, one reading at every reliability because every root candidate is unreliable (9 better, 5 worse, `mod010` 2.84x and `enigma` 2.58x past 2x), 1.010x one level down, 1.024x two. Refused as a default with D293; every depth stays the default |
 
+## The feasibility relaxation's three numbers
+
+All in `src/relax.c`, and none of them is a tolerance: they size the box a
+freed integer column is held in, and a wrong setting costs rounds, never an
+answer. Over the columns the elastic copy frees every column, and a free
+integer column gives the tree an unbounded space, so a freed integer column
+is held in its own bounds widened by `M` on each freed side, and `M` grows
+until the total comes out at or below it. Then that total is the answer for
+the free box too, because a point cheaper than it would hold some column
+more than `M` outside its own bounds, and that alone costs more than `M`.
+
+| constant | value | |
+|---|---|---|
+| `RELAX_BOX_FLOOR` | 1 | The least `M` ever starts from. The copy is solved once with the integer marks dropped, and that value is a lower bound on the answer; a lower bound of zero would make the first box a point |
+| `RELAX_BOX_START` | 2 | `M` starts at this multiple of that lower bound, rounded up to an integer so an integer column's widened bounds stay integral. Any multiple above 1 ends in one round whenever the integer answer is within that factor of the LP's; at 2 the control in `bench/measurements/02-230/` finds one model in 2000 where the first box is too narrow, so the rounds are rarely paid and the check that decides them is not dead code |
+| `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by when the box is too narrow, or when it holds no integer point at all. Every round ends, so a work limit bounds the whole search. **Measured 2026-09-14** (`bench/measurements/02-230/`): 12000 generated models over six seeds, three scopes each, against the free box; no total moves past 1e-9, the rows scope is byte-identical, and the columns scope costs 1.10x to 1.27x the work per seed, the LP solve that sets `M` being most of it, with one model at 26x. Not swept: the cost is the extra solves and the growth factor only decides how many, and a model whose rows plus integrality admit no point never ends under any factor |

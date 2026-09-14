@@ -2860,6 +2860,27 @@ class TestFeasibilityRelaxation(unittest.TestCase):
             self.assertIs(m.status, jaos.SolveStatus.NOT_RUN)
             self.assertGreater(r.report.work_units, 0)
 
+    def test_a_freed_integer_column_is_boxed_and_the_box_grows(self):
+        with jaos.Model() as m:
+            m.load(2, 1, [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0], [1.0],
+                   [0, 1, 2], [0, 0], [5.0, -7.0])
+            m.set_col_integer(0, True)
+            m.set_col_integer(1, True)
+            r = m.feasrelax(jaos.RelaxScope.COLS)
+            self.assertEqual(r.report.status, jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(r.report.total, 5.0, places=9)
+            self.assertEqual(list(r.col_move), [3.0, 2.0])
+
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=0, integer=True, name="x")
+        y = p.add_var(lb=0, ub=0, integer=True, name="y")
+        p.add(4 * x - 6 * y == 2, "r1")
+        p.minimize(0 * x)
+        found = p.feasrelax(jaos.RelaxScope.COLS)
+        self.assertAlmostEqual(found.report.total, 2.0, places=9)
+        self.assertEqual([(v.name, mv) for v, mv in found.col_move],
+                         [("x", -1.0), ("y", -1.0)])
+
     def test_a_model_with_no_relaxation_raises(self):
         with jaos.Model() as m:
 

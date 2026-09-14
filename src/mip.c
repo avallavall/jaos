@@ -4864,6 +4864,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             memcpy(m->sol_col, m->mip_inc_x, (size_t)nc * sizeof *m->sol_col);
             memcpy(m->sol_redcost, inc.cd, (size_t)nc * sizeof *m->sol_redcost);
             memcpy(m->sol_col_status, inc.cs, (size_t)nc * sizeof *m->sol_col_status);
+            for (int64_t j = 0; j < nc; j++)
+                if (m->col_integer != nullptr && m->col_integer[j])
+                    m->sol_col[j] = floor(m->sol_col[j] + 0.5);
         }
         if (nr > 0) {
             memcpy(m->sol_row, inc.ra, (size_t)nr * sizeof *m->sol_row);

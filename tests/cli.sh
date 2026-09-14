@@ -1217,6 +1217,22 @@ expect_exit 5 "relax --apply to a name neither writer takes is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply "$tmp/relaxed.txt"
 expect_exit 5 "relax --apply without a path is a usage error" \
     "$JAOS" relax "$DATA/t1.mps" --apply
+if [ "$faulty" -eq 0 ]; then
+expect_exit 0 "relax --cols finds the integer point four box rounds out" \
+    "$JAOS" relax "$DATA/relax_rounds.mps" --cols
+[ "$(line_of total)" = "total 5" ] \
+    && pass "and the total is the move to (3, 2)" \
+    || flunk "relax --cols on relax_rounds.mps printed '$(line_of total)'"
+[ "$(line_of cols_moved)" = "cols_moved 2" ] \
+    && pass "and both columns moved" \
+    || flunk "relax --cols printed '$(line_of cols_moved)'"
+expect_exit 0 "relax --cols --apply writes the moved snap model" \
+    "$JAOS" relax "$DATA/relax_snap.mps" --cols --apply "$tmp/snap.mps"
+expect_exit 0 "and the moved model solves" "$JAOS" solve "$tmp/snap.mps"
+[ "$(line_of status)" = "status optimal" ] \
+    && pass "to an optimum: the integer column's move landed on the integer" \
+    || flunk "the moved snap model solved '$(line_of status)'"
+fi
 expect_exit 5 "relax --cols on the runaway model stops at a work limit" \
     "$JAOS" relax "$DATA/relax_runaway.mps" --cols --work-limit 2000000
 # Under a fault build the tree on the elastic copy grows until the process
