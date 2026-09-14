@@ -999,8 +999,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
         }
         for (int64_t i = 0; i < nr; i++) {
             const int64_t rii = p->row_map[i];
-            if (rii >= 0)
-                p->reduced.start_row_status[rii] = m->start_row_status[i];
+            if (rii < 0)
+                continue;
+            jaos_basis_status st = m->start_row_status[i];
+            if (st != JAOS_BASIS_BASIC && !isfinite(cur_rl[i]) &&
+                !isfinite(cur_ru[i]) &&
+                (isfinite(m->row_lower[i]) || isfinite(m->row_upper[i])))
+                st = JAOS_BASIS_BASIC;
+            p->reduced.start_row_status[rii] = st;
         }
 
         for (int64_t r = 0; r < p->arena_len; r++) {

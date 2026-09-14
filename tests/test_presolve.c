@@ -847,6 +847,91 @@ static void test_an_interior_recovery_takes_the_row_out_whatever_the_ulps_say(vo
 #endif
 }
 
+static void test_a_row_two_singleton_columns_free_publishes_no_free_status(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double cost[][3] = {{-1.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    const double ylo[] = {0.0, -1.0}, yhi[] = {10.0, 1.0};
+    const double rlo[] = {3.0, -5.0}, rhi[] = {3.0, 5.0};
+    for (int t = 0; t < 2; t++) {
+        const double cl[] = {ylo[t], 0.0, 0.0};
+        const double cu[] = {yhi[t], INFINITY, INFINITY};
+        const double rl[] = {rlo[t]}, ru[] = {rhi[t]};
+        const int64_t s[] = {0, 1, 2, 3};
+        const int64_t ix[] = {0, 0, 0};
+        const double v[] = {1.0, 1.0, -1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost[t], cl, cu, rl,
+                         ru, 3, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+        jaos_presolve_report pr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &pr));
+        TEST_ASSERT_EQUAL_INT64(t == 0 ? 2 : 3, pr.singleton_col);
+
+        double x[3], y[1], act[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, nullptr));
+        TEST_ASSERT_TRUE(x[1] >= 0.0 && x[2] >= 0.0);
+        TEST_ASSERT_TRUE(act[0] >= rl[0] - 1e-12 && act[0] <= ru[0] + 1e-12);
+        TEST_ASSERT_EQUAL_DOUBLE(x[0] + x[1] - x[2], act[0]);
+        if (t == 0) {
+            TEST_ASSERT_EQUAL_DOUBLE(10.0, x[0]);
+            TEST_ASSERT_EQUAL_DOUBLE(7.0, x[2]);
+        }
+
+        jaos_basis_status cs[3], rs[1];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+        TEST_ASSERT_TRUE(rs[0] != JAOS_BASIS_FREE);
+        int basics = rs[0] == JAOS_BASIS_BASIC;
+        for (int j = 0; j < 3; j++)
+            basics += cs[j] == JAOS_BASIS_BASIC;
+        TEST_ASSERT_EQUAL_INT(1, basics);
+        if (rs[0] != JAOS_BASIS_BASIC)
+            TEST_ASSERT_TRUE(act[0] == rl[0] || act[0] == ru[0]);
+        jaos_model_free(m);
+    }
+#endif
+}
+
+static void test_a_row_freed_in_the_copy_starts_basic_when_a_basis_arrives(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double cost[6] = {0, 0, 1, 1, 1, 1};
+    const double cl[6] = {-INFINITY, -INFINITY, 0, 0, 0, 0};
+    const double cu[6] = {INFINITY, INFINITY, INFINITY, INFINITY, INFINITY,
+                          INFINITY};
+    const double rl[3] = {2, 0, 0}, ru[3] = {2, 0, 0};
+    const int64_t ap[7] = {0, 2, 4, 5, 6, 7, 8};
+    const int64_t ai[8] = {0, 1, 0, 2, 1, 1, 2, 2};
+    const double av[8] = {4, 1, -6, 1, 1, -1, 1, -1};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 6, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     8, ap, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, obj);
+
+    jaos_basis_status cs[6], rs[3];
+    if (jaos_basis(m, cs, rs) == JAOS_OK)
+        for (int i = 0; i < 3; i++)
+            TEST_ASSERT_TRUE(rs[i] != JAOS_BASIS_FREE);
+    jaos_model_free(m);
+#endif
+}
+
 static void test_a_column_a_row_fixed_inside_its_box_is_basic(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3113,6 +3198,8 @@ int main(void)
     RUN_TEST(test_singleton_col_between_two_removals_solved_path);
     RUN_TEST(test_an_exact_tie_the_division_rounds_inward_publishes_the_bound);
     RUN_TEST(test_an_interior_recovery_takes_the_row_out_whatever_the_ulps_say);
+    RUN_TEST(test_a_row_two_singleton_columns_free_publishes_no_free_status);
+    RUN_TEST(test_a_row_freed_in_the_copy_starts_basic_when_a_basis_arrives);
     RUN_TEST(test_a_column_a_row_fixed_inside_its_box_is_basic);
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
     RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
