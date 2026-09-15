@@ -219,7 +219,29 @@ typedef struct {
     int64_t n_c1_at;
 
     bool in_phase1;
+
+    int stage;
+    bool resuming;
+    int64_t p1_entered;
+    double p1_best_total;
+    int64_t p2_entered;
+
+    bool held_valid, held_below;
+    int64_t held_row;
+    double held_violation, held_total;
 } sx;
+
+enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
+       STAGE_REENTER };
+
+typedef struct {
+    sx s;
+    jm_presolve p;
+    bool reduced, allow_warm, allow_loan_free, warm, quad_probe;
+    int64_t barrier_iters;
+    double elapsed;
+    jm_config cfg;
+} jm_parked;
 
 static inline void set_verified(sx *s, bool v)
 {
@@ -262,6 +284,32 @@ static void sx_free(sx *s)
     free(s->bst_lo); free(s->bst_up); free(s->bst_fake);
     jm_lu_free(&s->lu);
     memset(s, 0, sizeof *s);
+}
+
+void jm_model_drop_parked(jaos_model *m)
+{
+    jm_parked *pk = m->parked;
+    if (pk == nullptr)
+        return;
+    m->parked = nullptr;
+    sx_free(&pk->s);
+    jm_presolve_free(&pk->p);
+    free(pk);
+}
+
+/* A parked solve resumes only into the walk it left: the same algorithm,
+ * the same tolerances, the same pricing. Any edit to the model has
+ * already dropped it (model.c); this is what a changed option does. */
+static bool park_fits(const jaos_model *m, const jm_parked *pk)
+{
+    const jm_config *a = &m->cfg, *b = &pk->cfg;
+    return a->force_primal == b->force_primal && a->barrier == b->barrier &&
+           a->pdlp == b->pdlp && a->concurrent == b->concurrent &&
+           a->primal_devex == b->primal_devex &&
+           a->primal_dantzig == b->primal_dantzig &&
+           a->primal_tol == b->primal_tol && a->dual_tol == b->dual_tol &&
+           a->node_solve == b->node_solve &&
+           pk->s.nrow + pk->s.ncol > 0;
 }
 
 static jaos_status sx_init(sx *s, jaos_model *m)
@@ -2469,6 +2517,7 @@ static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped)
             again == JAOS_SOLVE_TIME_LIMIT ||
             again == JAOS_SOLVE_INTERRUPTED) {
 
+            s->stage = STAGE_REENTER;
             *stopped = again;
             return JAOS_OK;
         }
@@ -2990,7 +3039,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 {
     *feasible = false;
 
-    if (s->c1 == nullptr || s->c1_at == nullptr) {
+    if (!s->resuming && (s->c1 == nullptr || s->c1_at == nullptr)) {
         free(s->c1);    s->c1 = nullptr;
         free(s->c1_at); s->c1_at = nullptr;
         s->c1 = jm_calloc_array(s->nvar, sizeof *s->c1);
@@ -3001,11 +3050,15 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
     }
 
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
-    const int64_t entered = s->iters;
-    double best_total = HUGE_VAL;
-
-    s->last_gain = s->iters;
-    s->bland = false;
+    if (s->resuming) {
+        s->resuming = false;
+    } else {
+        s->p1_entered = s->iters;
+        s->p1_best_total = HUGE_VAL;
+        s->last_gain = s->iters;
+        s->bland = false;
+    }
+    s->stage = STAGE_PRIMAL_PHASE1;
 
     for (;;) {
 
@@ -3024,7 +3077,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                              "solve, against a shared cap of %lld), the last "
                              "%lld without the total infeasibility improving; "
                              "this is a JAOS defect",
-                       (long long)(s->iters - entered),
+                       (long long)(s->iters - s->p1_entered),
                        (long long)s->iters, (long long)iter_cap,
                        (long long)(s->iters - s->last_gain));
             return JAOS_ERR_NUMERICAL;
@@ -3047,42 +3100,53 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 return JAOS_ERR_OUT_OF_MEMORY;
         }
 
-        const double total = primal_phase1_costs(s);
+        /* A stop from the callback lands after the costs of this
+         * iteration are summed and billed; the sum is kept, so the
+         * resumed walk does not sum and bill it again. */
+        double total;
+        if (s->held_valid) {
+            total = s->held_total;
+            s->held_valid = false;
+        } else {
+            total = primal_phase1_costs(s);
 
-        if (s->iters % LOG_EVERY == 0)
-            jm_log(s->m, JAOS_LOG_PROGRESS,
-                   "phase 1, iter %lld: infeasibility %.6g, work %lld",
-                   (long long)s->iters, total, (long long)s->work.units);
-        if (total == 0.0) {
-            *feasible = true;
-            jm_log(s->m, JAOS_LOG_DETAIL,
-                   "phase 1 reached a feasible point in %lld iterations",
-                   (long long)(s->iters - entered));
-            return JAOS_OK;
-        }
-        if (total < best_total) {
-            best_total = total;
-            s->infeas_best = total;
-            s->last_gain = s->iters;
-            s->bland = false;
-        }
-        if (s->m->cfg.progress_cb != nullptr &&
-            s->iters % PROGRESS_EVERY == 0) {
-            const jaos_progress p = {
-                .iterations = s->iters,
-                .work_units = s->work.units,
-                .primal_infeasibility = s->infeas_best,
-            };
-            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
-                JAOS_CALLBACK_STOP) {
-                *out = JAOS_SOLVE_INTERRUPTED;
+            if (s->iters % LOG_EVERY == 0)
+                jm_log(s->m, JAOS_LOG_PROGRESS,
+                       "phase 1, iter %lld: infeasibility %.6g, work %lld",
+                       (long long)s->iters, total, (long long)s->work.units);
+            if (total == 0.0) {
+                *feasible = true;
+                jm_log(s->m, JAOS_LOG_DETAIL,
+                       "phase 1 reached a feasible point in %lld iterations",
+                       (long long)(s->iters - s->p1_entered));
                 return JAOS_OK;
+            }
+            if (total < s->p1_best_total) {
+                s->p1_best_total = total;
+                s->infeas_best = total;
+                s->last_gain = s->iters;
+                s->bland = false;
+            }
+            if (s->m->cfg.progress_cb != nullptr &&
+                s->iters % PROGRESS_EVERY == 0) {
+                const jaos_progress p = {
+                    .iterations = s->iters,
+                    .work_units = s->work.units,
+                    .primal_infeasibility = s->infeas_best,
+                };
+                if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                    JAOS_CALLBACK_STOP) {
+                    s->held_valid = true;
+                    s->held_total = total;
+                    *out = JAOS_SOLVE_INTERRUPTED;
+                    return JAOS_OK;
+                }
             }
         }
 
         if (!isfinite(total) ||
-            (total > best_total &&
-             total / best_total > 1.0 + PHASE1_RISE_MAX)) {
+            (total > s->p1_best_total &&
+             total / s->p1_best_total > 1.0 + PHASE1_RISE_MAX)) {
 
             if (!verified_fresh(s)) {
                 bool okv = false;
@@ -3102,8 +3166,8 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                        "%.6g, on a freshly computed point; the basis it is "
                        "pivoting on is too ill-conditioned for another pivot "
                        "to repair the start",
-                       total, (long long)s->iters, total / best_total,
-                       best_total);
+                       total, (long long)s->iters, total / s->p1_best_total,
+                       s->p1_best_total);
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
         }
@@ -3250,38 +3314,43 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
 
 static jaos_status run_primal(sx *s, jaos_solve_status *out)
 {
-    s->dinfeas_best = HUGE_VAL;
-    s->last_gain = s->iters;
-    s->bland = false;
-
-    s->infeas_best = HUGE_VAL;
-
-    s->shift_pending = false;
-
-    s->devex_on = !s->m->cfg.primal_dantzig;
-    s->pse_on = s->devex_on && !s->m->cfg.primal_devex;
-    if (s->pse_on)
-        s->devex_stale = true;
-    else if (s->devex_on)
-        primal_weights_reset(s);
-
+    const bool into_phase1 = s->resuming && s->stage == STAGE_PRIMAL_PHASE1;
+    const bool into_phase2 = s->resuming && s->stage == STAGE_PRIMAL;
     bool ok = false;
-    jaos_status st = refresh(s, &ok, false);
-    if (st != JAOS_OK)
-        return st;
-    if (!ok) {
-        *out = JAOS_SOLVE_NUMERICAL_ERROR;
-        return JAOS_OK;
+    jaos_status st = JAOS_OK;
+    if (!into_phase1 && !into_phase2) {
+        s->dinfeas_best = HUGE_VAL;
+        s->last_gain = s->iters;
+        s->bland = false;
+
+        s->infeas_best = HUGE_VAL;
+
+        s->shift_pending = false;
+
+        s->devex_on = !s->m->cfg.primal_dantzig;
+        s->pse_on = s->devex_on && !s->m->cfg.primal_devex;
+        if (s->pse_on)
+            s->devex_stale = true;
+        else if (s->devex_on)
+            primal_weights_reset(s);
+
+        st = refresh(s, &ok, false);
+        if (st != JAOS_OK)
+            return st;
+        if (!ok) {
+            *out = JAOS_SOLVE_NUMERICAL_ERROR;
+            return JAOS_OK;
+        }
     }
 
-    if (primal_worst_violation(s) > s->primal_tol) {
+    if (into_phase1 ||
+        (!into_phase2 && primal_worst_violation(s) > s->primal_tol)) {
         bool feasible = false;
-        const int64_t phase1_entered = s->iters;
         s->in_phase1 = true;
         st = run_primal_phase1(s, out, &feasible);
         s->in_phase1 = false;
 
-        s->n_phase1_iters = s->iters - phase1_entered;
+        s->n_phase1_iters = s->iters - s->p1_entered;
         if (st != JAOS_OK)
             return st;
         if (!feasible)
@@ -3314,9 +3383,14 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
             primal_weights_reset(s);
     }
 
-    s->infeas_best = 0.0;
+    if (into_phase2) {
+        s->resuming = false;
+    } else {
+        s->infeas_best = 0.0;
+        s->p2_entered = s->iters;
+    }
+    s->stage = STAGE_PRIMAL;
 
-    const int64_t phase2_entered = s->iters;
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
     for (;;) {
@@ -3349,8 +3423,8 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                              "infeasibility improving%s, %lld pivots declined "
                              "on factorization disagreement; this is a JAOS "
                              "defect",
-                       (long long)(s->iters - phase2_entered),
-                       (long long)s->iters, (long long)phase2_entered,
+                       (long long)(s->iters - s->p2_entered),
+                       (long long)s->iters, (long long)s->p2_entered,
                        (long long)iter_cap,
                        (long long)(s->iters - s->last_gain),
                        s->bland ? ", under Bland's rule" : "",
@@ -3493,19 +3567,25 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
 static jaos_status run(sx *s, jaos_solve_status *out)
 {
-    s->devex_on = false;
-    s->infeas_best = HUGE_VAL;
-    s->last_gain = s->iters;
-    s->bland = false;
-
     bool ok = false;
-    jaos_status st = refresh(s, &ok, false);
-    if (st != JAOS_OK)
-        return st;
-    if (!ok) {
-        *out = JAOS_SOLVE_NUMERICAL_ERROR;
-        return JAOS_OK;
+    jaos_status st = JAOS_OK;
+    if (s->resuming) {
+        s->resuming = false;
+    } else {
+        s->devex_on = false;
+        s->infeas_best = HUGE_VAL;
+        s->last_gain = s->iters;
+        s->bland = false;
+
+        st = refresh(s, &ok, false);
+        if (st != JAOS_OK)
+            return st;
+        if (!ok) {
+            *out = JAOS_SOLVE_NUMERICAL_ERROR;
+            return JAOS_OK;
+        }
     }
+    s->stage = STAGE_DUAL;
 
     const int64_t iter_cap = ITER_SANITY_FACTOR * (s->nrow + s->ncol + 1);
 
@@ -3552,26 +3632,41 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                    (long long)s->n_guess_restart);
         }
 
+        /* A stop from the callback lands after the row is priced and
+         * billed; the choice is kept, so the resumed walk does not price
+         * and bill it again. */
         bool below = false;
         double violation = 0.0;
-        int64_t r = price_row(s, &below, &violation);
+        int64_t r;
+        if (s->held_valid) {
+            r = s->held_row;
+            below = s->held_below;
+            violation = s->held_violation;
+            s->held_valid = false;
+        } else {
+            r = price_row(s, &below, &violation);
 
-        if (s->iters % LOG_EVERY == 0)
-            jm_log(s->m, JAOS_LOG_PROGRESS,
-                   "iter %lld: best infeasibility %.6g, work %lld",
-                   (long long)s->iters, s->infeas_best,
-                   (long long)s->work.units);
-        if (s->m->cfg.progress_cb != nullptr &&
-            s->iters % PROGRESS_EVERY == 0) {
-            const jaos_progress p = {
-                .iterations = s->iters,
-                .work_units = s->work.units,
-                .primal_infeasibility = s->infeas_best,
-            };
-            if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
-                JAOS_CALLBACK_STOP) {
-                *out = JAOS_SOLVE_INTERRUPTED;
-                return JAOS_OK;
+            if (s->iters % LOG_EVERY == 0)
+                jm_log(s->m, JAOS_LOG_PROGRESS,
+                       "iter %lld: best infeasibility %.6g, work %lld",
+                       (long long)s->iters, s->infeas_best,
+                       (long long)s->work.units);
+            if (s->m->cfg.progress_cb != nullptr &&
+                s->iters % PROGRESS_EVERY == 0) {
+                const jaos_progress p = {
+                    .iterations = s->iters,
+                    .work_units = s->work.units,
+                    .primal_infeasibility = s->infeas_best,
+                };
+                if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
+                    JAOS_CALLBACK_STOP) {
+                    s->held_valid = true;
+                    s->held_row = r;
+                    s->held_below = below;
+                    s->held_violation = violation;
+                    *out = JAOS_SOLVE_INTERRUPTED;
+                    return JAOS_OK;
+                }
             }
         }
         if (r < 0) {
@@ -3911,159 +4006,215 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jm_presolve_init(&p);
     p.orig = m;
 
-    m->solve_iters = 0;
-    m->solve_primal_iters = 0;
-    m->solve_phase1_iters = 0;
-    m->solve_barrier_iters = 0;
-
-    m->farkas_ok = false;
-    m->ray_ok = false;
-
-    m->sol_basis_ok = false;
-
-    {
-        bool is_row = false;
-        int64_t at = -1;
-        if (has_inverted_box(m, &is_row, &at)) {
-            jm_log(m, JAOS_LOG_SUMMARY,
-                   "%s %lld has its lower bound %.17g above its upper %.17g: "
-                   "infeasible, no simplex run",
-                   is_row ? "row" : "column", (long long)at,
-                   is_row ? m->row_lower[at] : m->col_lower[at],
-                   is_row ? m->row_upper[at] : m->col_upper[at]);
-            jm_presolve_free(&p);
-            return publish_inverted_box(m);
-        }
-    }
-
+    sx s;
+    jaos_status st = JAOS_OK;
+    jaos_model *target = m;
     jm_work pre_work = {0};
-
-#if !defined(JAOS_NO_PRESOLVE)
-
-    const bool quadratic = jm_model_has_quadratic(m);
-    jaos_status pst = quadratic ? JAOS_OK : jm_presolve_run(m, &p, &pre_work);
-    if (pst != JAOS_OK) {
-        jm_presolve_free(&p);
-        return pst;
-    }
-    if (quadratic) {
-        p.outcome = JM_PRESOLVE_NONE;
-        jm_log(m, JAOS_LOG_SUMMARY,
-               "presolve: skipped, the objective has a quadratic term");
-    }
-
-    m->presolve_counts = p.counts;
-
-    if (p.outcome == JM_PRESOLVE_NONE) {
-        if (!quadratic)
-            jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
-    } else if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
-              p.outcome == JM_PRESOLVE_UNBOUNDED) {
-        jm_log(m, JAOS_LOG_SUMMARY,
-               "presolve: %s, no simplex run; "
-               "empty_row=%lld empty_col=%lld singleton_row=%lld "
-               "singleton_col=%lld free_col_singleton=%lld rounds=%lld",
-               p.outcome == JM_PRESOLVE_INFEASIBLE ? "infeasible"
-                                                    : "unbounded",
-               (long long)p.counts.empty_row, (long long)p.counts.empty_col,
-               (long long)p.counts.singleton_row,
-               (long long)p.counts.singleton_col,
-               (long long)p.counts.free_col_singleton,
-               (long long)p.counts.rounds);
-    } else {
-        jm_log(m, JAOS_LOG_SUMMARY,
-               "presolve: %lld rows, %lld columns, %lld nonzeros -> "
-               "%lld rows, %lld columns, %lld nonzeros; "
-               "fixed_col=%lld empty_row=%lld empty_col=%lld "
-               "singleton_row=%lld singleton_col=%lld "
-               "free_col_singleton=%lld rounds=%lld",
-               (long long)m->num_row, (long long)m->num_col,
-               (long long)m->num_nz, (long long)p.reduced.num_row,
-               (long long)p.reduced.num_col, (long long)p.reduced.num_nz,
-               (long long)p.counts.fixed_col, (long long)p.counts.empty_row,
-               (long long)p.counts.empty_col,
-               (long long)p.counts.singleton_row,
-               (long long)p.counts.singleton_col,
-               (long long)p.counts.free_col_singleton,
-               (long long)p.counts.rounds);
-    }
-#endif
-
-    if (p.outcome == JM_PRESOLVE_SOLVED) {
-
-        m->presolve_num_row = p.reduced.num_row;
-        m->presolve_num_col = p.reduced.num_col;
-        m->presolve_num_nz  = p.reduced.num_nz;
-        jaos_status st = jm_postsolve_solved(&p);
-        jm_presolve_free(&p);
-        return st;
-    }
-
-    if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
-        p.outcome == JM_PRESOLVE_UNBOUNDED) {
-
-        m->presolve_num_row = p.reduced.num_row;
-        m->presolve_num_col = p.reduced.num_col;
-        m->presolve_num_nz  = p.reduced.num_nz;
-        const jaos_solve_status status = (p.outcome == JM_PRESOLVE_INFEASIBLE)
-            ? JAOS_SOLVE_INFEASIBLE : JAOS_SOLVE_UNBOUNDED;
-        jaos_status st = jm_postsolve_infeasible_or_unbounded(&p, status);
-        jm_presolve_free(&p);
-        return st;
-    }
-
-    jaos_model *target = (p.outcome == JM_PRESOLVE_REDUCED) ? &p.reduced : m;
-    m->presolve_num_row = target->num_row;
-    m->presolve_num_col = target->num_col;
-    m->presolve_num_nz  = target->num_nz;
-
     int64_t barrier_iters = 0;
     bool quad_probe = false;
-    if (jm_model_has_quadratic(m) ||
-        ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve)) {
-        bool crossover = false, handoff = false;
-        jaos_status bst = m->cfg.pdlp
-            ? jm_pdlp(m, target, &p, &pre_work, &crossover, &handoff,
-                      &barrier_iters)
-            : jm_barrier(m, target, &p, &pre_work, &crossover, &handoff,
-                         &barrier_iters);
-        m->solve_barrier_iters = barrier_iters;
-        if (bst != JAOS_OK || (!crossover && !handoff)) {
-            jm_presolve_free(&p);
-            return bst;
-        }
-        quad_probe = handoff && jm_model_has_quadratic(m);
-    }
-
-    sx s;
-    jaos_status st = sx_init(&s, target);
-    if (st != JAOS_OK) {
-        jm_presolve_free(&p);
-        return st;
-    }
-
-    s.work = pre_work;
-    s.started = jm_monotonic_seconds();
-
-    jm_log(m, JAOS_LOG_SUMMARY,
-           "%s simplex: %lld rows, %lld columns, %lld nonzeros, "
-           "primal tol %.3g, dual tol %.3g",
-           s.primal_run ? "primal" : "dual",
-           (long long)m->num_row, (long long)m->num_col,
-           (long long)m->num_nz, s.primal_tol, s.dual_tol);
-
-    jaos_solve_status outcome;
     bool allow_warm = true;
     bool allow_loan_free = true;
-    for (;;) {
-        const bool warm = allow_warm && build_warm_basis(&s);
-        if (!warm)
-            build_initial_basis(&s);
-        jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
-               warm ? "the basis on the model" : "the slack basis");
+    bool warm = false;
+    bool resumed = false;
+    bool at_settle = false;
 
-        st = s.primal_run ? run_primal(&s, &outcome)
-                          : run(&s, &outcome);
+    /* A solve that stopped on a limit or an interrupt left its whole
+     * state parked on the model: the factorisation, its update chain,
+     * the pricing weights, the shifts, the phase. Nothing has changed
+     * since, so the walk goes on from where it stopped, and the counts
+     * go on with it. */
+    if (m->parked != nullptr) {
+        jm_parked *pk = m->parked;
+        if (park_fits(m, pk)) {
+            m->parked = nullptr;
+            s = pk->s;
+            p = pk->p;
+            p.orig = m;
+            target = pk->reduced ? &p.reduced : m;
+            if (pk->reduced)
+                p.reduced.cfg = m->cfg;
+            s.m = target;
+            allow_warm = pk->allow_warm;
+            allow_loan_free = pk->allow_loan_free;
+            warm = pk->warm;
+            quad_probe = pk->quad_probe;
+            barrier_iters = pk->barrier_iters;
+            s.started = jm_monotonic_seconds() - pk->elapsed;
+            at_settle = s.stage == STAGE_REENTER;
+            s.resuming = !at_settle;
+            resumed = true;
+            free(pk);
+            m->farkas_ok = false;
+            m->ray_ok = false;
+            m->sol_basis_ok = false;
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "resuming the %s simplex after %lld iterations and %lld "
+                   "work units, from the state it stopped in",
+                   s.primal_run ? "primal" : "dual", (long long)s.iters,
+                   (long long)s.work.units);
+        } else {
+            jm_model_drop_parked(m);
+        }
+    }
+
+    if (!resumed) {
+        m->solve_iters = 0;
+        m->solve_primal_iters = 0;
+        m->solve_phase1_iters = 0;
+        m->solve_barrier_iters = 0;
+
+        m->farkas_ok = false;
+        m->ray_ok = false;
+
+        m->sol_basis_ok = false;
+
+        {
+            bool is_row = false;
+            int64_t at = -1;
+            if (has_inverted_box(m, &is_row, &at)) {
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "%s %lld has its lower bound %.17g above its upper %.17g: "
+                       "infeasible, no simplex run",
+                       is_row ? "row" : "column", (long long)at,
+                       is_row ? m->row_lower[at] : m->col_lower[at],
+                       is_row ? m->row_upper[at] : m->col_upper[at]);
+                jm_presolve_free(&p);
+                return publish_inverted_box(m);
+            }
+        }
+
+    #if !defined(JAOS_NO_PRESOLVE)
+
+        const bool quadratic = jm_model_has_quadratic(m);
+        jaos_status pst = quadratic ? JAOS_OK : jm_presolve_run(m, &p, &pre_work);
+        if (pst != JAOS_OK) {
+            jm_presolve_free(&p);
+            return pst;
+        }
+        if (quadratic) {
+            p.outcome = JM_PRESOLVE_NONE;
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "presolve: skipped, the objective has a quadratic term");
+        }
+
+        m->presolve_counts = p.counts;
+
+        if (p.outcome == JM_PRESOLVE_NONE) {
+            if (!quadratic)
+                jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");
+        } else if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
+                  p.outcome == JM_PRESOLVE_UNBOUNDED) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "presolve: %s, no simplex run; "
+                   "empty_row=%lld empty_col=%lld singleton_row=%lld "
+                   "singleton_col=%lld free_col_singleton=%lld rounds=%lld",
+                   p.outcome == JM_PRESOLVE_INFEASIBLE ? "infeasible"
+                                                        : "unbounded",
+                   (long long)p.counts.empty_row, (long long)p.counts.empty_col,
+                   (long long)p.counts.singleton_row,
+                   (long long)p.counts.singleton_col,
+                   (long long)p.counts.free_col_singleton,
+                   (long long)p.counts.rounds);
+        } else {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "presolve: %lld rows, %lld columns, %lld nonzeros -> "
+                   "%lld rows, %lld columns, %lld nonzeros; "
+                   "fixed_col=%lld empty_row=%lld empty_col=%lld "
+                   "singleton_row=%lld singleton_col=%lld "
+                   "free_col_singleton=%lld rounds=%lld",
+                   (long long)m->num_row, (long long)m->num_col,
+                   (long long)m->num_nz, (long long)p.reduced.num_row,
+                   (long long)p.reduced.num_col, (long long)p.reduced.num_nz,
+                   (long long)p.counts.fixed_col, (long long)p.counts.empty_row,
+                   (long long)p.counts.empty_col,
+                   (long long)p.counts.singleton_row,
+                   (long long)p.counts.singleton_col,
+                   (long long)p.counts.free_col_singleton,
+                   (long long)p.counts.rounds);
+        }
+    #endif
+
+        if (p.outcome == JM_PRESOLVE_SOLVED) {
+
+            m->presolve_num_row = p.reduced.num_row;
+            m->presolve_num_col = p.reduced.num_col;
+            m->presolve_num_nz  = p.reduced.num_nz;
+            jaos_status st = jm_postsolve_solved(&p);
+            jm_presolve_free(&p);
+            return st;
+        }
+
+        if (p.outcome == JM_PRESOLVE_INFEASIBLE ||
+            p.outcome == JM_PRESOLVE_UNBOUNDED) {
+
+            m->presolve_num_row = p.reduced.num_row;
+            m->presolve_num_col = p.reduced.num_col;
+            m->presolve_num_nz  = p.reduced.num_nz;
+            const jaos_solve_status status = (p.outcome == JM_PRESOLVE_INFEASIBLE)
+                ? JAOS_SOLVE_INFEASIBLE : JAOS_SOLVE_UNBOUNDED;
+            jaos_status st = jm_postsolve_infeasible_or_unbounded(&p, status);
+            jm_presolve_free(&p);
+            return st;
+        }
+
+        target = (p.outcome == JM_PRESOLVE_REDUCED) ? &p.reduced : m;
+        m->presolve_num_row = target->num_row;
+        m->presolve_num_col = target->num_col;
+        m->presolve_num_nz  = target->num_nz;
+
+        if (jm_model_has_quadratic(m) ||
+            ((m->cfg.barrier || m->cfg.pdlp) && !m->cfg.node_solve)) {
+            bool crossover = false, handoff = false;
+            jaos_status bst = m->cfg.pdlp
+                ? jm_pdlp(m, target, &p, &pre_work, &crossover, &handoff,
+                          &barrier_iters)
+                : jm_barrier(m, target, &p, &pre_work, &crossover, &handoff,
+                             &barrier_iters);
+            m->solve_barrier_iters = barrier_iters;
+            if (bst != JAOS_OK || (!crossover && !handoff)) {
+                jm_presolve_free(&p);
+                return bst;
+            }
+            quad_probe = handoff && jm_model_has_quadratic(m);
+        }
+
+        st = sx_init(&s, target);
+        if (st != JAOS_OK) {
+            jm_presolve_free(&p);
+            return st;
+        }
+
+        s.work = pre_work;
+        s.started = jm_monotonic_seconds();
+
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "%s simplex: %lld rows, %lld columns, %lld nonzeros, "
+               "primal tol %.3g, dual tol %.3g",
+               s.primal_run ? "primal" : "dual",
+               (long long)m->num_row, (long long)m->num_col,
+               (long long)m->num_nz, s.primal_tol, s.dual_tol);
+    }
+
+    jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
+    for (;;) {
+        if (resumed) {
+            resumed = false;
+        } else {
+            warm = allow_warm && build_warm_basis(&s);
+            if (!warm)
+                build_initial_basis(&s);
+            jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
+                   warm ? "the basis on the model" : "the slack basis");
+        }
+
+        if (at_settle) {
+            at_settle = false;
+            st = JAOS_OK;
+            outcome = JAOS_SOLVE_OPTIMAL;
+        } else {
+            st = s.primal_run ? run_primal(&s, &outcome)
+                              : run(&s, &outcome);
+        }
 
         if (st == JAOS_ERR_NUMERICAL && warm) {
             jm_log(m, JAOS_LOG_SUMMARY,
@@ -4220,6 +4371,28 @@ jaos_status jm_dual_simplex(jaos_model *m)
                (long long)s.n_weight_restart, (long long)s.n_bland,
                (long long)s.n_stability, (long long)s.n_primal_iters,
                (long long)s.n_phase1_iters);
+
+    if (st == JAOS_OK && !m->cfg.node_solve &&
+        (outcome == JAOS_SOLVE_WORK_LIMIT ||
+         outcome == JAOS_SOLVE_TIME_LIMIT ||
+         outcome == JAOS_SOLVE_INTERRUPTED)) {
+        jm_parked *pk = malloc(sizeof *pk);
+        if (pk != nullptr) {
+            pk->s = s;
+            pk->s.m = nullptr;
+            pk->p = p;
+            pk->reduced = target == &p.reduced;
+            pk->allow_warm = allow_warm;
+            pk->allow_loan_free = allow_loan_free;
+            pk->warm = warm;
+            pk->quad_probe = quad_probe;
+            pk->barrier_iters = barrier_iters;
+            pk->elapsed = elapsed_seconds(&s);
+            pk->cfg = m->cfg;
+            m->parked = pk;
+            return st;
+        }
+    }
 
     sx_free(&s);
     jm_presolve_free(&p);

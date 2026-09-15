@@ -53,7 +53,8 @@ rule on a stall.
 **Mixed-integer programs.** Branch and bound over the dual simplex, best bound
 first, pseudocost branching. Gomory, knapsack cover and mixed-integer rounding
 cuts at the root and below it. A rounding heuristic, a root dive and a
-feasibility pump. A solution pool, a MIP start, a cutoff, a node limit, an
+feasibility pump. A solution pool of distinct integer assignments, a MIP
+start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.
 Symmetry detection at the root and orbital branching on its orbits.
@@ -69,8 +70,11 @@ produced.
 
 **A model is not read-only.** Bounds, costs, coefficients, the objective's
 sense and constant, rows and columns added or deleted, all reading back. A
-re-solve starts from the previous basis. A stopped solve keeps its basis and
-can resume, in-process or from a file.
+re-solve starts from the previous basis. A solve stopped on a work limit, a
+time limit or a callback parks its whole state on the model and the next
+solve goes on from exactly where it stopped, so an LP stopped and solved on
+ends on the uninterrupted answer to the bit; a stopped solve also writes its
+basis, which is the warm start from a file.
 
 **Command line.** `make cli` builds `jaos`. `jaos solve model.mps` prints one
 fact per line; the exit code is the verdict. `convert`, `check`, `stats`,

@@ -506,6 +506,49 @@ class TestLimitsAndOutput(unittest.TestCase):
             self.assertIn(m.solve(), (jaos.SolveStatus.WORK_LIMIT,
                                       jaos.SolveStatus.OPTIMAL))
 
+    def test_a_stopped_solve_resumes_the_walk_it_left(self):
+
+        def walk():
+            p = jaos.Problem()
+            seed = 12345
+            v = []
+            for k in range(30):
+                seed = (seed * 1103515245 + 12345) % (1 << 31)
+                v.append(p.add_var(lb=0, ub=1 + seed % 10, name=f"x{k}"))
+            rows = [0] * 18
+            for i in range(18):
+                terms = 0
+                for k in range(30):
+                    seed = (seed * 1103515245 + 12345) % (1 << 31)
+                    if seed % 2:
+                        a = seed % 7 - 3 or 1
+                        terms = terms + a * v[k]
+                        rows[i] += a * (k % 4)
+                if i % 3 == 0:
+                    p.add(terms == rows[i])
+                elif i % 3 == 1:
+                    p.add(terms >= rows[i] - 2)
+                else:
+                    p.add(terms <= rows[i] + 2)
+            obj = 0
+            for k, x in enumerate(v):
+                seed = (seed * 1103515245 + 12345) % (1 << 31)
+                obj = obj + (seed % 19 - 9) * x
+            p.maximize(obj)
+            return p, v
+
+        ref, rv = walk()
+        self.assertIs(ref.solve(), jaos.SolveStatus.OPTIMAL)
+        full = ref.work_units
+        p, v = walk()
+        p.set_work_limit(full // 2)
+        self.assertIs(p.solve(), jaos.SolveStatus.WORK_LIMIT)
+        p.set_work_limit(0)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertEqual(p.work_units, full)
+        self.assertEqual(p.objective_value, ref.objective_value)
+        self.assertEqual([x.value for x in v], [x.value for x in rv])
+
     def test_a_work_limit_on_a_tree_lands_near_the_limit(self):
 
         def knapsack5():

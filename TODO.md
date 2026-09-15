@@ -8,22 +8,6 @@ the commit that took it, named here by hash.
 
 ## Milestone: reach and polish
 
-0b. **A resume does not follow the path the uninterrupted run took.**
-   Two runs at the same work limit agree exactly, which is what
-   `docs/cli.md` promises. A run stopped and then finished does not always
-   reach the answer the straight run reaches. Nothing documented is broken;
-   what is missing is the stronger property a caller expects, that a stop
-   does not change the answer.
-   The cause is the re-entry: `sx_init` builds the factorisation again and
-   the pricing weights with it, so the walk after the stop is not the walk
-   that would have happened.
-   The fix: carry the state across the stop — the LU, its update chain, the
-   steepest-edge weights and the Harris pass's state. It changes
-   `simplex.c`, so it needs the four gates. Measure the cost of holding that
-   state as well as the benefit, because a solve that never stops pays it
-   too.
-   Reading: 4738ebd.
-
 1. **Windows build, the rest.** The shim is in (`src/jaos_sys.h`),
    mingw-w64 builds the library and the tool, wine gives the Linux answers,
    and the Python binding knows `jaos.dll`. Missing: a native Windows run

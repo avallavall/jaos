@@ -76,7 +76,10 @@ Charged onto
 the same `jm_work` the reduced model's own solve then
 continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
 before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total
-for the whole solve and not two — the reason D-14 exists at all: an
+for the whole solve and not two, and a solve stopped and resumed keeps
+that one total: the parked state carries the accumulator, the resumed
+solve reports the whole walk's work, and a limit is a limit on the whole
+walk — the reason D-14 exists at all: an
 inflated or omitted total is compared against the same budget that decides
 where a solve stops, and phase 1 is the standing example
 of what that costs when it goes silently wrong. Nothing else in

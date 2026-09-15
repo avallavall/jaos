@@ -1280,6 +1280,82 @@ static void test_solving_twice_is_bit_identical(void)
     TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
 }
 
+static jaos_model *walk_of_some_length(void)
+{
+    enum { NC = 30, NR = 18 };
+    static double c[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[NC * NR];
+    static int64_t as[NC + 1], ai[NC * NR];
+    uint64_t seed = 0x9E3779B97F4A7C15ull;
+    int64_t nz = 0;
+    double act[NR] = {0};
+    for (int64_t j = 0; j < NC; j++) {
+        seed = seed * 6364136223846793005ull + 1442695040888963407ull;
+        c[j] = (double)(int64_t)((seed >> 33) % 19) - 9.0;
+        cl[j] = 0.0;
+        cu[j] = 1.0 + (double)(int64_t)((seed >> 40) % 10);
+        const double z = (double)(int64_t)((seed >> 45) % 4);
+        as[j] = nz;
+        for (int64_t i = 0; i < NR; i++) {
+            seed = seed * 6364136223846793005ull + 1442695040888963407ull;
+            if ((seed >> 33) % 2 == 0)
+                continue;
+            double a = (double)(int64_t)((seed >> 40) % 7) - 3.0;
+            if (a == 0.0)
+                a = 1.0;
+            ai[nz] = i;
+            av[nz] = a;
+            nz++;
+            act[i] += a * z;
+        }
+    }
+    as[NC] = nz;
+    for (int64_t i = 0; i < NR; i++) {
+        rl[i] = i % 3 == 0 ? act[i] : act[i] - 2.0;
+        ru[i] = i % 3 == 1 ? INFINITY : act[i] + 2.0;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MAXIMIZE, 0.0, c, cl, cu, rl, ru, nz,
+                     as, ai, av));
+    return m;
+}
+
+static void test_a_stopped_solve_resumes_the_walk_it_left(void)
+{
+    jaos_model *ref = walk_of_some_length();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(ref));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(ref));
+    const int64_t full = jaos_work_units(ref), iters = jaos_iterations(ref);
+    TEST_ASSERT_TRUE(iters > 4);
+    double robj = 0.0, rx[30];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(ref, &robj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(ref, rx, nullptr, nullptr, nullptr));
+
+    jaos_model *m = walk_of_some_length();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, full / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_TRUE(jaos_iterations(m) < iters);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(full, jaos_work_units(m));
+    TEST_ASSERT_EQUAL_INT64(iters, jaos_iterations(m));
+    double obj = 0.0, x[30];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_MEMORY(&robj, &obj, sizeof obj);
+    TEST_ASSERT_EQUAL_MEMORY(rx, x, sizeof x);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, full / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_TRUE(jaos_status_of(m) == JAOS_SOLVE_WORK_LIMIT ||
+                     jaos_status_of(m) == JAOS_SOLVE_OPTIMAL);
+    jaos_model_free(m);
+    jaos_model_free(ref);
+}
+
 static void test_work_limit_stops_and_reports(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -2340,7 +2416,8 @@ static void collect_start(void *user, jaos_log_level level, const char *line)
 {
     (void)user;
     (void)level;
-    if (strncmp(line, "starting from", 13) == 0)
+    if (strncmp(line, "starting from", 13) == 0 ||
+        strncmp(line, "resuming the", 12) == 0)
         snprintf(g_start_line, sizeof g_start_line, "%s", line);
 }
 
@@ -2433,6 +2510,23 @@ static void test_a_budget_stop_can_be_resumed(void)
 
     TEST_ASSERT_NOT_NULL(m->start_col_status);
 
+    /* The stop parked the walk; solving on resumes it, and the counts
+     * are the whole walk's. */
+    watch_the_start(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+    solve_and_verify(m, 4.5);
+    TEST_ASSERT_NOT_NULL(strstr(g_start_line, "resuming the dual simplex"));
+    TEST_ASSERT_EQUAL_INT64(whole_iters, jaos_iterations(m));
+    TEST_ASSERT_EQUAL_INT64(whole_work, jaos_work_units(m));
+
+    /* A basis set after a stop drops the parked walk: the next solve
+     * starts from that basis, and its counts are its own. */
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, whole_work / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
     watch_the_start(m);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
     solve_and_verify(m, 4.5);
@@ -3442,6 +3536,7 @@ int main(void)
     RUN_TEST(test_nonbasic_notices_a_missed_hook);
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
+    RUN_TEST(test_a_stopped_solve_resumes_the_walk_it_left);
     RUN_TEST(test_budgets_survive_a_reload);
     RUN_TEST(test_a_tolerance_must_be_a_tolerance);
     RUN_TEST(test_an_untouched_model_carries_no_tolerance_of_its_own);

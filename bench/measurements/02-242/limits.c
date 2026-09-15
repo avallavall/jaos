@@ -170,6 +170,21 @@ static bool near(double a, double b)
     return fabs(a - b) <= 1e-9 * (1.0 + fabs(b));
 }
 
+static void debug_line(void *user, jaos_log_level level, const char *line)
+{
+    (void)user;
+    (void)level;
+    fprintf(stderr, "log: %s\n", line);
+}
+
+static void debug_hook(jaos_model *p, int64_t idx)
+{
+    const char *want = getenv("DEBUG_IDX");
+    if (want == nullptr || atoll(want) != idx) return;
+    if (jaos_set_log_callback(p, debug_line, nullptr) != JAOS_OK) abort();
+    if (jaos_set_log_level(p, JAOS_LOG_DETAIL) != JAOS_OK) abort();
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 4) {
@@ -217,6 +232,7 @@ int main(int argc, char **argv)
 
             jaos_model *p = load(&g);
             if (p == nullptr || jaos_set_work_limit(p, L) != JAOS_OK) abort();
+            if (L == 1) debug_hook(p, idx);
             if (jaos_solve(p) != JAOS_OK) abort();
             outcome o1;
             take(p, g.nc, &o1);

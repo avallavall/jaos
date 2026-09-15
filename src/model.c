@@ -29,6 +29,7 @@ jaos_status jaos_model_new(jaos_model **out)
 
 static void model_release_arrays(jaos_model *m)
 {
+    jm_model_drop_parked(m);
     free(m->col_cost);
     free(m->col_lower);
     free(m->col_upper);
@@ -413,6 +414,7 @@ static jaos_status set_tolerance(jaos_model *m, double value, double *slot,
         return JAOS_ERR_INVALID_INPUT;
     }
     *slot = value;
+    jm_model_drop_parked(m);
     return JAOS_OK;
 }
 
@@ -430,6 +432,7 @@ static void model_matrix_is_stale(jaos_model *m);
 
 static void model_answer_is_stale(jaos_model *m)
 {
+    jm_model_drop_parked(m);
     free(m->sol_col);        m->sol_col = nullptr;
     free(m->sol_row);        m->sol_row = nullptr;
     free(m->sol_dual);       m->sol_dual = nullptr;
@@ -1405,6 +1408,7 @@ jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg)
     m->cfg.barrier = alg == JAOS_ALGORITHM_BARRIER;
     m->cfg.pdlp = alg == JAOS_ALGORITHM_PDLP;
     m->cfg.concurrent = alg == JAOS_ALGORITHM_CONCURRENT;
+    jm_model_drop_parked(m);
     return JAOS_OK;
 }
 
@@ -2230,6 +2234,7 @@ jaos_status jaos_set_basis(jaos_model *m, const jaos_basis_status *col_status,
         return JAOS_ERR_INVALID_INPUT;
     }
 
+    jm_model_drop_parked(m);
     return store_basis(m, col_status, row_status);
 }
 
@@ -2237,6 +2242,7 @@ void jaos_clear_basis(jaos_model *m)
 {
     if (m == nullptr)
         return;
+    jm_model_drop_parked(m);
     free(m->start_col_status); m->start_col_status = nullptr;
     free(m->start_row_status); m->start_row_status = nullptr;
 }

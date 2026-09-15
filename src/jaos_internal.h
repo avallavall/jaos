@@ -300,6 +300,8 @@ struct jaos_model {
     jaos_basis_status *start_col_status;
     jaos_basis_status *start_row_status;
 
+    void *parked;
+
     char err[256];
 };
 
@@ -311,6 +313,7 @@ typedef enum {
 } jm_var_status;
 
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
+void jm_model_drop_parked(jaos_model *m);
 
 double jm_primal_tolerance(const jaos_model *m);
 double jm_dual_tolerance(const jaos_model *m);

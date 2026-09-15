@@ -127,13 +127,34 @@ clock, and where a clock cuts is not reproducible. Its `iterations` and
 `work_units` lines can differ between runs. A run that stops on
 `--work-limit` is reproducible, because the work counter is deterministic.
 
-Resuming is a weaker promise than that. Two runs at the same `--work-limit`
-give the same output, byte for byte. A run that stops and is then finished
-does not always reach the answer an uninterrupted run reaches: the re-entry
-rebuilds the factorisation, which moves the walk, so it may stand on another
-point of the same optimal face or move the objective in its last bits.
-Measured over 33102 stopped runs, 15 land elsewhere, 9 of them with the
-objective still bit for bit the same. `SPECS.md` carries the reading.
+A stop does not change the answer either, in-process. A solve that ends
+`work_limit`, `time_limit` or `interrupted` leaves its whole state on the
+model, the factorisation, its update chain, the pricing weights, the
+shifts and the phase, and the next `jaos_solve` on that model goes on
+from exactly where it stopped, so an LP stopped and solved on ends on the
+answer the uninterrupted run ends on, to the bit, work and iterations
+included: the counts go on across a stop, and a limit is a limit on the
+whole walk, so a solve resumed under the limit that stopped it stops
+again at once. Any edit to the model, a basis set or cleared, or a change
+of algorithm or tolerance drops the parked state and the next solve
+starts over, warm from the basis the stop left. The state is the solve's
+own working set and is held until then, or until the model is freed. A
+stop inside the settling re-entry after an optimum resumes that re-entry
+from its first round. A MIP has no such state: its tree starts again and
+reaches the same objective. Measured over 6000 generated models
+(`bench/measurements/02-247/`). The tool cannot resume, since its
+process ends with the solve; `--basis` is its warm start.
+
+```mermaid
+flowchart LR
+    S[solve] -->|optimal, infeasible, unbounded| A[answer published]
+    S -->|work_limit, time_limit, interrupted| P[state parked on the model]
+    P -->|solve again, nothing changed| R[resume the walk it left]
+    R --> S
+    P -->|edit, basis set or cleared, algorithm or tolerance changed| D[state dropped]
+    D -->|solve again| W[warm start from the basis the stop left]
+    W --> S
+```
 
 The solver's log, when `--log` asks for one, goes to stderr and never to
 stdout. Logging never changes an answer: a model solved at `--log detail`

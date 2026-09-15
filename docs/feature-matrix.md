@@ -198,9 +198,19 @@ default of 1 is the incumbent alone, so the search is unchanged. "Distinct"
 was the intent and not the behaviour until 2026-09-10: the check compared
 the two points by their bytes, so a column at `-0` against `+0` read as a
 difference, and 69 pools of 24000 held one point twice
-(`bench/measurements/02-227/`). Two entries can still be the same point
-where a continuous column differs in the last bits, which `TODO.md` row 5
-carries.
+(`bench/measurements/02-227/`). Since 2026-09-15 two points are one entry
+when they agree on every integer column, the better kept, which is how
+the field's pools count and what the row above means by distinct; 9 of
+24000 pools had held one assignment twice as two vertices of one face
+(`bench/measurements/02-246/`).
+
+**Resume after a limit moved to an exact resume on 2026-09-15.** A solve
+that ends on a work limit, a time limit or a callback parks its whole
+simplex state on the model, and the next solve goes on from exactly where
+it stopped: an LP stopped and solved on ends on the uninterrupted answer
+to the bit, work and iterations included. Before, the next solve started
+warm from the basis the stop left, and 15 of 33102 such resumes landed on
+another point of the same optimal face (`bench/measurements/02-247/`).
 
 This whole section is out of scope for the current milestone and is not
 scheduled. It is here because it is most of what separates an LP solver from a
