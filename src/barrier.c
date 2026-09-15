@@ -16,6 +16,7 @@ constexpr double  BARRIER_AUG_FLOOR = 1e-30;
 constexpr double  BARRIER_START_MIN = 1e-6;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
+constexpr double  BARRIER_DIVERGE_QP = 1e10;
 constexpr double  BARRIER_DENSE_FACTOR = 10.0;
 constexpr int64_t BARRIER_DENSE_MIN    = 30;
 constexpr int64_t BARRIER_DENSE_MAX    = 100;
@@ -1158,8 +1159,9 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
             jm_work_add(&s->work, (3 * s->nvar + s->nrow) * JM_WORK_NONZERO);
             jm_log(m, JAOS_LOG_DETAIL, "  iterate %.3e/%.3e of the data",
                    pgrow, dgrow);
-            if ((pgrow > BARRIER_DIVERGE || dgrow > BARRIER_DIVERGE) &&
-                !progressed) {
+            const double far = s->quadratic ? BARRIER_DIVERGE_QP
+                                            : BARRIER_DIVERGE;
+            if ((pgrow > far || dgrow > far) && !progressed) {
                 jm_set_err(m, "the barrier's iterate grew past %.3g times "
                               "the data after %lld iterations (primal %.3e, "
                               "dual %.3e): the model may be infeasible or "
@@ -1488,9 +1490,12 @@ static jaos_status qp_push(bx *s)
     double *rp2 = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rp2);
     double *dz2 = jm_alloc_array(nv > 0 ? nv : 1, sizeof *dz2);
     double *dy2 = jm_alloc_array(nr > 0 ? nr : 1, sizeof *dy2);
+    double *row_tol = jm_alloc_array(nr > 0 ? nr : 1, sizeof *row_tol);
+    double *col_tol = jm_alloc_array(nv > 0 ? nv : 1, sizeof *col_tol);
     if (pin == nullptr || zn == nullptr || yn == nullptr || d == nullptr ||
         dec == nullptr || rt2 == nullptr || rp2 == nullptr ||
-        dz2 == nullptr || dy2 == nullptr) {
+        dz2 == nullptr || dy2 == nullptr || row_tol == nullptr ||
+        col_tol == nullptr) {
         free(pin);
         free(zn);
         free(yn);
@@ -1500,6 +1505,8 @@ static jaos_status qp_push(bx *s)
         free(rp2);
         free(dz2);
         free(dy2);
+        free(row_tol);
+        free(col_tol);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     s->pin = pin;
@@ -1528,6 +1535,23 @@ static jaos_status qp_push(bx *s)
     const double tol_p = QP_PUSH_TOL * (1.0 + s->norm_b);
     const double tol_d = QP_PUSH_TOL * (1.0 + s->norm_c);
     const double near_p = QP_PUSH_NEAR * (1.0 + s->norm_b);
+    for (int64_t i = 0; i < nr; i++)
+        row_tol[i] = 1.0;
+    for (int64_t j = 0; j < s->ncol; j++) {
+        const double xj = fabs(m->col_scale[j] * s->z[j]);
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            row_tol[m->a_index[p]] += fabs(m->a_value[p]) * xj;
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        const double user = QP_PUSH_USER_TOL * m->row_scale[i] * row_tol[i];
+        row_tol[i] = user < tol_p ? user : tol_p;
+    }
+    jm_work_add(&s->work, (m->num_nz + nr) * JM_WORK_NONZERO);
+    for (int64_t j = 0; j < nv; j++) {
+        const double user = j < s->ncol ? QP_PUSH_USER_TOL / m->col_scale[j]
+                                        : QP_PUSH_USER_TOL * m->row_scale[j - s->ncol];
+        col_tol[j] = user < tol_p ? user : tol_p;
+    }
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
     bool stuck = false;
     double worst_sign = 0.0;
@@ -1583,13 +1607,14 @@ static jaos_status qp_push(bx *s)
             double rres = 0.0;
             for (int64_t i = 0; i < nr; i++) {
                 rp2[i] = s->rp[i] - rp2[i];
-                if (fabs(rp2[i]) > rres)
-                    rres = fabs(rp2[i]);
+                if (fabs(rp2[i]) / row_tol[i] > rres)
+                    rres = fabs(rp2[i]) / row_tol[i];
             }
             jm_log(s->m, JAOS_LOG_DETAIL,
-                   "  push round %lld refinement %lld: rows off by %.3e",
+                   "  push round %lld refinement %lld: rows off by %.3e of "
+                   "their tolerance",
                    (long long)round, (long long)pass, rres);
-            if (rres <= 0.01 * tol_p)
+            if (rres <= 0.01)
                 break;
             mul_et(s, s->dy, s->tmp);
             const double *qd = grad_q(s, s->dz);
@@ -1616,12 +1641,12 @@ static jaos_status qp_push(bx *s)
             if (k == FIXED || pin[j] != PUSH_FREE)
                 continue;
             const double dj = s->dz[j];
-            if ((k & HAS_LO) && dj < 0.0 && zn[j] + dj < s->lo[j] - tol_p) {
+            if ((k & HAS_LO) && dj < 0.0 && zn[j] + dj < s->lo[j] - col_tol[j]) {
                 const double a = (s->lo[j] - zn[j]) / dj;
                 if (a < alpha)
                     alpha = a;
             }
-            if ((k & HAS_UP) && dj > 0.0 && zn[j] + dj > s->up[j] + tol_p) {
+            if ((k & HAS_UP) && dj > 0.0 && zn[j] + dj > s->up[j] + col_tol[j]) {
                 const double a = (s->up[j] - zn[j]) / dj;
                 if (a < alpha)
                     alpha = a;
@@ -1675,7 +1700,7 @@ static jaos_status qp_push(bx *s)
         wrong = 0;
         double pres = 0.0;
         for (int64_t i = 0; i < nr; i++) {
-            if (!(fabs(s->rp[i]) <= tol_p))
+            if (!(fabs(s->rp[i]) <= row_tol[i]))
                 wrong++;
             if (!(fabs(s->rp[i]) <= pres))
                 pres = fabs(s->rp[i]);
@@ -1690,7 +1715,7 @@ static jaos_status qp_push(bx *s)
             int64_t released = 0;
             if (isfinite(pres)) {
                 for (int64_t i = 0; i < nr; i++) {
-                    if (!(fabs(s->rp[i]) > tol_p))
+                    if (!(fabs(s->rp[i]) > row_tol[i]))
                         continue;
                     int64_t best = -1;
                     double slack = HUGE_VAL;
@@ -1796,15 +1821,6 @@ static jaos_status qp_push(bx *s)
     }
     if (st == JAOS_OK && settled) {
         s->pushed = true;
-        for (int64_t j = 0; j < nv; j++) {
-            const uint8_t k = s->kind[j];
-            if (k == FIXED || pin[j] != PUSH_FREE)
-                continue;
-            if ((k & HAS_LO) && zn[j] < s->lo[j])
-                zn[j] = s->lo[j];
-            if ((k & HAS_UP) && zn[j] > s->up[j])
-                zn[j] = s->up[j];
-        }
         memcpy(s->z, zn, (size_t)nv * sizeof *zn);
         memcpy(s->y, yn, (size_t)nr * sizeof *yn);
         for (int64_t j = 0; j < nv; j++) {
@@ -1860,6 +1876,8 @@ static jaos_status qp_push(bx *s)
     free(rp2);
     free(dz2);
     free(dy2);
+    free(row_tol);
+    free(col_tol);
     return st;
 }
 

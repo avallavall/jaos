@@ -86,6 +86,11 @@ re-taken after them:
   qisrael, qpilotno, boyd1 and liswet8 pass the checker now.
 - A quadratic walk that hits 200 iterations within `BARRIER_NEAR_TOL` of
   converged gets the push before the handoff: q25fv47 solves.
+- A quadratic model's walk is allowed a dual iterate `BARRIER_DIVERGE_QP`
+  times the data, 1e10 against the LP's 1e6, since abandoning it buys
+  nothing: cvxqp1_l, cvxqp3_l, powell20, huestis, qforplan and qpcboei2
+  solve. The push judges each row's residual in the model's units as well
+  as the reduced costs.
 
 ## Cost
 
