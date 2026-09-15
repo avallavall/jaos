@@ -693,6 +693,26 @@ static void test_a_work_limit_stops_the_tree_and_keeps_the_incumbent(void)
     jaos_model_free(m);
 }
 
+static jaos_model *knapsack5(void);
+
+static void test_a_work_limit_on_a_tree_lands_near_the_limit(void)
+{
+    jaos_model *m = knapsack5();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    const int64_t full = jaos_work_units(m);
+    TEST_ASSERT_TRUE(full > 1);
+    jaos_model_free(m);
+
+    m = knapsack5();
+    const int64_t limit = full / 2;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, limit));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_TRUE(jaos_work_units(m) >= limit);
+    TEST_ASSERT_TRUE(jaos_work_units(m) < full);
+    jaos_model_free(m);
+}
+
 static void test_the_marks_ride_with_their_columns_and_copy(void)
 {
     jaos_model *m = knapsack();
@@ -4068,6 +4088,7 @@ int main(void)
     RUN_TEST(test_a_fractional_root_branches_to_the_integer_answer);
     RUN_TEST(test_an_integer_model_with_no_integer_point_is_infeasible);
     RUN_TEST(test_a_work_limit_stops_the_tree_and_keeps_the_incumbent);
+    RUN_TEST(test_a_work_limit_on_a_tree_lands_near_the_limit);
     RUN_TEST(test_the_marks_ride_with_their_columns_and_copy);
     RUN_TEST(test_the_readers_and_writers_carry_the_marks);
     RUN_TEST(test_without_cuts_or_dive_the_tree_branches_to_the_same_answer);

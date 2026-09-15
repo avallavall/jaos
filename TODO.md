@@ -79,23 +79,6 @@ the commit that took it, named here by hash.
    caller reading the pool for a spread of answers wants both.
    Reading: `bench/measurements/02-227/`.
 
-7. **A MIP runs past its work limit.** `docs/cli.md` says `--work-limit
-   N` stops the solve after N deterministic work units. An LP does, to
-   within one iteration's step. The tree reads the limit only between
-   node solves (`src/mip.c`, the loop's `work >= m->cfg.work_limit`
-   check), and every sub-solve it starts, eleven `jaos_solve` sites for
-   the root, the cuts, the probes, the dives and the heuristics, runs
-   under the caller's whole limit on its own rather than under what is
-   left of it. Read 2026-09-15 over 1994 generated MIPs (02-242): a
-   stopped run overshoots by 37000 units on average and by 817447 at
-   most, and 2327 of 7976 limited runs finished optimal past the limit
-   without stopping at all. The fix: hand each sub-solve the remaining
-   budget, `limit - work so far`, taken with any cap it already carries,
-   and end the tree `work_limit` when a sub-solve stops on that budget
-   rather than on its cap. It changes `mip.c`, so it needs `make miplib`;
-   the gate runs with no limit, so the trees should stay byte-identical.
-   Then the SPECS row goes back to `done`.
-
 6. **Fifteen SPECS rows say `done` and say nothing else.** A row with an
    empty description is a feature nobody has written down, and once on
    2026-09-10 it was also a feature nobody had read. Row 72, the solution
@@ -116,8 +99,9 @@ the commit that took it, named here by hash.
    against the harness's own arithmetic (02-238, 02-239). Row 123, the
    line-numbered refusals, and row 124, `diff` and `show`, came back
    clean (02-240, 02-241). Row 148, the limits, held for LPs and not for
-   MIPs: the tree runs past its work limit, row 7 above (02-242). Six of
-   the eighteen were worth the sweep.
+   MIPs: the tree ran up to 817447 units past its work limit, because
+   each sub-solve ran under the whole limit on its own; fixed the same
+   day (02-242). Six of the eighteen were worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep

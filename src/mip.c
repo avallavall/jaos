@@ -574,6 +574,19 @@ static int64_t orbit_stabilizer(const jaos_model *m, const jm_symmetry *sym,
     return kept;
 }
 
+static bool budget_gone(const jaos_model *m, int64_t work)
+{
+    return m->cfg.work_limit > 0 && work >= m->cfg.work_limit;
+}
+
+static void budget(jaos_model *lp, const jaos_model *m, int64_t work)
+{
+    if (m->cfg.work_limit <= 0)
+        return;
+    const int64_t left = m->cfg.work_limit - work;
+    lp->cfg.work_limit = left > 0 ? left : 1;
+}
+
 static double now_seconds(void)
 {
     return jm_monotonic_seconds();
@@ -673,6 +686,7 @@ static bool republish_at_the_incumbent(jaos_model *m, const double *point,
         if (jaos_set_col_bounds(fin, j, v, v) != JAOS_OK)
             goto out;
     }
+    budget(fin, m, m->solve_work);
     if (jaos_solve(fin) != JAOS_OK)
         goto out;
     *extra_work += jaos_work_units(fin);
@@ -930,6 +944,7 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                         : jaos_set_col_bounds(lp, j, ceil(x[j]), hi0);
             if (st == JAOS_OK && !jm_model_has_quadratic(lp))
                 st = jaos_set_basis(lp, cs, rs);
+            budget(lp, m, *work);
             const int64_t caller_limit = lp->cfg.work_limit;
             const bool capping = cap > 0 &&
                                  (caller_limit <= 0 || cap < caller_limit);
@@ -963,6 +978,7 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
         return st;
 
     st = jm_model_has_quadratic(lp) ? JAOS_OK : jaos_set_basis(lp, cs, rs);
+    budget(lp, m, *work);
     if (st == JAOS_OK)
         st = jaos_solve(lp);
     (*solves)++;
@@ -2502,6 +2518,7 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
         }
     }
     for (int64_t s = 0; s < solves; s++) {
+        budget(hv, m, *work);
         if (jaos_solve(hv) != JAOS_OK)
             break;
         *work += jaos_work_units(hv);
@@ -2788,6 +2805,7 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
                 if (jaos_set_col_cost(pv, nc + q, 1.0 - a) != JAOS_OK)
                     goto out_free;
         }
+        budget(pv, m, *work);
         if (jaos_solve(pv) != JAOS_OK)
             break;
         *work += jaos_work_units(pv);
@@ -2993,6 +3011,7 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     sw->rows += rb->n;
     rb->n = rb->nnz = 0;
     if (x != nullptr && !*violated) {
+        budget(lp, m, *work);
         const jaos_status rs = jaos_solve(lp);
         if (rs != JAOS_OK)
             return rs;
@@ -3850,6 +3869,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         jaos_status st = apply_indicators(lp, m);
         if (st != JAOS_OK)
             goto done;
+        budget(lp, m, work);
         st = jaos_solve(lp);
         solves++;
         const int64_t node_work = jaos_work_units(lp);
@@ -3948,6 +3968,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 break;
             }
             if (pr.fixed + pr.implied > 0) {
+                budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
@@ -4122,6 +4143,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 }
                 cuts += got;
                 const double key_before = key;
+                budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
@@ -4210,7 +4232,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
         }
 
-        if (dive_heur > 0 && branch >= 0 &&
+        if (dive_heur > 0 && branch >= 0 && !budget_gone(m, work) &&
             (cur == nullptr || cur->depth <= dive_heur_depth)) {
             const int got = dive_for_point(m, lp, dive_heur, nullptr, nullptr,
                                            xr, &work, &solves);
@@ -4256,7 +4278,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         }
 
         if (nodes == 1 && feaspump > 0 && branch >= 0 &&
-            (!inc.have || pump_always)) {
+            !budget_gone(m, work) && (!inc.have || pump_always)) {
 
             if (prnd == nullptr) {
                 prnd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *prnd);
@@ -4306,7 +4328,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
         }
 
-        if (rins > 0 && inc.have && branch >= 0 &&
+        if (rins > 0 && inc.have && branch >= 0 && !budget_gone(m, work) &&
             (!rins_seen || inc.key != rins_key)) {
             rins_seen = true;
             rins_key = inc.key;
@@ -4403,6 +4425,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 cuts += got;
                 local_cuts += got;
                 const double key_before = key;
+                budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
@@ -4469,6 +4492,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 }
                 if (branch < 0)
                     sw.rejected++;
+                budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
@@ -4508,7 +4532,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 best_bound = key;
         }
 
-        if (heur && branch >= 0) {
+        if (heur && branch >= 0 && !budget_gone(m, work)) {
             double hobj = 0.0;
 
             work += m->num_nz + nc + nr;

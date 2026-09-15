@@ -69,8 +69,30 @@ averages 37000 units, reaches 817447, and 2327 of the 7976 limited MIP
 solves finished optimal past their limit without stopping at all, one
 of them 75566 units past. On the CLI the same thing shows as 3 of the
 120 runs ending `optimal` with exit 0 where `work_limit` and exit 3 were
-asked for. The SPECS row is `partial` for this and `TODO.md` row 7
-holds the fix.
+asked for.
+
+## After the fix
+
+Every solve the tree starts, at a node, after probing, after a cut
+round, after the callback's rows, in the dive, the pump and the polish,
+now runs under what is left of the limit (`budget` in `src/mip.c`,
+before each of the eleven `jaos_solve` calls), and the four heuristic
+stages are skipped once the budget is gone. The tree already ended on a
+sub-solve that stopped, so nothing else changed. Re-read on seeds 1 to
+3 with the same harness:
+
+| seed | MIPs | MIP stopped | MIP overshoot, mean / max | MIP past | max past | resumed | exact |
+|---|---|---|---|---|---|---|---|
+| 1 | 324 | 972 | 2225 / 16289 | 324 | 1 | 3000 | 2977 |
+| 2 | 323 | 969 | 2119 / 20944 | 323 | 1 | 3000 | 2977 |
+| 3 | 338 | 1014 | 2144 / 20173 | 338 | 1 | 3000 | 2964 |
+
+The overshoot is now one sub-solve's step, 20944 units at most against
+817447, and a MIP finishes past its limit only at L = W-1, by one unit,
+exactly as an LP does. The LP rows are unchanged to the unit. Every
+property holds; the unit suite, the sanitizer and the Python suite pass
+with a new test at each layer that a tree stopped at half its work
+lands at or past the limit and below the full work.
 
 ## The pass is not vacuous
 

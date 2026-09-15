@@ -496,6 +496,25 @@ class TestLimitsAndOutput(unittest.TestCase):
             self.assertIn(m.solve(), (jaos.SolveStatus.WORK_LIMIT,
                                       jaos.SolveStatus.OPTIMAL))
 
+    def test_a_work_limit_on_a_tree_lands_near_the_limit(self):
+
+        def knapsack5():
+            p = jaos.Problem()
+            v = [p.add_var(binary=True, name=f"x{k}") for k in range(5)]
+            p.add(3 * v[0] + 5 * v[1] + 2 * v[2] + 4 * v[3] + 2 * v[4] <= 8)
+            p.maximize(10 * v[0] + 13 * v[1] + 7 * v[2] + 9 * v[3] + 5 * v[4])
+            return p
+
+        p = knapsack5()
+        self.assertEqual(p.solve(), jaos.SolveStatus.OPTIMAL)
+        full = p.work_units
+        self.assertGreater(full, 1)
+        p = knapsack5()
+        p.set_work_limit(full // 2)
+        self.assertEqual(p.solve(), jaos.SolveStatus.WORK_LIMIT)
+        self.assertGreaterEqual(p.work_units, full // 2)
+        self.assertLess(p.work_units, full)
+
     def test_the_log_callback_receives_lines(self):
         seen = []
 
