@@ -235,6 +235,36 @@ static void test_qplib_refuses_what_it_cannot_express(void)
     jaos_model_free(m);
 }
 
+static void test_qplib_refuses_a_name_its_reader_would_cut_as_a_comment(void)
+{
+    static const char *const bad[3] = {"a!b", "a#b", "%a"};
+    remove("build/tq_bad.qplib");
+    for (int k = 0; k < 3; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/g_quad.lp"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, bad[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_write_qplib(m, "build/tq_bad.qplib"));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), bad[k]));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "comment"));
+        TEST_ASSERT_FALSE(file_exists("build/tq_bad.qplib"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "x"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, bad[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_write_qplib(m, "build/tq_bad.qplib"));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "row"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 0, "c1"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, bad[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_write_qplib(m, "build/tq_bad.qplib"));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "model name"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_model_name(m, "fine"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_qplib(m, "build/tq_ok.qplib"));
+        remove("build/tq_ok.qplib");
+        jaos_model_free(m);
+    }
+}
+
 static void test_osil_carries_every_part_of_the_model(void)
 {
     jaos_model *m = fresh();
@@ -270,6 +300,7 @@ int main(void)
     RUN_TEST(test_qplib_reads_the_paper_example);
     RUN_TEST(test_qplib_refuses_a_bad_infinity);
     RUN_TEST(test_qplib_refuses_what_it_cannot_express);
+    RUN_TEST(test_qplib_refuses_a_name_its_reader_would_cut_as_a_comment);
     RUN_TEST(test_osil_carries_every_part_of_the_model);
     return UNITY_END();
 }

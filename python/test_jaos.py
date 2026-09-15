@@ -197,6 +197,16 @@ class TestReadingFiles(unittest.TestCase):
         self.assertEqual(p._m.col_quadratic(0), 0.0)
         self.assertAlmostEqual(p.objective_value, 2.0, places=9)
 
+    def test_qplib_refuses_a_name_its_reader_would_cut_as_a_comment(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_qplib(data("g_quad.qplib"))
+            m.set_col_name(0, "a!b")
+            with self.assertRaises(jaos.JaosError) as caught:
+                m.write_qplib(os.path.join(d, "bad.qplib"))
+            self.assertIn("comment", str(caught.exception))
+            m.set_col_name(0, "x")
+            m.write_qplib(os.path.join(d, "ok.qplib"))
+
     def test_qplib_round_trips_and_osil_is_written(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
             m.read_qplib(data("g_quad.qplib"))

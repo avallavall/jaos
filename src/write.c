@@ -1158,6 +1158,12 @@ static double most_common(int64_t n, const double *v, double a, double b)
     return nb > na ? b : a;
 }
 
+static bool qplib_name_is_a_comment(const char *s)
+{
+    return strchr(s, '#') != nullptr || strchr(s, '!') != nullptr ||
+           s[0] == '%';
+}
+
 jaos_status jaos_write_qplib(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
@@ -1185,6 +1191,28 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
                     "row '%s' is an indicator constraint, which QPLIB cannot "
                     "express; write MPS instead", nm);
         }
+    for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++) {
+        col_name(m, nm, j);
+        if (qplib_name_is_a_comment(nm))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' holds '#' or '!' or starts with '%%', which "
+                    "a QPLIB reader takes for a comment; rename it or write "
+                    "MPS instead", nm);
+    }
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++) {
+        row_name(m, nm, i);
+        if (qplib_name_is_a_comment(nm))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' holds '#' or '!' or starts with '%%', which a "
+                    "QPLIB reader takes for a comment; rename it or write MPS "
+                    "instead", nm);
+    }
+    if (w->st == JAOS_OK && m->model_name != nullptr &&
+        qplib_name_is_a_comment(m->model_name))
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model name '%s' holds '#' or '!' or starts with '%%', "
+                "which a QPLIB reader takes for a comment; rename it or write "
+                "MPS instead", m->model_name);
     if (w->st == JAOS_OK)
         names_unique(w);
     if (w->st != JAOS_OK)

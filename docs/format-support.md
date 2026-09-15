@@ -287,7 +287,12 @@ an exponent may be written with `D` as well as `E`, as `12.56D+2`. The
 count of non-default constraint names is present even when the model
 has no rows. The writer prints every section in that order with the
 most common value as each default, the type letters from what the model
-holds, and every name. A type whose third letter is `N` gives every
+holds, and every name. A name that holds `#` or `!`, or starts with
+`%`, is refused by name before anything is written, because any QPLIB
+reader, this one included, would cut it as a comment and read the file
+back with a different name or none; rename it or write MPS. The
+objective has no name in this format, so a model read back carries the
+default one. A type whose third letter is `N` gives every
 column free bounds and no bound sections, which is what `(N)one`
 constraints mean in the taxonomy of §2.2.1. SOS sets,
 semi-continuous columns and indicator rows have no place in it and are
