@@ -60,9 +60,11 @@ the commit that took it, named here by hash.
      8, 9, 10 and 11 and turns these three from a stall into a divergence;
      a refined Newton direction was tried and hurt the generated set), ksip,
      cvxqp1_l, cvxqp3_l, powell20, huestis, qforplan, qpcboei2 (the dual
-     iterate grows 1e6-fold within 20 iterations), q25fv47, ubh1, boyd2
-     (200 iterations with the last residual just above tolerance),
-     qgrow22 (diverges at 41).
+     iterate grows 1e6-fold within 20 iterations), ubh1 and boyd2 (200
+     iterations with the gap at 0.23 and 1.6e-6; q25fv47 was here until
+     the push learned to finish a walk stopped within `BARRIER_NEAR_TOL`
+     of converged, and the push does not settle on these two), qgrow22
+     (diverges at 41).
    - **two the checker refuses with the objective right**: qsierra and
      qgfrdxpn, where the push pins one variable a round on a flat face and
      gives up at 40 (100 does not help), and the barrier's own duals are

@@ -26,6 +26,7 @@ constexpr double  BARRIER_REG_GROWTH  = 100.0;
 constexpr double  BARRIER_REG_MAX     = 1e-4;
 constexpr double  BARRIER_STALL_SIGMA  = 0.5;
 constexpr double  BARRIER_STALL_DELTA  = 1e-3;
+constexpr double  BARRIER_NEAR_TOL     = 1e-6;
 constexpr double  QP_PUSH_TOL    = 1e-9;
 constexpr double  QP_PUSH_REG    = 1e-6;
 constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
@@ -85,7 +86,7 @@ typedef struct {
     bool handoff;
     double best_worst, reg_floor;
     int64_t stalled;
-    bool equal_steps;
+    bool equal_steps, near, pushed;
     double delta;
 
     bool *dense;
@@ -1197,6 +1198,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                           "be infeasible or unbounded, which the barrier does "
                           "not certify; the dual simplex does",
                        (long long)s->iters, rel_p, rel_d, gap);
+            s->near = worst_now <= BARRIER_NEAR_TOL;
             s->handoff = true;
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
@@ -1777,6 +1779,7 @@ static jaos_status qp_push(bx *s)
         fresh = true;
     }
     if (st == JAOS_OK && settled) {
+        s->pushed = true;
         for (int64_t j = 0; j < nv; j++) {
             const uint8_t k = s->kind[j];
             if (k == FIXED || pin[j] != PUSH_FREE)
@@ -1879,6 +1882,24 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         bx_free(&s);
         return st;
     }
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff &&
+        s.quadratic && s.near && !m->cfg.barrier_no_crossover) {
+        st = qp_push(&s);
+        if (st != JAOS_OK) {
+            bx_free(&s);
+            return st;
+        }
+        if (s.pushed) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "barrier stopped after %lld iterations within %.1e of "
+                   "converged, and the push settled from there",
+                   (long long)s.iters, BARRIER_NEAR_TOL);
+            outcome = JAOS_SOLVE_OPTIMAL;
+            s.handoff = false;
+            target->err[0] = '\0';
+            m->err[0] = '\0';
+        }
+    }
     if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff) {
         if (s.quadratic)
             jm_log(m, JAOS_LOG_SUMMARY,
@@ -1899,7 +1920,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         return JAOS_OK;
     }
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
-        !m->cfg.barrier_no_crossover)
+        !s.pushed && !m->cfg.barrier_no_crossover)
         st = qp_push(&s);
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);

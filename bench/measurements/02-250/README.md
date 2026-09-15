@@ -84,6 +84,8 @@ re-taken after them:
   no pin, and snaps a free variable that ends a hair outside its box onto
   the bound; the checker's row test went relative to the row's traffic.
   qisrael, qpilotno, boyd1 and liswet8 pass the checker now.
+- A quadratic walk that hits 200 iterations within `BARRIER_NEAR_TOL` of
+  converged gets the push before the handoff: q25fv47 solves.
 
 ## Cost
 
