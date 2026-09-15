@@ -40,7 +40,11 @@ whole point: fix the exponent range without disturbing the digits. A factor
 of `1/3.0` would improve the spread on paper and corrupt the data slightly
 in practice.
 
-Exponents are clamped to ±512, comfortably inside the double range.
+Exponents are clamped to ±20 (`EXP_LIMIT` in `src/scale.c`, its reading in
+`docs/tolerances.md`): a factor beyond `2^20` is no longer an equilibration
+but a change of units the residual tests cannot see through, and the one
+instance that asked for more, Maros-Meszaros `dtoc3` at `2^91`, was answered
+wrong under it.
 
 ## Curtis-Reid (default)
 

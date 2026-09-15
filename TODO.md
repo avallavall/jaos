@@ -49,14 +49,11 @@ the commit that took it, named here by hash.
    the NaN points, the 1e-6 row slips, the four unreadable files and the
    handoff that ground the dual simplex. What it leaves, 111 of 138 clean:
 
-   - **dtoc3 answers wrong**: the origin, `OPTIMAL`, rows off by 15. All
-     columns are free and two are fixed; the scaled data is enormous
-     (`EXP_LIMIT` in `src/scale.c` lets a factor reach 2^512), so the
-     relative residual reads 4e-23 at a point that satisfies nothing.
-     The checker refuses it. Read what the scale factors are on it first;
-     a cap on the exponent changes every reading and needs the four
-     baselines rewritten after their diffs are read.
-   - **18 the barrier cannot settle**: liswet1 and 7 to 12 (10000 free
+   - **dtoc3** answered wrong until the scale exponent was capped at
+     `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
+     `NUMERICAL_ERROR` now, the rows 1.4e-6 off in scaled space against a
+     dual step of 1e7, which is the liswet wall below.
+   - **19 the barrier cannot settle**: dtoc3, liswet1 and 7 to 12 (10000 free
      columns, the primal residual stuck at 1e-8 with mu at 1e-57: the
      `BARRIER_DELTA` floor on the rows against a large dual step; a refined
      Newton direction was tried and hurt the generated set), ksip,

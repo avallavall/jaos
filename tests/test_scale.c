@@ -49,6 +49,18 @@ static double spread(const jaos_model *m)
     return hi == 0.0 ? 1.0 : hi / lo;
 }
 
+static double log_spread(const jaos_model *m)
+{
+    double lo = HUGE_VAL, hi = 0.0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            double v = jm_scaled_abs(m, j, k);
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+        }
+    return hi == 0.0 ? 0.0 : log2(hi) - log2(lo);
+}
+
 static void assert_all_powers_of_two(const jaos_model *m)
 {
     for (int64_t i = 0; i < m->num_row; i++) {
@@ -245,7 +257,7 @@ static void test_extreme_magnitudes_do_not_overflow(void)
         jm_scale_mode md = mode == 0 ? JM_SCALE_CURTIS_REID
                                      : JM_SCALE_GEOMETRIC;
         jaos_model *m = build(2, 2, as, ai, av, 4);
-        double before = spread(m);
+        double before = log_spread(m);
 
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, md));
         assert_all_powers_of_two(m);
@@ -255,7 +267,7 @@ static void test_extreme_magnitudes_do_not_overflow(void)
             TEST_ASSERT_TRUE(isfinite(m->col_scale[i]) && m->col_scale[i] > 0);
         }
 
-        TEST_ASSERT_TRUE(spread(m) < before);
+        TEST_ASSERT_TRUE(log_spread(m) < before);
 
         TEST_ASSERT_TRUE(m->scale_clamped);
         TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
@@ -281,6 +293,25 @@ static void test_underflowing_product_still_scales_the_row(void)
     TEST_ASSERT_TRUE(spread(m) < before);
 
     TEST_ASSERT_TRUE(m->scale_clamped);
+    jaos_model_free(m);
+}
+
+/* Maros-Meszaros dtoc3 asked Curtis-Reid for factors of 2^91 and the
+   barrier answered the origin under them.  A factor stops at 2^20, and a
+   matrix that wants more is reported as clamped. */
+static void test_a_scale_factor_stops_at_two_to_the_twenty(void)
+{
+    const int64_t as[] = {0, 1};
+    const int64_t ai[] = {0};
+    const double  av[] = {1152921504606846976.0};
+
+    jaos_model *m = build(1, 1, as, ai, av, 1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_scale(m, JM_SCALE_CURTIS_REID));
+    assert_all_powers_of_two(m);
+    TEST_ASSERT_TRUE(m->scale_clamped);
+    TEST_ASSERT_TRUE(m->row_scale[0] >= ldexp(1.0, -20));
+    TEST_ASSERT_TRUE(m->col_scale[0] >= ldexp(1.0, -20));
+    TEST_ASSERT_TRUE(jm_scaled_abs(m, 0, 0) >= ldexp(1.0, 20));
     jaos_model_free(m);
 }
 
@@ -332,6 +363,7 @@ int main(void)
     RUN_TEST(test_extreme_magnitudes_do_not_overflow);
     RUN_TEST(test_underflowing_product_still_scales_the_row);
     RUN_TEST(test_ordinary_matrix_is_not_reported_as_clamped);
+    RUN_TEST(test_a_scale_factor_stops_at_two_to_the_twenty);
     RUN_TEST(test_the_rounding_is_the_same_on_every_libm);
     return UNITY_END();
 }

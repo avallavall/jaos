@@ -10,7 +10,7 @@ constexpr double CR_TOL       = 1e-8;
 constexpr int    GEO_MAX_PASS = 20;
 constexpr double GEO_TOL      = 1e-3;
 
-constexpr double EXP_LIMIT = 512.0;
+constexpr double EXP_LIMIT = 20.0;
 
 static double pow2_of(double exponent, bool *clamped)
 {
@@ -266,6 +266,25 @@ jaos_status jm_model_scale(jaos_model *m, jm_scale_mode mode)
 
         identity_fill(m);
         jm_set_err(m, "out of memory while scaling");
+    }
+
+    if (m->cfg.log_level >= JAOS_LOG_DETAIL) {
+        int emin = 0, emax = 0, e;
+        for (int64_t i = 0; i < m->num_row; i++) {
+            (void)frexp(m->row_scale[i], &e);
+            if (e < emin) emin = e;
+            if (e > emax) emax = e;
+        }
+        jm_log(m, JAOS_LOG_DETAIL, "row scale factors from 2^%d to 2^%d",
+               emin - 1, emax - 1);
+        emin = emax = 0;
+        for (int64_t j = 0; j < m->num_col; j++) {
+            (void)frexp(m->col_scale[j], &e);
+            if (e < emin) emin = e;
+            if (e > emax) emax = e;
+        }
+        jm_log(m, JAOS_LOG_DETAIL, "column scale factors from 2^%d to 2^%d",
+               emin - 1, emax - 1);
     }
 
 #ifndef NDEBUG
