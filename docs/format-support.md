@@ -57,9 +57,19 @@ once, at the end, so a refused write never opens it at all.
 One reader for both layouts: lines are tokenized on whitespace, a section
 header is a line whose first character is non-blank, `*` opens a comment.
 
-- **Names with embedded spaces** (a true fixed-layout possibility) are not
-  supported: the file is rejected loudly rather than misread. No Netlib or
-  MIPLIB instance needs them.
+- **Names with embedded spaces** (a true fixed-layout possibility): a
+  ROWS line that splits into more than two words switches the reader to the
+  fixed layout for the rest of the file, fields taken from columns 2-3,
+  5-12, 15-22, 25-36, 40-47 and 50-61, and every space inside a name
+  becomes an underscore, so `DEDO3 1R` is the row `DEDO3_1R` and nothing
+  downstream has to spell whitespace. Two names that differ only in a
+  space against an underscore then collide and the file is refused as a
+  duplicate. Maros-Meszaros `qforplan` is written this way; no Netlib or
+  MIPLIB instance is.
+- **A BOUNDS, RHS or RANGES line without a set name** is taken as written:
+  `UP x 3.0`, `FR y`, and an RHS line of `row value` pairs alone, which is
+  what the Maros-Meszaros `values`, `exdata` and `qgfrdxpn` files hold. A
+  line with a set name still belongs to the first set seen.
 - **Row types**: first `N` row is the objective; further `N` rows are kept as
   free rows (bounds ±inf), never dropped.
 - **RHS on the objective row** sets the objective constant to the *negated*

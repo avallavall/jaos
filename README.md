@@ -115,7 +115,7 @@ make pgo          # rebuild from a profile of it solving real models
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
-sets. Every set takes `J=N` to run N instances at a time. `bench/fetch.sh`
+sets, and `make maros-meszaros` the 138 convex QPs of Maros and Meszaros. Every set takes `J=N` to run N instances at a time. `bench/fetch.sh`
 downloads the instances and checks them against pinned sha256 hashes.
 
 ```

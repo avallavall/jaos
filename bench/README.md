@@ -10,6 +10,7 @@ PLATO sets exist for presolve measurements.
 | `make netlib-infeas` | Netlib infeasible | 29 | ~10 s |
 | `make miplib` | MIPLIB 3 | 24 | ~4 min |
 | `make plato-pds`, `plato-fome`, `plato-nug` | PLATO | 15 | not a gate |
+| `make maros-meszaros` | Maros-Meszaros convex QP | 138 | not a gate; the QP reading |
 
 **Always pass `J=N`.** Without it the set runs one instance at a time.
 

@@ -373,6 +373,26 @@ miplib: $(B)/bench/run
 		-b bench/miplib.baseline \
 		-o bench/results/miplib.txt
 
+maros-meszaros: $(B)/bench/run
+	@bench/fetch.sh -m bench/maros-meszaros.manifest \
+		-b https://raw.githubusercontent.com/YimingYAN/QP-Test-Problems/master/QPS_Files \
+		-p qps bench/instances-maros-meszaros
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/maros-meszaros.manifest \
+		-d bench/instances-maros-meszaros \
+		-b bench/maros-meszaros.baseline \
+		-o bench/results/maros-meszaros.txt
+
+maros-meszaros-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/maros-meszaros.manifest \
+		-b https://raw.githubusercontent.com/YimingYAN/QP-Test-Problems/master/QPS_Files \
+		-p qps bench/instances-maros-meszaros
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/maros-meszaros.manifest \
+		-d bench/instances-maros-meszaros \
+		-w bench/maros-meszaros.baseline \
+		-o bench/results/maros-meszaros.txt
+
 miplib-baseline: $(B)/bench/run
 	@bench/fetch.sh -m bench/miplib.manifest \
 		-b https://miplib2010.zib.de/miplib3/miplib3 -p mps-gz \

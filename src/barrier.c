@@ -28,7 +28,10 @@ constexpr double  BARRIER_STALL_SIGMA  = 0.5;
 constexpr double  QP_PUSH_TOL    = 1e-9;
 constexpr double  QP_PUSH_REG    = 1e-6;
 constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
-constexpr int64_t QP_PUSH_ROUNDS = 20;
+constexpr double  QP_PUSH_DELTA  = 1e-8;
+constexpr int64_t QP_PUSH_REFINE = 2;
+constexpr double  QP_PUSH_NEAR   = 1e-7;
+constexpr int64_t QP_PUSH_ROUNDS = 40;
 constexpr int64_t QP_PUSH_FREEINGS = 3;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
@@ -579,7 +582,8 @@ static jaos_status form_aug(bx *s, bool with_q)
     }
     for (int64_t i = 0; i < s->nrow; i++) {
         const bool dec = s->dec != nullptr && s->dec[i];
-        s->aug_value[p++] = dec ? 1.0 : BARRIER_DELTA;
+        s->aug_value[p++] = dec ? 1.0
+                          : pin != nullptr ? QP_PUSH_DELTA : BARRIER_DELTA;
         for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++)
             if (s->aug_of[m->ar_index[q]] >= 0)
                 s->aug_value[p++] =
@@ -733,7 +737,7 @@ static jaos_status form_normal(bx *s)
         }
         if (s->kind[s->ncol + i] != FIXED)
             s->acc[i] += s->theta[s->ncol + i];
-        s->acc[i] += BARRIER_DELTA;
+        s->acc[i] += s->pin != nullptr ? QP_PUSH_DELTA : BARRIER_DELTA;
         if (s->dec != nullptr && s->dec[i])
             s->acc[i] = 1.0;
         for (int64_t q = s->n_start[i]; q < s->n_start[i + 1]; q++) {
@@ -1451,13 +1455,22 @@ static jaos_status qp_push(bx *s)
     double *yn = jm_alloc_array(nr > 0 ? nr : 1, sizeof *yn);
     double *d = jm_calloc_array(nv > 0 ? nv : 1, sizeof *d);
     bool *dec = jm_calloc_array(nr > 0 ? nr : 1, sizeof *dec);
+    double *rt2 = jm_alloc_array(nv > 0 ? nv : 1, sizeof *rt2);
+    double *rp2 = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rp2);
+    double *dz2 = jm_alloc_array(nv > 0 ? nv : 1, sizeof *dz2);
+    double *dy2 = jm_alloc_array(nr > 0 ? nr : 1, sizeof *dy2);
     if (pin == nullptr || zn == nullptr || yn == nullptr || d == nullptr ||
-        dec == nullptr) {
+        dec == nullptr || rt2 == nullptr || rp2 == nullptr ||
+        dz2 == nullptr || dy2 == nullptr) {
         free(pin);
         free(zn);
         free(yn);
         free(d);
         free(dec);
+        free(rt2);
+        free(rp2);
+        free(dz2);
+        free(dy2);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     s->pin = pin;
@@ -1471,8 +1484,11 @@ static jaos_status qp_push(bx *s)
         pin[j] = PUSH_FREE;
         if (k == FIXED || k == 0)
             continue;
-        const bool at_lo = (k & HAS_LO) && s->w[j] < s->zl[j];
-        const bool at_up = (k & HAS_UP) && s->v[j] < s->zu[j];
+        const double near = QP_PUSH_NEAR * (1.0 + s->norm_b);
+        const bool at_lo = (k & HAS_LO) &&
+                           (s->w[j] < s->zl[j] || s->w[j] <= near);
+        const bool at_up = (k & HAS_UP) &&
+                           (s->v[j] < s->zu[j] || s->v[j] <= near);
         if (at_lo && (!at_up || s->w[j] <= s->v[j]))
             pin[j] = PUSH_LOWER;
         else if (at_up)
@@ -1482,6 +1498,7 @@ static jaos_status qp_push(bx *s)
     }
     const double tol_p = QP_PUSH_TOL * (1.0 + s->norm_b);
     const double tol_d = QP_PUSH_TOL * (1.0 + s->norm_c);
+    const double near_p = QP_PUSH_NEAR * (1.0 + s->norm_b);
     int64_t round = 0, moved = -1, wrong = 0, freed = 0;
     bool stuck = false;
     double worst_sign = 0.0;
@@ -1528,6 +1545,28 @@ static jaos_status qp_push(bx *s)
         if (st != JAOS_OK)
             break;
         newton(s, s->rp, s->rt, s->dy, s->dz);
+        for (int64_t pass = 0; pass < QP_PUSH_REFINE; pass++) {
+            mul_e(s, s->dz, rp2);
+            for (int64_t i = 0; i < nr; i++)
+                rp2[i] = s->rp[i] - rp2[i];
+            mul_et(s, s->dy, s->tmp);
+            const double *qd = grad_q(s, s->dz);
+            for (int64_t j = 0; j < nv; j++) {
+                if (s->kind[j] == FIXED || pin[j] != PUSH_FREE) {
+                    rt2[j] = 0.0;
+                    continue;
+                }
+                const double qdz = (qd != nullptr ? qd[j] : s->quad[j] * s->dz[j]) +
+                                   QP_PUSH_REG * s->dz[j];
+                rt2[j] = s->rt[j] + qdz - s->tmp[j];
+            }
+            newton(s, rp2, rt2, dy2, dz2);
+            for (int64_t j = 0; j < nv; j++)
+                s->dz[j] += dz2[j];
+            for (int64_t i = 0; i < nr; i++)
+                s->dy[i] += dy2[i];
+            jm_work_add(&s->work, (2 * nv + nr) * JM_WORK_NONZERO);
+        }
 
         alpha = 1.0;
         for (int64_t j = 0; j < nv; j++) {
@@ -1561,12 +1600,12 @@ static jaos_status qp_push(bx *s)
             zn[j] += alpha * dj;
             if (alpha == 1.0)
                 continue;
-            if ((k & HAS_LO) && dj < 0.0 && zn[j] <= s->lo[j] + tol_p) {
+            if ((k & HAS_LO) && dj < 0.0 && zn[j] <= s->lo[j] + near_p) {
                 pin[j] = PUSH_LOWER;
                 zn[j] = s->lo[j];
                 moved++;
             } else if ((k & HAS_UP) && dj > 0.0 &&
-                       zn[j] >= s->up[j] - tol_p) {
+                       zn[j] >= s->up[j] - near_p) {
                 pin[j] = PUSH_UPPER;
                 zn[j] = s->up[j];
                 moved++;
@@ -1590,15 +1629,24 @@ static jaos_status qp_push(bx *s)
         }
 
         mul_e(s, zn, s->rp);
-        const double pres = inf_norm(s->rp, nr);
-        if (!(pres <= tol_p)) {
-            wrong = 0;
-            for (int64_t i = 0; i < nr; i++)
-                if (!(fabs(s->rp[i]) <= tol_p))
-                    wrong++;
+        wrong = 0;
+        double pres = 0.0;
+        for (int64_t i = 0; i < nr; i++) {
+            if (!(fabs(s->rp[i]) <= tol_p))
+                wrong++;
+            if (!(fabs(s->rp[i]) <= pres))
+                pres = fabs(s->rp[i]);
+        }
+        for (int64_t j = 0; j < nv; j++)
+            if (!isfinite(zn[j]))
+                wrong++;
+        for (int64_t i = 0; i < nr; i++)
+            if (!isfinite(yn[i]))
+                wrong++;
+        if (wrong > 0) {
             jm_log(s->m, JAOS_LOG_DETAIL,
-                   "  push round %lld: full step, %lld rows off by up to "
-                   "%.3e against %.3e",
+                   "  push round %lld: full step, %lld rows or values off, "
+                   "the rows by up to %.3e against %.3e",
                    (long long)round, (long long)wrong, pres, tol_p);
             stuck = true;
             break;
@@ -1699,6 +1747,10 @@ static jaos_status qp_push(bx *s)
     free(yn);
     free(d);
     free(dec);
+    free(rt2);
+    free(rp2);
+    free(dz2);
+    free(dy2);
     return st;
 }
 

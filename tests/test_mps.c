@@ -158,6 +158,97 @@ static void expect_reject(const char *path, const char *needle)
     jaos_model_free(m);
 }
 
+static void write_text(const char *path, const char *text)
+{
+    FILE *f = fopen(path, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs(text, f);
+    fclose(f);
+}
+
+/* The Maros-Meszaros QPS files: a BOUNDS or RHS line with no set name,
+   and the fixed layout with a space inside a name, which reads as an
+   underscore so nothing downstream has to spell whitespace. */
+static void test_a_bound_or_rhs_line_may_leave_the_set_name_out(void)
+{
+    write_text("build/tm_noset.mps",
+               "NAME          NOSET\n"
+               "ROWS\n"
+               " N  obj\n"
+               " L  r1\n"
+               " G  r2\n"
+               "COLUMNS\n"
+               "    x         obj       1.0   r1        1.0\n"
+               "    x         r2        1.0\n"
+               "    y         obj       2.0   r1        1.0\n"
+               "RHS\n"
+               "              r1        4.0   r2        1.0\n"
+               "BOUNDS\n"
+               " UP           x         3.0\n"
+               " LO           y        -1.0\n"
+               " FR           y\n"
+               "ENDATA\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "build/tm_noset.mps"));
+    double lo = 0.0, up = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, lo);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, up);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 1, &lo, &up));
+    TEST_ASSERT_FALSE(isfinite(lo));
+    TEST_ASSERT_FALSE(isfinite(up));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, up);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 1, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, lo);
+    jaos_model_free(m);
+    remove("build/tm_noset.mps");
+}
+
+static void test_a_fixed_layout_name_with_a_space_reads_with_an_underscore(void)
+{
+    write_text("build/tm_fixed.mps",
+               "NAME          FIXED\n"
+               "ROWS\n"
+               " N  OB1PNW20\n"
+               " E  DEDO3 1R\n"
+               " L  LC 123\n"
+               "COLUMNS\n"
+               "    DEDO3 11  OB1PNW20        .02466   DEDO3 1R           -1.\n"
+               "    DEDO3 11  LC 123              1.\n"
+               "    DEDO3 12  DEDO3 1R           -1.   LC 123              2.\n"
+               "RHS\n"
+               "    RHS 1     DEDO3 1R           -2.   LC 123             10.\n"
+               "BOUNDS\n"
+               " UP BND-1     DEDO3 11       200000.\n"
+               "ENDATA\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "build/tm_fixed.mps"));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_nz(m));
+    char name[64];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, name, sizeof name));
+    TEST_ASSERT_EQUAL_STRING("DEDO3_1R", name);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, name, sizeof name));
+    TEST_ASSERT_EQUAL_STRING("LC_123", name);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, name, sizeof name));
+    TEST_ASSERT_EQUAL_STRING("DEDO3_11", name);
+    double lo = 0.0, up = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(-2.0, lo);
+    TEST_ASSERT_EQUAL_DOUBLE(-2.0, up);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 1, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(10.0, up);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_EQUAL_DOUBLE(200000.0, up);
+    double c = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 0, &c));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.02466, c);
+    jaos_model_free(m);
+    remove("build/tm_fixed.mps");
+}
+
 static void test_a_quadobj_section_reads_and_writes_back(void)
 {
     jaos_model *m = fresh();
@@ -310,5 +401,7 @@ int main(void)
     RUN_TEST(test_an_sos_section_builds_the_sets);
     RUN_TEST(test_an_indicators_section_marks_the_rows);
     RUN_TEST(test_a_quadobj_section_reads_and_writes_back);
+    RUN_TEST(test_a_bound_or_rhs_line_may_leave_the_set_name_out);
+    RUN_TEST(test_a_fixed_layout_name_with_a_space_reads_with_an_underscore);
     return UNITY_END();
 }

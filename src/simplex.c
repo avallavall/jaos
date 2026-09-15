@@ -15,6 +15,7 @@ constexpr double PIVOT_MIN     = 1e-9;
 constexpr double PIVOT_MARGIN  = 1.0;
 
 constexpr double PRIMAL_HARRIS_DELTA = 0.5;
+constexpr double PROBE_CERT_TOL = 1e-6;
 
 constexpr double DUAL_TOL      = 1e-9;
 
@@ -4183,6 +4184,10 @@ jaos_status jm_dual_simplex(jaos_model *m)
             jm_presolve_free(&p);
             return st;
         }
+        if (quad_probe) {
+            memset(s.cost, 0, (size_t)s.nvar * sizeof *s.cost);
+            memcpy(s.cost0, s.cost, (size_t)s.nvar * sizeof *s.cost0);
+        }
 
         s.work = pre_work;
         s.started = jm_monotonic_seconds();
@@ -4325,9 +4330,6 @@ jaos_status jm_dual_simplex(jaos_model *m)
         if (st == JAOS_OK && outcome == JAOS_SOLVE_INFEASIBLE) {
             m->err[0] = '\0';
             target->err[0] = '\0';
-            jm_log(m, JAOS_LOG_SUMMARY,
-                   "the rows and bounds are infeasible, so the quadratic "
-                   "model is infeasible");
         } else {
             outcome = JAOS_SOLVE_NUMERICAL_ERROR;
             st = JAOS_OK;
@@ -4342,6 +4344,26 @@ jaos_status jm_dual_simplex(jaos_model *m)
         polish_unscaled(&s);
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
+    if (st == JAOS_OK && quad_probe && outcome == JAOS_SOLVE_INFEASIBLE) {
+        jaos_certificate_report rep = {0};
+        const bool certified =
+            m->farkas_ok &&
+            jaos_check_certificate(m, m->sol_farkas, PROBE_CERT_TOL, &rep) ==
+                JAOS_OK &&
+            rep.certified;
+        if (!certified) {
+            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+            m->solve_status = outcome;
+            m->farkas_ok = false;
+            jm_set_err(m, "the dual simplex called the rows and bounds "
+                          "infeasible but its ray does not certify it, so "
+                          "the quadratic model has no answer");
+        } else {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the rows and bounds are infeasible, with a certified "
+                   "ray, so the quadratic model is infeasible");
+        }
+    }
 
     if (st != JAOS_OK)
         m->solve_iters = s.iters;

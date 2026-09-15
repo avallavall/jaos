@@ -64,6 +64,7 @@ while read -r name sha rows cols ref src; do
         gz-emps)  remote="$name.gz" ;;
         bz2-emps) remote="$name.bz2" ;;
         emps)     remote="$name" ;;
+        qps)      remote="$(printf %s "$name" | tr a-z A-Z).QPS" ;;
         *) echo "unknown pipeline: $pipe" >&2; exit 2 ;;
     esac
 
@@ -91,6 +92,7 @@ while read -r name sha rows cols ref src; do
         bz2-emps) bunzip2 -f -c "$raw" > "$raw.packed" &&
                   "$emps" "$raw.packed" > "$mps" && rm -f "$raw.packed" ;;
         emps)     "$emps" "$raw" > "$mps" ;;
+        qps)      tr -d '\r' < "$raw" > "$mps" ;;
     esac || { echo "FAIL  $name  (expand)" >&2
               rm -f "$raw" "$raw.packed" "$mps"
               failed=$((failed + 1)); continue; }

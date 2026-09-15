@@ -122,7 +122,40 @@ typedef struct {
     int64_t *rowstamp;
 
     char rhs_set[64], rng_set[64], bnd_set[64];
+
+    bool fixed;
+    char fbuf[6][64];
 } rd;
+
+static int fixed_fields(const char *line, char *tok[], char fbuf[6][64])
+{
+    static const int from[6] = {1, 4, 14, 24, 39, 49};
+    static const int to[6]   = {3, 12, 22, 36, 47, 61};
+    size_t len = strlen(line);
+    while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+        len--;
+    int n = 0;
+    for (int k = 0; k < 6; k++) {
+        int a = from[k], b = to[k];
+        if (b > (int)len)
+            b = (int)len;
+        while (a < b && line[a] == ' ')
+            a++;
+        while (b > a && line[b - 1] == ' ')
+            b--;
+        if (a >= b)
+            continue;
+        const int w = b - a < 63 ? b - a : 63;
+        memcpy(fbuf[n], line + a, (size_t)w);
+        fbuf[n][w] = '\0';
+        for (int i = 0; i < w; i++)
+            if (fbuf[n][i] == ' ')
+                fbuf[n][i] = '_';
+        tok[n] = fbuf[n];
+        n++;
+    }
+    return n;
+}
 
 static void rd_free(rd *r)
 {
@@ -318,15 +351,18 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
     char *set = is_range ? r->rng_set : r->rhs_set;
     const char *what = is_range ? "RANGES" : "RHS";
 
-    if (nt < 3 || nt % 2 == 0)
+    if (nt < 2)
         FAIL("line %" PRId64 ": %s entry needs a set name and (row, value) "
              "pairs", r->lno, what);
-    if (set[0] == '\0')
-        snprintf(set, 64, "%s", tok[0]);
-    else if (strcmp(set, tok[0]) != 0)
-        return JAOS_OK;
+    const int off = nt % 2 == 0 ? 0 : 1;
+    if (off == 1) {
+        if (set[0] == '\0')
+            snprintf(set, 64, "%s", tok[0]);
+        else if (strcmp(set, tok[0]) != 0)
+            return JAOS_OK;
+    }
 
-    for (int i = 1; i + 1 < nt; i += 2) {
+    for (int i = off; i + 1 < nt; i += 2) {
         double v;
         if (!parse_num(tok[i + 1], &v))
             FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[i + 1]);
@@ -422,7 +458,7 @@ done:
 static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
 {
     jaos_status st = JAOS_OK;
-    if (nt < 3)
+    if (nt < 2)
         FAIL("line %" PRId64 ": BOUNDS entry too short", r->lno);
     upcase(tok[0]);
 
@@ -443,22 +479,26 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
         needs_value = true;
     if (!needs_value && !no_value)
         FAIL("line %" PRId64 ": unknown bound type '%s'", r->lno, type);
-    if (nt != (needs_value ? 4 : 3))
+    int off = 1;
+    if (nt == (needs_value ? 3 : 2))
+        off = 0;
+    else if (nt != (needs_value ? 4 : 3))
         FAIL("line %" PRId64 ": bound type '%s' takes %s", r->lno, type,
              needs_value ? "exactly one value" : "no value");
 
-    if (r->bnd_set[0] == '\0')
-        snprintf(r->bnd_set, sizeof r->bnd_set, "%s", tok[1]);
-    else if (strcmp(r->bnd_set, tok[1]) != 0)
+    const char *setname = off ? tok[1] : "";
+    if (r->bnd_set[0] == '\0' && setname[0] != '\0')
+        snprintf(r->bnd_set, sizeof r->bnd_set, "%s", setname);
+    else if (setname[0] != '\0' && strcmp(r->bnd_set, setname) != 0)
         return JAOS_OK;
 
     int64_t j;
-    if (!jm_nmap_get(&r->cmap, tok[2], &j))
-        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[2]);
+    if (!jm_nmap_get(&r->cmap, tok[off + 1], &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[off + 1]);
 
     double v = 0.0;
-    if (needs_value && !parse_num(tok[3], &v))
-        FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[3]);
+    if (needs_value && !parse_num(tok[off + 2], &v))
+        FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[off + 2]);
 
     if (int_type) {
         r->cint[j] = true;
@@ -639,11 +679,18 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             continue;
         bool header = line[0] != ' ' && line[0] != '\t' &&
                       line[0] != '\n' && line[0] != '\r' && line[0] != '\0';
-        int nt = split(line, tok);
+        char raw[128];
+        snprintf(raw, sizeof raw, "%s", line);
+        int nt = r->fixed && !header ? fixed_fields(raw, tok, r->fbuf)
+                                     : split(line, tok);
         if (nt < 0)
             FAIL("line %" PRId64 ": too many fields", r->lno);
         if (nt == 0)
             continue;
+        if (!header && sec == S_ROWS && nt > 2 && !r->fixed) {
+            r->fixed = true;
+            nt = fixed_fields(raw, tok, r->fbuf);
+        }
 
         if (header) {
             char kw[16];
