@@ -17,10 +17,10 @@ the commit that took it, named here by hash.
    work** (`bench/results/primal.txt`): d6cube, dfl001, fit1d, fit2d, seba.
    None disagrees. The SPECS row stays partial until the count is zero.
 
-   **Do not re-measure these.** Five ideas are refused with their reopen
+   **Do not re-measure these.** Six ideas are refused with their reopen
    conditions in `bench/refusals.txt`: `primal-bound-perturbation`,
    `primal-tie-hash`, `primal-cost-perturbation`, `primal-noise-floor`,
-   `primal-expand-step`. Steepest edge, Devex and Dantzig are all already
+   `primal-expand-step`, `primal-expand-schedule`. Steepest edge, Devex and Dantzig are all already
    read over the set; the SPECS row records them. Cost per iteration was
    read and paid 7.6% over the set for nothing here, because the gap is the
    iteration count.
@@ -30,10 +30,12 @@ the commit that took it, named here by hash.
 
    - d6cube and degen3 stand still. d6cube holds one vertex for 8508
      consecutive phase-2 bases. They need a remedy that leaves a vertex.
-     EXPAND's growing tolerance schedule and its periodic reset are the
-     named candidate; the step alone is measured and halves d6cube without
-     clearing the overrun (77dcabf), and neither the schedule nor the reset
-     is built.
+     EXPAND is now measured whole (`primal-expand-schedule`, 2026-09-15):
+     the step, the growing width, the reset and the hold at the ceiling
+     get d6cube to 0.33x at best and 27x the dual's work, and the walk is
+     chaotic in the width, so no schedule closes the gap. What is left to
+     try on d6cube is the pricing side, which is also what seba and fit1d
+     point at.
    - seba and fit1d do not stall at all. They leave for a new point at
      nearly every pivot, so degeneracy is not what holds them and the
      target is the entering column. What holds them is still unnamed.
