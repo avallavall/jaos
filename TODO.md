@@ -94,7 +94,10 @@ the commit that took it, named here by hash.
    one model in 300 (02-234). Row 102, the certificates: a MIP whose root
    relaxation was infeasible published none (02-235). Row 104, the IIS
    written as a model, came back clean (02-236). Row 99, the exact values,
-   came back clean (02-237). Five of the thirteen were worth the sweep.
+   came back clean (02-237). Rows 106 and 107, another solver's basis
+   proved and another solver's point judged, came back clean, each
+   against the harness's own arithmetic (02-238, 02-239). Five of the
+   fifteen were worth the sweep.
    The shape that works: pick a row, write down the properties its answer
    must satisfy, generate models, and check them. Then fill the row in with
    what the feature is, and break the code on purpose to prove the sweep
@@ -106,6 +109,9 @@ the commit that took it, named here by hash.
    one-line edit to `jaos_solution` that publishes the point one column out
    of step and changes nothing else. Write the control that breaks the step
    the property is about.
-   `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. The ones with
-   an answer to check, rather than a shape: a basis or point another
-   solver produced (106, 107).
+   `grep -n '^| .* | \*\*done\*\* | |$' SPECS.md` lists them. Thirteen
+   remain, and every one is a shape rather than an answer: the LP row,
+   the LU, names, the MIP heuristics, the line-numbered refusals, `diff`
+   and `show`, indicators in MPS and LP, the header, `make install`, the
+   limits, the tolerances, logging, the licence. What each needs is its
+   description written and its documented promise read once.
