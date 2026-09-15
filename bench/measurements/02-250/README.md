@@ -63,6 +63,22 @@ checker, 119 deterministic across two cold solves, 19 with no answer.
   just above tolerance (q25fv47 dual 2.9e-8, gap 2.5e-10).
 - **qgrow22**: diverges at iteration 41.
 
+## After the reading
+
+Three more changes came out of the list above, each with its own reading
+in `docs/tolerances.md`, and `bench/results/maros-meszaros.txt` was
+re-taken after them:
+
+- `BARRIER_DIVERGE` fires only on an iteration without progress: hues-mod
+  solves.
+- `EXP_LIMIT` at 20: dtoc3 is no longer answered at the origin (it ends
+  `NUMERICAL_ERROR`), and ksip's LP is no longer called infeasible.
+- `BARRIER_STALL_DELTA` at 1e-3: liswet1, 8, 9, 10 and 11 solve; liswet7
+  and 12 diverge instead of stalling. liswet8's answer is 714.47008 with a
+  checker gap of 1e-8 against a table value of 7144.7006, ten times as
+  much to the digit, which reads as a slip in the table rather than in the
+  solve.
+
 ## Cost
 
 Reading the set took about 40 minutes at 4 jobs on the machine of

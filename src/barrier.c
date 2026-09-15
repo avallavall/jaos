@@ -25,6 +25,7 @@ constexpr double  BARRIER_REG_RETRY   = 1e-8;
 constexpr double  BARRIER_REG_GROWTH  = 100.0;
 constexpr double  BARRIER_REG_MAX     = 1e-4;
 constexpr double  BARRIER_STALL_SIGMA  = 0.5;
+constexpr double  BARRIER_STALL_DELTA  = 1e-3;
 constexpr double  QP_PUSH_TOL    = 1e-9;
 constexpr double  QP_PUSH_REG    = 1e-6;
 constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
@@ -84,6 +85,7 @@ typedef struct {
     double best_worst, reg_floor;
     int64_t stalled;
     bool equal_steps;
+    double delta;
 
     bool *dense;
     int64_t *dense_idx;
@@ -125,6 +127,7 @@ static jaos_status bx_init(bx *s, jaos_model *m)
 {
     memset(s, 0, sizeof *s);
     s->best_worst = HUGE_VAL;
+    s->delta = BARRIER_DELTA;
     jm_chol_init(&s->chol);
     jm_chol_init(&s->aug);
     s->m = m;
@@ -583,7 +586,7 @@ static jaos_status form_aug(bx *s, bool with_q)
     for (int64_t i = 0; i < s->nrow; i++) {
         const bool dec = s->dec != nullptr && s->dec[i];
         s->aug_value[p++] = dec ? 1.0
-                          : pin != nullptr ? QP_PUSH_DELTA : BARRIER_DELTA;
+                          : pin != nullptr ? QP_PUSH_DELTA : s->delta;
         for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++)
             if (s->aug_of[m->ar_index[q]] >= 0)
                 s->aug_value[p++] =
@@ -737,7 +740,7 @@ static jaos_status form_normal(bx *s)
         }
         if (s->kind[s->ncol + i] != FIXED)
             s->acc[i] += s->theta[s->ncol + i];
-        s->acc[i] += s->pin != nullptr ? QP_PUSH_DELTA : BARRIER_DELTA;
+        s->acc[i] += s->pin != nullptr ? QP_PUSH_DELTA : s->delta;
         if (s->dec != nullptr && s->dec[i])
             s->acc[i] = 1.0;
         for (int64_t q = s->n_start[i]; q < s->n_start[i + 1]; q++) {
@@ -1211,6 +1214,13 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                    "barrier %lld: no progress over %lld iterations; one step "
                    "length for both sides from here",
                    (long long)s->iters, (long long)BARRIER_STALL_ITERS);
+        }
+        if (s->equal_steps && s->delta == BARRIER_DELTA &&
+            rel_p > BARRIER_TOL && rel_p >= rel_d) {
+            s->delta = BARRIER_DELTA * BARRIER_STALL_DELTA;
+            jm_log(m, JAOS_LOG_DETAIL,
+                   "  the rows hold the walk; their regularisation drops to "
+                   "%.1e", s->delta);
         }
         for (;;) {
             double reg = BARRIER_REG * (worst < 1.0 ? worst : 1.0);

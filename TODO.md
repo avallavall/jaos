@@ -53,10 +53,12 @@ the commit that took it, named here by hash.
      `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
      `NUMERICAL_ERROR` now, the rows 1.4e-6 off in scaled space against a
      dual step of 1e7, which is the liswet wall below.
-   - **19 the barrier cannot settle**: dtoc3, liswet1 and 7 to 12 (10000 free
-     columns, the primal residual stuck at 1e-8 with mu at 1e-57: the
-     `BARRIER_DELTA` floor on the rows against a large dual step; a refined
-     Newton direction was tried and hurt the generated set), ksip,
+   - **14 the barrier cannot settle**: dtoc3, liswet7 and liswet12 (10000
+     free columns; the primal residual stuck at 1e-8 with mu at 1e-57 was
+     the `BARRIER_DELTA` floor on the rows against a large dual step, and
+     dropping `delta` by `BARRIER_STALL_DELTA` on a stall solves liswet1,
+     8, 9, 10 and 11 and turns these three from a stall into a divergence;
+     a refined Newton direction was tried and hurt the generated set), ksip,
      cvxqp1_l, cvxqp3_l, powell20, huestis, qforplan, qpcboei2 (the dual
      iterate grows 1e6-fold within 20 iterations), q25fv47, ubh1, boyd2
      (200 iterations with the last residual just above tolerance),
