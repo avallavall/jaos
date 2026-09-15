@@ -48,7 +48,7 @@ the commit that took it, named here by hash.
    first reading (`bench/measurements/02-250/`) found and 808022a fixed
    the NaN points, the 1e-6 row slips, the four unreadable files and the
    handoff that ground the dual simplex; six more fixes followed from its
-   list (02-250, "After the reading"). What it leaves, 124 of 138 clean:
+   list (02-250, "After the reading"). What it leaves, 126 of 138 clean:
 
    - **dtoc3** answered wrong until the scale exponent was capped at
      `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
@@ -72,16 +72,16 @@ the commit that took it, named here by hash.
      unsatisfied and stands down). cvxqp1_l, cvxqp3_l,
      powell20, huestis, qforplan and qpcboei2 were here until a quadratic
      model got its own divergence limit, `BARRIER_DIVERGE_QP`.
-   - **two the checker refuses with the objective right**: qsierra and
+   - **three the checker refuses with the objective right**: qsierra and
      qgfrdxpn, where the push pins one variable a round on a flat face and
-     gives up at 40 (100 does not help), and the barrier's own duals are
-     off by 1e3 to 1e6 in absolute terms, 1e-6 relative to its costs.
+     gives up at 40 (100 does not help), and qgrow22, whose push leaves
+     1575 rows unsatisfied; the barrier's own duals are off by 3e-6 to 1e6
+     in absolute terms, 1e-6 relative to its costs. liswet10 and liswet11
+     were here until the walk learned to go on to `BARRIER_TOL_QP` when
+     the push does not settle; qsierra and qgrow22 cannot reach it.
      qisrael, qpilotno and boyd1 were the same list until the push
      learned to release a pin in a row it left unsatisfied and the
      checker's row test went relative to the row's traffic.
-   - **liswet10 and liswet11** solve to the reference objective but the
-     push releases and re-pins 40000 times without settling, so the
-     barrier's duals stand and the checker refuses them.
    - **values is refused as not convex**, and it is not: its `Q` has 60
      eigenvalues below zero, down to -1.27e-5 against a largest of 10.77,
      the six-digit rounding of a covariance. BPMPD's 1.3966211 is a

@@ -8,6 +8,8 @@
 #include <string.h>
 
 constexpr double  BARRIER_TOL      = 1e-8;
+constexpr double  BARRIER_TOL_QP   = 1e-10;
+constexpr int64_t BARRIER_LEG2_ITERS = 50;
 constexpr double  BARRIER_STEP     = 0.99995;
 constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
@@ -88,6 +90,8 @@ typedef struct {
     double best_worst, reg_floor;
     int64_t stalled;
     bool equal_steps, near, pushed, delta_locked;
+    double tol_stop;
+    int64_t iter_cap;
     double delta;
 
     bool *dense;
@@ -131,6 +135,8 @@ static jaos_status bx_init(bx *s, jaos_model *m)
     memset(s, 0, sizeof *s);
     s->best_worst = HUGE_VAL;
     s->delta = BARRIER_DELTA;
+    s->tol_stop = BARRIER_TOL;
+    s->iter_cap = BARRIER_MAX_ITER;
     jm_chol_init(&s->chol);
     jm_chol_init(&s->aug);
     s->m = m;
@@ -1101,17 +1107,19 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
     return JAOS_OK;
 }
 
-static jaos_status bx_run(bx *s, jaos_solve_status *out)
+static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
 {
     jaos_model *m = s->m;
-    s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
-    jaos_status st = s->augmented ? build_aug_pattern(s)
-                                  : build_normal_pattern(s);
-    if (st != JAOS_OK)
-        return st;
-    st = starting_point(s);
-    if (st != JAOS_OK)
-        return st;
+    jaos_status st = JAOS_OK;
+    if (!resume) {
+        s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
+        st = s->augmented ? build_aug_pattern(s) : build_normal_pattern(s);
+        if (st != JAOS_OK)
+            return st;
+        st = starting_point(s);
+        if (st != JAOS_OK)
+            return st;
+    }
 
     for (;;) {
         double pobj, dobj, mu;
@@ -1145,7 +1153,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
         }
-        if (rel_p <= BARRIER_TOL && rel_d <= BARRIER_TOL && gap <= BARRIER_TOL) {
+        if (rel_p <= s->tol_stop && rel_d <= s->tol_stop && gap <= s->tol_stop) {
             *out = JAOS_SOLVE_OPTIMAL;
             return JAOS_OK;
         }
@@ -1194,7 +1202,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                 return JAOS_OK;
             }
         }
-        if (s->iters >= BARRIER_MAX_ITER) {
+        if (s->iters >= s->iter_cap) {
             jm_set_err(m, "the barrier did not converge in %lld iterations "
                           "(primal %.3e, dual %.3e, gap %.3e): the model may "
                           "be infeasible or unbounded, which the barrier does "
@@ -1902,7 +1910,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
            (long long)m->num_nz, BARRIER_TOL, (long long)s.ndense);
 
     jaos_solve_status outcome = JAOS_SOLVE_NUMERICAL_ERROR;
-    st = bx_run(&s, &outcome);
+    st = bx_run(&s, &outcome, false);
     *iters = s.iters;
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
         !m->cfg.barrier_no_crossover && !s.quadratic) {
@@ -1956,6 +1964,49 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
         !s.pushed && !m->cfg.barrier_no_crossover)
         st = qp_push(&s);
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+        !s.pushed && !m->cfg.barrier_no_crossover) {
+        const size_t nvb = (size_t)s.nvar * sizeof(double);
+        const size_t nrb = (size_t)s.nrow * sizeof(double);
+        double *kz = jm_alloc_array(s.nvar, sizeof(double));
+        double *kw = jm_alloc_array(s.nvar, sizeof(double));
+        double *kv = jm_alloc_array(s.nvar, sizeof(double));
+        double *kl = jm_alloc_array(s.nvar, sizeof(double));
+        double *ku = jm_alloc_array(s.nvar, sizeof(double));
+        double *ky = jm_alloc_array(s.nrow > 0 ? s.nrow : 1, sizeof(double));
+        if (kz && kw && kv && kl && ku && ky) {
+            memcpy(kz, s.z, nvb);  memcpy(kw, s.w, nvb);  memcpy(kv, s.v, nvb);
+            memcpy(kl, s.zl, nvb); memcpy(ku, s.zu, nvb); memcpy(ky, s.y, nrb);
+            const int64_t first_iters = s.iters;
+            s.tol_stop = BARRIER_TOL_QP;
+            s.iter_cap = s.iters + BARRIER_LEG2_ITERS;
+            s.handoff = false;
+            jaos_solve_status again = JAOS_SOLVE_NUMERICAL_ERROR;
+            st = bx_run(&s, &again, true);
+            if (st == JAOS_OK && again == JAOS_SOLVE_OPTIMAL) {
+                st = qp_push(&s);
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the push did not settle at %.1e, so the walk went on "
+                       "to %.1e in %lld more iterations and the push %s",
+                       BARRIER_TOL, BARRIER_TOL_QP,
+                       (long long)(s.iters - first_iters),
+                       s.pushed ? "settled" : "did not settle there either");
+            } else if (st == JAOS_OK) {
+                memcpy(s.z, kz, nvb);  memcpy(s.w, kw, nvb);  memcpy(s.v, kv, nvb);
+                memcpy(s.zl, kl, nvb); memcpy(s.zu, ku, nvb); memcpy(s.y, ky, nrb);
+                s.handoff = false;
+                target->err[0] = '\0';
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the push did not settle at %.1e, the walk could not "
+                       "reach %.1e in %lld more iterations, and the point at "
+                       "%.1e stands",
+                       BARRIER_TOL, BARRIER_TOL_QP,
+                       (long long)(s.iters - first_iters), BARRIER_TOL);
+            }
+        }
+        free(kz); free(kw); free(kv); free(kl); free(ku); free(ky);
+        *iters = s.iters;
+    }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);
 

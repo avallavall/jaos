@@ -99,9 +99,9 @@ re-taken after them:
 
 | outcome | instances |
 |---|---|
-| `OPTIMAL`, at the reference, checker takes both sides | 124 |
+| `OPTIMAL`, at the reference, checker takes both sides | 124, and 126 with liswet10 and liswet11 since the commit after this reading |
 | `OPTIMAL`, checker takes it, away from the reference | hues-mod, huestis (both certified with a gap of 1e-15, 6e-6 from BPMPD's eight digits), liswet2 (1e-6), liswet8 (the table's 7144.7006 against 714.47007, ten times to the digit) |
-| `OPTIMAL`, at the reference, checker refuses the dual side | qsierra, qgfrdxpn (the push does not settle on a flat face), liswet10, liswet11 (the push releases and re-pins without settling) |
+| `OPTIMAL`, at the reference, checker refuses the dual side | qsierra, qgfrdxpn (the push does not settle on a flat face), liswet10, liswet11 (the push releases and re-pins without settling; both pass since the commit after this reading, where a walk whose push does not settle goes on to `BARRIER_TOL_QP` and is pushed again) |
 | `NUMERICAL_ERROR` | boyd2, dtoc3, ksip, ubh1 (qgrow22 was here until `BARRIER_REG_MAX` went to 1e-2 in the commit after this reading; it converges to the reference now and the checker refuses a dual violation of 3e-6) |
 | refused as not convex | values |
 | over the runner's suboptimality ceiling, checker takes them | aug2dcqp, aug2dqp, aug3dqp |
