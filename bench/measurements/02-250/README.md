@@ -92,6 +92,23 @@ re-taken after them:
   solve. The push judges each row's residual in the model's units as well
   as the reduced costs.
 
+## The reading after all of that
+
+`bench/results/maros-meszaros.txt` as committed, the library at d40fe29:
+
+| outcome | instances |
+|---|---|
+| `OPTIMAL`, at the reference, checker takes both sides | 124 |
+| `OPTIMAL`, checker takes it, away from the reference | hues-mod, huestis (both certified with a gap of 1e-15, 6e-6 from BPMPD's eight digits), liswet2 (1e-6), liswet8 (the table's 7144.7006 against 714.47007, ten times to the digit) |
+| `OPTIMAL`, at the reference, checker refuses the dual side | qsierra, qgfrdxpn (the push does not settle on a flat face), liswet10, liswet11 (the push releases and re-pins without settling) |
+| `NUMERICAL_ERROR` | boyd2, dtoc3, ksip, qgrow22, ubh1 |
+| refused as not convex | values |
+| over the runner's suboptimality ceiling, checker takes them | aug2dcqp, aug2dqp, aug3dqp |
+
+138 instances: 132 solved, 128 at the reference objective, 128 taken by
+the checker, 132 deterministic across two cold solves, 6 with no answer;
+from 119, 116, 113 and 19 on the first pass.
+
 ## Cost
 
 Reading the set took about 40 minutes at 4 jobs on the machine of
