@@ -61,9 +61,6 @@ the commit that took it, named here by hash.
      iterate grows 1e6-fold within 20 iterations), q25fv47, ubh1, boyd2
      (200 iterations with the last residual just above tolerance),
      qgrow22 (diverges at 41).
-   - **the dual simplex on ksip's LP** (1001 rows, 20 free columns) calls a
-     feasible system infeasible with a Farkas ray of zeros. The QP probe
-     now refuses that verdict; the LP engine's own defect is open.
    - **five the checker refuses with the objective right**: qisrael,
      qpilotno, qsierra (dual violations 3e-5 to 0.1 the push's `tol_d`,
      1e-9 times `1 + |c|`, lets through; an absolute 1e-9 was tried, did

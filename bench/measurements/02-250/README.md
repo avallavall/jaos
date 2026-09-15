@@ -55,8 +55,10 @@ checker, 119 deterministic across two cold solves, 19 with no answer.
 - **ksip, cvxqp1_l, cvxqp3_l, powell20, huestis, qforplan, qpcboei2**:
   the dual iterate grows past 1e6 times `1 + |c|` within the first 20
   iterations with the residuals not falling. ksip has 1001 rows on 20 free
-  columns; on its LP alone the dual simplex calls a feasible system
-  infeasible with a ray of zeros, which is a defect of its own.
+  columns; on its LP alone, under the old scaling, the dual simplex called
+  a feasible system infeasible with a ray of zeros, and with the exponent
+  capped at 20 it finds the system feasible and the LP unbounded, which it
+  is.
 - **q25fv47, ubh1, boyd2**: 200 iterations, the last residual or the gap
   just above tolerance (q25fv47 dual 2.9e-8, gap 2.5e-10).
 - **qgrow22**: diverges at iteration 41.
