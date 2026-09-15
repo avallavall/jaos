@@ -1829,6 +1829,46 @@ static void test_the_pool_never_holds_one_point_twice(void)
     jaos_model_free(m);
 }
 
+static void test_the_pool_counts_integer_assignments_not_vertices(void)
+{
+    /* One binary z and three continuous columns whose costs are zero, so
+     * every integer assignment has a whole face of vertices: max z over
+     * x + y + w <= 2 with z <= x + y. The pool can hold two entries at
+     * most, one per value of z, whatever vertices the heuristics reach. */
+    const double cost[4] = { 1.0, 0.0, 0.0, 0.0 };
+    const double cl[4] = { 0.0, 0.0, 0.0, 0.0 };
+    const double cu[4] = { 1.0, 1.0, 1.0, 1.0 };
+    const double rl[2] = { -INFINITY, -INFINITY };
+    const double ru[2] = { 2.0, 0.0 };
+    const int64_t ap[5] = { 0, 1, 3, 5, 6 };
+    const int64_t ai[6] = { 1,  0, 1,  0, 1,  0 };
+    const double av[6] = { 1.0,  1.0, -1.0,  1.0, -1.0,  1.0 };
+
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     6, ap, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pool_size(m, 8));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    int64_t held = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_count(m, &held));
+    TEST_ASSERT_TRUE(held >= 1 && held <= 2);
+    double a[4], b[4], oa = 0.0, ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, 0, a, &oa));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, a[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, oa);
+    if (held == 2) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, 1, b, &ob));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, b[0]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, ob);
+    }
+    jaos_model_free(m);
+}
+
 static void test_a_cover_cut_closes_the_knapsack_at_the_root(void)
 {
     jaos_model *m = knapsack();
@@ -4112,6 +4152,7 @@ int main(void)
     RUN_TEST(test_probing_at_the_root_only_reaches_the_same_optimum);
     RUN_TEST(test_the_solution_pool_holds_the_best_points_best_first);
     RUN_TEST(test_the_pool_never_holds_one_point_twice);
+    RUN_TEST(test_the_pool_counts_integer_assignments_not_vertices);
     RUN_TEST(test_a_cover_cut_closes_the_knapsack_at_the_root);
     RUN_TEST(test_a_cap_on_a_nodes_cuts_keeps_the_optimum);
     RUN_TEST(test_a_stalled_root_round_is_the_last);

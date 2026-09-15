@@ -3226,13 +3226,21 @@ static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
 typedef struct {
     double *x, *key, *obj;
     int64_t n, cap, nc;
+    const bool *integer;
 } spool;
 
-static bool spool_init(spool *sp, int64_t cap, int64_t nc)
+static bool spool_init(spool *sp, int64_t cap, int64_t nc,
+                       const bool *integer)
 {
     sp->n = 0;
     sp->cap = cap;
     sp->nc = nc;
+    sp->integer = nullptr;
+    for (int64_t j = 0; integer != nullptr && j < nc; j++)
+        if (integer[j]) {
+            sp->integer = integer;
+            break;
+        }
     sp->x = malloc((size_t)(cap * (nc > 0 ? nc : 1)) * sizeof *sp->x);
     sp->key = malloc((size_t)cap * sizeof *sp->key);
     sp->obj = malloc((size_t)cap * sizeof *sp->obj);
@@ -3249,18 +3257,37 @@ static void spool_offer(spool *sp, const double *x, double key, double obj)
     const int64_t nc = sp->nc;
     if (sp->n == sp->cap && !(key < sp->key[sp->n - 1]))
         return;
-    /* A point the pool already holds is a point it already holds, whatever
-     * objective this offer carries: the tree reaches one point down two
-     * branches and the two values differ in the last bits, and it reaches
-     * one point with a column at +0 and at -0. Neither makes a second
-     * answer, so the point alone decides. */
+    /* Two points are one entry when they agree on every integer column:
+     * the pool keeps distinct integer assignments, as the field's pools
+     * do, and two vertices of one optimal face that differ only in a
+     * continuous column, or in its last bits, are one answer. The better
+     * of the two is the one kept. A model whose only discrete structure
+     * is SOS or semi-continuous has no integer column, and there the
+     * whole point decides, +0 and -0 being one value. */
     for (int64_t i = 0; i < sp->n; i++) {
         bool held = true;
-        for (int64_t j = 0; j < nc && held; j++)
-            if (sp->x[i * nc + j] != x[j])
+        for (int64_t j = 0; j < nc && held; j++) {
+            if (sp->integer == nullptr) {
+                if (sp->x[i * nc + j] != x[j])
+                    held = false;
+            } else if (sp->integer[j] &&
+                       jm_round(sp->x[i * nc + j]) != jm_round(x[j])) {
                 held = false;
-        if (held)
+            }
+        }
+        if (!held)
+            continue;
+        if (!(key < sp->key[i]))
             return;
+        if (i + 1 < sp->n) {
+            memmove(sp->key + i, sp->key + i + 1, (size_t)(sp->n - i - 1) * sizeof *sp->key);
+            memmove(sp->obj + i, sp->obj + i + 1, (size_t)(sp->n - i - 1) * sizeof *sp->obj);
+            if (nc > 0)
+                memmove(sp->x + i * nc, sp->x + (i + 1) * nc,
+                        (size_t)((sp->n - i - 1) * nc) * sizeof *sp->x);
+        }
+        sp->n--;
+        break;
     }
     int64_t pos = 0;
     while (pos < sp->n && !(key < sp->key[pos]))
@@ -3662,7 +3689,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
         cand == nullptr || pcs == nullptr || fcol == nullptr ||
-        flo == nullptr || fhi == nullptr || !spool_init(&sp, pool_size, nc))
+        flo == nullptr || fhi == nullptr ||
+        !spool_init(&sp, pool_size, nc, m->col_integer))
         goto done;
 
     for (int64_t j = 0; j < nc; j++) {

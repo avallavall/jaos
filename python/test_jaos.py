@@ -2097,6 +2097,22 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertAlmostEqual(p.objective_value, 23.0, places=9)
         self.assertGreater(p.mip_report().lp_solves, p.mip_report().nodes)
 
+    def test_the_pool_counts_integer_assignments_not_vertices(self):
+        p = jaos.Problem()
+        z = p.add_var(binary=True, name="z")
+        x = p.add_var(lb=0, ub=1, name="x")
+        y = p.add_var(lb=0, ub=1, name="y")
+        w = p.add_var(lb=0, ub=1, name="w")
+        p.add(x + y + w <= 2)
+        p.add(z - x - y <= 0)
+        p.maximize(z)
+        p.set_mip_pool_size(8)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        pool = p.mip_pool()
+        self.assertTrue(1 <= len(pool) <= 2)
+        self.assertEqual(len({round(sol[z]) for _, sol in pool}), len(pool))
+        self.assertAlmostEqual(pool[0][0], 1.0, places=9)
+
     def test_a_cover_cut_closes_the_knapsack_at_the_root(self):
 
         p = jaos.Problem()
