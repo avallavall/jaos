@@ -80,9 +80,10 @@ re-taken after them:
   solve.
 - The push releases a pin in every row a full step leaves unsatisfied,
   judges a free variable's reduced cost in the model's units
-  (`QP_PUSH_USER_TOL`), reuses its factorisation across rounds that change
-  no pin, and snaps a free variable that ends a hair outside its box onto
-  the bound; the checker's row test went relative to the row's traffic.
+  (`QP_PUSH_USER_TOL`) and reuses its factorisation across rounds that
+  change no pin; the checker's row test went relative to the row's
+  traffic. A snap of a free variable onto its bound was in for a while
+  and taken out again, since a snap of 1e-7 moved qisrael's rows by 2e-6.
   qisrael, qpilotno, boyd1 and liswet8 pass the checker now.
 - A quadratic walk that hits 200 iterations within `BARRIER_NEAR_TOL` of
   converged gets the push before the handoff: q25fv47 solves.
