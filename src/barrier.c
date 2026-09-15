@@ -86,7 +86,7 @@ typedef struct {
     bool handoff;
     double best_worst, reg_floor;
     int64_t stalled;
-    bool equal_steps, near, pushed;
+    bool equal_steps, near, pushed, delta_locked;
     double delta;
 
     bool *dense;
@@ -1218,7 +1218,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
                    "length for both sides from here",
                    (long long)s->iters, (long long)BARRIER_STALL_ITERS);
         }
-        if (s->equal_steps && s->delta == BARRIER_DELTA &&
+        if (s->equal_steps && s->delta == BARRIER_DELTA && !s->delta_locked &&
             rel_p > BARRIER_TOL && rel_p >= rel_d) {
             s->delta = BARRIER_DELTA * BARRIER_STALL_DELTA;
             jm_log(m, JAOS_LOG_DETAIL,
@@ -1246,6 +1246,17 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
             st = s->augmented ? form_aug(s, true) : form_normal(s);
             if (st != JAOS_OK)
                 return st;
+            const int64_t lost = s->augmented ? s->aug.replaced
+                                              : s->chol.replaced;
+            if (lost > 0 && s->delta < BARRIER_DELTA) {
+                s->delta = BARRIER_DELTA;
+                s->delta_locked = true;
+                jm_log(m, JAOS_LOG_DETAIL,
+                       "  %lld pivots replaced with the rows' regularisation "
+                       "dropped; it goes back to %.1e for good",
+                       (long long)lost, s->delta);
+                continue;
+            }
             if (!s->augmented || s->aug.replaced == 0 ||
                 s->reg_floor >= BARRIER_REG_MAX)
                 break;
@@ -1736,17 +1747,18 @@ static jaos_status qp_push(bx *s)
             d[j] = k == FIXED ? 0.0 : s->cost[j] + gq - s->tmp[j];
             if (k == FIXED)
                 continue;
+            const double thr_user = j < s->ncol
+                                        ? QP_PUSH_USER_TOL * gamma[j]
+                                        : QP_PUSH_USER_TOL / rho[j - s->ncol];
+            const double thr = thr_user < tol_d ? thr_user : tol_d;
             if (pin[j] == PUSH_FREE) {
-                const double thr = j < s->ncol
-                                       ? QP_PUSH_USER_TOL * gamma[j]
-                                       : QP_PUSH_USER_TOL / rho[j - s->ncol];
-                if (fabs(d[j]) > (thr < tol_d ? thr : tol_d))
+                if (fabs(d[j]) > thr)
                     loose++;
-            } else if (pin[j] == PUSH_LOWER && d[j] < -tol_d) {
+            } else if (pin[j] == PUSH_LOWER && d[j] < -thr) {
                 wrong++;
                 if (-d[j] > worst_sign)
                     worst_sign = -d[j];
-            } else if (pin[j] == PUSH_UPPER && d[j] > tol_d) {
+            } else if (pin[j] == PUSH_UPPER && d[j] > thr) {
                 wrong++;
                 if (d[j] > worst_sign)
                     worst_sign = d[j];
@@ -1769,8 +1781,12 @@ static jaos_status qp_push(bx *s)
         for (int64_t j = 0; j < nv; j++) {
             if (s->kind[j] == FIXED || pin[j] == PUSH_FREE)
                 continue;
-            if ((pin[j] == PUSH_LOWER && d[j] < -tol_d) ||
-                (pin[j] == PUSH_UPPER && d[j] > tol_d)) {
+            const double thr_user = j < s->ncol
+                                        ? QP_PUSH_USER_TOL * gamma[j]
+                                        : QP_PUSH_USER_TOL / rho[j - s->ncol];
+            const double thr = thr_user < tol_d ? thr_user : tol_d;
+            if ((pin[j] == PUSH_LOWER && d[j] < -thr) ||
+                (pin[j] == PUSH_UPPER && d[j] > thr)) {
                 pin[j] = PUSH_FREE;
                 pinned--;
             }
