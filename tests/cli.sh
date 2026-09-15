@@ -588,7 +588,7 @@ expect_exit 5 "--algorithm needs a name it knows" \
 expect_exit 0 "a separable QP in LP format solves through the barrier" \
     "$JAOS" solve "$DATA/g_quad.lp"
 case "$(line_of objective)" in
-    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "QP objective '$(line_of objective)'" ;;
 esac
 expect_exit 0 "a mixed-integer QP solves through the tree" \
@@ -606,7 +606,7 @@ grep -q '^QUADOBJ$' "$tmp/gq.mps" \
     || flunk "no QUADOBJ in the converted MPS"
 expect_exit 0 "the converted QP solves" "$JAOS" solve "$tmp/gq.mps"
 case "$(line_of objective)" in
-    "objective 4.0000"*|"objective 3.9999"*) pass "to the same objective" ;;
+    "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to the same objective" ;;
     *) flunk "converted QP objective '$(line_of objective)'" ;;
 esac
 expect_exit 0 "stats of a QP exits 0" "$JAOS" stats "$DATA/g_quad.lp"
@@ -757,7 +757,7 @@ expect_exit 0 "a QP converts to QPLIB and solves" \
     "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.qplib"
 expect_exit 0 "the QPLIB QP solves" "$JAOS" solve "$tmp/gq.qplib"
 case "$(line_of objective)" in
-    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "QPLIB QP objective '$(line_of objective)'" ;;
 esac
 expect_exit 0 "convert to OSiL exits 0" \
@@ -767,7 +767,7 @@ grep -q '<qTerm idx="-1"' "$tmp/gq.osil" \
     || flunk "no qTerm in the written OSiL"
 expect_exit 0 "the written OSiL solves" "$JAOS" solve "$tmp/gq.osil"
 case "$(line_of objective)" in
-    "objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "OSiL QP objective '$(line_of objective)'" ;;
 esac
 expect_exit 5 "a QP does not convert to .nl" \

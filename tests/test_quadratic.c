@@ -87,6 +87,66 @@ static void test_a_paired_q_solves_to_the_point_it_should(void)
     jaos_model_free(m);
 }
 
+/* The same Q with x0 held to [1.5, 3]: the unconstrained minimum (1, 1)
+   is cut off, x0 sits on its lower bound with a reduced cost of 0.75, and
+   x1 settles at 0.75, where the objective is -2.8125.  The barrier's point
+   stops short of the bound by about mu / z; the push puts it there. */
+static jaos_model *bound_qp(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[2] = {-3.0, -3.0};
+    const double cl[2] = {1.5, 0.0}, cu[2] = {3.0, 3.0};
+    const double rl[1] = {-inf}, ru[1] = {4.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    const int64_t qr[3] = {0, 1, 1};
+    const int64_t qc[3] = {0, 1, 0};
+    const double qv[3] = {2.0, 2.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    return m;
+}
+
+static void test_the_push_puts_the_answer_on_its_bound(void)
+{
+    jaos_model *m = bound_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -2.8125, obj);
+    double x[2], y[1], dj[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, dj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.5, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 0.75, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 0.75, dj[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 0.0, dj[1]);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-8, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
+static void test_without_the_push_the_point_stops_short_of_the_bound(void)
+{
+    jaos_model *m = bound_qp();
+    m->cfg.barrier_no_crossover = true;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[2], y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_TRUE(x[0] > 1.5);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-10, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_FALSE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_the_checker_judges_a_paired_q(void)
 {
     jaos_model *m = paired_qp();
@@ -838,6 +898,8 @@ int main(void)
     RUN_TEST(test_the_barrier_counts_a_fixed_column_in_its_objective);
     RUN_TEST(test_a_paired_q_maximised);
     RUN_TEST(test_the_two_quadratic_calls_reach_the_same_matrix);
+    RUN_TEST(test_the_push_puts_the_answer_on_its_bound);
+    RUN_TEST(test_without_the_push_the_point_stops_short_of_the_bound);
     return UNITY_END();
 }
 

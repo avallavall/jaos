@@ -104,11 +104,16 @@ An infeasible or unbounded model, which the barrier cannot certify, goes to
 the dual simplex from the slack basis once the iterate diverges, so the
 verdict and its certificate are the dual's (since 2026-09-09,
 `bench/results/barrier-infeas.txt`). **The QP row reads ◐ since 2026-09-09**: a
-separable quadratic objective, `½ Σ q_j x_j²`, through `jaos_set_col_quadratic`,
-MPS `QUADOBJ`/`QMATRIX` diagonals and the LP `[ ... ] / 2` block, solved by
-the barrier with `q_j` on the diagonal of its Newton system and judged by
-the checker with the gradient `c + Q x`; a full `Q` is what keeps it from
-●. **The first-order row reads ◐ since
+quadratic objective `c'x + ½ x'Qx`, separable through `jaos_set_col_quadratic`
+and with a full `Q` through `jaos_set_quadratic` since 2026-09-10, carried by
+MPS `QUADOBJ`/`QMATRIX`, the LP `[ ... ] / 2` block, QPLIB and OSiL, solved by
+the barrier with `Q` in its Newton system and judged by the checker with the
+gradient `c + Q x`. Since 2026-09-15 the barrier's point is finished by a
+push (`qp_push` in `src/barrier.c`): the active set read off the
+complementarity is pinned on its bounds and the equality-constrained QP on
+the rest is solved through the same factorisation, so the published point
+sits exactly on the bounds the optimum sits on and the checker takes both
+sides; a reading on a published QP set is what keeps the row from ●. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,

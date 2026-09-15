@@ -41,3 +41,13 @@ the commit that took it, named here by hash.
    The walk revisits no basis, so there is no cycle for an anti-cycling
    rule to break, which is why Bland's rule never pays here (f954aee).
 
+4. **Convex QP: the reading on a published set.** SPECS row 22. The push
+   that lands the barrier's point on its bounds is in
+   (`bench/measurements/02-248/`), and the generated set is clean on both
+   sides of the checker. Missing: a published QP set (the Maros-Meszaros
+   instances are in QPLIB form, which JAOS reads) against its reference
+   values, and the 5 of 6000 generated models where the barrier's dual
+   residual jumps to 5.6e5 at its tenth iteration and the model ends
+   `NUMERICAL_ERROR` (`push.sh` leaves them as `fail-s*-m*.lp`); the push
+   never runs there, so that is the barrier's own lead.
+
