@@ -63,13 +63,16 @@ the commit that took it, named here by hash.
      iterate grows 1e6-fold within 20 iterations), q25fv47, ubh1, boyd2
      (200 iterations with the last residual just above tolerance),
      qgrow22 (diverges at 41).
-   - **five the checker refuses with the objective right**: qisrael,
-     qpilotno, qsierra (dual violations 3e-5 to 0.1 the push's `tol_d`,
-     1e-9 times `1 + |c|`, lets through; an absolute 1e-9 was tried, did
-     not cure them and cost 30% more push rounds), boyd1 (a row 0.015 off
-     on coefficients of 1e12), qgfrdxpn (the push pins one variable a
-     round on a flat face and gives up at 40; the barrier's duals are off
-     by 5e5).
+   - **two the checker refuses with the objective right**: qsierra and
+     qgfrdxpn, where the push pins one variable a round on a flat face and
+     gives up at 40 (100 does not help), and the barrier's own duals are
+     off by 1e3 to 1e6 in absolute terms, 1e-6 relative to its costs.
+     qisrael, qpilotno and boyd1 were the same list until the push
+     learned to release a pin in a row it left unsatisfied and the
+     checker's row test went relative to the row's traffic.
+   - **liswet10 and liswet11** solve to the reference objective but the
+     push releases and re-pins 40000 times without settling, so the
+     barrier's duals stand and the checker refuses them.
    - **values is refused as not convex**, and it is not: its `Q` has 60
      eigenvalues below zero, down to -1.27e-5 against a largest of 10.77,
      the six-digit rounding of a covariance. BPMPD's 1.3966211 is a

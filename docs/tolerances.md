@@ -63,7 +63,8 @@ Defined in `src/simplex.c`, `src/lu.c` and `src/chol.c`; `LU_PIVOT_TOL` in `src/
 | `QP_PUSH_TOL` | 1e-9 | Where the push is settled, in scaled space: a free variable may sit outside its box by this times `1 + max(|b|, |bounds|)`, and a reduced cost may have the wrong sign on a pinned variable, or be nonzero on a free one, by this times `1 + |c|`. Swept at 1e-7, 1e-9 and 1e-11 over the same 3000: 1e-7 buys nothing, 1e-11 is under what one round reaches on 44% of the models and costs them a second round, 1.132x against 1.091x |
 | `QP_PUSH_ROUNDS` | 40 | Rounds of the push, each one factorisation and one solve, after which the barrier's point stands. The longest push over 6000 generated convex QPs took 3; Maros-Meszaros `qgfrdxpn` pins one variable a round on a flat face and runs out at 40, and its barrier point stands. Not swept |
 | `QP_PUSH_DELTA` | 1e-8 | The dual regularisation on the push's rows, in place of `BARRIER_DELTA`: with the pinned variables out of the system and the free ones on `QP_PUSH_REG`, a row diagonal of 1e-10 against 1e-6 lost pivots to cancellation on the Maros-Meszaros LP-like QPs (`qscfxm1` replaced 70 and published a point of NaNs as optimal). The residual it leaves on the rows, `delta` times the dual step, is taken off by `QP_PUSH_REFINE` passes of iterative refinement. Set 2026-09-15 on those instances; not swept |
-| `QP_PUSH_REFINE` | 2 | Passes of iterative refinement on the push's solve, each a residual against the unregularised rows and one more solve on the same factorisation, so a full step lands the rows exactly instead of `QP_PUSH_DELTA` times the dual step off. `qsctap1` had a row activity 1.2e-6 past the bound its slack was pinned on, and the checker refused the dual side on it and 19 others of the set; 2 passes leave 1e-11. Not swept |
+| `QP_PUSH_REFINE` | 8 | The most passes of iterative refinement on the push's solve, each a residual against the unregularised rows and one more solve on the same factorisation, stopping once the rows are within a hundredth of `QP_PUSH_TOL`, so a full step lands the rows exactly instead of `QP_PUSH_DELTA` times the dual step off. `qsctap1` had a row activity 1.2e-6 past the bound its slack was pinned on, and the checker refused the dual side on it and 19 others of the set; 2 passes leave 1e-11 there. A residual the passes do not move at all is not the regularisation's: the pinned set has made the rows inconsistent, and the push then releases, in every row still off, the pinned variable with the smallest dual slack and goes round again (qisrael, qpilotno and liswet8 settle that way; liswet10 and 11 release and re-pin 40000 times and give up). Not swept |
+| `QP_PUSH_USER_TOL` | 1e-7 | A free variable's reduced cost is taken as zero, in the model's own units, at this: the push judges it in scaled space against the smaller of `QP_PUSH_TOL` times `1 + |c|` and this times the column's scale factor, because the checker judges reduced costs at an absolute 1e-6 in the model's units and a model with costs of 1e7 (qgfrdxpn, objective 1e11) can pass the relative test with a reduced cost of 1e-3 left. A round that only tightens reduced costs, with the pinned set unchanged, reuses the factorisation and costs solves alone. Not swept; on the generated set it never binds |
 | `QP_PUSH_NEAR` | 1e-7 | A variable this close to a bound, times `1 + max(|b|, |bounds|)`, is pinned at the start of the push whatever its dual slack says, and a free variable that a partial step brings this close is pinned there. On the generated set it never fires; on `qgfrdxpn` it is not enough. Not swept |
 | `PROBE_CERT_TOL` | 1e-6 | When the barrier hands a quadratic model to the dual simplex for a verdict on its rows and bounds, an `INFEASIBLE` verdict is kept only if the Farkas ray certifies at this tolerance, the CLI checker's default; otherwise the model ends `NUMERICAL_ERROR`. Maros-Meszaros `ksip` is where the dual called a feasible system infeasible with a ray of zeros. Not swept |
 | `QP_PUSH_FREEINGS` | 3 | How many times a full step may free the pinned variables whose reduced cost came out with the wrong sign before the barrier's point stands. The pinned set can only grow between freeings, so the push ends; the reading needed 1 at most. Not swept |
@@ -116,7 +117,16 @@ figure on two machines:
 **Primal.** For each column and each row, the violation of `v ∈ [lo, hi]`
 is `max(lo − v, v − hi, 0)`, counting only bounds that are finite. The
 report carries the largest column violation and the largest row violation
-separately, and `primal_feasible` is both being within tolerance.
+separately, and `primal_feasible` is the column violation and the row
+violation *relative to the row's traffic*, `Σ |a_ij x_j|` floored at 1,
+both being within tolerance. The relative form is the one the dual side
+has always used for a row's multiplier; since 2026-09-15 the primal side
+matches it, because Maros-Meszaros `boyd1` has rows whose coefficients run
+to 1e12 and a point 0.015 off them in absolute terms, 2e-14 relative, is as
+exact as a double can be. The absolute row violation stays in the report
+(`row`) beside the relative one (`rowrel`). Every gate reading is
+byte-identical under the change: a simplex answer's rows are met to
+roundoff either way.
 
 **Dual.** For a multiplier `w` attached to a value `v` with bounds
 `[lo, hi]`, in minimize-canonical form:

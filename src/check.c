@@ -477,7 +477,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
     out->max_row_violation = row_viol;
     out->max_row_violation_relative = row_viol_rel;
     out->primal_objective = pobj;
-    out->primal_feasible = col_viol <= tol && row_viol <= tol &&
+    out->primal_feasible = col_viol <= tol && row_viol_rel <= tol &&
                            int_viol <= tol;
 
     if (row_dual != nullptr && !jm_model_has_integer(m)) {

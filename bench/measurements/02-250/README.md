@@ -78,6 +78,12 @@ re-taken after them:
   checker gap of 1e-8 against a table value of 7144.7006, ten times as
   much to the digit, which reads as a slip in the table rather than in the
   solve.
+- The push releases a pin in every row a full step leaves unsatisfied,
+  judges a free variable's reduced cost in the model's units
+  (`QP_PUSH_USER_TOL`), reuses its factorisation across rounds that change
+  no pin, and snaps a free variable that ends a hair outside its box onto
+  the bound; the checker's row test went relative to the row's traffic.
+  qisrael, qpilotno, boyd1 and liswet8 pass the checker now.
 
 ## Cost
 
