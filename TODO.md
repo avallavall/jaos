@@ -71,9 +71,11 @@ the commit that took it, named here by hash.
      on coefficients of 1e12), qgfrdxpn (the push pins one variable a
      round on a flat face and gives up at 40; the barrier's duals are off
      by 5e5).
-   - **values is refused as not convex** at a ridge of 1e-10, 1e-8 and
-     1e-6; BPMPD reports 1.3966211. Read whether `Q` is indefinite or the
-     test is.
+   - **values is refused as not convex**, and it is not: its `Q` has 60
+     eigenvalues below zero, down to -1.27e-5 against a largest of 10.77,
+     the six-digit rounding of a covariance. BPMPD's 1.3966211 is a
+     stationary point. Nothing to fix unless the contract changes to take
+     a `Q` within its data's precision of semi-definite.
    - **hues-mod and liswet2** end at the checker's optimum, certified, but
      6e-6 and 1e-6 away from BPMPD's value.
    - **aug2dcqp, aug2dqp, aug3dqp** pass the checker but not the runner's
