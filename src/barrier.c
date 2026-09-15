@@ -1118,6 +1118,10 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
         const double rel_p = pinf / (1.0 + s->norm_b);
         const double rel_d = dinf / (1.0 + s->norm_c);
         const double gap = fabs(pobj - dobj) / (1.0 + fabs(pobj));
+        double worst_now = rel_p > rel_d ? rel_p : rel_d;
+        if (gap > worst_now)
+            worst_now = gap;
+        const bool progressed = worst_now < BARRIER_STALL_DROP * s->best_worst;
 
         jm_log(m, JAOS_LOG_PROGRESS,
                "barrier %lld: primal %.3e dual %.3e gap %.3e mu %.3e "
@@ -1149,7 +1153,8 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
             jm_work_add(&s->work, (3 * s->nvar + s->nrow) * JM_WORK_NONZERO);
             jm_log(m, JAOS_LOG_DETAIL, "  iterate %.3e/%.3e of the data",
                    pgrow, dgrow);
-            if (pgrow > BARRIER_DIVERGE || dgrow > BARRIER_DIVERGE) {
+            if ((pgrow > BARRIER_DIVERGE || dgrow > BARRIER_DIVERGE) &&
+                !progressed) {
                 jm_set_err(m, "the barrier's iterate grew past %.3g times "
                               "the data after %lld iterations (primal %.3e, "
                               "dual %.3e): the model may be infeasible or "

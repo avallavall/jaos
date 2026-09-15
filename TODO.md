@@ -43,12 +43,43 @@ the commit that took it, named here by hash.
    The walk revisits no basis, so there is no cycle for an anti-cycling
    rule to break, which is why Bland's rule never pays here (f954aee).
 
-4. **Convex QP: the reading on a published set.** SPECS row 22. The push
-   that lands the barrier's point on its bounds is in
-   (`bench/measurements/02-248/`), and the generated set is clean on both
-   sides of the checker. Missing: a published QP set (the Maros-Meszaros
-   instances are in QPLIB form, which JAOS reads) against its reference
-   values. The 5 of 6000 generated models the barrier could not settle
-   are solved since 02-249 (a stall rule and a regularisation retry), so
-   the generated set is clean; the published set is what is left.
+4. **Convex QP: the Maros-Meszaros set.** SPECS row 22. `make
+   maros-meszaros` reads the 138 instances against BPMPD's values; the
+   first reading (`bench/measurements/02-250/`) found and 808022a fixed
+   the NaN points, the 1e-6 row slips, the four unreadable files and the
+   handoff that ground the dual simplex. What it leaves, 111 of 138 clean:
+
+   - **dtoc3 answers wrong**: the origin, `OPTIMAL`, rows off by 15. All
+     columns are free and two are fixed; the scaled data is enormous
+     (`EXP_LIMIT` in `src/scale.c` lets a factor reach 2^512), so the
+     relative residual reads 4e-23 at a point that satisfies nothing.
+     The checker refuses it. Read what the scale factors are on it first;
+     a cap on the exponent changes every reading and needs the four
+     baselines rewritten after their diffs are read.
+   - **18 the barrier cannot settle**: liswet1 and 7 to 12 (10000 free
+     columns, the primal residual stuck at 1e-8 with mu at 1e-57: the
+     `BARRIER_DELTA` floor on the rows against a large dual step; a refined
+     Newton direction was tried and hurt the generated set), ksip,
+     cvxqp1_l, cvxqp3_l, powell20, huestis, qforplan, qpcboei2 (the dual
+     iterate grows 1e6-fold within 20 iterations), q25fv47, ubh1, boyd2
+     (200 iterations with the last residual just above tolerance),
+     qgrow22 (diverges at 41).
+   - **the dual simplex on ksip's LP** (1001 rows, 20 free columns) calls a
+     feasible system infeasible with a Farkas ray of zeros. The QP probe
+     now refuses that verdict; the LP engine's own defect is open.
+   - **five the checker refuses with the objective right**: qisrael,
+     qpilotno, qsierra (dual violations 3e-5 to 0.1 the push's `tol_d`,
+     1e-9 times `1 + |c|`, lets through; an absolute 1e-9 was tried, did
+     not cure them and cost 30% more push rounds), boyd1 (a row 0.015 off
+     on coefficients of 1e12), qgfrdxpn (the push pins one variable a
+     round on a flat face and gives up at 40; the barrier's duals are off
+     by 5e5).
+   - **values is refused as not convex** at a ridge of 1e-10, 1e-8 and
+     1e-6; BPMPD reports 1.3966211. Read whether `Q` is indefinite or the
+     test is.
+   - **hues-mod and liswet2** end at the checker's optimum, certified, but
+     6e-6 and 1e-6 away from BPMPD's value.
+   - **aug2dcqp, aug2dqp, aug3dqp** pass the checker but not the runner's
+     suboptimality ceiling: `Σ d_j (x_j - l_j)` over columns of 1e6 with
+     reduced costs of 1e-9.
 
