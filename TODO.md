@@ -62,10 +62,14 @@ the commit that took it, named here by hash.
      family but not this one; a refined Newton direction was tried and
      hurt the generated set),
      ksip (1001 rows on 20 free columns, mu of 1e19 from the start),
-     ubh1 and boyd2 (200 iterations with the gap at 0.23 and 1.6e-6;
+     ubh1 and boyd2 (200 iterations with the gap at 0.23 and 3.8e-6;
      q25fv47 was here until the push learned to finish a walk stopped
      within `BARRIER_NEAR_TOL` of converged, and the push does not settle
-     on these two). qgrow22 was here, its LDL replacing 61 pivots at every
+     on these two: boyd2 is at the reference objective to 4e-9 by
+     iteration 100 and its push leaves one row 5e-3 off through 40
+     rounds and 40 releases, ubh1 loses its interior by iteration 5, mu
+     at 1e-22 against a gap of 0.5, and a lift of every complementarity
+     product back to 1e-3 of the gap was measured and refused). qgrow22 was here, its LDL replacing 61 pivots at every
      regularisation up to 1e-4 and the next direction NaN; at
      `BARRIER_REG_MAX` 1e-2 it converges to the reference and the checker
      refuses a dual violation of 3e-6 (the push leaves 1575 rows
