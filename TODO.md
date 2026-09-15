@@ -65,12 +65,11 @@ the commit that took it, named here by hash.
      ubh1 and boyd2 (200 iterations with the gap at 0.23 and 1.6e-6;
      q25fv47 was here until the push learned to finish a walk stopped
      within `BARRIER_NEAR_TOL` of converged, and the push does not settle
-     on these two), qgrow22 (converged to the reference at iteration 40,
-     primal 3e-16, dual 1.4e-4, when the LDL replaces 61 pivots at every
-     regularisation up to `BARRIER_REG_MAX` and the next direction is NaN;
-     the push tried from the last finite iterate does not settle either,
-     and keeping that iterate cost the generated set 1.5% for nothing).
-     cvxqp1_l, cvxqp3_l,
+     on these two). qgrow22 was here, its LDL replacing 61 pivots at every
+     regularisation up to 1e-4 and the next direction NaN; at
+     `BARRIER_REG_MAX` 1e-2 it converges to the reference and the checker
+     refuses a dual violation of 3e-6 (the push leaves 1575 rows
+     unsatisfied and stands down). cvxqp1_l, cvxqp3_l,
      powell20, huestis, qforplan and qpcboei2 were here until a quadratic
      model got its own divergence limit, `BARRIER_DIVERGE_QP`.
    - **two the checker refuses with the objective right**: qsierra and
