@@ -66,10 +66,9 @@ answers `check_ok yes` on all 240 files of the CLI leg, 120 LP and 120
 MPS.
 
 The five models that end `NUMERICAL_ERROR` are the same five before and
-after: the barrier's dual residual jumps to 5.6e5 at its tenth iteration
-and never recovers. That is the barrier's, not the push's, which only runs
-after `OPTIMAL`; it is a lead for the reading on a published QP set that
-SPECS row 22 still lacks.
+after: two walks stall in a cycle and three lose a pivot in the
+factorisation and diverge. That is the barrier's, not the push's, which
+only runs after `OPTIMAL`; 02-249 reads them and solves them.
 
 ## How it got here
 

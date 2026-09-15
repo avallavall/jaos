@@ -19,6 +19,12 @@ constexpr double  BARRIER_DIVERGE  = 1e6;
 constexpr double  BARRIER_DENSE_FACTOR = 10.0;
 constexpr int64_t BARRIER_DENSE_MIN    = 30;
 constexpr int64_t BARRIER_DENSE_MAX    = 100;
+constexpr int64_t BARRIER_STALL_ITERS = 5;
+constexpr double  BARRIER_STALL_DROP  = 0.9;
+constexpr double  BARRIER_REG_RETRY   = 1e-8;
+constexpr double  BARRIER_REG_GROWTH  = 100.0;
+constexpr double  BARRIER_REG_MAX     = 1e-4;
+constexpr double  BARRIER_STALL_SIGMA  = 0.5;
 constexpr double  QP_PUSH_TOL    = 1e-9;
 constexpr double  QP_PUSH_REG    = 1e-6;
 constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
@@ -72,6 +78,9 @@ typedef struct {
     int64_t iters;
     int64_t bounded;
     bool handoff;
+    double best_worst, reg_floor;
+    int64_t stalled;
+    bool equal_steps;
 
     bool *dense;
     int64_t *dense_idx;
@@ -112,6 +121,7 @@ static void bx_free(bx *s)
 static jaos_status bx_init(bx *s, jaos_model *m)
 {
     memset(s, 0, sizeof *s);
+    s->best_worst = HUGE_VAL;
     jm_chol_init(&s->chol);
     jm_chol_init(&s->aug);
     s->m = m;
@@ -1182,23 +1192,51 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
         double worst = rel_p > rel_d ? rel_p : rel_d;
         if (gap > worst)
             worst = gap;
-        const double reg = BARRIER_REG * (worst < 1.0 ? worst : 1.0);
-        for (int64_t j = 0; j < s->nvar; j++) {
-            const uint8_t k = s->kind[j];
-            if (k == FIXED) {
-                s->theta[j] = 0.0;
-                continue;
-            }
-            double inv = (k == 0 ? BARRIER_FREE_REG : reg) + s->quad[j];
-            if (k & HAS_LO) inv += s->zl[j] / s->w[j];
-            if (k & HAS_UP) inv += s->zu[j] / s->v[j];
-            if (s->augmented)
-                s->inv[j] = inv;
-            s->theta[j] = 1.0 / inv;
+        if (worst < BARRIER_STALL_DROP * s->best_worst) {
+            s->best_worst = worst;
+            s->stalled = 0;
+        } else if (s->quadratic && ++s->stalled >= BARRIER_STALL_ITERS &&
+                   !s->equal_steps) {
+            s->equal_steps = true;
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "barrier %lld: no progress over %lld iterations; one step "
+                   "length for both sides from here",
+                   (long long)s->iters, (long long)BARRIER_STALL_ITERS);
         }
-        st = s->augmented ? form_aug(s, true) : form_normal(s);
-        if (st != JAOS_OK)
-            return st;
+        for (;;) {
+            double reg = BARRIER_REG * (worst < 1.0 ? worst : 1.0);
+            if (reg < s->reg_floor)
+                reg = s->reg_floor;
+            for (int64_t j = 0; j < s->nvar; j++) {
+                const uint8_t k = s->kind[j];
+                if (k == FIXED) {
+                    s->theta[j] = 0.0;
+                    continue;
+                }
+                double inv = (k == 0 && reg < BARRIER_FREE_REG
+                                  ? BARRIER_FREE_REG : reg) + s->quad[j];
+                if (k & HAS_LO) inv += s->zl[j] / s->w[j];
+                if (k & HAS_UP) inv += s->zu[j] / s->v[j];
+                if (s->augmented)
+                    s->inv[j] = inv;
+                s->theta[j] = 1.0 / inv;
+            }
+            st = s->augmented ? form_aug(s, true) : form_normal(s);
+            if (st != JAOS_OK)
+                return st;
+            if (!s->augmented || s->aug.replaced == 0 ||
+                s->reg_floor >= BARRIER_REG_MAX)
+                break;
+            s->reg_floor = s->reg_floor == 0.0
+                               ? BARRIER_REG_RETRY
+                               : s->reg_floor * BARRIER_REG_GROWTH;
+            if (s->reg_floor > BARRIER_REG_MAX)
+                s->reg_floor = BARRIER_REG_MAX;
+            jm_log(m, JAOS_LOG_DETAIL,
+                   "  %lld pivots replaced; refactoring with a "
+                   "regularisation of %.1e",
+                   (long long)s->aug.replaced, s->reg_floor);
+        }
 
         complementarity(s, 0.0, false);
         direction(s, s->dwa, s->dva, s->dzla, s->dzua);
@@ -1219,6 +1257,8 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
         sig = sig * sig * sig;
         if (sig > 1.0) sig = 1.0;
         if (sig < 0.0) sig = 0.0;
+        if (s->equal_steps && sig < BARRIER_STALL_SIGMA)
+            sig = BARRIER_STALL_SIGMA;
 
         complementarity(s, sig * mu, true);
         direction(s, s->dw, s->dv, s->dzl, s->dzu);
@@ -1227,6 +1267,8 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out)
         ad *= BARRIER_STEP;
         if (ap > 1.0) ap = 1.0;
         if (ad > 1.0) ad = 1.0;
+        if (s->equal_steps)
+            ap = ad = ap < ad ? ap : ad;
 
         jm_log(m, JAOS_LOG_DETAIL, "  step %.3e/%.3e, sigma %.3e", ap, ad, sig);
 

@@ -147,6 +147,43 @@ static void test_without_the_push_the_point_stops_short_of_the_bound(void)
     jaos_model_free(m);
 }
 
+/* Generated model 930 of seed 4 in bench/measurements/02-248: four
+   separable columns, one equality row.  Mehrotra's walk on it settles
+   into a cycle of period two with mu between 0.3 and 0.7 and never
+   converges; the stall rule takes one step length and a centring floor
+   on sigma from the fifth flat iteration, and it finishes. */
+static void test_a_stalled_barrier_recentres_and_finishes(void)
+{
+    jaos_model *m = fresh();
+    const double cost[4] = {-14.4375, -1.25, 3.75, -2.9375};
+    const double cl[4] = {-1.0, 1.0, -4.0, -3.0}, cu[4] = {4.0, 9.0, -2.0, 2.0};
+    const double rl[1] = {-6.0}, ru[1] = {-6.0};
+    const int64_t as[5] = {0, 0, 1, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {-3.0, -4.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    const double q[4] = {5.25, 2.25, 1.25, 1.25};
+    for (int64_t j = 0; j < 4; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, q[j]));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, -27.453125, obj);
+    double x[4], y[1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 2.75, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 1.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, -3.0, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, 0.75, x[3]);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-8, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_the_checker_judges_a_paired_q(void)
 {
     jaos_model *m = paired_qp();
@@ -900,6 +937,7 @@ int main(void)
     RUN_TEST(test_the_two_quadratic_calls_reach_the_same_matrix);
     RUN_TEST(test_the_push_puts_the_answer_on_its_bound);
     RUN_TEST(test_without_the_push_the_point_stops_short_of_the_bound);
+    RUN_TEST(test_a_stalled_barrier_recentres_and_finishes);
     return UNITY_END();
 }
 

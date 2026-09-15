@@ -46,8 +46,7 @@ the commit that took it, named here by hash.
    (`bench/measurements/02-248/`), and the generated set is clean on both
    sides of the checker. Missing: a published QP set (the Maros-Meszaros
    instances are in QPLIB form, which JAOS reads) against its reference
-   values, and the 5 of 6000 generated models where the barrier's dual
-   residual jumps to 5.6e5 at its tenth iteration and the model ends
-   `NUMERICAL_ERROR` (`push.sh` leaves them as `fail-s*-m*.lp`); the push
-   never runs there, so that is the barrier's own lead.
+   values. The 5 of 6000 generated models the barrier could not settle
+   are solved since 02-249 (a stall rule and a regularisation retry), so
+   the generated set is clean; the published set is what is left.
 

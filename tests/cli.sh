@@ -597,6 +597,18 @@ case "$(line_of objective)" in
     "objective -8"|"objective -8.0000"*|"objective -7.9999"*) pass "to objective -8" ;;
     *) flunk "MIQP objective '$(line_of objective)'" ;;
 esac
+expect_exit 0 "a QP whose walk stalls recentres and solves" \
+    "$JAOS" solve "$DATA/g_qp_stall.lp"
+case "$(line_of objective)" in
+    "objective -27.453125"|"objective -27.4531250"*|"objective -27.4531249"*) pass "to objective -27.453125" ;;
+    *) flunk "stalled QP objective '$(line_of objective)'" ;;
+esac
+expect_exit 0 "a QP whose factorisation loses pivots refactors and solves" \
+    "$JAOS" solve "$DATA/g_qp_pivots.lp"
+case "$(line_of objective)" in
+    "objective -327.125"|"objective -327.1250"*|"objective -327.1249"*) pass "to objective -327.125" ;;
+    *) flunk "pivot-losing QP objective '$(line_of objective)'" ;;
+esac
 expect_exit 5 "--algorithm primal refuses a quadratic objective" \
     "$JAOS" solve "$DATA/g_quad.lp" --algorithm primal
 expect_exit 0 "convert of a QP to MPS exits 0" \
