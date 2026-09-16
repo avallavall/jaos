@@ -162,8 +162,11 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 
 - **Sections**: `Minimize`/`Maximize` (also `Min`/`Max`/`Minimum`/`Maximum`),
   `Subject To` (also `Such That`, `ST`, `S.T.`), optional `Bounds`, `End`.
-  Keywords are case-insensitive and reserved — a variable may not be called
-  `free`, `st`, `end`, `inf`, etc.
+  `Subject To` may be left out when the file has no constraints, which
+  is how HiGHS's `qpunbounded.lp` is written. Keywords are
+  case-insensitive and reserved — a variable may not be called `free`,
+  `st`, `end`, `inf`, etc. A keyword followed by `:` is a constraint's
+  label, so a row may be called `end`.
 - **Comments**: `\` to end of line.
 - **Names**: start with a letter, `_` or one of the CPLEX symbols
   `! " # $ % & ( ) / , ; ? @ \` ' { } | ~`; continue with those, digits or
@@ -182,7 +185,12 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 - **Objective**: optional label (`obj:`); bare constants allowed and add to
   the objective offset; may be empty.
 - **Constraints**: optional label; linear expression, one of `<= < =< >= >
-  => =`, then a number. **A ranged (two-sided) constraint** `l <= expr <= u`
+  => =`, then a number. The expression may be empty (`con932: = 0` in
+  HiGHS's issue 2122 file), which is a row with no entries, and it may
+  open with a signed variable, `- x1 + 3 x2 >= 0`, whether or not the
+  row before it ended in a number. Before 2026-09-16 a leading sign had
+  to be followed by a number, and a `-` after a right-hand side was read
+  as the start of an indicator's `->`. **A ranged (two-sided) constraint** `l <= expr <= u`
   reads as one row with two ends; the two operators must point the
   same way. **A constant inside the expression** moves to the other side of
   the relation with its sign flipped, so `3x + 5 <= 10` is the row
@@ -196,14 +204,20 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   leading value is; the second must point the same way, so `3 <= x >= 8`
   is refused at the first operator's line, the same rule and the same
   words a ranged constraint gets. `inf`/`infinity` with optional sign as
-  values. Later statements override earlier ones component-wise. Bounds on
-  a variable that appears nowhere else are an error (it is almost always a
-  typo).
+  values. Later statements override earlier ones component-wise. A
+  variable the file first names here, or in an integer, semi-continuous
+  or SOS section, is a column with cost 0 that no row carries, which is
+  what the format means and what MathOptInterface's writer produces for
+  a variable no constraint uses. Before 2026-09-16 it was refused as a
+  likely typo.
 - **Default bounds** are `[0, +inf)`, as in MPS.
 - **Integer sections** (`General`, `Generals`, `Gen`, `Integer`, `Integers`;
   `Binary`, `Binaries`, `Bin`): names of variables the file has met, one per
   token until the next keyword; `Binary` also bounds them to [0, 1]. A name
-  no variable carries is refused. The writer prints every integer
+  no variable carries yet is a new column. The integer, semi-continuous
+  and SOS sections come in any order and may repeat, so HiGHS's
+  `semi-integer.lp`, `Semi-continuous` before `General`, reads with
+  `x3` marked both. The writer prints every integer
   column under `General`, its bounds already above. **`Semi-continuous`**
   (`Semi`, `Semis`, `Semi-continuous`): names of variables that rest at zero
   or inside their bounds; the writer prints them under `Semi-continuous`.

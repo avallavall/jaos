@@ -14,7 +14,7 @@ constexpr int NAME_MAX_LEN = 255;
 
 typedef enum {
     T_EOF, T_NAME, T_NUM, T_PLUS, T_MINUS, T_LE, T_GE, T_EQ, T_COLON,
-    T_LBRACK, T_RBRACK, T_CARET, T_STAR, T_SLASH,
+    T_LBRACK, T_RBRACK, T_CARET, T_STAR, T_SLASH, T_ARROW,
 } toktype;
 
 typedef struct {
@@ -33,6 +33,7 @@ typedef struct {
     token tok;
     token pushed;
     bool has_pushed;
+    double pre_sign;
 
     jm_nmap cmap;
     double *cost, *cl, *cu, *cquad;
@@ -128,7 +129,15 @@ static jaos_status lx_next(lp *p)
     char c = p->buf[p->pos];
     switch (c) {
     case '+': p->tok.t = T_PLUS;  p->pos++; return JAOS_OK;
-    case '-': p->tok.t = T_MINUS; p->pos++; return JAOS_OK;
+    case '-':
+        p->pos++;
+        if (p->pos < p->len && p->buf[p->pos] == '>') {
+            p->pos++;
+            p->tok.t = T_ARROW;
+        } else {
+            p->tok.t = T_MINUS;
+        }
+        return JAOS_OK;
     case ':': p->tok.t = T_COLON; p->pos++; return JAOS_OK;
     case '[': p->tok.t = T_LBRACK; p->pos++; return JAOS_OK;
     case ']': p->tok.t = T_RBRACK; p->pos++; return JAOS_OK;
@@ -423,7 +432,11 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
         double sign = 1.0;
         bool have_sign = false;
 
-        if (p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
+        if (p->pre_sign != 0.0) {
+            sign = p->pre_sign;
+            have_sign = true;
+            p->pre_sign = 0.0;
+        } else if (p->tok.t == T_PLUS || p->tok.t == T_MINUS) {
             sign = p->tok.t == T_MINUS ? -1.0 : 1.0;
             have_sign = true;
             if ((st = lx_next(p)) != JAOS_OK)
@@ -492,9 +505,6 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
         }
         any = true;
     }
-
-    if (!any && row >= 0)
-        FAIL("line %" PRId64 ": constraint without any term", p->tok.line);
 done:
     return st;
 }
@@ -555,21 +565,33 @@ static jaos_status parse(lp *p)
     if ((st = parse_expr(p, -1, nullptr)) != JAOS_OK)
         goto done;
 
+    bool have_rows = true;
     if (tok_is(p, "subject") || tok_is(p, "such")) {
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
         if (!tok_is(p, "to") && !tok_is(p, "that"))
             FAIL("line %" PRId64 ": expected 'Subject To'", p->tok.line);
-    } else if (!tok_is(p, "st") && !tok_is(p, "s.t.")) {
+    } else if (tok_is(p, "st") || tok_is(p, "s.t.")) {
+        ;
+    } else if (at_reserved(p)) {
+        have_rows = false;
+    } else {
         FAIL("line %" PRId64 ": expected 'Subject To'", p->tok.line);
     }
-    if ((st = lx_next(p)) != JAOS_OK)
+    if (have_rows && (st = lx_next(p)) != JAOS_OK)
         goto done;
 
     for (;;) {
         if (p->tok.t == T_EOF)
             FAIL("missing End");
         if (at_reserved(p)) {
+            token saved = p->tok;
+            if ((st = lx_next(p)) != JAOS_OK)
+                goto done;
+            const bool labelled = p->tok.t == T_COLON;
+            lx_push(p, &saved);
+            if (labelled)
+                goto labelled_row;
             if (tok_is(p, "lazy") || tok_is(p, "user")) {
                 const bool lazy = tok_is(p, "lazy");
                 if ((st = lx_next(p)) != JAOS_OK)
@@ -584,6 +606,7 @@ static jaos_status parse(lp *p)
             break;
         }
 
+    labelled_row:;
         char *label = nullptr;
         if (p->tok.t == T_NAME) {
             token saved = p->tok;
@@ -632,22 +655,23 @@ static jaos_status parse(lp *p)
                 lsign = p->tok.t == T_MINUS ? -1.0 : 1.0;
                 if ((st = lx_next(p)) != JAOS_OK)
                     goto done;
-                if (p->tok.t != T_NUM)
-                    FAIL("line %" PRId64 ": expected a number after the sign",
-                         p->tok.line);
             }
-            token num_tok = p->tok;
-            num_tok.num = lsign * p->tok.num;
-            if ((st = lx_next(p)) != JAOS_OK)
-                goto done;
-            if (p->tok.t == T_LE || p->tok.t == T_GE) {
-                ranged = true;
-                lo_rel = p->tok.t;
-                lo_val = num_tok.num;
+            if (p->tok.t == T_NUM) {
+                token num_tok = p->tok;
+                num_tok.num = lsign * p->tok.num;
                 if ((st = lx_next(p)) != JAOS_OK)
                     goto done;
+                if (p->tok.t == T_LE || p->tok.t == T_GE) {
+                    ranged = true;
+                    lo_rel = p->tok.t;
+                    lo_val = num_tok.num;
+                    if ((st = lx_next(p)) != JAOS_OK)
+                        goto done;
+                } else {
+                    lx_push(p, &num_tok);
+                }
             } else {
-                lx_push(p, &num_tok);
+                p->pre_sign = lsign;
             }
         }
 
@@ -677,12 +701,7 @@ static jaos_status parse(lp *p)
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
 
-        if (p->tok.t == T_MINUS) {
-            if ((st = lx_next(p)) != JAOS_OK)
-                goto done;
-            if (p->tok.t != T_GE)
-                FAIL("line %" PRId64 ": expected '->' after the indicator",
-                     p->tok.line);
+        if (p->tok.t == T_ARROW) {
             if (p->ind_col[row] >= 0)
                 FAIL("line %" PRId64 ": a second '->' on one constraint",
                      p->tok.line);
@@ -732,9 +751,8 @@ static jaos_status parse(lp *p)
 
             if (p->tok.t == T_NAME && !at_reserved(p)) {
 
-                if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
-                    FAIL("line %" PRId64 ": bound on unknown variable '%s'",
-                         p->tok.line, p->tok.text);
+                if (!get_or_create_col(p, p->tok.text, &j))
+                    FAIL_OOM();
                 if ((st = lx_next(p)) != JAOS_OK)
                     goto done;
                 if (tok_is(p, "free")) {
@@ -776,9 +794,8 @@ static jaos_status parse(lp *p)
                 if (p->tok.t != T_NAME || at_reserved(p))
                     FAIL("line %" PRId64 ": expected a variable name",
                          p->tok.line);
-                if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
-                    FAIL("line %" PRId64 ": bound on unknown variable '%s'",
-                         p->tok.line, p->tok.text);
+                if (!get_or_create_col(p, p->tok.text, &j))
+                    FAIL_OOM();
                 if (rel1 == T_LE)
                     p->cl[j] = first;
                 else
@@ -804,7 +821,8 @@ static jaos_status parse(lp *p)
         }
     }
 
-    while (tok_is(p, "general") || tok_is(p, "generals") ||
+    for (;;) {
+    if (tok_is(p, "general") || tok_is(p, "generals") ||
            tok_is(p, "gen") || tok_is(p, "integer") ||
            tok_is(p, "integers") || tok_is(p, "binary") ||
            tok_is(p, "binaries") || tok_is(p, "bin")) {
@@ -813,9 +831,8 @@ static jaos_status parse(lp *p)
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
         while (p->tok.t == T_NAME && !at_reserved(p)) {
-            if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
-                FAIL("line %" PRId64 ": '%s' in an integer section is not a "
-                     "variable of the model", p->tok.line, p->tok.text);
+            if (!get_or_create_col(p, p->tok.text, &j))
+                FAIL_OOM();
             if (!JM_GROW(p->cint, p->cint_cap, p->ncol))
                 FAIL_OOM();
             for (int64_t k = p->ncint; k < p->ncol; k++)
@@ -829,6 +846,7 @@ static jaos_status parse(lp *p)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         }
+        continue;
     }
 
     if (tok_is(p, "semi") || tok_is(p, "semis")) {
@@ -844,9 +862,8 @@ static jaos_status parse(lp *p)
                 goto done;
         }
         while (p->tok.t == T_NAME && !at_reserved(p)) {
-            if (!jm_nmap_get(&p->cmap, p->tok.text, &j))
-                FAIL("line %" PRId64 ": '%s' in a semi-continuous section is "
-                     "not a variable of the model", p->tok.line, p->tok.text);
+            if (!get_or_create_col(p, p->tok.text, &j))
+                FAIL_OOM();
             if (!JM_GROW(p->csemi, p->csemi_cap, p->ncol))
                 FAIL_OOM();
             for (int64_t k = p->ncsemi; k < p->ncol; k++)
@@ -856,6 +873,7 @@ static jaos_status parse(lp *p)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         }
+        continue;
     }
     if (tok_is(p, "sos")) {
         if ((st = lx_next(p)) != JAOS_OK)
@@ -884,9 +902,8 @@ static jaos_status parse(lp *p)
                 if (p->nsos == 0)
                     FAIL("line %" PRId64 ": an SOS member before any set",
                          fline);
-                if (!jm_nmap_get(&p->cmap, first, &j))
-                    FAIL("line %" PRId64 ": '%s' in an SOS set is not a "
-                         "variable of the model", fline, first);
+                if (!get_or_create_col(p, first, &j))
+                    FAIL_OOM();
                 if (!JM_GROW(p->st_col, p->sosm_cap, p->nsosm + 1) ||
                     !JM_GROW(p->st_w, p->sosw_cap, p->nsosm + 1))
                     FAIL_OOM();
@@ -931,6 +948,9 @@ static jaos_status parse(lp *p)
             p->nsos++;
             p->st_start[p->nsos] = p->nsosm;
         }
+        continue;
+    }
+    break;
     }
     for (int64_t k = 0; k < p->nsos; k++) {
         const int64_t b = p->st_start[k], e = p->st_start[k + 1];

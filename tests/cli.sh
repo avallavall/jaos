@@ -558,6 +558,12 @@ expect_exit 0 "an indicator LP file solves through the tree" \
     "$JAOS" solve "$DATA/g_ind.lp"
 [ "$(line_of objective)" = "objective 10" ] && pass "to 10, the row switched off" \
     || flunk "indicator: $(line_of objective)"
+expect_exit 0 "an LP file as other tools write it solves" \
+    "$JAOS" solve "$DATA/g_other_writers.lp"
+[ "$(line_of objective)" = "objective 6.7999999999999998" ] && pass "to 6.8" \
+    || flunk "other writers: $(line_of objective)"
+expect_exit 0 "an LP file with no Subject To solves" \
+    "$JAOS" solve "$DATA/g_no_rows.lp"
 expect_exit 0 "an SOS2 LP file solves through the tree" \
     "$JAOS" solve "$DATA/g_sos.lp"
 [ "$(line_of objective)" = "objective 2" ] && pass "to 2, two adjacent members" \

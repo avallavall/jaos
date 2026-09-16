@@ -238,22 +238,114 @@ static void test_a_quadratic_objective_block_reads_and_writes_back(void)
 
 static void test_rejection_reasons_are_specific(void)
 {
-    expect_reject("tests/data/el_int_unknown.lp", "not a variable");
     expect_reject("tests/data/el_rangedir.lp", "same way");
     expect_reject("tests/data/el_bounddir.lp", "same way");
-    expect_reject("tests/data/el_unkbound.lp", "unknown variable");
     expect_reject("tests/data/el_badchar.lp", "unexpected character");
     expect_reject("tests/data/el_noend.lp", "End");
 }
 
 static void test_rejections_carry_line_numbers(void)
 {
-    expect_reject("tests/data/el_int_unknown.lp", "line 6");
     expect_reject("tests/data/el_rangedir.lp", "line 4");
 
     expect_reject("tests/data/el_bounddir.lp", "line 8");
-    expect_reject("tests/data/el_unkbound.lp", "line 6");
     expect_reject("tests/data/el_badchar.lp", "line 4");
+}
+
+static void test_a_variable_met_first_in_a_later_section_is_a_column(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, "tests/data/el_unkbound.lp"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("w", nm);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_cost[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->col_upper[1]);
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_nz(m));
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_lp(m, "tests/data/el_int_unknown.lp"));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    bool isint = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 1, &isint));
+    TEST_ASSERT_TRUE(isint);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 0, &isint));
+    TEST_ASSERT_FALSE(isint);
+    jaos_model_free(m);
+}
+
+static void test_what_other_writers_put_in_an_lp_file_reads(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_read_lp(m, "tests/data/g_other_writers.lp"), jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(5, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(5, jaos_num_row(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("x#1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("R1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 3, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("con4", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 4, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("end", nm);
+
+    TEST_ASSERT_EQUAL_INT64(0, m->a_start[0]);
+    TEST_ASSERT_EQUAL_INT64(2, m->a_start[1]);
+    TEST_ASSERT_EQUAL_INT64(4, m->a_start[2]);
+    TEST_ASSERT_EQUAL_INT64(6, m->a_start[3]);
+    TEST_ASSERT_EQUAL_INT64(8, m->a_start[4]);
+    TEST_ASSERT_EQUAL_INT64(8, m->a_start[5]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->a_value[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->a_value[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->a_value[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->a_value[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->a_value[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->a_value[5]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->a_value[6]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->a_value[7]);
+
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, m->row_upper[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->row_lower[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, m->row_lower[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->row_lower[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->row_upper[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->row_lower[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(9.0, m->row_upper[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.1, m->col_lower[2]);
+    TEST_ASSERT_EQUAL_DOUBLE(8.0, m->col_upper[3]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_upper[4]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_cost[4]);
+    bool isint = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 4, &isint));
+    TEST_ASSERT_TRUE(isint);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 2, &isint));
+    TEST_ASSERT_TRUE(isint);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(m, 2, &isint));
+    TEST_ASSERT_TRUE(isint);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.8, obj);
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_read_lp(m, "tests/data/g_no_rows.lp"), jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 3.0, obj);
+    jaos_model_free(m);
 }
 
 static void test_missing_file_is_io_error(void)
@@ -359,6 +451,8 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_section_marks_the_columns);
     RUN_TEST(test_an_sos_section_builds_the_sets);
     RUN_TEST(test_an_indicator_arrow_marks_the_row);
+    RUN_TEST(test_a_variable_met_first_in_a_later_section_is_a_column);
+    RUN_TEST(test_what_other_writers_put_in_an_lp_file_reads);
     RUN_TEST(test_lazy_constraints_and_user_cuts_are_rows);
     RUN_TEST(test_a_quadratic_objective_block_reads_and_writes_back);
     return UNITY_END();

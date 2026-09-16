@@ -792,9 +792,6 @@ static void test_the_readers_and_writers_carry_the_marks(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(l, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, obj);
 
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_read_lp(l, "tests/data/el_int_unknown.lp"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(l), "not a variable"));
     jaos_model_free(l);
     jaos_model_free(m);
 }
