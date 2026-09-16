@@ -234,6 +234,92 @@ static void refuses(const char *text, const char *want)
     remove("build/to_bad.osil");
 }
 
+static void test_a_name_with_spaces_reads_with_underscores_and_writes_mps(void)
+{
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_osil(a, "tests/data/g_osil_spaces.osil"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(a));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_name(a, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("Par,_Inc._Example", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(a, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("x_0", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(a, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("cut_and_dye", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(a, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("Par,_Inc._Objective_Function", nm);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(a, "build/to_spaces.mps"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(b, "build/to_spaces.mps"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
+    assert_same_model(a, b);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(b, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("Par,_Inc._Objective_Function", nm);
+    jaos_model_free(b);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_nl(a, "build/to_spaces.nl"));
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(b, "build/to_spaces.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("cut_and_dye", nm);
+    jaos_model_free(b);
+    jaos_model_free(a);
+    remove("build/to_spaces.mps");
+    remove("build/to_spaces.nl");
+    remove("build/to_spaces.col");
+    remove("build/to_spaces.row");
+
+    refuses("<osil><instanceData>\n"
+            "<variables numberOfVariables=\"1\"><var name=\"x\x01y\"/>"
+            "</variables>\n</instanceData></osil>\n",
+            "not a name JAOS accepts");
+}
+
+static void test_a_var_or_con_repeated_by_mult_reads_as_that_many(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_osil(m, "tests/data/g_osil_mult.osil"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("C1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("C2", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 2, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("z", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("R2", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 2, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("cap", nm);
+    bool isint = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 1, &isint));
+    TEST_ASSERT_TRUE(isint);
+    TEST_ASSERT_TRUE(m->col_upper[0] == 1.0 && m->col_upper[1] == 1.0);
+    TEST_ASSERT_TRUE(m->col_upper[2] == 4.0);
+    TEST_ASSERT_TRUE(m->row_upper[0] == 1.5 && m->row_upper[1] == 1.5);
+    TEST_ASSERT_TRUE(m->row_upper[2] == 5.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 8.0, obj);
+    jaos_model_free(m);
+
+    refuses("<osil><instanceData>\n"
+            "<variables numberOfVariables=\"2\"><var name=\"x\" mult=\"2\"/>"
+            "</variables>\n</instanceData></osil>\n",
+            "would give every copy that name");
+    refuses("<osil><instanceData>\n"
+            "<variables numberOfVariables=\"2\"><var mult=\"0\"/>"
+            "</variables>\n</instanceData></osil>\n",
+            "not a count of 1 or more");
+}
+
 static void test_osil_refuses_what_it_cannot_carry(void)
 {
     jaos_model *m = fresh();
@@ -292,9 +378,9 @@ static void test_osil_refuses_what_it_cannot_carry(void)
             "</variables>\n</instanceData></osil>\n",
             "is not a number");
     refuses("<osil><instanceData>\n"
-            "<variables numberOfVariables=\"1\"><var name=\"x\" mult=\"3\"/>"
+            "<variables numberOfVariables=\"1\"><var mult=\"3\"/>"
             "</variables>\n</instanceData></osil>\n",
-            "repeated by mult");
+            "declares 1 variables and carries 3");
     refuses("<osil><instanceData>\n"
             "<variables numberOfVariables=\"1\"><var name=\"x\"",
             "ends inside a tag");
@@ -307,6 +393,8 @@ int main(void)
     RUN_TEST(test_a_semicontinuous_column_survives_a_model_with_no_integer_column);
     RUN_TEST(test_osil_round_trips_through_gzip);
     RUN_TEST(test_osil_reads_the_row_wise_layout);
+    RUN_TEST(test_a_name_with_spaces_reads_with_underscores_and_writes_mps);
+    RUN_TEST(test_a_var_or_con_repeated_by_mult_reads_as_that_many);
     RUN_TEST(test_osil_refuses_what_it_cannot_carry);
     return UNITY_END();
 }

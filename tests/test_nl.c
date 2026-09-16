@@ -180,6 +180,28 @@ static void assert_same_model(const jaos_model *a, const jaos_model *b)
     TEST_ASSERT_EQUAL_STRING(na, nb);
 }
 
+static void test_an_nl_without_an_objective_keeps_its_row_names(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_noobj.nl"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(m));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("y", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("c1", nm);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_name(m, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("COST", nm);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_cost[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_cost[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(3.0, m->row_lower[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 static void test_a_written_nl_reads_back_as_the_same_model(void)
 {
     jaos_model *a = fresh();
@@ -362,6 +384,7 @@ int main(void)
     RUN_TEST(test_a_linear_nl_reads_with_its_names_bounds_and_integers);
     RUN_TEST(test_a_binary_nl_without_name_files_gets_positional_names);
     RUN_TEST(test_what_the_nl_reader_refuses_is_named_by_line);
+    RUN_TEST(test_an_nl_without_an_objective_keeps_its_row_names);
     RUN_TEST(test_a_written_nl_reads_back_as_the_same_model);
     RUN_TEST(test_the_nl_writer_puts_the_integer_columns_last);
     RUN_TEST(test_the_nl_writer_refuses_what_the_format_has_no_place_for);

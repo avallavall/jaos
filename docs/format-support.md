@@ -247,7 +247,8 @@ and `G` coefficients, and the binary and integer counts of header line
 7, which name the last columns as integer. `x`, `d`, `k` and `S`
 segments are read and dropped. The names come from the `.col` and
 `.row` files beside the file, when both are there and complete; the
-objective's name is the line after the rows in `.row`. Refused by line:
+objective's name is the line after the rows in `.row`, and a file with
+no objective has a `.row` of the rows alone. Refused by line:
 a binary `.nl` (starts with `b`; write it with the text option), a
 nonlinear body in a row or objective, nonlinear or network counts in
 the header, user functions, defined variables (`V`), logical
@@ -329,10 +330,19 @@ with a `<colIdx>` block. An `<el>` carries the format's `mult` and
 column reads as an integer column with an upper bound of 1. A bound of
 `INF`, `-INF` or a magnitude of 1e30 or more is an infinite bound. XML
 comments, the declaration, namespace prefixes and the five named
-entities plus the numeric ones are handled. Refused by line: a
+entities plus the numeric ones are handled. A name with whitespace in
+it, which the COIN-OR OS sample files carry (`Par, Inc. Objective
+Function`), reads with every space as an underscore, the rule the MPS
+fixed layout already follows, so the model writes to MPS and to `.nl`
+and reads back with its names; before 2026-09-16 the name was kept as
+written, the MPS came out unreadable and the `.row` file was dropped.
+A name a control character or the length leaves outside what a model
+holds is refused by line. Refused by line: a
 `<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
-on a constraint, a second `<obj>`, an SOS block, a
-`<var>` or `<con>` repeated by `mult`, a `<con>` with a non-zero
+on a constraint, a second `<obj>`, an SOS block, a named `<var>` or
+`<con>` repeated by `mult` (an unnamed one repeated by `mult` reads as
+that many copies, which is how `p0033MULT.osil` and `br17.osil` of the
+COIN-OR OS samples write their columns), a `<con>` with a non-zero
 `constant`, a count that disagrees with what the file carries, and a
 file that ends inside a tag.
 

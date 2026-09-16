@@ -317,6 +317,25 @@ static char *x_text_dup(const ox *p)
     return t;
 }
 
+static jaos_status o_name(ox *p, const char *what, const char *nm, char **out)
+{
+    char *c = jm_name_copy(nm);
+    if (c == nullptr)
+        FAIL_OOM();
+    for (char *q = c; *q != '\0'; q++)
+        if (x_space(*q))
+            *q = '_';
+    if (!jm_name_ok(c)) {
+        free(c);
+        FAIL("line %" PRId64 ": the %s name \"%s\" is not a name JAOS "
+             "accepts: 1 to %d bytes with no control character", p->line,
+             what, nm, JAOS_NAME_MAX);
+    }
+    free(*out);
+    *out = c;
+    return JAOS_OK;
+}
+
 static jaos_status o_var_room(ox *p)
 {
     const int64_t need = p->nvar + 1;
@@ -378,12 +397,25 @@ static jaos_status o_bound(ox *p, const char *key, double dflt, double *out)
     return JAOS_OK;
 }
 
-static jaos_status o_var(ox *p)
+static jaos_status o_mult(ox *p, const char *what, int64_t *n)
 {
-    const char *mult = x_attr(p, "mult");
-    if (mult != nullptr && strcmp(mult, "1") != 0)
-        FAIL("line %" PRId64 ": a <var> repeated by mult=\"%s\" is not read; "
-             "write the variables out one by one", p->line, mult);
+    *n = 1;
+    const char *s = x_attr(p, "mult");
+    if (s == nullptr)
+        return JAOS_OK;
+    if (!x_int(s, n) || *n < 1)
+        FAIL("line %" PRId64 ": <%s> mult=\"%s\" is not a count of 1 or more",
+             p->line, what, s);
+    const char *nm = x_attr(p, "name");
+    if (*n > 1 && nm != nullptr && nm[0] != '\0')
+        FAIL("line %" PRId64 ": a <%s> named \"%s\" repeated by mult=\"%s\" "
+             "would give every copy that name; write them out one by one",
+             p->line, what, nm, s);
+    return JAOS_OK;
+}
+
+static jaos_status o_var_one(ox *p)
+{
     jaos_status st = o_var_room(p);
     if (st != JAOS_OK)
         return st;
@@ -415,21 +447,24 @@ static jaos_status o_var(ox *p)
     p->csemi[j] = is_semi;
     p->cname[j] = nullptr;
     const char *nm = x_attr(p, "name");
-    if (nm != nullptr && nm[0] != '\0') {
-        p->cname[j] = jm_name_copy(nm);
-        if (p->cname[j] == nullptr)
-            FAIL_OOM();
-    }
+    if (nm != nullptr && nm[0] != '\0' &&
+        (st = o_name(p, "variable", nm, &p->cname[j])) != JAOS_OK)
+        return st;
     p->nvar++;
     return JAOS_OK;
 }
 
-static jaos_status o_con(ox *p)
+static jaos_status o_var(ox *p)
 {
-    const char *mult = x_attr(p, "mult");
-    if (mult != nullptr && strcmp(mult, "1") != 0)
-        FAIL("line %" PRId64 ": a <con> repeated by mult=\"%s\" is not read; "
-             "write the constraints out one by one", p->line, mult);
+    int64_t n;
+    jaos_status st = o_mult(p, "var", &n);
+    for (int64_t k = 0; st == JAOS_OK && k < n; k++)
+        st = o_var_one(p);
+    return st;
+}
+
+static jaos_status o_con_one(ox *p)
+{
     const char *cst = x_attr(p, "constant");
     if (cst != nullptr) {
         double v;
@@ -450,13 +485,20 @@ static jaos_status o_con(ox *p)
         return st;
     p->rname[i] = nullptr;
     const char *nm = x_attr(p, "name");
-    if (nm != nullptr && nm[0] != '\0') {
-        p->rname[i] = jm_name_copy(nm);
-        if (p->rname[i] == nullptr)
-            FAIL_OOM();
-    }
+    if (nm != nullptr && nm[0] != '\0' &&
+        (st = o_name(p, "constraint", nm, &p->rname[i])) != JAOS_OK)
+        return st;
     p->ncon++;
     return JAOS_OK;
+}
+
+static jaos_status o_con(ox *p)
+{
+    int64_t n;
+    jaos_status st = o_mult(p, "con", &n);
+    for (int64_t k = 0; st == JAOS_OK && k < n; k++)
+        st = o_con_one(p);
+    return st;
 }
 
 static jaos_status o_obj(ox *p)
@@ -480,12 +522,8 @@ static jaos_status o_obj(ox *p)
         FAIL("line %" PRId64 ": constant=\"%s\" is not a number", p->line,
              cst);
     const char *nm = x_attr(p, "name");
-    if (nm != nullptr && nm[0] != '\0') {
-        free(p->oname);
-        p->oname = jm_name_copy(nm);
-        if (p->oname == nullptr)
-            FAIL_OOM();
-    }
+    if (nm != nullptr && nm[0] != '\0')
+        return o_name(p, "objective", nm, &p->oname);
     return JAOS_OK;
 }
 
@@ -639,10 +677,14 @@ static jaos_status o_parse(ox *p)
             p->in_header = p->kind == OX_START;
         } else if (strcmp(n, "name") == 0 && p->in_header) {
             if (p->kind == OX_START) {
-                free(p->pname);
-                p->pname = x_text_dup(p);
-                if (p->pname == nullptr)
+                char *t = x_text_dup(p);
+                if (t == nullptr)
                     FAIL_OOM();
+                st = t[0] != '\0' ? o_name(p, "instance", t, &p->pname)
+                                  : JAOS_OK;
+                free(t);
+                if (st != JAOS_OK)
+                    return st;
             }
         } else if (strcmp(n, "variables") == 0) {
             if ((st = o_count(p, "numberOfVariables", &p->want_var,

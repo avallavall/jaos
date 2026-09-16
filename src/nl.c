@@ -491,10 +491,11 @@ static jaos_status nl_build(nl *p, const char *path)
             }
             if (n > 3 && strcmp(base + n - 3, ".nl") == 0)
                 base[n - 3] = '\0';
+            const int64_t extra = p->nobj > 0 ? 1 : 0;
             char **cn = nl_names(m, base, ".col", nc);
-            char **rn = nl_names(m, base, ".row", nr + 1);
+            char **rn = nl_names(m, base, ".row", nr + extra);
             char *on = nullptr;
-            if (rn != nullptr) {
+            if (rn != nullptr && extra == 1) {
                 on = rn[nr];
                 rn[nr] = nullptr;
             }

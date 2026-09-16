@@ -790,6 +790,10 @@ case "$err" in
 esac
 [ -f "$tmp/gq.nl" ] && flunk "the refused convert left a .nl behind" \
     || pass "and wrote no .nl"
+expect_exit 0 "an OSiL name with spaces converts to MPS" \
+    "$JAOS" convert "$DATA/g_osil_spaces.osil" "$tmp/spaces.mps"
+expect_exit 0 "and the MPS is the same model, names with underscores" \
+    "$JAOS" diff "$DATA/g_osil_spaces.osil" "$tmp/spaces.mps"
 expect_exit 0 "convert OSiL back to MPS exits 0" \
     "$JAOS" convert "$tmp/gq.osil" "$tmp/gq_osil.mps"
 expect_exit 0 "the MPS written from OSiL solves" "$JAOS" solve "$tmp/gq_osil.mps"

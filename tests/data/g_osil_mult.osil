@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- variables and constraints repeated by mult, as p0033MULT.osil writes them -->
+<osil xmlns="os.optimizationservices.org">
+<instanceHeader><name>mult</name></instanceHeader>
+<instanceData>
+<variables numberOfVariables="3">
+<var mult="2" type="B"/>
+<var name="z" lb="0" ub="4"/>
+</variables>
+<objectives numberOfObjectives="1">
+<obj maxOrMin="max" numberOfObjCoef="3">
+<coef idx="0">3</coef>
+<coef idx="1">2</coef>
+<coef idx="2">1</coef>
+</obj>
+</objectives>
+<constraints numberOfConstraints="3">
+<con mult="2" ub="1.5"/>
+<con name="cap" ub="5"/>
+</constraints>
+<linearConstraintCoefficients numberOfValues="5">
+<start><el>0</el><el>2</el><el>4</el><el>5</el></start>
+<rowIdx><el>0</el><el>2</el><el>1</el><el>2</el><el>2</el></rowIdx>
+<value><el>1</el><el>1</el><el>1</el><el>1</el><el>1</el></value>
+</linearConstraintCoefficients>
+</instanceData>
+</osil>
