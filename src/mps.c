@@ -648,12 +648,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     jaos_status open_st = jm_slurp(m, path, &src, &srclen);
     if (open_st != JAOS_OK)
         return open_st;
-    FILE *f = jm_fmemopen_read(src, (size_t)srclen);
-    if (f == nullptr) {
-        free(src);
-        jm_set_err(m, "out of memory reading '%s'", path);
-        return JAOS_ERR_OUT_OF_MEMORY;
-    }
+    int64_t at = 0;
 
     jm_locale loc;
     jm_locale_c_enter(&loc);
@@ -673,7 +668,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
     size_t lsz = 0;
     char *tok[MAXTOK];
 
-    while (!ended && jm_getline(&line, &lsz, f) >= 0) {
+    while (!ended && jm_memline(src, srclen, &at, &line, &lsz) >= 0) {
         r->lno++;
         if (line[0] == '*')
             continue;
@@ -994,7 +989,6 @@ done:
     free(line);
     rd_free(r);
     jm_locale_leave(&loc);
-    fclose(f);
     free(src);
     return st;
 }

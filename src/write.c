@@ -79,7 +79,7 @@ static bool wr_open(wr *w, const char *path, jm_locale *loc)
     if (w->gz)
         w->f = jm_memstream_open(&w->ms) ? w->ms.f : nullptr;
     else
-        w->f = fopen(path, "w");
+        w->f = fopen(path, "wb");
     if (w->f == nullptr) {
         jm_locale_leave(loc);
         wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
@@ -898,7 +898,7 @@ static void nl_names_file(wr *w, const char *base, const char *ext,
     }
     strcpy(path, base);
     strcat(path, ext);
-    FILE *f = fopen(path, "w");
+    FILE *f = fopen(path, "wb");
     if (f == nullptr) {
         wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
         free(path);
@@ -1673,7 +1673,7 @@ typedef struct {
 static jaos_status read_solution_file(jaos_model *m, const char *path,
                                       int want_optimal, sol_read *o)
 {
-    FILE *f = fopen(path, "r");
+    FILE *f = fopen(path, "rb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for reading", path);
         return JAOS_ERR_IO;
@@ -2118,7 +2118,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    FILE *f = fopen(path, "r");
+    FILE *f = fopen(path, "rb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for reading", path);
         return JAOS_ERR_IO;
@@ -2323,7 +2323,7 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
 {
     const int64_t n = is_col ? m->num_col : m->num_row;
 
-    FILE *f = fopen(path, "r");
+    FILE *f = fopen(path, "rb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for reading", path);
         return JAOS_ERR_IO;

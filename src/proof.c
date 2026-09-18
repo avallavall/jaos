@@ -72,7 +72,7 @@ jaos_status jaos_write_proof(jaos_model *m, const char *path)
         }
     }
 
-    FILE *f = fopen(path, "w");
+    FILE *f = fopen(path, "wb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for writing", path);
         return JAOS_ERR_IO;
@@ -246,7 +246,7 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         seen_row == nullptr)
         goto done;
 
-    f = fopen(path, "r");
+    f = fopen(path, "rb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s'", path);
         rc = JAOS_ERR_IO;

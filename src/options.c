@@ -346,7 +346,7 @@ jaos_status jaos_read_options(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    FILE *f = fopen(path, "r");
+    FILE *f = fopen(path, "rb");
     if (f == nullptr) {
         jm_set_err(m, "cannot open '%s' for reading", path);
         return JAOS_ERR_IO;

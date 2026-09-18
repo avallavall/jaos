@@ -26,7 +26,8 @@ void jm_locale_leave(jm_locale *l);
 
 int64_t jm_getline(char **line, size_t *cap, FILE *f);
 
-FILE *jm_fmemopen_read(const char *src, size_t len);
+int64_t jm_memline(const char *src, int64_t len, int64_t *at, char **line,
+                   size_t *cap);
 
 typedef struct {
     FILE *f;

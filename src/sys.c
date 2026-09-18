@@ -12,7 +12,10 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 #include <locale.h>
+#include <sys/stat.h>
 
 bool jm_locale_c_enter(jm_locale *l)
 {
@@ -46,16 +49,24 @@ void jm_locale_leave(jm_locale *l)
     l->active = false;
 }
 
-FILE *jm_fmemopen_read(const char *src, size_t len)
+static FILE *scratch_file(void)
 {
-    FILE *f = tmpfile();
-    if (f == nullptr)
+    char dir[MAX_PATH + 1], name[MAX_PATH + 1];
+    const DWORD n = GetTempPathA(sizeof dir, dir);
+    if (n == 0 || n > MAX_PATH)
         return nullptr;
-    if (len > 0 && fwrite(src, 1, len, f) != len) {
-        fclose(f);
+    if (GetTempFileNameA(dir, "jms", 0, name) == 0)
+        return nullptr;
+    const int fd = _open(name, _O_RDWR | _O_BINARY | _O_TRUNC |
+                               _O_TEMPORARY | _O_SHORT_LIVED,
+                         _S_IREAD | _S_IWRITE);
+    if (fd < 0) {
+        DeleteFileA(name);
         return nullptr;
     }
-    rewind(f);
+    FILE *f = _fdopen(fd, "w+b");
+    if (f == nullptr)
+        _close(fd);
     return f;
 }
 
@@ -63,7 +74,7 @@ bool jm_memstream_open(jm_memstream *ms)
 {
     ms->buf = nullptr;
     ms->len = 0;
-    ms->f = tmpfile();
+    ms->f = scratch_file();
     return ms->f != nullptr;
 }
 
@@ -181,11 +192,6 @@ void jm_locale_leave(jm_locale *l)
     l->active = false;
 }
 
-FILE *jm_fmemopen_read(const char *src, size_t len)
-{
-    return fmemopen((void *)src, len, "r");
-}
-
 bool jm_memstream_open(jm_memstream *ms)
 {
     ms->buf = nullptr;
@@ -285,5 +291,33 @@ int64_t jm_getline(char **line, size_t *cap, FILE *f)
             break;
     }
     (*line)[n] = '\0';
+    return (int64_t)n;
+}
+
+int64_t jm_memline(const char *src, int64_t len, int64_t *at, char **line,
+                   size_t *cap)
+{
+    if (src == nullptr || at == nullptr || line == nullptr || cap == nullptr ||
+        *at < 0 || *at >= len)
+        return -1;
+    int64_t end = *at;
+    while (end < len && src[end] != '\n')
+        end++;
+    if (end < len)
+        end++;
+    const size_t n = (size_t)(end - *at);
+    if (*line == nullptr || *cap < n + 1) {
+        size_t want = *cap > 0 ? *cap : 128;
+        while (want < n + 1)
+            want *= 2;
+        char *fresh = realloc(*line, want);
+        if (fresh == nullptr)
+            return -1;
+        *line = fresh;
+        *cap = want;
+    }
+    memcpy(*line, src + *at, n);
+    (*line)[n] = '\0';
+    *at = end;
     return (int64_t)n;
 }

@@ -76,11 +76,14 @@ installed.
 ## Windows
 
 Every call the C standard does not provide sits behind one shim,
-`src/jaos_sys.h` and `src/sys.c`: `getline`, `fmemopen`, `open_memstream`,
-the per-thread C locale (`newlocale`, `uselocale`), `strcasecmp` and the
-monotonic clock. The POSIX half is what Linux builds; the Windows half uses
-`tmpfile`, `_configthreadlocale`, `_stricmp` and `QueryPerformanceCounter`.
-Nothing else in `src/` or `cli/` is platform-specific.
+`src/jaos_sys.h` and `src/sys.c`: `getline`, `open_memstream`, the
+per-thread C locale (`newlocale`, `uselocale`), `strcasecmp`, the monotonic
+clock and threads. The POSIX half is what Linux builds; the Windows half
+uses a scratch file in `GetTempPath` opened with `_O_TEMPORARY`,
+`_configthreadlocale`, `_stricmp`, `QueryPerformanceCounter` and
+`CreateThread`. Nothing else in `src/` or `cli/` is platform-specific.
+Every file the library writes is opened in binary mode, so a Windows build
+writes the same bytes as a Linux one, LF line ends included.
 
 The build is checked by cross-compiling from Linux: `cmake/mingw-w64.cmake`
 is the toolchain file, and `tests/windows.sh` (part of `make test`, skipped
@@ -91,6 +94,16 @@ MPS, an LP-format file and an unbounded model, and on a gzip write, and
 requires every answer and every byte of output to equal the Linux build's.
 Install both with `apt install gcc-mingw-w64-x86-64 wine64`.
 
+**Inside WSL the same script runs the tool natively on the Windows host**,
+through WSL's interop: seven models including two QPs, the concurrent
+solve on one and three threads, a native `convert` to MPS, LP and
+`.mps.gz` compared byte for byte with Linux's, the solution file, a native
+`check` of the Linux build's solution file, and, when the host has a
+Windows `python.exe`, the Python binding's whole suite on `libjaos.dll`.
+The first native run found what wine had hidden: the Microsoft C library's
+`tmpfile()` writes to the root of `C:\`, which a normal user may not, and
+every MPS read went through it (`bench/measurements/02-251/`).
+
 ```
 cmake -S . -B build/win -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DJAOS_BUILD_TESTS=OFF
 cmake --build build/win
@@ -98,8 +111,9 @@ cmake --build build/win
 
 MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
 `nullptr`, which its C front end does not accept. clang-cl should, since the
-shim compiles under `_WIN32` with no GCC-only call in it, but no machine with
-clang-cl has run it yet. The Python binding looks for `jaos.dll` or
+shim compiles under `_WIN32` with no GCC-only call in it, but clang-cl needs
+Microsoft's C runtime headers and libraries, which come only under
+Microsoft's licence, and no machine here has them. The Python binding looks for `jaos.dll` or
 `libjaos.dll` on Windows, beside itself or under `build/cmake`, and for
 `libjaos.dylib` on macOS; `JAOS_LIBRARY` overrides both.
 
