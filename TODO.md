@@ -51,7 +51,9 @@ the commit that took it, named here by hash.
    first reading (`bench/measurements/02-250/`) found and 808022a fixed
    the NaN points, the 1e-6 row slips, the four unreadable files and the
    handoff that ground the dual simplex; six more fixes followed from its
-   list (02-250, "After the reading"). What it leaves, 126 of 138 clean:
+   list (02-250, "After the reading"), and the push's stretch and its
+   longer freeing took two more on 2026-09-19. What it leaves, 128 of 138
+   clean, 133 `OPTIMAL` and 132 taken by the checker:
 
    - **dtoc3** answered wrong until the scale exponent was capped at
      `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
@@ -79,11 +81,14 @@ the commit that took it, named here by hash.
      unsatisfied and stands down). cvxqp1_l, cvxqp3_l,
      powell20, huestis, qforplan and qpcboei2 were here until a quadratic
      model got its own divergence limit, `BARRIER_DIVERGE_QP`.
-   - **three the checker refuses with the objective right**: qsierra and
-     qgfrdxpn, where the push pins one variable a round on a flat face and
-     gives up at 40 (100 does not help), and qgrow22, whose push leaves
-     1575 rows unsatisfied; the barrier's own duals are off by 3e-6 to 1e6
-     in absolute terms, 1e-6 relative to its costs. liswet10 and liswet11
+   - **one the checker refuses with the objective right**: qgrow22. Its
+     first push step came out NaN, and since 2026-09-19 the push takes
+     such a round again on a larger regularisation; it then runs 40
+     rounds and ends with 19 pinned variables of the wrong sign, the worst
+     2.4e5 against 2.8e-9. The barrier's own duals are off by 3e-6.
+     qsierra and qgfrdxpn were here until the push learned to stretch a
+     stalled step along the rows' null space (`QP_PUSH_EXTRAPOLATE`) and
+     to go on freeing while the wrong signs fall. liswet10 and liswet11
      were here until the walk learned to go on to `BARRIER_TOL_QP` when
      the push does not settle; qsierra and qgrow22 cannot reach it.
      qisrael, qpilotno and boyd1 were the same list until the push

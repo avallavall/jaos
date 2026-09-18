@@ -39,6 +39,7 @@ constexpr double  QP_PUSH_NEAR   = 1e-7;
 constexpr double  QP_PUSH_USER_TOL = 1e-7;
 constexpr int64_t QP_PUSH_ROUNDS = 40;
 constexpr int64_t QP_PUSH_FREEINGS = 3;
+constexpr double  QP_PUSH_EXTRAPOLATE = 1e6;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 enum { PUSH_FREE = 0, PUSH_LOWER = 1, PUSH_UPPER = 2 };
@@ -101,6 +102,7 @@ typedef struct {
 
     const int8_t *pin;
     bool *dec;
+    double push_delta;
 } bx;
 
 static void bx_free(bx *s)
@@ -595,7 +597,7 @@ static jaos_status form_aug(bx *s, bool with_q)
     for (int64_t i = 0; i < s->nrow; i++) {
         const bool dec = s->dec != nullptr && s->dec[i];
         s->aug_value[p++] = dec ? 1.0
-                          : pin != nullptr ? QP_PUSH_DELTA : s->delta;
+                          : pin != nullptr ? s->push_delta : s->delta;
         for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++)
             if (s->aug_of[m->ar_index[q]] >= 0)
                 s->aug_value[p++] =
@@ -749,7 +751,7 @@ static jaos_status form_normal(bx *s)
         }
         if (s->kind[s->ncol + i] != FIXED)
             s->acc[i] += s->theta[s->ncol + i];
-        s->acc[i] += s->pin != nullptr ? QP_PUSH_DELTA : s->delta;
+        s->acc[i] += s->pin != nullptr ? s->push_delta : s->delta;
         if (s->dec != nullptr && s->dec[i])
             s->acc[i] = 1.0;
         for (int64_t q = s->n_start[i]; q < s->n_start[i + 1]; q++) {
@@ -1561,10 +1563,13 @@ static jaos_status qp_push(bx *s)
         col_tol[j] = user < tol_p ? user : tol_p;
     }
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
+    int64_t last_wrong = INT64_MAX;
     bool stuck = false;
     double worst_sign = 0.0;
     double *zt = s->dw;
-    bool settled = false, fresh = true;
+    bool settled = false, fresh = true, stagnant = false;
+    double push_reg = QP_PUSH_REG;
+    s->push_delta = QP_PUSH_DELTA;
     const double *gamma = m->col_scale, *rho = m->row_scale;
     double alpha = 1.0;
     for (round = 1; round <= QP_PUSH_ROUNDS; round++) {
@@ -1576,7 +1581,7 @@ static jaos_status qp_push(bx *s)
                 s->theta[j] = s->dense[j] ? QP_PUSH_DENSE_THETA : 0.0;
                 continue;
             }
-            const double inv = s->quad[j] + QP_PUSH_REG;
+            const double inv = s->quad[j] + push_reg;
             if (s->augmented)
                 s->inv[j] = inv;
             s->theta[j] = 1.0 / inv;
@@ -1632,7 +1637,7 @@ static jaos_status qp_push(bx *s)
                     continue;
                 }
                 const double qdz = (qd != nullptr ? qd[j] : s->quad[j] * s->dz[j]) +
-                                   QP_PUSH_REG * s->dz[j];
+                                   push_reg * s->dz[j];
                 rt2[j] = s->rt[j] + qdz - s->tmp[j];
             }
             newton(s, rp2, rt2, dy2, dz2);
@@ -1641,6 +1646,25 @@ static jaos_status qp_push(bx *s)
             for (int64_t i = 0; i < nr; i++)
                 s->dy[i] += dy2[i];
             jm_work_add(&s->work, (2 * nv + nr) * JM_WORK_NONZERO);
+        }
+        bool finite = true;
+        for (int64_t j = 0; finite && j < nv; j++)
+            finite = isfinite(s->dz[j]);
+        for (int64_t i = 0; finite && i < nr; i++)
+            finite = isfinite(s->dy[i]);
+        if (!finite) {
+            if (push_reg * BARRIER_REG_GROWTH > BARRIER_REG_MAX) {
+                stuck = true;
+                break;
+            }
+            push_reg *= BARRIER_REG_GROWTH;
+            s->push_delta *= BARRIER_REG_GROWTH;
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "  push round %lld: the step is not finite; the proximal "
+                   "term goes to %.1e and the rows' to %.1e",
+                   (long long)round, push_reg, s->push_delta);
+            fresh = true;
+            continue;
         }
 
         alpha = 1.0;
@@ -1662,18 +1686,62 @@ static jaos_status qp_push(bx *s)
         }
         if (!(alpha > 0.0))
             alpha = 0.0;
+        bool extended = false;
+        if (stagnant && alpha == 1.0) {
+            for (int64_t i = 0; i < nr; i++)
+                rp2[i] = 0.0;
+            newton(s, rp2, s->rt, dy2, dz2);
+            const double *qd = grad_q(s, dz2);
+            double slope = 0.0, curv = 0.0, reach = HUGE_VAL;
+            for (int64_t j = 0; j < nv; j++) {
+                const uint8_t k = s->kind[j];
+                if (k == FIXED || pin[j] != PUSH_FREE || dz2[j] == 0.0)
+                    continue;
+                const double dj = dz2[j], at = zn[j] + s->dz[j];
+                slope += s->rt[j] * dj;
+                curv += dj * (qd != nullptr ? qd[j] : s->quad[j] * dj);
+                if ((k & HAS_LO) && dj < 0.0 && (s->lo[j] - at) / dj < reach)
+                    reach = (s->lo[j] - at) / dj;
+                if ((k & HAS_UP) && dj > 0.0 && (s->up[j] - at) / dj < reach)
+                    reach = (s->up[j] - at) / dj;
+            }
+            jm_work_add(&s->work, (3 * nv + nr) * JM_WORK_NONZERO);
+            const double best = curv > 0.0 ? -slope / curv - 1.0 : HUGE_VAL;
+            double extra = best < reach ? best : reach;
+            if (extra > QP_PUSH_EXTRAPOLATE)
+                extra = QP_PUSH_EXTRAPOLATE;
+            bool keeps_rows = slope < 0.0 && extra >= 1.0;
+            if (keeps_rows) {
+                mul_e(s, dz2, rp2);
+                for (int64_t i = 0; keeps_rows && i < nr; i++)
+                    keeps_rows = fabs(rp2[i]) * extra <= 0.1 * row_tol[i];
+            }
+            if (keeps_rows) {
+                for (int64_t j = 0; j < nv; j++)
+                    if (s->kind[j] != FIXED && pin[j] == PUSH_FREE)
+                        s->dz[j] += extra * dz2[j];
+                extended = true;
+                jm_log(s->m, JAOS_LOG_DETAIL,
+                       "  push round %lld: the proximal step stalls on a "
+                       "flat face, so the step goes %.3e times further "
+                       "along the rows' null space (the line minimum %.3e "
+                       "further, the first bound %.3e)",
+                       (long long)round, extra, best, reach);
+            }
+        }
+        stagnant = false;
         moved = 0;
         for (int64_t j = 0; j < nv; j++) {
             const uint8_t k = s->kind[j];
             if (k == FIXED)
                 continue;
             if (pin[j] != PUSH_FREE) {
-                zn[j] = alpha == 1.0 ? zt[j] : zn[j] + alpha * (zt[j] - zn[j]);
+                zn[j] = alpha >= 1.0 ? zt[j] : zn[j] + alpha * (zt[j] - zn[j]);
                 continue;
             }
             const double dj = s->dz[j];
             zn[j] += alpha * dj;
-            if (alpha == 1.0)
+            if (alpha == 1.0 && !extended)
                 continue;
             if ((k & HAS_LO) && dj < 0.0 && zn[j] <= s->lo[j] + near_p) {
                 pin[j] = PUSH_LOWER;
@@ -1690,6 +1758,8 @@ static jaos_status qp_push(bx *s)
             yn[i] += s->dy[i];
         pinned += moved;
         jm_work_add(&s->work, (3 * nv + nr) * JM_WORK_NONZERO);
+        if (moved > 0)
+            fresh = true;
         if (alpha < 1.0) {
             jm_log(s->m, JAOS_LOG_DETAIL,
                    "  push round %lld: step %.3e, %lld more pinned, %lld "
@@ -1807,10 +1877,13 @@ static jaos_status qp_push(bx *s)
             settled = true;
             break;
         }
-        if (wrong == 0)
+        if (wrong == 0) {
+            stagnant = !fresh;
             continue;
-        if (freed >= QP_PUSH_FREEINGS)
+        }
+        if (freed >= QP_PUSH_FREEINGS && wrong >= last_wrong)
             break;
+        last_wrong = wrong;
         for (int64_t j = 0; j < nv; j++) {
             if (s->kind[j] == FIXED || pin[j] == PUSH_FREE)
                 continue;
