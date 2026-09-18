@@ -376,6 +376,7 @@ class _RayReport(ctypes.Structure):
         ("rate", _D),
         ("max_col_escape", _D),
         ("max_row_escape", _D),
+        ("curvature", _D),
         ("certified", ctypes.c_bool),
     ]
 

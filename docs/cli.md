@@ -405,6 +405,12 @@ gap 3
 certified yes
 ```
 
+For an unbounded quadratic model the ray also has to be flat: `curvature`
+is `d'Qd` along the ray, and `certified` needs it within the tolerance
+times the largest `|q_ij|` times the largest `|d_j|` squared, because the
+quadratic term turns any other direction back up. On a linear model it
+reads 0.
+
 The exit code is 0 when `certified` is `yes` and 1 otherwise. A
 certificate whose numbers were changed still reads, because the reader
 judges the format and not the mathematics; it is the checker that refuses

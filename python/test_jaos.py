@@ -1022,6 +1022,20 @@ class TestCertificates(unittest.TestCase):
             self.assertFalse(r.certified)
             self.assertGreater(r.max_col_escape, 0.0)
 
+    def test_an_unbounded_qp_proves_it_along_a_flat_ray(self):
+        with jaos.Model() as m:
+            m.read_lp(data("g_qp_unbounded.lp"))
+            self.assertIs(m.solve(), jaos.SolveStatus.UNBOUNDED)
+            d = m.unbounded_ray()
+            self.assertGreater(d[0], 0.0)
+            self.assertAlmostEqual(d[0], d[1], places=12)
+            r = m.check_ray(d)
+            self.assertTrue(r.certified)
+            self.assertEqual(r.curvature, 0.0)
+            r = m.check_ray([0.0, 1.0])
+            self.assertFalse(r.certified)
+            self.assertEqual(r.curvature, 1.0)
+
     def test_a_wrong_length_never_reaches_c(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

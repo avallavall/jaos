@@ -785,7 +785,26 @@ jaos_status jaos_check_ray(const jaos_model *m, const double *col_ray,
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
     const bool improves =
         sigma * out->rate < -tol * (1.0 + acc_value(ctraf, ctrafc));
-    out->certified = improves && out->max_col_escape == 0.0 &&
+
+    double curv = 0.0, curvc = 0.0, qmax = 0.0, dmax = 0.0;
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const double d = col_ray[j];
+        dmax = max2(dmax, fabs(d));
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+            qmax = max2(qmax, fabs(m->col_quad[j]));
+            add_product(&curv, &curvc, m->col_quad[j] * d, d);
+        }
+    }
+    for (int64_t j = 0; m->q_start != nullptr && j < m->num_col; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            qmax = max2(qmax, fabs(m->q_value[p]));
+            add_product(&curv, &curvc, 2.0 * m->q_value[p] * col_ray[j],
+                        col_ray[m->q_index[p]]);
+        }
+    out->curvature = acc_value(curv, curvc);
+    const bool flat = fabs(out->curvature) <= tol * qmax * dmax * dmax;
+
+    out->certified = improves && flat && out->max_col_escape == 0.0 &&
                      out->max_row_escape == 0.0;
     return JAOS_OK;
 }

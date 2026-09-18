@@ -1947,6 +1947,7 @@ static int cmd_check(int argc, char **argv)
         print_num("rate", rrep.rate);
         print_num("max_col_escape", rrep.max_col_escape);
         print_num("max_row_escape", rrep.max_row_escape);
+        print_num("curvature", rrep.curvature);
         print_bool("certified", rrep.certified);
         rc = rrep.certified ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
         goto out;

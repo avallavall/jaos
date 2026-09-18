@@ -909,6 +909,121 @@ static void test_the_two_quadratic_calls_reach_the_same_matrix(void)
     jaos_model_free(b);
 }
 
+/* maximise x1 + x2 - 1/2 x1^2 over x1 + x2 >= 1, x1 in [0, 40], x2 >= 0.
+   x2 has no upper bound and no curvature, so d = (0, 1) takes the
+   objective up for ever. */
+static jaos_model *unbounded_qp(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[2] = {1.0, 1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {40.0, inf};
+    const double rl[1] = {1.0}, ru[1] = {inf};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, -1.0));
+    return m;
+}
+
+static void test_an_unbounded_qp_ends_unbounded_with_its_ray(void)
+{
+    jaos_model *m = unbounded_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    double d[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 0.0, d[0]);
+    TEST_ASSERT_TRUE(d[1] > 0.0);
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-9, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 0.0, rep.curvature);
+    jaos_model_free(m);
+}
+
+/* minimise -x2 + 1/2 (x1^2 + x2^2) over x1 + x2 >= -10, both free: the
+   curvature holds every direction, the optimum is x = (0, 1) at -0.5, and
+   the ray probe never runs. */
+static void test_a_bounded_qp_with_free_columns_is_not_called_unbounded(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[2] = {0.0, -1.0};
+    const double cl[2] = {-inf, -inf}, cu[2] = {inf, inf};
+    const double rl[1] = {-10.0}, ru[1] = {inf};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-8, -0.5, obj);
+    jaos_model_free(m);
+}
+
+/* minimise -x1 - x2 + 1/2 (x1 - x2)^2 with x >= 0 and x1 - x2 <= 3.
+   Q = [[1, -1], [-1, 1]] is singular, with (1, 1) its null space, so the
+   only improving direction the curvature lets through runs along both
+   columns at once, and the probe has to find it through the pair. */
+static jaos_model *paired_unbounded_qp(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[2] = {-1.0, -1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {inf, inf};
+    const double rl[1] = {-inf}, ru[1] = {3.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    const int64_t qr[3] = {0, 1, 1}, qc[3] = {0, 1, 0};
+    const double qv[3] = {1.0, 1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
+    return m;
+}
+
+static void test_a_paired_unbounded_qp_finds_the_ray_through_the_pair(void)
+{
+    jaos_model *m = paired_unbounded_qp();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    double d[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_TRUE(d[0] > 0.0);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, d[0], d[1]);
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-9, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+    jaos_model_free(m);
+}
+
+static void test_the_ray_checker_refuses_a_direction_the_curvature_turns(void)
+{
+    jaos_model *m = paired_unbounded_qp();
+    const double d[2] = {0.0, 1.0};
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, -1.0, rep.rate);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 0.0, rep.max_col_escape);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 0.0, rep.max_row_escape);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 1.0, rep.curvature);
+    TEST_ASSERT_FALSE(rep.certified);
+    const double e[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, e, 1e-7, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(0.0, 0.0, rep.curvature);
+    TEST_ASSERT_TRUE(rep.certified);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -938,6 +1053,10 @@ int main(void)
     RUN_TEST(test_the_push_puts_the_answer_on_its_bound);
     RUN_TEST(test_without_the_push_the_point_stops_short_of_the_bound);
     RUN_TEST(test_a_stalled_barrier_recentres_and_finishes);
+    RUN_TEST(test_an_unbounded_qp_ends_unbounded_with_its_ray);
+    RUN_TEST(test_a_bounded_qp_with_free_columns_is_not_called_unbounded);
+    RUN_TEST(test_a_paired_unbounded_qp_finds_the_ray_through_the_pair);
+    RUN_TEST(test_the_ray_checker_refuses_a_direction_the_curvature_turns);
     return UNITY_END();
 }
 

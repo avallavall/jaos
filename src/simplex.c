@@ -4001,6 +4001,135 @@ static bool has_inverted_box(const jaos_model *m, bool *is_row, int64_t *at)
     return false;
 }
 
+static jaos_status qp_ray_probe(jaos_model *m, bool *found, int64_t *work)
+{
+    *found = false;
+    *work = 0;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    const bool pairs = m->q_start != nullptr && m->q_nz > 0;
+    jaos_model *r = nullptr;
+    double *cost = nullptr, *lo = nullptr, *hi = nullptr, *rl = nullptr,
+           *ru = nullptr, *rv = nullptr, *d = nullptr;
+    int64_t *rmap = nullptr, *qmap = nullptr, *rs = nullptr, *ri = nullptr,
+            *fill = nullptr;
+    jaos_status st = jaos_model_new(&r);
+    if (st != JAOS_OK)
+        return st;
+    st = JAOS_ERR_OUT_OF_MEMORY;
+    cost = jm_alloc_array(nc, sizeof *cost);
+    lo = jm_alloc_array(nc, sizeof *lo);
+    hi = jm_alloc_array(nc, sizeof *hi);
+    d = jm_alloc_array(nc, sizeof *d);
+    rmap = jm_alloc_array(nr, sizeof *rmap);
+    qmap = jm_alloc_array(nc, sizeof *qmap);
+    if (!cost || !lo || !hi || !d || !rmap || !qmap)
+        goto out;
+    for (int64_t j = 0; j < nc; j++) {
+        cost[j] = sigma * m->col_cost[j];
+        lo[j] = isfinite(m->col_lower[j]) ? 0.0 : -1.0;
+        hi[j] = isfinite(m->col_upper[j]) ? 0.0 : 1.0;
+        qmap[j] = -1;
+    }
+    int64_t nrow2 = 0;
+    for (int64_t i = 0; i < nr; i++)
+        rmap[i] = (isfinite(m->row_lower[i]) || isfinite(m->row_upper[i]))
+                      ? nrow2++ : -1;
+    for (int64_t j = 0; j < nc; j++) {
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            qmap[j] = 0;
+        if (pairs)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++)
+                qmap[j] = qmap[m->q_index[p]] = 0;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        if (qmap[j] == 0)
+            qmap[j] = nrow2++;
+    rl = jm_alloc_array(nrow2, sizeof *rl);
+    ru = jm_alloc_array(nrow2, sizeof *ru);
+    rs = jm_calloc_array(nrow2 + 1, sizeof *rs);
+    fill = jm_alloc_array(nrow2, sizeof *fill);
+    if (!rl || !ru || !rs || !fill)
+        goto out;
+    for (int64_t i = 0; i < nr; i++) {
+        if (rmap[i] < 0)
+            continue;
+        rl[rmap[i]] = isfinite(m->row_lower[i]) ? 0.0 : -INFINITY;
+        ru[rmap[i]] = isfinite(m->row_upper[i]) ? 0.0 : INFINITY;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        if (qmap[j] >= 0)
+            rl[qmap[j]] = ru[qmap[j]] = 0.0;
+    for (int64_t j = 0; j < nc; j++) {
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            if (rmap[m->a_index[p]] >= 0)
+                rs[rmap[m->a_index[p]] + 1]++;
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            rs[qmap[j] + 1]++;
+        if (pairs)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+                rs[qmap[j] + 1]++;
+                rs[qmap[m->q_index[p]] + 1]++;
+            }
+    }
+    for (int64_t k = 0; k < nrow2; k++)
+        rs[k + 1] += rs[k];
+    const int64_t nz = rs[nrow2];
+    ri = jm_alloc_array(nz, sizeof *ri);
+    rv = jm_alloc_array(nz, sizeof *rv);
+    if (!ri || !rv)
+        goto out;
+    memcpy(fill, rs, (size_t)nrow2 * sizeof *fill);
+    for (int64_t j = 0; j < nc; j++) {
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            const int64_t k = rmap[m->a_index[p]];
+            if (k < 0)
+                continue;
+            ri[fill[k]] = j;
+            rv[fill[k]++] = m->a_value[p];
+        }
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0) {
+            ri[fill[qmap[j]]] = j;
+            rv[fill[qmap[j]]++] = m->col_quad[j];
+        }
+        if (pairs)
+            for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+                const int64_t i = m->q_index[p];
+                ri[fill[qmap[j]]] = i;
+                rv[fill[qmap[j]]++] = m->q_value[p];
+                ri[fill[qmap[i]]] = j;
+                rv[fill[qmap[i]]++] = m->q_value[p];
+            }
+    }
+    st = jaos_load_lp(r, nc, 0, JAOS_MINIMIZE, 0.0, cost, lo, hi, nullptr,
+                      nullptr, 0, nullptr, nullptr, nullptr);
+    if (st == JAOS_OK && nrow2 > 0)
+        st = jaos_add_rows(r, nrow2, rl, ru, nz, rs, ri, rv);
+    if (st == JAOS_OK)
+        st = jaos_solve(r);
+    *work = r->solve_work;
+    if (st != JAOS_OK || jaos_status_of(r) != JAOS_SOLVE_OPTIMAL)
+        goto out;
+    st = jaos_solution(r, d, nullptr, nullptr, nullptr);
+    if (st != JAOS_OK)
+        goto out;
+    jaos_ray_report rep = {0};
+    st = jaos_check_ray(m, d, PROBE_CERT_TOL, &rep);
+    if (st != JAOS_OK)
+        goto out;
+    if (rep.certified) {
+        for (int64_t j = 0; j < nc; j++)
+            m->sol_ray[j] = published(d[j]);
+        m->ray_ok = true;
+        *found = true;
+    }
+out:
+    jaos_model_free(r);
+    free(cost); free(lo); free(hi); free(d); free(rmap); free(qmap);
+    free(rl); free(ru); free(rs); free(ri); free(rv); free(fill);
+    return st;
+}
+
 jaos_status jm_dual_simplex(jaos_model *m)
 {
     jm_presolve p;
@@ -4326,11 +4455,13 @@ jaos_status jm_dual_simplex(jaos_model *m)
         break;
     }
 
+    bool qp_ray = false;
     if (quad_probe) {
         if (st == JAOS_OK && outcome == JAOS_SOLVE_INFEASIBLE) {
             m->err[0] = '\0';
             target->err[0] = '\0';
         } else {
+            qp_ray = st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL;
             outcome = JAOS_SOLVE_NUMERICAL_ERROR;
             st = JAOS_OK;
         }
@@ -4362,6 +4493,30 @@ jaos_status jm_dual_simplex(jaos_model *m)
             jm_log(m, JAOS_LOG_SUMMARY,
                    "the rows and bounds are infeasible, with a certified "
                    "ray, so the quadratic model is infeasible");
+        }
+    }
+    if (st == JAOS_OK && qp_ray) {
+        bool found = false;
+        int64_t ray_work = 0;
+        st = qp_ray_probe(m, &found, &ray_work);
+        m->solve_work += ray_work;
+        if (st == JAOS_OK && found) {
+            outcome = JAOS_SOLVE_UNBOUNDED;
+            m->solve_status = outcome;
+            m->err[0] = '\0';
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the rows and bounds are feasible, and the ray LP found "
+                   "a direction the rows admit along which the quadratic "
+                   "term is zero and the objective improves, certified, so "
+                   "the quadratic model is unbounded; %lld work units for "
+                   "the ray", (long long)ray_work);
+        } else if (st == JAOS_OK) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the rows and bounds are feasible and the ray LP found "
+                   "no certified direction along which the quadratic term "
+                   "is zero and the objective improves, so the barrier's "
+                   "stop stands; %lld work units for the ray",
+                   (long long)ray_work);
         }
     }
 

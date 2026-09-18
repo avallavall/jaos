@@ -615,6 +615,16 @@ case "$(line_of objective)" in
     "objective -327.125"|"objective -327.1250"*|"objective -327.1249"*) pass "to objective -327.125" ;;
     *) flunk "pivot-losing QP objective '$(line_of objective)'" ;;
 esac
+expect_exit 2 "a QP whose cost falls along a flat ray exits 2" \
+    "$JAOS" solve "$DATA/g_qp_unbounded.lp" --solution "$tmp/qu.sol"
+[ "$(line_of status)" = "status unbounded" ] \
+    && pass "and prints 'status unbounded'" \
+    || flunk "unbounded QP printed '$(line_of status)'"
+expect_exit 0 "and the checker certifies the ray it wrote" \
+    "$JAOS" check "$DATA/g_qp_unbounded.lp" "$tmp/qu.sol"
+[ "$(line_of curvature)" = "curvature 0" ] && [ "$(line_of certified)" = "certified yes" ] \
+    && pass "with no curvature along it" \
+    || flunk "unbounded QP ray: $(line_of curvature) / $(line_of certified)"
 expect_exit 5 "--algorithm primal refuses a quadratic objective" \
     "$JAOS" solve "$DATA/g_quad.lp" --algorithm primal
 expect_exit 0 "convert of a QP to MPS exits 0" \

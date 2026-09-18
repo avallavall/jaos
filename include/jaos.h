@@ -629,6 +629,7 @@ typedef struct jaos_ray_report {
     double rate;
     double max_col_escape;
     double max_row_escape;
+    double curvature;
     bool certified;
 } jaos_ray_report;
 
