@@ -391,7 +391,7 @@ that line is missing against.
 | Write compressed output | ● | ? | ? | ? | ? | ? | ? |
 | Direct load from arrays | ● | ● | ● | ● | ● | ● | ● |
 | Write MPS | ● | ● | ● | ● | ● | ● | ? |
-| Write LP | ◐ | ● | ● | ● | ● | ● | ? |
+| Write LP | ● | ● | ● | ● | ● | ● | ? |
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
 | Reject unsupported constructs with a line number | ● | ? | ? | ? | ? | ? | ? |
 
@@ -407,10 +407,10 @@ gate instances and `gzip -dc` returns the plain write byte for byte, at
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
 
-The three writer rows moved from ○ on 2026-08-31. Write LP is ◐ because
-the dialect is narrower than a model: a free row is refused by name, and the
-message points at `jaos_write_mps`, which has no such limit. A ranged row is
-**not** refused — D239 writes it as the two-sided form and reads it back as
+The three writer rows moved from ○ on 2026-08-31. Write LP was ◐ because
+the dialect is narrower than a model: a free row was refused by name, and the
+message pointed at `jaos_write_mps`, which has no such limit. A ranged row
+was **not** refused — D239 wrote it as the two-sided form and read it back as
 one row with two ends — and a row with no coefficients is written as a zero
 term and read back as the empty row it was. What JAOS writes it reads
 back as the same model, checked field by field and name by name: 139 of 139
@@ -424,11 +424,18 @@ positional names, which no scanner refuses.
 **Since D346 the caller can ask for that.** `jaos convert IN OUT
 --positional` takes every name off the model first, and the same 139 read
 **138 written and re-solved with 1 refused** (`bench/measurements/02-219/`)
--- the same 138 and 1, now a flag instead of a limitation. The one left is
-`greenbea`'s free row, which no renaming reaches. The row stays ◐ because
-the default still refuses those 34 by name, which is the right default: a
-writer that renamed on its own would produce a file the caller did not ask
-for.
+-- the same 138 and 1, now a flag instead of a limitation. The one left was
+`greenbea`'s free row, which no renaming reached.
+
+**Write LP reads ● since 2026-09-19.** A free row is written `>= -inf`,
+which HiGHS reads as a free row too, and a ranged row as two rows joined by
+a `\ range` comment that JAOS's reader folds back; the two-sided form D239
+chose is JAOS's own and HiGHS refuses it or, with a coefficient of 1 in
+front, silently reads another model. Read against HiGHS 1.15.1 over 2000
+generated models, 4000 MPS and LP files: before the change 38 of 51 LP
+files at one seed and 9 of 38 MIPs through MPS disagreed (the MPS one an
+integer column with no bound, which HiGHS reads as a binary, now written
+with `PL`); after it none does (`bench/measurements/02-252/`).
 
 Write MPS reads ● and still has three refusals, which is not a contradiction:
 two of them are shapes the format itself has no syntax for, and the third is a

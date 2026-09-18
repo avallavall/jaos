@@ -190,9 +190,19 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   open with a signed variable, `- x1 + 3 x2 >= 0`, whether or not the
   row before it ended in a number. Before 2026-09-16 a leading sign had
   to be followed by a number, and a `-` after a right-hand side was read
-  as the start of an indicator's `->`. **A ranged (two-sided) constraint** `l <= expr <= u`
+  as the start of an indicator's `->`. **An infinite right-hand side**,
+  `>= -inf` or `<= inf` (`infinity` too), is a free row, which is how
+  HiGHS reads it as well; `>= inf`, `<= -inf` and `= inf`, which no finite
+  activity meets, are refused by line. **A ranged (two-sided) constraint** `l <= expr <= u`
   reads as one row with two ends; the two operators must point the
-  same way. **A constant inside the expression** moves to the other side of
+  same way. Other readers do not take this form: HiGHS 1.15 refuses it,
+  or reads `-12 <= 1 x - 6 y <= -11` as two other rows without a word.
+  **A `\ range A B` comment** joins two rows back into one ranged row:
+  when row `A` is `>= l`, row `B` is `<= u` with `l < u`, and the two carry
+  the same terms in the same order and the same indicator, `B` is dropped
+  and `A` gets both ends. Any other pair stays two rows, so a file edited
+  by hand reads as what it says. The writer prints every ranged row this
+  way. **A constant inside the expression** moves to the other side of
   the relation with its sign flipped, so `3x + 5 <= 10` is the row
   `3x <= 5`; on a two-sided row both ends shift by it. A signed
   number at the head of a constraint is a left-hand bound only when a
@@ -436,12 +446,16 @@ name a column that appears in no row at all.
 
 ### What the LP dialect cannot express
 
-One more, on top of the two above. It is refused by name and the message
-points at `jaos_write_mps`, which takes the same model:
-
-- a **free row**, which the format has no place for. A constraint with no
-  bound on either side is not a constraint, and the two-sided form takes
-  numbers rather than `inf`, so there is no spelling for one.
+Nothing beyond the two refusals above, since 2026-09-19. **A free row**
+was the one more until then, refused by name with a pointer to MPS. It is
+written as `>= -inf` now, which HiGHS reads as a free row too, and the
+reader takes it back. **A ranged row** is written as two rows, `A: ... >= l`
+and `A_hi: ... <= u`, with a `\ range A A_hi` comment at the top that
+joins them back into one row when JAOS reads the file. HiGHS writes a
+ranged row as two rows as well. Until 2026-09-19 the writer printed
+`A: l <= ... <= u`, which HiGHS 1.15 refuses, or with a coefficient of 1
+in front reads as two different rows and a different model, silently
+(`bench/measurements/02-252/`, 38 of 51 LP files misread).
 
 Two others were on this list and both closed. A ranged row until D239: the
 reader learned the two-sided form and the row reads back as one row with two

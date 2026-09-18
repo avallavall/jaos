@@ -281,22 +281,106 @@ static void test_lp_wraps_without_changing_the_model(void)
     remove(TMP_LP);
 }
 
-static void test_lp_refuses_what_the_dialect_cannot_say(void)
+static void test_lp_carries_every_shape_mps_does(void)
 {
     jaos_model *m = build_every_shape();
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "MPS instead"));
-    TEST_ASSERT_FALSE_MESSAGE(file_exists(TMP_LP),
-        "a refused LP write left a partial file behind");
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model *back = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(back, TMP_LP));
+    assert_same_model(m, back);
+    jaos_model_free(back);
 
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps(m, TMP_MPS));
-    jaos_model *back = fresh();
+    back = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(back, TMP_MPS));
     assert_same_model(m, back);
 
     jaos_model_free(m);
     jaos_model_free(back);
+    remove(TMP_LP);
     remove(TMP_MPS);
+}
+
+static bool file_holds(const char *path, const char *text)
+{
+    FILE *f = fopen(path, "rb");
+    if (f == nullptr)
+        return false;
+    static char buf[1 << 16];
+    const size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    return strstr(buf, text) != nullptr;
+}
+
+static void write_text(const char *path, const char *text)
+{
+    FILE *f = fopen(path, "wb");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs(text, f);
+    fclose(f);
+}
+
+static void test_lp_reads_two_halves_that_differ_as_two_rows(void)
+{
+    write_text(TMP_LP,
+               "\\ range r r_hi\n"
+               "Minimize\n obj: x\nSubject To\n"
+               " r: x + y >= 1\n r_hi: x + 2 y <= 4\nEnd\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    jaos_model_free(m);
+
+    write_text(TMP_LP,
+               "\\ range r r_hi\n"
+               "Minimize\n obj: x\nSubject To\n"
+               " r: x + y >= 1\n s: x - y = 0\n r_hi: x + y <= 4\nEnd\n");
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_row(m));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->row_lower[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, m->row_upper[0]);
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 1, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("s", nm);
+    jaos_model_free(m);
+    remove(TMP_LP);
+}
+
+static void test_lp_reads_an_infinite_right_hand_side_as_a_free_row(void)
+{
+    write_text(TMP_LP,
+               "Minimize\n obj: x\nSubject To\n"
+               " a: x + y >= -inf\n b: x - y <= infinity\n c: x >= 1\nEnd\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_row(m));
+    for (int64_t i = 0; i < 2; i++) {
+        TEST_ASSERT_TRUE(m->row_lower[i] == -INFINITY);
+        TEST_ASSERT_TRUE(m->row_upper[i] == INFINITY);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, " a: 1 x + 1 y >= -inf\n"));
+    jaos_model *back = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(back, TMP_LP));
+    assert_same_model(m, back);
+    jaos_model_free(back);
+    jaos_model_free(m);
+
+    static const char *bad[] = {" a: x >= inf\n", " a: x <= -inf\n",
+                                " a: x = inf\n"};
+    for (int k = 0; k < 3; k++) {
+        char text[256];
+        snprintf(text, sizeof text,
+                 "Minimize\n obj: x\nSubject To\n%sEnd\n", bad[k]);
+        write_text(TMP_LP, text);
+        m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_read_lp(m, TMP_LP));
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "line 4:"));
+        jaos_model_free(m);
+    }
+    remove(TMP_LP);
 }
 
 static void test_lp_keeps_column_order_when_a_cost_is_zero(void)
@@ -382,7 +466,6 @@ static void test_each_lp_guard_fires_on_its_own(void)
         const char *want;
     } cases[] = {
 
-        {-INFINITY, INFINITY,  0.0, INFINITY, true,  "is free"},
         {INFINITY, INFINITY,   0.0, INFINITY, true,  "at an infinity"},
 
         {0.0, 0.0,        INFINITY, INFINITY, true,  "at an infinity"},
@@ -451,6 +534,18 @@ static void test_a_ranged_row_round_trips_through_lp(void)
     remove(TMP_LP);
 }
 
+static void test_lp_writes_a_ranged_row_as_two_rows_other_readers_take(void)
+{
+    jaos_model *m = one_by_one(1.0, 4.0, 0.0, INFINITY, true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model_free(m);
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, "\\ range R1 R1_hi\n"));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, " R1: 1 C1 >= 1\n"));
+    TEST_ASSERT_TRUE(file_holds(TMP_LP, " R1_hi: 1 C1 <= 4\n"));
+    TEST_ASSERT_FALSE(file_holds(TMP_LP, ": 1 <="));
+    remove(TMP_LP);
+}
+
 static void test_each_mps_guard_fires_on_its_own(void)
 {
 
@@ -479,7 +574,7 @@ static void test_a_refusal_leaves_an_existing_file_alone(void)
         fclose(f);
     }
 
-    jaos_model *m = one_by_one(-INFINITY, INFINITY, 0.0, INFINITY, true);
+    jaos_model *m = one_by_one(INFINITY, INFINITY, 0.0, INFINITY, true);
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
     jaos_model_free(m);
 
@@ -947,18 +1042,6 @@ static void test_two_of_a_name_are_refused_by_every_writer(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
     remove(TMP_LP);
     jaos_model_free(m);
-}
-
-static bool file_holds(const char *path, const char *needle)
-{
-    FILE *f = fopen(path, "rb");
-    if (f == nullptr)
-        return false;
-    char buf[8192];
-    const size_t n = fread(buf, 1, sizeof buf - 1, f);
-    fclose(f);
-    buf[n] = '\0';
-    return strstr(buf, needle) != nullptr;
 }
 
 static void test_lp_spells_a_name_its_scanner_would_not_read_back(void)
@@ -2307,7 +2390,10 @@ int main(void)
     RUN_TEST(test_lp_round_trip);
     RUN_TEST(test_lp_round_trip_of_the_golden_lp);
     RUN_TEST(test_lp_wraps_without_changing_the_model);
-    RUN_TEST(test_lp_refuses_what_the_dialect_cannot_say);
+    RUN_TEST(test_lp_carries_every_shape_mps_does);
+    RUN_TEST(test_lp_writes_a_ranged_row_as_two_rows_other_readers_take);
+    RUN_TEST(test_lp_reads_two_halves_that_differ_as_two_rows);
+    RUN_TEST(test_lp_reads_an_infinite_right_hand_side_as_a_free_row);
     RUN_TEST(test_lp_keeps_column_order_when_a_cost_is_zero);
     RUN_TEST(test_lp_takes_a_column_that_appears_in_no_row);
     RUN_TEST(test_each_lp_guard_fires_on_its_own);

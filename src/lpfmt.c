@@ -70,6 +70,9 @@ typedef struct {
     int64_t *stamp, *slot;
     int64_t stamp_cap, slot_cap;
 
+    char **rg_lo, **rg_hi;
+    int64_t nrg, rg_lo_cap, rg_hi_cap;
+
     jaos_obj_sense sense;
     double offset;
 } lp;
@@ -530,6 +533,116 @@ done:
     return st;
 }
 
+static bool scan_ranges(lp *p)
+{
+    static const char mark[] = "\\ range ";
+    const int64_t mlen = (int64_t)sizeof mark - 1;
+    for (int64_t at = 0; at < p->len;) {
+        int64_t end = at;
+        while (end < p->len && p->buf[end] != '\n')
+            end++;
+        if (end - at > mlen && memcmp(p->buf + at, mark, (size_t)mlen) == 0) {
+            char a[NAME_MAX_LEN + 1], b[NAME_MAX_LEN + 1];
+            int64_t q = at + mlen, n = 0;
+            while (q < end && p->buf[q] == ' ')
+                q++;
+            while (q < end && p->buf[q] != ' ' && p->buf[q] != '\r' &&
+                   n < NAME_MAX_LEN)
+                a[n++] = p->buf[q++];
+            a[n] = '\0';
+            n = 0;
+            while (q < end && p->buf[q] == ' ')
+                q++;
+            while (q < end && p->buf[q] != ' ' && p->buf[q] != '\r' &&
+                   n < NAME_MAX_LEN)
+                b[n++] = p->buf[q++];
+            b[n] = '\0';
+            if (a[0] != '\0' && b[0] != '\0') {
+                if (!JM_GROW(p->rg_lo, p->rg_lo_cap, p->nrg + 1) ||
+                    !JM_GROW(p->rg_hi, p->rg_hi_cap, p->nrg + 1))
+                    return false;
+                p->rg_lo[p->nrg] = jm_name_copy(a);
+                p->rg_hi[p->nrg] = jm_name_copy(b);
+                if (p->rg_lo[p->nrg] == nullptr || p->rg_hi[p->nrg] == nullptr) {
+                    free(p->rg_lo[p->nrg]);
+                    free(p->rg_hi[p->nrg]);
+                    return false;
+                }
+                p->nrg++;
+            }
+        }
+        at = end + 1;
+    }
+    return true;
+}
+
+static bool same_row(const lp *p, int64_t a, int64_t b)
+{
+    const int64_t na = p->rs[a + 1] - p->rs[a], nb = p->rs[b + 1] - p->rs[b];
+    if (na != nb || p->ind_col[a] != p->ind_col[b] ||
+        p->ind_val[a] != p->ind_val[b])
+        return false;
+    for (int64_t k = 0; k < na; k++)
+        if (p->ei[p->rs[a] + k] != p->ei[p->rs[b] + k] ||
+            p->ev[p->rs[a] + k] != p->ev[p->rs[b] + k])
+            return false;
+    return true;
+}
+
+static bool fold_ranges(lp *p)
+{
+    if (p->nrg == 0 || p->nrow == 0)
+        return true;
+    jm_nmap rows = {0};
+    bool *gone = jm_calloc_array(p->nrow, sizeof *gone);
+    bool ok = gone != nullptr;
+    for (int64_t i = 0; ok && i < p->nrow; i++)
+        if (p->rname[i] != nullptr)
+            ok = jm_nmap_insert(&rows, p->rname[i], i);
+    int64_t folded = 0;
+    for (int64_t k = 0; ok && k < p->nrg; k++) {
+        int64_t a, b;
+        if (!jm_nmap_get(&rows, p->rg_lo[k], &a) ||
+            !jm_nmap_get(&rows, p->rg_hi[k], &b) || a == b || gone[a] ||
+            gone[b])
+            continue;
+        if (!(isfinite(p->rlb[a]) && p->rub[a] == INFINITY &&
+              p->rlb[b] == -INFINITY && isfinite(p->rub[b]) &&
+              p->rlb[a] < p->rub[b] && same_row(p, a, b)))
+            continue;
+        p->rub[a] = p->rub[b];
+        gone[b] = true;
+        folded++;
+    }
+    jm_nmap_free(&rows);
+    if (ok && folded > 0) {
+        int64_t r = 0, e = 0;
+        for (int64_t i = 0; i < p->nrow; i++) {
+            const int64_t b0 = p->rs[i], n = p->rs[i + 1] - b0;
+            if (gone[i]) {
+                free(p->rname[i]);
+                continue;
+            }
+            memmove(p->ei + e, p->ei + b0, (size_t)n * sizeof *p->ei);
+            memmove(p->ev + e, p->ev + b0, (size_t)n * sizeof *p->ev);
+            p->rs[r] = e;
+            p->rlb[r] = p->rlb[i];
+            p->rub[r] = p->rub[i];
+            p->rname[r] = p->rname[i];
+            p->ind_col[r] = p->ind_col[i];
+            p->ind_val[r] = p->ind_val[i];
+            e += n;
+            r++;
+        }
+        p->rs[r] = e;
+        p->nrow = r;
+        p->nind = r;
+        p->nent = e;
+    }
+    free(gone);
+    return ok;
+}
+
 static jaos_status parse(lp *p)
 {
     jaos_status st = JAOS_OK;
@@ -694,10 +807,20 @@ static jaos_status parse(lp *p)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         }
-        if (p->tok.t != T_NUM)
+        double rhs;
+        if (p->tok.t == T_NUM)
+            rhs = sign * p->tok.num;
+        else if (tok_is(p, "inf") || tok_is(p, "infinity"))
+            rhs = sign * INFINITY;
+        else
             FAIL("line %" PRId64 ": expected a number on the right-hand "
                  "side", p->tok.line);
-        double rhs = sign * p->tok.num;
+        if (isinf(rhs) && (rel == T_EQ || (rel == T_GE) == (rhs > 0.0)))
+            FAIL("line %" PRId64 ": no finite activity meets a constraint "
+                 "that is %s %s; only '>= -inf' and '<= inf' are read, as a "
+                 "free row", p->tok.line,
+                 rel == T_EQ ? "=" : rel == T_LE ? "<=" : ">=",
+                 rhs > 0.0 ? "inf" : "-inf");
         if ((st = lx_next(p)) != JAOS_OK)
             goto done;
 
@@ -983,6 +1106,8 @@ static jaos_status parse(lp *p)
         if (!JM_GROW(p->rs, p->rs_cap, p->nrow + 1))
             FAIL_OOM();
         p->rs[p->nrow] = p->nent;
+        if (!fold_ranges(p))
+            FAIL_OOM();
 
         int64_t *as = jm_calloc_array(p->ncol + 1, sizeof(int64_t));
         int64_t *ai = jm_alloc_array(p->nent, sizeof(int64_t));
@@ -1112,6 +1237,11 @@ jaos_status jaos_read_lp(jaos_model *m, const char *path)
     jaos_status st = jm_slurp(m, path, &p->buf, &p->len);
     if (st != JAOS_OK)
         goto done;
+    if (!scan_ranges(p)) {
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        jm_set_err(m, "out of memory while reading LP");
+        goto done;
+    }
 
     {
         jm_locale loc;
@@ -1151,5 +1281,11 @@ done:
     free(p->st_w);
     free(p->ind_col);
     free(p->ind_val);
+    for (int64_t k = 0; k < p->nrg; k++) {
+        free(p->rg_lo[k]);
+        free(p->rg_hi[k]);
+    }
+    free(p->rg_lo);
+    free(p->rg_hi);
     return st;
 }

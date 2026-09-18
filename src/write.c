@@ -381,8 +381,11 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
                             ? "SI" : "SC", nm, num);
                 continue;
             }
-            if (cl == 0.0 && cu == INFINITY)
+            if (cl == 0.0 && cu == INFINITY) {
+                if (m->col_integer != nullptr && m->col_integer[j])
+                    fprintf(w->f, " PL BND       %s\n", nm);
                 continue;
+            }
             if (cl == -INFINITY && cu == INFINITY) {
                 fprintf(w->f, " FR BND       %s\n", nm);
                 continue;
@@ -597,6 +600,82 @@ static jaos_status lp_spell_names(const jaos_model *m, jaos_model *c)
     return st;
 }
 
+static bool lp_ranged(const jaos_model *m, int64_t i)
+{
+    const double rl = m->row_lower[i], ru = m->row_upper[i];
+    return rl != ru && rl != -INFINITY && ru != INFINITY;
+}
+
+static char **lp_range_names(wr *w)
+{
+    const jaos_model *m = w->m;
+    int64_t n = 0;
+    for (int64_t i = 0; i < m->num_row; i++)
+        n += lp_ranged(m, i);
+    if (n == 0)
+        return nullptr;
+    char **hi = jm_calloc_array(m->num_row, sizeof *hi);
+    jm_nmap taken = {0};
+    char nm[NAME_LEN], base[NAME_LEN + 4], sub[NAME_LEN];
+    bool ok = hi != nullptr && jm_nmap_insert(&taken, jm_obj_name(m), 0);
+    for (int64_t j = 0; ok && j < m->num_col; j++) {
+        col_name(m, nm, j);
+        ok = jm_nmap_insert(&taken, nm, 0);
+    }
+    for (int64_t i = 0; ok && i < m->num_row; i++) {
+        row_name(m, nm, i);
+        ok = jm_nmap_insert(&taken, nm, 0);
+    }
+    for (int64_t i = 0; ok && i < m->num_row; i++) {
+        if (!lp_ranged(m, i))
+            continue;
+        row_name(m, nm, i);
+        if (strlen(nm) + 3 <= (size_t)JAOS_NAME_MAX)
+            snprintf(base, sizeof base, "%s_hi", nm);
+        else
+            snprintf(base, sizeof base, "r%" PRId64 "_hi", i + 1);
+        ok = lp_substitute(&taken, base, sub) == JAOS_OK &&
+             (hi[i] = jm_name_copy(sub)) != nullptr;
+        if (ok)
+            fprintf(w->f, "\\ range %s %s\n", nm, sub);
+    }
+    jm_nmap_free(&taken);
+    if (!ok) {
+        for (int64_t i = 0; hi != nullptr && i < m->num_row; i++)
+            free(hi[i]);
+        free(hi);
+        wr_fail(w, JAOS_ERR_OUT_OF_MEMORY,
+                "out of memory naming the upper sides of the ranged rows");
+        return nullptr;
+    }
+    return hi;
+}
+
+static void lp_row(wr *w, int64_t i, const char *name, const char *rel,
+                   const char *rhs)
+{
+    const jaos_model *m = w->m;
+    char nm[NAME_LEN];
+    fprintf(w->f, " %s:", name);
+    int col = (int)strlen(name) + 2;
+    if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+        char zn[JAOS_NAME_MAX + 1];
+        col_name(m, zn, m->row_ind_col[i]);
+        fprintf(w->f, " %s = %d ->", zn, m->row_ind_val[i]);
+        col += (int)strlen(zn) + 8;
+    }
+    bool first = true;
+    for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+        col_name(m, nm, m->ar_index[k]);
+        lp_term(w, &col, &first, m->ar_value[k], nm);
+    }
+    if (m->ar_start[i] == m->ar_start[i + 1]) {
+        col_name(m, nm, 0);
+        lp_term(w, &col, &first, 0.0, nm);
+    }
+    fprintf(w->f, " %s %s\n", rel, rhs);
+}
+
 static jaos_status lp_write_body(wr *w, const char *path,
                                  const jaos_model *orig)
 {
@@ -610,6 +689,7 @@ static jaos_status lp_write_body(wr *w, const char *path,
         fprintf(w->f, "\\ written by JAOS %s\n", JAOS_VERSION_STRING);
         if (orig != nullptr)
             lp_write_map(w, orig);
+        char **hi = lp_range_names(w);
         fprintf(w->f, "%s\n",
                 m->sense == JAOS_MAXIMIZE ? "Maximize" : "Minimize");
 
@@ -681,43 +761,26 @@ static jaos_status lp_write_body(wr *w, const char *path,
         fprintf(w->f, "Subject To\n");
         for (int64_t i = 0; i < m->num_row; i++) {
             const double rl = m->row_lower[i], ru = m->row_upper[i];
-
-            const bool ranged = rl != ru && rl != -INFINITY && ru != INFINITY;
-            char lonum[NUM_LEN];
             row_name(m, rn, i);
-            fprintf(w->f, " %s:", rn);
-            col = (int)strlen(rn) + 2;
-            if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
-                char zn[JAOS_NAME_MAX + 1];
-                col_name(m, zn, m->row_ind_col[i]);
-                fprintf(w->f, " %s = %d ->", zn, m->row_ind_val[i]);
-                col += (int)strlen(zn) + 8;
-            }
-            if (ranged) {
-                wr_num(lonum, rl);
-                fprintf(w->f, " %s <=", lonum);
-                col += (int)strlen(lonum) + 4;
-            }
-            first = true;
-            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
-                col_name(m, nm, m->ar_index[k]);
-                lp_term(w, &col, &first, m->ar_value[k], nm);
-            }
-            if (m->ar_start[i] == m->ar_start[i + 1]) {
-
-                col_name(m, nm, 0);
-                lp_term(w, &col, &first, 0.0, nm);
-            }
-            if (ranged) {
+            if (hi != nullptr && hi[i] != nullptr) {
+                wr_num(num, rl);
+                lp_row(w, i, rn, ">=", num);
                 wr_num(num, ru);
-                fprintf(w->f, " <= %s\n", num);
+                lp_row(w, i, hi[i], "<=", num);
+            } else if (rl == -INFINITY && ru == INFINITY) {
+                lp_row(w, i, rn, ">=", "-inf");
             } else {
                 const char *rel =
                     rl == ru ? "=" : (rl == -INFINITY ? "<=" : ">=");
                 wr_num(num, rl == -INFINITY ? ru : rl);
-                fprintf(w->f, " %s %s\n", rel, num);
+                lp_row(w, i, rn, rel, num);
             }
         }
+        if (hi != nullptr)
+            for (int64_t i = 0; i < m->num_row; i++)
+                free(hi[i]);
+        free(hi);
+        hi = nullptr;
 
         fprintf(w->f, "Bounds\n");
         for (int64_t j = 0; j < m->num_col; j++) {
@@ -809,11 +872,8 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
     for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
         const double rl = m->row_lower[i], ru = m->row_upper[i];
         row_name(m, rn, i);
-        if (rl == -INFINITY && ru == INFINITY)
-            wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                    "row '%s' is free, which LP format cannot express; write "
-                    "MPS instead", rn);
-        else if (!isfinite(rl == -INFINITY ? ru : rl))
+        const bool free_row = rl == -INFINITY && ru == INFINITY;
+        if (!free_row && !isfinite(rl == -INFINITY ? ru : rl))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a bound at an infinity LP format cannot "
                     "express", rn);

@@ -338,9 +338,10 @@ original. MPS takes every name.
 
 A write the format cannot express is refused: the tool prints the library's
 message, which names the row or column, exits 5, and leaves no file behind.
-`docs/format-support.md` lists what each format cannot express. The LP
-dialect is the narrower one; a free row, for example, has no spelling in it.
-When the LP writer refuses a model, converting it to `.mps` instead works.
+`docs/format-support.md` lists what each format cannot express. A free
+row goes to LP as `>= -inf` and a ranged row as two rows joined by a
+`\ range` comment, the forms HiGHS reads too. When the LP writer refuses
+a model, converting it to `.mps` instead works.
 
 ## `check`
 

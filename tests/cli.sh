@@ -912,13 +912,19 @@ expect_exit 5 "convert of an unreadable input is an error" \
 [ ! -e "$tmp/bad.lp" ] && pass "and leaves no file" || flunk "bad.lp was written"
 
 expect_exit 5 "a refused LP write exits 5" \
-    "$JAOS" convert "$DATA/t3_objname.mps" "$tmp/freerow.lp"
-printf '%s\n' "$err" | grep -q "free" && pass "and prints the writer's refusal" \
+    "$JAOS" convert "$DATA/g_no_cols.mps" "$tmp/nocols.lp"
+printf '%s\n' "$err" | grep -q "no columns" && pass "and prints the writer's refusal" \
     || flunk "a refused write said: '$err'"
-[ ! -e "$tmp/freerow.lp" ] && pass "and leaves no file" \
-    || flunk "a refused write left freerow.lp behind"
+[ ! -e "$tmp/nocols.lp" ] && pass "and leaves no file" \
+    || flunk "a refused write left nocols.lp behind"
 expect_exit 0 "the same model converts to MPS" \
-    "$JAOS" convert "$DATA/t3_objname.mps" "$tmp/freerow.mps"
+    "$JAOS" convert "$DATA/g_no_cols.mps" "$tmp/nocols.mps"
+expect_exit 0 "a model with a free row converts to LP" \
+    "$JAOS" convert "$DATA/t3_objname.mps" "$tmp/freerow.lp"
+grep -q ">= -inf$" "$tmp/freerow.lp" && pass "and writes the free row as '>= -inf'" \
+    || flunk "no '>= -inf' row in $(cat "$tmp/freerow.lp" 2>&1)"
+expect_exit 0 "and diff of the model against its LP conversion exits 0" \
+    "$JAOS" diff "$DATA/t3_objname.mps" "$tmp/freerow.lp"
 expect_exit 0 "a ranged row converts to LP" \
     "$JAOS" convert "$DATA/g_ranged.lp" "$tmp/ranged.lp"
 expect_exit 0 "and the written LP solves" "$JAOS" solve "$tmp/ranged.lp"
