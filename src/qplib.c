@@ -381,7 +381,7 @@ static jaos_status q_parse(qp *p)
                 p->qci[slot] = hi;
                 p->qvv[slot] = 0.0;
             }
-            p->qvv[slot] += v;
+            p->qvv[slot] += 0.5 * v;
         }
     }
     if ((st = q_vector(p, "the objective coefficients", p->nvar, p->cost,
@@ -434,7 +434,7 @@ static jaos_status q_parse(qp *p)
             p->ki[p->nkq] = i - 1;
             p->kh[p->nkq] = h - 1;
             p->kk[p->nkq] = c - 1;
-            p->kv[p->nkq] = v;
+            p->kv[p->nkq] = h == c ? v : 0.5 * v;
             p->nkq++;
         }
     }

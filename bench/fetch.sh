@@ -31,7 +31,7 @@ mkdir -p "$dest"
 ok=0 failed=0 cached=0
 
 emps=
-if [ "$pipe" != "mps-gz" ] && [ "$pipe" != "cbf-gz" ]; then
+if [ "$pipe" != "mps-gz" ] && [ "$pipe" != "cbf-gz" ] && [ "$pipe" != "qplib" ]; then
     command -v gcc >/dev/null || command -v "${CC:-gcc-14}" >/dev/null || {
         echo "need a C compiler to build emps" >&2; exit 1; }
     tmp=$(mktemp -d)
@@ -54,6 +54,7 @@ while read -r name sha rows cols ref src; do
 
     mps="$dest/$name.mps"
     [ "$pipe" = "cbf-gz" ] && mps="$dest/$name.cbf.gz"
+    [ "$pipe" = "qplib" ] && mps="$dest/$name.qplib"
 
     if [ -s "$mps" ] && [ -f "$dest/.$name.verified" ]; then
         cached=$((cached + 1))
@@ -67,6 +68,7 @@ while read -r name sha rows cols ref src; do
         emps)     remote="$name" ;;
         qps)      remote="$(printf %s "$name" | tr a-z A-Z).QPS" ;;
         cbf-gz)   remote="$name.cbf.gz" ;;
+        qplib)    remote="$name.qplib" ;;
         *) echo "unknown pipeline: $pipe" >&2; exit 2 ;;
     esac
 
@@ -96,6 +98,7 @@ while read -r name sha rows cols ref src; do
         emps)     "$emps" "$raw" > "$mps" ;;
         qps)      tr -d '\r' < "$raw" > "$mps" ;;
         cbf-gz)   mv -f "$raw" "$mps" ;;
+        qplib)    mv -f "$raw" "$mps" ;;
     esac || { echo "FAIL  $name  (expand)" >&2
               rm -f "$raw" "$raw.packed" "$mps"
               failed=$((failed + 1)); continue; }

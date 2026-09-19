@@ -132,7 +132,7 @@ static void bx_free(bx *s)
     memset(s, 0, sizeof *s);
 }
 
-static jaos_status bx_init(bx *s, jaos_model *m)
+static jaos_status bx_init(bx *s, jaos_model *m, bool augmented)
 {
     memset(s, 0, sizeof *s);
     s->best_worst = HUGE_VAL;
@@ -301,7 +301,7 @@ static jaos_status bx_init(bx *s, jaos_model *m)
         bx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
-    s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
+    s->augmented = augmented || m->cfg.barrier_augmented || m->q_nz > 0;
     if (!s->augmented) {
         const double avg = s->ncol > 0 ? (double)m->num_nz / (double)s->ncol
                                        : 0.0;
@@ -1114,7 +1114,6 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
     jaos_model *m = s->m;
     jaos_status st = JAOS_OK;
     if (!resume) {
-        s->augmented = m->cfg.barrier_augmented || m->q_nz > 0;
         st = s->augmented ? build_aug_pattern(s) : build_normal_pattern(s);
         if (st != JAOS_OK)
             return st;
@@ -1970,7 +1969,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     *handoff = false;
     *iters = 0;
     bx s;
-    jaos_status st = bx_init(&s, target);
+    jaos_status st = bx_init(&s, target, false);
     if (st != JAOS_OK)
         return st;
     s.work = *work;
@@ -2013,6 +2012,41 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
             s.handoff = false;
             target->err[0] = '\0';
             m->err[0] = '\0';
+        }
+    }
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff &&
+        s.quadratic && s.ndense > 0) {
+        const jm_work spent = s.work;
+        const double started = s.started;
+        const int64_t first = s.iters, ndense = s.ndense;
+        bx_free(&s);
+        st = bx_init(&s, target, true);
+        if (st != JAOS_OK)
+            return st;
+        s.work = spent;
+        s.started = started;
+        target->err[0] = '\0';
+        m->err[0] = '\0';
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "barrier: the walk with %lld dense columns left out of the "
+               "normal matrix stopped after %lld iterations; it starts again "
+               "on the augmented system", (long long)ndense, (long long)first);
+        st = bx_run(&s, &outcome, false);
+        s.iters += first;
+        *iters = s.iters;
+        if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR &&
+            s.handoff && s.near && !m->cfg.barrier_no_crossover) {
+            st = qp_push(&s);
+            if (st != JAOS_OK) {
+                bx_free(&s);
+                return st;
+            }
+            if (s.pushed) {
+                outcome = JAOS_SOLVE_OPTIMAL;
+                s.handoff = false;
+                target->err[0] = '\0';
+                m->err[0] = '\0';
+            }
         }
     }
     if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff) {

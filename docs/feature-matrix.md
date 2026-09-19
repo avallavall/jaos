@@ -113,7 +113,11 @@ push (`qp_push` in `src/barrier.c`): the active set read off the
 complementarity is pinned on its bounds and the equality-constrained QP on
 the rest is solved through the same factorisation, so the published point
 sits exactly on the bounds the optimum sits on and the checker takes both
-sides; a reading on a published QP set is what keeps the row from ●.
+sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 134
+end `OPTIMAL` and the checker takes 133; on QPLIB's 19 convex QPs
+(`bench/measurements/02-256/`) 10 end `OPTIMAL` and the checker takes 9,
+the 8 largest stopping at a work limit of 1e11. The rest of those two
+sets is what keeps the row from ●.
 **The QCP/SOCP row reads ◐ since 2026-09-19**: second-order cones,
 quadratic and rotated, over columns (`jaos_add_cone`) and convex
 quadratic rows `a'x + ½ x'Qx` with one finite side

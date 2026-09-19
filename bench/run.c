@@ -260,6 +260,8 @@ static jaos_status read_instance(jaos_model *m, const char *path)
 {
     if (strcmp(g_ext, "cbf") == 0 || strcmp(g_ext, "cbf.gz") == 0)
         return jaos_read_cbf(m, path);
+    if (strcmp(g_ext, "qplib") == 0 || strcmp(g_ext, "qplib.gz") == 0)
+        return jaos_read_qplib(m, path);
     return jaos_read_mps(m, path);
 }
 

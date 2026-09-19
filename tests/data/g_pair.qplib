@@ -1,9 +1,12 @@
-# An off-diagonal Q entry. QPLIB's Q is the lower-left triangle of
-# 1/2 x'Qx, so the entry 2 1 2.0 is the term x y.
+# The model of g_pair.lp in the QPLIB layout, written by hand. QPLIB's Q
+# is the lower-left triangle of 1/2 x'Qx, so a pair's entry is twice the
+# coefficient of x y: the objective's 2 1 2.0 is x y, and so is the
+# row's 1 2 1 2.0.
 #   min -3 x - 3 y + x^2 + y^2 + x y
-#   s.t.  x + y <= 4,  0 <= x, y <= 3
-eoff
-CCL
+#   s.t.  c1: x^2 + y^2 + x y <= 2,  0 <= x, y <= 3
+# The optimum is x = y = sqrt(2/3), at 2 - 2 sqrt(6).
+gpair
+CCC
 minimize
 2          # variables
 1          # constraints
@@ -14,13 +17,15 @@ minimize
 -3.0       # default objective coefficient
 0          # non-default objective coefficients
 0.0        # objective constant
-2          # constraint entries
-1 1 1.0
-1 2 1.0
+3          # constraint Q entries, lower triangle
+1 1 1 2.0
+1 2 2 2.0
+1 2 1 2.0
+0          # constraint entries
 1e+20      # value for infinity
 -1e+20     # default constraint lower bound
 0
-4.0        # default constraint upper bound
+2.0        # default constraint upper bound
 0
 0.0        # default variable lower bound
 0

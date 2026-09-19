@@ -1390,7 +1390,7 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
             }
             for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
                  m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
-                wr_num(num, m->q_value[p]);
+                wr_num(num, 2.0 * m->q_value[p]);
                 fprintf(f, "%" PRId64 " %" PRId64 " %s\n",
                         m->q_index[p] + 1, j + 1, num);
             }
@@ -1404,7 +1404,8 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
                 m->rq_nz);
         for (int64_t i = 0; i < nr; i++)
             for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
-                wr_num(num, m->rq_v[p]);
+                wr_num(num, m->rq_i[p] == m->rq_j[p] ? m->rq_v[p]
+                                                     : 2.0 * m->rq_v[p]);
                 fprintf(f, "%" PRId64 " %" PRId64 " %" PRId64 " %s\n", i + 1,
                         m->rq_i[p] + 1, m->rq_j[p] + 1, num);
             }

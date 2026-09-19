@@ -333,8 +333,14 @@ The QPLIB text format of Furini et al. (2019), read by `jaos_read_qplib`
 and by the tool for a name ending in `.qplib` or `.qplib.gz`, written by
 `jaos_write_qplib` and `convert OUT.qplib`. JAOS reads the classes it
 holds: the three-letter type's first letter `L` (linear objective) or
-`D`, `C`, `Q`, the objective's `Q` read as the lower triangle it names,
-a diagonal entry or a pair alike; its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
+`D`, `C`, `Q`, the objective's `Q` read as the lower-left triangle of
+`½ x^T Q x` that the QPLIB documentation defines: a diagonal entry is
+`q` as JAOS holds it, and a pair's entry is twice the coefficient of
+`x_i x_j`, so JAOS halves it on reading and doubles it on writing, in the
+objective and in a row alike. Before 2026-09-19 JAOS read a pair as the
+entry of a symmetric `Q`, twice its value; QPLIB's own LP and GAMS
+versions of its instances and their reference values settled it
+(`bench/measurements/02-256/`); its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
 with `B` giving every variable bounds 0 and 1 and `M` or `G` reading the
 type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
 `B`, `L`, or since 2026-09-19 `D`, `C` or `Q` for quadratic rows. After

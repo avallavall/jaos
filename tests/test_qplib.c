@@ -179,6 +179,39 @@ static void test_qplib_reads_the_published_layout(void)
     jaos_model_free(m);
 }
 
+/* QPLIB's Q is the lower-left triangle of 1/2 x'Qx, so a pair's entry of
+   2.0 is the term x y, which JAOS holds as the symmetric entry 1.0; the
+   same in a row. g_pair.lp writes the same model. */
+static void test_qplib_reads_a_pair_as_half_its_entry(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_qplib(m, "tests/data/g_pair.qplib"));
+    TEST_ASSERT_EQUAL_STRING("", jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(1, m->q_nz);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, m->q_value[0]);
+    TEST_ASSERT_EQUAL_INT64(3, jaos_row_quadratic_nz(m, 0));
+    int64_t qi[3], qj[3];
+    double qv[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(m, 0, qi, qj, qv));
+    for (int k = 0; k < 3; k++)
+        TEST_ASSERT_EQUAL_DOUBLE(qi[k] == qj[k] ? 2.0 : 1.0, qv[k]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0 - 2.0 * sqrt(6.0), obj);
+    jaos_model_free(m);
+
+    jaos_model *a = fresh(), *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_qplib(a, "tests/data/g_pair.qplib"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, "tests/data/g_pair.lp"));
+    TEST_ASSERT_EQUAL_INT64(a->q_nz, b->q_nz);
+    TEST_ASSERT_EQUAL_DOUBLE(a->q_value[0], b->q_value[0]);
+    TEST_ASSERT_EQUAL_INT64(jaos_row_quadratic_nz(a, 0), jaos_row_quadratic_nz(b, 0));
+    jaos_model_free(a);
+    jaos_model_free(b);
+}
+
 static void test_qplib_reads_the_paper_example(void)
 {
     jaos_model *m = fresh();
@@ -311,6 +344,7 @@ int main(void)
     RUN_TEST(test_qplib_round_trips_an_lp_a_qp_and_a_mip);
     RUN_TEST(test_qplib_reads_the_published_layout);
     RUN_TEST(test_qplib_reads_the_paper_example);
+    RUN_TEST(test_qplib_reads_a_pair_as_half_its_entry);
     RUN_TEST(test_qplib_refuses_a_bad_infinity);
     RUN_TEST(test_qplib_refuses_what_it_cannot_express);
     RUN_TEST(test_qplib_refuses_a_name_its_reader_would_cut_as_a_comment);

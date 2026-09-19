@@ -242,6 +242,23 @@ class TestReadingFiles(unittest.TestCase):
                 self.assertTrue(back.col_integer(1))
                 back.read_osil(data("e_osil_offdiag.osil"))
                 self.assertEqual(back.quadratic_nz(), 1)
+        with jaos.Model() as a, jaos.Model() as b:
+            a.read_qplib(data("g_pair.qplib"))
+            b.read_lp(data("g_pair.lp"))
+            self.assertEqual(a.quadratic(), b.quadratic())
+            self.assertIs(a.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(a.objective(), 2.0 - 2.0 * 6.0 ** 0.5,
+                                   places=8)
+        with jaos.Model() as w, tempfile.TemporaryDirectory() as d:
+            w.read_lp(data("g_pair.lp"))
+            path = os.path.join(d, "pair.qplib")
+            w.write_qplib(path)
+            with jaos.Model() as back:
+                back.read_qplib(path)
+                self.assertEqual(back.quadratic(), w.quadratic())
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(),
+                                       2.0 - 2.0 * 6.0 ** 0.5, places=8)
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=4, name="x", integer=True)
         p.add(x >= 1.5, name="floor")

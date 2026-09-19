@@ -1024,9 +1024,82 @@ static void test_the_ray_checker_refuses_a_direction_the_curvature_turns(void)
     jaos_model_free(m);
 }
 
+static unsigned long long fac_seed;
+
+static double fac_rnd(void)
+{
+    fac_seed = fac_seed * 6364136223846793005ULL + 1442695040888963407ULL;
+    return (double)(fac_seed >> 11) / 9007199254740992.0;
+}
+
+/* The relaxation of a facility-location QP, 3 facilities and 35
+   customers: min sum c_ij x_ij + q_ij x_ij^2 / 2 + sum f_j y_j with
+   sum_j x_ij = 1 and x_ij <= y_j, all in [0, 1]. Each y_j sits in 35
+   rows, so the normal equations leave the three out and correct for them;
+   near the optimum that correction loses its digits, the walk leaves the
+   point it had at iteration 5, and the barrier starts again on the
+   augmented system. The shape of QPLIB's 3871, 3694, 3792 and 3861. */
+static void test_a_qp_whose_dense_columns_lose_the_walk_still_solves(void)
+{
+    enum { F = 3, C = 35, NX = F * C, NC = NX + F, NR = C + NX };
+    static double cost[NC], cl[NC], cu[NC], rl[NR], ru[NR], q[NX], av[3 * NX];
+    static int64_t as[NC + 1], ai[3 * NX];
+    fac_seed = 1;
+    int64_t nz = 0;
+    for (int i = 0; i < C; i++)
+        for (int j = 0; j < F; j++) {
+            const int k = i * F + j;
+            as[k] = nz;
+            ai[nz] = i;
+            av[nz++] = 1.0;
+            ai[nz] = C + k;
+            av[nz++] = 1.0;
+            cost[k] = 1.0 + 9.0 * fac_rnd();
+            q[k] = 0.5 + 2.0 * fac_rnd();
+            cl[k] = 0.0;
+            cu[k] = 1.0;
+        }
+    for (int j = 0; j < F; j++) {
+        as[NX + j] = nz;
+        for (int i = 0; i < C; i++) {
+            ai[nz] = C + i * F + j;
+            av[nz++] = -1.0;
+        }
+        cost[NX + j] = 20.0 + 40.0 * fac_rnd();
+        cl[NX + j] = 0.0;
+        cu[NX + j] = 1.0;
+    }
+    as[NC] = nz;
+    for (int i = 0; i < C; i++)
+        rl[i] = ru[i] = 1.0;
+    for (int k = 0; k < NX; k++) {
+        rl[C + k] = -jaos_infinity();
+        ru[C + k] = 0.0;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, nz,
+                     as, ai, av));
+    for (int k = 0; k < NX; k++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, k, q[k]));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 234.269676822, obj);
+    static double x[NC], y[NR];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_qp_whose_dense_columns_lose_the_walk_still_solves);
     RUN_TEST(test_a_paired_q_reads_back_as_it_was_set);
     RUN_TEST(test_a_paired_q_solves_to_the_point_it_should);
     RUN_TEST(test_the_checker_judges_a_paired_q);

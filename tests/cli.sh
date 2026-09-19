@@ -923,6 +923,16 @@ case "$(line_of objective)" in
     "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "QPLIB QP objective '$(line_of objective)'" ;;
 esac
+expect_exit 0 "a QPLIB pair entry is half of it, the model of its LP twin" \
+    "$JAOS" diff "$DATA/g_pair.qplib" "$DATA/g_pair.lp"
+[ "$(line_of differences)" = "differences 0" ] \
+    && pass "with no difference" \
+    || flunk "g_pair diff: '$(line_of differences)'"
+expect_exit 0 "and the pair converts back to QPLIB unchanged" \
+    "$JAOS" convert "$DATA/g_pair.lp" "$tmp/pair.qplib"
+grep -q '^2 1 2$' "$tmp/pair.qplib" && grep -q '^1 2 1 2$' "$tmp/pair.qplib" \
+    && pass "each pair written as twice its coefficient" \
+    || flunk "pair entries: $(grep -E '^[12] [12]( [12])? ' "$tmp/pair.qplib" | tr '\n' ' ')"
 expect_exit 0 "convert to OSiL exits 0" \
     "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.osil"
 grep -q '<qTerm idx="-1"' "$tmp/gq.osil" \

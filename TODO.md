@@ -52,14 +52,15 @@ the commit that took it, named here by hash.
    the NaN points, the 1e-6 row slips, the four unreadable files and the
    handoff that ground the dual simplex; six more fixes followed from its
    list (02-250, "After the reading"), and the push's stretch and its
-   longer freeing took two more on 2026-09-19. What it leaves, 128 of 138
-   clean, 133 `OPTIMAL` and 132 taken by the checker:
+   longer freeing took two more on 2026-09-19, and the augmented restart
+   below took boyd2. What it leaves, 129 of 138 clean, 134 `OPTIMAL` and
+   133 taken by the checker:
 
    - **dtoc3** answered wrong until the scale exponent was capped at
      `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
      `NUMERICAL_ERROR` now, the rows 1.4e-6 off in scaled space against a
      dual step of 1e7, which is the liswet wall below.
-   - **5 the barrier cannot settle**: dtoc3 (10000 free columns; the
+   - **3 the barrier cannot settle**: dtoc3 (10000 free columns; the
      primal residual stuck at 1e-8 with mu at 1e-57 was the
      `BARRIER_DELTA` floor on the rows against a large dual step, and
      dropping `delta` by `BARRIER_STALL_DELTA` on a stall, reverting the
@@ -67,14 +68,16 @@ the commit that took it, named here by hash.
      family but not this one; a refined Newton direction was tried and
      hurt the generated set),
      ksip (1001 rows on 20 free columns, mu of 1e19 from the start),
-     ubh1 and boyd2 (200 iterations with the gap at 0.23 and 3.8e-6;
-     q25fv47 was here until the push learned to finish a walk stopped
-     within `BARRIER_NEAR_TOL` of converged, and the push does not settle
-     on these two: boyd2 is at the reference objective to 4e-9 by
-     iteration 100 and its push leaves one row 5e-3 off through 40
-     rounds and 40 releases, ubh1 loses its interior by iteration 5, mu
-     at 1e-22 against a gap of 0.5, and a lift of every complementarity
-     product back to 1e-3 of the gap was measured and refused). qgrow22 was here, its LDL replacing 61 pivots at every
+     ubh1 (200 iterations with the gap at 0.23; q25fv47 was here until
+     the push learned to finish a walk stopped within
+     `BARRIER_NEAR_TOL` of converged, and the push does not settle on it:
+     ubh1 loses its interior by iteration 5, mu at 1e-22 against a gap
+     of 0.5, and a lift of every complementarity product back to 1e-3 of
+     the gap was measured and refused). boyd2 was here, its walk stopped
+     at a gap of 3.8e-6 with its two dense columns left out of the normal
+     matrix; since 2026-09-19 a quadratic walk that stops with dense
+     columns left out starts again on the augmented system, and boyd2
+     ends at the reference in 270 iterations (`bench/measurements/02-256/`). qgrow22 was here, its LDL replacing 61 pivots at every
      regularisation up to 1e-4 and the next direction NaN; at
      `BARRIER_REG_MAX` 1e-2 it converges to the reference and the checker
      refuses a dual violation of 3e-6 (the push leaves 1575 rows
@@ -104,6 +107,13 @@ the commit that took it, named here by hash.
    - **aug2dcqp, aug2dqp, aug3dqp** pass the checker but not the runner's
      suboptimality ceiling: `Σ d_j (x_j - l_j)` over columns of 1e6 with
      reduced costs of 1e-9.
+   - **QPLIB's convex QPs** (`bench/measurements/02-256/`): 10 of 19 end
+     `OPTIMAL` within 5.7e-7 of the library's values. QPLIB_9002 ends
+     `OPTIMAL` on the barrier's own test with its rows 8.9e-7 off and a
+     dual violation of 2.1e4, the push leaving 931 pinned columns with
+     the wrong sign. The 8 largest (10000 to 1003001 columns) reach a
+     work limit of 1e11, and QPLIB_9008 (1009306 columns) runs out of
+     memory.
 
 
 5. **Cones and quadratic rows, the rest.** SPECS row 23. The conic
@@ -129,7 +139,25 @@ the commit that took it, named here by hash.
      checker. The library's own solutions carry a primal error of 2e-6 to
      9e-6 on them. The twelve filterdesign instances (71 to 872 MB) are
      not read at all.
-   - **QPLIB's convex QCQPs**, a second published set.
+   - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13
+     continuous ones, 10 end `OPTIMAL` within 2.7e-7 of the library's
+     values, but 8 of those have duals the checker refuses at 1e-7, off
+     by 8.5e-7 to 3.6e-5 with the primal side to 2e-13; QPLIB_2676 and
+     QPLIB_2468 stop without progress and end `NUMERICAL_ERROR`; QPLIB_3312
+     (41406 columns) reaches the work limit. Of the 14 mixed-integer
+     ones, the two `LMD` files end within 1e-2 of the reference at the
+     work limit, 10 `LMC` files reach it, 8 of them with no incumbent,
+     and QPLIB_10006 and 10007 are refused for a quadratic row over
+     `CONIC_QC_DENSE` (3000) columns.
    - **the 8 numerical errors of 02-253**: six rays the projection
      cannot bring inside the ray checker's tolerance (2e-6 to 9e-2 past a
      row side or a bound), and two walks that stall away from any answer.
+
+6. **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
+   QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`), 3
+   end `OPTIMAL` and 13 reach a work limit of 1e11: QPLIB_3871, 3698,
+   3792, 3694 and 3861 with incumbents 27% to 71% above the reference,
+   QPLIB_3547 with the incumbent 0 against -0.56, and QPLIB_3980, 3913,
+   4270, 5577, 5924, 5527 and 5543 with none. QPLIB_3708 ends
+   `NUMERICAL_ERROR` at a node after an incumbent 33% above. Each node is
+   a cold barrier solve.
