@@ -2503,6 +2503,15 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             jm_set_err(m, "the conic interior point stalled next to an "
                           "infeasibility certificate that the certificate "
                           "checker does not confirm");
+        } else if (m->rq_nz == 0) {
+            m->cone_ok = false;
+            m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+            jm_set_err(m, "the conic interior point ended at an "
+                          "infeasibility certificate that the certificate "
+                          "checker does not confirm (columns reach %.3g, "
+                          "rows need %.3g), and with no quadratic row the "
+                          "checker's test is exact", cr.sup_columns,
+                       cr.inf_rows);
         } else {
             m->cone_ok = false;
             jm_log(m, JAOS_LOG_SUMMARY, "conic: the certificate does not "

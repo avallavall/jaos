@@ -818,9 +818,57 @@ static void test_a_wide_rotated_cone_gives_the_sum_of_squares(void)
     jaos_model_free(m);
 }
 
+/* 15 columns of QPLIB_9002 with nothing but their bounds and a diagonal
+   Q, after a free column in a cone of one: 13 columns in (-inf, 0] with
+   q = 2, and two in [1.7e6, 2.2e7] and [1.8e9, 2.3e10] with q of 4.6e-8
+   and 4.4e-11. It is feasible, its optimum 73622257.83 with the two on
+   their lower bounds, and the conic walk once called it infeasible on a
+   certificate the checker refuses. */
+static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
+{
+    enum { N = 16 };
+    double cost[N] = {0}, cl[N], cu[N], q[N];
+    for (int j = 0; j < N; j++) {
+        cl[j] = -jaos_infinity();
+        cu[j] = 0.0;
+        q[j] = 2.0;
+    }
+    cu[0] = jaos_infinity();
+    q[0] = 0.0;
+    cl[11] = 1736510.0;
+    cu[11] = 21706300.0;
+    q[11] = 4.606946e-08;
+    cl[13] = 1838820000.0;
+    cu[13] = 22985200000.0;
+    q[13] = 4.350616e-11;
+    const int64_t as[N + 1] = {0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, as, nullptr, nullptr));
+    for (int j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, q[j]));
+    const int64_t cone[1] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_add_cone(m, JAOS_CONE_QUADRATIC, 1, cone));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    const jaos_solve_status st = jaos_status_of(m);
+    TEST_ASSERT_NOT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, st);
+    if (st == JAOS_SOLVE_OPTIMAL) {
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6 * 73622257.83, 73622257.83, obj);
+    } else {
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, st);
+        TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "does not confirm"));
+    }
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_refused_certificate_is_no_verdict_without_quadratic_rows);
     RUN_TEST(test_integer_columns_in_a_cone_branch_to_the_optimum);
     RUN_TEST(test_integer_columns_under_a_quadratic_row);
     RUN_TEST(test_an_integer_point_outside_every_cone_is_infeasible);

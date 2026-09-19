@@ -141,6 +141,11 @@ the commit that took it, named here by hash.
    - **the 8 numerical errors of 02-253**: six rays the projection
      cannot bring inside the ray checker's tolerance (2e-6 to 9e-2 past a
      row side or a bound), and two walks that stall away from any answer.
+   - **a badly scaled box**: 15 bound-only columns of QPLIB_9002, values
+     of 1e9 against `Q` entries of 4e-11, put in a cone model, end the
+     walk at a certificate the checker refuses ("columns reach inf"), so
+     `NUMERICAL_ERROR` since 2026-09-19 where it said `INFEASIBLE`
+     (`tests/test_conic.c`); the barrier solves the same QP.
 
 6. **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
    QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,
