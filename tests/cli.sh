@@ -721,6 +721,30 @@ case "$(line_of row_quadratic)" in
     "row_quadratic ball y y 2 4") pass "by entry" ;;
     *) flunk "diff of quadratic rows printed '$(line_of row_quadratic)'" ;;
 esac
+expect_exit 0 "a cone converts to CBF" \
+    "$JAOS" convert "$DATA/g_cone.mps" "$tmp/cone.cbf"
+grep -q '^Q 3$' "$tmp/cone.cbf" && pass "with a Q block" \
+    || flunk "no Q block in the converted CBF"
+expect_exit 0 "and the CBF solves" "$JAOS" solve "$tmp/cone.cbf"
+case "$(line_of objective)" in
+    "objective 5"|"objective 5.0000000"*|"objective 4.9999999"*) pass "to the norm" ;;
+    *) flunk "CBF cone objective '$(line_of objective)'" ;;
+esac
+expect_exit 0 "a CBF cone over expressions reads" \
+    "$JAOS" stats "$DATA/g_cbf_cone.cbf"
+[ "$(line_of columns)" = "columns 7" ] && [ "$(line_of cones)" = "cones 1" ] \
+    && pass "with its three new columns" \
+    || flunk "CBF stats: '$(line_of columns)' '$(line_of cones)'"
+expect_exit 5 "a semidefinite CBF is refused" \
+    "$JAOS" solve "$DATA/e_cbf_psd.cbf"
+case "$err" in
+    *semidefinite*"line 8"*|*"line 8"*semidefinite*) pass "by line" ;;
+    *) flunk "CBF PSD refusal said '$err'" ;;
+esac
+expect_exit 5 "a quadratic objective does not convert to CBF" \
+    "$JAOS" convert "$DATA/g_quad.lp" "$tmp/quad.cbf"
+[ ! -e "$tmp/quad.cbf" ] && pass "and leaves no file" \
+    || flunk "a refused CBF write left a file"
 grep -v '^    y$' "$DATA/g_cone.mps" > "$tmp/cone_short.mps"
 expect_exit 1 "diff tells two cones apart" \
     "$JAOS" diff "$DATA/g_cone.mps" "$tmp/cone_short.mps"

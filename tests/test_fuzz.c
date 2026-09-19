@@ -205,10 +205,11 @@ static void feed(const unsigned char *b, size_t n)
     tmp_write(b, n);
     cases_run++;
 
-    static const char     *names[] = {"MPS", "LP", "OSiL", "QPLIB", "NL"};
+    static const char     *names[] = {"MPS", "LP", "OSiL", "QPLIB", "NL",
+                                      "CBF"};
     static const reader_fn readers[] = {jaos_read_mps, jaos_read_lp,
                                         jaos_read_osil, jaos_read_qplib,
-                                        jaos_read_nl};
+                                        jaos_read_nl, jaos_read_cbf};
 
     for (int which = 0; which < (int)(sizeof readers / sizeof *readers);
          which++) {

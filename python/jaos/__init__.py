@@ -697,6 +697,8 @@ _sig("jaos_write_lp", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_nl", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_qplib", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_qplib", ctypes.c_int, _VP, _CS)
+_sig("jaos_read_cbf", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_cbf", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
@@ -964,6 +966,26 @@ class Model:
         columns, indicator rows and cones are refused, write MPS for
         those."""
         self._check(_lib.jaos_write_qplib(self._handle(), _path(path)))
+        return self
+
+    def read_cbf(self, path):
+        """Reads a Conic Benchmark Format file (versions 1 to 3): variables
+        and constraints in the F, L+, L-, L=, Q and QR cones, integer marks
+        and the objective. A constraint block in Q or QR becomes new free
+        columns equal to its affine expressions, in a cone, unless each of
+        its rows picks one variable. Semidefinite, exponential and power
+        cones are refused by line; a CHANGE ends the reading. gzip is
+        accepted here too."""
+        self._check(_lib.jaos_read_cbf(self._handle(), _path(path)))
+        return self
+
+    def write_cbf(self, path):
+        """Writes the model in the Conic Benchmark Format, version 3. The
+        names are not carried; a bound CBF's variable cones cannot hold
+        becomes a constraint row. A quadratic objective, quadratic rows,
+        SOS sets, semi-continuous columns and indicator rows are refused;
+        write MPS for those."""
+        self._check(_lib.jaos_write_cbf(self._handle(), _path(path)))
         return self
 
     def read_osil(self, path):
@@ -3930,6 +3952,12 @@ class Problem:
         if self._pending():
             self._build_and_load()
         self._m.write_qplib(path)
+        return self
+
+    def write_cbf(self, path):
+        if self._pending():
+            self._build_and_load()
+        self._m.write_cbf(path)
         return self
 
     def write_osil(self, path):

@@ -118,7 +118,7 @@ sides; a reading on a published QP set is what keeps the row from ●.
 quadratic and rotated, over columns (`jaos_add_cone`) and convex
 quadratic rows `a'x + ½ x'Qx` with one finite side
 (`jaos_set_row_quadratic`), read and written in MPS (`QCMATRIX`,
-`CSECTION`), LP, QPLIB and OSiL, solved by a homogeneous self-dual
+`CSECTION`), LP, QPLIB, OSiL and CBF, solved by a homogeneous self-dual
 conic interior point with Nesterov-Todd scaling (`src/conic.c`); a
 quadratic row becomes a rotated cone over its Cholesky factor. The
 point is finished by Newton's method on the constraints the walk ends
@@ -130,7 +130,7 @@ passes the checker at 1e-7 on both sides, the same models rewritten
 with explicit rotated cones reach the same objectives within 3e-10,
 and 10 end as a numerical error, none of them a wrong verdict. What
 keeps the row from ●: integer columns with cones (MISOCP) are refused,
-the CBF format is not read, no published conic set has been read, and
+no published conic set has been read, and
 an infeasibility that rests on a quadratic row's curvature has no
 certificate the checker takes. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual

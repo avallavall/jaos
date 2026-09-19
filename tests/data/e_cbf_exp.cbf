@@ -1,0 +1,15 @@
+# An exponential cone, which JAOS refuses at the cone's line.
+VER
+3
+
+OBJSENSE
+MIN
+
+VAR
+4 1
+F 4
+
+CON
+4 2
+L= 1
+EXP 3

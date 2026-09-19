@@ -302,9 +302,10 @@ and `cones` the second-order cones (since 2026-09-19).
 `OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
 LP, `.nl` writes AMPL's text `.nl` with the names in `.col` and `.row`
 beside it, `.qplib` writes the QPLIB text format, `.osil` writes OSiL
-XML, and any other extension is a usage
-error. The readers take `.mps`, `.lp`, `.nl`, `.qplib` and `.osil` by
-extension. The output name is
+XML, `.cbf` writes the Conic Benchmark Format (without names; see
+`docs/format-support.md`), and any other extension is a usage
+error. The readers take `.mps`, `.lp`, `.nl`, `.qplib`, `.osil` and
+`.cbf` by extension. The output name is
 checked before the input is read. The `.nl` writer lists the integer
 columns last, as the format does, so a model whose integer columns sit
 before a continuous one comes back in that order, names carried; it
@@ -987,13 +988,15 @@ to 4 and the optimum moves to `x = 3, y = 1`.
 
 The reader is chosen by the input file's name. A name ending in `.lp` or
 `.lp.gz` goes to the LP reader, one ending in `.nl` or `.nl.gz` to the
-nl reader (AMPL's format, the text form, linear models). Every other
+nl reader (AMPL's format, the text form, linear models), `.qplib` to the
+QPLIB reader, `.osil` to the OSiL reader and `.cbf` to the CBF reader,
+each with or without `.gz` after it. Every other
 name goes to the MPS reader,
 because an MPS file has been called `.mps`, `.MPS`, `.sif` and nothing at
 all. The comparison is case-sensitive.
 
-Compression is not decided by the name. Both readers look at the first two
-bytes of the file and inflate a gzip file themselves, so `model.mps.gz` and
+Compression is not decided by the name. Every reader looks at the first two
+bytes of the file and inflates a gzip file itself, so `model.mps.gz` and
 `model.mps` read the same way. `docs/format-support.md`, "Compressed input",
 has the rule.
 
@@ -1017,7 +1020,7 @@ Usage:
   jaos convert IN OUT
 
 convert reads IN and writes OUT in the format OUT's extension names,
-  .mps, .lp or .nl (the names beside it in .col and .row). A .gz ...
+  .mps, .lp, .nl (the names beside it in .col and .row), .qplib, ...
 ```
 
 A word that is not a command is a usage error with exit 5, and so is more

@@ -30,8 +30,9 @@ damaged instance is never solved as though it were a different model.
 
 **Every writer here compresses when the path ends in `.gz`**, and
 that is the whole rule: `jaos_write_mps`, `jaos_write_lp`, `jaos_write_nl`,
+`jaos_write_qplib`, `jaos_write_osil`, `jaos_write_cbf`,
 `jaos_write_solution` and `jaos_write_mps_basis` share one open and one
-close, so all five take it (the `.col` and `.row` files beside a `.nl.gz`
+close, so all of them take it (the `.col` and `.row` files beside a `.nl.gz`
 stay plain, under the name without `.gz`). `jaos convert in.mps out.lp.gz` follows, and so
 do `solve --solution`, `solve --write-basis` and `relax --apply`. The name
 says compression and says nothing about the format, so `out.lp.gz` is an LP
@@ -408,12 +409,65 @@ COIN-OR OS samples write their columns), a `<con>` with a non-zero
 `constant`, a count that disagrees with what the file carries, and a
 file that ends inside a tag.
 
+## CBF
+
+The Conic Benchmark Format of the CBLIB library (Friberg, *CBLIB 2014*,
+Mathematical Programming Computation 8, 2016; the format's reference
+manual, version 3, 2018), read by `jaos_read_cbf` and by the tool for a
+name ending in `.cbf` or `.cbf.gz`, written by `jaos_write_cbf` and
+`convert OUT.cbf` (since 2026-09-19). A file is a list of blocks, each a
+keyword line and the lines its keyword says; a line whose first
+non-blank character is `#` is a comment, and blank lines are skipped.
+The problem is `min` or `max` of `c'x + b_obj` over `x` in a product of
+cones with `A x + b` in another product of cones, the rows and columns
+numbered from 0.
+
+The reader takes versions 1 to 3 and the keywords `VER` (first, once),
+`OBJSENSE` (`MIN` or `MAX`, once, required), `VAR` and `CON` (a count,
+a number of blocks, and one `cone size` line per block), `INT`,
+`OBJACOORD`, `OBJBCOORD`, `ACOORD` and `BCOORD`. The cones are `F`
+(free), `L+`, `L-`, `L=`, `Q` (`x0 >= ||(x1, ...)||`) and `QR`
+(`2 x0 x1 >= ||(x2, ...)||²`, at least two members). A variable block
+gives its columns their bounds, and a `Q` or `QR` block of variables is a
+cone over those columns. A constraint block gives its rows their sides:
+`L+` is `a'x >= -b`, `L-` is `a'x <= -b`, `L=` an equality and `F` a
+free row. **A `Q` or `QR` block of constraints** is a cone over affine
+expressions, which JAOS holds as new free columns `w = A x + b`, one
+equality row each, and a cone over the `w`; when every row of the block
+picks one variable with coefficient 1 and no constant, and no variable
+twice, the cone goes on those variables instead and the block adds no
+row. Refused by line: `PSDVAR`, `PSDCON`, `OBJFCOORD`, `FCOORD`,
+`HCOORD` and `DCOORD` (semidefinite), `POWCONES` and `POW*CONES`, the
+cones `EXP`, `EXP*` and every parametric `@k:...` cone, a keyword given
+twice, the structure after the data, an index past its count, and a
+coefficient given twice to one position, which the manual calls an
+error. `CHANGE` ends the reading: the manual lets a reader take it for
+the end of the file, and JAOS reads the first instance of a hotstart
+sequence. Every check runs before the model is touched, so a refused file
+leaves the model as it was.
+
+The writer prints version 3. CBF has no names, so none are written. A
+column goes into the variable cone its bounds are: `[0, +inf)` is `L+`,
+`(-inf, 0]` is `L-`, `[0, 0]` is `L=` and a free column `F`, runs of
+one kind in one block; any other bound becomes a row, `x - l` in `L+`,
+`x - u` in `L-`, `x - l` in `L=` for a column fixed elsewhere than zero.
+A row is one constraint, and a ranged row two, `L+` then `L-`. Each cone
+becomes a `Q` or `QR` block of rows that pick its columns, the form the
+reader puts back on the columns. A quadratic objective, quadratic rows,
+SOS sets, semi-continuous columns and indicator rows are refused by name.
+**So a model goes out and back as an equivalent model**, with the same
+columns, cones and optimum, and not as the same one: the names are lost,
+a bound other than the four above comes back as a row, and a ranged row
+as two.
+
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,
 `jaos_write_nl`, added 2026-09-09, and `jaos_write_qplib` and
 `jaos_write_osil` the same day. One rule shapes all of them: **what JAOS
-writes, JAOS reads back as the same model.** Where a format cannot express
+writes, JAOS reads back as the same model.** `jaos_write_cbf`, added
+2026-09-19, keeps the weaker rule the section above says, because CBF has
+no names and no bounds but its cones. Where a format cannot express
 what the model holds, the call fails, `jaos_model_error` names the row or
 the column, and no file is left behind.
 

@@ -3392,5 +3392,39 @@ class TestCones(unittest.TestCase):
         with self.assertRaises(ValueError):
             q.add_cone([t, 1.0])
 
+    def test_cbf_reads_and_writes_cones(self):
+        with jaos.Model() as m:
+            m.read_cbf(data("g_cbf_cone.cbf"))
+            self.assertEqual((m.num_col, m.num_row, m.num_cones()), (7, 4, 1))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 3.0, places=7)
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_mps(data("g_cone.mps"))
+            path = os.path.join(d, "cone.cbf")
+            m.write_cbf(path)
+            with jaos.Model() as b:
+                b.read_cbf(path)
+                self.assertEqual(b.cone(0),
+                                 (jaos.ConeType.QUADRATIC, [0, 1, 2]))
+                self.assertIs(b.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(b.objective(), 5.0, places=7)
+        with jaos.Model() as m:
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.read_cbf(data("e_cbf_psd.cbf"))
+            self.assertIn("semidefinite", str(ctx.exception))
+        p = jaos.Problem()
+        u = p.add_var(lb=1, ub=1, name="u")
+        v = p.add_var(name="v")
+        w = p.add_var(lb=2, name="w")
+        p.add_cone([u, v, w], rotated=True)
+        p.minimize(v)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "p.cbf")
+            p.write_cbf(path)
+            with jaos.Model() as b:
+                b.read_cbf(path)
+                self.assertIs(b.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(b.objective(), 2.0, places=7)
+
 if __name__ == "__main__":
     unittest.main()

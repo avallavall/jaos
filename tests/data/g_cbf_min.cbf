@@ -1,0 +1,33 @@
+# The minimal working example of the CBF reference manual, section 1.1:
+#   minimize 5.1 x0  subject to  6.2 x1 + 7.3 x2 - 8.4 in {0},
+#   x in Q3, x0 integer.
+VER
+3
+
+OBJSENSE
+MIN
+
+VAR
+3 1
+Q 3
+
+INT
+1
+0
+
+CON
+1 1
+L= 1
+
+OBJACOORD
+1
+0 5.1
+
+ACOORD
+2
+0 1 6.2
+0 2 7.3
+
+BCOORD
+1
+0 -8.4

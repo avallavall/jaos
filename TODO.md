@@ -107,7 +107,7 @@ the commit that took it, named here by hash.
 
 
 5. **Cones and quadratic rows, the rest.** SPECS row 23. The conic
-   interior point, its Newton finish and every format but CBF landed on
+   interior point, its Newton finish and every format with CBF landed on
    2026-09-19 (`bench/measurements/02-253/`). Missing:
 
    - **integer columns with cones or quadratic rows** (MISOCP). The solve
@@ -118,8 +118,11 @@ the commit that took it, named here by hash.
      so the ball-and-half-space models of 02-253 end `INFEASIBLE` with no
      certificate published (311 of their 314). The checker would need the
      supremum of a concave quadratic over the boxes.
-   - **the CBF format** and **a reading on a published conic set**
-     (CBLIB, or QPLIB's convex QCQPs).
+   - **a reading on a published conic set** (CBLIB, or QPLIB's convex
+     QCQPs). The 29 continuous CBLIB 2014 instances under 70 MB all read.
+     The small ones solve. The scaling block of a cone is dense, so a cone
+     of thousands of members (sched, chainsing-*-2 and -3) costs its
+     square in memory and work, and the Newton finish skips such models.
    - **the 10 numerical errors of 02-253**: nine rays the projection
      cannot bring inside the ray checker's tolerance (2e-6 to 9e-2 past a
      row side or a bound), and one walk that stalls away from any answer.

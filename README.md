@@ -39,10 +39,11 @@ if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
 jaos_model_free(m);
 ```
 
-**Files.** Reads fixed and free MPS and the CPLEX-style core of the LP format
-(`docs/format-support.md`). Reads and writes gzip with an inflate and deflate
-written here. Writes MPS, LP, its own solution file, a point file and a duals
-file, and reads them back. `jaos diff` says whether two files are the same
+**Files.** Reads fixed and free MPS and writes free MPS. Reads and writes the
+CPLEX-style core of the LP format, AMPL's text `.nl`, QPLIB, OSiL and the Conic
+Benchmark Format (CBF) (`docs/format-support.md`). Reads and writes gzip with an inflate and deflate
+written here. Writes its own solution file, a point file and a duals file, and
+reads them back. `jaos diff` says whether two files are the same
 model; `jaos show` prints one row or column.
 
 **Linear programs.** Presolve with six reduction families and a postsolve to

@@ -1,0 +1,42 @@
+# Example C.5 of the CBF reference manual: an LP followed by two CHANGE
+# blocks, which JAOS reads as the end of the file. The first instance is
+#   maximize x0 + 0.64 x1  subject to  50 x0 + 31 x1 <= 250,
+#   3 x0 - 2 x1 >= -4,  x >= 0,  optimal at 984/193.
+VER
+3
+
+OBJSENSE
+MAX
+
+VAR
+2 1
+L+ 2
+
+CON
+2 2
+L- 1
+L+ 1
+
+OBJACOORD
+2
+0 1.0
+1 0.64
+
+ACOORD
+4
+0 0 50.0
+1 0 3.0
+0 1 31.0
+1 1 -2.0
+
+BCOORD
+2
+0 -250.0
+1 4.0
+
+CHANGE
+
+OBJACOORD
+2
+0 1.11
+1 0.76

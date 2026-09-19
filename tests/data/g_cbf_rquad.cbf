@@ -1,0 +1,35 @@
+# minimize v with u = 1, w >= 2 and (u, v, w) in QR, 2 u v >= w^2: v = 2.
+# Each row of the QR block picks one variable, so the reader puts the cone
+# on the variables themselves.
+VER
+2
+
+OBJSENSE
+MIN
+
+VAR
+3 1
+F 3
+
+CON
+5 3
+L= 1
+L+ 1
+QR 3
+
+OBJACOORD
+1
+1 1
+
+ACOORD
+5
+0 0 1
+1 2 1
+2 0 1
+3 1 1
+4 2 1
+
+BCOORD
+2
+0 -1
+1 -2

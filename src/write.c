@@ -1456,6 +1456,237 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
     return wr_close(w, path, &loc);
 }
 
+enum { CBF_F, CBF_LPLUS, CBF_LMINUS, CBF_LZERO, CBF_Q, CBF_QR };
+
+static const char *const cbf_word[] = {"F", "L+", "L-", "L=", "Q", "QR"};
+
+typedef struct {
+    int kind;
+    int64_t row, col;
+    double b;
+} cbf_con;
+
+static int cbf_domain(double lo, double hi)
+{
+    if (lo == 0.0 && hi == 0.0)
+        return CBF_LZERO;
+    if (lo == 0.0 && isinf(hi) && hi > 0.0)
+        return CBF_LPLUS;
+    if (isinf(lo) && lo < 0.0 && hi == 0.0)
+        return CBF_LMINUS;
+    return CBF_F;
+}
+
+jaos_status jaos_write_cbf(jaos_model *m, const char *path)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    char nm[NAME_LEN], num[NUM_LEN];
+
+    if (jm_model_has_quadratic(m))
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has a quadratic objective, which CBF cannot "
+                "express; write MPS instead");
+    if (w->st == JAOS_OK && m->rq_nz > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has quadratic rows, which CBF cannot express; "
+                "write MPS instead");
+    if (w->st == JAOS_OK && m->num_sos > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " SOS sets, which CBF cannot "
+                "express; write MPS instead", m->num_sos);
+    for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++)
+        if (m->col_semi != nullptr && m->col_semi[j]) {
+            col_name(m, nm, j);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' is semi-continuous, which CBF cannot "
+                    "express; write MPS instead", nm);
+        }
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++)
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' is an indicator constraint, which CBF cannot "
+                    "express; write MPS instead", nm);
+        }
+    if (w->st != JAOS_OK)
+        return w->st;
+    jaos_status rs = jm_model_ensure_rowwise(m);
+    if (rs != JAOS_OK)
+        return rs;
+
+    const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
+    const int64_t cap = 2 * nr + 2 * nc + members + 1;
+    cbf_con *con = jm_alloc_array(cap, sizeof *con);
+    if (con == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    int64_t ncon = 0, nnz = 0, nb = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        const double lo = m->row_lower[i], hi = m->row_upper[i];
+        const int64_t len = m->ar_start[i + 1] - m->ar_start[i];
+        if (isfinite(lo) && lo == hi) {
+            con[ncon++] = (cbf_con){CBF_LZERO, i, -1, -lo};
+            nnz += len;
+            continue;
+        }
+        if (!isfinite(lo) && !isfinite(hi)) {
+            con[ncon++] = (cbf_con){CBF_F, i, -1, 0.0};
+            nnz += len;
+            continue;
+        }
+        if (isfinite(lo)) {
+            con[ncon++] = (cbf_con){CBF_LPLUS, i, -1, -lo};
+            nnz += len;
+        }
+        if (isfinite(hi)) {
+            con[ncon++] = (cbf_con){CBF_LMINUS, i, -1, -hi};
+            nnz += len;
+        }
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        const double lo = m->col_lower[j], hi = m->col_upper[j];
+        if (cbf_domain(lo, hi) != CBF_F || (isinf(lo) && isinf(hi)))
+            continue;
+        if (isfinite(lo) && lo == hi) {
+            con[ncon++] = (cbf_con){CBF_LZERO, -1, j, -lo};
+            nnz++;
+            continue;
+        }
+        if (isfinite(lo)) {
+            con[ncon++] = (cbf_con){CBF_LPLUS, -1, j, -lo};
+            nnz++;
+        }
+        if (isfinite(hi)) {
+            con[ncon++] = (cbf_con){CBF_LMINUS, -1, j, -hi};
+            nnz++;
+        }
+    }
+    for (int64_t k = 0; k < m->num_cone; k++)
+        for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++) {
+            con[ncon++] = (cbf_con){m->cone_type[k] == JAOS_CONE_ROTATED
+                                        ? CBF_QR : CBF_Q, -1,
+                                    m->cone_col[t], 0.0};
+            nnz++;
+        }
+    for (int64_t t = 0; t < ncon; t++)
+        nb += con[t].b != 0.0;
+
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc)) {
+        free(con);
+        return w->st;
+    }
+    FILE *f = w->f;
+    fprintf(f, "# written by JAOS %s; the names are not carried\n",
+            JAOS_VERSION_STRING);
+    fprintf(f, "VER\n3\n\nOBJSENSE\n%s\n\n",
+            m->sense == JAOS_MAXIMIZE ? "MAX" : "MIN");
+    int64_t nvb = 0;
+    for (int64_t j = 0; j < nc; j++)
+        if (j == 0 || cbf_domain(m->col_lower[j], m->col_upper[j]) !=
+                          cbf_domain(m->col_lower[j - 1],
+                                     m->col_upper[j - 1]))
+            nvb++;
+    fprintf(f, "VAR\n%" PRId64 " %" PRId64 "\n", nc, nvb);
+    for (int64_t j = 0; j < nc;) {
+        const int d = cbf_domain(m->col_lower[j], m->col_upper[j]);
+        int64_t e = j + 1;
+        while (e < nc && cbf_domain(m->col_lower[e], m->col_upper[e]) == d)
+            e++;
+        fprintf(f, "%s %" PRId64 "\n", cbf_word[d], e - j);
+        j = e;
+    }
+    fprintf(f, "\n");
+    int64_t nint = 0;
+    for (int64_t j = 0; m->col_integer != nullptr && j < nc; j++)
+        nint += m->col_integer[j];
+    if (nint > 0) {
+        fprintf(f, "INT\n%" PRId64 "\n", nint);
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_integer[j])
+                fprintf(f, "%" PRId64 "\n", j);
+        fprintf(f, "\n");
+    }
+    if (ncon > 0) {
+        int64_t ncb = 0;
+        for (int64_t t = 0; t < ncon;) {
+            int64_t e = t + 1;
+            if (con[t].kind == CBF_Q || con[t].kind == CBF_QR) {
+                int64_t k = 0;
+                while (m->cone_start[k + 1] <= t - (ncon - members))
+                    k++;
+                e = t + (m->cone_start[k + 1] - m->cone_start[k]);
+            } else {
+                while (e < ncon && con[e].kind == con[t].kind)
+                    e++;
+            }
+            ncb++;
+            t = e;
+        }
+        fprintf(f, "CON\n%" PRId64 " %" PRId64 "\n", ncon, ncb);
+        for (int64_t t = 0; t < ncon;) {
+            int64_t e = t + 1;
+            if (con[t].kind == CBF_Q || con[t].kind == CBF_QR) {
+                int64_t k = 0;
+                while (m->cone_start[k + 1] <= t - (ncon - members))
+                    k++;
+                e = t + (m->cone_start[k + 1] - m->cone_start[k]);
+            } else {
+                while (e < ncon && con[e].kind == con[t].kind)
+                    e++;
+            }
+            fprintf(f, "%s %" PRId64 "\n", cbf_word[con[t].kind], e - t);
+            t = e;
+        }
+        fprintf(f, "\n");
+    }
+    int64_t nobj = 0;
+    for (int64_t j = 0; j < nc; j++)
+        nobj += m->col_cost[j] != 0.0;
+    if (nobj > 0) {
+        fprintf(f, "OBJACOORD\n%" PRId64 "\n", nobj);
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_cost[j] != 0.0) {
+                wr_num(num, m->col_cost[j]);
+                fprintf(f, "%" PRId64 " %s\n", j, num);
+            }
+        fprintf(f, "\n");
+    }
+    if (m->obj_offset != 0.0) {
+        wr_num(num, m->obj_offset);
+        fprintf(f, "OBJBCOORD\n%s\n\n", num);
+    }
+    if (nnz > 0) {
+        fprintf(f, "ACOORD\n%" PRId64 "\n", nnz);
+        for (int64_t t = 0; t < ncon; t++) {
+            if (con[t].row < 0) {
+                fprintf(f, "%" PRId64 " %" PRId64 " 1\n", t, con[t].col);
+                continue;
+            }
+            const int64_t i = con[t].row;
+            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+                wr_num(num, m->ar_value[p]);
+                fprintf(f, "%" PRId64 " %" PRId64 " %s\n", t, m->ar_index[p],
+                        num);
+            }
+        }
+        fprintf(f, "\n");
+    }
+    if (nb > 0) {
+        fprintf(f, "BCOORD\n%" PRId64 "\n", nb);
+        for (int64_t t = 0; t < ncon; t++)
+            if (con[t].b != 0.0) {
+                wr_num(num, con[t].b);
+                fprintf(f, "%" PRId64 " %s\n", t, num);
+            }
+    }
+    free(con);
+    return wr_close(w, path, &loc);
+}
+
 static void xml_text(FILE *f, const char *s)
 {
     for (; *s; s++) {

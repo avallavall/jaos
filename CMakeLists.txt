@@ -32,6 +32,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(JAOS_SOURCES
     src/alloc.c
     src/barrier.c
+    src/cbf.c
     src/check.c
     src/chol.c
     src/concurrent.c

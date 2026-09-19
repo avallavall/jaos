@@ -1,0 +1,10 @@
+# A semidefinite variable, which JAOS refuses at the PSDVAR line.
+VER
+3
+
+OBJSENSE
+MIN
+
+PSDVAR
+1
+3

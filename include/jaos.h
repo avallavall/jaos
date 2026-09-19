@@ -431,6 +431,10 @@ JAOS_NODISCARD jaos_status jaos_read_qplib(jaos_model *m, const char *path);
 
 JAOS_NODISCARD jaos_status jaos_write_qplib(jaos_model *m, const char *path);
 
+JAOS_NODISCARD jaos_status jaos_read_cbf(jaos_model *m, const char *path);
+
+JAOS_NODISCARD jaos_status jaos_write_cbf(jaos_model *m, const char *path);
+
 JAOS_NODISCARD jaos_status jaos_read_osil(jaos_model *m, const char *path);
 
 JAOS_NODISCARD jaos_status jaos_write_osil(jaos_model *m, const char *path);
