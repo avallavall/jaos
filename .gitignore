@@ -54,3 +54,6 @@
 # Python bytecode from the binding and its tests.
 __pycache__/
 *.pyc
+
+# Julia resolves the package's dependencies into this file on each machine.
+/julia/JAOS/Manifest.toml

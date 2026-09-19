@@ -46,8 +46,8 @@ Benchmark Format (CBF) (`docs/format-support.md`). Reads and writes gzip with an
 written here. Writes its own solution file, a point file and a duals file, and
 reads them back. `jaos diff` says whether two files are the same
 model; `jaos show` prints one row or column. `jaos STUB -AMPL` answers
-AMPL's solver protocol; Pyomo and JuMP call it that way on a linear
-model.
+AMPL's solver protocol; Pyomo calls it that way on a linear model, and
+so can JuMP through AmplNLWriter.
 
 **Linear programs.** Presolve with six reduction families and a postsolve to
 the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
@@ -100,6 +100,22 @@ p.maximize(x + 2*y)
 p.solve()
 ```
 
+**Julia.** The `JAOS` package in `julia/JAOS` over `libjaos.so`: the C
+calls through `ccall`, and `JAOS.Optimizer`, a MathOptInterface optimizer,
+so JuMP uses it directly. It passes MathOptInterface's own conformance
+suite. `make shared` builds the library; `Pkg.develop(path="julia/JAOS")`
+adds the package.
+
+```julia
+using JuMP, JAOS
+model = Model(JAOS.Optimizer)
+@variable(model, x <= 4)
+@variable(model, y, Int)
+@constraint(model, x + y <= 4)
+@objective(model, Max, x + 2y)
+optimize!(model)
+```
+
 ## Build and test
 
 GCC 14 or later, Linux. The same sources cross-compile for Windows with
@@ -111,8 +127,9 @@ make test         # unit suite, the CLI's test, the install, CMake and Windows c
 make sanitize     # unit suite under ASan and UBSan
 make configs      # the above over all five build configurations, clean between each
 make cli          # build/cli/jaos
-make shared       # build/release/libjaos.so, which the Python binding loads
+make shared       # build/release/libjaos.so, which the Python and Julia bindings load
 make python-test  # the binding's own suite
+make julia-test   # the Julia package's suite, MathOptInterface's conformance tests included
 make netlib       # the 94-instance gate (fetches the instances first)
 make miplib       # the 24-instance MIP set
 make compare      # time JAOS against HiGHS, SoPlex and Clp
@@ -175,6 +192,7 @@ include/jaos.h        the public header, the only one
 src/                  library sources
 tests/                unit suite; tests/vendor/unity/ is the one vendored dependency
 python/               the jaos package, over ctypes and the standard library only
+julia/JAOS/           the Julia package: ccall and a MathOptInterface optimizer
 cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers

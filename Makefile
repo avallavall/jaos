@@ -70,7 +70,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	miplib miplib-baseline cblib cblib-baseline \
 	warm warm-kennington primal primal-kennington barrier barrier-infeas \
 	pdlp pdlp-infeas concurrent \
-	shared python-test \
+	shared python-test julia-test \
 	pgo clean
 
 .SECONDARY:
@@ -139,6 +139,10 @@ sanitize: $(ASAN_TESTS)
 
 python-test: $(SHLIB)
 	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) python3 -m unittest discover -s python -v
+
+julia-test: $(SHLIB)
+	@julia --project=julia/JAOS -e 'using Pkg; Pkg.instantiate()'
+	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) julia --project=julia/JAOS julia/JAOS/test/runtests.jl
 
 CONFIGS := -DJAOS_NO_PRESOLVE -DJAOS_PRESOLVE_FAULT_OFFBYONE \
            -DJAOS_PRESOLVE_FAULT_WRONGDUAL

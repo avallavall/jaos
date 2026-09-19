@@ -482,7 +482,7 @@ and this page has not measured that.
 | Command-line tool | ● | ● | ● | ● | ● | ● | ? |
 | C or C++ | ● | ● | ● | ● | ● | ● | ● |
 | Python | ● | ● | ● | ● | ● | ● | ● |
-| Julia | ○ | ● | ● | ● | ● | ● | ? |
+| Julia | ● | ● | ● | ● | ● | ● | ? |
 | Java, .NET | ○ | ◐ | ○ | ○ | ◐ | ● | ● |
 | MATLAB, R | ○ | ◐ | ○ | ● | ● | ● | ? |
 | AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ● |
@@ -495,6 +495,19 @@ AMPL, Pyomo's `asl:` interface and JuMP's AmplNLWriter all use. Pyomo
 (`bench/measurements/02-257/`); GAMS needs a link library of its own,
 and a nonlinear body, which is how those systems write a quadratic
 objective, is refused by the `.nl` reader.
+
+**The Julia row reads ● since 2026-09-19**: `julia/JAOS` is a Julia
+package over `libjaos.so`, with the C calls through `ccall` and
+`JAOS.Optimizer`, a MathOptInterface optimizer that takes a whole model
+through `copy_to`. JuMP uses it directly (`Model(JAOS.Optimizer)`), with
+no `.nl` file in between, so quadratic objectives, quadratic rows and
+cones reach it too. `make julia-test` runs MathOptInterface's own
+conformance suite on it: 4717 checks pass, and 4 tests are left out
+because JAOS refuses what they ask by design (three solve a non-convex
+quadratic row, and one needs an IIS that keeps integrality, while
+`jaos_iis` explains the linear relaxation). The package is not in
+Julia's General registry, and it finds the library the way the Python
+package does.
 
 **The install row is new on 2026-09-07.** `make install` puts the
 header, both library forms, the tool and a generated `jaos.pc` under

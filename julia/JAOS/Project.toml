@@ -1,0 +1,18 @@
+name = "JAOS"
+uuid = "3f6d1b0e-9a42-4c5e-8b7f-2c1d5e9a7b40"
+authors = ["JAOS contributors"]
+version = "0.3.0"
+
+[deps]
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+
+[compat]
+MathOptInterface = "1"
+julia = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
