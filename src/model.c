@@ -907,7 +907,11 @@ jaos_status jaos_solve(jaos_model *m)
     }
     if (m->cfg.concurrent && !m->cfg.node_solve)
         return jm_solve_concurrent(m);
-    return jm_dual_simplex(m);
+    const jaos_status st = jm_dual_simplex(m);
+    if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR &&
+        jm_model_has_quadratic(m))
+        return jm_conic_after_barrier(m);
+    return st;
 }
 
 jaos_status jaos_set_col_integer(jaos_model *m, int64_t j, bool is_integer)

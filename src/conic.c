@@ -2015,7 +2015,35 @@ done:
     return st;
 }
 
+static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0);
+
 jaos_status jm_conic(jaos_model *m)
+{
+    return conic_solve(m, 0, 0);
+}
+
+jaos_status jm_conic_after_barrier(jaos_model *m)
+{
+    const double limit = m->cfg.time_limit, spent = m->solve_time;
+    if (limit > 0.0 && spent >= limit)
+        return JAOS_OK;
+    const bool node = m->cfg.node_solve;
+    jm_log(m, JAOS_LOG_SUMMARY, "the barrier ended without an answer after "
+           "%lld iterations and %lld work units; the conic interior point "
+           "solves the model again", (long long)m->solve_iters,
+           (long long)m->solve_work);
+    m->err[0] = '\0';
+    m->cfg.node_solve = false;
+    if (limit > 0.0)
+        m->cfg.time_limit = limit - spent;
+    const jaos_status st = conic_solve(m, m->solve_work, m->solve_iters);
+    m->cfg.node_solve = node;
+    m->cfg.time_limit = limit;
+    m->solve_time += spent;
+    return st;
+}
+
+static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
 {
     const int64_t n = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
@@ -2033,7 +2061,7 @@ jaos_status jm_conic(jaos_model *m)
     int64_t *ps = nullptr, *pi = nullptr, *as = nullptr, *ai = nullptr;
     double *pv = nullptr, *av = nullptr, *q = nullptr, *b = nullptr;
     double *x = nullptr, *s = nullptr, *z = nullptr;
-    jm_work work = {0};
+    jm_work work = {work0};
     const double started = jm_monotonic_seconds();
     if (qc == nullptr || slot_lo == nullptr || slot_up == nullptr ||
         slot_eq == nullptr || qc_at == nullptr || cone_at == nullptr) {
@@ -2327,8 +2355,8 @@ jaos_status jm_conic(jaos_model *m)
         }
     }
     m->solve_status = res.status;
-    m->solve_iters = res.iters;
-    m->solve_barrier_iters = res.iters;
+    m->solve_iters = iters0 + res.iters;
+    m->solve_barrier_iters = iters0 + res.iters;
     m->solve_work = work.units;
     m->solve_time = jm_monotonic_seconds() - started;
     m->farkas_ok = false;

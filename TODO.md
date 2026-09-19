@@ -52,38 +52,12 @@ the commit that took it, named here by hash.
    the NaN points, the 1e-6 row slips, the four unreadable files and the
    handoff that ground the dual simplex; six more fixes followed from its
    list (02-250, "After the reading"), and the push's stretch and its
-   longer freeing took two more on 2026-09-19, and the augmented restart
-   below took boyd2. What it leaves, 129 of 138 clean, 134 `OPTIMAL` and
-   133 taken by the checker:
+   longer freeing took two more on 2026-09-19, the augmented restart took
+   boyd2, and the conic interior point after a failed barrier took dtoc3,
+   ksip and ubh1 (`bench/measurements/02-258/`; the barrier alone still
+   stops on the three). What it leaves, 132 of 138 clean, 137 `OPTIMAL`
+   and 136 taken by the checker:
 
-   - **dtoc3** answered wrong until the scale exponent was capped at
-     `2^±20` (`EXP_LIMIT`, its factors ran to `2^91`); it ends
-     `NUMERICAL_ERROR` now, the rows 1.4e-6 off in scaled space against a
-     dual step of 1e7, which is the liswet wall below.
-   - **3 the barrier cannot settle**: dtoc3 (10000 free columns; the
-     primal residual stuck at 1e-8 with mu at 1e-57 was the
-     `BARRIER_DELTA` floor on the rows against a large dual step, and
-     dropping `delta` by `BARRIER_STALL_DELTA` on a stall, reverting the
-     drop when a factorisation loses a pivot, solves the whole liswet
-     family but not this one; a refined Newton direction was tried and
-     hurt the generated set),
-     ksip (1001 rows on 20 free columns, mu of 1e19 from the start),
-     ubh1 (200 iterations with the gap at 0.23; q25fv47 was here until
-     the push learned to finish a walk stopped within
-     `BARRIER_NEAR_TOL` of converged, and the push does not settle on it:
-     ubh1 loses its interior by iteration 5, mu at 1e-22 against a gap
-     of 0.5, and a lift of every complementarity product back to 1e-3 of
-     the gap was measured and refused). boyd2 was here, its walk stopped
-     at a gap of 3.8e-6 with its two dense columns left out of the normal
-     matrix; since 2026-09-19 a quadratic walk that stops with dense
-     columns left out starts again on the augmented system, and boyd2
-     ends at the reference in 270 iterations (`bench/measurements/02-256/`). qgrow22 was here, its LDL replacing 61 pivots at every
-     regularisation up to 1e-4 and the next direction NaN; at
-     `BARRIER_REG_MAX` 1e-2 it converges to the reference and the checker
-     refuses a dual violation of 3e-6 (the push leaves 1575 rows
-     unsatisfied and stands down). cvxqp1_l, cvxqp3_l,
-     powell20, huestis, qforplan and qpcboei2 were here until a quadratic
-     model got its own divergence limit, `BARRIER_DIVERGE_QP`.
    - **one the checker refuses with the objective right**: qgrow22. Its
      first push step came out NaN, and since 2026-09-19 the push takes
      such a round again on a larger regularisation; it then runs 40
@@ -169,10 +143,16 @@ the commit that took it, named here by hash.
      row side or a bound), and two walks that stall away from any answer.
 
 6. **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
-   QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`), 3
-   end `OPTIMAL` and 13 reach a work limit of 1e11: QPLIB_3871, 3698,
-   3792, 3694 and 3861 with incumbents 27% to 71% above the reference,
-   QPLIB_3547 with the incumbent 0 against -0.56, and QPLIB_3980, 3913,
-   4270, 5577, 5924, 5527 and 5543 with none. QPLIB_3708 ends
-   `NUMERICAL_ERROR` at a node after an incumbent 33% above. Each node is
-   a cold barrier solve.
+   QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,
+   `02-258/`), 4 end `OPTIMAL` and 13 reach a work limit of 1e11:
+   QPLIB_3871, 3698, 3792, 3694 and 3861 with incumbents 27% to 71%
+   above the reference, QPLIB_3547 with the incumbent 0 against -0.56,
+   and QPLIB_3980, 3913, 4270, 5577, 5924, 5527 and 5543 with none. Each
+   node is a cold barrier solve. The conic tree, measured on the same set
+   and refused (`miqp-conic-tree`), found incumbents on 3980, 3913 and
+   4270 and 1.5% to 62% above the reference on the DML files through its
+   root rounding, which solves the model with every integer column fixed
+   at its rounded value, and its dive, which fixes half the fractional
+   integer columns per solve. The LP tree's dive fixes one column per
+   solve up to its cap, and its rounding keeps the continuous values as
+   they are. Those two on the LP tree's MIQP are the next thing to read.

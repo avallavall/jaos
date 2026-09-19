@@ -31,4 +31,5 @@ sched_200_100_scaled optimal    rows=18086 cols=37887 shape=ok iters=36 work=370
 29 instances: 26 solved, 29 shape ok, 18 objective ok, 26 checker ok, 26 deterministic, 3 failed
 gate: NOT MET
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new

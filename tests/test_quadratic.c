@@ -1096,9 +1096,76 @@ static void test_a_qp_whose_dense_columns_lose_the_walk_still_solves(void)
     jaos_model_free(m);
 }
 
+static void catch_retry(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "the conic interior point solves the model again") !=
+        nullptr)
+        *(bool *)user = true;
+}
+
+/* Maros and Meszaros's ksip on 101 points instead of 1001: minimise
+   sum_j (x_j + x_j^2 / 2) / (j + 1) over 20 free columns subject to
+   sum_j t^j x_j >= sin(t) at t = 0, 0.01, ..., 1. The barrier's walk ends
+   without an answer on it, as on ksip itself, and the conic interior point
+   solves the model again, its work counted on from the barrier's. */
+static void test_a_qp_the_barrier_cannot_finish_goes_to_the_conic_walk(void)
+{
+    enum { P = 101, N = 20 };
+    static double cost[N], cl[N], cu[N], rl[P], ru[P], av[P * N];
+    static int64_t as[N + 1], ai[P * N];
+    int64_t nz = 0;
+    for (int j = 0; j < N; j++) {
+        as[j] = nz;
+        for (int i = 0; i < P; i++) {
+            const double t = i / (double)(P - 1);
+            double a = 1.0;
+            for (int k = 0; k < j; k++)
+                a *= t;
+            if (a != 0.0) {
+                ai[nz] = i;
+                av[nz++] = a;
+            }
+        }
+        cost[j] = 1.0 / (j + 1);
+        cl[j] = -jaos_infinity();
+        cu[j] = jaos_infinity();
+    }
+    as[N] = nz;
+    for (int i = 0; i < P; i++) {
+        rl[i] = sin(i / (double)(P - 1));
+        ru[i] = jaos_infinity();
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, P, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, nz,
+                     as, ai, av));
+    for (int j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_col_quadratic(m, j, 1.0 / (j + 1)));
+    bool retried = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_retry, &retried));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_TRUE(retried);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.575773803, obj);
+    static double x[N], y[P];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_qp_the_barrier_cannot_finish_goes_to_the_conic_walk);
     RUN_TEST(test_a_qp_whose_dense_columns_lose_the_walk_still_solves);
     RUN_TEST(test_a_paired_q_reads_back_as_it_was_set);
     RUN_TEST(test_a_paired_q_solves_to_the_point_it_should);
