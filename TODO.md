@@ -150,12 +150,6 @@ the commit that took it, named here by hash.
      work limit, 10 `LMC` files reach it, 8 of them with no incumbent,
      and QPLIB_10006 and 10007 are refused for a quadratic row over
      `CONIC_QC_DENSE` (3000) columns.
-   - **the 2 numerical errors left of 02-253**: two walks that stall away
-     from any answer, seed 1's model 448 and seed 3's model 831, each
-     stopping after 25 iterations with nothing to answer from. The six
-     rays the projection could not place are gone: a solve over the
-     directions the rows, the bounds and the cones leave open finds one
-     the checker takes (`bench/measurements/02-265/`).
    - **a badly scaled box**: 15 bound-only columns of QPLIB_9002, values
      of 1e9 against `Q` entries of 4e-11, put in a cone model, end the
      walk at a certificate the checker refuses ("columns reach inf"), so

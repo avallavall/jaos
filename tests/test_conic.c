@@ -879,27 +879,33 @@ static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
     jaos_model_free(m);
 }
 
-/* A generated model whose walk ends on an improving direction that the
-   ray checker refuses, 2.1e-6 past a row side. The direction solve finds
-   one the checker takes, so the model ends unbounded with a ray. */
+/* Two generated models the walk cannot end on its own: one leaves an
+   improving direction the ray checker refuses, 2.1e-6 past a row side,
+   and one stops after 25 iterations with nothing to answer from. The
+   solve over the directions the rows, the bounds and the cones leave open
+   ends both unbounded with a ray the checker takes. */
 static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void)
 {
-    jaos_model *m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_read_mps(m, "tests/data/g_ray_probe.mps"));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
-    const int64_t nc = jaos_num_col(m);
-    double *d = jm_alloc_array(nc, sizeof *d);
-    TEST_ASSERT_NOT_NULL(d);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
-    jaos_ray_report rep;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-6, &rep));
-    TEST_ASSERT_TRUE_MESSAGE(rep.certified, "the ray is not certified");
-    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_col_escape);
-    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_row_escape);
-    free(d);
-    jaos_model_free(m);
+    const char *path[2] = {"tests/data/g_ray_probe.mps",
+                           "tests/data/g_ray_stall.mps"};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m),
+                                      path[k]);
+        const int64_t nc = jaos_num_col(m);
+        double *d = jm_alloc_array(nc, sizeof *d);
+        TEST_ASSERT_NOT_NULL(d);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+        jaos_ray_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-6, &rep));
+        TEST_ASSERT_TRUE_MESSAGE(rep.certified, "the ray is not certified");
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_col_escape);
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_row_escape);
+        free(d);
+        jaos_model_free(m);
+    }
 }
 
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)

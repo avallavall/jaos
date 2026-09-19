@@ -730,6 +730,11 @@ expect_exit 0 "the same model solves one node at a time" \
     || flunk "rounds gave '$batch_obj', one node '$(line_of objective)'"
 expect_exit 5 "a tree batch below 1 is a usage error" \
     "$JAOS" solve "$DATA/g_misocp.mps" --tree-batch 0
+expect_exit 2 "a model whose walk gives no answer ends unbounded" \
+    "$JAOS" solve "$DATA/g_ray_stall.mps" --log summary
+printf '%s\n' "$err" | grep -q "the walk ends with no answer; looking for a feasible point first" \
+    && pass "after a feasible point and a direction solve" \
+    || flunk "no feasibility solve in the log"
 expect_exit 2 "a model whose walk's direction the checker refuses ends unbounded" \
     "$JAOS" solve "$DATA/g_ray_probe.mps" --log detail
 printf '%s\n' "$err" | grep -q "a solve over the directions the rows, the bounds and the cones leave open found one that does" \

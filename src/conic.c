@@ -2712,7 +2712,8 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
     st = jm_cone_solve(&pb, m, &work, &res);
     if (st != JAOS_OK)
         goto done;
-    if (res.status == JAOS_SOLVE_UNBOUNDED) {
+    const bool stalled = res.status == JAOS_SOLVE_NUMERICAL_ERROR;
+    if (res.status == JAOS_SOLVE_UNBOUNDED || stalled) {
         double *q0 = jm_calloc_array(n > 0 ? n : 1, sizeof *q0);
         int64_t *p0 = jm_calloc_array(n + 1, sizeof *p0);
         double *fx = jm_calloc_array(n > 0 ? n : 1, sizeof *fx);
@@ -2724,8 +2725,9 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             fp.q = q0;
             fp.p_start = p0;
             jm_cone_result fr = {.x = fx, .s = fs, .z = fz};
-            jm_log(m, JAOS_LOG_SUMMARY, "conic: an improving ray; looking "
-                   "for a feasible point before calling the model unbounded");
+            jm_log(m, JAOS_LOG_SUMMARY, "conic: %s; looking for a feasible "
+                   "point first", stalled ? "the walk ends with no answer"
+                                          : "an improving ray");
             st = jm_cone_solve(&fp, m, &work, &fr);
             res.iters += fr.iters;
             if (st == JAOS_OK && fr.status == JAOS_SOLVE_INFEASIBLE) {
@@ -2733,10 +2735,15 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                 memcpy(s, fs, (size_t)(mt > 0 ? mt : 1) * sizeof *s);
                 memcpy(z, fz, (size_t)(mt > 0 ? mt : 1) * sizeof *z);
                 res.status = JAOS_SOLVE_INFEASIBLE;
+                res.relaxed = fr.relaxed;
             } else if (st == JAOS_OK && fr.status != JAOS_SOLVE_OPTIMAL) {
                 res.status = fr.status == JAOS_SOLVE_WORK_LIMIT ||
                              fr.status == JAOS_SOLVE_TIME_LIMIT
                                  ? fr.status : JAOS_SOLVE_NUMERICAL_ERROR;
+            } else if (stalled) {
+                res.status = JAOS_SOLVE_UNBOUNDED;
+                for (int64_t j = 0; j < n; j++)
+                    x[j] = 0.0;
             }
         } else {
             st = JAOS_ERR_OUT_OF_MEMORY;
@@ -3012,11 +3019,18 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         }
         if (!m->ray_ok) {
             m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
-            jm_set_err(m, "the conic interior point found an improving "
-                          "direction that the ray checker does not confirm: "
-                          "rate %.3g, push past a column bound %.3g, past a "
-                          "row side %.3g", rr.rate, rr.max_col_escape,
-                       rr.max_row_escape);
+            if (stalled)
+                jm_set_err(m, "the conic interior point stopped after %lld "
+                              "iterations without an answer, and the model's "
+                              "rows, bounds and cones leave open no improving "
+                              "direction the ray checker takes",
+                           (long long)res.iters);
+            else
+                jm_set_err(m, "the conic interior point found an improving "
+                              "direction that the ray checker does not "
+                              "confirm: rate %.3g, push past a column bound "
+                              "%.3g, past a row side %.3g", rr.rate,
+                           rr.max_col_escape, rr.max_row_escape);
         }
     } else {
         jm_set_err(m, "the conic interior point stopped after %lld "
