@@ -3407,6 +3407,14 @@ class TestCones(unittest.TestCase):
             s = m.solution()
             self.assertEqual((s.col_value[1], s.col_value[2]), (2.0, 2.0))
             self.assertGreater(m.mip_report().nodes, 1)
+            self.assertEqual(m.mip_report().first_incumbent_node, 1)
+            self.assertGreaterEqual(m.mip_report().heuristic_points, 1)
+            m.set_mip_heuristics(False)
+            m.set_mip_dive_heuristic(0)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 0.5, places=7)
+            self.assertEqual(m.mip_report().heuristic_points, 0)
+            self.assertGreater(m.mip_report().first_incumbent_node, 1)
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=10, integer=True, name="x")
         y = p.add_var(lb=0, ub=10, integer=True, name="y")
@@ -3416,6 +3424,12 @@ class TestCones(unittest.TestCase):
         self.assertAlmostEqual(p.objective_value, 4.0, places=7)
         self.assertEqual(x.value + y.value, 4.0)
         self.assertTrue(p.check().primal_feasible)
+        self.assertEqual(p.mip_report().first_incumbent_node, 1)
+        p.set_mip_heuristics(False)
+        p.set_mip_dive_heuristic(0)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 4.0, places=7)
+        self.assertEqual(p.mip_report().heuristic_points, 0)
 
     def test_cbf_reads_and_writes_cones(self):
         with jaos.Model() as m:

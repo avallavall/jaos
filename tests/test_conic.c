@@ -532,7 +532,8 @@ static void assert_integer_answer(jaos_model *m, double want)
     TEST_ASSERT_TRUE(r.nodes > 1);
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, want, r.incumbent);
     const int64_t nc = jaos_num_col(m);
-    double x[8], y[8], z[8];
+    double x[16], y[16], z[16];
+    TEST_ASSERT_TRUE(nc <= 16 && jaos_num_row(m) <= 16);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     for (int64_t j = 0; j < nc; j++) {
         bool integer = false;
@@ -626,6 +627,82 @@ static void test_an_integer_point_outside_every_cone_is_infeasible(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
     TEST_ASSERT_FALSE(r.has_incumbent);
     TEST_ASSERT_TRUE(r.nodes >= 3);
+    jaos_model_free(m);
+}
+
+static jaos_model *nearest_point_model(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    const double cl[5] = {0.0, 0.0, 0.0, -inf, -inf};
+    const double cu[5] = {inf, 5.0, 5.0, inf, inf};
+    const double rl[2] = {1.6, 2.3}, ru[2] = {1.6, 2.3};
+    const int64_t as[6] = {0, 0, 1, 2, 3, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {1.0, 1.0, -1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 4, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    const int64_t cols[3] = {0, 3, 4};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cols));
+    return m;
+}
+
+/* the root relaxation of the nearest point model sits at (1.6, 2.3), and
+   its rounding (2, 2) is the optimum: an incumbent at node 1, which the
+   tree finds later with the rounding and the dive off. */
+static void test_the_rounded_root_is_an_incumbent_at_node_1(void)
+{
+    jaos_model *m = nearest_point_model();
+    assert_integer_answer(m, 0.5);
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(1, r.first_incumbent_node);
+    TEST_ASSERT_TRUE(r.heuristic_points >= 1);
+    jaos_model_free(m);
+
+    m = nearest_point_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    assert_integer_answer(m, 0.5);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_TRUE(r.first_incumbent_node > 1);
+    TEST_ASSERT_EQUAL_INT64(0, r.heuristic_points);
+    jaos_model_free(m);
+}
+
+/* minimise ||x|| over four weights that sum to 1, each at most its
+   binary z, with at most two z at 1. The relaxation is symmetric: the
+   weights at 0.25 and the four z alike, so rounding it gives four z at 0,
+   which hold no weight, or four at 1, over the cap. The dive fixes the z
+   nearest an integer, half at a time, and reaches two assets at 0.5, the
+   optimum 1/sqrt(2), at node 1. */
+static void test_the_root_dive_finds_a_cardinality_point(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[9] = {0, 0, 0, 0, 0, 0, 0, 0, 1.0};
+    const double cl[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const double cu[9] = {1, 1, 1, 1, 1, 1, 1, 1, inf};
+    const double rl[6] = {-inf, -inf, -inf, -inf, 1.0, -inf};
+    const double ru[6] = {0.0, 0.0, 0.0, 0.0, 1.0, 2.0};
+    const int64_t as[10] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 16};
+    const int64_t ai[16] = {0, 4, 1, 4, 2, 4, 3, 4, 0, 5, 1, 5, 2, 5, 3, 5};
+    const double av[16] = {1, 1, 1, 1, 1, 1, 1, 1, -1, 1, -1, 1, -1, 1, -1, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 9, 6, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 16,
+                     as, ai, av));
+    for (int64_t j = 4; j < 8; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    const int64_t cols[5] = {8, 0, 1, 2, 3};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 5, cols));
+    assert_integer_answer(m, sqrt(0.5));
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(1, r.first_incumbent_node);
+    TEST_ASSERT_TRUE(r.heuristic_points >= 1);
     jaos_model_free(m);
 }
 
@@ -747,6 +824,8 @@ int main(void)
     RUN_TEST(test_integer_columns_in_a_cone_branch_to_the_optimum);
     RUN_TEST(test_integer_columns_under_a_quadratic_row);
     RUN_TEST(test_an_integer_point_outside_every_cone_is_infeasible);
+    RUN_TEST(test_the_rounded_root_is_an_incumbent_at_node_1);
+    RUN_TEST(test_the_root_dive_finds_a_cardinality_point);
     RUN_TEST(test_an_sos_set_beside_a_cone_is_refused);
     RUN_TEST(test_a_wide_cone_gives_the_norm);
     RUN_TEST(test_a_wide_rotated_cone_gives_the_sum_of_squares);

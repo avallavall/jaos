@@ -136,8 +136,9 @@ numerical error. Integer columns beside cones or quadratic rows go to a
 branch and bound of their own (`src/conictree.c`,
 `bench/measurements/02-255/`): over 3000 generated models it agrees with
 brute force every time, and on CBLIB's 80 mixed-integer instances at
-1e11 work units 36 end `OPTIMAL`, all taken by the checker, and 44 at
-the work limit. What keeps the row from ●: those three CBLIB instances
+1e11 work units 37 end `OPTIMAL`, all taken by the checker, and 43 at
+the work limit, each with an incumbent found by the tree's rounding, its
+root dive or its branching. What keeps the row from ●: those three CBLIB instances
 fail, and an infeasibility that rests on a quadratic row's curvature has
 no certificate the checker takes. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual

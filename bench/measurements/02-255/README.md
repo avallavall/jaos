@@ -7,7 +7,8 @@ branched, the conic interior point at every node, and a node whose
 relaxation is integral closed by a solve with those columns fixed at
 their rounded values, whose answer is the one published, with its cones'
 duals. The MIP gap, node limit, cutoff, MIP start and incumbent callback
-apply to it; cuts, dives and the other heuristics do not. SOS sets,
+apply to it; cuts do not, and its two heuristics came with the second
+reading below. SOS sets,
 semi-continuous columns, indicator rows and a node callback beside cones
 are refused by name.
 
@@ -128,6 +129,60 @@ optimal.
   the row: 21957096.92 and 748470.84 on those two, and a point below the
   reference on pp-n1000-d10000, pp-n100-d10000 and pp-n1000-d10. The
   tree has no rounding heuristic, so it finds none of these.
+
+## The rounding and the dive, a second reading
+
+The tree above had no incumbent on 17 CBLIB instances, and `pp.py` found
+points on four of them with a plain rounding. The tree now tries two
+heuristics at the root. Both fix the integer columns and solve for the
+rest:
+
+- the relaxation's integer columns rounded to the nearest integer
+  (`--no-heuristics` turns it off);
+- while no incumbent is known after that, a dive: each solve fixes the
+  half of the fractional integer columns nearest an integer, until none
+  is fractional or `--dive-heuristic` solves are spent (50 by default,
+  the linear tree's cap), and its last point is rounded.
+
+**Three readings chose that.** A first version also rounded at nodes 2,
+4, 8 and on. Over the whole CBLIB set it gave the outcomes of the table
+below. Then each heuristic alone, on 18 instances (`cblib.sh` with
+`--dive-heuristic 0` or `--no-heuristics`): the dive earns the portfolio
+gains (robust_50_1 at 0.12x the plain tree's work against 0.90x with the
+rounding alone, shortfall_50_1 at 0.069x against 1.00x) and alone finds
+shortfall_50_3's incumbent; the rounding alone finds the first incumbent
+at node 1 on uflquad-psc-20-100 and pp-n10-d10000, and on the
+pp-n100000 files it is one solve where a dive over 100000 columns needs
+17. Then the root-only rounding, on the 35 instances where the first
+version moved something: the same incumbents but one, robust_200_2,
+which it improves from 3.1e-3 to 1.2e-3 above the reference, and 0.88x
+to 1.00x the first version's work on the trees of 7 to 31 nodes; over the
+whole set it gives the same outcomes at 0.989x the first version's work
+on the 37 optima. The later roundings are refused
+(`conic-rounding-schedule`).
+
+On the generated models every answer is the same to the bit: the three
+digests do not move. Nodes fall from 7311 to 7299 and the work rises to
+1.093x, the price of the extra solves on trees of 2.4 nodes on average.
+
+On CBLIB at the same work limit of 1e11:
+
+| outcome | before | after |
+|---|---|---|
+| `OPTIMAL`, taken by the checker | 36 | 37 |
+| work limit, with an incumbent | 27 | 43 |
+| work limit, no incumbent | 17 | 0 |
+
+- robust_100_3 now ends `OPTIMAL`, and robust_100_2's incumbent moves
+  from 5.0e-3 above the reference to 2.4e-9.
+- Over the 36 instances optimal both times the work is 0.749x (geometric
+  mean 0.761): 0.069x on shortfall_50_1, 0.09x to 0.12x on the three
+  robust_50, and up to 1.41x on turbine54, whose tree has 7 nodes.
+- The 17 without an incumbent now end with one: shortfall_50_3 within
+  1.7e-7 of the reference and pp-n1000-d10000 3.8e-8 below it; the 100-
+  and 200-asset portfolio files within 5.2e-4 to 6.1e-3 above it;
+  pp-n100000-d10000 at 21957096.97 against its bound of 21957042.36, and
+  pp-n100000-d10 at 748506.60 against 746996.16.
 
 ## Files
 

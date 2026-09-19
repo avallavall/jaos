@@ -829,3 +829,15 @@ models against brute force over every integer value.
 | Name | Value | What it decides |
 |---|---|---|
 | `CT_INT_TOL` | 1e-6 | A column value within this of an integer counts as integral, and a relaxation whose integer columns are all within it closes its node by a solve with those columns fixed at their rounded values. The same value as `MIP_INT_TOL`. Not swept: every answer of 02-255 agrees with brute force to 2.5e-16, so the tolerance never chose a wrong point |
+
+Its two heuristics take the MIP tree's switches and have no number of
+their own. At the root the relaxation is rounded and solved with its
+integer columns fixed (`--no-heuristics` turns it off). While no
+incumbent is known the root then dives: each solve fixes the half of the
+fractional integer columns nearest an integer, so the cap
+`MIP_DIVE_HEURISTIC` (50, the `mip_dive_heuristic` option) binds only
+past 2^50 of them. On the generated set of 02-255 every answer is the
+same to the bit at 1.093x the work, and on CBLIB's mixed-integer set the
+instances with no incumbent go from 17 to 0. A rounding at nodes 2, 4, 8
+and on as well was read and refused (`conic-rounding-schedule` in
+`bench/refusals.txt`).

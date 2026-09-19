@@ -112,12 +112,12 @@ the commit that took it, named here by hash.
    same day (`make cblib`, `bench/measurements/02-254/`). Missing:
 
    - **the conic tree's reach** (`src/conictree.c`, since 2026-09-19,
-     `bench/measurements/02-255/`). It branches and plunges with no cuts,
-     no heuristic but the plunge, and no warm start, so 44 of CBLIB's 80
-     mixed-integer instances end at the work limit of 1e11, 17 of them
-     with no incumbent. A rounding of the relaxation's point finds one on
-     the pp files at once (`pp.py` of 02-255). SOS sets, semi-continuous
-     columns and indicator rows beside cones are refused.
+     `bench/measurements/02-255/`). It branches and plunges, and rounds and
+     dives at the root, with no cuts and no warm start, so 43 of CBLIB's 80 mixed-integer instances end at the work
+     limit of 1e11, each with an incumbent: the sssd-weak, uflquad-nopsc
+     and turbine07_lowb files 0.17 to 1.7 above the reference, their
+     bounds 5% to 65% below it. SOS sets, semi-continuous columns and
+     indicator rows beside cones are refused.
    - **a certificate for an infeasibility that rests on a quadratic row's
      curvature.** The certificate checker takes a quadratic row linearly,
      so the ball-and-half-space models of 02-253 end `INFEASIBLE` with no

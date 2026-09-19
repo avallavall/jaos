@@ -686,6 +686,16 @@ esac
 grep -q '^col x 2 ' "$tmp/misocp.sol" && grep -q '^col y 2 ' "$tmp/misocp.sol" \
     && pass "and the integer columns are exactly 2" \
     || flunk "misocp solution: $(grep '^col [xy] ' "$tmp/misocp.sol" | tr '\n' ' ')"
+[ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
+    && [ "$(line_of heuristic_points)" != "heuristic_points 0" ] \
+    && pass "and the rounded root is the first incumbent" \
+    || flunk "misocp: '$(line_of first_incumbent)' '$(line_of heuristic_points)'"
+expect_exit 0 "the conic tree runs with the rounding and the dive off" \
+    "$JAOS" solve "$DATA/g_misocp.mps" --no-heuristics --dive-heuristic 0
+[ "$(line_of heuristic_points)" = "heuristic_points 0" ] \
+    && [ "$(line_of first_incumbent)" != "first_incumbent 1" ] \
+    && pass "and then finds its first incumbent by branching" \
+    || flunk "misocp off: '$(line_of first_incumbent)' '$(line_of heuristic_points)'"
 expect_exit 1 "an infeasible cone model exits 1" \
     "$JAOS" solve "$DATA/e_cone_infeas.mps" --solution "$tmp/cinf.sol"
 expect_exit 0 "and its certificate checks with the cone part" \
