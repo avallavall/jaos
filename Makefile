@@ -67,7 +67,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
-	miplib miplib-baseline \
+	miplib miplib-baseline cblib cblib-baseline \
 	warm warm-kennington primal primal-kennington barrier barrier-infeas \
 	pdlp pdlp-infeas concurrent \
 	shared python-test \
@@ -392,6 +392,26 @@ maros-meszaros-baseline: $(B)/bench/run
 		-d bench/instances-maros-meszaros \
 		-w bench/maros-meszaros.baseline \
 		-o bench/results/maros-meszaros.txt
+
+cblib: $(B)/bench/run
+	@bench/fetch.sh -m bench/cblib.manifest \
+		-b https://cblib.zib.de/download/cblib2014/cont \
+		-p cbf-gz bench/instances-cblib
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/cblib.manifest -x cbf.gz \
+		-d bench/instances-cblib \
+		-b bench/cblib.baseline \
+		-o bench/results/cblib.txt
+
+cblib-baseline: $(B)/bench/run
+	@bench/fetch.sh -m bench/cblib.manifest \
+		-b https://cblib.zib.de/download/cblib2014/cont \
+		-p cbf-gz bench/instances-cblib
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/cblib.manifest -x cbf.gz \
+		-d bench/instances-cblib \
+		-w bench/cblib.baseline \
+		-o bench/results/cblib.txt
 
 miplib-baseline: $(B)/bench/run
 	@bench/fetch.sh -m bench/miplib.manifest \

@@ -75,6 +75,16 @@ static int64_t cert_kind[3], uncert_kind[3];
 static int64_t rays, rayfail, checkfail, detfail, mpsfail, reffail, statfail;
 static double worst_dual, worst_primal, worst_ref;
 static int64_t total_work, total_iters, longest;
+static uint64_t digest = 14695981039346656037u;
+
+static void mix(const void *p, size_t len)
+{
+    const unsigned char *b = p;
+    for (size_t t = 0; t < len; t++) {
+        digest ^= b[t];
+        digest *= 1099511628211u;
+    }
+}
 
 static jaos_status add_col(jaos_model *m, double lo, double hi)
 {
@@ -424,6 +434,7 @@ int main(int argc, char **argv)
         if (jaos_iterations(m) > longest)
             longest = jaos_iterations(m);
         const jaos_solve_status ss = jaos_status_of(m);
+        mix(&ss, sizeof ss);
         bool bad = false;
         if (st != JAOS_OK) {
             printf("m%05" PRId64 ": solve returned %d: %s\n", r, (int)st,
@@ -442,6 +453,7 @@ int main(int argc, char **argv)
                 if (jaos_certificate(m, y) == JAOS_OK) {
                     jaos_certificate_report cr;
                     bool zok = jaos_num_cones(m) == 0 || cone_duals(m, z);
+                    mix(y, (size_t)jaos_num_row(m) * sizeof *y);
                     if (zok && jaos_check_conic_certificate(
                                    m, y, jaos_num_cones(m) > 0 ? z : nullptr,
                                    1e-7, &cr) == JAOS_OK && cr.certified)
@@ -473,6 +485,9 @@ int main(int argc, char **argv)
                 checkfail++;
                 bad = true;
             } else {
+                mix(x, (size_t)n * sizeof *x);
+                mix(y, (size_t)nr * sizeof *y);
+                mix(z, (size_t)nm * sizeof *z);
                 if (rep.max_dual_violation > worst_dual)
                     worst_dual = rep.max_dual_violation;
                 if (rep.max_row_violation_relative > worst_primal)
@@ -560,6 +575,7 @@ int main(int argc, char **argv)
             double d[MAXC];
             if (jaos_unbounded_ray(m, d) == JAOS_OK) {
                 rays++;
+                mix(d, (size_t)n * sizeof *d);
                 jaos_ray_report rr;
                 if (jaos_check_ray(m, d, 1e-7, &rr) != JAOS_OK ||
                     !rr.certified) {
@@ -606,5 +622,6 @@ int main(int argc, char **argv)
     printf("iterations %" PRId64 "\n", total_iters);
     printf("longest %" PRId64 "\n", longest);
     printf("failed models %" PRId64 "\n", fails);
+    printf("digest %016" PRIx64 "\n", digest);
     return fails == 0 ? 0 : 1;
 }

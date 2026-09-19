@@ -704,6 +704,11 @@ void jm_chol_free(jm_chol *c);
 JAOS_NODISCARD jaos_status jm_chol_symbolic(jm_chol *c, int64_t n,
     const int64_t *start, const int64_t *index, jm_work *w);
 
+JAOS_NODISCARD jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
+    const int64_t *start, const int64_t *index, int64_t dense, jm_work *w);
+
+int64_t jm_chol_dense_limit(int64_t n);
+
 JAOS_NODISCARD jaos_status jm_chol_numeric(jm_chol *c, const double *value,
                                            jm_work *w);
 

@@ -1362,19 +1362,25 @@ jaos_status jaos_add_cone(jaos_model *m, jaos_cone_type type, int64_t n,
                       "two");
         return JAOS_ERR_INVALID_INPUT;
     }
-    for (int64_t k = 0; k < n; k++) {
+    for (int64_t k = 0; k < n; k++)
         if (cols[k] < 0 || cols[k] >= m->num_col) {
             jm_set_err(m, "cone member %lld is not a column of the model",
                        (long long)cols[k]);
             return JAOS_ERR_INVALID_INPUT;
         }
-        for (int64_t t = 0; t < k; t++)
-            if (cols[t] == cols[k]) {
-                jm_set_err(m, "column %lld is in the cone twice",
-                           (long long)cols[k]);
-                return JAOS_ERR_INVALID_INPUT;
-            }
+    bool *seen = jm_calloc_array(m->num_col, sizeof *seen);
+    if (seen == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t k = 0; k < n; k++) {
+        if (seen[cols[k]]) {
+            jm_set_err(m, "column %lld is in the cone twice",
+                       (long long)cols[k]);
+            free(seen);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        seen[cols[k]] = true;
     }
+    free(seen);
     const int64_t base = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
     int *ty = realloc(m->cone_type, (size_t)(m->num_cone + 1) * sizeof *ty);
     if (ty == nullptr)

@@ -11,6 +11,7 @@ PLATO sets exist for presolve measurements.
 | `make miplib` | MIPLIB 3 | 24 | ~4 min |
 | `make plato-pds`, `plato-fome`, `plato-nug` | PLATO | 15 | not a gate |
 | `make maros-meszaros` | Maros-Meszaros convex QP | 138 | not a gate; the QP reading |
+| `make cblib` | CBLIB 2014, the continuous part | 29 | not a gate; the conic reading |
 
 **Always pass `J=N`.** Without it the set runs one instance at a time.
 
@@ -31,6 +32,12 @@ checksummed the same way.
 
 For the MIP set the point must be integral, feasible to the checker, at the
 catalogue optimum, and the node count is part of the baseline.
+
+For CBLIB the files stay gzipped CBF (`-x cbf.gz`), the checker is
+`jaos_check_conic_solution` with every cone's dual, and the reference is
+the library's own solution, which on nql and qssp is not the optimum
+(`bench/cblib.manifest` says why), so the objective column there reads 0
+for an answer the checker takes.
 
 ## Baselines and results
 

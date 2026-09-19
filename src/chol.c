@@ -9,6 +9,8 @@
 constexpr double CHOL_PIVOT_REL  = 1e-14;
 constexpr double CHOL_PIVOT_HUGE = 1e128;
 constexpr double TINY            = 1e-300;
+constexpr double CHOL_DENSE      = 10.0;
+constexpr int64_t CHOL_DENSE_MIN = 16;
 
 typedef struct {
     int64_t *idx;
@@ -26,16 +28,17 @@ static bool ilist_push(ilist *l, int64_t v)
 enum { MD_VAR, MD_ELT, MD_DEAD };
 
 typedef struct {
-    int64_t n;
+    int64_t n, live;
     ilist *var;
     ilist *elt;
     int8_t *state;
     int64_t *deg;
-    int64_t *head, *next, *prev;
+    int64_t *heap, *hat, hn;
     int64_t *mark, *wstamp;
     int64_t *w;
     int64_t *lp;
     int64_t lp_n;
+    int64_t *last, nlast;
 } md;
 
 static void md_free(md *g)
@@ -50,40 +53,90 @@ static void md_free(md *g)
     free(g->elt);
     free(g->state);
     free(g->deg);
-    free(g->head);
-    free(g->next);
-    free(g->prev);
+    free(g->heap);
+    free(g->hat);
     free(g->mark);
     free(g->wstamp);
     free(g->w);
     free(g->lp);
+    free(g->last);
     memset(g, 0, sizeof *g);
 }
 
-static void bucket_remove(md *g, int64_t i)
+static bool md_before(const md *g, int64_t a, int64_t b)
 {
-    int64_t d = g->deg[i];
-    if (g->prev[i] >= 0)
-        g->next[g->prev[i]] = g->next[i];
-    else
-        g->head[d] = g->next[i];
-    if (g->next[i] >= 0)
-        g->prev[g->next[i]] = g->prev[i];
-    g->next[i] = g->prev[i] = -1;
+    return g->deg[a] != g->deg[b] ? g->deg[a] < g->deg[b] : a < b;
 }
 
-static void bucket_insert(md *g, int64_t i, int64_t d)
+static void heap_swap(md *g, int64_t a, int64_t b)
+{
+    const int64_t x = g->heap[a], y = g->heap[b];
+    g->heap[a] = y;
+    g->hat[y] = a;
+    g->heap[b] = x;
+    g->hat[x] = b;
+}
+
+static void heap_up(md *g, int64_t at)
+{
+    while (at > 0) {
+        const int64_t up = (at - 1) / 2;
+        if (!md_before(g, g->heap[at], g->heap[up]))
+            break;
+        heap_swap(g, at, up);
+        at = up;
+    }
+}
+
+static void heap_down(md *g, int64_t at)
+{
+    for (;;) {
+        int64_t best = at;
+        const int64_t l = 2 * at + 1, r = l + 1;
+        if (l < g->hn && md_before(g, g->heap[l], g->heap[best]))
+            best = l;
+        if (r < g->hn && md_before(g, g->heap[r], g->heap[best]))
+            best = r;
+        if (best == at)
+            break;
+        heap_swap(g, at, best);
+        at = best;
+    }
+}
+
+static void heap_insert(md *g, int64_t i, int64_t d)
 {
     g->deg[i] = d;
-    g->prev[i] = -1;
-    g->next[i] = g->head[d];
-    if (g->head[d] >= 0)
-        g->prev[g->head[d]] = i;
-    g->head[d] = i;
+    g->heap[g->hn] = i;
+    g->hat[i] = g->hn++;
+    heap_up(g, g->hat[i]);
+}
+
+static void heap_set(md *g, int64_t i, int64_t d)
+{
+    const int64_t old = g->deg[i];
+    g->deg[i] = d;
+    if (d < old)
+        heap_up(g, g->hat[i]);
+    else if (d > old)
+        heap_down(g, g->hat[i]);
+}
+
+static int64_t heap_pop(md *g)
+{
+    const int64_t top = g->heap[0];
+    g->hn--;
+    if (g->hn > 0) {
+        g->heap[0] = g->heap[g->hn];
+        g->hat[g->heap[0]] = 0;
+        heap_down(g, 0);
+    }
+    g->hat[top] = -1;
+    return top;
 }
 
 static bool md_build(md *g, int64_t n, const int64_t *start,
-                     const int64_t *index)
+                     const int64_t *index, int64_t dense)
 {
     memset(g, 0, sizeof *g);
     g->n = n;
@@ -91,17 +144,17 @@ static bool md_build(md *g, int64_t n, const int64_t *start,
     g->elt    = jm_calloc_array(n, sizeof *g->elt);
     g->state  = jm_calloc_array(n, sizeof *g->state);
     g->deg    = jm_alloc_array(n, sizeof *g->deg);
-    g->head   = jm_alloc_array(n + 1, sizeof *g->head);
-    g->next   = jm_alloc_array(n, sizeof *g->next);
-    g->prev   = jm_alloc_array(n, sizeof *g->prev);
+    g->heap   = jm_alloc_array(n, sizeof *g->heap);
+    g->hat    = jm_alloc_array(n, sizeof *g->hat);
     g->mark   = jm_alloc_array(n, sizeof *g->mark);
     g->wstamp = jm_alloc_array(n, sizeof *g->wstamp);
     g->w      = jm_alloc_array(n, sizeof *g->w);
     g->lp     = jm_alloc_array(n, sizeof *g->lp);
+    g->last   = jm_alloc_array(n, sizeof *g->last);
     if (g->var == nullptr || g->elt == nullptr || g->state == nullptr ||
-        g->deg == nullptr || g->head == nullptr || g->next == nullptr ||
-        g->prev == nullptr || g->mark == nullptr || g->wstamp == nullptr ||
-        g->w == nullptr || g->lp == nullptr)
+        g->deg == nullptr || g->heap == nullptr || g->hat == nullptr ||
+        g->mark == nullptr || g->wstamp == nullptr || g->w == nullptr ||
+        g->lp == nullptr || g->last == nullptr)
         return false;
 
     for (int64_t i = 0; i < n; i++) {
@@ -130,34 +183,34 @@ static bool md_build(md *g, int64_t n, const int64_t *start,
     }
     for (int64_t i = 0; i < n; i++)
         g->mark[i] = -1;
-    for (int64_t d = 0; d <= n; d++)
-        g->head[d] = -1;
     for (int64_t i = 0; i < n; i++)
-        bucket_insert(g, i, g->var[i].n);
+        if (g->var[i].n > dense) {
+            g->state[i] = MD_DEAD;
+            g->last[g->nlast++] = i;
+        }
+    for (int64_t i = 0; g->nlast > 0 && i < n; i++) {
+        ilist *l = &g->var[i];
+        int64_t m = 0;
+        for (int64_t k = 0; g->state[i] != MD_DEAD && k < l->n; k++)
+            if (g->state[l->idx[k]] != MD_DEAD)
+                l->idx[m++] = l->idx[k];
+        l->n = m;
+    }
+    g->live = n - g->nlast;
+    for (int64_t i = 0; i < n; i++)
+        if (g->state[i] != MD_DEAD)
+            heap_insert(g, i, g->var[i].n);
     return true;
-}
-
-static int64_t md_pick(md *g, int64_t *mindeg)
-{
-    while (g->head[*mindeg] < 0)
-        (*mindeg)++;
-    int64_t best = -1;
-    for (int64_t i = g->head[*mindeg]; i >= 0; i = g->next[i])
-        if (best < 0 || i < best)
-            best = i;
-    return best;
 }
 
 static bool md_order(md *g, int64_t *perm, jm_work *w)
 {
-    int64_t n = g->n;
-    int64_t mindeg = 0;
+    int64_t n = g->live;
     int64_t touched = 0;
 
     for (int64_t k = 0; k < n; k++) {
-        int64_t p = md_pick(g, &mindeg);
+        int64_t p = heap_pop(g);
         perm[k] = p;
-        bucket_remove(g, p);
 
         g->lp_n = 0;
         g->mark[p] = k;
@@ -260,12 +313,11 @@ static bool md_order(md *g, int64_t *perm, jm_work *w)
                 d = n - k - 1;
             if (d < 0)
                 d = 0;
-            bucket_remove(g, i);
-            bucket_insert(g, i, d);
-            if (d < mindeg)
-                mindeg = d;
+            heap_set(g, i, d);
         }
     }
+    for (int64_t t = 0; t < g->nlast; t++)
+        perm[n + t] = g->last[t];
     jm_work_add(w, touched * JM_WORK_NONZERO);
     return true;
 }
@@ -310,8 +362,21 @@ static int64_t ereach(const jm_chol *c, int64_t k)
     return top;
 }
 
+int64_t jm_chol_dense_limit(int64_t n)
+{
+    const double limit = CHOL_DENSE * sqrt((double)n);
+    return limit > (double)CHOL_DENSE_MIN ? (int64_t)limit : CHOL_DENSE_MIN;
+}
+
 jaos_status jm_chol_symbolic(jm_chol *c, int64_t n, const int64_t *start,
                              const int64_t *index, jm_work *w)
+{
+    return jm_chol_symbolic_dense(c, n, start, index, n, w);
+}
+
+jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
+                                   const int64_t *start, const int64_t *index,
+                                   int64_t dense, jm_work *w)
 {
     if (n < 0 || (n > 0 && (start == nullptr || index == nullptr)))
         return JAOS_ERR_INVALID_INPUT;
@@ -342,7 +407,7 @@ jaos_status jm_chol_symbolic(jm_chol *c, int64_t n, const int64_t *start,
         return JAOS_ERR_OUT_OF_MEMORY;
 
     md g;
-    bool ok = md_build(&g, n, start, index) && md_order(&g, c->perm, w);
+    bool ok = md_build(&g, n, start, index, dense) && md_order(&g, c->perm, w);
     md_free(&g);
     if (!ok)
         return JAOS_ERR_OUT_OF_MEMORY;

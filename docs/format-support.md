@@ -460,6 +460,12 @@ columns, cones and optimum, and not as the same one: the names are lost,
 a bound other than the four above comes back as a row, and a ranged row
 as two.
 
+**Read on CBLIB 2014** (`make cblib`, `bench/measurements/02-254/`): the
+29 continuous instances of the library under 70 MB all read, the largest
+into 649976 columns and 499982 rows and the widest cone with 99998
+members. The twelve filterdesign instances (71 to 872 MB each) are not
+fetched.
+
 ## Writing
 
 `jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,

@@ -27,6 +27,7 @@
 /bench/instances-infeas/
 /bench/instances-miplib/
 /bench/instances-maros-meszaros/
+/bench/instances-cblib/
 # The fourth set (TODO.md §4). Same rule, and it matters more here: this host
 # publishes no licence at all, so fetching and never redistributing is the
 # whole of the position. 416 MB expanded across the three.

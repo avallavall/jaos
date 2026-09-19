@@ -247,17 +247,50 @@ typedef enum {
 
 static expectation g_expect = EXPECT_OPTIMAL;
 
+static const char *g_ext = "mps";
+
 static bool instance_path(char *buf, size_t cap, const char *dir,
                           const char *name)
 {
-    size_t dl = strlen(dir), nl = strlen(name);
-    if (dl + nl + 6 > cap)
-        return false;
-    memcpy(buf, dir, dl);
-    buf[dl] = '/';
-    memcpy(buf + dl + 1, name, nl);
-    memcpy(buf + dl + 1 + nl, ".mps", 5);
-    return true;
+    const int got = snprintf(buf, cap, "%s/%s.%s", dir, name, g_ext);
+    return got > 0 && (size_t)got < cap;
+}
+
+static jaos_status read_instance(jaos_model *m, const char *path)
+{
+    if (strcmp(g_ext, "cbf") == 0 || strcmp(g_ext, "cbf.gz") == 0)
+        return jaos_read_cbf(m, path);
+    return jaos_read_mps(m, path);
+}
+
+static jaos_status check_instance(jaos_model *m, const double *x,
+                                  const double *y, jaos_check_report *rep)
+{
+    const int64_t nk = jaos_num_cones(m);
+    if (nk == 0)
+        return jaos_check_solution(m, x, y, CHECK_TOL, rep);
+    int64_t members = 0;
+    for (int64_t k = 0; k < nk; k++) {
+        int64_t n = 0;
+        if (jaos_cone(m, k, nullptr, &n, nullptr) != JAOS_OK)
+            return JAOS_ERR_INVALID_INPUT;
+        members += n;
+    }
+    double *z = calloc((size_t)(members > 0 ? members : 1), sizeof *z);
+    if (z == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    jaos_status st = JAOS_OK;
+    for (int64_t k = 0, at = 0; k < nk && st == JAOS_OK; k++) {
+        int64_t n = 0;
+        st = jaos_cone(m, k, nullptr, &n, nullptr);
+        if (st == JAOS_OK)
+            st = jaos_cone_dual(m, k, z + at);
+        at += n;
+    }
+    if (st == JAOS_OK)
+        st = jaos_check_conic_solution(m, x, y, z, CHECK_TOL, rep);
+    free(z);
+    return st;
 }
 
 static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
@@ -275,7 +308,7 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
         return false;
     t->instances++;
 
-    jaos_status st = jaos_read_mps(m, path);
+    jaos_status st = read_instance(m, path);
     if (st != JAOS_OK) {
         emit("%-12s READ-FAILED  %s | %s\n", e->name, jaos_status_str(st),
              jaos_model_error(m) ? jaos_model_error(m) : "");
@@ -356,7 +389,7 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
 
     t->instances++;
 
-    jaos_status st = jaos_read_mps(m, path);
+    jaos_status st = read_instance(m, path);
     if (st != JAOS_OK) {
         emit("%-12s READ-FAILED  %s | %s\n", e->name,
                 jaos_status_str(st),
@@ -506,7 +539,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
 
     t->instances++;
 
-    jaos_status st = jaos_read_mps(m, path);
+    jaos_status st = read_instance(m, path);
     if (st != JAOS_OK) {
         emit("%-12s READ-FAILED  %s | %s\n", e->name,
                 jaos_status_str(st),
@@ -576,7 +609,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     memset(&rep, 0, sizeof rep);
     if (x != nullptr && y != nullptr &&
         jaos_solution(m, x, nullptr, y, nullptr) == JAOS_OK &&
-        jaos_check_solution(m, x, y, CHECK_TOL, &rep) == JAOS_OK)
+        check_instance(m, x, y, &rep) == JAOS_OK)
         check_ok = rep.primal_feasible && rep.dual_feasible;
     if (check_ok)
         t->checker_ok++;
@@ -950,6 +983,8 @@ int main(int argc, char **argv)
             baseline = argv[++i];
         else if (strcmp(argv[i], "-w") == 0 && i + 1 < argc)
             write_baseline = argv[++i];
+        else if (strcmp(argv[i], "-x") == 0 && i + 1 < argc)
+            g_ext = argv[++i];
         else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1) {

@@ -1,0 +1,33 @@
+# What each instance did, as of this run. Regenerated only on
+# purpose, by the `*-baseline` target that writes this file,
+# after a change whose effect on these numbers has been read
+# and accepted. A quiet update here is a regression nobody
+# will ever be told about.
+#
+# name status solved shape objective checker det iters work dropped
+chainsing-1000-1 optimal      1 1 1 1 1 17 187906419 1.2909985782844641e-15
+chainsing-1000-2 optimal      1 1 1 1 1 14 145573736 1.3788708723362336e-15
+chainsing-1000-3 optimal      1 1 1 1 1 18 155204882 1.9361585230973962e-15
+chainsing-10000-1 optimal      1 1 1 1 1 16 1790765238 1.0937350114504129e-15
+chainsing-10000-2 optimal      1 1 1 1 1 14 1507054044 1.3577111298948354e-10
+chainsing-10000-3 optimal      1 1 1 1 1 16 1513999924 2.1546528541970303e-10
+chainsing-50000-1 optimal      1 1 1 1 1 16 8910406946 1.7863605100574756e-15
+chainsing-50000-2 optimal      1 1 1 1 1 13 8002179920 1.3660512945428207e-10
+chainsing-50000-3 optimal      1 1 1 1 1 15 7527407208 1.3739995020493024e-16
+nb           optimal      1 1 1 1 1 21 2073940098 5.7998714656440971e-18
+nb_L1        optimal      1 1 1 1 1 19 2077737072 6.5450812976055244e-17
+nb_L2        optimal      1 1 1 1 1 14 2598823695 1.2356371142402203e-16
+nb_L2_bessel optimal      1 1 1 1 1 13 1452292246 3.9784134387530499e-17
+nql30        optimal      1 1 0 1 1 23 772142211 2.7120023518081656e-09
+nql60        optimal      1 1 0 1 1 22 4793266778 2.1342980304403646e-09
+nql90        optimal      1 1 0 1 1 27 19229222536 6.9802794330680054e-10
+nql180       optimal      1 1 0 1 1 33 197893652921 2.2231975152156002e-09
+qssp30       optimal      1 1 0 1 1 19 445459445 1.4429358648368211e-15
+qssp60       optimal      1 1 0 1 1 25 4567123774 1.6501870853505915e-11
+qssp90       optimal      1 1 0 1 1 27 15444839661 1.2499270379915245e-11
+qssp180      optimal      1 1 0 1 1 29 145484644192 1.8359850074494342e-09
+sched_50_50_orig optimal      1 1 1 1 1 29 294702575 1.5280621494935103e-13
+sched_50_50_scaled optimal      1 1 1 1 1 28 188264629 6.1693311258250391e-15
+sched_100_50_scaled optimal      1 1 1 1 1 35 694794277 1.2078136406667844e-11
+sched_100_100_scaled optimal      1 1 1 1 1 40 1486656248 7.0671177855477709e-14
+sched_200_100_scaled optimal      1 1 1 1 1 36 3707057236 2.1985012764525371e-10

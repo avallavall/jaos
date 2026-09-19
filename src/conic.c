@@ -20,6 +20,8 @@ constexpr int64_t CONIC_RUIZ       = 10;
 constexpr double  CONIC_SCALE_MIN  = 1e-4;
 constexpr double  CONIC_SCALE_MAX  = 1e4;
 constexpr double  CONIC_STALL_STEP = 1e-10;
+constexpr int64_t CONIC_STALL_ITERS = 3;
+constexpr int64_t CONIC_NEWTON_WIDE = 64;
 
 typedef enum { CK_ZERO, CK_NONNEG, CK_SOC } ck_kind;
 
@@ -27,6 +29,7 @@ typedef struct {
     ck_kind kind;
     int64_t start, dim;
     double eta;
+    int64_t aux;
 } ck_cone;
 
 typedef struct {
@@ -139,18 +142,32 @@ static void mul_at(ck *c, const double *z, double *out)
     jm_work_add(&c->work, (c->n + c->as[c->n]) * JM_WORK_NONZERO);
 }
 
-static double soc_rest(const double *v, int64_t d)
+static double dot2(const double *a, const double *b, int64_t n)
 {
-    double r = 0.0;
-    for (int64_t k = 1; k < d; k++)
-        r += v[k] * v[k];
-    return sqrt(r);
+    double s = 0.0, c = 0.0;
+    for (int64_t i = 0; i < n; i++) {
+        const double p = a[i] * b[i];
+        jm_obj_add(&s, &c, p);
+        c += jm_two_product_residue(a[i], b[i], p);
+    }
+    return s + c;
+}
+
+static double lorentz(const double *a, const double *b, int64_t d)
+{
+    double s = 0.0, c = 0.0;
+    for (int64_t i = 0; i < d; i++) {
+        const double q = a[i] * b[i];
+        const double e = jm_two_product_residue(a[i], b[i], q);
+        jm_obj_add(&s, &c, i == 0 ? q : -q);
+        c += i == 0 ? e : -e;
+    }
+    return s + c;
 }
 
 static double soc_det(const double *v, int64_t d)
 {
-    const double r = soc_rest(v, d);
-    return (v[0] - r) * (v[0] + r);
+    return lorentz(v, v, d);
 }
 
 static void cone_identity(ck *c, double *v)
@@ -187,9 +204,7 @@ static void nt_scaling(ck *c)
             const double *s = c->s + o, *z = c->z + o;
             const double sd = soc_det(s, d), zd = soc_det(z, d);
             const double ss = sqrt(sd), zs = sqrt(zd);
-            double sz = 0.0;
-            for (int64_t t = 0; t < d; t++)
-                sz += (s[t] / ss) * (z[t] / zs);
+            const double sz = dot2(s, z, d) / (ss * zs);
             const double gamma = sqrt(0.5 * (1.0 + sz));
             double *wb = c->w + o;
             wb[0] = (s[0] / ss + z[0] / zs) / (2.0 * gamma);
@@ -197,10 +212,8 @@ static void nt_scaling(ck *c)
                 wb[t] = (s[t] / ss - z[t] / zs) / (2.0 * gamma);
             cn->eta = sqrt(sqrt(sd / zd));
             double *lam = c->lambda + o;
-            double w1z1 = 0.0;
-            for (int64_t t = 1; t < d; t++)
-                w1z1 += wb[t] * z[t];
-            lam[0] = cn->eta * (wb[0] * z[0] + w1z1);
+            const double w1z1 = dot2(wb + 1, z + 1, d - 1);
+            lam[0] = cn->eta * dot2(wb, z, d);
             const double f = z[0] + w1z1 / (1.0 + wb[0]);
             for (int64_t t = 1; t < d; t++)
                 lam[t] = cn->eta * (z[t] + f * wb[t]);
@@ -225,11 +238,9 @@ static void apply_w(const ck *c, const double *v, double *out, bool inverse)
             const double *wb = c->w + o, *vv = v + o;
             const double sg = inverse ? -1.0 : 1.0;
             const double sc = inverse ? 1.0 / cn->eta : cn->eta;
-            double w1v1 = 0.0;
-            for (int64_t t = 1; t < d; t++)
-                w1v1 += wb[t] * vv[t];
+            const double w1v1 = dot2(wb + 1, vv + 1, d - 1);
             const double v0 = vv[0];
-            out[o] = sc * (wb[0] * v0 + sg * w1v1);
+            out[o] = sc * (inverse ? lorentz(wb, vv, d) : dot2(wb, vv, d));
             const double f = sg * v0 + w1v1 / (1.0 + wb[0]);
             for (int64_t t = 1; t < d; t++)
                 out[o + t] = sc * (vv[t] + f * wb[t]);
@@ -251,11 +262,7 @@ static void jordan_div(const ck *c, const double *lam, const double *d,
                 out[o + t] = d[o + t] / lam[o + t];
         } else {
             const double *l = lam + o, *dd = d + o;
-            const double rho = soc_det(l, dim);
-            double l1d1 = 0.0;
-            for (int64_t t = 1; t < dim; t++)
-                l1d1 += l[t] * dd[t];
-            const double x0 = (l[0] * dd[0] - l1d1) / rho;
+            const double x0 = lorentz(l, dd, dim) / soc_det(l, dim);
             out[o] = x0;
             for (int64_t t = 1; t < dim; t++)
                 out[o + t] = (dd[t] - l[t] * x0) / l[0];
@@ -276,11 +283,8 @@ static void jordan_prod(const ck *c, const double *u, const double *v,
             for (int64_t t = 0; t < dim; t++)
                 out[o + t] = u[o + t] * v[o + t];
         } else {
-            double uv = 0.0;
-            for (int64_t t = 0; t < dim; t++)
-                uv += u[o + t] * v[o + t];
             const double u0 = u[o], v0 = v[o];
-            out[o] = uv;
+            out[o] = dot2(u + o, v + o, dim);
             for (int64_t t = 1; t < dim; t++)
                 out[o + t] = u0 * v[o + t] + v0 * u[o + t];
         }
@@ -289,16 +293,8 @@ static void jordan_prod(const ck *c, const double *u, const double *v,
 
 static double soc_step(const double *v, const double *dv, int64_t d)
 {
-    double a = dv[0] * dv[0], b = v[0] * dv[0], cc = 0.0;
-    double r2 = 0.0;
-    for (int64_t t = 1; t < d; t++) {
-        a -= dv[t] * dv[t];
-        b -= v[t] * dv[t];
-        r2 += v[t] * v[t];
-    }
-    b *= 2.0;
-    const double rv = sqrt(r2);
-    cc = (v[0] - rv) * (v[0] + rv);
+    const double a = lorentz(dv, dv, d), b = 2.0 * lorentz(v, dv, d);
+    const double cc = lorentz(v, v, d);
     if (!(cc > 0.0))
         return 0.0;
     double best = HUGE_VAL;
@@ -343,7 +339,15 @@ static double cone_step(const ck *c, const double *v, const double *dv)
 
 static bool build_kkt(ck *c)
 {
-    const int64_t n = c->n, m = c->m, kn = n + m;
+    const int64_t n = c->n, m = c->m;
+    int64_t kn = n + m;
+    for (int64_t k = 0; k < c->ncone; k++) {
+        c->cone[k].aux = -1;
+        if (c->cone[k].kind == CK_SOC) {
+            c->cone[k].aux = kn;
+            kn += 2;
+        }
+    }
     c->kn = kn;
     int64_t *cnt = jm_calloc_array(kn + 1, sizeof *cnt);
     if (cnt == nullptr)
@@ -358,8 +362,13 @@ static bool build_kkt(ck *c)
     for (int64_t i = 0; i < m; i++) {
         const ck_cone *cn = &c->cone[c->cone_of[i]];
         cnt[n + i + 1] += (c->rs[i + 1] - c->rs[i]) +
-                          (cn->kind == CK_SOC ? cn->dim : 1);
+                          (cn->kind == CK_SOC ? 3 : 1);
     }
+    for (int64_t k = 0; k < c->ncone; k++)
+        if (c->cone[k].aux >= 0) {
+            cnt[c->cone[k].aux + 1] += c->cone[k].dim + 1;
+            cnt[c->cone[k].aux + 2] += c->cone[k].dim + 1;
+        }
     for (int64_t k = 0; k < kn; k++)
         cnt[k + 1] += cnt[k];
     const int64_t nnz = cnt[kn];
@@ -370,7 +379,7 @@ static bool build_kkt(ck *c)
     c->kdiag = jm_alloc_array(kn > 0 ? kn : 1, sizeof *c->kdiag);
     int64_t hn = 0;
     for (int64_t k = 0; k < c->ncone; k++)
-        hn += c->cone[k].kind == CK_SOC ? c->cone[k].dim * c->cone[k].dim
+        hn += c->cone[k].kind == CK_SOC ? 5 * c->cone[k].dim + 2
                                          : c->cone[k].dim;
     c->hn = hn;
     c->hpos = jm_alloc_array(hn > 0 ? hn : 1, sizeof *c->hpos);
@@ -411,35 +420,47 @@ static bool build_kkt(ck *c)
             at++;
         }
         const ck_cone *cn = &c->cone[c->cone_of[i]];
-        if (cn->kind == CK_SOC) {
-            for (int64_t t = 0; t < cn->dim; t++) {
-                c->ki[at] = n + cn->start + t;
-                if (cn->start + t == i)
-                    c->kdiag[n + i] = at;
-                at++;
-            }
-        } else {
-            c->ki[at] = n + i;
-            c->kdiag[n + i] = at;
-            at++;
+        c->ki[at] = n + i;
+        c->kdiag[n + i] = at;
+        at++;
+        if (cn->aux >= 0) {
+            c->ki[at++] = cn->aux;
+            c->ki[at++] = cn->aux + 1;
         }
         c->ksign[n + i] = -1;
     }
     for (int64_t k = 0; k < c->ncone; k++) {
         const ck_cone *cn = &c->cone[k];
-        if (cn->kind == CK_SOC) {
-            for (int64_t r = 0; r < cn->dim; r++) {
-                const int64_t i = cn->start + r;
-                const int64_t base = c->ks[n + i + 1] - cn->dim;
-                for (int64_t t = 0; t < cn->dim; t++)
-                    c->hpos[h++] = base + t;
+        for (int64_t e = 0; cn->aux >= 0 && e < 2; e++) {
+            const int64_t col = cn->aux + e;
+            int64_t at = c->ks[col];
+            for (int64_t t = 0; t < cn->dim; t++)
+                c->ki[at++] = n + cn->start + t;
+            c->ki[at] = col;
+            c->kdiag[col] = at;
+            c->ksign[col] = e == 0 ? 1 : -1;
+        }
+    }
+    for (int64_t k = 0; k < c->ncone; k++) {
+        const ck_cone *cn = &c->cone[k];
+        if (cn->aux >= 0) {
+            for (int64_t t = 0; t < cn->dim; t++) {
+                const int64_t i = cn->start + t;
+                c->hpos[h++] = c->kdiag[n + i];
+                c->hpos[h++] = c->ks[n + i + 1] - 2;
+                c->hpos[h++] = c->ks[n + i + 1] - 1;
+                c->hpos[h++] = c->ks[cn->aux] + t;
+                c->hpos[h++] = c->ks[cn->aux + 1] + t;
             }
+            c->hpos[h++] = c->kdiag[cn->aux];
+            c->hpos[h++] = c->kdiag[cn->aux + 1];
         } else {
             for (int64_t t = 0; t < cn->dim; t++)
                 c->hpos[h++] = c->kdiag[n + cn->start + t];
         }
     }
-    return jm_chol_symbolic(&c->ldl, kn, c->ks, c->ki, &c->work) == JAOS_OK;
+    return jm_chol_symbolic_dense(&c->ldl, kn, c->ks, c->ki,
+                                  jm_chol_dense_limit(kn), &c->work) == JAOS_OK;
 }
 
 static void fill_h(ck *c)
@@ -458,17 +479,24 @@ static void fill_h(ck *c)
             }
         } else {
             const double *wb = c->w + o;
-            const double e2 = cn->eta * cn->eta;
-            for (int64_t r = 0; r < d; r++)
-                for (int64_t t = 0; t < d; t++) {
-                    double v = 2.0 * wb[r] * wb[t];
-                    if (r == t)
-                        v += r == 0 ? -1.0 : 1.0;
-                    v *= e2;
-                    if (r == t)
-                        v += CONIC_REG;
-                    c->kv[c->hpos[h++]] = -v;
-                }
+            const double eta = cn->eta, e2 = eta * eta;
+            double r2 = 0.0;
+            for (int64_t t = 1; t < d; t++)
+                r2 += wb[t] * wb[t];
+            const double r = sqrt(r2);
+            const double lm = (r + r2 / (wb[0] + 1.0)) * (wb[0] + r + 1.0);
+            const double pa = sqrt(0.5 * lm), pb = sqrt(0.5 * lm / (1.0 + lm));
+            for (int64_t t = 0; t < d; t++) {
+                const double e = t == 0 ? 1.0 : r > 0.0 ? wb[t] / r : 0.0;
+                const double ut = pa * e, vt = t == 0 ? pb : -pb * e;
+                c->kv[c->hpos[h++]] = -(e2 + CONIC_REG);
+                c->kv[c->hpos[h++]] = -eta * ut;
+                c->kv[c->hpos[h++]] = eta * vt;
+                c->kv[c->hpos[h++]] = -eta * ut;
+                c->kv[c->hpos[h++]] = eta * vt;
+            }
+            c->kv[c->hpos[h++]] = 1.0;
+            c->kv[c->hpos[h++]] = -1.0;
         }
     }
     for (int64_t j = 0; j < c->n; j++) {
@@ -495,7 +523,7 @@ static void mul_h(const ck *c, const double *v, double *out)
         } else {
             const double *wb = c->w + o;
             const double e2 = cn->eta * cn->eta;
-            const double wv = dot(wb, v + o, d);
+            const double wv = dot2(wb, v + o, d);
             out[o] = e2 * (2.0 * wb[0] * wv - v[o]);
             for (int64_t t = 1; t < d; t++)
                 out[o + t] = e2 * (2.0 * wb[t] * wv + v[o + t]);
@@ -512,6 +540,8 @@ static void kkt_solve(ck *c, const double *rhs_x, const double *rhs_z,
         sol[j] = rhs_x[j];
     for (int64_t i = 0; i < m; i++)
         sol[n + i] = rhs_z[i];
+    for (int64_t k = n + m; k < kn; k++)
+        sol[k] = 0.0;
     jm_ldlt_solve(&c->ldl, sol, &c->work);
     for (int64_t pass = 0; pass < CONIC_REFINE; pass++) {
         mul_p(c, sol, c->t1);
@@ -535,6 +565,8 @@ static void kkt_solve(ck *c, const double *rhs_x, const double *rhs_z,
         }
         if (worst <= 1e-14 * scale)
             break;
+        for (int64_t k = n + m; k < kn; k++)
+            res[k] = 0.0;
         jm_ldlt_solve(&c->ldl, res, &c->work);
         for (int64_t k = 0; k < kn; k++)
             sol[k] += res[k];
@@ -657,7 +689,9 @@ static bool rowwise(ck *c)
 static bool ck_vectors(ck *c)
 {
     const int64_t n = c->n > 0 ? c->n : 1, m = c->m > 0 ? c->m : 1;
-    const int64_t k = n + m;
+    int64_t k = n + m;
+    for (int64_t t = 0; t < c->ncone; t++)
+        k += c->cone[t].kind == CK_SOC ? 2 : 0;
     double **nv[] = {&c->q, &c->dcol, &c->x, &c->rx, &c->dx1, &c->dx2,
                      &c->dxa, &c->px, &c->atz, &c->xi, &c->pxi, &c->rhx};
     double **mv[] = {&c->b, &c->erow, &c->s, &c->z, &c->w, &c->lambda,
@@ -772,17 +806,17 @@ jaos_status jm_cone_solve(const jm_cone_problem *pb, const jaos_model *log,
     {
         int64_t k = 0, at = 0;
         if (pb->nzero > 0)
-            c->cone[k++] = (ck_cone){CK_ZERO, at, pb->nzero, 1.0};
+            c->cone[k++] = (ck_cone){CK_ZERO, at, pb->nzero, 1.0, -1};
         at += pb->nzero;
         if (pb->nnonneg > 0)
-            c->cone[k++] = (ck_cone){CK_NONNEG, at, pb->nnonneg, 1.0};
+            c->cone[k++] = (ck_cone){CK_NONNEG, at, pb->nnonneg, 1.0, -1};
         at += pb->nnonneg;
         for (int64_t t = 0; t < pb->nsoc; t++) {
             if (pb->soc_dim[t] < 1) {
                 st = JAOS_ERR_INVALID_INPUT;
                 goto done;
             }
-            c->cone[k++] = (ck_cone){CK_SOC, at, pb->soc_dim[t], 1.0};
+            c->cone[k++] = (ck_cone){CK_SOC, at, pb->soc_dim[t], 1.0, -1};
             at += pb->soc_dim[t];
         }
         if (at != m) {
@@ -873,6 +907,8 @@ jaos_status jm_cone_solve(const jm_cone_problem *pb, const jaos_model *log,
     const double *dcol = c->dcol, *erow = c->erow;
     const double cs = c->cscale;
     bool near = false, rough = false;
+    double best_merit = HUGE_VAL;
+    int64_t since = 0;
     int64_t it;
     for (it = 0; it < CONIC_MAX_ITER; it++) {
         mul_p(c, c->x, c->px);
@@ -907,7 +943,8 @@ jaos_status jm_cone_solve(const jm_cone_problem *pb, const jaos_model *log,
         const double prel = pres / (1.0 + norm_b + xn + sn);
         const double drel = dres / (1.0 + norm_q + xn + zn);
         const double small = fabs(pobj) < fabs(dobj) ? fabs(pobj) : fabs(dobj);
-        const double gap = fabs(pobj - dobj) / (1.0 + small);
+        const double comp = dot(c->s, c->z, m) / cs / t2 / (1.0 + small);
+        const double gap = fmax(fabs(pobj - dobj) / (1.0 + small), comp);
         const double mu = (dot(c->s, c->z, m) + c->tau * c->kappa) /
                           (double)(c->degree + 1);
         jm_log(log, JAOS_LOG_DETAIL,
@@ -964,6 +1001,15 @@ jaos_status jm_cone_solve(const jm_cone_problem *pb, const jaos_model *log,
         }
         if (unb_ratio <= CONIC_TOL_INFEAS) {
             set_unbounded(c, out, -qx / cs);
+            break;
+        }
+        const double merit = fmax(fmax(prel, drel), gap);
+        if (merit < best_merit) {
+            best_merit = merit;
+            since = 0;
+        } else if (rough && ++since >= CONIC_STALL_ITERS) {
+            jm_log(log, JAOS_LOG_SUMMARY, "conic: no progress for %lld "
+                   "iterations; stopping", (long long)since);
             break;
         }
 
@@ -1034,8 +1080,9 @@ jaos_status jm_cone_solve(const jm_cone_problem *pb, const jaos_model *log,
             finite = isfinite(dz[i]) && isfinite(dsn[i]);
         if (!finite || !(alpha > CONIC_STALL_STEP)) {
             jm_log(log, JAOS_LOG_SUMMARY,
-                   "conic: the step fell to %.3e at iteration %lld; stopping",
-                   finite ? alpha : 0.0, (long long)it);
+                   "conic: the step fell to %.3e at iteration %lld%s; stopping",
+                   finite ? alpha : 0.0, (long long)it,
+                   finite ? "" : ", the direction not finite");
             if (inf_ratio <= CONIC_TOL_INFEAS_STALL) {
                 set_infeasible(c, out, bz);
                 out->relaxed = true;
@@ -1262,7 +1309,6 @@ jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i, int sgn,
 }
 
 constexpr int64_t CONIC_NEWTON_STEPS = 2;
-constexpr int64_t CONIC_NEWTON_DENSE = 1000000;
 
 static void cm_add_product(double *s, double *c, double a, double b)
 {
@@ -1341,7 +1387,7 @@ static int cm_cone_face(const jaos_model *m, int64_t k, const double *x,
 }
 
 typedef struct {
-    int64_t r, c;
+    int64_t r, c, seq;
     double v;
 } cm_ent;
 
@@ -1355,64 +1401,71 @@ static int cmp_ent(const void *pa, const void *pb)
     const cm_ent *a = pa, *b = pb;
     if (a->c != b->c)
         return (a->c > b->c) - (a->c < b->c);
-    return (a->r > b->r) - (a->r < b->r);
+    if (a->r != b->r)
+        return (a->r > b->r) - (a->r < b->r);
+    return (a->seq > b->seq) - (a->seq < b->seq);
 }
 
 static bool ent_put(cm_ents *s, int64_t r, int64_t c, double v)
 {
     if (!JM_GROW(s->e, s->cap, s->n + 2))
         return false;
-    s->e[s->n++] = (cm_ent){r, c, v};
-    if (r != c)
-        s->e[s->n++] = (cm_ent){c, r, v};
+    s->e[s->n] = (cm_ent){r, c, s->n, v};
+    s->n++;
+    if (r != c) {
+        s->e[s->n] = (cm_ent){c, r, s->n, v};
+        s->n++;
+    }
     return true;
 }
 
-static int64_t cm_cone_map(const jaos_model *m, int64_t k, double *mv,
-                           double *gh)
+static const double cm_rt = 0.70710678118654752440;
+
+static double cm_head(bool rot, int64_t t)
 {
-    const int64_t d = m->cone_start[k + 1] - m->cone_start[k];
-    constexpr double RT = 0.70710678118654752440;
-    for (int64_t t = 0; t < (d - 1) * d; t++)
-        mv[t] = 0.0;
-    for (int64_t t = 0; t < d; t++)
-        gh[t] = 0.0;
-    if (m->cone_type[k] == JAOS_CONE_ROTATED) {
-        mv[0] = RT;
-        mv[1] = -RT;
-        for (int64_t t = 2; t < d; t++)
-            mv[(t - 1) * d + t] = 1.0;
-        gh[0] = gh[1] = RT;
-    } else {
-        for (int64_t t = 1; t < d; t++)
-            mv[(t - 1) * d + t] = 1.0;
-        gh[0] = 1.0;
+    if (rot)
+        return t < 2 ? cm_rt : 0.0;
+    return t == 0 ? 1.0 : 0.0;
+}
+
+static int64_t cm_member(bool rot, int64_t t, double *coef)
+{
+    *coef = 1.0;
+    if (rot && t < 2) {
+        *coef = t == 0 ? cm_rt : -cm_rt;
+        return 0;
     }
-    return d - 1;
+    return t - 1;
 }
 
 static void cm_cone_grad(const jaos_model *m, int64_t k, const double *x,
-                         double *mv, double *gh, double *v, double *g,
-                         double *vn, double *hval)
+                         double *v, double *g, double *vn, double *hval)
 {
     const int64_t b = m->cone_start[k], d = m->cone_start[k + 1] - b;
-    const int64_t dv = cm_cone_map(m, k, mv, gh);
+    const int64_t *c = m->cone_col + b;
+    const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
     double h = 0.0;
     for (int64_t t = 0; t < d; t++)
-        h += gh[t] * x[m->cone_col[b + t]];
-    double r2 = 0.0;
-    for (int64_t a = 0; a < dv; a++) {
-        double s = 0.0;
-        for (int64_t t = 0; t < d; t++)
-            s += mv[a * d + t] * x[m->cone_col[b + t]];
-        v[a] = s;
-        r2 += s * s;
+        if (cm_head(rot, t) != 0.0)
+            h += cm_head(rot, t) * x[c[t]];
+    for (int64_t a = 0; a + 1 < d; a++)
+        v[a] = 0.0;
+    for (int64_t t = 0; t < d; t++) {
+        double coef;
+        const int64_t a = cm_member(rot, t, &coef);
+        if (a >= 0)
+            v[a] += coef * x[c[t]];
     }
+    double r2 = 0.0;
+    for (int64_t a = 0; a + 1 < d; a++)
+        r2 += v[a] * v[a];
     const double nv = sqrt(r2);
     for (int64_t t = 0; t < d; t++) {
-        double s = -gh[t];
-        for (int64_t a = 0; a < dv; a++)
-            s += mv[a * d + t] * v[a] / nv;
+        double coef;
+        const int64_t a = cm_member(rot, t, &coef);
+        double s = -cm_head(rot, t);
+        if (a >= 0)
+            s += coef * v[a] / nv;
         g[t] = s;
     }
     *vn = nv;
@@ -1425,7 +1478,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
     const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     jaos_status st = JAOS_OK;
-    int64_t na = 0, dense = 0, widest = 1;
+    int64_t na = 0, widest = 1;
     for (int64_t k = 0; k < nk; k++) {
         const int64_t d = m->cone_start[k + 1] - m->cone_start[k];
         if (d > widest)
@@ -1434,10 +1487,9 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
     const int64_t acap = nr + n + nk + members + 1;
     int64_t *akind = jm_alloc_array(acap, sizeof *akind);
     int64_t *aidx = jm_alloc_array(acap, sizeof *aidx);
+    int64_t *yat = jm_alloc_array(acap, sizeof *yat);
     double *atgt = jm_alloc_array(acap, sizeof *atgt);
     int *face = jm_calloc_array(nk > 0 ? nk : 1, sizeof *face);
-    double *mv = jm_alloc_array(widest * widest, sizeof *mv);
-    double *gh = jm_alloc_array(widest, sizeof *gh);
     double *cv = jm_alloc_array(widest, sizeof *cv);
     double *cg = jm_alloc_array(widest, sizeof *cg);
     double *x = jm_alloc_array(n > 0 ? n : 1, sizeof *x);
@@ -1455,8 +1507,8 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
     cm_ents ents = {0};
     jm_chol ldl;
     jm_chol_init(&ldl);
-    if (akind == nullptr || aidx == nullptr || atgt == nullptr ||
-        face == nullptr || mv == nullptr || gh == nullptr || cv == nullptr ||
+    if (akind == nullptr || aidx == nullptr || yat == nullptr ||
+        atgt == nullptr || face == nullptr || cv == nullptr ||
         cg == nullptr || x == nullptr || best == nullptr || fr == nullptr ||
         frc == nullptr || ny == nullptr || nz == nullptr || nd == nullptr ||
         nact == nullptr) {
@@ -1476,8 +1528,6 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
                                nz + m->cone_start[k]);
         if (face[k] != 2)
             continue;
-        const int64_t d = m->cone_start[k + 1] - m->cone_start[k];
-        dense += d * d;
         akind[na] = 1;
         aidx[na] = k;
         atgt[na++] = 0.0;
@@ -1498,9 +1548,15 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
         akind[na] = 2;
         aidx[na++] = j;
     }
-    if (na == 0 || dense > CONIC_NEWTON_DENSE)
+    if (na == 0)
         goto done;
-    const int64_t kn = n + na;
+    int64_t kn = n + na;
+    for (int64_t a = 0; a < na; a++) {
+        yat[a] = -1;
+        if (akind[a] == 1 && m->cone_start[aidx[a] + 1] -
+                                     m->cone_start[aidx[a]] > CONIC_NEWTON_WIDE)
+            yat[a] = kn++;
+    }
     lam = jm_alloc_array(na, sizeof *lam);
     lbest = jm_alloc_array(na, sizeof *lbest);
     rhs = jm_alloc_array(kn, sizeof *rhs);
@@ -1525,7 +1581,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             const int64_t k = aidx[a], b = m->cone_start[k];
             const int64_t d = m->cone_start[k + 1] - b;
             double vn, hv;
-            cm_cone_grad(m, k, x, mv, gh, cv, cg, &vn, &hv);
+            cm_cone_grad(m, k, x, cv, cg, &vn, &hv);
             double zg = 0.0, gg = 0.0;
             for (int64_t t = 0; t < d; t++) {
                 zg += sigma * m->sol_cone[b + t] * cg[t];
@@ -1596,27 +1652,45 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             } else if (akind[a] == 1) {
                 const int64_t k = aidx[a], b = m->cone_start[k];
                 const int64_t d = m->cone_start[k + 1] - b;
+                const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
                 double vn, hv;
-                cm_cone_grad(m, k, x, mv, gh, cv, cg, &vn, &hv);
+                cm_cone_grad(m, k, x, cv, cg, &vn, &hv);
                 cval = vn - hv;
-                const int64_t dv = d - 1;
+                const double gam = -lam[a] / vn, root = sqrt(fabs(gam));
                 for (int64_t t = 0; t < d && ok; t++) {
                     const int64_t j = m->cone_col[b + t];
                     cm_add_product(&fr[j], &frc[j], -lam[a], cg[t]);
                     ok = ent_put(&ents, row, j, cg[t]);
-                    for (int64_t s = 0; s <= t && ok; s++) {
-                        double hts = 0.0;
-                        for (int64_t p = 0; p < dv; p++)
-                            hts += mv[p * d + t] * mv[p * d + s];
-                        double ut = 0.0, us = 0.0;
-                        for (int64_t p = 0; p < dv; p++) {
-                            ut += mv[p * d + t] * cv[p] / vn;
-                            us += mv[p * d + s] * cv[p] / vn;
+                    double ct;
+                    const int64_t at = cm_member(rot, t, &ct);
+                    const double ut = at >= 0 ? 0.0 + ct * cv[at] / vn : 0.0;
+                    if (yat[a] >= 0) {
+                        ok = ok && ent_put(&ents, j, yat[a],
+                                           gam >= 0.0 ? -root * ut : root * ut);
+                        for (int64_t s = rot && t == 1 ? 0 : t; s <= t && ok;
+                             s++) {
+                            double cs;
+                            const int64_t as = cm_member(rot, s, &cs);
+                            const double p = at >= 0 && at == as ? ct * cs : 0.0;
+                            ok = ent_put(&ents, j, m->cone_col[b + s], gam * p);
                         }
+                        continue;
+                    }
+                    for (int64_t s = 0; s <= t && ok; s++) {
+                        double cs;
+                        const int64_t as = cm_member(rot, s, &cs);
+                        const double us = as >= 0 ? 0.0 + cs * cv[as] / vn : 0.0;
+                        double hts = at >= 0 && at == as ? 0.0 + ct * cs : 0.0;
                         hts = (hts - ut * us) / vn;
                         ok = ent_put(&ents, j, m->cone_col[b + s],
                                      -lam[a] * hts);
                     }
+                }
+                if (yat[a] >= 0) {
+                    ok = ok && ent_put(&ents, yat[a], yat[a],
+                                       gam >= 0.0 ? 1.0 : -1.0);
+                    sign[yat[a]] = gam >= 0.0 ? 1 : -1;
+                    rhs[yat[a]] = 0.0;
                 }
             } else {
                 const int64_t j = akind[a] == 2 ? aidx[a]
@@ -1679,7 +1753,8 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             }
             for (int64_t k = 0; k < kn; k++)
                 ks[k + 1] += ks[k];
-            if (jm_chol_symbolic(&ldl, kn, ks, ki, work) != JAOS_OK)
+            if (jm_chol_symbolic_dense(&ldl, kn, ks, ki, jm_chol_dense_limit(kn),
+                                       work) != JAOS_OK)
                 goto done;
             symbolic = true;
         } else if (u != ks[kn]) {
@@ -1697,7 +1772,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             for (int64_t col = 0; col < kn; col++)
                 for (int64_t p = ks[col]; p < ks[col + 1]; p++) {
                     double v = kv[p];
-                    if (ki[p] == col)
+                    if (ki[p] == col && col < n + na)
                         v -= col < n ? CONIC_REG : -CONIC_REG;
                     res[ki[p]] -= v * sol[col];
                 }
@@ -1735,7 +1810,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             const int64_t k = aidx[a], b = m->cone_start[k];
             const int64_t d = m->cone_start[k + 1] - b;
             double vn, hv;
-            cm_cone_grad(m, k, x, mv, gh, cv, cg, &vn, &hv);
+            cm_cone_grad(m, k, x, cv, cg, &vn, &hv);
             for (int64_t t = 0; t < d; t++) {
                 const double v = sigma * lam[a] * cg[t];
                 nz[b + t] = v == 0.0 ? 0.0 : v;
@@ -1798,7 +1873,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
 done:
     jm_chol_free(&ldl);
     free(ents.e);
-    free(akind); free(aidx); free(atgt); free(face); free(mv); free(gh);
+    free(akind); free(aidx); free(yat); free(atgt); free(face);
     free(cv); free(cg); free(x); free(best); free(fr); free(frc); free(ny);
     free(nz); free(nd); free(nact); free(lam); free(lbest); free(rhs);
     free(sol); free(res); free(kv); free(ks); free(ki); free(sign);

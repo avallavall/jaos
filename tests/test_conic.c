@@ -519,9 +519,111 @@ static void test_a_conic_answer_goes_through_the_solution_file(void)
     jaos_model_free(m);
 }
 
+enum { WIDE = 500 };
+
+static double wide_coef(int64_t i)
+{
+    return (i % 2 == 0 ? 1.0 : -1.0) * (double)(1 + i % 5);
+}
+
+static void assert_wide_checked(jaos_model *m, int64_t members)
+{
+    const int64_t nc = jaos_num_col(m);
+    double *x = calloc((size_t)nc, sizeof *x);
+    double *z = calloc((size_t)members, sizeof *z);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(z);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    jaos_check_report rep;
+    double y[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_conic_solution(m, x, y, z, 1e-9, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.primal_feasible, "primal side refused");
+    TEST_ASSERT_TRUE_MESSAGE(rep.dual_feasible, "dual side refused");
+    free(x);
+    free(z);
+}
+
+/* minimise -a'x over ||x|| <= t with t fixed at 1, x of WIDE members: the
+   optimum is x = a / ||a|| at -||a||. */
+static void test_a_wide_cone_gives_the_norm(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const int64_t n = WIDE + 1;
+    double *cost = calloc((size_t)n, sizeof *cost);
+    double *cl = calloc((size_t)n, sizeof *cl);
+    double *cu = calloc((size_t)n, sizeof *cu);
+    int64_t *as = calloc((size_t)n + 1, sizeof *as);
+    int64_t *cols = calloc((size_t)n, sizeof *cols);
+    TEST_ASSERT_NOT_NULL(cols);
+    double aa = 0.0;
+    cl[0] = cu[0] = 1.0;
+    for (int64_t j = 1; j < n; j++) {
+        cost[j] = -wide_coef(j);
+        cl[j] = -inf;
+        cu[j] = inf;
+        aa += wide_coef(j) * wide_coef(j);
+    }
+    for (int64_t j = 0; j < n; j++)
+        cols[j] = j;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, n, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, as, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, n, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * sqrt(aa), -sqrt(aa), obj);
+    assert_wide_checked(m, n);
+    free(cost); free(cl); free(cu); free(as); free(cols);
+    jaos_model_free(m);
+}
+
+/* minimise t with 2 t u >= ||x||², u fixed at 1/2 and x fixed at a, WIDE
+   members: t = ||a||². */
+static void test_a_wide_rotated_cone_gives_the_sum_of_squares(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const int64_t n = WIDE + 2;
+    double *cost = calloc((size_t)n, sizeof *cost);
+    double *cl = calloc((size_t)n, sizeof *cl);
+    double *cu = calloc((size_t)n, sizeof *cu);
+    int64_t *as = calloc((size_t)n + 1, sizeof *as);
+    int64_t *cols = calloc((size_t)n, sizeof *cols);
+    TEST_ASSERT_NOT_NULL(cols);
+    double aa = 0.0;
+    cost[0] = 1.0;
+    cu[0] = inf;
+    cl[1] = cu[1] = 0.5;
+    for (int64_t j = 2; j < n; j++) {
+        cl[j] = cu[j] = wide_coef(j);
+        aa += wide_coef(j) * wide_coef(j);
+    }
+    for (int64_t j = 0; j < n; j++)
+        cols[j] = j;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, n, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, as, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_ROTATED, n, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * aa, aa, obj);
+    assert_wide_checked(m, n);
+    free(cost); free(cl); free(cu); free(as); free(cols);
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_wide_cone_gives_the_norm);
+    RUN_TEST(test_a_wide_rotated_cone_gives_the_sum_of_squares);
     RUN_TEST(test_a_cone_on_the_model_gives_the_norm);
     RUN_TEST(test_a_maximised_cone_publishes_its_duals_the_right_way);
     RUN_TEST(test_a_rotated_cone_halves_the_square);

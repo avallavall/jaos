@@ -128,9 +128,12 @@ unbounded ray are published only when the checkers confirm them. Over
 3000 generated models (`bench/measurements/02-253/`) every optimum
 passes the checker at 1e-7 on both sides, the same models rewritten
 with explicit rotated cones reach the same objectives within 3e-10,
-and 10 end as a numerical error, none of them a wrong verdict. What
-keeps the row from ●: integer columns with cones (MISOCP) are refused,
-no published conic set has been read, and
+and 8 end as a numerical error, none of them a wrong verdict. On the 29
+continuous CBLIB 2014 instances under 70 MB (`make cblib`,
+`bench/measurements/02-254/`), with cones of up to 99998 members, 26 end
+`OPTIMAL` and the checker takes all 26; the three `sched_*_orig` end as a
+numerical error. What keeps the row from ●: integer columns with cones
+(MISOCP) are refused, those three CBLIB instances fail, and
 an infeasibility that rests on a quadratic row's curvature has no
 certificate the checker takes. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
