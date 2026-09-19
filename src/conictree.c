@@ -7,12 +7,16 @@
 #include <string.h>
 
 constexpr double CT_INT_TOL = 1e-6;
+constexpr double CT_PC_EPS = 1e-6;
 
 typedef struct {
     double key;
     int64_t id, depth, nfix;
     int64_t *col;
     double *lo, *hi;
+    int64_t bcol;
+    int bdir;
+    double bfrac;
 } ct_node;
 
 typedef struct {
@@ -103,6 +107,7 @@ static ct_node *ct_child(const ct_node *p, int64_t id, int64_t col, double lo,
     c->key = key;
     c->id = id;
     c->depth = p->depth + 1;
+    c->bcol = -1;
     return c;
 }
 
@@ -182,23 +187,64 @@ static void ct_budget(jaos_model *sub, const jaos_model *m, int64_t work)
     sub->cfg.work_limit = left > 0 ? left : 1;
 }
 
-static int64_t ct_branch_col(const jaos_model *m, const double *x)
+typedef struct {
+    double *sum;
+    int64_t *cnt;
+} ct_pcost;
+
+static int64_t ct_branch_col(const jaos_model *m, const double *x,
+                             const ct_pcost *pc)
 {
+    const int64_t nc = m->num_col;
+    double avg[2] = {1.0, 1.0};
+    for (int d = 0; d < 2; d++) {
+        double s = 0.0;
+        int64_t n = 0;
+        for (int64_t j = 0; j < nc; j++)
+            if (pc->cnt[d * nc + j] > 0) {
+                s += pc->sum[d * nc + j] / (double)pc->cnt[d * nc + j];
+                n++;
+            }
+        if (n > 0 && s > 0.0)
+            avg[d] = s / (double)n;
+    }
+    const bool pcost = m->cfg.mip_branching != JAOS_BRANCH_MOST_FRACTIONAL;
     int64_t best = -1;
-    double score = 0.0;
-    for (int64_t j = 0; j < m->num_col; j++) {
+    double score = -1.0;
+    for (int64_t j = 0; j < nc; j++) {
         if (!m->col_integer[j])
             continue;
         const double f = x[j] - floor(x[j]);
         if (f <= CT_INT_TOL || f >= 1.0 - CT_INT_TOL)
             continue;
-        const double s = f < 1.0 - f ? f : 1.0 - f;
+        double s = f < 1.0 - f ? f : 1.0 - f;
+        if (pcost) {
+            double est[2];
+            for (int d = 0; d < 2; d++)
+                est[d] = pc->cnt[d * nc + j] > 0
+                             ? pc->sum[d * nc + j] /
+                                   (double)pc->cnt[d * nc + j]
+                             : avg[d];
+            s = fmax(f * est[0], CT_PC_EPS) *
+                fmax((1.0 - f) * est[1], CT_PC_EPS);
+        }
         if (s > score) {
             score = s;
             best = j;
         }
     }
     return best;
+}
+
+static void ct_learn(ct_pcost *pc, int64_t nc, const ct_node *n, double key)
+{
+    if (n->bcol < 0 || !(n->bfrac > 0.0) || !isfinite(key) ||
+        !isfinite(n->key))
+        return;
+    const double gain = (key - n->key) / n->bfrac;
+    const int64_t k = (int64_t)n->bdir * nc + n->bcol;
+    pc->sum[k] += gain > 0.0 ? gain : 0.0;
+    pc->cnt[k]++;
 }
 
 static jaos_status ct_fixed(const jaos_model *m, const double *x, int64_t work,
@@ -503,6 +549,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     double *x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *x);
     double *xc = jm_alloc_array(nc > 0 ? nc : 1, sizeof *xc);
     double *xd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *xd);
+    ct_pcost pc = {jm_calloc_array(2 * nc + 1, sizeof *pc.sum),
+                   jm_calloc_array(2 * nc + 1, sizeof *pc.cnt)};
     ct_heap heap = {0};
     ct_node *cur = calloc(1, sizeof *cur), *next = nullptr, **sv = nullptr;
     int64_t sn = 0, scap = 0;
@@ -515,10 +563,12 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     };
     double best_bound = -INFINITY;
     if (rel == nullptr || ilo == nullptr || ihi == nullptr || x == nullptr ||
-        xc == nullptr || xd == nullptr || cur == nullptr)
+        xc == nullptr || xd == nullptr || cur == nullptr || pc.sum == nullptr ||
+        pc.cnt == nullptr)
         goto done;
     rel->cfg.node_solve = true;
     cur->key = -INFINITY;
+    cur->bcol = -1;
 
     int64_t nint = 0;
     for (int64_t j = 0; j < nc; j++) {
@@ -694,12 +744,14 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
             goto done;
         roughs += rel->conic_rough;
         const double key = rel->conic_rough ? cur->key : sigma * obj;
+        if (!rel->conic_rough)
+            ct_learn(&pc, nc, cur, key);
         if (nodes == 1)
             best_bound = key;
         if (ct_closed(&inc, key, gap))
             continue;
 
-        const int64_t j = ct_branch_col(m, x);
+        const int64_t j = ct_branch_col(m, x, &pc);
         const bool rounding = j >= 0 && nodes == 1 &&
                               !m->cfg.mip_no_heuristics;
         if (j < 0 || rounding) {
@@ -789,6 +841,16 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
         const double lo = rel->col_lower[j], hi = rel->col_upper[j];
         ct_node *down = ct_child(cur, next_id++, j, lo, floor(x[j]), key);
         ct_node *up = ct_child(cur, next_id++, j, ceil(x[j]), hi, key);
+        if (down != nullptr) {
+            down->bcol = j;
+            down->bdir = 0;
+            down->bfrac = x[j] - floor(x[j]);
+        }
+        if (up != nullptr) {
+            up->bcol = j;
+            up->bdir = 1;
+            up->bfrac = ceil(x[j]) - x[j];
+        }
         const bool down_first = x[j] - floor(x[j]) < 0.5;
         ct_node *other = down_first ? up : down;
         bool kept = down != nullptr && up != nullptr;
@@ -886,6 +948,8 @@ done:
     free(x);
     free(xc);
     free(xd);
+    free(pc.sum);
+    free(pc.cnt);
     jaos_model_free(rel);
     jaos_model_free(inc.model);
     return rc;

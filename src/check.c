@@ -57,12 +57,12 @@ static double two_sum_residue(double a, double b, double s)
 static void split_term(double t, double e, double *pos, double *posc,
                        double *neg, double *negc)
 {
-    if (t > 0.0) {
+    const double v = t + e;
+    if (v > 0.0 || (v == 0.0 && t > 0.0)) {
         jm_obj_add(pos, posc, t);
         if (e != 0.0)
             jm_obj_add(pos, posc, e);
     } else {
-
         jm_obj_add(neg, negc, -t);
         if (e != 0.0)
             jm_obj_add(neg, negc, -e);

@@ -829,6 +829,7 @@ models against brute force over every integer value.
 | Name | Value | What it decides |
 |---|---|---|
 | `CT_INT_TOL` | 1e-6 | A column value within this of an integer counts as integral, and a relaxation whose integer columns are all within it closes its node by a solve with those columns fixed at their rounded values. The same value as `MIP_INT_TOL`. Not swept: every answer of 02-255 agrees with brute force to 2.5e-16, so the tolerance never chose a wrong point |
+| `CT_PC_EPS` | 1e-6 | The floor under each direction's estimated gain in the pseudocost score, the product of the two, so a column whose one side has shown no gain yet still ranks by the other. The same floor as the MIP tree's product rule. Not swept: its job is to keep a zero from erasing a product, and on `tests/test_conic.c`'s weighted rounding model the rule takes 39 nodes against 63 for the most fractional column |
 
 Its two heuristics take the MIP tree's switches and have no number of
 their own. At the root the relaxation is rounded and solved with its

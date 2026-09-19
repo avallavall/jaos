@@ -865,9 +865,83 @@ static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void
     jaos_model_free(m);
 }
 
+/* minimise t over (t, y) in a second-order cone with y_j = w_j (x_j - a_j)
+   and x_j integer in [0, 5]: the answer rounds each a_j. The columns of
+   weight 1 sit at a half, the most fractional, and the columns of weight
+   100 at 0.3, so a rule that learns what a branch gains goes to the heavy
+   columns, and the most fractional rule does not. */
+static jaos_model *weighted_rounding(void)
+{
+    enum { N = 6, C = 1 + 2 * N };
+    static const double w[N] = {1.0, 1.0, 1.0, 100.0, 100.0, 100.0};
+    static const double a[N] = {0.5, 1.5, 2.5, 0.3, 1.3, 2.7};
+    const double inf = jaos_infinity();
+    double cost[C] = {0}, cl[C], cu[C], rl[N], ru[N], av[2 * N];
+    int64_t as[C + 1], ai[2 * N];
+    cl[0] = -inf;
+    cu[0] = inf;
+    cost[0] = 1.0;
+    int64_t nz = 0;
+    as[0] = 0;
+    for (int j = 0; j < N; j++) {
+        cl[1 + j] = 0.0;
+        cu[1 + j] = 5.0;
+        as[1 + j] = nz;
+        ai[nz] = j;
+        av[nz++] = -w[j];
+        rl[j] = ru[j] = -w[j] * a[j];
+    }
+    for (int j = 0; j < N; j++) {
+        cl[1 + N + j] = -inf;
+        cu[1 + N + j] = inf;
+        as[1 + N + j] = nz;
+        ai[nz] = j;
+        av[nz++] = 1.0;
+    }
+    as[C] = nz;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, C, N, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, nz,
+                     as, ai, av));
+    for (int j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1 + j, true));
+    int64_t cone[1 + N];
+    cone[0] = 0;
+    for (int j = 0; j < N; j++)
+        cone[1 + j] = 1 + N + j;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_add_cone(m, JAOS_CONE_QUADRATIC, 1 + N, cone));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    return m;
+}
+
+static void test_the_conic_tree_learns_which_columns_move_the_bound(void)
+{
+    int64_t nodes[2];
+    for (int rule = 0; rule < 2; rule++) {
+        jaos_model *m = weighted_rounding();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_branching(m, rule == 0 ? JAOS_BRANCH_PSEUDOCOST
+                                                : JAOS_BRANCH_MOST_FRACTIONAL));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        const double want = sqrt(3 * 0.25 + 3 * 900.0);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6 * want, want, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[rule] = rep.nodes;
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[0] < nodes[1]);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_the_conic_tree_learns_which_columns_move_the_bound);
     RUN_TEST(test_a_refused_certificate_is_no_verdict_without_quadratic_rows);
     RUN_TEST(test_integer_columns_in_a_cone_branch_to_the_optimum);
     RUN_TEST(test_integer_columns_under_a_quadratic_row);
