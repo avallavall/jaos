@@ -987,6 +987,42 @@ and `x + 2y <= 6` with both columns integer, the answer is `x = 4, y = 0`
 and the interval for the cost of `x` came out `[-inf, 6]`; drop that cost
 to 4 and the optimum moves to `x = 3, y = 1`.
 
+## `STUB -AMPL`
+
+`jaos STUB -AMPL [NAME=VALUE]...` is how AMPL, Pyomo's `asl:` interface
+and JuMP's AmplNLWriter call a solver. The tool reads `STUB.nl` (a
+`STUB` given with its `.nl` is the same stub), solves it and writes
+`STUB.sol` for the caller to read back. It prints nothing.
+
+The options come first from the environment variable `jaos_options`,
+then from the words after `-AMPL`, so the command line wins. Each is a
+name and a value, joined by `=` or white space; the names are those
+`jaos options` prints, in any case: `work_limit=1e9`, `MIP_GAP 1e-4`.
+
+`STUB.sol` holds a message, a blank line, `Options` and the option
+values of `STUB.nl`'s first line, the counts of rows, of row duals,
+of columns and of column values, the duals, the values, and a last line
+`objno 0 CODE`. The message is `JAOS 0.3.0: optimal; objective -7` or
+the like, or the reason the solve did not run. The duals are there for
+a continuous optimum, in the signs `solve --solution` prints; the
+values are there for an optimum, or for a limit or a callback stop that
+left a point. `CODE` is AMPL's:
+
+| CODE | |
+|---|---|
+| 0 | optimal |
+| 200 | infeasible |
+| 300 | unbounded |
+| 400 | stopped by a limit or a callback, with a point |
+| 401 | stopped the same way, with none |
+| 500 | failed: a numerical error, a file the `.nl` reader refuses, an unknown option |
+
+The exit code is 0 whenever `STUB.sol` was written, because AMPL reads
+the file only after a 0, and 5 when it could not be written. The `.nl`
+reader takes linear models; a quadratic objective comes from Pyomo as a
+nonlinear body and ends with code 500 and the reader's message.
+`bench/measurements/02-257/` runs Pyomo against it.
+
 ## Which reader is used
 
 The reader is chosen by the input file's name. A name ending in `.lp` or
@@ -1042,8 +1078,9 @@ stdout. What each code means depends on the command.
 | 3 | stopped by a limit or Ctrl-C | | | refused: the numbers do not fit | |
 | 5 | usage or I/O error | | | | |
 
-`convert` exits 0 when the file was written and 5 otherwise. Code 4, a
-numerical failure, is `solve`'s alone.
+`convert` exits 0 when the file was written and 5 otherwise, and so does
+`STUB -AMPL` for `STUB.sol`, whose last line carries the verdict. Code 4,
+a numerical failure, is `solve`'s alone.
 
 Every command exits 5 on a usage error, an unreadable input, an unwritable
 output, a refused write, or a refused solution file. The three commands

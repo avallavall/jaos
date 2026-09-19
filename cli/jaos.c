@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
@@ -69,6 +70,7 @@ static const char U_SYNOPSIS[] =
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
     "               [--work-limit N]\n"
     "  jaos ranging FILE [--work-limit N]\n"
+    "  jaos STUB -AMPL [NAME=VALUE]...\n"
     "  jaos --version\n"
     "  jaos --help [COMMAND]\n"
     "\n";
@@ -3118,10 +3120,106 @@ out:
     return rc;
 }
 
+static bool ampl_set(jaos_model *m, const char *name, const char *value,
+                     char *msg, size_t cap)
+{
+    char low[128];
+    size_t n = strlen(name);
+    if (n >= sizeof low) {
+        snprintf(msg, cap, "JAOS %s: option '%.40s...' is too long",
+                 jaos_version(), name);
+        return false;
+    }
+    for (size_t k = 0; k <= n; k++)
+        low[k] = (char)tolower((unsigned char)name[k]);
+    if (jaos_set_option(m, low, value) != JAOS_OK) {
+        snprintf(msg, cap, "JAOS %s: option %s=%s: %s", jaos_version(), low,
+                 value, jaos_model_error(m));
+        return false;
+    }
+    return true;
+}
+
+static bool ampl_options(jaos_model *m, const char *text, char *msg,
+                         size_t cap)
+{
+    char *copy = strdup(text);
+    if (copy == nullptr) {
+        snprintf(msg, cap, "JAOS %s: out of memory reading the options",
+                 jaos_version());
+        return false;
+    }
+    char *tok[256];
+    int nt = 0;
+    for (char *s = copy; *s != '\0' && nt < 256;) {
+        while (*s != '\0' && (isspace((unsigned char)*s) || *s == '='))
+            s++;
+        if (*s == '\0')
+            break;
+        tok[nt++] = s;
+        while (*s != '\0' && !isspace((unsigned char)*s) && *s != '=')
+            s++;
+        if (*s != '\0')
+            *s++ = '\0';
+    }
+    bool ok = nt % 2 == 0;
+    if (!ok)
+        snprintf(msg, cap, "JAOS %s: option '%s' has no value", jaos_version(),
+                 tok[nt - 1]);
+    for (int k = 0; ok && k + 1 < nt; k += 2)
+        ok = ampl_set(m, tok[k], tok[k + 1], msg, cap);
+    free(copy);
+    return ok;
+}
+
+static int run_ampl(int argc, char **argv)
+{
+    const char *stub = argv[1];
+    size_t n = strlen(stub);
+    if (n > 3 && strcmp(stub + n - 3, ".nl") == 0)
+        n -= 3;
+    char nlpath[4096], solpath[4096], msg[1024] = "";
+    if (n + 5 > sizeof nlpath) {
+        fprintf(stderr, "jaos: the stub '%s' is too long\n", stub);
+        return EXIT_USAGE;
+    }
+    snprintf(nlpath, sizeof nlpath, "%.*s.nl", (int)n, stub);
+    snprintf(solpath, sizeof solpath, "%.*s.sol", (int)n, stub);
+
+    jaos_model *m = nullptr;
+    if (jaos_model_new(&m) != JAOS_OK) {
+        fprintf(stderr, "jaos: out of memory\n");
+        return EXIT_USAGE;
+    }
+    if (jaos_read_nl(m, nlpath) != JAOS_OK) {
+        snprintf(msg, sizeof msg, "JAOS %s: cannot read %s: %s",
+                 jaos_version(), nlpath, jaos_model_error(m));
+    } else {
+        const char *env = getenv("jaos_options");
+        bool ok = env == nullptr || ampl_options(m, env, msg, sizeof msg);
+        for (int k = 3; ok && k < argc; k++)
+            ok = ampl_options(m, argv[k], msg, sizeof msg);
+        if (ok && jaos_solve(m) != JAOS_OK)
+            snprintf(msg, sizeof msg, "JAOS %s: the solve failed: %s",
+                     jaos_version(), jaos_model_error(m));
+    }
+    if (jaos_write_sol_ampl(m, solpath, msg[0] != '\0' ? msg : nullptr) !=
+        JAOS_OK) {
+        const int rc = library_error("write", solpath, m);
+        jaos_model_free(m);
+        return rc;
+    }
+    jaos_model_free(m);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
         return usage_error("no command given");
+
+    if (argc >= 3 && strncmp(argv[2], "-AMPL", 5) == 0)
+        return run_ampl(argc, argv);
 
     const char *cmd = argv[1];
     if (strcmp(cmd, "--version") == 0 || strcmp(cmd, "version") == 0) {

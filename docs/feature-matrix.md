@@ -485,8 +485,16 @@ and this page has not measured that.
 | Julia | ○ | ● | ● | ● | ● | ● | ? |
 | Java, .NET | ○ | ◐ | ○ | ○ | ◐ | ● | ● |
 | MATLAB, R | ○ | ◐ | ○ | ● | ● | ● | ? |
-| AMPL, GAMS and similar modelling systems | ○ | ● | ○ | ● | ● | ● | ● |
+| AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ● |
 | `make install` with a pkg-config file | ● | ? | ? | ? | ? | — | — |
+
+**The modelling-system row reads ◐ since 2026-09-19**: `jaos STUB -AMPL`
+answers AMPL's solver protocol, `STUB.nl` in and `STUB.sol` out, which
+AMPL, Pyomo's `asl:` interface and JuMP's AmplNLWriter all use. Pyomo
+6.10 reads the answers back (`bench/measurements/02-257/`); JuMP was not
+run, GAMS needs a link library of its own, and a nonlinear body, which
+is how those systems write a quadratic objective, is refused by the
+`.nl` reader.
 
 **The install row is new on 2026-09-07.** `make install` puts the
 header, both library forms, the tool and a generated `jaos.pc` under

@@ -8,6 +8,8 @@
 #include <math.h>
 #include <stddef.h>
 
+constexpr int JM_NL_OPTIONS = 9;
+
 typedef struct {
     int64_t work_limit;
     double time_limit;
@@ -211,6 +213,9 @@ struct jaos_model {
     char *model_name;
     bool name_map_valid;
     jm_nmap col_map, row_map;
+
+    int nl_nopt;
+    int64_t nl_opt[JM_NL_OPTIONS];
 
     bool *col_integer;
     bool *col_semi;

@@ -2717,6 +2717,7 @@ jaos_status jaos_load_lp(jaos_model *m,
     m->num_nz  = kept;
     m->sense = sense;
     m->obj_offset = obj_offset;
+    m->nl_nopt = 0;
     m->col_cost = cost;
     m->col_lower = cl;
     m->col_upper = cu;
@@ -3596,6 +3597,8 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
     if (src->model_name != nullptr &&
         (m->model_name = jm_name_copy(src->model_name)) == nullptr)
         goto oom;
+    m->nl_nopt = src->nl_nopt;
+    memcpy(m->nl_opt, src->nl_opt, sizeof m->nl_opt);
     if (src->col_integer != nullptr) {
         m->col_integer = malloc((size_t)(src->num_col > 0 ? src->num_col : 1)
                                 * sizeof *m->col_integer);

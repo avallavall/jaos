@@ -3,6 +3,7 @@
 #include "jaos_internal.h"
 #include "unity.h"
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -378,9 +379,138 @@ static void test_the_nl_writer_refuses_what_the_format_has_no_place_for(void)
     jaos_model_free(m);
 }
 
+static const char *slurp_sol(const char *path)
+{
+    static char buf[8192];
+    FILE *f = fopen(path, "rb");
+    TEST_ASSERT_NOT_NULL(f);
+    const size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    return buf;
+}
+
+/* Pyomo's .nl of min -3x - 2y + 7 over x + 2y <= 8, 3x - y >= -2,
+   1 <= x + y <= 5, 0 <= x <= 4, y >= 0: the optimum is x = 4, y = 1 at
+   -7, and only the third row binds, with dual -2. */
+static void test_an_ampl_sol_carries_the_duals_and_values_of_an_lp(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_ampl_lp.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
+    char want[512];
+    snprintf(want, sizeof want,
+             "JAOS %s: optimal; objective -7\n\nOptions\n3\n1\n1\n0\n"
+             "3\n3\n2\n2\n0\n0\n-2\n4\n1\nobjno 0 0\n", JAOS_VERSION_STRING);
+    TEST_ASSERT_EQUAL_STRING(want, slurp_sol("build/tn_ampl.sol"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_write_sol_ampl(m, "build/tn_ampl.sol", "hello\n\nworld\n\n"));
+    const char *got = slurp_sol("build/tn_ampl.sol");
+    TEST_ASSERT_EQUAL_INT(0, strncmp(got, "hello\nworld\n\nOptions\n3\n", 23));
+    remove("build/tn_ampl.sol");
+    jaos_model_free(m);
+}
+
+static jaos_callback_action stop_at_first(const jaos_incumbent *inc,
+                                          void *user)
+{
+    (void)inc;
+    (void)user;
+    return JAOS_CALLBACK_STOP;
+}
+
+static const char *sol_tail(const char *s, int lines)
+{
+    const char *e = s + strlen(s);
+    int seen = 0;
+    for (const char *p = e - 1; p > s; p--)
+        if (p[-1] == '\n' && ++seen == lines)
+            return p;
+    return s;
+}
+
+static void test_an_ampl_sol_codes_the_verdicts(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_lin.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
+    const char *got = slurp_sol("build/tn_ampl.sol");
+    TEST_ASSERT_NOT_NULL(strstr(got, "\nOptions\n3\n1\n1\n0\n3\n0\n3\n3\n"));
+    TEST_ASSERT_EQUAL_STRING("objno 0 0\n", sol_tail(got, 1));
+    jaos_model_free(m);
+
+    const double inf = jaos_infinity();
+    const double cost[1] = {1.0}, cl[1] = {0.0}, cu[1] = {1.0};
+    const double rl[1] = {2.0}, ru[1] = {inf};
+    const int64_t as[2] = {0, 1}, ai[1] = {0};
+    const double av[1] = {1.0};
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 1,
+                     as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
+    got = slurp_sol("build/tn_ampl.sol");
+    TEST_ASSERT_NOT_NULL(strstr(got, ": infeasible\n\nOptions\n3\n1\n1\n0\n"
+                                     "1\n0\n1\n0\nobjno 0 200\n"));
+    jaos_model_free(m);
+
+    /* max x + y over 2x + 2y <= 3 with x and y binary. A callback that
+       stops the search at its first incumbent, the start (1, 0), leaves
+       that point to hand back; a work limit of one unit stops it before
+       any point. */
+    const double kc[2] = {1.0, 1.0}, kl[2] = {0.0, 0.0}, ku[2] = {1.0, 1.0};
+    const double krl[1] = {-inf}, kru[1] = {3.0};
+    const int64_t kas[3] = {0, 1, 2}, kai[2] = {0, 0};
+    const double kav[2] = {2.0, 2.0}, start[2] = {1.0, 0.0};
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, kc, kl, ku, krl, kru, 2,
+                     kas, kai, kav));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_incumbent_callback(m, stop_at_first, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INTERRUPTED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
+    got = slurp_sol("build/tn_ampl.sol");
+    TEST_ASSERT_NOT_NULL(strstr(got, "; objective 1\n"));
+    TEST_ASSERT_NOT_NULL(strstr(got, "\n1\n0\n2\n2\n1\n0\nobjno 0 400\n"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_incumbent_callback(m, nullptr,
+                                                               nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
+    got = slurp_sol("build/tn_ampl.sol");
+    TEST_ASSERT_NOT_NULL(strstr(got, "\n1\n0\n2\n0\nobjno 0 401\n"));
+    remove("build/tn_ampl.sol");
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_sol_ampl(nullptr, "x", nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_sol_ampl(m, nullptr, nullptr));
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_an_ampl_sol_carries_the_duals_and_values_of_an_lp);
+    RUN_TEST(test_an_ampl_sol_codes_the_verdicts);
     RUN_TEST(test_a_linear_nl_reads_with_its_names_bounds_and_integers);
     RUN_TEST(test_a_binary_nl_without_name_files_gets_positional_names);
     RUN_TEST(test_what_the_nl_reader_refuses_is_named_by_line);

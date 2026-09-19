@@ -3109,3 +3109,92 @@ jaos_status jaos_write_duals(jaos_model *m, const char *path)
     free(y);
     return st;
 }
+
+static int ampl_result(jaos_solve_status ss, bool point)
+{
+    switch (ss) {
+    case JAOS_SOLVE_OPTIMAL:
+        return 0;
+    case JAOS_SOLVE_INFEASIBLE:
+        return 200;
+    case JAOS_SOLVE_UNBOUNDED:
+        return 300;
+    case JAOS_SOLVE_WORK_LIMIT:
+    case JAOS_SOLVE_TIME_LIMIT:
+    case JAOS_SOLVE_NODE_LIMIT:
+    case JAOS_SOLVE_INTERRUPTED:
+        return point ? 400 : 401;
+    default:
+        return 500;
+    }
+}
+
+jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
+                                const char *message)
+{
+    if (m == nullptr || path == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+
+    const jaos_solve_status ss = m->solve_status;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double *x = nullptr, *y = nullptr;
+    double obj = 0.0;
+    if (ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr) {
+        x = m->sol_col;
+        obj = m->objective;
+        if (!jm_model_has_integer(m) && m->sol_dual != nullptr)
+            y = m->sol_dual;
+    } else if (ss != JAOS_SOLVE_NOT_RUN && m->mip_has_incumbent &&
+               m->mip_inc_x != nullptr) {
+        x = m->mip_inc_x;
+        obj = m->mip_inc_obj;
+    }
+    for (int64_t j = 0; x != nullptr && j < nc; j++)
+        if (!isfinite(x[j]))
+            x = nullptr;
+    for (int64_t i = 0; y != nullptr && i < nr; i++)
+        if (!isfinite(y[i]))
+            y = nullptr;
+
+    wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
+    wr *w = &ww;
+    char a[NUM_LEN];
+    jm_locale loc = {0};
+    if (!wr_open(w, path, &loc))
+        return w->st;
+
+    if (message != nullptr && message[0] != '\0') {
+        for (const char *s = message; *s != '\0'; s++)
+            if (*s != '\n' || (s[1] != '\n' && s[1] != '\0'))
+                fputc(*s, w->f);
+        fputc('\n', w->f);
+    } else {
+        fprintf(w->f, "JAOS %s: %s", JAOS_VERSION_STRING,
+                jaos_solve_status_str(ss));
+        if (x != nullptr) {
+            wr_num(a, obj);
+            fprintf(w->f, "; objective %s", a);
+        }
+        fprintf(w->f, "\n");
+    }
+    fprintf(w->f, "\nOptions\n");
+    if (m->nl_nopt > 0) {
+        fprintf(w->f, "%d\n", m->nl_nopt);
+        for (int k = 0; k < m->nl_nopt; k++)
+            fprintf(w->f, "%" PRId64 "\n", m->nl_opt[k]);
+    } else {
+        fprintf(w->f, "3\n1\n1\n0\n");
+    }
+    fprintf(w->f, "%" PRId64 "\n%" PRId64 "\n%" PRId64 "\n%" PRId64 "\n", nr,
+            y != nullptr ? nr : (int64_t)0, nc, x != nullptr ? nc : (int64_t)0);
+    for (int64_t i = 0; y != nullptr && i < nr; i++) {
+        wr_num(a, y[i] == 0.0 ? 0.0 : y[i]);
+        fprintf(w->f, "%s\n", a);
+    }
+    for (int64_t j = 0; x != nullptr && j < nc; j++) {
+        wr_num(a, x[j] == 0.0 ? 0.0 : x[j]);
+        fprintf(w->f, "%s\n", a);
+    }
+    fprintf(w->f, "objno 0 %d\n", ampl_result(ss, x != nullptr));
+    return wr_close(w, path, &loc);
+}

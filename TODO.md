@@ -113,7 +113,15 @@ the commit that took it, named here by hash.
      dual violation of 2.1e4, the push leaving 931 pinned columns with
      the wrong sign. The 8 largest (10000 to 1003001 columns) reach a
      work limit of 1e11, and QPLIB_9008 (1009306 columns) runs out of
-     memory.
+     memory. Their normal equations fill badly: one iteration of
+     QPLIB_8785 (10399 columns) costs 2.8e10 work units, its factor 9.1
+     million nonzeros. The augmented system costs 1.6e9 there and half
+     the normal equations' work on QPLIB_10038 and 10034, the same on
+     8500, so a choice of system by the symbolic factor's size would pay
+     on some. It would not finish them: on the augmented system
+     QPLIB_8785 reaches the library's objective by iteration 39 and its
+     dual residual then shrinks by a quarter per iteration with `mu` at
+     1e-40, and QPLIB_10034 does not converge in 169 iterations.
 
 
 5. **Cones and quadratic rows, the rest.** SPECS row 23. The conic
@@ -142,7 +150,14 @@ the commit that took it, named here by hash.
    - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13
      continuous ones, 10 end `OPTIMAL` within 2.7e-7 of the library's
      values, but 8 of those have duals the checker refuses at 1e-7, off
-     by 8.5e-7 to 3.6e-5 with the primal side to 2e-13; QPLIB_2676 and
+     by 8.5e-7 to 3.6e-5 with the primal side to 2e-13. The Newton finish
+     is refused on them: on QPLIB_2482, 1682 active rows over 1806 free
+     columns leave directions with no curvature, and one step moves a
+     column by 1.44 and breaks row 1759, which the walk left inactive.
+     Taking rows within 1e-6 of a side as active and letting Newton run
+     six steps reaches a KKT residual of 9e-16 on 1683 constraints, and
+     the checker then finds a violation of 5.1e-3, so the missing piece
+     is an active-set update after the finish; QPLIB_2676 and
      QPLIB_2468 stop without progress and end `NUMERICAL_ERROR`; QPLIB_3312
      (41406 columns) reaches the work limit. Of the 14 mixed-integer
      ones, the two `LMD` files end within 1e-2 of the reference at the

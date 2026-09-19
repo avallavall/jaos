@@ -19,6 +19,8 @@ typedef struct {
     int64_t nent, ecap, jcap, vcap;
     double offset;
     jaos_obj_sense sense;
+    int nopt;
+    int64_t opt[JM_NL_OPTIONS];
 } nl;
 
 #define FAIL(...) \
@@ -213,6 +215,14 @@ static jaos_status nl_header(nl *p)
     if (s[0] != 'g')
         FAIL("line 1: an .nl file starts with 'g'; this line starts with "
              "'%c'", s[0]);
+    {
+        int64_t o[JM_NL_OPTIONS + 1];
+        const int got = nl_ints(s + 1, o, JM_NL_OPTIONS + 1);
+        if (got > 0 && o[0] > 0 && o[0] <= JM_NL_OPTIONS && got > o[0]) {
+            p->nopt = (int)o[0];
+            memcpy(p->opt, o + 1, (size_t)p->nopt * sizeof *p->opt);
+        }
+    }
     if (!nl_next(p, &s) || nl_ints(s, v, 3) < 3)
         FAIL("line 2: expected the counts of variables, constraints and "
              "objectives");
@@ -553,6 +563,10 @@ jaos_status jaos_read_nl(jaos_model *m, const char *path)
         }
         if (st == JAOS_OK)
             st = nl_build(p, path);
+        if (st == JAOS_OK) {
+            m->nl_nopt = p->nopt;
+            memcpy(m->nl_opt, p->opt, sizeof m->nl_opt);
+        }
         jm_locale_leave(&loc);
     }
     free(p->buf);

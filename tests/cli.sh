@@ -412,6 +412,38 @@ expect_exit 0 "an .nl file is read by its extension" \
     || flunk "nl: $(line_of objective)"
 expect_exit 5 "a nonlinear .nl is refused" \
     "$JAOS" solve "$DATA/e_nonlin.nl"
+cp "$DATA/t_ampl_lp.nl" "$tmp/amp.nl"
+expect_exit 0 "jaos STUB -AMPL solves STUB.nl for AMPL" \
+    "$JAOS" "$tmp/amp" -AMPL
+[ "$(head -1 "$tmp/amp.sol")" = "JAOS $("$JAOS" --version): optimal; objective -7" ] \
+    && [ "$(tail -1 "$tmp/amp.sol")" = "objno 0 0" ] \
+    && [ "$(sed -n '3,16p' "$tmp/amp.sol" | tr '\n' ' ')" = "Options 3 1 1 0 3 3 2 2 0 0 -2 4 1 " ] \
+    && pass "and writes STUB.sol with the options, duals and values" \
+    || flunk "amp.sol: $(tr '\n' ' ' < "$tmp/amp.sol")"
+rm -f "$tmp/amp.sol"
+expect_exit 0 "a stub given with its .nl is the same stub" \
+    env jaos_options="work_limit 1" "$JAOS" "$tmp/amp.nl" -AMPL
+[ "$(tail -1 "$tmp/amp.sol")" = "objno 0 401" ] \
+    && [ "$(sed -n '8,11p' "$tmp/amp.sol" | tr '\n' ' ')" = "3 0 2 0 " ] \
+    && pass "and \$jaos_options sets the work limit that stops it" \
+    || flunk "amp.sol under work_limit 1: $(tr '\n' ' ' < "$tmp/amp.sol")"
+expect_exit 0 "a command-line option after -AMPL overrides it" \
+    env jaos_options="work_limit=1" "$JAOS" "$tmp/amp" -AMPL WORK_LIMIT=0
+[ "$(tail -1 "$tmp/amp.sol")" = "objno 0 0" ] \
+    && pass "and the solve finishes" \
+    || flunk "amp.sol with the override: $(tail -1 "$tmp/amp.sol")"
+expect_exit 0 "an unknown option is reported in STUB.sol" \
+    env jaos_options="nosuch=1" "$JAOS" "$tmp/amp" -AMPL
+grep -q "nosuch" "$tmp/amp.sol" && [ "$(tail -1 "$tmp/amp.sol")" = "objno 0 500" ] \
+    && pass "with AMPL's failure code" \
+    || flunk "amp.sol with nosuch: $(tr '\n' ' ' < "$tmp/amp.sol")"
+cp "$DATA/e_nonlin.nl" "$tmp/ampnl.nl"
+expect_exit 0 "a file the reader refuses is reported in STUB.sol" \
+    "$JAOS" "$tmp/ampnl" -AMPL
+grep -q "cannot read" "$tmp/ampnl.sol" \
+    && [ "$(tail -1 "$tmp/ampnl.sol")" = "objno 0 500" ] \
+    && pass "with no values and the failure code" \
+    || flunk "ampnl.sol: $(tr '\n' ' ' < "$tmp/ampnl.sol")"
 expect_exit 0 "--no-orbital still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-orbital
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

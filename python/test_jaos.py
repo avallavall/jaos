@@ -158,6 +158,37 @@ class TestReadingFiles(unittest.TestCase):
                 m.read_nl(data("e_nonlin.nl"))
             self.assertIn("nonlinear", str(ctx.exception))
 
+    def test_an_ampl_sol_file_hands_the_answer_back(self):
+        with jaos.Model() as m, tempfile.TemporaryDirectory() as d:
+            m.read_nl(data("t_ampl_lp.nl"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            path = os.path.join(d, "amp.sol")
+            m.write_sol_ampl(path)
+            with open(path) as f:
+                lines = f.read().split("\n")
+            self.assertEqual(lines[0],
+                             "JAOS %s: optimal; objective -7" % jaos.version())
+            self.assertEqual(lines[2:16], ["Options", "3", "1", "1", "0", "3",
+                                           "3", "2", "2", "0", "0", "-2", "4",
+                                           "1"])
+            self.assertEqual(lines[16], "objno 0 0")
+            m.write_sol_ampl(path, "solved by hand")
+            with open(path) as f:
+                self.assertEqual(f.readline(), "solved by hand\n")
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=4, name="x")
+        p.add(x >= 5, name="c")
+        p.minimize(x)
+        self.assertIs(p.solve(), jaos.SolveStatus.INFEASIBLE)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "p.sol")
+            p.write_sol_ampl(path)
+            with open(path) as f:
+                lines = f.read().split("\n")
+            self.assertEqual(lines[2:11], ["Options", "3", "1", "1", "0", "1",
+                                           "0", "1", "0"])
+            self.assertEqual(lines[11], "objno 0 200")
+
     def test_a_separable_qp_reads_solves_and_is_written_by_expressions(self):
         with jaos.Model() as m:
             m.read_lp(data("g_quad.lp"))

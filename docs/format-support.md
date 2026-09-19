@@ -327,6 +327,17 @@ are quadratic rows and cones. The format carries those only as
 nonlinear bodies, which JAOS does not write and its own reader refuses;
 write MPS, LP, QPLIB or OSiL instead.
 
+The reader keeps the option values of the first line (`g3 1 1 0` holds
+three: 1, 1 and 0) for the `.sol` file AMPL expects back, which
+`jaos_write_sol_ampl` and `jaos STUB -AMPL` write in text: the message,
+a blank line, `Options`, the number of option values and the values,
+the counts of rows, of row duals sent, of columns and of column values
+sent, one number per line after that, and `objno 0 CODE`. A model not
+read from `.nl` gets the options of `g3 1 1 0`. The duals are sent for
+a continuous optimum and the values for an optimum or a stop that left
+a point; `CODE` and the rest are in `docs/cli.md` under `STUB -AMPL`.
+Pyomo reads it back (`bench/measurements/02-257/`).
+
 ## QPLIB
 
 The QPLIB text format of Furini et al. (2019), read by `jaos_read_qplib`

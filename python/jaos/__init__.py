@@ -702,6 +702,7 @@ _sig("jaos_write_cbf", ctypes.c_int, _VP, _CS)
 _sig("jaos_read_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_osil", ctypes.c_int, _VP, _CS)
 _sig("jaos_write_solution", ctypes.c_int, _VP, _CS)
+_sig("jaos_write_sol_ampl", ctypes.c_int, _VP, _CS, _CS)
 _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
      _P(_D), _P(_D), _P(ctypes.c_int),
      _P(_D), _P(_D), _P(ctypes.c_int))
@@ -1006,6 +1007,18 @@ class Model:
 
     def write_solution(self, path):
         self._check(_lib.jaos_write_solution(self._handle(), _path(path)))
+
+    def write_sol_ampl(self, path, message=None):
+        """Writes the last solve as the .sol file an AMPL solver hands
+        back: the message (by default the status and the objective), the
+        options of the .nl file the model was read from, the row duals of
+        a continuous optimum and the column values, then the objno line
+        with AMPL's result code (0 solved, 200 infeasible, 300
+        unbounded, 400 or 401 a limit with or without a point, 500
+        failure)."""
+        msg = None if message is None else str(message).encode("utf-8")
+        self._check(_lib.jaos_write_sol_ampl(self._handle(), _path(path),
+                                             msg))
 
     def read_solution(self, path):
         """Reads back a file write_solution wrote, as a
@@ -3968,6 +3981,10 @@ class Problem:
 
     def write_solution(self, path):
         self._m.write_solution(path)
+
+    def write_sol_ampl(self, path, message=None):
+        """The last solve as an AMPL .sol file; see Model.write_sol_ampl."""
+        self._m.write_sol_ampl(path, message)
 
     def read_solution(self, path):
         """Reads back a file write_solution wrote; see Model.read_solution."""
