@@ -144,15 +144,15 @@ the commit that took it, named here by hash.
 
 6. **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
    QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,
-   `02-258/`), 4 end `OPTIMAL` and 13 reach a work limit of 1e11:
-   QPLIB_3871, 3698, 3792, 3694 and 3861 with incumbents 27% to 71%
-   above the reference, QPLIB_3547 with the incumbent 0 against -0.56,
-   and QPLIB_3980, 3913, 4270, 5577, 5924, 5527 and 5543 with none. Each
-   node is a cold barrier solve. The conic tree, measured on the same set
-   and refused (`miqp-conic-tree`), found incumbents on 3980, 3913 and
-   4270 and 1.5% to 62% above the reference on the DML files through its
-   root rounding, which solves the model with every integer column fixed
-   at its rounded value, and its dive, which fixes half the fractional
-   integer columns per solve. The LP tree's dive fixes one column per
-   solve up to its cap, and its rounding keeps the continuous values as
-   they are. Those two on the LP tree's MIQP are the next thing to read.
+   `02-258/`, `02-259/`), 4 end `OPTIMAL` and 13 reach a work limit of
+   1e11: QPLIB_3871, 3698, 3792, 3694 and 3861 with incumbents 27% to
+   71% above the reference, QPLIB_3913, 4270 and 3547 with incumbents
+   32.6%, 6.4% and 64% above it, and QPLIB_3980, 5577, 5924, 5527 and
+   5543 with none. Each node is a cold barrier solve. The conic tree,
+   measured on the same set and refused (`miqp-conic-tree`), ends the DML
+   files 1.5% to 62% above the reference and finds QPLIB_3980 an
+   incumbent at node 96; its root heuristics now run on the MIP tree too
+   (02-259) and do not reach those, so the difference is in the search.
+   QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
+   whole budget at the root node, and the last three never finish its
+   relaxation.

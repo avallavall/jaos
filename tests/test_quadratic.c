@@ -1162,9 +1162,70 @@ static void test_a_qp_the_barrier_cannot_finish_goes_to_the_conic_walk(void)
     jaos_model_free(m);
 }
 
+static void catch_rounded(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "by the relaxation rounded and the rest solved") !=
+        nullptr)
+        *(bool *)user = true;
+}
+
+/* minimise (x - 0.2)^2 + (y - 1.2)^2 + z^2 subject to x + y + z = 1.7,
+   x and y integer in [0, 3], z in [-5, 5]. The relaxation is
+   (0.3, 1.3, 0.1); rounding it alone breaks the row, and rounding the
+   integer columns and solving for z gives (0, 1, 0.7) at 0.57, which is
+   the optimum. */
+static jaos_model *mixed_rounding_qp(void)
+{
+    const double cost[] = {-0.4, -2.4, 0.0};
+    const double cl[] = {0.0, 0.0, -5.0}, cu[] = {3.0, 3.0, 5.0};
+    const double rl[] = {1.7}, ru[] = {1.7};
+    const int64_t as[] = {0, 1, 2, 3}, ai[] = {0, 0, 0};
+    const double av[] = {1.0, 1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 1.48, cost, cl, cu, rl, ru, 3,
+                     as, ai, av));
+    for (int j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    return m;
+}
+
+static void test_a_miqp_root_rounds_and_solves_for_the_rest(void)
+{
+    for (int on = 1; on >= 0; on--) {
+        jaos_model *m = mixed_rounding_qp();
+        bool rounded = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_callback(m, catch_rounded, &rounded));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, 0.57, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(m, x, nullptr, nullptr, nullptr));
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, 0.0, x[0]);
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, 1.0, x[1]);
+        TEST_ASSERT_DOUBLE_WITHIN(TOL, 0.7, x[2]);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_EQUAL(on != 0, rounded);
+        if (on)
+            TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
+        jaos_model_free(m);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_miqp_root_rounds_and_solves_for_the_rest);
     RUN_TEST(test_a_qp_the_barrier_cannot_finish_goes_to_the_conic_walk);
     RUN_TEST(test_a_qp_whose_dense_columns_lose_the_walk_still_solves);
     RUN_TEST(test_a_paired_q_reads_back_as_it_was_set);

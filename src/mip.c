@@ -2557,6 +2557,112 @@ static int dive_for_point(const jaos_model *m, const jaos_model *lp,
     return rc;
 }
 
+static int fix_and_solve(const jaos_model *m, jaos_model *hv, const double *x,
+                         double *out, int64_t *work, int64_t *solves_done)
+{
+    for (int64_t j = 0; j < m->num_col; j++) {
+        if (!m->col_integer[j])
+            continue;
+        double v = jm_round(x[j]);
+        if (v < hv->col_lower[j])
+            v = ceil(hv->col_lower[j]);
+        if (v > hv->col_upper[j])
+            v = floor(hv->col_upper[j]);
+        if (jaos_set_col_bounds(hv, j, v, v) != JAOS_OK)
+            return 0;
+    }
+    budget(hv, m, *work);
+    if (jaos_solve(hv) != JAOS_OK)
+        return 0;
+    *work += jaos_work_units(hv);
+    (*solves_done)++;
+    if (jaos_status_of(hv) != JAOS_SOLVE_OPTIMAL)
+        return 0;
+    return jaos_solution(hv, out, nullptr, nullptr, nullptr) == JAOS_OK;
+}
+
+static int fixed_for_point(const jaos_model *m, const jaos_model *lp,
+                           const double *x, double *out, int64_t *work,
+                           int64_t *solves_done)
+{
+    jaos_model *hv = nullptr;
+    if (jaos_model_copy(lp, &hv) != JAOS_OK)
+        return -1;
+    const int rc = fix_and_solve(m, hv, x, out, work, solves_done);
+    jaos_model_free(hv);
+    return rc;
+}
+
+typedef struct {
+    double dist;
+    int64_t col;
+} mip_frac;
+
+static int mip_frac_cmp(const void *a, const void *b)
+{
+    const mip_frac *p = a, *q = b;
+    if (p->dist != q->dist)
+        return p->dist < q->dist ? -1 : 1;
+    return p->col < q->col ? -1 : p->col > q->col;
+}
+
+static int halve_for_point(const jaos_model *m, const jaos_model *lp,
+                           int64_t steps, const double *x, double *out,
+                           int64_t *work, int64_t *solves_done)
+{
+    const int64_t nc = m->num_col;
+    jaos_model *hv = nullptr;
+    if (jaos_model_copy(lp, &hv) != JAOS_OK)
+        return -1;
+    mip_frac *fr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *fr);
+    if (fr == nullptr) {
+        jaos_model_free(hv);
+        return -1;
+    }
+    if (nc > 0)
+        memcpy(out, x, (size_t)nc * sizeof *out);
+    int rc = 0;
+    for (int64_t step = 0;; step++) {
+        int64_t nf = 0;
+        for (int64_t j = 0; j < nc; j++) {
+            if (!m->col_integer[j] || hv->col_lower[j] == hv->col_upper[j])
+                continue;
+            const double f = out[j] - floor(out[j]);
+            const double d = f < 0.5 ? f : 1.0 - f;
+            if (d > MIP_INT_TOL)
+                fr[nf++] = (mip_frac){d, j};
+        }
+        if (nf == 0 || step == steps) {
+            rc = fix_and_solve(m, hv, out, out, work, solves_done);
+            break;
+        }
+        qsort(fr, (size_t)nf, sizeof *fr, mip_frac_cmp);
+        bool set = true;
+        for (int64_t k = 0; k < (nf + 1) / 2 && set; k++) {
+            const int64_t j = fr[k].col;
+            double v = jm_round(out[j]);
+            if (v < hv->col_lower[j])
+                v = ceil(hv->col_lower[j]);
+            if (v > hv->col_upper[j])
+                v = floor(hv->col_upper[j]);
+            set = jaos_set_col_bounds(hv, j, v, v) == JAOS_OK;
+        }
+        if (!set)
+            break;
+        budget(hv, m, *work);
+        if (jaos_solve(hv) != JAOS_OK)
+            break;
+        *work += jaos_work_units(hv);
+        (*solves_done)++;
+        if (jaos_status_of(hv) != JAOS_SOLVE_OPTIMAL ||
+            jaos_solution(hv, out, nullptr, nullptr, nullptr) != JAOS_OK)
+            break;
+    }
+    free(fr);
+    jaos_model_free(hv);
+    return rc;
+}
+
 static bool pump_flip(const jaos_model *m, const double *x, double *rnd)
 {
     const int64_t nc = m->num_col;
@@ -4293,6 +4399,51 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "root: the caller's starting point is not a feasible "
                        "integer point of this model, and is not taken");
+            }
+        }
+
+        if (nodes == 1 && quadratic && heur && dive_heur > 0 && branch >= 0 &&
+            !inc.have && !budget_gone(m, work)) {
+            const char *how = "the relaxation rounded and the rest solved";
+            int got = fixed_for_point(m, lp, x, xr, &work, &solves);
+            double hobj = 0.0;
+            bool fits = got == 1 && rounded_point(m, xr, x2, ra, &hobj);
+            if (got >= 0 && !fits && !budget_gone(m, work)) {
+                how = "the halving dive";
+                got = halve_for_point(m, lp, dive_heur, x, xr, &work,
+                                      &solves);
+                fits = got == 1 && rounded_point(m, xr, x2, ra, &hobj);
+            }
+            if (got < 0)
+                goto done;
+            if (fits) {
+                work += m->num_nz + nc + nr;
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by %s", hobj, how);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
             }
         }
 

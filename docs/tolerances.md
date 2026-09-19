@@ -841,3 +841,14 @@ same to the bit at 1.093x the work, and on CBLIB's mixed-integer set the
 instances with no incumbent go from 17 to 0. A rounding at nodes 2, 4, 8
 and on as well was read and refused (`conic-rounding-schedule` in
 `bench/refusals.txt`).
+
+Since 2026-09-19 the MIP tree runs the same two at the root of a model
+with a quadratic objective, before its own dive and while no incumbent
+is known: the rounded solve, and when that gives no feasible point, the
+halving dive, capped by the same `MIP_DIVE_HEURISTIC` and ended by the
+same rounded solve. `--no-heuristics` and `--dive-heuristic 0` turn both
+off, and a model with no quadratic objective never reaches them, so the
+MIP set's 24 instances are the same to the bit. On QPLIB's 17 convex
+mixed-integer QPs (`bench/measurements/02-259/`) QPLIB_3913 and 4270 get
+an incumbent where they had none and QPLIB_3547's goes from 0 to -0.2007
+against a reference of -0.56; the other 14 end as before.

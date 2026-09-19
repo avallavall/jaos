@@ -637,6 +637,20 @@ case "$(line_of objective)" in
     "objective -8"|"objective -8.0000"*|"objective -7.9999"*) pass "to objective -8" ;;
     *) flunk "MIQP objective '$(line_of objective)'" ;;
 esac
+expect_exit 0 "a mixed-integer QP's root rounds and solves for the rest" \
+    "$JAOS" solve "$DATA/g_miqp_round.lp" --log progress
+case "$(line_of objective)" in
+    "objective 0.5700000"*|"objective 0.5699999"*) pass "to objective 0.57" ;;
+    *) flunk "rounded MIQP objective '$(line_of objective)'" ;;
+esac
+printf '%s\n' "$err" | grep -q "by the relaxation rounded and the rest solved" \
+    && pass "with its incumbent from that solve" \
+    || flunk "no incumbent from the rounded relaxation in the log"
+expect_exit 0 "and --no-heuristics solves it without that solve" \
+    "$JAOS" solve "$DATA/g_miqp_round.lp" --log progress --no-heuristics
+printf '%s\n' "$err" | grep -q "by the relaxation rounded" \
+    && flunk "--no-heuristics still rounded the relaxation" \
+    || pass "so the log has no such incumbent"
 expect_exit 0 "a QP whose walk stalls recentres and solves" \
     "$JAOS" solve "$DATA/g_qp_stall.lp"
 case "$(line_of objective)" in
