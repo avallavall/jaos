@@ -70,7 +70,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	miplib miplib-baseline cblib cblib-baseline \
 	warm warm-kennington primal primal-kennington barrier barrier-infeas \
 	pdlp pdlp-infeas concurrent \
-	shared python-test julia-test \
+	shared python-test julia-test dotnet-test java java-test r-test \
 	pgo clean
 
 .SECONDARY:
@@ -143,6 +143,29 @@ python-test: $(SHLIB)
 julia-test: $(SHLIB)
 	@julia --project=julia/JAOS -e 'using Pkg; Pkg.instantiate()'
 	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) julia --project=julia/JAOS julia/JAOS/test/runtests.jl
+
+dotnet-test: $(SHLIB)
+	@DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
+		JAOS_LIBRARY=$(CURDIR)/$(SHLIB) dotnet run --project dotnet/Jaos.Check
+
+JAVAC := javac -Xlint:all,-restricted -Werror
+
+java:
+	@rm -rf $(B)/java
+	@$(JAVAC) -d $(B)/java/classes java/src/org/jaos/*.java
+	@jar --create --file $(B)/java/jaos.jar -C $(B)/java/classes .
+
+r-test: $(SHLIB)
+	@mkdir -p $(B)/R
+	@JAOS_INCLUDE=$(CURDIR)/include JAOS_LIB_DIR=$(CURDIR)/$(B)/release \
+		R CMD INSTALL --clean --library=$(B)/R R/jaos > $(B)/R/install.log 2>&1 \
+		|| (cat $(B)/R/install.log; false)
+	@R_LIBS=$(CURDIR)/$(B)/R Rscript R/check.R tests/data
+
+java-test: java $(SHLIB)
+	@$(JAVAC) -cp $(B)/java/classes -d $(B)/java/check java/check/Check.java
+	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) java --enable-native-access=ALL-UNNAMED \
+		-cp $(B)/java/jaos.jar:$(B)/java/check Check tests/data
 
 CONFIGS := -DJAOS_NO_PRESOLVE -DJAOS_PRESOLVE_FAULT_OFFBYONE \
            -DJAOS_PRESOLVE_FAULT_WRONGDUAL

@@ -57,3 +57,7 @@ __pycache__/
 
 # Julia resolves the package's dependencies into this file on each machine.
 /julia/JAOS/Manifest.toml
+
+# The .NET build writes these beside each project.
+/dotnet/*/bin/
+/dotnet/*/obj/

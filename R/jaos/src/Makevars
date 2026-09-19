@@ -1,0 +1,2 @@
+PKG_CPPFLAGS = -I$(JAOS_INCLUDE)
+PKG_LIBS = -L$(JAOS_LIB_DIR) -ljaos -Wl,-rpath,$(JAOS_LIB_DIR)

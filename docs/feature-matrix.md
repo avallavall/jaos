@@ -483,8 +483,8 @@ and this page has not measured that.
 | C or C++ | ● | ● | ● | ● | ● | ● | ● |
 | Python | ● | ● | ● | ● | ● | ● | ● |
 | Julia | ● | ● | ● | ● | ● | ● | ? |
-| Java, .NET | ○ | ◐ | ○ | ○ | ◐ | ● | ● |
-| MATLAB, R | ○ | ◐ | ○ | ● | ● | ● | ? |
+| Java, .NET | ● | ◐ | ○ | ○ | ◐ | ● | ● |
+| MATLAB, R | ◐ | ◐ | ○ | ● | ● | ● | ? |
 | AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ● |
 | `make install` with a pkg-config file | ● | ? | ? | ? | ? | — | — |
 
@@ -508,6 +508,14 @@ quadratic row, and one needs an IIS that keeps integrality, while
 `jaos_iis` explains the linear relaxation). The package is not in
 Julia's General registry, and it finds the library the way the Python
 package does.
+
+**The Java, .NET row reads ● and the MATLAB, R row ◐ since
+2026-09-19**: `dotnet/Jaos` (.NET 8, P/Invoke), `java/src/org/jaos`
+(Java 22 and later, the foreign-function API, so no C glue) and `R/jaos`
+(an R package over `.Call`) each reach the calls that read, build, solve
+and read back a model, and each has its checks (`make dotnet-test`,
+`make java-test`, `make r-test`). MATLAB is not there: a MEX file needs
+a MATLAB licence to build and test.
 
 **The install row is new on 2026-09-07.** `make install` puts the
 header, both library forms, the tool and a generated `jaos.pc` under

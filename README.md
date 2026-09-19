@@ -116,6 +116,22 @@ model = Model(JAOS.Optimizer)
 optimize!(model)
 ```
 
+**.NET, Java and R.** `dotnet/Jaos` (.NET 8, P/Invoke), `java/src`
+(Java 22 or later, the foreign-function API, no glue code) and `R/jaos`
+(an R package over `.Call`) reach the same calls: read, build, solve,
+values, duals, cone duals, certificates, rays, the MIP report, options and
+the log. The .NET and Java packages add a small modelling layer
+(`Problem`, `Var`, `Expr`); R has `jaos_solve_lp` over a dense matrix.
+
+```csharp
+using var p = new Problem();
+var x = p.AddVar(ub: 4);
+var y = p.AddVar(integer: true);
+p.AddLe(x + y, 4);
+p.Maximize(x + 2 * y);
+p.Solve();
+```
+
 ## Build and test
 
 GCC 14 or later, Linux. The same sources cross-compile for Windows with
@@ -130,6 +146,9 @@ make cli          # build/cli/jaos
 make shared       # build/release/libjaos.so, which the Python and Julia bindings load
 make python-test  # the binding's own suite
 make julia-test   # the Julia package's suite, MathOptInterface's conformance tests included
+make dotnet-test  # the .NET binding's checks
+make java-test    # the Java binding's checks; `make java` builds build/java/jaos.jar
+make r-test       # the R package, installed into build/R, and its checks
 make netlib       # the 94-instance gate (fetches the instances first)
 make miplib       # the 24-instance MIP set
 make compare      # time JAOS against HiGHS, SoPlex and Clp
@@ -193,6 +212,9 @@ src/                  library sources
 tests/                unit suite; tests/vendor/unity/ is the one vendored dependency
 python/               the jaos package, over ctypes and the standard library only
 julia/JAOS/           the Julia package: ccall and a MathOptInterface optimizer
+dotnet/               the .NET binding (Jaos) and its checks (Jaos.Check)
+java/                 the Java binding (src/org/jaos) and its checks (check/)
+R/                    the R package (jaos) and its checks (check.R)
 cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers

@@ -13,6 +13,22 @@ minimum of three runs, geometric mean of per-instance ratios.
 | `-march=native` | 1.0072x | inside the noise, and not portable |
 | **PGO** | **1.1122x** | `make pgo` |
 
+## The language bindings
+
+Each binding loads `build/release/libjaos.so` (`make shared`) and has a
+check target of its own. What each needs on the machine:
+
+| target | needs |
+|---|---|
+| `make python-test` | Python 3.9 or later, the standard library only |
+| `make julia-test` | Julia 1.9 or later; `Pkg.instantiate` fetches MathOptInterface |
+| `make dotnet-test` | the .NET 8 SDK |
+| `make java-test` | a JDK 22 or later, for the foreign-function API |
+| `make r-test` | R with its headers, and the C compiler R was built with |
+
+They were read under Ubuntu 24.04 with Python 3.12.3, Julia 1.13,
+.NET 8.0.131, OpenJDK 25.0.4 and R 4.3.3.
+
 ## Profile-guided optimisation
 
 `make pgo` gains about three times as much as all the flags together. It

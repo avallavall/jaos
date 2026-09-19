@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Jaos</RootNamespace>
+    <AssemblyName>Jaos</AssemblyName>
+    <Version>0.3.0</Version>
+    <Description>JAOS, an LP, MIP, QP and SOCP solver, from .NET: the C library through P/Invoke.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
