@@ -201,6 +201,11 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
                    jaos_solve_status_str(m->solve_status));
         return JAOS_ERR_INVALID_INPUT;
     }
+    if (jm_model_has_conic(m)) {
+        jm_set_err(m, "an IIS is a set of linear rows and bounds, and this "
+                      "model has cones or quadratic rows");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     m->err[0] = '\0';
 
     iis g = {.m = m, .nrow = m->num_row, .ncol = m->num_col};

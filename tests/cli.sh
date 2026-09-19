@@ -641,6 +641,93 @@ expect_exit 0 "stats of a QP exits 0" "$JAOS" stats "$DATA/g_quad.lp"
 [ "$(line_of quadratic_columns)" = "quadratic_columns 2" ] \
     && pass "and counts the quadratic columns" \
     || flunk "stats printed '$(line_of quadratic_columns)'"
+expect_exit 0 "stats of a cone model exits 0" "$JAOS" stats "$DATA/g_cone.mps"
+[ "$(line_of cones)" = "cones 1" ] && [ "$(line_of quadratic_rows)" = "quadratic_rows 0" ] \
+    && pass "and counts one cone" \
+    || flunk "stats printed '$(line_of cones)' '$(line_of quadratic_rows)'"
+expect_exit 0 "a cone model solves" \
+    "$JAOS" solve "$DATA/g_cone.mps" --solution "$tmp/cone.sol" --check
+case "$(line_of objective)" in
+    "objective 5"|"objective 5.0000000"*|"objective 4.9999999"*) pass "to the norm" ;;
+    *) flunk "cone objective '$(line_of objective)'" ;;
+esac
+[ "$(line_of check_ok)" = "check_ok yes" ] && [ -n "$(line_of max_cone_violation)" ] \
+    && pass "and --check judges the cone duals" \
+    || flunk "cone --check: '$(line_of check_ok)' '$(line_of max_cone_violation)'"
+grep -q '^cones 1$' "$tmp/cone.sol" && grep -q '^cone 0 2 ' "$tmp/cone.sol" \
+    && pass "and the solution file carries the cone records" \
+    || flunk "no cone records in the solution file"
+expect_exit 0 "check of the cone answer exits 0" \
+    "$JAOS" check "$DATA/g_cone.mps" "$tmp/cone.sol"
+[ "$(line_of dual_feasible)" = "dual_feasible yes" ] \
+    && pass "and finds the duals feasible" \
+    || flunk "cone check: '$(line_of dual_feasible)'"
+sed 's/^cone 0 0 .*/cone 0 0 -1/' "$tmp/cone.sol" > "$tmp/cone_bad.sol"
+expect_exit 1 "a cone dual outside the cone fails the check" \
+    "$JAOS" check "$DATA/g_cone.mps" "$tmp/cone_bad.sol"
+grep -v '^cone' "$tmp/cone.sol" > "$tmp/cone_none.sol"
+expect_exit 5 "a conic answer without its cone records is refused" \
+    "$JAOS" check "$DATA/g_cone.mps" "$tmp/cone_none.sol"
+case "$err" in
+    *cone*) pass "and says the cone records are missing" ;;
+    *) flunk "check without cone records said '$err'" ;;
+esac
+expect_exit 1 "an infeasible cone model exits 1" \
+    "$JAOS" solve "$DATA/e_cone_infeas.mps" --solution "$tmp/cinf.sol"
+expect_exit 0 "and its certificate checks with the cone part" \
+    "$JAOS" check "$DATA/e_cone_infeas.mps" "$tmp/cinf.sol"
+[ "$(line_of certified)" = "certified yes" ] && pass "and is certified" \
+    || flunk "cone certificate: '$(line_of certified)'"
+expect_exit 5 "an IIS of a cone model is refused" \
+    "$JAOS" iis "$DATA/e_cone_infeas.mps"
+expect_exit 5 "the primal simplex refuses a cone model" \
+    "$JAOS" solve "$DATA/g_cone.mps" --algorithm primal
+expect_exit 5 "the LP writer refuses a cone" \
+    "$JAOS" convert "$DATA/g_cone.mps" "$tmp/cone.lp"
+expect_exit 0 "a quadratic row solves" "$JAOS" solve "$DATA/g_qcp.mps" --check
+case "$(line_of objective)" in
+    "objective -2"|"objective -2.0000000"*|"objective -1.9999999"*) pass "to -2" ;;
+    *) flunk "QCP objective '$(line_of objective)'" ;;
+esac
+[ "$(line_of check_ok)" = "check_ok yes" ] && pass "and checks" \
+    || flunk "QCP --check: '$(line_of check_ok)'"
+expect_exit 0 "show prints a row's quadratic part" \
+    "$JAOS" show "$DATA/g_qcp.mps" --row ball
+[ "$(line_of quadratic_entries)" = "quadratic_entries 2" ] \
+    && [ "$(line_of qterm | head -1)" = "qterm x x 2" ] \
+    && pass "in the model's own convention" \
+    || flunk "show --row ball: '$(line_of quadratic_entries)' '$(line_of qterm | head -1)'"
+for ext in lp qplib mps; do
+    expect_exit 0 "a quadratic row converts to .$ext" \
+        "$JAOS" convert "$DATA/g_qcp.mps" "$tmp/qcp.$ext"
+    expect_exit 0 "and the .$ext solves" "$JAOS" solve "$tmp/qcp.$ext"
+    case "$(line_of objective)" in
+        "objective -2"|"objective -2.0000000"*|"objective -1.9999999"*) pass "to -2" ;;
+        *) flunk "QCP .$ext objective '$(line_of objective)'" ;;
+    esac
+done
+expect_exit 0 "a cone converts to MPS" \
+    "$JAOS" convert "$DATA/g_cone.mps" "$tmp/cone2.mps"
+grep -q '^CSECTION' "$tmp/cone2.mps" && pass "with a CSECTION" \
+    || flunk "no CSECTION in the converted MPS"
+expect_exit 0 "and diff finds it the same model" \
+    "$JAOS" diff "$DATA/g_cone.mps" "$tmp/cone2.mps"
+expect_exit 0 "diff finds a quadratic row the same through LP" \
+    "$JAOS" diff "$DATA/g_qcp.mps" "$tmp/qcp.lp"
+sed 's/^\( *y *y *\)1$/\12/' "$DATA/g_qcp.mps" > "$tmp/qcp_other.mps"
+expect_exit 1 "diff tells two quadratic rows apart" \
+    "$JAOS" diff "$DATA/g_qcp.mps" "$tmp/qcp_other.mps"
+case "$(line_of row_quadratic)" in
+    "row_quadratic ball y y 2 4") pass "by entry" ;;
+    *) flunk "diff of quadratic rows printed '$(line_of row_quadratic)'" ;;
+esac
+grep -v '^    y$' "$DATA/g_cone.mps" > "$tmp/cone_short.mps"
+expect_exit 1 "diff tells two cones apart" \
+    "$JAOS" diff "$DATA/g_cone.mps" "$tmp/cone_short.mps"
+case "$(line_of cone)" in
+    "cone 0 quadratic:3 quadratic:2") pass "by size" ;;
+    *) flunk "diff of cones printed '$(line_of cone)'" ;;
+esac
 expect_exit 0 "--algorithm pdlp solves it as well" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm pdlp
 [ "$(line_of objective)" = "$dual_obj" ] && pass "to the same objective" \

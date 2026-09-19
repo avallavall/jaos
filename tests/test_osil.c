@@ -320,6 +320,50 @@ static void test_a_var_or_con_repeated_by_mult_reads_as_that_many(void)
             "not a count of 1 or more");
 }
 
+static void test_a_quadratic_row_reads_solves_and_writes_back(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_osil(m, "tests/data/g_osil_qcon.osil"));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_row_quadratic_nz(m, 0));
+    int64_t qi[2], qj[2];
+    double qv[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(m, 0, qi, qj, qv));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -2.0, obj);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_osil(m, "build/to_qcon.osil"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(b, "build/to_qcon.osil"));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_row_quadratic_nz(b, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(b, 0, qi, qj, qv));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[1]);
+    remove("build/to_qcon.osil");
+
+    const int64_t cols[2] = {0, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(b, JAOS_CONE_QUADRATIC, 2,
+                                                 cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_osil(b, "build/to_cone.osil"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(b), "second-order cones"));
+    jaos_model_free(b);
+    jaos_model_free(m);
+
+    refuses("<osil><instanceData>\n"
+            "<variables numberOfVariables=\"1\"><var name=\"x\"/></variables>\n"
+            "<constraints numberOfConstraints=\"1\"><con ub=\"1\"/>"
+            "</constraints>\n"
+            "<quadraticCoefficients numberOfQuadraticTerms=\"1\">\n"
+            "<qTerm idx=\"3\" idxOne=\"0\" idxTwo=\"0\" coef=\"1\"/>\n"
+            "</quadraticCoefficients></instanceData></osil>\n",
+            "constraint 3");
+}
+
 static void test_osil_refuses_what_it_cannot_carry(void)
 {
     jaos_model *m = fresh();
@@ -396,5 +440,6 @@ int main(void)
     RUN_TEST(test_a_name_with_spaces_reads_with_underscores_and_writes_mps);
     RUN_TEST(test_a_var_or_con_repeated_by_mult_reads_as_that_many);
     RUN_TEST(test_osil_refuses_what_it_cannot_carry);
+    RUN_TEST(test_a_quadratic_row_reads_solves_and_writes_back);
     return UNITY_END();
 }

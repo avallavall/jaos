@@ -231,6 +231,11 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
                       "model has a quadratic term");
         return JAOS_ERR_INVALID_INPUT;
     }
+    if (jm_model_has_conic(m)) {
+        jm_set_err(m, "a proof file is about a linear program, and this "
+                      "model has cones or quadratic rows");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     if (jm_model_has_integer(m)) {
         jm_set_err(m, "a proof file is about a linear program, and this "
                       "model is a MIP: nothing in the file speaks to its "

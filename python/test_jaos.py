@@ -182,7 +182,7 @@ class TestReadingFiles(unittest.TestCase):
         with self.assertRaises(TypeError):
             p.minimize(x * y)
         with self.assertRaises(TypeError):
-            p.add(x * x <= 4)
+            p.add(x * y <= 4)
         q = jaos.Problem()
         a = q.add_var(lb=0, ub=5, name="a", integer=True)
         b = q.add_var(lb=0, ub=5, name="b", integer=True)
@@ -3247,6 +3247,150 @@ class TestSolutionFileRoundTrip(unittest.TestCase):
             self.assertAlmostEqual(obj, 3.0, places=9)
             self.assertEqual(len(sol.col_value), 1)
             self.assertEqual(len(basis.col_status), 1)
+
+class TestCones(unittest.TestCase):
+    """The numbers are the ones tests/test_conic.c asserts on the same
+    models."""
+
+    def norm_model(self, sense=jaos.ObjSense.MINIMIZE):
+        inf = jaos.INFINITY
+        m = jaos.Model()
+        sg = -1.0 if sense is jaos.ObjSense.MAXIMIZE else 1.0
+        m.load(3, 2, [sg, 0.0, 0.0], [-inf] * 3, [inf] * 3, [3.0, 4.0],
+               [3.0, 4.0], [0, 0, 1, 2], [0, 1], [1.0, 1.0], sense=sense)
+        m.add_cone(jaos.ConeType.QUADRATIC, [0, 1, 2])
+        return m
+
+    def test_a_cone_gives_the_norm_and_its_dual(self):
+        with self.norm_model() as m:
+            self.assertEqual(m.num_cones(), 1)
+            self.assertEqual(m.cone(0), (jaos.ConeType.QUADRATIC, [0, 1, 2]))
+            self.assertEqual(m.statistics().cone_set, 1)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 5.0, places=7)
+            z = m.cone_dual(0)
+            self.assertAlmostEqual(z[0], 1.0, places=6)
+            self.assertAlmostEqual(z[1], -0.6, places=6)
+            self.assertAlmostEqual(z[2], -0.8, places=6)
+            s = m.solution()
+            ck = m.check_conic_solution(s.col_value, s.row_dual, [z])
+            self.assertTrue(ck.primal_feasible)
+            self.assertTrue(ck.checked_duals)
+            self.assertTrue(ck.dual_feasible)
+            self.assertLessEqual(ck.max_cone_violation, 1e-7)
+            with self.assertRaises(ValueError):
+                m.check_conic_solution(s.col_value, s.row_dual, [z[:2]])
+            with tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "norm.sol")
+                m.write_solution(path)
+                self.assertEqual(m.read_cone_duals(path), [z])
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.delete_cols([2])
+            self.assertIn("cone", str(ctx.exception))
+            m.delete_cones([0])
+            self.assertEqual(m.num_cones(), 0)
+            with self.assertRaises(jaos.JaosError):
+                m.cone(0)
+
+    def test_a_maximised_cone_checks_with_its_published_duals(self):
+        with self.norm_model(jaos.ObjSense.MAXIMIZE) as m:
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -5.0, places=7)
+            s = m.solution()
+            ck = m.check_conic_solution(s.col_value, s.row_dual,
+                                        [m.cone_dual(0)])
+            self.assertTrue(ck.dual_feasible)
+
+    def test_a_rotated_cone_halves_the_square(self):
+        inf = jaos.INFINITY
+        with jaos.Model() as m:
+            m.load(3, 0, [1.0, 0.0, 0.0], [0.0, 1.0, 3.0], [inf, 1.0, 3.0],
+                   [], [])
+            m.add_cone(jaos.ConeType.ROTATED, [0, 1, 2])
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 4.5, places=7)
+
+    def test_a_quadratic_row_reads_solves_and_checks(self):
+        inf = jaos.INFINITY
+        with jaos.Model() as m:
+            m.load(2, 1, [-1.0, -1.0], [-inf, -inf], [inf, inf], [-inf],
+                   [2.0])
+            m.set_row_quadratic(0, [(0, 0, 2.0), (1, 1, 2.0)])
+            self.assertEqual(m.row_quadratic_nz(0), 2)
+            self.assertEqual(m.row_quadratic(0),
+                             [(0, 0, 2.0), (1, 1, 2.0)])
+            self.assertEqual(m.statistics().quadratic_row, 1)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            s = m.solution()
+            self.assertAlmostEqual(s.col_value[0], 1.0, places=7)
+            self.assertAlmostEqual(s.row_activity[0], 2.0, places=7)
+            self.assertAlmostEqual(s.row_dual[0], -0.5, places=6)
+            ck = m.check_conic_solution(s.col_value, s.row_dual, [])
+            self.assertTrue(ck.dual_feasible)
+            m.set_row_quadratic(0, [])
+            self.assertEqual(m.row_quadratic(0), [])
+        with jaos.Model() as m:
+            m.read_qplib(data("e_qcon.qplib"))
+            self.assertEqual(m.row_quadratic_nz(0), 2)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -2.0, places=7)
+        with jaos.Model() as m:
+            m.read_lp(data("el_quad_con.lp"))
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.solve()
+            self.assertIn("not convex", str(ctx.exception))
+
+    def test_an_infeasible_cone_is_certified(self):
+        inf = jaos.INFINITY
+        with jaos.Model() as m:
+            m.load(2, 0, [0.0, 0.0], [-inf, 2.0], [1.0, 2.0], [], [])
+            m.add_cone(jaos.ConeType.QUADRATIC, [0, 1])
+            self.assertIs(m.solve(), jaos.SolveStatus.INFEASIBLE)
+            z = m.cone_dual(0)
+            self.assertTrue(m.check_conic_certificate([], [z]).certified)
+            self.assertFalse(
+                m.check_conic_certificate([], [[-1.0, 0.0]]).certified)
+
+    def test_a_problem_writes_squares_and_cones(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=-jaos.INFINITY, name="x")
+        y = p.add_var(lb=-jaos.INFINITY, name="y")
+        ball = p.add(x ** 2 + y * y <= 2, name="ball")
+        self.assertIn("x**2", repr(ball))
+        p.minimize(-x - y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, -2.0, places=7)
+        self.assertAlmostEqual(x.value, 1.0, places=7)
+        self.assertAlmostEqual(ball.activity, 2.0, places=7)
+        self.assertAlmostEqual(ball.dual, -0.5, places=6)
+        self.assertTrue(p.check().dual_feasible)
+
+        q = jaos.Problem()
+        t = q.add_var(lb=-jaos.INFINITY, name="t")
+        a = q.add_var(lb=3, ub=3, name="a")
+        b = q.add_var(lb=4, ub=4, name="b")
+        k = q.add_cone([t, a, b])
+        self.assertEqual(repr(k), "cone(t, a, b)")
+        q.minimize(t)
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(q.objective_value, 5.0, places=7)
+        self.assertEqual(len(k.dual), 3)
+        ck = q.check()
+        self.assertTrue(ck.primal_feasible)
+        self.assertTrue(ck.dual_feasible)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "q.sol")
+            q.write_solution(path)
+            self.assertEqual(q.read_cone_duals(path), [k.dual])
+        u = q.add_var(lb=1, ub=1, name="u")
+        r = q.add_cone([t, u, a], rotated=True)
+        self.assertTrue(r.rotated)
+        with self.assertRaises(ValueError):
+            r.dual
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(q.objective_value, 5.0, places=7)
+        with self.assertRaises(ValueError):
+            q.add_cone([t, 1.0])
 
 if __name__ == "__main__":
     unittest.main()

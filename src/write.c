@@ -442,6 +442,29 @@ jaos_status jaos_write_mps(jaos_model *m, const char *path)
                     fprintf(w->f, "    %-9s %-9s %s\n", nm, nm2, num);
                 }
         }
+        for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++) {
+            if (m->rq_start[i + 1] == m->rq_start[i])
+                continue;
+            char nm2[NAME_LEN];
+            row_name(m, rn, i);
+            fprintf(w->f, "QCMATRIX   %s\n", rn);
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                col_name(m, nm, m->rq_i[p]);
+                col_name(m, nm2, m->rq_j[p]);
+                wr_num(num, 0.5 * m->rq_v[p]);
+                fprintf(w->f, "    %-9s %-9s %s\n", nm, nm2, num);
+                if (m->rq_i[p] != m->rq_j[p])
+                    fprintf(w->f, "    %-9s %-9s %s\n", nm2, nm, num);
+            }
+        }
+        for (int64_t k = 0; k < m->num_cone; k++) {
+            fprintf(w->f, "CSECTION   K%lld   0.0   %s\n", (long long)(k + 1),
+                    m->cone_type[k] == JAOS_CONE_ROTATED ? "RQUAD" : "QUAD");
+            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++) {
+                col_name(m, nm, m->cone_col[t]);
+                fprintf(w->f, "    %s\n", nm);
+            }
+        }
         if (m->num_sos > 0) {
             fprintf(w->f, "SOS\n");
             for (int64_t k = 0; k < m->num_sos; k++) {
@@ -669,9 +692,37 @@ static void lp_row(wr *w, int64_t i, const char *name, const char *rel,
         col_name(m, nm, m->ar_index[k]);
         lp_term(w, &col, &first, m->ar_value[k], nm);
     }
-    if (m->ar_start[i] == m->ar_start[i + 1]) {
+    const bool curved = m->rq_start != nullptr &&
+                        m->rq_start[i + 1] > m->rq_start[i];
+    if (m->ar_start[i] == m->ar_start[i + 1] && !curved) {
         col_name(m, nm, 0);
         lp_term(w, &col, &first, 0.0, nm);
+    }
+    if (curved) {
+        char nm2[NAME_LEN], num[NUM_LEN];
+        int n = fprintf(w->f, first ? " [" : " + [");
+        col += n > 0 ? n : 0;
+        bool qfirst = true;
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            const bool diag = m->rq_i[p] == m->rq_j[p];
+            const double v = diag ? 0.5 * m->rq_v[p] : m->rq_v[p];
+            col_name(m, nm, m->rq_i[p]);
+            col_name(m, nm2, m->rq_j[p]);
+            wr_num(num, fabs(v));
+            const char *sign = qfirst ? (v < 0.0 ? "-" : "")
+                                      : (v < 0.0 ? "- " : "+ ");
+            if (diag)
+                n = fprintf(w->f, " %s%s %s ^ 2", sign, num, nm);
+            else
+                n = fprintf(w->f, " %s%s %s * %s", sign, num, nm, nm2);
+            qfirst = false;
+            col += n > 0 ? n : 0;
+            if (col >= LP_WRAP) {
+                fprintf(w->f, "\n   ");
+                col = 3;
+            }
+        }
+        fprintf(w->f, " ]");
     }
     fprintf(w->f, " %s %s\n", rel, rhs);
 }
@@ -869,11 +920,20 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
 
     char nm[NAME_LEN], rn[NAME_LEN];
 
+    if (m->num_cone > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " second-order cones, which the LP "
+                "format cannot express; write MPS instead", m->num_cone);
     for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
         const double rl = m->row_lower[i], ru = m->row_upper[i];
         row_name(m, rn, i);
         const bool free_row = rl == -INFINITY && ru == INFINITY;
-        if (!free_row && !isfinite(rl == -INFINITY ? ru : rl))
+        if (m->rq_start != nullptr && m->rq_start[i + 1] > m->rq_start[i] &&
+            rl != ru && isfinite(rl) && isfinite(ru))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' has a quadratic part and two bounds, which the "
+                    "LP writer would split in two rows; write MPS instead", rn);
+        else if (!free_row && !isfinite(rl == -INFINITY ? ru : rl))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a bound at an infinity LP format cannot "
                     "express", rn);
@@ -1015,6 +1075,11 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
                 "the model has %" PRId64 " SOS sets, which .nl carries only "
                 "as solver suffixes JAOS does not write; write MPS instead",
                 m->num_sos);
+    if (w->st == JAOS_OK && jm_model_has_conic(m))
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has second-order cones or quadratic rows, which "
+                ".nl carries only as nonlinear bodies JAOS does not write; "
+                "write MPS instead");
     for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++) {
         if (m->col_semi != nullptr && m->col_semi[j]) {
             col_name(m, nm, j);
@@ -1237,6 +1302,10 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
         wr_fail(w, JAOS_ERR_INVALID_INPUT,
                 "the model has %" PRId64 " SOS sets, which QPLIB cannot "
                 "express; write MPS instead", m->num_sos);
+    if (w->st == JAOS_OK && m->num_cone > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " second-order cones, which QPLIB "
+                "cannot express; write MPS instead", m->num_cone);
     for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++)
         if (m->col_semi != nullptr && m->col_semi[j]) {
             col_name(m, nm, j);
@@ -1288,9 +1357,10 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
     const bool paired = m->q_nz > 0;
     any_quad |= paired;
 
+    const bool qrows = m->rq_nz > 0;
     const char kind[4] = {any_quad ? (paired ? 'C' : 'D') : 'L',
                           !any_int ? 'C' : (all_int ? 'I' : 'G'),
-                          nr > 0 ? 'L' : 'B', '\0'};
+                          qrows ? 'Q' : (nr > 0 ? 'L' : 'B'), '\0'};
 
     jm_locale loc = {0};
     if (!wr_open(w, path, &loc))
@@ -1329,6 +1399,16 @@ jaos_status jaos_write_qplib(jaos_model *m, const char *path)
     qplib_vector(f, "objective coefficient", nc, m->col_cost, 0.0, false);
     wr_num(num, m->obj_offset);
     fprintf(f, "%s   # objective constant\n", num);
+    if (qrows) {
+        fprintf(f, "%" PRId64 "   # constraint Q entries, lower triangle\n",
+                m->rq_nz);
+        for (int64_t i = 0; i < nr; i++)
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                wr_num(num, m->rq_v[p]);
+                fprintf(f, "%" PRId64 " %" PRId64 " %" PRId64 " %s\n", i + 1,
+                        m->rq_i[p] + 1, m->rq_j[p] + 1, num);
+            }
+    }
     if (nr > 0) {
         fprintf(f, "%" PRId64 "   # constraint entries\n", m->num_nz);
         for (int64_t j = 0; j < nc; j++)
@@ -1403,6 +1483,10 @@ jaos_status jaos_write_osil(jaos_model *m, const char *path)
         wr_fail(w, JAOS_ERR_INVALID_INPUT,
                 "the model has %" PRId64 " SOS sets, which JAOS does not "
                 "write to OSiL; write MPS instead", m->num_sos);
+    if (w->st == JAOS_OK && m->num_cone > 0)
+        wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                "the model has %" PRId64 " second-order cones, which JAOS "
+                "does not write to OSiL; write MPS instead", m->num_cone);
     for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++)
         if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0) {
             row_name(m, nm, i);
@@ -1500,7 +1584,7 @@ jaos_status jaos_write_osil(jaos_model *m, const char *path)
         fprintf(f, "</value>\n</linearConstraintCoefficients>\n");
     }
     {
-        int64_t nq = m->q_nz;
+        int64_t nq = m->q_nz + m->rq_nz;
         for (int64_t j = 0; m->col_quad != nullptr && j < nc; j++)
             nq += m->col_quad[j] != 0.0;
         if (nq > 0) {
@@ -1522,6 +1606,14 @@ jaos_status jaos_write_osil(jaos_model *m, const char *path)
                             m->q_index[p], j, num);
                 }
             }
+            for (int64_t i = 0; m->rq_start != nullptr && i < nr; i++)
+                for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                    const int64_t a = m->rq_i[p], b = m->rq_j[p];
+                    wr_num(num, a == b ? 0.5 * m->rq_v[p] : m->rq_v[p]);
+                    fprintf(f, "<qTerm idx=\"%" PRId64 "\" idxOne=\"%" PRId64
+                               "\" idxTwo=\"%" PRId64 "\" coef=\"%s\"/>\n",
+                            i, a, b, num);
+                }
             fprintf(f, "</quadraticCoefficients>\n");
         }
     }
@@ -1614,6 +1706,13 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
                         nm);
         }
     }
+    const bool cones = (optimal || infeasible) && m->num_cone > 0 &&
+                       m->cone_ok && m->sol_cone != nullptr;
+    for (int64_t t = 0; cones && w->st == JAOS_OK &&
+                        t < m->cone_start[m->num_cone]; t++)
+        if (!isfinite(m->sol_cone[t]))
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "a cone dual is not finite");
 
     if (w->st == JAOS_OK)
         names_unique(w);
@@ -1633,6 +1732,8 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     }
     fprintf(w->f, "columns %" PRId64 "\n", m->num_col);
     fprintf(w->f, "rows %" PRId64 "\n", m->num_row);
+    if (cones)
+        fprintf(w->f, "cones %" PRId64 "\n", m->num_cone);
 
     if (optimal) {
         fprintf(w->f, "# col <name> <value> <reduced cost> <status>\n");
@@ -1667,6 +1768,17 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
             wr_num(a, m->sol_ray[j]);
             fprintf(w->f, "ray %s %s\n", nm, a);
         }
+    }
+    if (cones) {
+        fprintf(w->f, "# cone <index> <member> <%s>\n",
+                optimal ? "dual" : "multiplier");
+        for (int64_t k = 0; k < m->num_cone; k++)
+            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1];
+                 t++) {
+                wr_num(a, m->sol_cone[t]);
+                fprintf(w->f, "cone %" PRId64 " %" PRId64 " %s\n", k,
+                        t - m->cone_start[k], a);
+            }
     }
 
     if (!optimal && m->sol_basis_ok) {
@@ -1728,6 +1840,8 @@ typedef struct {
     jaos_basis_status *cert_col_status;
     jaos_basis_status *cert_row_status;
     bool have_basis;
+    double *cone;
+    bool have_cones;
 } sol_read;
 
 static jaos_status read_solution_file(jaos_model *m, const char *path,
@@ -1746,7 +1860,9 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
     char *line = nullptr;
     size_t lsz = 0;
     int64_t lno = 0, ncol = -1, nrow = -1, seen_col = 0, seen_row = 0,
-            seen_ray = 0, seen_bcol = 0, seen_brow = 0;
+            seen_ray = 0, seen_bcol = 0, seen_brow = 0, ncone = -1,
+            seen_cone = 0, cur_cone = 0;
+    const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
     bool have_status = false, have_obj = false, ended = false;
     jaos_solve_status ss = JAOS_SOLVE_NOT_RUN;
     double obj = 0.0;
@@ -1816,6 +1932,50 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                 ncol = (int64_t)v;
             else
                 nrow = (int64_t)v;
+        } else if (strcmp(tok[0], "cones") == 0) {
+            if (nt != 2)
+                RD_FAIL("line %" PRId64 ": 'cones' takes one count", lno);
+            char *end = nullptr;
+            errno = 0;
+            const long long v = strtoll(tok[1], &end, 10);
+            if (end == tok[1] || *end != '\0' || errno != 0 || v < 0)
+                RD_FAIL("line %" PRId64 ": '%s' is not a count", lno, tok[1]);
+            if ((int64_t)v != m->num_cone)
+                RD_FAIL("line %" PRId64 ": the file has %lld cones and this "
+                        "model has %" PRId64, lno, v, m->num_cone);
+            if (have_status && ss == JAOS_SOLVE_UNBOUNDED)
+                RD_FAIL("line %" PRId64 ": a 'cones' line in a file whose "
+                        "status is 'unbounded'", lno);
+            ncone = (int64_t)v;
+        } else if (strcmp(tok[0], "cone") == 0) {
+            if (!have_status)
+                RD_FAIL("line %" PRId64 ": a record before 'status'", lno);
+            if (ncone < 0)
+                RD_FAIL("line %" PRId64 ": a 'cone' record before the "
+                        "'cones' count", lno);
+            if (nt != 4)
+                RD_FAIL("line %" PRId64 ": a 'cone' record takes a cone, a "
+                        "member and a number", lno);
+            if (seen_cone >= members)
+                RD_FAIL("line %" PRId64 ": more 'cone' records than the "
+                        "cones have members", lno);
+            while (m->cone_start[cur_cone + 1] <= seen_cone)
+                cur_cone++;
+            char want_k[32], want_t[32];
+            snprintf(want_k, sizeof want_k, "%" PRId64, cur_cone);
+            snprintf(want_t, sizeof want_t, "%" PRId64,
+                     seen_cone - m->cone_start[cur_cone]);
+            if (strcmp(tok[1], want_k) != 0 || strcmp(tok[2], want_t) != 0)
+                RD_FAIL("line %" PRId64 ": expected cone %s member %s here "
+                        "and the file says cone %s member %s; records are in "
+                        "index order", lno, want_k, want_t, tok[1], tok[2]);
+            double v;
+            if (!rd_num(tok[3], &v))
+                RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
+                        tok[3]);
+            if (o->cone != nullptr)
+                o->cone[seen_cone] = v;
+            seen_cone++;
         } else if (strcmp(tok[0], "col") == 0 ||
                    strcmp(tok[0], "row") == 0) {
             const bool is_col = tok[0][0] == 'c';
@@ -1988,6 +2148,14 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
             o->have_basis = true;
         }
     }
+    if (ncone >= 0) {
+        if (ss == JAOS_SOLVE_UNBOUNDED)
+            RD_FAIL("a 'cones' line in a file whose status is 'unbounded'");
+        if (seen_cone != members)
+            RD_FAIL("the cones have %" PRId64 " members and the file "
+                    "carries %" PRId64 " 'cone' records", members, seen_cone);
+        o->have_cones = true;
+    }
 
     o->status = ss;
     o->objective = obj;
@@ -2046,6 +2214,27 @@ jaos_status jaos_read_basis(jaos_model *m, const char *path,
     if (o.status != JAOS_SOLVE_OPTIMAL && !o.have_basis) {
         jm_set_err(m, "the file's status is '%s' and it carries no basis",
                    status_word(o.status));
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    return JAOS_OK;
+}
+
+jaos_status jaos_read_cone_duals(jaos_model *m, const char *path,
+                                 double *cone_dual)
+{
+    if (m == nullptr || path == nullptr ||
+        (m->num_cone > 0 && cone_dual == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->num_cone == 0) {
+        jm_set_err(m, "the model has no cones");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    sol_read o = {.cone = cone_dual};
+    const jaos_status st = read_solution_file(m, path, 0, &o);
+    if (st != JAOS_OK)
+        return st;
+    if (!o.have_cones) {
+        jm_set_err(m, "the file carries no 'cone' records");
         return JAOS_ERR_INVALID_INPUT;
     }
     return JAOS_OK;

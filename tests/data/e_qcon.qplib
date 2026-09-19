@@ -1,6 +1,35 @@
-# A quadratically constrained problem, which JAOS refuses at the type line.
+# A quadratically constrained problem, written by hand:
+#   min x + y  s.t.  x^2 + y^2 <= 2,  x and y free
+# The constraint Q entries follow the 1/2 convention: (2 x^2 + 2 y^2) / 2.
 eqcon
-QCQ
+LCQ
 minimize
-2
-1
+2          # variables
+1          # constraints
+1.0        # default objective coefficient
+0          # non-default objective coefficients
+0.0        # objective constant
+2          # constraint Q entries
+1 1 1 2.0
+1 2 2 2.0
+0          # constraint entries
+1e+20      # value for infinity
+-1e+20     # default constraint lower bound
+0
+2.0        # default constraint upper bound
+0
+-1e+20     # default variable lower bound
+0
+1e+20      # default variable upper bound
+0
+0.0        # default initial primal
+0
+0.0        # default initial dual
+0
+0.0        # default initial reduced cost
+0
+2          # variable names
+1 x
+2 y
+1          # constraint names
+1 ball

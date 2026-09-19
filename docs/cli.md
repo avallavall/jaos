@@ -216,7 +216,7 @@ prints the same facts as the same model solved silently.
 | `--orbital` | orbital branching and fixing: at a node, the symmetries that fix every binary the path set to 1 (and every non-binary column it branched on) give the orbits; a branching on a binary zeroes its whole orbit on the zero side, and a node zeroes every orbit holding a binary the path zeroed. On by default: 0.835x over the MIP set, `rgn` 0.156x with its tree 4233 to 235 nodes, `misc07` 0.356x, `stein27` 0.543x, against `air03` 1.892x for the search alone. `--no-orbital` turns it off. |
 | `--propagate N` | passes of bound propagation at each node before its relaxation is solved: each reads the model's rows over the node's own bounds, proves the node infeasible with no solve where a row admits no point, and pulls in the integer bounds the rows imply. Default 0, off: 1.093x at one pass and 1.074x at four, with `bell5` unfinished at the cap. |
 | `--propagate-depth D` | the deepest node propagation runs at, the root being 0; negative, the default, is every node. Depth 0 is not less propagation but the free half of it, since the root's deductions hold for the whole tree: 1.051x, and it moves a bound on 6 of 24 while the other 18 read exactly 1.000x. Only matters with `--propagate`. |
-| `--algorithm A` | what solves an LP: `dual`, the default, `primal` or `barrier`. The two simplexes also solve the root relaxation and every node of a MIP; the barrier solves plain LPs only, and a MIP under `--algorithm barrier` still runs its relaxations on the dual. The primal takes more work than the dual on the Netlib set and is there for a caller who wants it; both give the same answer. The barrier is Mehrotra's predictor-corrector on the normal equations, factored by the sparse Cholesky in `src/chol.c` with the dense columns left out and corrected for on every solve, followed by a crossover: the interior point ranks every column and row by how far it sits inside its bounds against its dual slack, the best `rows` of them make a basis guess (repaired through the LU where it is singular), and the dual simplex finishes from that basis under the ordinary warm start, so the answer is a vertex with a basis like any other. `jaos_iterations` counts both parts. The barrier certifies neither infeasibility nor unboundedness, so a run whose iterate grows past `BARRIER_DIVERGE` times the data, turns non-finite, or reaches `BARRIER_MAX_ITER` without converging hands the model to the dual simplex, which starts from the slack basis and gives the verdict with its certificate; `jaos_iterations` counts both parts there too. `bench/results/barrier.txt` is its reading against the dual on the standard set and `bench/results/barrier-infeas.txt` on the infeasible one. A model with a quadratic objective (`QUADOBJ` in MPS, a `[ ... ] / 2` block in LP) solves by the barrier under the default `dual`, without presolve or crossover, and a MIP with one solves its root and every node by the barrier, cold at each node and without Gomory cuts; `primal` and `pdlp` refuse a quadratic objective and exit 5. `pdlp` is the first-order method: primal-dual hybrid gradient on the same scaled model after `PDLP_RUIZ_ROUNDS` of Ruiz equilibration and the Pock-Chambolle scaling, with the adaptive step and the restarts to the running average of Applegate et al. (2021), the primal weight rebalanced at each restart, every matrix pass billed; it stops at a relative tolerance of `PDLP_TOL` and finishes through the same crossover, hands off to the dual simplex the same way, and `bench/results/pdlp.txt` is its reading. `concurrent` is the portfolio: it copies the model three times, sets the dual on the first, the primal on the second and the barrier on the third, and runs them in that order under a work budget of `CONCURRENT_SLICE` that multiplies by `CONCURRENT_GROWTH` each round. The first run to answer wins and its answer, its basis and its certificate become the model's; the work is the sum over the three, so a model the dual settles inside the first budget costs exactly what the dual costs and the other two never start. Nothing reads a clock, so the winner is the same on every machine. It solves plain LPs only: a MIP under `--algorithm concurrent` runs its relaxations on the dual as under `barrier`, and a quadratic objective is refused as `primal` and `pdlp` refuse it. |
+| `--algorithm A` | what solves an LP: `dual`, the default, `primal` or `barrier`. The two simplexes also solve the root relaxation and every node of a MIP; the barrier solves plain LPs only, and a MIP under `--algorithm barrier` still runs its relaxations on the dual. The primal takes more work than the dual on the Netlib set and is there for a caller who wants it; both give the same answer. The barrier is Mehrotra's predictor-corrector on the normal equations, factored by the sparse Cholesky in `src/chol.c` with the dense columns left out and corrected for on every solve, followed by a crossover: the interior point ranks every column and row by how far it sits inside its bounds against its dual slack, the best `rows` of them make a basis guess (repaired through the LU where it is singular), and the dual simplex finishes from that basis under the ordinary warm start, so the answer is a vertex with a basis like any other. `jaos_iterations` counts both parts. The barrier certifies neither infeasibility nor unboundedness, so a run whose iterate grows past `BARRIER_DIVERGE` times the data, turns non-finite, or reaches `BARRIER_MAX_ITER` without converging hands the model to the dual simplex, which starts from the slack basis and gives the verdict with its certificate; `jaos_iterations` counts both parts there too. `bench/results/barrier.txt` is its reading against the dual on the standard set and `bench/results/barrier-infeas.txt` on the infeasible one. A model with a quadratic objective (`QUADOBJ` in MPS, a `[ ... ] / 2` block in LP) solves by the barrier under the default `dual`, without presolve or crossover, and a MIP with one solves its root and every node by the barrier, cold at each node and without Gomory cuts; `primal` and `pdlp` refuse a quadratic objective and exit 5. `pdlp` is the first-order method: primal-dual hybrid gradient on the same scaled model after `PDLP_RUIZ_ROUNDS` of Ruiz equilibration and the Pock-Chambolle scaling, with the adaptive step and the restarts to the running average of Applegate et al. (2021), the primal weight rebalanced at each restart, every matrix pass billed; it stops at a relative tolerance of `PDLP_TOL` and finishes through the same crossover, hands off to the dual simplex the same way, and `bench/results/pdlp.txt` is its reading. `concurrent` is the portfolio: it copies the model three times, sets the dual on the first, the primal on the second and the barrier on the third, and runs them in that order under a work budget of `CONCURRENT_SLICE` that multiplies by `CONCURRENT_GROWTH` each round. The first run to answer wins and its answer, its basis and its certificate become the model's; the work is the sum over the three, so a model the dual settles inside the first budget costs exactly what the dual costs and the other two never start. Nothing reads a clock, so the winner is the same on every machine. It solves plain LPs only: a MIP under `--algorithm concurrent` runs its relaxations on the dual as under `barrier`, and a quadratic objective is refused as `primal` and `pdlp` refuse it. A model with second-order cones or quadratic rows (since 2026-09-19) solves by the conic interior point under `dual` or `barrier`, a homogeneous self-dual walk with Nesterov-Todd scaling (`src/conic.c`), finished by a Newton step on the constraints it ends on; `primal`, `pdlp` and `concurrent` refuse it and exit 5, and so does a model that also has integer columns. |
 | `--threads N` | the thread count, `1` by default. Only `--algorithm concurrent` runs more than one. Above 1 it starts its three methods at once instead of one after another, and the moment one of them answers every method behind it in the order stops, because a method behind the winner is never the one whose answer is published. The answer, the basis, the certificate and the `work_units` line are the same at any count, because the work billed is still the work the one-thread schedule would have done; the `time` line is the one that moves. Everything else in JAOS runs one thread whatever this says. `0` or a negative count is a usage error. |
 | `--opt NAME=VALUE` | any option by name, repeatable; the same setters the flags above reach. Names: `work_limit`, `time_limit`, `threads`, `primal_tolerance`, `dual_tolerance`, `algorithm`, `log_level`, `mip_gap`, `mip_node_limit`, `mip_branching`, `mip_reliability`, `mip_probe_cap`, `mip_probe_depth`, `mip_cut_rounds`, `mip_cut_depth`, `mip_cut_drop`, `mip_node_cut_cap`, `mip_cover_rounds`, `mip_cut_stall`, `mip_node_cut_stall`, `mip_root_cut_drop`, `mip_cover_lift`, `mip_mir_rounds`, `mip_node_mir`, `mip_mir_aggregate`, `mip_dive`, `mip_dive_child`, `mip_dive_backtrack`, `mip_dive_gap`, `mip_dive_degrade`, `mip_dive_heuristic`, `mip_dive_heuristic_depth`, `mip_rins`, `mip_feaspump`, `mip_pump_general`, `mip_pump_obj`, `mip_pump_always`, `mip_rcfix`, `mip_tighten`, `mip_probing`, `mip_probing_cap`, `mip_clique_fix`, `mip_conflicts`, `mip_symmetry`, `mip_orbital`, `mip_propagate`, `mip_propagate_depth`, `mip_heuristics`, `mip_pool_size`, `mip_cutoff`, `mip_clique_rounds`, `mip_zero_half_rounds`, `mip_flow_cover_rounds`. Booleans take `true`/`false`, `on`/`off`, `1`/`0`. An unknown name or a value of the wrong kind is a usage error. |
 | `--params FILE` | options from a file: one `name value` (or `name = value`) per line, `#` to end of line a comment. Read before the `--opt` flags, so a flag overrides the file. |
@@ -275,6 +275,8 @@ semicontinuous_columns 0
 sos_sets 0
 indicator_rows 0
 quadratic_columns 0
+quadratic_rows 0
+cones 0
 objective_nonzeros 12
 min_abs 0.109
 max_abs 2.386
@@ -291,7 +293,8 @@ neither. **Binary** is what the branch and bound would see: the bounds
 rounded inward to integers being exactly 0 and 1, not a pair
 that happens to read 0 and 1 before rounding. The magnitude pairs are over
 the nonzeros and over the nonzero costs, and their ratio is what scaling
-exists to shrink.
+exists to shrink. `quadratic_rows` counts the rows with a quadratic part
+and `cones` the second-order cones (since 2026-09-19).
 
 ## `convert`
 
@@ -383,6 +386,17 @@ The header comment on that struct says what each number means and why most
 of them decide nothing on their own. The two that decide are
 `primal_feasible` and `dual_feasible`. The exit code is 0 when both are
 `yes` and 1 otherwise.
+
+**On a model with cones** the file has to carry the `cone` records that
+`solve --solution` writes for one, and the check reads them as the
+cones' duals: the dual half then also asks that each cone's dual lies in
+the dual cone, and the report ends with `max_cone_violation`, how far
+the column values lie outside the cones. An infeasible model's
+certificate is judged with its cone part the same way. A file without
+the records is refused with exit 5. `solve --check` on a model with
+cones reads the duals the solve left. A quadratic row needs nothing
+extra: its dual is its `row` record's, and the checker takes the row's
+gradient `a + Qx` at the point.
 
 On a model with integer columns, SOS sets, semi-continuous columns or
 indicator rows the dual half does not run and `checked_duals` reads `no`.
@@ -550,9 +564,11 @@ a different model and answers a different question: the semi-continuous
 mark on every column (`semicontinuous`), the quadratic coefficient on every
 column and every off-diagonal pair of `Q` (`quadratic`, `quadratic_pair`,
 `quadratic_nz`), the SOS sets with their type, members and weights
-(`sos_sets`, `sos`, `sos_member`), and the indicator column on every row
-(`indicator`). Two models that differ only in an SOS set reach different
-answers, so `diff` says so.
+(`sos_sets`, `sos`, `sos_member`), the indicator column on every row
+(`indicator`), and since 2026-09-19 the second-order cones with their
+type, size and members (`cones`, `cone`, `cone_member`) and every row's
+quadratic part (`row_quadratic_nz`, `row_quadratic`). Two models that
+differ only in an SOS set reach different answers, so `diff` says so.
 
 A size that differs stops the walk, because every index after it means
 something else and a per-row report on two models of different shapes is
@@ -578,6 +594,11 @@ term X3 1
 
 `--col NAME` prints a column the same way, with its `cost` and `integer`
 lines, and its terms named by row. Exactly one of the two is required.
+
+A row with a quadratic part prints it after the terms, a
+`quadratic_entries` count and one `qterm COLUMN COLUMN VALUE` line per
+entry of the lower triangle, in the model's own convention: the row is
+`a'x + ½ x'Qx`, so `qterm x x 2` is `x²`.
 
 The terms name the other side, which is the point: a row's numbers are
 useless without the column each belongs to, and an MPS file groups its

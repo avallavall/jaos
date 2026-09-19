@@ -155,6 +155,30 @@ JAOS_NODISCARD jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
                                         const double *weights);
 JAOS_NODISCARD int64_t jaos_num_sos(const jaos_model *m);
 
+typedef enum jaos_cone_type {
+    JAOS_CONE_QUADRATIC = 1,
+    JAOS_CONE_ROTATED = 2,
+} jaos_cone_type;
+
+JAOS_NODISCARD jaos_status jaos_add_cone(jaos_model *m, jaos_cone_type type,
+                                         int64_t n, const int64_t *cols);
+JAOS_NODISCARD int64_t jaos_num_cones(const jaos_model *m);
+JAOS_NODISCARD jaos_status jaos_cone(const jaos_model *m, int64_t k,
+                                     jaos_cone_type *type, int64_t *n,
+                                     int64_t *cols);
+JAOS_NODISCARD jaos_status jaos_delete_cones(jaos_model *m, int64_t num_del,
+                                             const int64_t *cones);
+
+JAOS_NODISCARD jaos_status jaos_set_row_quadratic(jaos_model *m, int64_t row,
+                                                  int64_t num_nz,
+                                                  const int64_t *rows,
+                                                  const int64_t *cols,
+                                                  const double *values);
+JAOS_NODISCARD int64_t jaos_row_quadratic_nz(const jaos_model *m, int64_t row);
+JAOS_NODISCARD jaos_status jaos_row_quadratic(const jaos_model *m, int64_t row,
+                                              int64_t *rows, int64_t *cols,
+                                              double *values);
+
 JAOS_NODISCARD jaos_status jaos_set_row_indicator(jaos_model *m, int64_t row,
                                                   int64_t col, int value);
 JAOS_NODISCARD jaos_status jaos_row_indicator(const jaos_model *m, int64_t row,
@@ -238,6 +262,7 @@ typedef struct jaos_model_stats {
     double  obj_min_abs, obj_max_abs;
     int64_t semicontinuous_col, sos_set, indicator_row;
     int64_t quadratic_col;
+    int64_t cone_set, quadratic_row;
 } jaos_model_stats;
 
 typedef struct jaos_presolve_report {
@@ -542,6 +567,9 @@ JAOS_NODISCARD jaos_status jaos_read_certificate(jaos_model *m,
     const char *path, jaos_solve_status *status,
     double *row_ray, double *col_ray);
 
+JAOS_NODISCARD jaos_status jaos_read_cone_duals(jaos_model *m,
+    const char *path, double *cone_dual);
+
 JAOS_NODISCARD jaos_status jaos_read_basis(jaos_model *m, const char *path,
     jaos_basis_status *col_status, jaos_basis_status *row_status);
 
@@ -603,11 +631,20 @@ typedef struct jaos_check_report {
     bool gap_certified;
 
     double max_integrality_violation;
+
+    double max_cone_violation;
 } jaos_check_report;
 
 JAOS_NODISCARD jaos_status jaos_check_solution(const jaos_model *m,
     const double *col_value, const double *row_dual, double tol,
     jaos_check_report *out);
+
+JAOS_NODISCARD jaos_status jaos_check_conic_solution(const jaos_model *m,
+    const double *col_value, const double *row_dual, const double *cone_dual,
+    double tol, jaos_check_report *out);
+
+JAOS_NODISCARD jaos_status jaos_cone_dual(const jaos_model *m, int64_t k,
+                                          double *z);
 
 JAOS_NODISCARD jaos_status jaos_certificate(const jaos_model *m,
                                             double *row_ray);
@@ -621,6 +658,10 @@ typedef struct jaos_certificate_report {
 
 JAOS_NODISCARD jaos_status jaos_check_certificate(const jaos_model *m,
     const double *row_ray, double tol, jaos_certificate_report *out);
+
+JAOS_NODISCARD jaos_status jaos_check_conic_certificate(const jaos_model *m,
+    const double *row_ray, const double *cone_ray, double tol,
+    jaos_certificate_report *out);
 
 JAOS_NODISCARD jaos_status jaos_unbounded_ray(const jaos_model *m,
                                               double *col_ray);

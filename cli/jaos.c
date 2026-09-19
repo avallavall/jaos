@@ -648,6 +648,32 @@ static void *zeroed(int64_t count, size_t size)
     return calloc((size_t)(count > 0 ? count : 1), size);
 }
 
+static int64_t cone_members(const jaos_model *m)
+{
+    int64_t total = 0;
+    for (int64_t k = 0; k < jaos_num_cones(m); k++) {
+        int64_t n = 0;
+        if (jaos_cone(m, k, nullptr, &n, nullptr) == JAOS_OK)
+            total += n;
+    }
+    return total;
+}
+
+static jaos_status solved_cone_duals(const jaos_model *m, double *z)
+{
+    int64_t at = 0;
+    for (int64_t k = 0; k < jaos_num_cones(m); k++) {
+        int64_t n = 0;
+        jaos_status st = jaos_cone(m, k, nullptr, &n, nullptr);
+        if (st == JAOS_OK)
+            st = jaos_cone_dual(m, k, z + at);
+        if (st != JAOS_OK)
+            return st;
+        at += n;
+    }
+    return JAOS_OK;
+}
+
 static void log_to_stderr(void *user, jaos_log_level level, const char *line)
 {
     (void)user;
@@ -1607,22 +1633,28 @@ static int cmd_solve(int argc, char **argv)
             const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
             double *cx = zeroed(nc, sizeof *cx);
             double *cy = zeroed(nr, sizeof *cy);
+            double *cz = zeroed(cone_members(m), sizeof *cz);
             jaos_check_report crep;
             memset(&crep, 0, sizeof crep);
-            if (cx == nullptr || cy == nullptr) {
+            if (cx == nullptr || cy == nullptr || cz == nullptr) {
                 fputs("jaos: out of memory\n", stderr);
                 rc = EXIT_USAGE;
             } else if (jaos_solution(m, cx, nullptr, cy, nullptr) != JAOS_OK ||
-                       jaos_check_solution(m, cx, cy, 1e-7, &crep) != JAOS_OK) {
+                       solved_cone_duals(m, cz) != JAOS_OK ||
+                       jaos_check_conic_solution(m, cx, cy, cz, 1e-7,
+                                                 &crep) != JAOS_OK) {
                 rc = library_error("check the answer of", o.file, m);
             } else {
                 print_check_report(&crep);
+                if (jaos_num_cones(m) > 0)
+                    print_num("max_cone_violation", crep.max_cone_violation);
                 print_bool("check_ok",
                            crep.primal_feasible &&
                            (crep.dual_feasible || !crep.checked_duals));
             }
             free(cx);
             free(cy);
+            free(cz);
         }
     }
 
@@ -1842,10 +1874,10 @@ static int cmd_check(int argc, char **argv)
 
     jaos_model *m = nullptr;
 
-    double *x = nullptr, *y = nullptr;
+    double *x = nullptr, *y = nullptr, *z = nullptr;
 
     const char *judged = nullptr;
-    const double *yp = nullptr;
+    const double *yp = nullptr, *zp = nullptr;
     int rc = load(file, &m);
     if (rc >= 0)
         return rc;
@@ -1882,9 +1914,11 @@ static int cmd_check(int argc, char **argv)
     }
 
     const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+    const bool conic = jaos_num_cones(m) > 0;
     x = zeroed(nc, sizeof *x);
     y = zeroed(nr, sizeof *y);
-    if (x == nullptr || y == nullptr) {
+    z = zeroed(cone_members(m), sizeof *z);
+    if (x == nullptr || y == nullptr || z == nullptr) {
         fputs("jaos: out of memory\n", stderr);
         rc = EXIT_USAGE;
         goto out;
@@ -1917,11 +1951,12 @@ static int cmd_check(int argc, char **argv)
         jaos_certificate_report crep;
         memset(&crep, 0, sizeof crep);
         if (jaos_read_certificate(m, solution, nullptr, y, nullptr)
-                != JAOS_OK) {
+                != JAOS_OK ||
+            (conic && jaos_read_cone_duals(m, solution, z) != JAOS_OK)) {
             rc = library_error("read", solution, m);
             goto out;
         }
-        if (jaos_check_certificate(m, y, tol, &crep) != JAOS_OK) {
+        if (jaos_check_conic_certificate(m, y, z, tol, &crep) != JAOS_OK) {
             rc = library_error("check", solution, m);
             goto out;
         }
@@ -1954,22 +1989,28 @@ static int cmd_check(int argc, char **argv)
     }
 
     if (jaos_read_solution(m, solution, nullptr, x, nullptr, nullptr,
-                           nullptr, y, nullptr) != JAOS_OK) {
+                           nullptr, y, nullptr) != JAOS_OK ||
+        (conic && jaos_read_cone_duals(m, solution, z) != JAOS_OK)) {
         rc = library_error("read", solution, m);
         goto out;
     }
     judged = solution;
     yp = y;
+    zp = conic ? z : nullptr;
 
 judge:
     jaos_check_report rep;
     memset(&rep, 0, sizeof rep);
-    if (jaos_check_solution(m, x, yp, tol, &rep) != JAOS_OK) {
+    if ((zp != nullptr
+             ? jaos_check_conic_solution(m, x, yp, zp, tol, &rep)
+             : jaos_check_solution(m, x, yp, tol, &rep)) != JAOS_OK) {
         rc = library_error("check", judged, m);
         goto out;
     }
 
     print_check_report(&rep);
+    if (conic)
+        print_num("max_cone_violation", rep.max_cone_violation);
 
     rc = (rep.primal_feasible && (rep.dual_feasible || !rep.checked_duals))
         ? EXIT_OPTIMAL : EXIT_INFEASIBLE;
@@ -1977,6 +2018,7 @@ judge:
 out:
     free(x);
     free(y);
+    free(z);
     jaos_model_free(m);
     return rc;
 }
@@ -2547,6 +2589,73 @@ static void diff_offdiagonal(const jaos_model *a, const jaos_model *b,
     free(ra); free(rb); free(cra); free(crb); free(va); free(vb);
 }
 
+static void diff_conic(const jaos_model *a, const jaos_model *b,
+                       int64_t *diffs)
+{
+    const int64_t ka = jaos_num_cones(a), kb = jaos_num_cones(b);
+    if (ka != kb) {
+        printf("cones %" PRId64 " %" PRId64 "\n", ka, kb);
+        (*diffs)++;
+    }
+    for (int64_t k = 0; k < ka && k < kb; k++) {
+        jaos_cone_type ta = 0, tb = 0;
+        int64_t na = 0, nb = 0;
+        if (jaos_cone(a, k, &ta, &na, nullptr) != JAOS_OK ||
+            jaos_cone(b, k, &tb, &nb, nullptr) != JAOS_OK)
+            continue;
+        if (ta != tb || na != nb) {
+            printf("cone %" PRId64 " %s:%" PRId64 " %s:%" PRId64 "\n", k,
+                   ta == JAOS_CONE_ROTATED ? "rotated" : "quadratic", na,
+                   tb == JAOS_CONE_ROTATED ? "rotated" : "quadratic", nb);
+            (*diffs)++;
+            continue;
+        }
+        int64_t *ca = zeroed(na, sizeof *ca), *cb = zeroed(nb, sizeof *cb);
+        if (ca != nullptr && cb != nullptr &&
+            jaos_cone(a, k, nullptr, nullptr, ca) == JAOS_OK &&
+            jaos_cone(b, k, nullptr, nullptr, cb) == JAOS_OK)
+            for (int64_t t = 0; t < na; t++)
+                if (ca[t] != cb[t]) {
+                    namebuf x, y;
+                    printf("cone_member %" PRId64 " %" PRId64 " %s %s\n", k,
+                           t, col_name(a, ca[t], x), col_name(b, cb[t], y));
+                    (*diffs)++;
+                }
+        free(ca);
+        free(cb);
+    }
+    const int64_t nr = jaos_num_row(a);
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t qa = jaos_row_quadratic_nz(a, i);
+        const int64_t qb = jaos_row_quadratic_nz(b, i);
+        namebuf rn;
+        if (qa != qb) {
+            printf("row_quadratic_nz %s %" PRId64 " %" PRId64 "\n",
+                   row_name(a, i, rn), qa, qb);
+            (*diffs)++;
+            continue;
+        }
+        if (qa == 0)
+            continue;
+        int64_t *ia = zeroed(qa, sizeof *ia), *ib = zeroed(qa, sizeof *ib);
+        int64_t *ja = zeroed(qa, sizeof *ja), *jb = zeroed(qa, sizeof *jb);
+        double *va = zeroed(qa, sizeof *va), *vb = zeroed(qa, sizeof *vb);
+        if (ia != nullptr && ib != nullptr && ja != nullptr && jb != nullptr &&
+            va != nullptr && vb != nullptr &&
+            jaos_row_quadratic(a, i, ia, ja, va) == JAOS_OK &&
+            jaos_row_quadratic(b, i, ib, jb, vb) == JAOS_OK)
+            for (int64_t t = 0; t < qa; t++)
+                if (ia[t] != ib[t] || ja[t] != jb[t] || va[t] != vb[t]) {
+                    namebuf x, y;
+                    printf("row_quadratic %s %s %s %.17g %.17g\n",
+                           row_name(a, i, rn), col_name(a, ia[t], x),
+                           col_name(a, ja[t], y), va[t], vb[t]);
+                    (*diffs)++;
+                }
+        free(ia); free(ib); free(ja); free(jb); free(va); free(vb);
+    }
+}
+
 static int cmd_diff(int argc, char **argv)
 {
     if (argc != 4)
@@ -2642,6 +2751,7 @@ static int cmd_diff(int argc, char **argv)
 
         diff_sos(a, b, &diffs);
         diff_offdiagonal(a, b, &diffs);
+        diff_conic(a, b, &diffs);
 
         for (int64_t j = 0; j < nca; j++) {
             int64_t ka = 0, kb = 0;
@@ -2765,6 +2875,28 @@ static int cmd_show(int argc, char **argv)
         printf("term %s %.17g\n",
                row != nullptr ? col_name(m, ix[t], nm)
                               : row_name(m, ix[t], nm), v[t]);
+    if (row != nullptr && jaos_row_quadratic_nz(m, k) > 0) {
+        const int64_t nq = jaos_row_quadratic_nz(m, k);
+        int64_t *qi = zeroed(nq, sizeof *qi), *qj = zeroed(nq, sizeof *qj);
+        double *qv = zeroed(nq, sizeof *qv);
+        if (qi == nullptr || qj == nullptr || qv == nullptr) {
+            fputs("jaos: out of memory\n", stderr);
+            rc = EXIT_USAGE;
+        } else if (jaos_row_quadratic(m, k, qi, qj, qv) != JAOS_OK) {
+            rc = library_error("read", file, m);
+        } else {
+            namebuf other;
+            print_int("quadratic_entries", nq);
+            for (int64_t t = 0; t < nq; t++)
+                printf("qterm %s %s %.17g\n", col_name(m, qi[t], nm),
+                       col_name(m, qj[t], other), qv[t]);
+        }
+        free(qi);
+        free(qj);
+        free(qv);
+        if (rc >= 0)
+            goto out;
+    }
     rc = EXIT_OPTIMAL;
 
 out:
@@ -2856,6 +2988,8 @@ static int cmd_stats(int argc, char **argv)
     print_int("sos_sets", st.sos_set);
     print_int("indicator_rows", st.indicator_row);
     print_int("quadratic_columns", st.quadratic_col);
+    print_int("quadratic_rows", st.quadratic_row);
+    print_int("cones", st.cone_set);
     print_int("objective_nonzeros", st.obj_nz);
     print_num("min_abs", st.min_abs);
     print_num("max_abs", st.max_abs);

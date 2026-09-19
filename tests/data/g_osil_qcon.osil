@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- minimise -x - y over x^2 + y^2 <= 2: the optimum is (1, 1) at -2.
+     A qTerm on constraint 0 carries the plain product, x*x with coef 1. -->
+<osil xmlns="os.optimizationservices.org">
+<instanceData>
+<variables numberOfVariables="2">
+<var name="x" type="C" lb="-INF"/>
+<var name="y" type="C" lb="-INF"/>
+</variables>
+<objectives numberOfObjectives="1">
+<obj name="obj" maxOrMin="min" numberOfObjCoef="2" constant="0">
+<coef idx="0">-1</coef>
+<coef idx="1">-1</coef>
+</obj>
+</objectives>
+<constraints numberOfConstraints="1">
+<con name="ball" ub="2"/>
+</constraints>
+<quadraticCoefficients numberOfQuadraticTerms="2">
+<qTerm idx="0" idxOne="0" idxTwo="0" coef="1"/>
+<qTerm idx="0" idxOne="1" idxTwo="1" coef="1"/>
+</quadraticCoefficients>
+</instanceData>
+</osil>

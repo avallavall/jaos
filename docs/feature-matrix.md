@@ -42,7 +42,7 @@ since 2026-08-13; only patch levels did.*
 |---|---|---|---|---|---|---|---|
 | Linear programming (LP) | ● | ● | ● | ● | ● | ● | ● |
 | Quadratic programming (QP) | ◐ | ● | ○ | ○ | ● | ● | ● |
-| Quadratically constrained (QCP, SOCP) | ○ | ○ | ○ | ○ | ● | ● | ● |
+| Quadratically constrained (QCP, SOCP) | ◐ | ○ | ○ | ○ | ● | ● | ● |
 | Mixed-integer linear (MILP) | ◐ | ● | — | — | ● | ● | ● |
 | Mixed-integer quadratic (MIQP, MIQCP) | ◐ | ○ | — | — | ● | ● | ● |
 | Nonlinear (NLP) | ○ | ○ | — | — | ● | ● | ● |
@@ -113,7 +113,26 @@ push (`qp_push` in `src/barrier.c`): the active set read off the
 complementarity is pinned on its bounds and the equality-constrained QP on
 the rest is solved through the same factorisation, so the published point
 sits exactly on the bounds the optimum sits on and the checker takes both
-sides; a reading on a published QP set is what keeps the row from ●. **The first-order row reads ◐ since
+sides; a reading on a published QP set is what keeps the row from ●.
+**The QCP/SOCP row reads ◐ since 2026-09-19**: second-order cones,
+quadratic and rotated, over columns (`jaos_add_cone`) and convex
+quadratic rows `a'x + ½ x'Qx` with one finite side
+(`jaos_set_row_quadratic`), read and written in MPS (`QCMATRIX`,
+`CSECTION`), LP, QPLIB and OSiL, solved by a homogeneous self-dual
+conic interior point with Nesterov-Todd scaling (`src/conic.c`); a
+quadratic row becomes a rotated cone over its Cholesky factor. The
+point is finished by Newton's method on the constraints the walk ends
+on, and the answer is judged by the checker with the cones' duals
+(`jaos_check_conic_solution`); an infeasibility certificate and an
+unbounded ray are published only when the checkers confirm them. Over
+3000 generated models (`bench/measurements/02-253/`) every optimum
+passes the checker at 1e-7 on both sides, the same models rewritten
+with explicit rotated cones reach the same objectives within 3e-10,
+and 10 end as a numerical error, none of them a wrong verdict. What
+keeps the row from ●: integer columns with cones (MISOCP) are refused,
+the CBF format is not read, no published conic set has been read, and
+an infeasibility that rests on a quadratic row's curvature has no
+certificate the checker takes. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,

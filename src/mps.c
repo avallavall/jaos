@@ -57,7 +57,8 @@ static bool parse_num(const char *t, double *out)
 
 enum section { S_START, S_OBJSENSE, S_OBJNAME, S_ROWS, S_COLUMNS, S_RHS,
                S_RANGES,
-               S_BOUNDS, S_SOS, S_INDICATORS, S_QUADOBJ };
+               S_BOUNDS, S_SOS, S_INDICATORS, S_QUADOBJ, S_QCMATRIX,
+               S_CSECTION };
 
 #define OBJ_ROW (-1)
 
@@ -107,6 +108,15 @@ typedef struct {
     int64_t *ind_row, *ind_col;
     int *ind_val;
     int64_t nind, indr_cap, indc_cap, indv_cap;
+
+    int64_t qcm_row;
+    int64_t *qm_r, *qm_i, *qm_j;
+    double *qm_v;
+    int64_t nqm, qm_rc, qm_ic, qm_jc, qm_vc;
+
+    int *cs_type;
+    int64_t *cs_start, *cs_col;
+    int64_t ncs, ncsm, cs_tc, cs_sc, cs_cc;
 
     jm_nmap cmap;
     double *cost, *cl, *cu;
@@ -189,6 +199,13 @@ static void rd_free(rd *r)
     free(r->ind_row);
     free(r->ind_col);
     free(r->ind_val);
+    free(r->qm_r);
+    free(r->qm_i);
+    free(r->qm_j);
+    free(r->qm_v);
+    free(r->cs_type);
+    free(r->cs_start);
+    free(r->cs_col);
 }
 
 
@@ -452,6 +469,160 @@ static jaos_status rd_quad_line(rd *r, char **tok, int nt)
     r->nqoff++;
     r->any_quad |= v != 0.0;
 done:
+    return st;
+}
+
+static jaos_status rd_qc_line(rd *r, char **tok, int nt)
+{
+    jaos_status st = JAOS_OK;
+    if (nt != 3)
+        FAIL("line %" PRId64 ": a QCMATRIX entry is 'column column value'",
+             r->lno);
+    int64_t j, k;
+    if (!jm_nmap_get(&r->cmap, tok[0], &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[0]);
+    if (!jm_nmap_get(&r->cmap, tok[1], &k))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[1]);
+    double v = 0.0;
+    if (!parse_num(tok[2], &v))
+        FAIL("line %" PRId64 ": bad number '%s'", r->lno, tok[2]);
+    if (j < k) {
+        const int64_t t = j;
+        j = k;
+        k = t;
+    }
+    if (!JM_GROW(r->qm_r, r->qm_rc, r->nqm + 1) ||
+        !JM_GROW(r->qm_i, r->qm_ic, r->nqm + 1) ||
+        !JM_GROW(r->qm_j, r->qm_jc, r->nqm + 1) ||
+        !JM_GROW(r->qm_v, r->qm_vc, r->nqm + 1))
+        FAIL_OOM();
+    r->qm_r[r->nqm] = r->qcm_row;
+    r->qm_i[r->nqm] = j;
+    r->qm_j[r->nqm] = k;
+    r->qm_v[r->nqm] = v;
+    r->nqm++;
+done:
+    return st;
+}
+
+static jaos_status rd_cone_line(rd *r, char **tok, int nt)
+{
+    jaos_status st = JAOS_OK;
+    if (nt != 1)
+        FAIL("line %" PRId64 ": a CSECTION entry is one column name", r->lno);
+    int64_t j;
+    if (!jm_nmap_get(&r->cmap, tok[0], &j))
+        FAIL("line %" PRId64 ": unknown column '%s'", r->lno, tok[0]);
+    if (!JM_GROW(r->cs_col, r->cs_cc, r->ncsm + 1))
+        FAIL_OOM();
+    r->cs_col[r->ncsm++] = j;
+    r->cs_start[r->ncs] = r->ncsm;
+done:
+    return st;
+}
+
+typedef struct {
+    int64_t row, i, j, at;
+    double v;
+} qm_entry;
+
+static int cmp_qm(const void *pa, const void *pb)
+{
+    const qm_entry *a = pa, *b = pb;
+    if (a->row != b->row)
+        return a->row < b->row ? -1 : 1;
+    if (a->i != b->i)
+        return a->i < b->i ? -1 : 1;
+    if (a->j != b->j)
+        return a->j < b->j ? -1 : 1;
+    return (a->at > b->at) - (a->at < b->at);
+}
+
+static jaos_status rd_finish_conic(rd *r, jaos_model *m, bool check)
+{
+    jaos_status st = JAOS_OK;
+    qm_entry *ord = nullptr;
+    int64_t *qi = nullptr, *qj = nullptr;
+    double *qv = nullptr;
+    if (r->nqm > 0) {
+        ord = jm_alloc_array(r->nqm, sizeof *ord);
+        qi = jm_alloc_array(r->nqm, sizeof *qi);
+        qj = jm_alloc_array(r->nqm, sizeof *qj);
+        qv = jm_alloc_array(r->nqm, sizeof *qv);
+        if (ord == nullptr || qi == nullptr || qj == nullptr || qv == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            jm_set_err(m, "out of memory");
+            goto out;
+        }
+        for (int64_t t = 0; t < r->nqm; t++)
+            ord[t] = (qm_entry){r->qm_r[t], r->qm_i[t], r->qm_j[t], t,
+                                r->qm_v[t]};
+        qsort(ord, (size_t)r->nqm, sizeof *ord, cmp_qm);
+        int64_t t = 0;
+        while (t < r->nqm && st == JAOS_OK) {
+            const int64_t row = ord[t].row;
+            int64_t n = 0;
+            while (t < r->nqm && ord[t].row == row) {
+                const qm_entry *e = &ord[t];
+                if (n > 0 && qi[n - 1] == e->i && qj[n - 1] == e->j) {
+                    if (e->i == e->j || qv[n - 1] != 2.0 * e->v) {
+                        jm_set_err(m, "QCMATRIX of row %lld gives the entry "
+                                      "for columns %lld and %lld twice, and "
+                                      "the matrix is symmetric, so a pair is "
+                                      "given once or its two halves agree",
+                                   (long long)row, (long long)e->i,
+                                   (long long)e->j);
+                        st = JAOS_ERR_INVALID_INPUT;
+                        break;
+                    }
+                    t++;
+                    continue;
+                }
+                qi[n] = e->i;
+                qj[n] = e->j;
+                qv[n] = 2.0 * e->v;
+                if (!isfinite(qv[n])) {
+                    jm_set_err(m, "QCMATRIX of row %lld gives columns %lld "
+                                  "and %lld a value whose double is not "
+                                  "finite", (long long)row, (long long)e->i,
+                               (long long)e->j);
+                    st = JAOS_ERR_INVALID_INPUT;
+                    break;
+                }
+                n++;
+                t++;
+            }
+            if (st == JAOS_OK && !check)
+                st = jaos_set_row_quadratic(m, row, n, qi, qj, qv);
+        }
+    }
+    for (int64_t k = 0; k < r->ncs && st == JAOS_OK; k++) {
+        const int64_t b = r->cs_start[k], e = r->cs_start[k + 1];
+        if (!check) {
+            st = jaos_add_cone(m, (jaos_cone_type)r->cs_type[k], e - b,
+                               r->cs_col + b);
+            continue;
+        }
+        if (e - b < (r->cs_type[k] == JAOS_CONE_ROTATED ? 2 : 1)) {
+            jm_set_err(m, "CSECTION %lld lists %lld columns; a quadratic cone "
+                          "needs one and a rotated cone two",
+                       (long long)k + 1, (long long)(e - b));
+            st = JAOS_ERR_INVALID_INPUT;
+        }
+        for (int64_t s = b; s < e && st == JAOS_OK; s++)
+            for (int64_t t = b; t < s; t++)
+                if (r->cs_col[t] == r->cs_col[s]) {
+                    jm_set_err(m, "CSECTION %lld lists column %lld twice",
+                               (long long)k + 1, (long long)r->cs_col[s]);
+                    st = JAOS_ERR_INVALID_INPUT;
+                    break;
+                }
+    }
+out:
+    free(ord);
+    free(qi);
+    free(qj);
+    free(qv);
     return st;
 }
 
@@ -774,6 +945,45 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (sec < S_COLUMNS)
                     FAIL("line %" PRId64 ": %s before COLUMNS", r->lno, kw);
                 sec = S_QUADOBJ;
+            } else if (strcmp(kw, "QCMATRIX") == 0 ||
+                       strcmp(kw, "QSECTION") == 0) {
+                if (sec < S_COLUMNS)
+                    FAIL("line %" PRId64 ": %s before COLUMNS", r->lno, kw);
+                if (nt < 2)
+                    FAIL("line %" PRId64 ": %s names the row its matrix "
+                         "belongs to", r->lno, kw);
+                int64_t row = 0;
+                if (!jm_nmap_get(&r->rmap, tok[1], &row))
+                    FAIL("line %" PRId64 ": %s names '%s', which ROWS has not "
+                         "declared", r->lno, kw, tok[1]);
+                if (row < 0)
+                    FAIL("line %" PRId64 ": %s names the objective; a "
+                         "quadratic objective goes in QUADOBJ", r->lno, kw);
+                r->qcm_row = row;
+                sec = S_QCMATRIX;
+            } else if (strcmp(kw, "CSECTION") == 0) {
+                if (sec < S_COLUMNS)
+                    FAIL("line %" PRId64 ": CSECTION before COLUMNS", r->lno);
+                if (nt < 3)
+                    FAIL("line %" PRId64 ": CSECTION is 'name parameter "
+                         "type'", r->lno);
+                upcase(tok[nt - 1]);
+                int type = 0;
+                if (strcmp(tok[nt - 1], "QUAD") == 0)
+                    type = JAOS_CONE_QUADRATIC;
+                else if (strcmp(tok[nt - 1], "RQUAD") == 0)
+                    type = JAOS_CONE_ROTATED;
+                else
+                    FAIL("line %" PRId64 ": cone type '%s'; JAOS reads QUAD "
+                         "and RQUAD", r->lno, tok[nt - 1]);
+                if (!JM_GROW(r->cs_type, r->cs_tc, r->ncs + 1) ||
+                    !JM_GROW(r->cs_start, r->cs_sc, r->ncs + 2))
+                    FAIL_OOM();
+                r->cs_type[r->ncs] = type;
+                r->cs_start[r->ncs] = r->ncsm;
+                r->cs_start[r->ncs + 1] = r->ncsm;
+                r->ncs++;
+                sec = S_CSECTION;
             } else if (strcmp(kw, "ENDATA") == 0) {
                 ended = true;
             } else {
@@ -839,6 +1049,14 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             if ((st = rd_quad_line(r, tok, nt)) != JAOS_OK)
                 goto done;
             break;
+        case S_QCMATRIX:
+            if ((st = rd_qc_line(r, tok, nt)) != JAOS_OK)
+                goto done;
+            break;
+        case S_CSECTION:
+            if ((st = rd_cone_line(r, tok, nt)) != JAOS_OK)
+                goto done;
+            break;
         default:
             FAIL("line %" PRId64 ": data outside any section", r->lno);
         }
@@ -901,6 +1119,11 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
 
         if (r->ncol > 0)
             r->as[r->ncol] = r->nnz;
+        if ((st = rd_finish_conic(r, m, true)) != JAOS_OK) {
+            free(rl);
+            free(ru);
+            goto done;
+        }
         st = jaos_load_lp(m, r->ncol, r->nrow, r->sense, r->obj_offset,
                           r->cost, r->cl, r->cu, rl, ru,
                           r->nnz, r->ncol > 0 ? r->as : nullptr,
@@ -983,6 +1206,8 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
             if ((st = jaos_set_row_indicator(m, r->ind_row[k], r->ind_col[k],
                                              r->ind_val[k])) != JAOS_OK)
                 goto done;
+        if ((st = rd_finish_conic(r, m, false)) != JAOS_OK)
+            goto done;
     }
 
 done:

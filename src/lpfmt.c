@@ -73,6 +73,10 @@ typedef struct {
     char **rg_lo, **rg_hi;
     int64_t nrg, rg_lo_cap, rg_hi_cap;
 
+    int64_t *rq_r, *rq_i, *rq_j;
+    double *rq_v;
+    int64_t nrq, rq_rc, rq_ic, rq_jc, rq_vc;
+
     jaos_obj_sense sense;
     double offset;
 } lp;
@@ -297,7 +301,7 @@ static bool get_or_create_col(lp *p, const char *name, int64_t *out)
     return true;
 }
 
-static jaos_status parse_quadratic(lp *p, double sign)
+static jaos_status parse_quadratic(lp *p, double sign, int64_t row)
 {
     jaos_status st = JAOS_OK;
     const int64_t open_line = p->tok.line;
@@ -380,6 +384,21 @@ static jaos_status parse_quadratic(lp *p, double sign)
 
     for (int64_t k = 0; k < nq; k++) {
         const double v = factor * sign * qval[k];
+        if (row >= 0) {
+            const int64_t i = qrow[k] > qcol[k] ? qrow[k] : qcol[k];
+            const int64_t j = qrow[k] > qcol[k] ? qcol[k] : qrow[k];
+            if (!JM_GROW(p->rq_r, p->rq_rc, p->nrq + 1) ||
+                !JM_GROW(p->rq_i, p->rq_ic, p->nrq + 1) ||
+                !JM_GROW(p->rq_j, p->rq_jc, p->nrq + 1) ||
+                !JM_GROW(p->rq_v, p->rq_vc, p->nrq + 1))
+                FAIL_OOM();
+            p->rq_r[p->nrq] = row;
+            p->rq_i[p->nrq] = i;
+            p->rq_j[p->nrq] = j;
+            p->rq_v[p->nrq] = i == j ? v : 0.5 * v;
+            p->nrq++;
+            continue;
+        }
         if (qrow[k] == qcol[k]) {
             p->cquad[qcol[k]] += v;
             p->any_quad = true;
@@ -449,10 +468,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
         }
 
         if (p->tok.t == T_LBRACK) {
-            if (row >= 0)
-                FAIL("line %" PRId64 ": a quadratic term in a constraint; "
-                     "JAOS reads a quadratic objective only", p->tok.line);
-            if ((st = parse_quadratic(p, sign)) != JAOS_OK)
+            if ((st = parse_quadratic(p, sign, row)) != JAOS_OK)
                 goto done;
             any = true;
             continue;
@@ -469,7 +485,7 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
         if (p->tok.t == T_STAR || p->tok.t == T_CARET ||
             p->tok.t == T_SLASH || p->tok.t == T_RBRACK)
             FAIL("line %" PRId64 ": unexpected character '%c'; a product or "
-                 "a square belongs inside a [ ] block of the objective",
+                 "a square belongs inside a [ ] block",
                  p->tok.line,
                  p->tok.t == T_STAR ? '*' : p->tok.t == T_CARET ? '^'
                                           : p->tok.t == T_SLASH ? '/' : ']');
@@ -595,7 +611,11 @@ static bool fold_ranges(lp *p)
         return true;
     jm_nmap rows = {0};
     bool *gone = jm_calloc_array(p->nrow, sizeof *gone);
-    bool ok = gone != nullptr;
+    bool *curved = jm_calloc_array(p->nrow, sizeof *curved);
+    int64_t *renum = jm_alloc_array(p->nrow, sizeof *renum);
+    bool ok = gone != nullptr && curved != nullptr && renum != nullptr;
+    for (int64_t t = 0; ok && t < p->nrq; t++)
+        curved[p->rq_r[t]] = true;
     for (int64_t i = 0; ok && i < p->nrow; i++)
         if (p->rname[i] != nullptr)
             ok = jm_nmap_insert(&rows, p->rname[i], i);
@@ -604,7 +624,7 @@ static bool fold_ranges(lp *p)
         int64_t a, b;
         if (!jm_nmap_get(&rows, p->rg_lo[k], &a) ||
             !jm_nmap_get(&rows, p->rg_hi[k], &b) || a == b || gone[a] ||
-            gone[b])
+            gone[b] || curved[a] || curved[b])
             continue;
         if (!(isfinite(p->rlb[a]) && p->rub[a] == INFINITY &&
               p->rlb[b] == -INFINITY && isfinite(p->rub[b]) &&
@@ -619,6 +639,7 @@ static bool fold_ranges(lp *p)
         int64_t r = 0, e = 0;
         for (int64_t i = 0; i < p->nrow; i++) {
             const int64_t b0 = p->rs[i], n = p->rs[i + 1] - b0;
+            renum[i] = gone[i] ? -1 : r;
             if (gone[i]) {
                 free(p->rname[i]);
                 continue;
@@ -638,9 +659,77 @@ static bool fold_ranges(lp *p)
         p->nrow = r;
         p->nind = r;
         p->nent = e;
+        for (int64_t t = 0; t < p->nrq; t++)
+            p->rq_r[t] = renum[p->rq_r[t]];
     }
     free(gone);
+    free(curved);
+    free(renum);
     return ok;
+}
+
+typedef struct {
+    int64_t r, i, j, at;
+    double v;
+} lq_entry;
+
+static int cmp_lq(const void *pa, const void *pb)
+{
+    const lq_entry *a = pa, *b = pb;
+    if (a->r != b->r)
+        return a->r < b->r ? -1 : 1;
+    if (a->j != b->j)
+        return a->j < b->j ? -1 : 1;
+    if (a->i != b->i)
+        return a->i < b->i ? -1 : 1;
+    return (a->at > b->at) - (a->at < b->at);
+}
+
+static jaos_status set_row_quads(lp *p, bool check)
+{
+    if (p->nrq == 0)
+        return JAOS_OK;
+    lq_entry *e = jm_alloc_array(p->nrq, sizeof *e);
+    int64_t *qi = jm_alloc_array(p->nrq, sizeof *qi);
+    int64_t *qj = jm_alloc_array(p->nrq, sizeof *qj);
+    double *qv = jm_alloc_array(p->nrq, sizeof *qv);
+    jaos_status st = JAOS_OK;
+    if (e == nullptr || qi == nullptr || qj == nullptr || qv == nullptr) {
+        jm_set_err(p->m, "out of memory while reading LP");
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto out;
+    }
+    for (int64_t t = 0; t < p->nrq; t++)
+        e[t] = (lq_entry){p->rq_r[t], p->rq_i[t], p->rq_j[t], t, p->rq_v[t]};
+    qsort(e, (size_t)p->nrq, sizeof *e, cmp_lq);
+    for (int64_t t = 0; t < p->nrq && st == JAOS_OK;) {
+        const int64_t row = e[t].r;
+        int64_t n = 0;
+        for (; t < p->nrq && e[t].r == row; t++) {
+            if (n > 0 && qi[n - 1] == e[t].i && qj[n - 1] == e[t].j) {
+                qv[n - 1] += e[t].v;
+                continue;
+            }
+            qi[n] = e[t].i;
+            qj[n] = e[t].j;
+            qv[n] = e[t].v;
+            n++;
+        }
+        for (int64_t k = 0; k < n && st == JAOS_OK; k++)
+            if (!isfinite(qv[k])) {
+                jm_set_err(p->m, "row %lld has a quadratic term that is not "
+                                 "finite", (long long)row);
+                st = JAOS_ERR_INVALID_INPUT;
+            }
+        if (st == JAOS_OK && !check)
+            st = jaos_set_row_quadratic(p->m, row, n, qi, qj, qv);
+    }
+out:
+    free(e);
+    free(qi);
+    free(qj);
+    free(qv);
+    return st;
 }
 
 static jaos_status parse(lp *p)
@@ -1131,6 +1220,12 @@ static jaos_status parse(lp *p)
         }
         free(fill);
 
+        if ((st = set_row_quads(p, true)) != JAOS_OK) {
+            free(as);
+            free(ai);
+            free(av);
+            goto done;
+        }
         st = jaos_load_lp(p->m, p->ncol, p->nrow, p->sense, p->offset,
                           p->cost, p->cl, p->cu, p->rlb, p->rub,
                           p->nent, p->ncol > 0 ? as : nullptr, ai, av);
@@ -1217,6 +1312,8 @@ static jaos_status parse(lp *p)
                 (st = jaos_set_row_indicator(p->m, i, p->ind_col[i],
                                              p->ind_val[i])) != JAOS_OK)
                 goto done;
+        if ((st = set_row_quads(p, false)) != JAOS_OK)
+            goto done;
     }
 
 done:
@@ -1287,5 +1384,9 @@ done:
     }
     free(p->rg_lo);
     free(p->rg_hi);
+    free(p->rq_r);
+    free(p->rq_i);
+    free(p->rq_j);
+    free(p->rq_v);
     return st;
 }

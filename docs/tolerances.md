@@ -764,3 +764,42 @@ more than `M` outside its own bounds, and that alone costs more than `M`.
 | `RELAX_BOX_FLOOR` | 1 | The least `M` ever starts from. The copy is solved once with the integer marks dropped, and that value is a lower bound on the answer; a lower bound of zero would make the first box a point |
 | `RELAX_BOX_START` | 2 | `M` starts at this multiple of that lower bound, rounded up to an integer so an integer column's widened bounds stay integral. Any multiple above 1 ends in one round whenever the integer answer is within that factor of the LP's; at 2 the control in `bench/measurements/02-230/` finds one model in 2000 where the first box is too narrow, so the rounds are rarely paid and the check that decides them is not dead code |
 | `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by when the box is too narrow, or when it holds no integer point at all. Every round ends, so a work limit bounds the whole search. **Measured 2026-09-14** (`bench/measurements/02-230/`): 12000 generated models over six seeds, three scopes each, against the free box; no total moves past 1e-9, the rows scope is byte-identical, and the columns scope costs 1.10x to 1.27x the work per seed, the LP solve that sets `M` being most of it, with one model at 26x. Not swept: the cost is the extra solves and the growth factor only decides how many, and a model whose rows plus integrality admit no point never ends under any factor |
+
+## The conic interior point's numbers
+
+All in `src/conic.c`. The walk runs on a scaled copy of the problem (Ruiz
+on the rows and columns, a cone's rows scaled together, the objective by
+the largest cost), so its tolerances are magnitudes there; the Newton
+finish and the checks run on the model as loaded. **The readings are
+`bench/measurements/02-253/`**: 1000 generated models at each of the seeds
+1, 2 and 3, one variant at a time, and for each variant the models that
+fail a check, the iterations and work units summed over the 3000, and the
+worst dual violation the checker reports on an optimum. The values below
+read **10 failed, 34597 iterations, 429475776 work units, worst dual
+violation 2.2e-16, longest walk 26 iterations**; every failure is a
+numerical error and none a wrong verdict. The variants were read with
+`CONIC_REG` at 1e-8, where the same set reads 12 failed and 417694043 work
+units, so their counts below are against that.
+
+| Name | Value | What it decides |
+|---|---|---|
+| `CONIC_TOL` | 1e-10 | The walk stops `OPTIMAL` when the relative primal residual, the relative dual residual and the relative gap are all at or below it. **Swept at 1e-9 and 1e-11**: at 1e-9, 13 fail and the Newton finish, starting further out, leaves one optimum a dual violation of 4.7e-5; at 1e-11 the same 12 fail at 10% more iterations and 13% more work |
+| `CONIC_TOL_STALL` | 1e-8 | A walk that stops without reaching `CONIC_TOL` keeps its last point within this and answers `OPTIMAL` from it, after the Newton finish. Not swept on its own; `CONIC_TOL_ROUGH` below reads the same question |
+| `CONIC_TOL_ROUGH` | 1e-6 | A stopped walk's last point within this still stands, but only when the checker takes the finished point on both sides; otherwise the solve ends `NUMERICAL_ERROR`. **Swept at 1e-8 and 1e-5**: at 1e-8, which turns the rule off, 14 fail; at 1e-5 the same 12 as at 1e-6 |
+| `CONIC_TOL_INFEAS` | 1e-8 | The certificate tests, `\|A'z\|` against `-b'z` for infeasibility and `\|Ax + s\|, \|Px\|` against `-q'x` for a ray, both with `tau < kappa`. **Swept at 1e-7 and 1e-9**: at 1e-7, 23 fail, the rays taken earlier too rough for the ray checker even after the projection; at 1e-9, 16 fail and three planted infeasibilities end otherwise |
+| `CONIC_TOL_INFEAS_STALL` | 1e-5 | The same two tests on a walk that stalls: a direction with a non-finite part, or a step below `CONIC_STALL_STEP`. What they find still goes through its checker, and an infeasibility found this way that the checker refuses ends `NUMERICAL_ERROR`. **Swept at 1e-6 and 1e-4**: 13 fail at 1e-6, the same 12 at 1e-4 as at 1e-5 |
+| `CONIC_MAX_ITER` | 200 | Iterations after which the walk stops. The longest walk over the 3000 takes 26. Not swept |
+| `CONIC_STEP` | 0.99 | The fraction of the step to the cones' boundary that is taken. **Swept at 0.95 and 0.999**: at 0.95, 14 fail at 19% more iterations; at 0.999, 10 fail at 29% more iterations and 45% more work |
+| `CONIC_REG` | 1e-7 | The static regularisation of the quasi-definite Newton systems, `+reg` on the columns and `-reg` on the rows, in the walk and in the Newton finish. **Swept at 1e-9, 1e-8, 1e-7 and 1e-6**: 61, 12, 10 and 11 fail; at 1e-6 one optimum keeps a dual violation of 1.7e-6 and the work is 8% above 1e-8, at 1e-7 it is 2.8% above with every optimum clean. Changed from 1e-8 to 1e-7 on 2026-09-19 on that reading |
+| `CONIC_PIVOT` | 1e-13 | The floor under a pivot of the quasi-definite LDL, below which the pivot is replaced with its sign kept. Not swept |
+| `CONIC_REFINE` | 10 | Passes of iterative refinement against the unregularised system, in the walk and in the Newton finish, stopping once the residual is 1e-14 of the right-hand side (1e-15 in the finish). Not swept |
+| `CONIC_RUIZ` | 10 | Rounds of Ruiz equilibration; a cone's rows take the largest of their factors, so the cone stays a cone. Not swept |
+| `CONIC_SCALE_MIN`, `CONIC_SCALE_MAX` | 1e-4, 1e4 | The clamp on every Ruiz factor and on the objective's scale. Not swept |
+| `CONIC_STALL_STEP` | 1e-10 | A step below this is a stall. Not swept |
+| `CONIC_NEWTON_STEPS` | 2 | Newton steps of the finish; a step that does not lower the KKT residual is undone and the finish stops there. On `tests/data/g_qcp.mps` the residual goes 1.8e-6, 1.3e-11, 4.6e-16. **Swept at 1 and 4**: one step fails 15 and leaves a dual violation of 3.7e-5; four fail the same 12 as two at 1.5% more work |
+| `CONIC_NEWTON_DENSE` | 1e6 | The finish writes each cone's Hessian dense; a model whose cones on their boundary sum past this many entries keeps the walk's point. Not swept: no model of the reading comes near it |
+| `CONIC_PSD_TOL` | 1e-10 | A quadratic row's `Q` is factored by pivoted Cholesky, and a pivot below this times the largest entry ends the factor: what is left has to be zero to the same tolerance, or the row is refused as not convex. Not swept |
+| `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's `Q` may touch, because the factor is dense. Not swept |
+| `CONIC_RAY_ZERO` | 1e-7 | A ray's parts, and an infeasibility certificate's multipliers, below this times the largest are set to zero before the checker sees them. Before it none of 34 rays passed, a part of 1e-9 that should be zero pushing past a finite bound, and 135 of 286 capped-cone infeasibilities published no certificate, a multiplier of that size on a row with a free column. **Swept at 1e-9 and 1e-5**: 91 fail at 1e-9, the same 12 at 1e-5 as at 1e-7 |
+| `CONIC_RAY_ACTIVE` | 1e-6 | A ray the checker refuses is projected onto the rows it moves by less than this times the row's traffic, and onto `F d = 0` for every quadratic row, by conjugate gradients on `J J'`. The projection took seed 2 from 24 failed to 3. **Swept at 1e-8 and 1e-4**: the same 12 at both |
+| `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Conjugate-gradient steps of the projection, and its stop at this fraction of the squared starting residual. Not swept |

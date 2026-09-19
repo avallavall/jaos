@@ -33,6 +33,9 @@ typedef struct {
     int64_t *qri, *qci;
     double  *qvv;
     int64_t nqoff, qoff_cap;
+    int64_t *kr, *ki, *kj;
+    double  *kv;
+    int64_t nk, krc, kic, kjc, kvc;
     bool *cint, *csemi;
     char **cname, **rname;
     char *pname, *oname;
@@ -551,9 +554,9 @@ static jaos_status o_qterm(ox *p)
     if (s != nullptr && !x_int(s, &owner))
         FAIL("line %" PRId64 ": <qTerm> idx=\"%s\" is not a number", p->line,
              s);
-    if (owner != -1)
-        FAIL("line %" PRId64 ": <qTerm> sits on constraint %" PRId64 ", and "
-             "JAOS reads a quadratic objective only", p->line, owner);
+    if (owner < -1)
+        FAIL("line %" PRId64 ": <qTerm> idx=\"%" PRId64 "\" is neither -1, "
+             "the objective, nor a constraint", p->line, owner);
     const char *s1 = x_attr(p, "idxOne"), *s2 = x_attr(p, "idxTwo");
     int64_t j1, j2;
     if (s1 == nullptr || !x_int(s1, &j1) || s2 == nullptr || !x_int(s2, &j2))
@@ -568,6 +571,22 @@ static jaos_status o_qterm(ox *p)
     if (sc == nullptr || !x_num(sc, &c))
         FAIL("line %" PRId64 ": <qTerm> has no readable coef attribute",
              p->line);
+    if (!isfinite(c))
+        FAIL("line %" PRId64 ": <qTerm> coef=\"%s\" is not finite", p->line,
+             sc);
+    if (owner >= 0) {
+        if (!JM_GROW(p->kr, p->krc, p->nk + 1) ||
+            !JM_GROW(p->ki, p->kic, p->nk + 1) ||
+            !JM_GROW(p->kj, p->kjc, p->nk + 1) ||
+            !JM_GROW(p->kv, p->kvc, p->nk + 1))
+            FAIL_OOM();
+        p->kr[p->nk] = owner;
+        p->ki[p->nk] = j1 > j2 ? j1 : j2;
+        p->kj[p->nk] = j1 > j2 ? j2 : j1;
+        p->kv[p->nk] = j1 == j2 ? 2.0 * c : c;
+        p->nk++;
+        return JAOS_OK;
+    }
     if (j1 == j2) {
         p->quad[j1] += 2.0 * c;
         return JAOS_OK;
@@ -895,10 +914,76 @@ oom:
     FAIL_OOM();
 }
 
+typedef struct {
+    int64_t r, i, j, at;
+    double v;
+} ok_term;
+
+static int cmp_ok_term(const void *pa, const void *pb)
+{
+    const ok_term *a = pa, *b = pb;
+    if (a->r != b->r)
+        return (a->r > b->r) - (a->r < b->r);
+    if (a->j != b->j)
+        return (a->j > b->j) - (a->j < b->j);
+    if (a->i != b->i)
+        return (a->i > b->i) - (a->i < b->i);
+    return (a->at > b->at) - (a->at < b->at);
+}
+
+static jaos_status o_row_quadratics(ox *p, jaos_model *m, bool check)
+{
+    ok_term *t = jm_alloc_array(p->nk, sizeof *t);
+    int64_t *ri = jm_alloc_array(p->nk, sizeof *ri);
+    int64_t *rj = jm_alloc_array(p->nk, sizeof *rj);
+    double *rv = jm_alloc_array(p->nk, sizeof *rv);
+    if (t == nullptr || ri == nullptr || rj == nullptr || rv == nullptr) {
+        free(t); free(ri); free(rj); free(rv);
+        FAIL_OOM();
+    }
+    for (int64_t k = 0; k < p->nk; k++)
+        t[k] = (ok_term){p->kr[k], p->ki[k], p->kj[k], k, p->kv[k]};
+    qsort(t, (size_t)p->nk, sizeof *t, cmp_ok_term);
+    jaos_status st = JAOS_OK;
+    for (int64_t b = 0; b < p->nk && st == JAOS_OK;) {
+        int64_t e = b, n = 0;
+        while (e < p->nk && t[e].r == t[b].r) {
+            if (n > 0 && ri[n - 1] == t[e].i && rj[n - 1] == t[e].j) {
+                rv[n - 1] += t[e].v;
+            } else {
+                ri[n] = t[e].i;
+                rj[n] = t[e].j;
+                rv[n++] = t[e].v;
+            }
+            e++;
+        }
+        for (int64_t k = 0; k < n && st == JAOS_OK; k++)
+            if (!isfinite(rv[k])) {
+                jm_set_err(m, "the <qTerm> entries of constraint %" PRId64
+                              " sum past the largest number", t[b].r);
+                st = JAOS_ERR_INVALID_INPUT;
+            }
+        if (st == JAOS_OK && !check)
+            st = jaos_set_row_quadratic(m, t[b].r, n, ri, rj, rv);
+        b = e;
+    }
+    free(t); free(ri); free(rj); free(rv);
+    return st;
+}
+
 static jaos_status o_build(ox *p)
 {
     jaos_model *m = p->m;
     const int64_t nc = p->nvar, nr = p->ncon;
+    for (int64_t k = 0; k < p->nk; k++)
+        if (p->kr[k] >= nr)
+            FAIL("a <qTerm> sits on constraint %" PRId64 ", and the file "
+                 "declared %" PRId64, p->kr[k], nr);
+    if (p->nk > 0) {
+        const jaos_status cst = o_row_quadratics(p, m, true);
+        if (cst != JAOS_OK)
+            return cst;
+    }
     int64_t *as = nullptr, *ai = nullptr, nz = 0;
     double *av = nullptr;
     jaos_status st = o_matrix(p, &as, &ai, &av, &nz);
@@ -960,6 +1045,8 @@ static jaos_status o_build(ox *p)
         if (qst != JAOS_OK)
             return qst;
     }
+    if (p->nk > 0 && (st = o_row_quadratics(p, m, false)) != JAOS_OK)
+        return st;
     if ((st = o_names(p)) != JAOS_OK)
         return st;
     if (p->pname != nullptr && p->pname[0] != '\0') {
@@ -982,6 +1069,10 @@ static void o_free(ox *p)
     free(p->qri);
     free(p->qci);
     free(p->qvv);
+    free(p->kr);
+    free(p->ki);
+    free(p->kj);
+    free(p->kv);
     free(p->cint);
     free(p->csemi);
     if (p->cname != nullptr)

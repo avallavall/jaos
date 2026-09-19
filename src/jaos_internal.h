@@ -230,6 +230,16 @@ struct jaos_model {
     int64_t *sos_col;
     double *sos_weight;
 
+    int64_t num_cone;
+    int *cone_type;
+    int64_t *cone_start;
+    int64_t *cone_col;
+
+    int64_t rq_nz;
+    int64_t *rq_start;
+    int64_t *rq_i, *rq_j;
+    double *rq_v;
+
     int64_t mip_nodes, mip_solves, mip_cuts, mip_heur, mip_first_inc;
     int64_t mip_rcfix_n, mip_prop_n;
     int64_t mip_sym_gen, mip_sym_orbits;
@@ -277,6 +287,9 @@ struct jaos_model {
 
     double *sol_ray;
     bool ray_ok;
+
+    double *sol_cone;
+    bool cone_ok;
 
     char **exact_col;
     char **exact_dual;
@@ -537,6 +550,42 @@ JAOS_NODISCARD jaos_status jm_barrier(jaos_model *m, jaos_model *target,
                                       jm_presolve *p, jm_work *work,
                                       bool *crossover, bool *handoff,
                                       int64_t *iters);
+
+typedef struct {
+    int64_t n, m;
+    const int64_t *p_start, *p_index;
+    const double *p_value;
+    const double *q;
+    const int64_t *a_start, *a_index;
+    const double *a_value;
+    const double *b;
+    int64_t nzero, nnonneg, nsoc;
+    const int64_t *soc_dim;
+} jm_cone_problem;
+
+typedef struct {
+    jaos_solve_status status;
+    int64_t iters;
+    double pobj, dobj;
+    double *x, *s, *z;
+    bool relaxed;
+} jm_cone_result;
+
+JAOS_NODISCARD jaos_status jm_cone_solve(const jm_cone_problem *pb,
+                                         const jaos_model *log, jm_work *work,
+                                         jm_cone_result *out);
+
+JAOS_NODISCARD jaos_status jm_conic(jaos_model *m);
+
+bool jm_model_has_conic(const jaos_model *m);
+
+int64_t jm_row_quadratic_count(const jaos_model *m, int64_t i);
+
+JAOS_NODISCARD jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i,
+                                                   int sgn, int64_t *k_out,
+                                                   int64_t *r_out,
+                                                   int64_t **cols_out,
+                                                   double **f_out);
 
 JAOS_NODISCARD jaos_status jm_pdlp(jaos_model *m, jaos_model *target,
                                    jm_presolve *p, jm_work *work,

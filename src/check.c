@@ -310,9 +310,59 @@ static double sign_condition(double v, double lo, double hi, double w,
     return 0.0;
 }
 
+static double cone_distance(const jaos_model *m, int64_t k, const double *v,
+                            bool by_col, double sign)
+{
+    const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+    const double at0 = sign * v[by_col ? m->cone_col[b] : b];
+    const double at1 = sign * v[by_col ? m->cone_col[b + 1 < e ? b + 1 : b]
+                                       : (b + 1 < e ? b + 1 : b)];
+    double head = at0, rest = 0.0, size = fabs(at0);
+    int64_t from = b + 1;
+    if (m->cone_type[k] == JAOS_CONE_ROTATED) {
+        constexpr double RT = 0.70710678118654752440;
+        head = (at0 + at1) * RT;
+        const double u = (at0 - at1) * RT;
+        rest = u * u;
+        from = b + 2;
+        if (fabs(at1) > size)
+            size = fabs(at1);
+    }
+    for (int64_t t = from; t < e; t++) {
+        const double x = sign * v[by_col ? m->cone_col[t] : t];
+        rest += x * x;
+        if (fabs(x) > size)
+            size = fabs(x);
+    }
+    const double gap = sqrt(rest) - head;
+    return (gap > 0.0 ? gap : 0.0) / (size > 1.0 ? size : 1.0);
+}
+
+static jaos_status check_answer(const jaos_model *m, const double *col_value,
+                                const double *row_dual,
+                                const double *cone_dual, double tol,
+                                jaos_check_report *out);
+
 jaos_status jaos_check_solution(const jaos_model *m,
     const double *col_value, const double *row_dual, double tol,
     jaos_check_report *out)
+{
+    return check_answer(m, col_value, row_dual, nullptr, tol, out);
+}
+
+jaos_status jaos_check_conic_solution(const jaos_model *m,
+    const double *col_value, const double *row_dual, const double *cone_dual,
+    double tol, jaos_check_report *out)
+{
+    if (m == nullptr || (m->num_cone > 0 && cone_dual == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    return check_answer(m, col_value, row_dual, cone_dual, tol, out);
+}
+
+static jaos_status check_answer(const jaos_model *m, const double *col_value,
+                                const double *row_dual,
+                                const double *cone_dual, double tol,
+                                jaos_check_report *out)
 {
     if (m == nullptr || out == nullptr)
         return JAOS_ERR_INVALID_INPUT;
@@ -326,6 +376,10 @@ jaos_status jaos_check_solution(const jaos_model *m,
     if (row_dual != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
             if (isnan(row_dual[i]))
+                return JAOS_ERR_INVALID_INPUT;
+    if (cone_dual != nullptr && m->num_cone > 0)
+        for (int64_t t = 0; t < m->cone_start[m->num_cone]; t++)
+            if (isnan(cone_dual[t]))
                 return JAOS_ERR_INVALID_INPUT;
 
     memset(out, 0, sizeof *out);
@@ -398,6 +452,18 @@ jaos_status jaos_check_solution(const jaos_model *m,
             jm_obj_add(&traffics[i], &trafficc[i], fabs(t));
         }
     }
+    for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++)
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            const double h = (m->rq_i[p] == m->rq_j[p] ? 0.5 : 1.0) *
+                             m->rq_v[p] * col_value[m->rq_i[p]];
+            const double xj = col_value[m->rq_j[p]];
+            const double t = h * xj;
+            jm_obj_add(&acts[i], &actc[i], t);
+            const double e = jm_two_product_residue(h, xj, t);
+            if (e != 0.0)
+                jm_obj_add(&acts[i], &actc[i], e);
+            jm_obj_add(&traffics[i], &trafficc[i], fabs(t));
+        }
     for (int64_t i = 0; i < m->num_row; i++) {
         acts[i] = acc_value(acts[i], actc[i]);
         traffics[i] = acc_value(traffics[i], trafficc[i]);
@@ -473,14 +539,20 @@ jaos_status jaos_check_solution(const jaos_model *m,
     }
     out->max_integrality_violation = int_viol;
 
+    double cone_viol = 0.0;
+    for (int64_t k = 0; k < m->num_cone; k++)
+        cone_viol = max2(cone_viol, cone_distance(m, k, col_value, true, 1.0));
+    out->max_cone_violation = cone_viol;
+
     out->max_col_violation = col_viol;
     out->max_row_violation = row_viol;
     out->max_row_violation_relative = row_viol_rel;
     out->primal_objective = pobj;
     out->primal_feasible = col_viol <= tol && row_viol_rel <= tol &&
-                           int_viol <= tol;
+                           int_viol <= tol && cone_viol <= tol;
 
-    if (row_dual != nullptr && !jm_model_has_integer(m)) {
+    if (row_dual != nullptr && !jm_model_has_integer(m) &&
+        (m->num_cone == 0 || cone_dual != nullptr)) {
         const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
         double dual_viol = 0.0;
         dual_acc a = {0};
@@ -499,7 +571,7 @@ jaos_status jaos_check_solution(const jaos_model *m,
                              rlo != nullptr && rloc != nullptr &&
                              rup != nullptr && rupc != nullptr &&
                              rli != nullptr && rui != nullptr &&
-                             m->row_ind_col == nullptr;
+                             m->row_ind_col == nullptr && m->rq_nz == 0;
         if (implied)
             implied_bounds(m, icl, icu, rlo, rloc, rup, rupc, rli, rui);
 
@@ -528,9 +600,51 @@ jaos_status jaos_check_solution(const jaos_model *m,
                                rl_imp, ru_imp));
         }
 
+        double *gq_rows = nullptr, *gq_rowsc = nullptr;
+        if (m->rq_nz > 0 || m->num_cone > 0) {
+            gq_rows = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                      sizeof *gq_rows);
+            gq_rowsc = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                       sizeof *gq_rowsc);
+            if (gq_rows == nullptr || gq_rowsc == nullptr) {
+                free(gq_rows);
+                free(gq_rowsc);
+                free(icl); free(icu); free(rlo); free(rloc); free(rup);
+                free(rupc); free(rli); free(rui);
+                free(qx); free(qxc); free(acts); free(traffics);
+                return JAOS_ERR_OUT_OF_MEMORY;
+            }
+        }
+        for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++) {
+            const double y = row_dual[i];
+            if (y == 0.0)
+                continue;
+            double xqx = 0.0, xqxc = 0.0;
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                const int64_t r = m->rq_i[p], c = m->rq_j[p];
+                const double v = m->rq_v[p];
+                add_product(&gq_rows[r], &gq_rowsc[r], y * v, col_value[c]);
+                if (r != c)
+                    add_product(&gq_rows[c], &gq_rowsc[c], y * v, col_value[r]);
+                add_product(&xqx, &xqxc, (r == c ? 1.0 : 2.0) * v * col_value[r],
+                            col_value[c]);
+            }
+            add_product(&a.dual_obj, &a.dual_objc, 0.5 * sigma * y,
+                        acc_value(xqx, xqxc));
+        }
+        for (int64_t k = 0; k < m->num_cone; k++)
+            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
+                jm_obj_add(&gq_rows[m->cone_col[t]], &gq_rowsc[m->cone_col[t]],
+                           cone_dual[t]);
+
         for (int64_t j = 0; j < m->num_col; j++) {
 
             double dw = m->col_cost[j], dwc = 0.0;
+            if (gq_rows != nullptr) {
+                const double g = acc_value(gq_rows[j], gq_rowsc[j]);
+                if (g != 0.0)
+                    jm_obj_add(&dw, &dwc, -g);
+            }
             if (qx != nullptr && qx[j] != 0.0) {
                 const double x = col_value[j];
                 const double gq = qx[j];
@@ -578,6 +692,19 @@ jaos_status jaos_check_solution(const jaos_model *m,
                 }
             }
         }
+        free(gq_rows);
+        free(gq_rowsc);
+        for (int64_t k = 0; k < m->num_cone; k++) {
+            dual_viol = max2(dual_viol,
+                             cone_distance(m, k, cone_dual, false, sigma));
+            double t = 0.0, tc = 0.0;
+            for (int64_t p = m->cone_start[k]; p < m->cone_start[k + 1]; p++)
+                add_product(&t, &tc, sigma * cone_dual[p],
+                            col_value[m->cone_col[p]]);
+            split_term(t, tc, &a.pos, &a.posc, &a.neg, &a.negc);
+            split_term(t, tc, &a.pos_model, &a.pos_modelc, &a.neg_model,
+                       &a.neg_modelc);
+        }
 
         assert(a.pos >= 0.0 && a.neg >= 0.0);
         assert(a.pos_model >= 0.0 && a.neg_model >= 0.0);
@@ -623,11 +750,44 @@ jaos_status jaos_check_solution(const jaos_model *m,
     return JAOS_OK;
 }
 
+static bool row_curves_its_way(const jaos_model *m, int64_t i, double y)
+{
+    if (m->rq_start == nullptr || y == 0.0)
+        return true;
+    for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+        if (m->rq_i[p] != m->rq_j[p])
+            return false;
+        if (y * m->rq_v[p] > 0.0)
+            return false;
+    }
+    return true;
+}
+
+static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
+                                    const double *cone_ray, double tol,
+                                    jaos_certificate_report *out);
+
 jaos_status jaos_check_certificate(const jaos_model *m,
     const double *row_ray, double tol, jaos_certificate_report *out)
 {
-    if (m == nullptr || row_ray == nullptr || out == nullptr ||
-        !isfinite(tol) || tol < 0.0)
+    return certificate_core(m, row_ray, nullptr, tol, out);
+}
+
+jaos_status jaos_check_conic_certificate(const jaos_model *m,
+    const double *row_ray, const double *cone_ray, double tol,
+    jaos_certificate_report *out)
+{
+    if (m == nullptr || (m->num_cone > 0 && cone_ray == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    return certificate_core(m, row_ray, cone_ray, tol, out);
+}
+
+static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
+                                    const double *cone_ray, double tol,
+                                    jaos_certificate_report *out)
+{
+    if (m == nullptr || (m->num_row > 0 && row_ray == nullptr) ||
+        out == nullptr || !isfinite(tol) || tol < 0.0)
         return JAOS_ERR_INVALID_INPUT;
     out->sup_columns = 0.0;
     out->inf_rows = 0.0;
@@ -637,11 +797,35 @@ jaos_status jaos_check_certificate(const jaos_model *m,
     for (int64_t i = 0; i < m->num_row; i++)
         if (!isfinite(row_ray[i]))
             return JAOS_ERR_INVALID_INPUT;
+    const int64_t ncone = cone_ray != nullptr ? m->num_cone : 0;
+    for (int64_t t = 0; ncone > 0 && t < m->cone_start[ncone]; t++)
+        if (!isfinite(cone_ray[t]))
+            return JAOS_ERR_INVALID_INPUT;
 
     bool bounded = true;
+    for (int64_t k = 0; k < ncone; k++)
+        if (cone_distance(m, k, cone_ray, false, 1.0) > tol)
+            bounded = false;
+    for (int64_t i = 0; i < m->num_row && bounded; i++)
+        if (!row_curves_its_way(m, i, row_ray[i]))
+            bounded = false;
+    double *extra = nullptr;
+    if (ncone > 0) {
+        extra = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                sizeof *extra);
+        if (extra == nullptr)
+            return JAOS_ERR_OUT_OF_MEMORY;
+        for (int64_t k = 0; k < ncone; k++)
+            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
+                extra[m->cone_col[t]] += cone_ray[t];
+    }
     double sup_cols = 0.0, sup_colsc = 0.0;
     for (int64_t j = 0; j < m->num_col && bounded; j++) {
         double asum = 0.0, acomp = 0.0, traffic = 0.0, trafficc = 0.0;
+        if (extra != nullptr && extra[j] != 0.0) {
+            jm_obj_add(&asum, &acomp, extra[j]);
+            jm_obj_add(&traffic, &trafficc, fabs(extra[j]));
+        }
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
             const double aij = m->a_value[p];
             const double y = row_ray[m->a_index[p]];
@@ -687,6 +871,7 @@ jaos_status jaos_check_certificate(const jaos_model *m,
         }
     }
 
+    free(extra);
     if (!bounded) {
 
         out->sup_columns = INFINITY;
@@ -770,6 +955,50 @@ jaos_status jaos_check_ray(const jaos_model *m, const double *col_ray,
     free(movec);
     free(traf);
     free(trafc);
+
+    if (m->rq_nz > 0) {
+        double *qd = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                     sizeof *qd);
+        double *qt = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                     sizeof *qt);
+        if (qd == nullptr || qt == nullptr) {
+            free(qd);
+            free(qt);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t i = 0; i < m->num_row; i++) {
+            if (m->rq_start[i + 1] == m->rq_start[i])
+                continue;
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                const int64_t r = m->rq_i[p], c = m->rq_j[p];
+                qd[r] = qd[c] = qt[r] = qt[c] = 0.0;
+            }
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                const int64_t r = m->rq_i[p], c = m->rq_j[p];
+                const double v = m->rq_v[p];
+                qd[r] += v * col_ray[c];
+                qt[r] += fabs(v * col_ray[c]);
+                if (r != c) {
+                    qd[c] += v * col_ray[r];
+                    qt[c] += fabs(v * col_ray[r]);
+                }
+            }
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                const int64_t r = m->rq_i[p], c = m->rq_j[p];
+                if (fabs(qd[r]) > tol * qt[r] && fabs(qd[r]) > out->max_row_escape)
+                    out->max_row_escape = fabs(qd[r]);
+                if (fabs(qd[c]) > tol * qt[c] && fabs(qd[c]) > out->max_row_escape)
+                    out->max_row_escape = fabs(qd[c]);
+            }
+        }
+        free(qd);
+        free(qt);
+    }
+    for (int64_t k = 0; k < m->num_cone; k++) {
+        const double dist = cone_distance(m, k, col_ray, true, 1.0);
+        if (dist > tol && dist > out->max_col_escape)
+            out->max_col_escape = dist;
+    }
 
     double rate = 0.0, ratec = 0.0, ctraf = 0.0, ctrafc = 0.0;
     for (int64_t j = 0; j < m->num_col; j++) {

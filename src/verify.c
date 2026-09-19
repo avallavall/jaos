@@ -1154,6 +1154,11 @@ jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
 {
     if (m == nullptr || out == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    if (jm_model_has_conic(m)) {
+        jm_set_err(m, "exact verification is about a basis, and a model with "
+                      "cones or quadratic rows has none");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     if (m->solve_status != JAOS_SOLVE_OPTIMAL || m->sol_col_status == nullptr ||
         m->sol_row_status == nullptr)
         return JAOS_ERR_INVALID_INPUT;
@@ -1174,6 +1179,11 @@ jaos_status jaos_verify_basis(jaos_model *m,
     if (m == nullptr || out == nullptr || col_status == nullptr ||
         row_status == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    if (jm_model_has_conic(m)) {
+        jm_set_err(m, "exact verification is about a basis, and a model with "
+                      "cones or quadratic rows has none");
+        return JAOS_ERR_INVALID_INPUT;
+    }
 
     int64_t basic = 0;
     for (int64_t j = 0; j < m->num_col; j++) {

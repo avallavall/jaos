@@ -75,7 +75,7 @@ __all__ = [
     "IISSide", "IISReport", "IIS",
     "RelaxScope", "RelaxReport", "Relaxation",
     "Proof", "ProofStage", "VerifyReport", "ExactRayReport",
-    "MipReport",
+    "MipReport", "ConeType", "Cone",
 ]
 
 class Status(enum.IntEnum):
@@ -136,6 +136,13 @@ class Algorithm(enum.IntEnum):
     BARRIER = 2
     PDLP = 3
     CONCURRENT = 4
+
+class ConeType(enum.IntEnum):
+    """What a cone holds; jaos_cone_type. QUADRATIC over (t, x) is
+    t >= ||x||. ROTATED over (u, v, x) is 2 u v >= ||x||**2 with u and
+    v at least zero."""
+    QUADRATIC = 1
+    ROTATED = 2
 
 class DiveChild(enum.IntEnum):
     """Which child a dive solves first (D295); jaos_dive_child."""
@@ -258,6 +265,7 @@ class _CheckReport(ctypes.Structure):
         ("checked_duals", ctypes.c_bool),
         ("gap_certified", ctypes.c_bool),
         ("max_integrality_violation", _D),
+        ("max_cone_violation", _D),
     ]
 
 class _PresolveReport(ctypes.Structure):
@@ -309,6 +317,8 @@ class _ModelStats(ctypes.Structure):
         ("sos_set", _I64),
         ("indicator_row", _I64),
         ("quadratic_col", _I64),
+        ("cone_set", _I64),
+        ("quadratic_row", _I64),
     ]
 
 class ProofKind(enum.IntEnum):
@@ -602,6 +612,17 @@ _sig("jaos_set_row_indicator", ctypes.c_int, _VP, _I64, _I64, ctypes.c_int)
 _sig("jaos_row_indicator", ctypes.c_int, _VP, _I64, _P(_I64), _P(ctypes.c_int))
 _sig("jaos_sos", ctypes.c_int, _VP, _I64, _P(ctypes.c_int), _P(_I64),
      _P(_I64), _P(_D))
+_sig("jaos_add_cone", ctypes.c_int, _VP, ctypes.c_int, _I64, _P(_I64))
+_sig("jaos_num_cones", _I64, _VP)
+_sig("jaos_cone", ctypes.c_int, _VP, _I64, _P(ctypes.c_int), _P(_I64),
+     _P(_I64))
+_sig("jaos_delete_cones", ctypes.c_int, _VP, _I64, _P(_I64))
+_sig("jaos_set_row_quadratic", ctypes.c_int, _VP, _I64, _I64, _P(_I64),
+     _P(_I64), _P(_D))
+_sig("jaos_row_quadratic_nz", _I64, _VP, _I64)
+_sig("jaos_row_quadratic", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64),
+     _P(_D))
+_sig("jaos_cone_dual", ctypes.c_int, _VP, _I64, _P(_D))
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 _sig("jaos_set_mip_cut_rounds", ctypes.c_int, _VP, _I64)
@@ -684,6 +705,7 @@ _sig("jaos_read_solution", ctypes.c_int, _VP, _CS, _P(_D),
      _P(_D), _P(_D), _P(ctypes.c_int))
 _sig("jaos_read_certificate", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(_D), _P(_D))
+_sig("jaos_read_cone_duals", ctypes.c_int, _VP, _CS, _P(_D))
 _sig("jaos_solution_file_status", ctypes.c_int, _VP, _CS, _P(ctypes.c_int))
 _sig("jaos_read_basis", ctypes.c_int, _VP, _CS, _P(ctypes.c_int),
      _P(ctypes.c_int))
@@ -738,6 +760,10 @@ _sig("jaos_check_solution", ctypes.c_int, _VP, _P(_D), _P(_D), _D,
      _P(_CheckReport))
 _sig("jaos_certificate", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_certificate", ctypes.c_int, _VP, _P(_D), _D,
+     _P(_CertificateReport))
+_sig("jaos_check_conic_solution", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D),
+     _D, _P(_CheckReport))
+_sig("jaos_check_conic_certificate", ctypes.c_int, _VP, _P(_D), _P(_D), _D,
      _P(_CertificateReport))
 _sig("jaos_unbounded_ray", ctypes.c_int, _VP, _P(_D))
 _sig("jaos_check_ray", ctypes.c_int, _VP, _P(_D), _D, _P(_RayReport))
@@ -927,33 +953,32 @@ class Model:
         return self
 
     def read_qplib(self, path):
-        """Reads a QPLIB file: a linear or separable quadratic objective,
-        linear rows, bounds, integer columns and the names. An
-        off-diagonal Q entry or a quadratic constraint is refused by
-        line. gzip is accepted here too."""
+        """Reads a QPLIB file: a linear or quadratic objective, linear
+        or quadratic rows, bounds, integer columns and the names. gzip
+        is accepted here too."""
         self._check(_lib.jaos_read_qplib(self._handle(), _path(path)))
         return self
 
     def write_qplib(self, path):
         """Writes the model in the QPLIB format; SOS sets, semi-continuous
-        columns and indicator rows are refused, write MPS for those."""
+        columns, indicator rows and cones are refused, write MPS for
+        those."""
         self._check(_lib.jaos_write_qplib(self._handle(), _path(path)))
         return self
 
     def read_osil(self, path):
         """Reads an OSiL XML file: variables with bounds and types, one
-        objective with its constant and its diagonal quadratic terms,
-        constraints and the matrix in either the column-wise or the
-        row-wise layout. A nonlinear or quadratic-constraint block, an
-        off-diagonal quadratic term and a second objective are refused
-        by line. gzip is accepted here too."""
+        objective with its constant and its quadratic terms, constraints
+        with theirs, and the matrix in either the column-wise or the
+        row-wise layout. A nonlinear block and a second objective are
+        refused by line. gzip is accepted here too."""
         self._check(_lib.jaos_read_osil(self._handle(), _path(path)))
         return self
 
     def write_osil(self, path):
         """Writes the model as OSiL XML: variables with bounds and types,
-        one objective with its quadratic terms, constraints and the
-        column-wise matrix."""
+        one objective and the rows with their quadratic terms, and the
+        column-wise matrix. Cones are refused; write MPS for those."""
         self._check(_lib.jaos_write_osil(self._handle(), _path(path)))
         return self
 
@@ -1099,6 +1124,20 @@ class Model:
         ray = list(rr[:nr]) if status is SolveStatus.INFEASIBLE \
             else list(cr[:nc])
         return status, ray
+
+    def read_cone_duals(self, path):
+        """The cone records of a solution file, one list per cone: an
+        optimum's cone duals, or the cone part of an INFEASIBLE
+        certificate."""
+        sizes = [len(self.cone(k)[1]) for k in range(self.num_cones())]
+        z = (_D * max(sum(sizes), 1))()
+        self._check(_lib.jaos_read_cone_duals(self._handle(), _path(path),
+                                              z))
+        out, at = [], 0
+        for n in sizes:
+            out.append(list(z[at:at + n]))
+            at += n
+        return out
 
     @property
     def num_col(self):
@@ -1287,6 +1326,93 @@ class Model:
         wa = (_D * max(n.value, 1))()
         self._check(_lib.jaos_sos(self._handle(), int(k), None, None, ca, wa))
         return int(t.value), list(ca)[:n.value], list(wa)[:n.value]
+
+    def add_cone(self, cone_type, cols):
+        """A second-order cone over `cols`, in order. QUADRATIC over
+        (t, x1, ...) holds t >= ||x||; ROTATED over (u, v, x1, ...) holds
+        2 u v >= ||x||**2 with u, v >= 0. A model with a cone solves by
+        the conic interior point."""
+        cols = [int(c) for c in cols]
+        n = len(cols)
+        ca = (_I64 * max(n, 1))(*cols)
+        self._check(_lib.jaos_add_cone(self._handle(), int(cone_type), n, ca))
+        return self
+
+    def num_cones(self):
+        return int(_lib.jaos_num_cones(self._handle()))
+
+    def cone(self, k):
+        """(ConeType, columns) of cone `k`."""
+        t = ctypes.c_int()
+        n = _I64()
+        self._check(_lib.jaos_cone(self._handle(), int(k), ctypes.byref(t),
+                                   ctypes.byref(n), None))
+        ca = (_I64 * max(n.value, 1))()
+        self._check(_lib.jaos_cone(self._handle(), int(k), None, None, ca))
+        return ConeType(t.value), list(ca)[:n.value]
+
+    def delete_cones(self, cones):
+        cones = [int(k) for k in cones]
+        ka = (_I64 * max(len(cones), 1))(*cones)
+        self._check(_lib.jaos_delete_cones(self._handle(), len(cones), ka))
+        return self
+
+    def set_row_quadratic(self, row, entries):
+        """The quadratic part of row `row`, as (row, col, value) triples
+        over columns: the row's activity becomes a'x + 1/2 x'Qx. Each
+        off-diagonal pair is given once. An empty list clears it. A row
+        with a quadratic part has one finite side, and Q must be convex
+        on that side."""
+        entries = list(entries)
+        n = len(entries)
+        rows, _ = _int64s([int(e[0]) for e in entries], "rows", n)
+        cols, _ = _int64s([int(e[1]) for e in entries], "cols", n)
+        vals, _ = _doubles([float(e[2]) for e in entries], "values", n)
+        self._check(_lib.jaos_set_row_quadratic(self._handle(), int(row), n,
+                                                rows, cols, vals))
+        return self
+
+    def row_quadratic_nz(self, row):
+        return int(_lib.jaos_row_quadratic_nz(self._handle(), int(row)))
+
+    def row_quadratic(self, row):
+        """Row `row`'s Q back as (row, col, value) triples, the lower
+        triangle with the diagonal, in column order."""
+        n = self.row_quadratic_nz(row)
+        if n == 0:
+            return []
+        rows = (_I64 * n)()
+        cols = (_I64 * n)()
+        vals = (_D * n)()
+        self._check(_lib.jaos_row_quadratic(self._handle(), int(row), rows,
+                                            cols, vals))
+        return [(rows[k], cols[k], vals[k]) for k in range(n)]
+
+    def cone_dual(self, k):
+        """The dual vector of cone `k` after an OPTIMAL conic solve, one
+        value per member. After INFEASIBLE it is the cone's part of the
+        certificate."""
+        _, cols = self.cone(k)
+        z = (_D * max(len(cols), 1))()
+        self._check(_lib.jaos_cone_dual(self._handle(), int(k), z))
+        return list(z[:len(cols)])
+
+    def _cone_vector(self, parts, name):
+        """One flat array from one list per cone, checked against the
+        cones' sizes."""
+        nk = self.num_cones()
+        parts = list(parts)
+        if len(parts) != nk:
+            raise ValueError(f"{name} has {len(parts)} cones, expected {nk}")
+        flat = []
+        for k, part in enumerate(parts):
+            part = [float(v) for v in part]
+            size = len(self.cone(k)[1])
+            if len(part) != size:
+                raise ValueError(f"{name}[{k}] has {len(part)} entries, "
+                                 f"expected {size}")
+            flat.extend(part)
+        return (_D * max(len(flat), 1))(*flat)
 
     def set_mip_gap(self, gap):
         """The relative gap that closes a branch and bound; 0 restores the
@@ -2282,6 +2408,32 @@ class Model:
         return CertificateReport(*(getattr(rep, f)
                                    for f, _ in _CertificateReport._fields_))
 
+    def check_conic_solution(self, col_value, row_dual, cone_dual, tol=1e-7):
+        """check_solution for a model with cones: `cone_dual` is one list
+        per cone, as cone_dual(k) returns them. Pass row_dual=None to
+        check the primal side only."""
+        cv, _ = _doubles(col_value, "col_value", self.num_col)
+        rd = None
+        if row_dual is not None:
+            rd, _ = _doubles(row_dual, "row_dual", self.num_row)
+        cz = self._cone_vector(cone_dual, "cone_dual")
+        rep = _CheckReport()
+        self._check(_lib.jaos_check_conic_solution(
+            self._handle(), cv, rd, cz, float(tol), ctypes.byref(rep)))
+        return CheckReport(*(getattr(rep, f)
+                             for f, _ in _CheckReport._fields_))
+
+    def check_conic_certificate(self, row_ray, cone_ray, tol=1e-7):
+        """check_certificate for a model with cones: `cone_ray` is one
+        list per cone, as cone_dual(k) returns them after INFEASIBLE."""
+        y, _ = _doubles(row_ray, "row_ray", self.num_row)
+        cz = self._cone_vector(cone_ray, "cone_ray")
+        rep = _CertificateReport()
+        self._check(_lib.jaos_check_conic_certificate(
+            self._handle(), y, cz, float(tol), ctypes.byref(rep)))
+        return CertificateReport(*(getattr(rep, f)
+                                   for f, _ in _CertificateReport._fields_))
+
     def unbounded_ray(self):
         """The direction behind the last solve's UNBOUNDED, one value per
         column. Raises unless the last solve answered UNBOUNDED."""
@@ -2514,8 +2666,10 @@ def _merge_problem(a, b):
 
 _NOT_LINEAR = ("JAOS solves linear programs; a product or quotient "
                "involving two variables is not linear")
-_NOT_SEPARABLE = ("JAOS reads a separable quadratic objective only: x * x "
-                  "or x ** 2, never a product of two different variables")
+_NOT_SEPARABLE = ("an expression here takes a square, x * x or x ** 2, and "
+                  "not a product of two different variables; use "
+                  "Problem.add_cone, or Model.set_quadratic and "
+                  "Model.set_row_quadratic, for those")
 
 class Var:
     """One variable of a Problem. Made by add_var, never directly.
@@ -2685,12 +2839,10 @@ class LinExpr:
         if e is None:
             return NotImplemented
         d = self - e
-        if d._q:
-            raise TypeError("a quadratic term belongs in the objective; "
-                            "JAOS has no quadratic constraints")
         lo = -d._c if lower else -INFINITY
         hi = -d._c if upper else INFINITY
-        return Constraint(d._p, d._t, lo, hi)
+        return Constraint(d._p, d._t, lo, hi,
+                          {v: c for v, c in d._q.items() if c != 0.0})
 
     def __le__(self, o):
         return self._rel(o, lower=False, upper=True)
@@ -2723,21 +2875,24 @@ class LinExpr:
         return " + ".join(parts)
 
 class Constraint:
-    """One linear constraint. Made by comparing expressions; a row of the
-    problem once Problem.add has taken it.
+    """One constraint. Made by comparing expressions; a row of the
+    problem once Problem.add has taken it. Squares in it make it a
+    quadratic row, which takes one finite side and solves by the conic
+    interior point: x**2 + y**2 <= 1.
 
     Its bounds stay writable afterwards: setting `lb` or `ub` on an added
     constraint is how a right-hand side is moved between solves, and only
     the bound crosses to the C side, so the next solve resumes warm.
     """
 
-    __slots__ = ("_p", "_t", "_lo", "_hi", "_i", "name")
+    __slots__ = ("_p", "_t", "_lo", "_hi", "_i", "_q", "name")
 
-    def __init__(self, problem, terms, lo, hi):
+    def __init__(self, problem, terms, lo, hi, quad=None):
         self._p = problem
         self._t = dict(terms)
         self._lo = float(lo)
         self._hi = float(hi)
+        self._q = dict(quad) if quad else {}
         self._i = None
         self.name = None
 
@@ -2786,7 +2941,7 @@ class Constraint:
         return self._p._solution().row_dual[self._i]
 
     def __repr__(self):
-        e = repr(LinExpr(self._t, 0.0, self._p))
+        e = repr(LinExpr(self._t, 0.0, self._p, self._q))
         if self._lo == self._hi:
             return f"{e} == {self._hi:g}"
         if self._lo == -INFINITY and self._hi == INFINITY:
@@ -2796,6 +2951,28 @@ class Constraint:
         if self._hi == INFINITY:
             return f"{e} >= {self._lo:g}"
         return f"{self._lo:g} <= {e} <= {self._hi:g}"
+
+class Cone:
+    """One second-order cone of a Problem. Made by Problem.add_cone."""
+
+    __slots__ = ("_p", "_k", "variables", "rotated")
+
+    def __init__(self, problem, index, variables, rotated):
+        self._p = problem
+        self._k = index
+        self.variables = list(variables)
+        self.rotated = bool(rotated)
+
+    @property
+    def dual(self):
+        """The cone's dual vector in the held solution, one value per
+        member."""
+        self._p._solution()
+        return self._p._m.cone_dual(self._k)
+
+    def __repr__(self):
+        names = ", ".join(v.name for v in self.variables)
+        return f"{'rotated ' if self.rotated else ''}cone({names})"
 
 class Problem:
     """A linear program written in variables and expressions.
@@ -2824,6 +3001,7 @@ class Problem:
         self._cons = []
         self._sos = []
         self._ind = []
+        self._cones = []
         self._obj = {}
         self._objq = {}
         self._obj_c = 0.0
@@ -2907,7 +3085,8 @@ class Problem:
         if e is None:
             raise TypeError(f"cannot make a constraint from {expr!r}")
         return self.add(Constraint(e._p, e._t,
-                                   float(lo) - e._c, float(hi) - e._c), name)
+                                   float(lo) - e._c, float(hi) - e._c,
+                                   e._q), name)
 
     def minimize(self, expr):
         """Sets the objective. A constant term is kept and reported —
@@ -2969,6 +3148,21 @@ class Problem:
         self._sos.append((int(sos_type), variables, weights))
         self._touch_structure()
         return self
+
+    def add_cone(self, variables, rotated=False):
+        """A second-order cone over `variables`, in order. By default
+        (t, x1, x2, ...) holds t >= ||x||. With rotated=True,
+        (u, v, x1, ...) holds 2 u v >= ||x||**2 with u, v >= 0. The
+        problem then solves by the conic interior point. Returns the
+        Cone, whose `dual` reads the cone's dual after a solve."""
+        variables = list(variables)
+        for v in variables:
+            if not isinstance(v, Var) or v._p is not self:
+                raise ValueError(f"{v!r} is not a variable of this Problem")
+        c = Cone(self, len(self._cones), variables, rotated)
+        self._cones.append(c)
+        self._touch_structure()
+        return c
 
     def _touch_structure(self):
         self._sol = None
@@ -3037,6 +3231,13 @@ class Problem:
             self._m.set_row_indicator(c._i, z._i, v)
         for c in self._cons:
             self._m.set_row_name(c._i, c.name)
+            if c._q:
+                self._m.set_row_quadratic(
+                    c._i, [(v._i, v._i, 2.0 * k) for v, k in c._q.items()])
+        for c in self._cones:
+            self._m.add_cone(
+                ConeType.ROTATED if c.rotated else ConeType.QUADRATIC,
+                [v._i for v in c.variables])
         self._dirty_var_bounds.clear()
         self._dirty_costs.clear()
         self._dirty_row_bounds.clear()
@@ -3102,6 +3303,10 @@ class Problem:
         """The library's independent checker, on the held solution against
         the model as loaded. Returns a CheckReport."""
         s = self._solution()
+        if self._cones:
+            return self._m.check_conic_solution(
+                s.col_value, s.row_dual,
+                [c.dual for c in self._cones], tol)
         return self._m.check_solution(s.col_value, s.row_dual, tol)
 
     def certificate(self):
@@ -3739,6 +3944,13 @@ class Problem:
     def read_solution(self, path):
         """Reads back a file write_solution wrote; see Model.read_solution."""
         return self._m.read_solution(path)
+
+    def read_cone_duals(self, path):
+        """The cone records of a file write_solution wrote, one list per
+        cone in the order add_cone made them; see Model.read_cone_duals."""
+        if self._pending():
+            self._build_and_load()
+        return self._m.read_cone_duals(path)
 
     def read_basis(self, path):
         """The basis out of a solution file of either kind; see

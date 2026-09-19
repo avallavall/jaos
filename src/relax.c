@@ -293,6 +293,11 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
     out->at_col = -1;
     out->status = JAOS_SOLVE_NOT_RUN;
     m->err[0] = '\0';
+    if (jm_model_has_conic(m)) {
+        jm_set_err(m, "the feasibility relaxation is a linear program, and "
+                      "this model has cones or quadratic rows");
+        return JAOS_ERR_INVALID_INPUT;
+    }
 
     if (row_move != nullptr && m->num_row > 0)
         memset(row_move, 0, (size_t)m->num_row * sizeof *row_move);

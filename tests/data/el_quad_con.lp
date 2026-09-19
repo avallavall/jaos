@@ -1,4 +1,5 @@
-\ A quadratic term in a constraint, which JAOS does not read.
+\ A square on the lower side of a row. JAOS reads it and refuses to solve
+\ it, because x + y + x^2 >= 2 is not a convex set.
 Minimize
  obj: x + y
 Subject To

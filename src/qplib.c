@@ -26,6 +26,9 @@ typedef struct {
     int64_t *ei, *ej;
     double *ev;
     int64_t nent, ecap, jcap, vcap;
+    int64_t *ki, *kh, *kk;
+    double *kv;
+    int64_t nkq, kicap, khcap, kkcap, kvcap;
     double offset, inf;
     char **cname, **rname;
     char *pname;
@@ -276,9 +279,12 @@ static jaos_status q_parse(qp *p)
     if (var != 'C' && var != 'B' && var != 'M' && var != 'I' && var != 'G')
         FAIL("line %" PRId64 ": variable type '%c' is not one of C, B, M, I, "
              "G", p->line, var);
-    if (con != 'N' && con != 'B' && con != 'L')
-        FAIL("line %" PRId64 ": constraint type '%c'; JAOS reads N, B and L, "
-             "not quadratic constraints", p->line, con);
+    if (con != 'N' && con != 'B' && con != 'L' && con != 'D' && con != 'C' &&
+        con != 'Q')
+        FAIL("line %" PRId64 ": constraint type '%c' is not one of N, B, L, "
+             "D, C, Q", p->line, con);
+    const bool rows = con == 'L' || con == 'D' || con == 'C' || con == 'Q';
+    const bool qrows = con == 'D' || con == 'C' || con == 'Q';
     if (!q_next(p, &s))
         FAIL("line %" PRId64 ": expected minimize or maximize", p->line);
     for (char *c = s; *c; c++)
@@ -296,7 +302,7 @@ static jaos_status q_parse(qp *p)
         return st;
     if (p->nvar < 0)
         FAIL("line %" PRId64 ": a negative number of variables", p->line);
-    if (con == 'L') {
+    if (rows) {
         if ((st = q_int(p, "the number of constraints", &p->ncon)) != JAOS_OK)
             return st;
         if (p->ncon < 0)
@@ -384,7 +390,55 @@ static jaos_status q_parse(qp *p)
     if ((st = q_num(p, "the objective constant", &p->offset)) != JAOS_OK)
         return st;
 
-    if (con == 'L') {
+    if (qrows) {
+        int64_t nq;
+        if ((st = q_int(p, "the number of constraint Q entries", &nq)) != JAOS_OK)
+            return st;
+        for (int64_t k = 0; k < nq; k++) {
+            if (!q_next(p, &s))
+                FAIL("line %" PRId64 ": the file ends inside the constraint Q "
+                     "entries", p->line);
+            char *end;
+            const char *at = s;
+            const long long i = strtoll(at, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a constraint index in the "
+                     "constraint Q entries", p->line);
+            const long long h = strtoll(at = end, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a row index in the constraint "
+                     "Q entries", p->line);
+            const long long c = strtoll(at = end, &end, 10);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a column index in the "
+                     "constraint Q entries", p->line);
+            const double v = q_strtod(at = end, &end);
+            if (end == at)
+                FAIL("line %" PRId64 ": expected a value in the constraint Q "
+                     "entries", p->line);
+            if (i < 1 || i > p->ncon)
+                FAIL("line %" PRId64 ": constraint %lld is outside 1 to %"
+                     PRId64, p->line, i, p->ncon);
+            if (h < 1 || h > p->nvar || c < 1 || c > p->nvar)
+                FAIL("line %" PRId64 ": a constraint Q entry names variable "
+                     "%lld or %lld outside 1 to %" PRId64, p->line, h, c,
+                     p->nvar);
+            if (!isfinite(v))
+                FAIL("line %" PRId64 ": a constraint Q entry is not finite",
+                     p->line);
+            if (!JM_GROW(p->ki, p->kicap, p->nkq + 1) ||
+                !JM_GROW(p->kh, p->khcap, p->nkq + 1) ||
+                !JM_GROW(p->kk, p->kkcap, p->nkq + 1) ||
+                !JM_GROW(p->kv, p->kvcap, p->nkq + 1))
+                FAIL_OOM();
+            p->ki[p->nkq] = i - 1;
+            p->kh[p->nkq] = h - 1;
+            p->kk[p->nkq] = c - 1;
+            p->kv[p->nkq] = v;
+            p->nkq++;
+        }
+    }
+    if (rows) {
         int64_t na;
         if ((st = q_int(p, "the number of constraint entries", &na)) != JAOS_OK)
             return st;
@@ -430,7 +484,7 @@ static jaos_status q_parse(qp *p)
     if (!(p->inf > 0.0))
         FAIL("line %" PRId64 ": the value for infinity is %g; it must be "
              "positive", p->line, p->inf);
-    if (con == 'L') {
+    if (rows) {
         if ((st = q_vector(p, "the constraint lower bounds", p->ncon, p->rl,
                            true)) != JAOS_OK)
             return st;
@@ -488,7 +542,7 @@ static jaos_status q_parse(qp *p)
     }
     if ((st = q_skip_vector(p, "the initial primal values", p->nvar)) != JAOS_OK)
         return st;
-    if (con == 'L' &&
+    if (rows &&
         (st = q_skip_vector(p, "the initial dual values", p->ncon)) != JAOS_OK)
         return st;
     if ((st = q_skip_vector(p, "the initial reduced costs", p->nvar)) != JAOS_OK)
@@ -498,6 +552,64 @@ static jaos_status q_parse(qp *p)
     if ((st = q_names(p, "constraint names", p->ncon, &p->rname)) != JAOS_OK)
         return st;
     return JAOS_OK;
+}
+
+typedef struct {
+    int64_t row, h, k, at;
+    double v;
+} qk_entry;
+
+static int cmp_qk(const void *pa, const void *pb)
+{
+    const qk_entry *a = pa, *b = pb;
+    if (a->row != b->row)
+        return (a->row > b->row) - (a->row < b->row);
+    if (a->h != b->h)
+        return (a->h > b->h) - (a->h < b->h);
+    if (a->k != b->k)
+        return (a->k > b->k) - (a->k < b->k);
+    return (a->at > b->at) - (a->at < b->at);
+}
+
+static jaos_status q_check_rows(qp *p, jaos_model *m)
+{
+    if (p->nkq == 0)
+        return JAOS_OK;
+    qk_entry *e = jm_alloc_array(p->nkq, sizeof *e);
+    if (e == nullptr) {
+        jm_set_err(m, "out of memory");
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t t = 0; t < p->nkq; t++) {
+        const int64_t h = p->kh[t] > p->kk[t] ? p->kh[t] : p->kk[t];
+        const int64_t k = p->kh[t] > p->kk[t] ? p->kk[t] : p->kh[t];
+        e[t] = (qk_entry){p->ki[t], h, k, t, p->kv[t]};
+    }
+    qsort(e, (size_t)p->nkq, sizeof *e, cmp_qk);
+    jaos_status st = JAOS_OK;
+    double sum = 0.0;
+    for (int64_t t = 0; t < p->nkq && st == JAOS_OK; t++) {
+        const bool same = t > 0 && e[t - 1].row == e[t].row &&
+                          e[t - 1].h == e[t].h && e[t - 1].k == e[t].k;
+        if (same && e[t].h != e[t].k) {
+            jm_set_err(m, "constraint %lld gives the Q entry for variables "
+                          "%lld and %lld twice, and QPLIB lists each pair of "
+                          "the lower triangle once",
+                       (long long)e[t].row + 1, (long long)e[t].h + 1,
+                       (long long)e[t].k + 1);
+            st = JAOS_ERR_INVALID_INPUT;
+            break;
+        }
+        sum = same ? sum + e[t].v : e[t].v;
+        if (!isfinite(sum)) {
+            jm_set_err(m, "constraint %lld sums its Q entry for variable %lld "
+                          "past the largest number", (long long)e[t].row + 1,
+                       (long long)e[t].h + 1);
+            st = JAOS_ERR_INVALID_INPUT;
+        }
+    }
+    free(e);
+    return st;
 }
 
 static jaos_status q_build(qp *p)
@@ -523,6 +635,8 @@ static jaos_status q_build(qp *p)
         ai[pos] = p->ei[k];
         av[pos] = p->ev[k];
     }
+    if ((st = q_check_rows(p, m)) != JAOS_OK)
+        goto out;
     st = jaos_load_lp(m, nc, nr, p->sense, p->offset, p->cost, p->cl, p->cu,
                       p->rl, p->ru, p->nent, nc > 0 ? as : nullptr, ai, av);
     if (st != JAOS_OK) {
@@ -569,6 +683,40 @@ static jaos_status q_build(qp *p)
         }
         st = jaos_set_quadratic(m, at, qr, qc, qv);
         free(qr); free(qc); free(qv);
+        if (st != JAOS_OK)
+            goto out;
+    }
+    if (p->nkq > 0) {
+        int64_t *start = jm_calloc_array(nr + 1, sizeof *start);
+        int64_t *qh = jm_alloc_array(p->nkq, sizeof *qh);
+        int64_t *qk = jm_alloc_array(p->nkq, sizeof *qk);
+        double *qv = jm_alloc_array(p->nkq, sizeof *qv);
+        if (start == nullptr || qh == nullptr ||
+            qk == nullptr || qv == nullptr) {
+            free(start); free(qh); free(qk); free(qv);
+            jm_set_err(m, "out of memory");
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto out;
+        }
+        for (int64_t t = 0; t < p->nkq; t++)
+            start[p->ki[t] + 1]++;
+        for (int64_t i = 0; i < nr; i++)
+            start[i + 1] += start[i];
+        for (int64_t t = 0; t < p->nkq; t++) {
+            const int64_t at = start[p->ki[t]]++;
+            qh[at] = p->kh[t];
+            qk[at] = p->kk[t];
+            qv[at] = p->kv[t];
+        }
+        for (int64_t i = nr; i > 0; i--)
+            start[i] = start[i - 1];
+        start[0] = 0;
+        for (int64_t i = 0; i < nr && st == JAOS_OK; i++)
+            if (start[i + 1] > start[i])
+                st = jaos_set_row_quadratic(m, i, start[i + 1] - start[i],
+                                            qh + start[i], qk + start[i],
+                                            qv + start[i]);
+        free(start); free(qh); free(qk); free(qv);
         if (st != JAOS_OK)
             goto out;
     }
@@ -636,6 +784,7 @@ static void q_free(qp *p)
     free(p->quad); free(p->cint);
     free(p->qri); free(p->qci); free(p->qvv);
     free(p->ei); free(p->ej); free(p->ev);
+    free(p->ki); free(p->kh); free(p->kk); free(p->kv);
     if (p->cname != nullptr)
         for (int64_t j = 0; j < p->nvar; j++)
             free(p->cname[j]);

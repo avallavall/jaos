@@ -68,6 +68,14 @@ static void model_release_arrays(jaos_model *m)
     free(m->sos_start);
     free(m->sos_col);
     free(m->sos_weight);
+    free(m->cone_type);
+    free(m->cone_start);
+    free(m->cone_col);
+    free(m->rq_start);
+    free(m->rq_i);
+    free(m->rq_j);
+    free(m->rq_v);
+    free(m->sol_cone);
     free(m->mip_start);
     free(m->mip_inc_x);
     free(m->mip_pool_x);
@@ -444,6 +452,8 @@ static void model_answer_is_stale(jaos_model *m)
     m->farkas_ok = false;
     free(m->sol_ray);        m->sol_ray = nullptr;
     m->ray_ok = false;
+    free(m->sol_cone);       m->sol_cone = nullptr;
+    m->cone_ok = false;
     jm_model_drop_exact(m);
     free(m->mip_inc_x);      m->mip_inc_x = nullptr;
     free(m->mip_pool_x);     m->mip_pool_x = nullptr;
@@ -876,6 +886,21 @@ jaos_status jaos_solve(jaos_model *m)
         }
     }
 
+    if (jm_model_has_conic(m)) {
+        if (m->cfg.force_primal || m->cfg.pdlp || m->cfg.concurrent) {
+            jm_set_err(m, "the model has cones or quadratic rows, which only "
+                          "the conic interior point solves; leave the "
+                          "algorithm at dual or set it to barrier");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        if (jm_model_has_integer(m)) {
+            jm_set_err(m, "the model has cones or quadratic rows and integer, "
+                          "semi-continuous or SOS columns; JAOS solves a "
+                          "conic model with continuous columns only");
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        return jm_conic(m);
+    }
     if (jm_model_has_integer(m)) {
         if (m->col_integer == nullptr) {
             m->col_integer = jm_calloc_array(m->num_col, sizeof(bool));
@@ -1320,6 +1345,290 @@ jaos_status jaos_sos(const jaos_model *m, int64_t k, int *type, int64_t *n,
         memcpy(cols, m->sos_col + b, (size_t)(e - b) * sizeof *cols);
     if (weights != nullptr)
         memcpy(weights, m->sos_weight + b, (size_t)(e - b) * sizeof *weights);
+    return JAOS_OK;
+}
+
+jaos_status jaos_add_cone(jaos_model *m, jaos_cone_type type, int64_t n,
+                          const int64_t *cols)
+{
+    if (m == nullptr || cols == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (type != JAOS_CONE_QUADRATIC && type != JAOS_CONE_ROTATED) {
+        jm_set_err(m, "a cone is quadratic or rotated");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (n < (type == JAOS_CONE_ROTATED ? 2 : 1)) {
+        jm_set_err(m, "a quadratic cone needs a column and a rotated cone "
+                      "two");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    for (int64_t k = 0; k < n; k++) {
+        if (cols[k] < 0 || cols[k] >= m->num_col) {
+            jm_set_err(m, "cone member %lld is not a column of the model",
+                       (long long)cols[k]);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        for (int64_t t = 0; t < k; t++)
+            if (cols[t] == cols[k]) {
+                jm_set_err(m, "column %lld is in the cone twice",
+                           (long long)cols[k]);
+                return JAOS_ERR_INVALID_INPUT;
+            }
+    }
+    const int64_t base = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
+    int *ty = realloc(m->cone_type, (size_t)(m->num_cone + 1) * sizeof *ty);
+    if (ty == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->cone_type = ty;
+    int64_t *cs = realloc(m->cone_start, (size_t)(m->num_cone + 2) * sizeof *cs);
+    if (cs == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->cone_start = cs;
+    int64_t *cc = realloc(m->cone_col, (size_t)(base + n) * sizeof *cc);
+    if (cc == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    m->cone_col = cc;
+    if (m->num_cone == 0)
+        m->cone_start[0] = 0;
+    memcpy(m->cone_col + base, cols, (size_t)n * sizeof *cols);
+    m->cone_type[m->num_cone] = type;
+    m->cone_start[m->num_cone + 1] = base + n;
+    m->num_cone++;
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+int64_t jaos_num_cones(const jaos_model *m)
+{
+    return m == nullptr ? 0 : m->num_cone;
+}
+
+jaos_status jaos_cone(const jaos_model *m, int64_t k, jaos_cone_type *type,
+                      int64_t *n, int64_t *cols)
+{
+    if (m == nullptr || k < 0 || k >= m->num_cone)
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+    if (type != nullptr)
+        *type = (jaos_cone_type)m->cone_type[k];
+    if (n != nullptr)
+        *n = e - b;
+    if (cols != nullptr)
+        memcpy(cols, m->cone_col + b, (size_t)(e - b) * sizeof *cols);
+    return JAOS_OK;
+}
+
+jaos_status jaos_delete_cones(jaos_model *m, int64_t num_del,
+                              const int64_t *cones)
+{
+    if (m == nullptr || num_del < 0 || (num_del > 0 && cones == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_del == 0)
+        return JAOS_OK;
+    bool *gone = jm_calloc_array(m->num_cone > 0 ? m->num_cone : 1,
+                                 sizeof *gone);
+    if (gone == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t t = 0; t < num_del; t++) {
+        if (cones[t] < 0 || cones[t] >= m->num_cone || gone[cones[t]]) {
+            jm_set_err(m, "cone %lld is not a cone of the model, or is named "
+                          "twice", (long long)cones[t]);
+            free(gone);
+            return JAOS_ERR_INVALID_INPUT;
+        }
+        gone[cones[t]] = true;
+    }
+    int64_t k2 = 0, pos = 0;
+    for (int64_t k = 0; k < m->num_cone; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        if (gone[k])
+            continue;
+        m->cone_type[k2] = m->cone_type[k];
+        m->cone_start[k2] = pos;
+        for (int64_t t = b; t < e; t++)
+            m->cone_col[pos++] = m->cone_col[t];
+        k2++;
+    }
+    m->cone_start[k2] = pos;
+    m->num_cone = k2;
+    free(gone);
+    model_answer_is_stale(m);
+    return JAOS_OK;
+}
+
+typedef struct {
+    int64_t i, j, at;
+    double v;
+} rq_entry;
+
+static int cmp_rq(const void *pa, const void *pb)
+{
+    const rq_entry *a = pa, *b = pb;
+    if (a->j != b->j)
+        return a->j < b->j ? -1 : 1;
+    if (a->i != b->i)
+        return a->i < b->i ? -1 : 1;
+    return (a->at > b->at) - (a->at < b->at);
+}
+
+jaos_status jaos_set_row_quadratic(jaos_model *m, int64_t row, int64_t num_nz,
+                                   const int64_t *rows, const int64_t *cols,
+                                   const double *values)
+{
+    if (m == nullptr || row < 0 || row >= m->num_row || num_nz < 0)
+        return JAOS_ERR_INVALID_INPUT;
+    if (num_nz > 0 && (rows == nullptr || cols == nullptr || values == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t nc = m->num_col;
+    int64_t *ti = jm_alloc_array(num_nz > 0 ? num_nz : 1, sizeof *ti);
+    int64_t *tj = jm_alloc_array(num_nz > 0 ? num_nz : 1, sizeof *tj);
+    double *tv = jm_alloc_array(num_nz > 0 ? num_nz : 1, sizeof *tv);
+    if (ti == nullptr || tj == nullptr || tv == nullptr) {
+        free(ti); free(tj); free(tv);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    int64_t n = 0;
+    jaos_status st = JAOS_OK;
+    rq_entry *e = jm_alloc_array(num_nz > 0 ? num_nz : 1, sizeof *e);
+    if (e == nullptr) {
+        free(ti); free(tj); free(tv);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t k = 0; k < num_nz && st == JAOS_OK; k++) {
+        if (rows[k] < 0 || rows[k] >= nc || cols[k] < 0 || cols[k] >= nc) {
+            jm_set_err(m, "the quadratic entry %lld of row %lld names columns "
+                          "%lld and %lld, and the model has %lld",
+                       (long long)k, (long long)row, (long long)rows[k],
+                       (long long)cols[k], (long long)nc);
+            st = JAOS_ERR_INVALID_INPUT;
+            break;
+        }
+        if (!isfinite(values[k])) {
+            jm_set_err(m, "the quadratic entry %lld of row %lld is not finite",
+                       (long long)k, (long long)row);
+            st = JAOS_ERR_INVALID_INPUT;
+            break;
+        }
+        const int64_t i = rows[k] > cols[k] ? rows[k] : cols[k];
+        const int64_t j = rows[k] > cols[k] ? cols[k] : rows[k];
+        e[k] = (rq_entry){i, j, k, values[k]};
+    }
+    if (st == JAOS_OK)
+        qsort(e, (size_t)num_nz, sizeof *e, cmp_rq);
+    for (int64_t k = 0; k < num_nz && st == JAOS_OK; k++) {
+        if (n > 0 && ti[n - 1] == e[k].i && tj[n - 1] == e[k].j) {
+            if (e[k].i != e[k].j) {
+                jm_set_err(m, "the quadratic entry of row %lld for columns "
+                              "%lld and %lld is given twice; a symmetric Q "
+                              "takes each pair once", (long long)row,
+                           (long long)e[k].i, (long long)e[k].j);
+                st = JAOS_ERR_INVALID_INPUT;
+                break;
+            }
+            tv[n - 1] += e[k].v;
+            continue;
+        }
+        ti[n] = e[k].i;
+        tj[n] = e[k].j;
+        tv[n] = e[k].v;
+        n++;
+    }
+    free(e);
+    int64_t keep = 0;
+    for (int64_t t = 0; t < n; t++)
+        if (tv[t] != 0.0) {
+            ti[keep] = ti[t];
+            tj[keep] = tj[t];
+            tv[keep] = tv[t];
+            keep++;
+        }
+    n = keep;
+    if (st == JAOS_OK && m->rq_start == nullptr) {
+        m->rq_start = jm_calloc_array(m->num_row + 1, sizeof *m->rq_start);
+        if (m->rq_start == nullptr)
+            st = JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (st == JAOS_OK) {
+        const int64_t old = m->rq_start[row + 1] - m->rq_start[row];
+        const int64_t total = m->rq_nz - old + n;
+        int64_t *ni = jm_alloc_array(total > 0 ? total : 1, sizeof *ni);
+        int64_t *nj = jm_alloc_array(total > 0 ? total : 1, sizeof *nj);
+        double *nv = jm_alloc_array(total > 0 ? total : 1, sizeof *nv);
+        if (ni == nullptr || nj == nullptr || nv == nullptr) {
+            free(ni); free(nj); free(nv);
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        } else {
+            int64_t at = 0;
+            for (int64_t i = 0; i < m->num_row; i++) {
+                const int64_t from = m->rq_start[i], to = m->rq_start[i + 1];
+                m->rq_start[i] = at;
+                if (i == row) {
+                    for (int64_t t = 0; t < n; t++) {
+                        ni[at] = ti[t];
+                        nj[at] = tj[t];
+                        nv[at] = tv[t];
+                        at++;
+                    }
+                    continue;
+                }
+                for (int64_t p = from; p < to; p++) {
+                    ni[at] = m->rq_i[p];
+                    nj[at] = m->rq_j[p];
+                    nv[at] = m->rq_v[p];
+                    at++;
+                }
+            }
+            m->rq_start[m->num_row] = at;
+            free(m->rq_i); free(m->rq_j); free(m->rq_v);
+            m->rq_i = ni;
+            m->rq_j = nj;
+            m->rq_v = nv;
+            m->rq_nz = at;
+            model_answer_is_stale(m);
+        }
+    }
+    free(ti); free(tj); free(tv);
+    return st;
+}
+
+int64_t jaos_row_quadratic_nz(const jaos_model *m, int64_t row)
+{
+    if (m == nullptr || row < 0 || row >= m->num_row || m->rq_start == nullptr)
+        return 0;
+    return m->rq_start[row + 1] - m->rq_start[row];
+}
+
+jaos_status jaos_row_quadratic(const jaos_model *m, int64_t row,
+                               int64_t *rows, int64_t *cols, double *values)
+{
+    if (m == nullptr || row < 0 || row >= m->num_row)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->rq_start == nullptr)
+        return JAOS_OK;
+    const int64_t b = m->rq_start[row], e = m->rq_start[row + 1];
+    if (e > b && (rows == nullptr || cols == nullptr || values == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t p = b; p < e; p++) {
+        rows[p - b] = m->rq_i[p];
+        cols[p - b] = m->rq_j[p];
+        values[p - b] = m->rq_v[p];
+    }
+    return JAOS_OK;
+}
+
+bool jm_model_has_conic(const jaos_model *m)
+{
+    return m != nullptr && (m->num_cone > 0 || m->rq_nz > 0);
+}
+
+jaos_status jaos_cone_dual(const jaos_model *m, int64_t k, double *z)
+{
+    if (m == nullptr || z == nullptr || k < 0 || k >= m->num_cone)
+        return JAOS_ERR_INVALID_INPUT;
+    if (!m->cone_ok || m->sol_cone == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+    memcpy(z, m->sol_cone + b, (size_t)(e - b) * sizeof *z);
     return JAOS_OK;
 }
 
@@ -1776,6 +2085,9 @@ jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)
     if (m->row_ind_col != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
             st.indicator_row += m->row_ind_col[i] >= 0;
+    st.cone_set = m->num_cone;
+    for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++)
+        st.quadratic_row += m->rq_start[i + 1] > m->rq_start[i];
     *out = st;
     return JAOS_OK;
 }
@@ -2811,6 +3123,16 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
         free(rl); free(ru); free(as); free(ai); free(av);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
+    if (m->rq_start != nullptr) {
+        int64_t *rq = realloc(m->rq_start, (size_t)(nrow + 1) * sizeof *rq);
+        if (rq == nullptr) {
+            free(rl); free(ru); free(as); free(ai); free(av);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        m->rq_start = rq;
+        for (int64_t i = m->num_row + 1; i <= nrow; i++)
+            rq[i] = rq[m->num_row];
+    }
 
     free(m->row_lower); free(m->row_upper);
     free(m->a_start);   free(m->a_index); free(m->a_value);
@@ -2885,9 +3207,20 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
         }
     }
 
+    for (int64_t k = 0; k < m->num_cone; k++)
+        for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
+            if (!keep[m->cone_col[t]]) {
+                jm_set_err(m, "column %lld belongs to cone %lld, and deleting "
+                              "it would change what the cone holds; delete "
+                              "the cone first", (long long)m->cone_col[t],
+                           (long long)k);
+                free(keep);
+                return JAOS_ERR_INVALID_INPUT;
+            }
+
     int64_t *newidx = nullptr;
     if (m->num_sos > 0 || m->row_ind_col != nullptr ||
-        m->q_start != nullptr) {
+        m->q_start != nullptr || m->num_cone > 0 || m->rq_start != nullptr) {
         newidx = malloc((size_t)m->num_col * sizeof *newidx);
         if (newidx == nullptr) {
             free(keep);
@@ -3021,6 +3354,31 @@ jaos_status jaos_delete_cols(jaos_model *m, int64_t num_del,
             if (m->row_ind_col[i] >= 0)
                 m->row_ind_col[i] = newidx[m->row_ind_col[i]];
     }
+    if ((m->num_cone > 0 || m->rq_start != nullptr) && newidx != nullptr) {
+        int64_t at = 0;
+        for (int64_t j = 0; j < m->num_col; j++)
+            newidx[j] = keep[j] ? at++ : -1;
+        for (int64_t t = 0; m->num_cone > 0 && t < m->cone_start[m->num_cone];
+             t++)
+            m->cone_col[t] = newidx[m->cone_col[t]];
+        if (m->rq_start != nullptr) {
+            int64_t pos = 0;
+            for (int64_t i = 0; i < m->num_row; i++) {
+                const int64_t from = m->rq_start[i], to = m->rq_start[i + 1];
+                m->rq_start[i] = pos;
+                for (int64_t p = from; p < to; p++) {
+                    if (!keep[m->rq_i[p]] || !keep[m->rq_j[p]])
+                        continue;
+                    m->rq_i[pos] = newidx[m->rq_i[p]];
+                    m->rq_j[pos] = newidx[m->rq_j[p]];
+                    m->rq_v[pos] = m->rq_v[p];
+                    pos++;
+                }
+            }
+            m->rq_start[m->num_row] = pos;
+            m->rq_nz = pos;
+        }
+    }
     free(newidx);
     free(keep);
 
@@ -3116,6 +3474,23 @@ jaos_status jaos_delete_rows(jaos_model *m, int64_t num_del,
                 m->row_ind_val[at] = m->row_ind_val[i];
                 at++;
             }
+    }
+    if (m->rq_start != nullptr) {
+        int64_t at = 0, row = 0;
+        for (int64_t i = 0; i < m->num_row; i++) {
+            const int64_t from = m->rq_start[i], to = m->rq_start[i + 1];
+            if (!keep[i])
+                continue;
+            m->rq_start[row++] = at;
+            for (int64_t p = from; p < to; p++) {
+                m->rq_i[at] = m->rq_i[p];
+                m->rq_j[at] = m->rq_j[p];
+                m->rq_v[at] = m->rq_v[p];
+                at++;
+            }
+        }
+        m->rq_start[row] = at;
+        m->rq_nz = at;
     }
     free(keep);
 
@@ -3283,6 +3658,36 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
         memcpy(m->sos_col, src->sos_col, (size_t)nz * sizeof *m->sos_col);
         memcpy(m->sos_weight, src->sos_weight, (size_t)nz * sizeof *m->sos_weight);
         m->num_sos = src->num_sos;
+    }
+    if (src->num_cone > 0) {
+        const int64_t nz = src->cone_start[src->num_cone];
+        m->cone_type = malloc((size_t)src->num_cone * sizeof *m->cone_type);
+        m->cone_start = malloc((size_t)(src->num_cone + 1) *
+                               sizeof *m->cone_start);
+        m->cone_col = malloc((size_t)(nz > 0 ? nz : 1) * sizeof *m->cone_col);
+        if (!m->cone_type || !m->cone_start || !m->cone_col)
+            goto oom;
+        memcpy(m->cone_type, src->cone_type,
+               (size_t)src->num_cone * sizeof *m->cone_type);
+        memcpy(m->cone_start, src->cone_start,
+               (size_t)(src->num_cone + 1) * sizeof *m->cone_start);
+        memcpy(m->cone_col, src->cone_col, (size_t)nz * sizeof *m->cone_col);
+        m->num_cone = src->num_cone;
+    }
+    if (src->rq_start != nullptr) {
+        const int64_t nz = src->rq_nz > 0 ? src->rq_nz : 1;
+        m->rq_start = malloc((size_t)(src->num_row + 1) * sizeof *m->rq_start);
+        m->rq_i = malloc((size_t)nz * sizeof *m->rq_i);
+        m->rq_j = malloc((size_t)nz * sizeof *m->rq_j);
+        m->rq_v = malloc((size_t)nz * sizeof *m->rq_v);
+        if (!m->rq_start || !m->rq_i || !m->rq_j || !m->rq_v)
+            goto oom;
+        memcpy(m->rq_start, src->rq_start,
+               (size_t)(src->num_row + 1) * sizeof *m->rq_start);
+        memcpy(m->rq_i, src->rq_i, (size_t)src->rq_nz * sizeof *m->rq_i);
+        memcpy(m->rq_j, src->rq_j, (size_t)src->rq_nz * sizeof *m->rq_j);
+        memcpy(m->rq_v, src->rq_v, (size_t)src->rq_nz * sizeof *m->rq_v);
+        m->rq_nz = src->rq_nz;
     }
 
     m->cfg = src->cfg;

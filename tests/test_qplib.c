@@ -157,9 +157,22 @@ static void test_qplib_reads_the_published_layout(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-5, -3.0, obj);
     jaos_model_free(m);
     m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_qplib(m, "tests/data/e_qcon.qplib"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic constraints"));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_row_quadratic_nz(m, 0));
+    int64_t qi[2], qj[2];
+    double qv[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(m, 0, qi, qj, qv));
+    TEST_ASSERT_EQUAL_INT64(0, qi[0]);
+    TEST_ASSERT_EQUAL_INT64(1, qi[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[1]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -2.0, obj);
+    jaos_model_free(m);
+    m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_IO, jaos_read_qplib(m, "tests/data/no.qplib"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_read_qplib(nullptr, "x"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_read_qplib(m, nullptr));

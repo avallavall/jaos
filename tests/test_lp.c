@@ -232,8 +232,18 @@ static void test_a_quadratic_objective_block_reads_and_writes_back(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(b, 0, &q));
     TEST_ASSERT_EQUAL_DOUBLE(0.0, q);
     jaos_model_free(b);
-    expect_reject("tests/data/el_quad_con.lp", "constraint");
-    expect_reject("tests/data/el_quad_con.lp", "line 5");
+
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(b, "tests/data/el_quad_con.lp"));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_row_quadratic_nz(b, 0));
+    int64_t qi = -1, qj = -1;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(b, 0, &qi, &qj, &q));
+    TEST_ASSERT_EQUAL_INT64(0, qi);
+    TEST_ASSERT_EQUAL_INT64(0, qj);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, q);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(b));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(b), "not convex"));
+    jaos_model_free(b);
 }
 
 static void test_rejection_reasons_are_specific(void)

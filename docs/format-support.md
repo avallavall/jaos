@@ -129,6 +129,27 @@ header is a line whose first character is non-blank, `*` opens a comment.
   diagonal is refused as well. The writer prints the diagonal and then
   the lower triangle under `QUADOBJ`, after BOUNDS, so a model written
   and read back is the model that was written.
+- **QCMATRIX and QSECTION sections** (since 2026-09-19): after COLUMNS,
+  one per row, `QCMATRIX row` on the header line and then one line
+  `column column value` per entry of the row's quadratic part. The
+  convention is CPLEX's: the section holds the whole symmetric matrix of
+  `x'Qx`, both halves of a pair, unhalved, so the row reads
+  `a'x + x'Qx`, and `x x 1` is `x²`. JAOS holds the row as
+  `a'x + ½ x'Qx`, so every value doubles on reading and halves on
+  writing. A pair named once counts for both halves, the rule `QUADOBJ`
+  reads by; named twice, the two halves have to carry the same value,
+  and a pair that disagrees is refused by row and columns. The header may not
+  name the objective (its quadratic part goes in `QUADOBJ`) or a row
+  that ROWS did not declare. The writer prints one `QCMATRIX` per row
+  that has a quadratic part, both halves, after the objective's
+  `QUADOBJ`.
+- **CSECTION** (since 2026-09-19): a second-order cone, `CSECTION name
+  parameter type` on the header line and one column name per line after
+  it. The type is `QUAD`, `x0 >= ||(x1, ...)||`, or `RQUAD`,
+  `2 x0 x1 >= ||(x2, ...)||²` with `x0` and `x1` at least zero, the
+  columns in the order the section lists them; any other type is
+  refused by line. The parameter is read and dropped. The writer prints
+  one section per cone, named `K1`, `K2`, ... with parameter `0.0`.
 - **Integer markers**: the columns between `'MARKER' 'INTORG'` and
   `'MARKER' 'INTEND'` are integer, and the writer prints one such pair
   per run of integer columns.
@@ -251,10 +272,18 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   `Q[x][y] = Q[y][x] = q/2`, the pair counting once on each side of the
   diagonal. The same product written twice, as `x * y` and as `y * x`,
   adds up rather than being refused, because a block is a sum. A power
-  other than 2, a divisor other than 2, or a block inside a constraint is
-  still refused by line. The writer prints one block after the linear
-  terms, the diagonal as `q x ^ 2` and each pair as `2q x * y`, so a
-  model written and read back is the model that was written.
+  other than 2 or a divisor other than 2 is refused by line. The writer
+  prints one block after the linear terms, the diagonal as `q x ^ 2` and
+  each pair as `2q x * y`, so a model written and read back is the model
+  that was written.
+- **Quadratic rows** (since 2026-09-19): a `[ ... ]` block among a
+  constraint's terms is the row's quadratic part, taken as written and
+  not halved, the CPLEX convention for constraints: `x + [ x ^ 2 + 2 x *
+  y ] <= 4` is `x + x² + 2xy <= 4`. A block followed by `/ 2` counts
+  half. A row with a quadratic part has one finite side: the `\ range`
+  join leaves such a row alone, and the writer refuses a ranged one. The
+  writer prints the block after the row's linear terms. A cone has no
+  LP form, so the writer refuses a model with one; write MPS.
 - **Numbers**: parsed under an explicit "C" locale, like MPS. No Fortran
   `D` exponents here — they are not part of any LP dialect.
 - **`End` is required**; content after it is an error.
@@ -292,9 +321,10 @@ two counts: a model whose integer columns are not already last reads
 back with its columns in that order, names carried, and everything else
 the same. SOS sets, semi-continuous columns and indicator rows have no
 place in the linear part of the format and are refused by name; write
-MPS for those. A quadratic objective is refused the same way. The
-format carries one only as a nonlinear body, which JAOS does not write
-and its own reader refuses; write MPS, LP, QPLIB or OSiL instead.
+MPS for those. A quadratic objective is refused the same way, and so
+are quadratic rows and cones. The format carries those only as
+nonlinear bodies, which JAOS does not write and its own reader refuses;
+write MPS, LP, QPLIB or OSiL instead.
 
 ## QPLIB
 
@@ -306,10 +336,12 @@ holds: the three-letter type's first letter `L` (linear objective) or
 a diagonal entry or a pair alike; its second letter `C`, `B`, `I`, `M` or `G` for the variable types,
 with `B` giving every variable bounds 0 and 1 and `M` or `G` reading the
 type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
-`B` or `L`, a quadratic constraint type refused at that line. After the
-type come the sense, the counts, the objective `Q` entries (1-based,
+`B`, `L`, or since 2026-09-19 `D`, `C` or `Q` for quadratic rows. After
+the type come the sense, the counts, the objective `Q` entries (1-based,
 `½ x^T Q x` so the diagonal is `q` as JAOS holds it), the objective
-coefficients as a default plus exceptions, the constant, the constraint
+coefficients as a default plus exceptions, the constant, for a quadratic
+row type the constraint `Q` entries as `row column column value` in the
+same `½` convention, the constraint
 entries, the value for infinity, the row bounds, the variable bounds,
 the types, the three initial-value vectors (read and dropped) and the
 two name sections. The order is Table 8 of Furini et al. (2019),
@@ -330,8 +362,10 @@ objective has no name in this format, so a model read back carries the
 default one. A type whose third letter is `N` gives every
 column free bounds and no bound sections, which is what `(N)one`
 constraints mean in the taxonomy of §2.2.1. SOS sets,
-semi-continuous columns and indicator rows have no place in it and are
-refused by name.
+semi-continuous columns, indicator rows and cones have no place in it
+and are refused by name. The writer prints the type letter `Q` for a
+model with quadratic rows and their entries in the constraint `Q`
+block.
 
 ## OSiL
 
@@ -343,8 +377,10 @@ column-wise, and `<quadraticCoefficients>` with one `qTerm` per entry of
 `Q`, the objective's `idx="-1"`. A `qTerm` is `coef * x[idxOne] *
 x[idxTwo]`, and the objective is `c'x + ½ x'Qx`, so a term naming one
 column twice carries `coef = q / 2` and a term naming two carries
-`coef = Q[i][j]`, the pair counting on both sides of the diagonal. SOS
-sets and indicator rows are refused by name.
+`coef = Q[i][j]`, the pair counting on both sides of the diagonal. A
+row's quadratic part goes in the same block under the row's `idx`,
+with the same rule. SOS sets, indicator rows and cones are refused by
+name.
 
 `jaos_read_osil` and the tool by extension read the same content back.
 The reader takes both matrix layouts: `<start>` over the columns with a
@@ -361,9 +397,11 @@ fixed layout already follows, so the model writes to MPS and to `.nl`
 and reads back with its names; before 2026-09-16 the name was kept as
 written, the MPS came out unreadable and the `.row` file was dropped.
 A name a control character or the length leaves outside what a model
-holds is refused by line. Refused by line: a
+holds is refused by line. A `qTerm` with `idx` at zero or above is a
+term of that row's quadratic part (since 2026-09-19; before, it was
+refused). Refused by line: a
 `<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
-on a constraint, a second `<obj>`, an SOS block, a named `<var>` or
+whose `idx` is below -1, a second `<obj>`, an SOS block, a named `<var>` or
 `<con>` repeated by `mult` (an unnamed one repeated by `mult` reads as
 that many copies, which is how `p0033MULT.osil` and `br17.osil` of the
 COIN-OR OS samples write their columns), a `<con>` with a non-zero
@@ -513,6 +551,18 @@ end
 `jaos_basis_status` values. Names are the model's, the same ones the two
 model writers print, so a solution file and a model file written from
 the same model refer to the same rows and columns.
+
+**A model with cones adds their duals** (since 2026-09-19). A `cones`
+count follows `rows`, and after the `row` records come one `cone`
+record per cone member, cone by cone, each `cone <index> <member>
+<value>` counting from 0: the dual `jaos_cone_dual` hands out for an
+optimum, and the cone part of the certificate for an infeasible model.
+An unbounded model's file has none, since its ray is over the columns.
+A conic interior point leaves no basis, so every `col` and `row` record
+says `basic`. `jaos_read_cone_duals` reads the records back as one
+array, cone after cone; the count has to be the model's, the records in
+order, and all of them there. A file without the section reads as
+before, and `jaos_read_cone_duals` refuses it.
 
 **A certificate is the same file with a different status**. For an
 infeasible model the records are one `ray` per row carrying the Farkas
