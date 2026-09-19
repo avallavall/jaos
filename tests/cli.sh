@@ -730,6 +730,11 @@ expect_exit 0 "the same model solves one node at a time" \
     || flunk "rounds gave '$batch_obj', one node '$(line_of objective)'"
 expect_exit 5 "a tree batch below 1 is a usage error" \
     "$JAOS" solve "$DATA/g_misocp.mps" --tree-batch 0
+expect_exit 2 "a model whose walk's direction the checker refuses ends unbounded" \
+    "$JAOS" solve "$DATA/g_ray_probe.mps" --log detail
+printf '%s\n' "$err" | grep -q "a solve over the directions the rows, the bounds and the cones leave open found one that does" \
+    && pass "on a direction the solve over directions found" \
+    || flunk "no direction solve in the log"
 expect_exit 4 "the badly scaled box in a cone model ends numerical_error" \
     "$JAOS" solve "$DATA/g_cone_badbox.mps"
 [ "$(line_of status)" = "status numerical_error" ] \

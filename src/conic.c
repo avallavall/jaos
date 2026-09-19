@@ -2213,6 +2213,167 @@ static jaos_status cm_dead_certificate(jaos_model *m, const uint8_t *dead,
     return JAOS_OK;
 }
 
+constexpr double CONIC_RAY_PROBE_TOL = 1e-6;
+
+static jaos_status cm_zero_row(jaos_model *r, double *row, int64_t *idx,
+                               int64_t nc)
+{
+    int64_t n = 0;
+    for (int64_t k = 0; k < nc; k++)
+        if (row[k] != 0.0) {
+            idx[n] = k;
+            row[n] = row[k];
+            n++;
+        }
+    if (n == 0)
+        return JAOS_OK;
+    const double zero = 0.0;
+    const int64_t rs[2] = {0, n};
+    return jaos_add_rows(r, 1, &zero, &zero, n, rs, idx, row);
+}
+
+/* A direction that keeps every row, bound and cone and lowers the
+   objective is an improving ray, whatever the walk's own direction did.
+   The columns are the directions, boxed at 1 where a bound is infinite
+   and held at 0 where it is finite; a row's side that is finite holds its
+   direction's activity on that side of 0; a quadratic part, in a row or
+   in the objective, has to vanish along the direction, so `Q d = 0` goes
+   in as rows; and a cone's recession cone is the cone itself. */
+static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
+{
+    *found = false;
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    jaos_model *r = nullptr;
+    double *cost = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cost);
+    double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
+    double *d = jm_alloc_array(nc > 0 ? nc : 1, sizeof *d);
+    double *qrow = jm_calloc_array(nc > 0 ? nc : 1, sizeof *qrow);
+    uint8_t *touched = jm_calloc_array(nc > 0 ? nc : 1, sizeof *touched);
+    int64_t *idx = jm_alloc_array(nc > 0 ? nc : 1, sizeof *idx);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (cost == nullptr || lo == nullptr || hi == nullptr || d == nullptr ||
+        qrow == nullptr || touched == nullptr || idx == nullptr)
+        goto out;
+    for (int64_t j = 0; j < nc; j++) {
+        cost[j] = sigma * m->col_cost[j];
+        lo[j] = isfinite(m->col_lower[j]) ? 0.0 : -1.0;
+        hi[j] = isfinite(m->col_upper[j]) ? 0.0 : 1.0;
+    }
+    st = jaos_model_new(&r);
+    if (st != JAOS_OK)
+        goto out;
+    st = jaos_load_lp(r, nc, 0, JAOS_MINIMIZE, 0.0, cost, lo, hi, nullptr,
+                      nullptr, 0, nullptr, nullptr, nullptr);
+    if (st != JAOS_OK)
+        goto out;
+    st = jm_model_ensure_rowwise(m);
+    if (st != JAOS_OK)
+        goto out;
+    for (int64_t i = 0; i < nr && st == JAOS_OK; i++) {
+        const double rl = isfinite(m->row_lower[i]) ? 0.0 : -INFINITY;
+        const double ru = isfinite(m->row_upper[i]) ? 0.0 : INFINITY;
+        const int64_t n = m->ar_start[i + 1] - m->ar_start[i];
+        const int64_t rs[2] = {0, n};
+        if (isfinite(rl) || isfinite(ru))
+            st = jaos_add_rows(r, 1, &rl, &ru, n, rs,
+                               m->ar_index + m->ar_start[i],
+                               m->ar_value + m->ar_start[i]);
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            touched[j] = 1;
+        for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+             m->q_start != nullptr && p < m->q_start[j + 1]; p++)
+            touched[j] = touched[m->q_index[p]] = 1;
+    }
+    for (int64_t j = 0; j < nc && st == JAOS_OK; j++) {
+        if (!touched[j])
+            continue;
+        for (int64_t k = 0; k < nc; k++)
+            qrow[k] = 0.0;
+        if (m->col_quad != nullptr)
+            qrow[j] += m->col_quad[j];
+        for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+             m->q_start != nullptr && p < m->q_start[j + 1]; p++)
+            qrow[m->q_index[p]] += m->q_value[p];
+        for (int64_t k = 0; k < nc; k++)
+            for (int64_t p = m->q_start != nullptr ? m->q_start[k] : 0;
+                 m->q_start != nullptr && p < m->q_start[k + 1]; p++)
+                if (m->q_index[p] == j)
+                    qrow[k] += m->q_value[p];
+        st = cm_zero_row(r, qrow, idx, nc);
+    }
+    for (int64_t i = 0; m->rq_start != nullptr && i < nr && st == JAOS_OK;
+         i++) {
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+            touched[m->rq_i[p]] = touched[m->rq_j[p]] = 2;
+        for (int64_t j = 0; j < nc && st == JAOS_OK; j++) {
+            if (touched[j] != 2)
+                continue;
+            for (int64_t k = 0; k < nc; k++)
+                qrow[k] = 0.0;
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                if (m->rq_i[p] == j)
+                    qrow[m->rq_j[p]] += m->rq_v[p];
+                else if (m->rq_j[p] == j)
+                    qrow[m->rq_i[p]] += m->rq_v[p];
+            }
+            st = cm_zero_row(r, qrow, idx, nc);
+        }
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+            touched[m->rq_i[p]] = touched[m->rq_j[p]] = 0;
+    }
+    for (int64_t k = 0; k < m->num_cone && st == JAOS_OK; k++)
+        st = jaos_add_cone(r, m->cone_type[k],
+                           m->cone_start[k + 1] - m->cone_start[k],
+                           m->cone_col + m->cone_start[k]);
+    if (st != JAOS_OK)
+        goto out;
+    r->cfg.log_cb = nullptr;
+    r->cfg.progress_cb = nullptr;
+    r->cfg.incumbent_cb = nullptr;
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - work->units;
+        r->cfg.work_limit = left > 0 ? left : 1;
+    }
+    st = jaos_solve(r);
+    jm_work_add(work, r->solve_work);
+    if (st != JAOS_OK || jaos_status_of(r) != JAOS_SOLVE_OPTIMAL)
+        goto out;
+    st = jaos_solution(r, d, nullptr, nullptr, nullptr);
+    if (st != JAOS_OK)
+        goto out;
+    double big = 0.0;
+    for (int64_t j = 0; j < nc; j++)
+        if (fabs(d[j]) > big)
+            big = fabs(d[j]);
+    for (int64_t j = 0; j < nc; j++) {
+        if (fabs(d[j]) <= CONIC_RAY_ZERO * big)
+            d[j] = 0.0;
+        d[j] = d[j] < lo[j] ? lo[j] : d[j] > hi[j] ? hi[j] : d[j];
+    }
+    jaos_ray_report rr;
+    st = jaos_check_ray(m, d, CONIC_RAY_PROBE_TOL, &rr);
+    jm_log(m, JAOS_LOG_DETAIL, "conic: the direction solve ends %s, its "
+           "direction rated %.3g, past a column bound %.3g, past a row side "
+           "%.3g, curvature %.3g",
+           jaos_solve_status_str(jaos_status_of(r)), rr.rate,
+           rr.max_col_escape, rr.max_row_escape, rr.curvature);
+    if (st == JAOS_OK && rr.certified) {
+        for (int64_t j = 0; j < nc; j++)
+            m->sol_ray[j] = d[j] == 0.0 ? 0.0 : d[j];
+        m->ray_ok = true;
+        *found = true;
+    }
+out:
+    jaos_model_free(r);
+    free(cost); free(lo); free(hi); free(d); free(qrow); free(touched);
+    free(idx);
+    return st;
+}
+
 static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
 {
     const int64_t n = m->num_col, nk = m->num_cone;
@@ -2836,6 +2997,18 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             m->ray_ok = jaos_check_ray(m, m->sol_ray, jm_primal_tolerance(m),
                                        &rr) == JAOS_OK && rr.certified;
             m->solve_work = work.units;
+        }
+        if (!m->ray_ok) {
+            bool probed = false;
+            st = cm_ray_probe(m, &work, &probed);
+            if (st != JAOS_OK)
+                goto done;
+            m->solve_work = work.units;
+            if (probed)
+                jm_log(m, JAOS_LOG_SUMMARY, "conic: the walk's direction "
+                       "does not pass the ray checker; a solve over the "
+                       "directions the rows, the bounds and the cones leave "
+                       "open found one that does");
         }
         if (!m->ray_ok) {
             m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;

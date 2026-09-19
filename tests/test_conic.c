@@ -879,6 +879,29 @@ static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
     jaos_model_free(m);
 }
 
+/* A generated model whose walk ends on an improving direction that the
+   ray checker refuses, 2.1e-6 past a row side. The direction solve finds
+   one the checker takes, so the model ends unbounded with a ray. */
+static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/g_ray_probe.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    const int64_t nc = jaos_num_col(m);
+    double *d = jm_alloc_array(nc, sizeof *d);
+    TEST_ASSERT_NOT_NULL(d);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    jaos_ray_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-6, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified, "the ray is not certified");
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_col_escape);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.max_row_escape);
+    free(d);
+    jaos_model_free(m);
+}
+
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
 {
     jaos_model *m = badly_scaled_box(false);
@@ -1163,6 +1186,7 @@ static void test_the_conic_tree_answers_the_same_on_any_thread_count(void)
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);
     RUN_TEST(test_a_cone_held_at_its_tip_is_left_out_of_the_walk);
