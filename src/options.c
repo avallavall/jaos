@@ -365,8 +365,9 @@ jaos_status jaos_read_options(jaos_model *m, const char *path)
                 *q = ' ';
         char *tok[3];
         int nt = 0;
-        for (char *q = strtok(line, " \t\r\n");
-             q != nullptr && nt < 3; q = strtok(nullptr, " \t\r\n"))
+        char *cur = line;
+        for (char *q = jm_token(&cur, " \t\r\n");
+             q != nullptr && nt < 3; q = jm_token(&cur, " \t\r\n"))
             tok[nt++] = q;
         if (nt == 0)
             continue;

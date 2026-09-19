@@ -5,6 +5,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+char *jm_token(char **cursor, const char *delims)
+{
+    char *s = *cursor;
+    s += strspn(s, delims);
+    if (*s == '\0') {
+        *cursor = s;
+        return nullptr;
+    }
+    char *end = s + strcspn(s, delims);
+    if (*end != '\0')
+        *end++ = '\0';
+    *cursor = end;
+    return s;
+}
+
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
 {
     if (need <= *cap)

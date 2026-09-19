@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 #include <math.h>
 #include <string.h>
 #include "unity.h"
@@ -249,6 +250,85 @@ static void test_an_off_diagonal_q_stops_the_search(void)
     jaos_model_free(m);
 }
 
+/* Four groups of ten binary columns alike, each group covering at least
+   5.5 and all of them at most 30: symmetry detection sorts forty vertices
+   of four colours, and every tree finds the same orbits. */
+static jaos_model *grouped(void)
+{
+    enum { G = 4, W = 10, N = G * W };
+    double c[N], cl[N], cu[N], av[2 * N];
+    int64_t as[N + 1], ai[2 * N];
+    const double rl[G + 1] = {5.5, 5.5, 5.5, 5.5, -INFINITY};
+    const double ru[G + 1] = {INFINITY, INFINITY, INFINITY, INFINITY, 30.0};
+    for (int j = 0; j < N; j++) {
+        c[j] = 1.0 + j / W;
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        as[j] = 2 * j;
+        ai[2 * j] = j / W;
+        av[2 * j] = 1.0;
+        ai[2 * j + 1] = G;
+        av[2 * j + 1] = 1.0;
+    }
+    as[N] = 2 * N;
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, G + 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2 * N, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_symmetry(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, 1));
+    return m;
+}
+
+typedef struct {
+    jaos_model *m;
+    jaos_status st;
+    jm_thread th;
+} par_job;
+
+static void par_solve(void *p)
+{
+    par_job *j = p;
+    j->st = jaos_solve(j->m);
+}
+
+static void test_trees_in_parallel_threads_find_what_one_thread_finds(void)
+{
+    enum { T = 8 };
+    jaos_model *ref = grouped();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(ref));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(ref));
+    jaos_mip_report want;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(ref, &want));
+    TEST_ASSERT_TRUE(want.symmetry_generators > 0);
+    const int64_t work = jaos_work_units(ref);
+    for (int pass = 0; pass < 5; pass++) {
+        par_job job[T];
+        for (int k = 0; k < T; k++) {
+            job[k].m = grouped();
+            job[k].st = JAOS_ERR_IO;
+            if (!jm_thread_start(&job[k].th, par_solve, &job[k]))
+                par_solve(&job[k]);
+        }
+        for (int k = 0; k < T; k++) {
+            jm_thread_join(&job[k].th);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, job[k].st);
+            jaos_mip_report got;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(job[k].m, &got));
+            TEST_ASSERT_EQUAL_INT64(work, jaos_work_units(job[k].m));
+            TEST_ASSERT_EQUAL_INT64(want.nodes, got.nodes);
+            TEST_ASSERT_EQUAL_INT64(want.symmetry_generators,
+                                    got.symmetry_generators);
+            TEST_ASSERT_EQUAL_INT64(want.symmetry_orbits, got.symmetry_orbits);
+            jaos_model_free(job[k].m);
+        }
+    }
+    jaos_model_free(ref);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -260,5 +340,6 @@ int main(void)
     RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
     RUN_TEST(test_an_off_diagonal_q_stops_the_search);
+    RUN_TEST(test_trees_in_parallel_threads_find_what_one_thread_finds);
     return UNITY_END();
 }

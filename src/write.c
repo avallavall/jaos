@@ -2110,8 +2110,9 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
 
         char *tok[8];
         int nt = 0;
-        for (char *p = strtok(line, " \t\r\n");
-             p != nullptr && nt < 8; p = strtok(nullptr, " \t\r\n"))
+        char *cur = line;
+        for (char *p = jm_token(&cur, " \t\r\n");
+             p != nullptr && nt < 8; p = jm_token(&cur, " \t\r\n"))
             tok[nt++] = p;
         if (nt == 0 || tok[0][0] == '#')
             continue;
@@ -2639,8 +2640,9 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
 
         char *tok[8];
         int nt = 0;
-        for (char *p = strtok(line, " \t\r\n");
-             p != nullptr && nt < 8; p = strtok(nullptr, " \t\r\n"))
+        char *cur = line;
+        for (char *p = jm_token(&cur, " \t\r\n");
+             p != nullptr && nt < 8; p = jm_token(&cur, " \t\r\n"))
             tok[nt++] = p;
         if (nt == 0)
             continue;
@@ -2869,8 +2871,9 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
             if (block_left <= 0)
                 continue;
             block_left--;
-            for (char *q = strtok(line, " \t\r\n");
-                 q != nullptr && nt < 8; q = strtok(nullptr, " \t\r\n"))
+            char *cur = line;
+            for (char *q = jm_token(&cur, " \t\r\n");
+                 q != nullptr && nt < 8; q = jm_token(&cur, " \t\r\n"))
                 tok[nt++] = q;
             if (nt < 2)
                 PT_FAIL("line %" PRId64 ": a HiGHS record is a name and a "
@@ -2886,8 +2889,9 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
             char *hash = strchr(line, '#');
             if (hash != nullptr)
                 *hash = '\0';
-            for (char *q = strtok(line, " \t\r\n");
-                 q != nullptr && nt < 8; q = strtok(nullptr, " \t\r\n"))
+            char *cur = line;
+            for (char *q = jm_token(&cur, " \t\r\n");
+                 q != nullptr && nt < 8; q = jm_token(&cur, " \t\r\n"))
                 tok[nt++] = q;
             if (nt == 0)
                 continue;

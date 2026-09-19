@@ -19,37 +19,54 @@ typedef struct {
     int64_t ngen, gcap;
 } sg;
 
-static int64_t *g_cmp_key;
-static int64_t *g_cmp_key_start;
-static int64_t *g_cmp_color;
+typedef struct {
+    const int64_t *key, *key_start, *color;
+} vx_ctx;
 
-static int vertex_cmp(const void *pa, const void *pb)
+static int vertex_cmp(const vx_ctx *c, int64_t a, int64_t b)
 {
-    const int64_t a = *(const int64_t *)pa, b = *(const int64_t *)pb;
-    if (g_cmp_color[a] != g_cmp_color[b])
-        return g_cmp_color[a] < g_cmp_color[b] ? -1 : 1;
-    const int64_t la = g_cmp_key_start[a + 1] - g_cmp_key_start[a];
-    const int64_t lb = g_cmp_key_start[b + 1] - g_cmp_key_start[b];
+    if (c->color[a] != c->color[b])
+        return c->color[a] < c->color[b] ? -1 : 1;
+    const int64_t la = c->key_start[a + 1] - c->key_start[a];
+    const int64_t lb = c->key_start[b + 1] - c->key_start[b];
     if (la != lb)
         return la < lb ? -1 : 1;
-    const int64_t *ka = g_cmp_key + g_cmp_key_start[a];
-    const int64_t *kb = g_cmp_key + g_cmp_key_start[b];
+    const int64_t *ka = c->key + c->key_start[a];
+    const int64_t *kb = c->key + c->key_start[b];
     for (int64_t t = 0; t < la; t++)
         if (ka[t] != kb[t])
             return ka[t] < kb[t] ? -1 : 1;
     return a < b ? -1 : a > b;
 }
 
-static bool vertex_same(int64_t a, int64_t b)
+static bool vertex_same(const vx_ctx *c, int64_t a, int64_t b)
 {
-    if (g_cmp_color[a] != g_cmp_color[b])
+    if (c->color[a] != c->color[b])
         return false;
-    const int64_t la = g_cmp_key_start[a + 1] - g_cmp_key_start[a];
-    const int64_t lb = g_cmp_key_start[b + 1] - g_cmp_key_start[b];
+    const int64_t la = c->key_start[a + 1] - c->key_start[a];
+    const int64_t lb = c->key_start[b + 1] - c->key_start[b];
     if (la != lb)
         return false;
-    return memcmp(g_cmp_key + g_cmp_key_start[a], g_cmp_key + g_cmp_key_start[b],
+    return memcmp(c->key + c->key_start[a], c->key + c->key_start[b],
                   (size_t)la * sizeof(int64_t)) == 0;
+}
+
+static void vertex_sort(int64_t *a, int64_t *tmp, int64_t n, const vx_ctx *c)
+{
+    for (int64_t w = 1; w < n; w *= 2) {
+        for (int64_t lo = 0; lo < n; lo += 2 * w) {
+            const int64_t mid = lo + w < n ? lo + w : n;
+            const int64_t hi = lo + 2 * w < n ? lo + 2 * w : n;
+            int64_t i = lo, j = mid, k = lo;
+            while (i < mid && j < hi)
+                tmp[k++] = vertex_cmp(c, a[j], a[i]) < 0 ? a[j++] : a[i++];
+            while (i < mid)
+                tmp[k++] = a[i++];
+            while (j < hi)
+                tmp[k++] = a[j++];
+        }
+        memcpy(a, tmp, (size_t)n * sizeof *a);
+    }
 }
 
 static int i64_cmp(const void *pa, const void *pb)
@@ -85,14 +102,12 @@ static bool sg_refine(sg *g, int64_t *color)
             g->order[v] = v;
         }
         g->budget -= g->adj_start[n] + n;
-        g_cmp_key = g->key;
-        g_cmp_key_start = g->adj_start;
-        g_cmp_color = color;
-        qsort(g->order, (size_t)n, sizeof *g->order, vertex_cmp);
+        const vx_ctx ctx = {g->key, g->adj_start, color};
+        vertex_sort(g->order, g->inv, n, &ctx);
         int64_t rank = 0;
         g->inv[g->order[0]] = 0;
         for (int64_t t = 1; t < n; t++) {
-            if (!vertex_same(g->order[t - 1], g->order[t]))
+            if (!vertex_same(&ctx, g->order[t - 1], g->order[t]))
                 rank++;
             g->inv[g->order[t]] = rank;
         }

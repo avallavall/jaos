@@ -387,6 +387,7 @@ void *jm_alloc_array(int64_t n, size_t elsize);
 void *jm_calloc_array(int64_t n, size_t elsize);
 
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize);
+char *jm_token(char **cursor, const char *delims);
 #define JM_GROW(a, cap, need) \
     ((need) <= (cap) ? true : jm_grow((void **)&(a), &(cap), (need), sizeof *(a)))
 
