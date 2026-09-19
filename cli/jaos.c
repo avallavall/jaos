@@ -1595,6 +1595,8 @@ static int cmd_solve(int argc, char **argv)
             printf("symmetry_generators %" PRId64 "\n", mrep.symmetry_generators);
             printf("symmetry_orbits %" PRId64 "\n", mrep.symmetry_orbits);
             printf("bound %.17g\n", mrep.bound);
+            if (mrep.has_incumbent)
+                printf("incumbent %.17g\n", mrep.incumbent);
 
             int64_t held = 0;
             if (o.pool_size > 0 && jaos_mip_pool_count(m, &held) == JAOS_OK)

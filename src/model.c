@@ -893,12 +893,8 @@ jaos_status jaos_solve(jaos_model *m)
                           "algorithm at dual or set it to barrier");
             return JAOS_ERR_INVALID_INPUT;
         }
-        if (jm_model_has_integer(m)) {
-            jm_set_err(m, "the model has cones or quadratic rows and integer, "
-                          "semi-continuous or SOS columns; JAOS solves a "
-                          "conic model with continuous columns only");
-            return JAOS_ERR_INVALID_INPUT;
-        }
+        if (jm_model_has_integer(m))
+            return jm_conic_branch_and_bound(m);
         return jm_conic(m);
     }
     if (jm_model_has_integer(m)) {

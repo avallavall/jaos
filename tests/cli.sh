@@ -499,8 +499,9 @@ expect_exit 3 "a node limit stops the tree" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --node-limit 1
 [ "$(line_of status)" = "status node_limit" ] && [ "$(line_of nodes)" = "nodes 1" ] \
     && [ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
+    && [ -n "$(line_of incumbent)" ] \
     && pass "as node_limit after one node with an incumbent" \
-    || flunk "node limit: $(line_of status) / $(line_of nodes) / $(line_of first_incumbent)"
+    || flunk "node limit: $(line_of status) / $(line_of nodes) / $(line_of first_incumbent) / $(line_of incumbent)"
 expect_exit 5 "--node-limit refuses zero" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-limit 0
 expect_exit 0 "most-fractional branching still solves it" \
@@ -672,6 +673,19 @@ case "$err" in
     *cone*) pass "and says the cone records are missing" ;;
     *) flunk "check without cone records said '$err'" ;;
 esac
+expect_exit 0 "a cone model with integer columns solves" \
+    "$JAOS" solve "$DATA/g_misocp.mps" --solution "$tmp/misocp.sol" --check
+case "$(line_of objective)" in
+    "objective 0.5"|"objective 0.5000000"*|"objective 0.4999999"*)
+        pass "to the nearest integer point" ;;
+    *) flunk "misocp objective '$(line_of objective)'" ;;
+esac
+[ "$(line_of check_ok)" = "check_ok yes" ] && [ -n "$(line_of nodes)" ] \
+    && pass "and the checker takes it after a tree" \
+    || flunk "misocp: '$(line_of check_ok)' '$(line_of nodes)'"
+grep -q '^col x 2 ' "$tmp/misocp.sol" && grep -q '^col y 2 ' "$tmp/misocp.sol" \
+    && pass "and the integer columns are exactly 2" \
+    || flunk "misocp solution: $(grep '^col [xy] ' "$tmp/misocp.sol" | tr '\n' ' ')"
 expect_exit 1 "an infeasible cone model exits 1" \
     "$JAOS" solve "$DATA/e_cone_infeas.mps" --solution "$tmp/cinf.sol"
 expect_exit 0 "and its certificate checks with the cone part" \

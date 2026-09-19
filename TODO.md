@@ -111,9 +111,13 @@ the commit that took it, named here by hash.
    2026-09-19 (`bench/measurements/02-253/`), and the CBLIB reading the
    same day (`make cblib`, `bench/measurements/02-254/`). Missing:
 
-   - **integer columns with cones or quadratic rows** (MISOCP). The solve
-     refuses the model; the tree would need the conic solve at each node
-     and a node answer the checker takes.
+   - **the conic tree's reach** (`src/conictree.c`, since 2026-09-19,
+     `bench/measurements/02-255/`). It branches and plunges with no cuts,
+     no heuristic but the plunge, and no warm start, so 44 of CBLIB's 80
+     mixed-integer instances end at the work limit of 1e11, 17 of them
+     with no incumbent. A rounding of the relaxation's point finds one on
+     the pp files at once (`pp.py` of 02-255). SOS sets, semi-continuous
+     columns and indicator rows beside cones are refused.
    - **a certificate for an infeasibility that rests on a quadratic row's
      curvature.** The certificate checker takes a quadratic row linearly,
      so the ball-and-half-space models of 02-253 end `INFEASIBLE` with no

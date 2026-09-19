@@ -3392,6 +3392,31 @@ class TestCones(unittest.TestCase):
         with self.assertRaises(ValueError):
             q.add_cone([t, 1.0])
 
+    def test_integer_columns_in_a_cone_branch(self):
+        inf = jaos.INFINITY
+        with jaos.Model() as m:
+            m.load(5, 2, [1.0, 0.0, 0.0, 0.0, 0.0],
+                   [0.0, 0.0, 0.0, -inf, -inf], [inf, 5.0, 5.0, inf, inf],
+                   [1.6, 2.3], [1.6, 2.3], [0, 0, 1, 2, 3, 4], [0, 1, 0, 1],
+                   [1.0, 1.0, -1.0, -1.0])
+            m.set_col_integer(1)
+            m.set_col_integer(2)
+            m.add_cone(jaos.ConeType.QUADRATIC, [0, 3, 4])
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 0.5, places=7)
+            s = m.solution()
+            self.assertEqual((s.col_value[1], s.col_value[2]), (2.0, 2.0))
+            self.assertGreater(m.mip_report().nodes, 1)
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=10, integer=True, name="x")
+        y = p.add_var(lb=0, ub=10, integer=True, name="y")
+        p.add(x * x + y * y <= 10)
+        p.maximize(x + y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 4.0, places=7)
+        self.assertEqual(x.value + y.value, 4.0)
+        self.assertTrue(p.check().primal_feasible)
+
     def test_cbf_reads_and_writes_cones(self):
         with jaos.Model() as m:
             m.read_cbf(data("g_cbf_cone.cbf"))

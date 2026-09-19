@@ -671,6 +671,36 @@ static void test_an_integer_model_with_no_integer_point_is_infeasible(void)
     jaos_model_free(m);
 }
 
+/* minimise -y over 2x = rhs with x integer in [-5, 5] and y >= 0: the
+   relaxation is unbounded in y, and the model is unbounded only when an
+   integer x meets the row. */
+static jaos_model *ray_over_parity(double rhs)
+{
+    const double inf = jaos_infinity();
+    const double cost[2] = {0.0, -1.0}, cl[2] = {-5.0, 0.0}, cu[2] = {5.0, inf};
+    const double rl[1] = {rhs}, ru[1] = {rhs};
+    const int64_t as[3] = {0, 1, 1}, ai[1] = {0};
+    const double av[1] = {2.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 1, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    return m;
+}
+
+static void test_an_unbounded_relaxation_with_no_integer_point_is_infeasible(void)
+{
+    jaos_model *m = ray_over_parity(1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+    m = ray_over_parity(2.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 static void test_a_work_limit_stops_the_tree_and_keeps_the_incumbent(void)
 {
     jaos_model *m = knapsack();
@@ -4124,6 +4154,7 @@ int main(void)
     RUN_TEST(test_the_knapsack_finds_the_integer_optimum);
     RUN_TEST(test_a_fractional_root_branches_to_the_integer_answer);
     RUN_TEST(test_an_integer_model_with_no_integer_point_is_infeasible);
+    RUN_TEST(test_an_unbounded_relaxation_with_no_integer_point_is_infeasible);
     RUN_TEST(test_a_work_limit_stops_the_tree_and_keeps_the_incumbent);
     RUN_TEST(test_a_work_limit_on_a_tree_lands_near_the_limit);
     RUN_TEST(test_the_marks_ride_with_their_columns_and_copy);

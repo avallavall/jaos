@@ -3436,6 +3436,42 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
     return moved;
 }
 
+static jaos_status unbounded_or_infeasible(jaos_model *m, int64_t *work,
+                                           jaos_solve_status *out)
+{
+    jaos_model *f = nullptr;
+    if (jaos_model_copy(m, &f) != JAOS_OK)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    f->cfg.log_cb = nullptr;
+    f->cfg.progress_cb = nullptr;
+    f->cfg.incumbent_cb = nullptr;
+    jaos_status st = jaos_set_quadratic(f, 0, nullptr, nullptr, nullptr);
+    for (int64_t j = 0; j < m->num_col && st == JAOS_OK; j++) {
+        st = jaos_set_col_cost(f, j, 0.0);
+        if (st == JAOS_OK)
+            st = jaos_set_col_quadratic(f, j, 0.0);
+    }
+    if (st == JAOS_OK)
+        st = jaos_set_objective_offset(f, 0.0);
+    budget(f, m, *work);
+    if (st == JAOS_OK)
+        st = jaos_solve(f);
+    if (st == JAOS_OK) {
+        *work += jaos_work_units(f);
+        const jaos_solve_status fs = jaos_status_of(f);
+        *out = fs == JAOS_SOLVE_OPTIMAL ? JAOS_SOLVE_UNBOUNDED : fs;
+        if (fs == JAOS_SOLVE_NUMERICAL_ERROR)
+            jm_set_err(m, "the relaxation is unbounded, and the search for an "
+                          "integer point ends as a numerical error: %s",
+                       jaos_model_error(f));
+        jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: the relaxation is "
+               "unbounded, and the search for an integer point ends %s",
+               jaos_solve_status_str(fs));
+    }
+    jaos_model_free(f);
+    return st;
+}
+
 static void root_certificate(jaos_model *m, const jaos_model *lp)
 {
     if (!lp->farkas_ok || lp->sol_farkas == nullptr ||
@@ -3947,8 +3983,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             continue;
         }
         if (ns == JAOS_SOLVE_UNBOUNDED) {
-
-            outcome = JAOS_SOLVE_UNBOUNDED;
+            if (unbounded_or_infeasible(m, &work, &outcome) != JAOS_OK)
+                goto done;
             break;
         }
         if (ns != JAOS_SOLVE_OPTIMAL) {

@@ -132,10 +132,14 @@ and 8 end as a numerical error, none of them a wrong verdict. On the 29
 continuous CBLIB 2014 instances under 70 MB (`make cblib`,
 `bench/measurements/02-254/`), with cones of up to 99998 members, 26 end
 `OPTIMAL` and the checker takes all 26; the three `sched_*_orig` end as a
-numerical error. What keeps the row from ●: integer columns with cones
-(MISOCP) are refused, those three CBLIB instances fail, and
-an infeasibility that rests on a quadratic row's curvature has no
-certificate the checker takes. **The first-order row reads ◐ since
+numerical error. Integer columns beside cones or quadratic rows go to a
+branch and bound of their own (`src/conictree.c`,
+`bench/measurements/02-255/`): over 3000 generated models it agrees with
+brute force every time, and on CBLIB's 80 mixed-integer instances at
+1e11 work units 36 end `OPTIMAL`, all taken by the checker, and 44 at
+the work limit. What keeps the row from ●: those three CBLIB instances
+fail, and an infeasibility that rests on a quadratic row's curvature has
+no certificate the checker takes. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,

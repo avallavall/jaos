@@ -519,6 +519,128 @@ static void test_a_conic_answer_goes_through_the_solution_file(void)
     jaos_model_free(m);
 }
 
+static void assert_integer_answer(jaos_model *m, double want)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, want, obj);
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_TRUE(r.has_incumbent);
+    TEST_ASSERT_TRUE(r.nodes > 1);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, want, r.incumbent);
+    const int64_t nc = jaos_num_col(m);
+    double x[8], y[8], z[8];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    for (int64_t j = 0; j < nc; j++) {
+        bool integer = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, j, &integer));
+        if (integer)
+            TEST_ASSERT_EQUAL_DOUBLE(round(x[j]), x[j]);
+    }
+    int64_t at = 0;
+    for (int64_t k = 0; k < jaos_num_cones(m); k++) {
+        int64_t n = 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(m, k, nullptr, &n, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, k, z + at));
+        at += n;
+    }
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_conic_solution(m, x, y, at > 0 ? z : nullptr, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.primal_feasible, "primal side refused");
+    TEST_ASSERT_TRUE(rep.max_integrality_violation == 0.0);
+}
+
+/* minimise t with t >= ||(x - 1.6, y - 2.3)|| over integer x and y in
+   [0, 5]: the nearest integer point is (2, 2), at 0.5. */
+static void test_integer_columns_in_a_cone_branch_to_the_optimum(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    const double cl[5] = {0.0, 0.0, 0.0, -inf, -inf};
+    const double cu[5] = {inf, 5.0, 5.0, inf, inf};
+    const double rl[2] = {1.6, 2.3}, ru[2] = {1.6, 2.3};
+    const int64_t as[6] = {0, 0, 1, 2, 3, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {1.0, 1.0, -1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 4, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    const int64_t cols[3] = {0, 3, 4};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cols));
+    assert_integer_answer(m, 0.5);
+    double x[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, x[1]);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, x[2]);
+    jaos_model_free(m);
+}
+
+/* maximise x + y over x^2 + y^2 <= 10 with x and y integer and at least
+   0: the relaxation stops at sqrt(5) each, and 4 is the best integer sum. */
+static void test_integer_columns_under_a_quadratic_row(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[2] = {1.0, 1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {inf, inf};
+    const double rl[1] = {-inf}, ru[1] = {10.0};
+    const int64_t as[3] = {0, 0, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru, 0, as,
+                     nullptr, nullptr));
+    const int64_t qr[2] = {0, 1}, qc[2] = {0, 1};
+    const double qv[2] = {2.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 0, 2, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    assert_integer_answer(m, 4.0);
+    jaos_model_free(m);
+}
+
+/* t >= |x - 0.5| with t <= 0.4 and x integer: the relaxation is feasible
+   and every integer x is 0.5 away. */
+static void test_an_integer_point_outside_every_cone_is_infeasible(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[3] = {1.0, 0.0, 0.0};
+    const double cl[3] = {0.0, -3.0, -inf}, cu[3] = {0.4, 3.0, inf};
+    const double rl[1] = {0.5}, ru[1] = {0.5};
+    const int64_t as[4] = {0, 0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 2, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    const int64_t cols[2] = {0, 2};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 2, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_FALSE(r.has_incumbent);
+    TEST_ASSERT_TRUE(r.nodes >= 3);
+    jaos_model_free(m);
+}
+
+/* an SOS set beside a cone is refused by name. */
+static void test_an_sos_set_beside_a_cone_is_refused(void)
+{
+    jaos_model *m = norm_model(JAOS_MINIMIZE);
+    const int64_t sc[2] = {1, 2};
+    const double sw[2] = {1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, sc, sw));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "SOS"));
+    jaos_model_free(m);
+}
+
 enum { WIDE = 500 };
 
 static double wide_coef(int64_t i)
@@ -622,6 +744,10 @@ static void test_a_wide_rotated_cone_gives_the_sum_of_squares(void)
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_integer_columns_in_a_cone_branch_to_the_optimum);
+    RUN_TEST(test_integer_columns_under_a_quadratic_row);
+    RUN_TEST(test_an_integer_point_outside_every_cone_is_infeasible);
+    RUN_TEST(test_an_sos_set_beside_a_cone_is_refused);
     RUN_TEST(test_a_wide_cone_gives_the_norm);
     RUN_TEST(test_a_wide_rotated_cone_gives_the_sum_of_squares);
     RUN_TEST(test_a_cone_on_the_model_gives_the_norm);

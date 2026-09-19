@@ -66,7 +66,7 @@ static void test_the_manual_s_minimal_example_reads(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 0, &lo, &hi));
     TEST_ASSERT_EQUAL_DOUBLE(8.4, lo);
     TEST_ASSERT_EQUAL_DOUBLE(8.4, hi);
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 5.1, solved(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, false));
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, 5.1 * 8.4 / sqrt(6.2 * 6.2 + 7.3 * 7.3),
                               solved(m));

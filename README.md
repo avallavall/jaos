@@ -1,7 +1,8 @@
 # JAOS — Just Another Optimization Solver
 
 JAOS solves linear and mixed-integer programs, convex quadratic programs,
-and second-order cone and convex quadratically constrained programs. It is written from scratch in
+and second-order cone and convex quadratically constrained programs, with
+integer columns or without. It is written from scratch in
 C23, links nothing but libc and libm, builds to one static library with GCC on
 Linux, and is licensed under Apache 2.0.
 

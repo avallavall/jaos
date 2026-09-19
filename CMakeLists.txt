@@ -37,6 +37,7 @@ set(JAOS_SOURCES
     src/chol.c
     src/concurrent.c
     src/conic.c
+    src/conictree.c
     src/deflate.c
     src/exact.c
     src/iis.c

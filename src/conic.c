@@ -2334,6 +2334,7 @@ jaos_status jm_conic(jaos_model *m)
     m->farkas_ok = false;
     m->ray_ok = false;
     m->cone_ok = false;
+    m->conic_rough = false;
     m->sol_basis_ok = false;
     for (int64_t j = 0; j < n; j++) {
         m->sol_col[j] = 0.0;
@@ -2425,10 +2426,15 @@ jaos_status jm_conic(jaos_model *m)
                                                        : nullptr,
                                        jm_primal_tolerance(m), &ck) !=
                  JAOS_OK || !ck.primal_feasible || !ck.dual_feasible)) {
-            m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
-            m->cone_ok = false;
-            jm_set_err(m, "the conic interior point stopped near an optimum "
-                          "that the checker does not pass");
+            if (m->cfg.node_solve) {
+                m->conic_rough = true;
+                jm_model_publish_objective(m);
+            } else {
+                m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+                m->cone_ok = false;
+                jm_set_err(m, "the conic interior point stopped near an "
+                              "optimum that the checker does not pass");
+            }
         } else {
             jm_model_publish_objective(m);
         }

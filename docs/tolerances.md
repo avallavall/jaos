@@ -817,3 +817,15 @@ units.
 | `CONIC_RAY_ZERO` | 1e-7 | A ray's parts, and an infeasibility certificate's multipliers, below this times the largest are set to zero before the checker sees them. Before it none of 34 rays passed, a part of 1e-9 that should be zero pushing past a finite bound, and 135 of 286 capped-cone infeasibilities published no certificate, a multiplier of that size on a row with a free column. **Swept at 1e-9 and 1e-5**: 91 fail at 1e-9, the same 12 at 1e-5 as at 1e-7 |
 | `CONIC_RAY_ACTIVE` | 1e-6 | A ray the checker refuses is projected onto the rows it moves by less than this times the row's traffic, and onto `F d = 0` for every quadratic row, by conjugate gradients on `J J'`. The projection took seed 2 from 24 failed to 3. **Swept at 1e-8 and 1e-4**: the same 12 at both |
 | `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Conjugate-gradient steps of the projection, and its stop at this fraction of the squared starting residual. Not swept |
+
+## The conic tree's number
+
+`src/conictree.c`, the branch and bound for a model with cones or
+quadratic rows and integer columns, since 2026-09-19. Its gap is the MIP
+tree's (`MIP_GAP`, or the `mip_gap` option), and it has one number of its
+own. **The reading is `bench/measurements/02-255/`**: 3000 generated
+models against brute force over every integer value.
+
+| Name | Value | What it decides |
+|---|---|---|
+| `CT_INT_TOL` | 1e-6 | A column value within this of an integer counts as integral, and a relaxation whose integer columns are all within it closes its node by a solve with those columns fixed at their rounded values. The same value as `MIP_INT_TOL`. Not swept: every answer of 02-255 agrees with brute force to 2.5e-16, so the tolerance never chose a wrong point |
