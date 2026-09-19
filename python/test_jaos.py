@@ -107,6 +107,15 @@ class TestSolving(unittest.TestCase):
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(m.objective(), 2.0, places=9)
 
+    def test_a_new_model_takes_columns_before_any_row(self):
+        """min x + 2y s.t. x + y >= 3 over [0, 10], built one call at a
+        time with the columns first."""
+        with jaos.Model() as m:
+            m.add_cols([1.0, 2.0], [0.0, 0.0], [10.0, 10.0])
+            m.add_rows([3.0], [jaos.INFINITY], [0, 2], [0, 1], [1.0, 1.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 3.0, places=9)
+
     def test_the_basis_comes_back_one_status_per_variable(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

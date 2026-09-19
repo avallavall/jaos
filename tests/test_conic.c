@@ -824,9 +824,9 @@ static void test_a_wide_rotated_cone_gives_the_sum_of_squares(void)
    and 4.4e-11. It is feasible, its optimum 73622257.83 with the two on
    their lower bounds, and the conic walk once called it infeasible on a
    certificate the checker refuses. */
-static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
+static jaos_model *badly_scaled_box(bool with_integer)
 {
-    enum { N = 16 };
+    enum { N = 17 };
     double cost[N] = {0}, cl[N], cu[N], q[N];
     for (int j = 0; j < N; j++) {
         cl[j] = -jaos_infinity();
@@ -841,16 +841,47 @@ static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void
     cl[13] = 1838820000.0;
     cu[13] = 22985200000.0;
     q[13] = 4.350616e-11;
+    cost[16] = 1.0;
+    cl[16] = 0.0;
+    cu[16] = 1.0;
+    q[16] = 0.0;
+    const int64_t n = with_integer ? N : N - 1;
     const int64_t as[N + 1] = {0};
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, N, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+        jaos_load_lp(m, n, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
                      nullptr, 0, as, nullptr, nullptr));
-    for (int j = 0; j < N; j++)
+    for (int64_t j = 0; j < n; j++)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, j, q[j]));
     const int64_t cone[1] = {0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_add_cone(m, JAOS_CONE_QUADRATIC, 1, cone));
+    if (with_integer)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 16, true));
+    return m;
+}
+
+/* The box above with an integer column in [0, 1] that touches nothing:
+   the root fails and is split on it, and both leaves fail too. A leaf
+   with every integer column fixed cannot be split, so the tree sets it
+   aside with its bound and goes on; with no incumbent it ends
+   NUMERICAL_ERROR, naming the first leaf, after all three nodes. */
+static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
+{
+    jaos_model *m = badly_scaled_box(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(3, r.nodes);
+    TEST_ASSERT_FALSE(r.has_incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "node 2: "));
+    jaos_model_free(m);
+}
+
+static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
+{
+    jaos_model *m = badly_scaled_box(false);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     const jaos_solve_status st = jaos_status_of(m);
     TEST_ASSERT_NOT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, st);
@@ -862,6 +893,146 @@ static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, st);
         TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "does not confirm"));
     }
+    jaos_model_free(m);
+}
+
+static void catch_left_out(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "the walk leaves out") != nullptr)
+        (*(int *)user)++;
+}
+
+/* (h, a, b) in the cone with h in [-1, 0]: the cone holds all three at 0,
+   and a + c >= 1 puts c at 1. The row's dual is 1, so a keeps a reduced
+   cost of 1 and the cone takes it; a head cost above the norm of the rest
+   goes to the head's multiplier too, so the head's reduced cost keeps the
+   sign of a column at its upper bound. */
+static jaos_model *dead_cone_model(jaos_obj_sense sense, double head_cost,
+                                   int *left_out)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double sg = sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    const double cost[4] = {sg * head_cost, sg * 2.0, 0.0, sg * 1.0};
+    const double cl[4] = {-1.0, -inf, -inf, 0.0}, cu[4] = {0.0, inf, inf, 2.0};
+    const double rl[1] = {1.0}, ru[1] = {inf};
+    const int64_t as[5] = {0, 0, 1, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 1, sense, 0.0, cost, cl, cu, rl, ru, 2, as, ai, av));
+    const int64_t cols[3] = {0, 1, 2};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_left_out,
+                                                         left_out));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_a_cone_held_at_its_tip_is_left_out_of_the_walk(void)
+{
+    const jaos_obj_sense senses[2] = {JAOS_MINIMIZE, JAOS_MAXIMIZE};
+    const double head_costs[2] = {0.0, 5.0};
+    for (int s = 0; s < 2; s++)
+        for (int h = 0; h < 2; h++) {
+            int left_out = 0;
+            jaos_model *m = dead_cone_model(senses[s], head_costs[h], &left_out);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            TEST_ASSERT_EQUAL_INT(1, left_out);
+            double obj = 0.0, x[4], z[3];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-7, s == 0 ? 1.0 : -1.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_solution(m, x, nullptr, nullptr, nullptr));
+            TEST_ASSERT_EQUAL_DOUBLE(0.0, x[0]);
+            TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+            TEST_ASSERT_EQUAL_DOUBLE(0.0, x[2]);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-7, 1.0, x[3]);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+            const double sg = s == 0 ? 1.0 : -1.0;
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, h == 0 ? 1.0 : 5.0, sg * z[0]);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, sg * z[1]);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-6, 0.0, z[2]);
+            assert_checked(m, true);
+            jaos_model_free(m);
+        }
+}
+
+/* (h, a, b) in the cone with h free, costless and in no row: the cone never
+   binds, and its dual is 0. */
+static jaos_model *idle_cone_model(const double *rl, const double *ru,
+                                   int64_t nr, const int64_t *as,
+                                   const int64_t *ai, const double *av,
+                                   const double *cost, int *left_out)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cl[3] = {-inf, -inf, -inf}, cu[3] = {inf, inf, inf};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, nr, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     as[3], as, ai, av));
+    const int64_t cols[3] = {0, 1, 2};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_left_out,
+                                                         left_out));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_a_cone_whose_head_is_free_and_idle_is_left_out(void)
+{
+    const double inf = jaos_infinity();
+    const int64_t as[4] = {0, 0, 1, 2}, ai[2] = {0, 1};
+    const double av[2] = {1.0, 1.0}, cost[3] = {0.0, 1.0, 1.0};
+    const double rl[2] = {1.0, 2.0}, ru[2] = {inf, inf};
+    int left_out = 0;
+    jaos_model *m = idle_cone_model(rl, ru, 2, as, ai, av, cost, &left_out);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, left_out);
+    double x[3], z[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 1.0, x[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 2.0, x[2]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, sqrt(5.0), x[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    for (int t = 0; t < 3; t++)
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, z[t]);
+    assert_checked(m, true);
+    jaos_model_free(m);
+
+    const int64_t bs[4] = {0, 0, 2, 4}, bi[4] = {0, 1, 0, 1};
+    const double bv[4] = {1.0, 1.0, 1.0, 1.0};
+    const double bl[2] = {2.0, -inf}, bu[2] = {inf, 1.0};
+    left_out = 0;
+    m = idle_cone_model(bl, bu, 2, bs, bi, bv, cost, &left_out);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, left_out);
+    double y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    jaos_certificate_report cr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_certificate(m, y, z, 1e-9,
+                                                                &cr));
+    TEST_ASSERT_TRUE(cr.certified);
+    jaos_model_free(m);
+
+    const int64_t es[4] = {0, 0, 0, 0};
+    const double down[3] = {0.0, -1.0, 0.0};
+    left_out = 0;
+    m = idle_cone_model(nullptr, nullptr, 0, es, nullptr, nullptr, down,
+                        &left_out);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, left_out);
+    double d[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12 * fabs(d[1]), fabs(d[1]), d[0]);
+    jaos_ray_report rr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-9, &rr));
+    TEST_ASSERT_TRUE(rr.certified);
     jaos_model_free(m);
 }
 
@@ -941,6 +1112,9 @@ static void test_the_conic_tree_learns_which_columns_move_the_bound(void)
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);
+    RUN_TEST(test_a_cone_held_at_its_tip_is_left_out_of_the_walk);
+    RUN_TEST(test_a_cone_whose_head_is_free_and_idle_is_left_out);
     RUN_TEST(test_the_conic_tree_learns_which_columns_move_the_bound);
     RUN_TEST(test_a_refused_certificate_is_no_verdict_without_quadratic_rows);
     RUN_TEST(test_integer_columns_in_a_cone_branch_to_the_optimum);

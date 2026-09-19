@@ -2043,6 +2043,225 @@ jaos_status jm_conic_after_barrier(jaos_model *m)
     return st;
 }
 
+enum { CM_ZERO = 1, CM_HEAD = 2, CM_FREE = 4, CM_ONCE = 8, CM_TWICE = 16,
+       CM_QUAD = 32 };
+enum { CM_DEAD = 1, CM_IDLE = 2 };
+
+static int64_t cm_drop_cones(const jaos_model *m, uint8_t *drop,
+                             uint8_t *flag)
+{
+    const int64_t nk = m->num_cone, n = m->num_col;
+    for (int64_t k = 0; k < nk; k++) {
+        const int64_t b = m->cone_start[k];
+        flag[m->cone_col[b]] |= CM_HEAD;
+        if (m->cone_type[k] == JAOS_CONE_ROTATED)
+            flag[m->cone_col[b + 1]] |= CM_HEAD;
+        for (int64_t t = b; t < m->cone_start[k + 1]; t++)
+            flag[m->cone_col[t]] |= flag[m->cone_col[t]] & CM_ONCE ? CM_TWICE
+                                                                    : CM_ONCE;
+    }
+    for (int64_t p = 0; p < m->rq_nz; p++) {
+        flag[m->rq_i[p]] |= CM_QUAD;
+        flag[m->rq_j[p]] |= CM_QUAD;
+    }
+    for (int64_t j = 0; j < n; j++) {
+        if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            flag[j] |= CM_QUAD;
+        for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
+             m->q_start != nullptr && p < m->q_start[j + 1]; p++) {
+            flag[j] |= CM_QUAD;
+            flag[m->q_index[p]] |= CM_QUAD;
+        }
+    }
+    int64_t count = 0;
+    for (int64_t k = 0; k < nk; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        const int64_t h = m->cone_col[b];
+        if (m->cone_type[k] != JAOS_CONE_QUADRATIC)
+            continue;
+        if (m->col_upper[h] == INFINITY && m->col_cost[h] == 0.0 &&
+            m->a_start[h + 1] == m->a_start[h] &&
+            (flag[h] & (CM_TWICE | CM_QUAD)) == 0) {
+            drop[k] = CM_IDLE;
+            flag[h] |= CM_FREE;
+            count++;
+            continue;
+        }
+        if (m->col_upper[h] != 0.0)
+            continue;
+        bool ok = true;
+        for (int64_t t = b + 1; t < e && ok; t++) {
+            const int64_t c = m->cone_col[t];
+            ok = (flag[c] & CM_HEAD) == 0 && m->col_lower[c] <= 0.0 &&
+                 m->col_upper[c] >= 0.0;
+        }
+        if (!ok)
+            continue;
+        drop[k] = CM_DEAD;
+        count++;
+        for (int64_t t = b; t < e; t++)
+            flag[m->cone_col[t]] |= CM_ZERO;
+    }
+    return count;
+}
+
+static void cm_idle_heads(const jaos_model *m, const uint8_t *drop, double *v,
+                          bool ray)
+{
+    for (int64_t k = 0; k < m->num_cone; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        if (drop[k] != CM_IDLE)
+            continue;
+        double rest = 0.0;
+        for (int64_t t = b + 1; t < e; t++)
+            rest += v[m->cone_col[t]] * v[m->cone_col[t]];
+        const double lo = m->col_lower[m->cone_col[b]];
+        const double r = sqrt(rest);
+        v[m->cone_col[b]] = !ray && lo > r ? lo : r;
+    }
+}
+
+static void cm_dead_fill(const jaos_model *m, const uint8_t *dead,
+                         uint8_t *seen, double *r, double *z)
+{
+    const int64_t nk = m->num_cone;
+    for (int64_t k = 0; k < nk; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        if (dead[k] != CM_DEAD)
+            continue;
+        for (int64_t t = b + 1; t < e; t++) {
+            const int64_t c = m->cone_col[t];
+            z[t] = seen[c] ? 0.0 : r[c];
+            if (!seen[c])
+                r[c] = 0.0;
+            seen[c] = 1;
+        }
+        double rest = 0.0;
+        for (int64_t t = b + 1; t < e; t++)
+            rest += z[t] * z[t];
+        z[b] = sqrt(rest);
+        r[m->cone_col[b]] -= z[b];
+    }
+    for (int64_t k = 0; k < nk; k++) {
+        const int64_t b = m->cone_start[k], h = m->cone_col[b];
+        if (dead[k] != CM_DEAD || seen[h] == 2)
+            continue;
+        seen[h] = 2;
+        if (m->col_lower[h] < 0.0 && r[h] > 0.0) {
+            z[b] += r[h];
+            r[h] = 0.0;
+        }
+    }
+}
+
+static jaos_status cm_dead_duals(jaos_model *m, const uint8_t *dead,
+                                 const uint8_t *flag, double sigma)
+{
+    const int64_t n = m->num_col, members = m->cone_start[m->num_cone];
+    uint8_t *seen = jm_calloc_array(n > 0 ? n : 1, sizeof *seen);
+    if (seen == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t j = 0; j < n; j++) {
+        if (flag[j] & CM_ZERO)
+            m->sol_col[j] = 0.0;
+        if (flag[j] & CM_FREE)
+            m->sol_redcost[j] = 0.0;
+        m->sol_redcost[j] *= sigma;
+    }
+    cm_idle_heads(m, dead, m->sol_col, false);
+    for (int64_t t = 0; t < members; t++)
+        m->sol_cone[t] *= sigma;
+    cm_dead_fill(m, dead, seen, m->sol_redcost, m->sol_cone);
+    for (int64_t j = 0; j < n; j++)
+        m->sol_redcost[j] = sigma * m->sol_redcost[j] == 0.0
+                                ? 0.0 : sigma * m->sol_redcost[j];
+    for (int64_t t = 0; t < members; t++)
+        m->sol_cone[t] = sigma * m->sol_cone[t] == 0.0
+                             ? 0.0 : sigma * m->sol_cone[t];
+    free(seen);
+    return JAOS_OK;
+}
+
+static jaos_status cm_dead_certificate(jaos_model *m, const uint8_t *dead,
+                                       const uint8_t *flag)
+{
+    const int64_t n = m->num_col, nk = m->num_cone;
+    uint8_t *seen = jm_calloc_array(n > 0 ? n : 1, sizeof *seen);
+    double *a = jm_calloc_array(n > 0 ? n : 1, sizeof *a);
+    double *ac = jm_calloc_array(n > 0 ? n : 1, sizeof *ac);
+    if (seen == nullptr || a == nullptr || ac == nullptr) {
+        free(seen); free(a); free(ac);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t j = 0; j < n; j++) {
+        if (!(flag[j] & CM_ZERO))
+            continue;
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            cm_add_product(&a[j], &ac[j], m->a_value[p],
+                           m->sol_farkas[m->a_index[p]]);
+    }
+    for (int64_t k = 0; k < nk; k++)
+        for (int64_t t = m->cone_start[k];
+             !dead[k] && t < m->cone_start[k + 1]; t++)
+            if (flag[m->cone_col[t]] & CM_ZERO)
+                jm_obj_add(&a[m->cone_col[t]], &ac[m->cone_col[t]],
+                           m->sol_cone[t]);
+    for (int64_t j = 0; j < n; j++)
+        a[j] = -(a[j] + ac[j]);
+    cm_dead_fill(m, dead, seen, a, m->sol_cone);
+    free(seen); free(a); free(ac);
+    return JAOS_OK;
+}
+
+static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
+{
+    const int64_t n = m->num_col, nk = m->num_cone;
+    const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
+    double *a = jm_calloc_array(n > 0 ? n : 1, sizeof *a);
+    double *traf = jm_calloc_array(n > 0 ? n : 1, sizeof *traf);
+    if (a == nullptr || traf == nullptr) {
+        free(a); free(traf);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t j = 0; j < n; j++)
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            const double v = m->a_value[p] * m->sol_farkas[m->a_index[p]];
+            a[j] += v;
+            traf[j] += fabs(v);
+        }
+    for (int64_t t = 0; t < members; t++) {
+        a[m->cone_col[t]] += m->sol_cone[t];
+        traf[m->cone_col[t]] += fabs(m->sol_cone[t]);
+    }
+    const double tiny = CONIC_RAY_ZERO * big;
+    for (int64_t j = 0; j < n; j++) {
+        if (!(fabs(a[j]) > tol * traf[j]) || traf[j] > tiny ||
+            isfinite(a[j] > 0.0 ? m->col_upper[j] : m->col_lower[j]))
+            continue;
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            if (fabs(m->sol_farkas[m->a_index[p]]) <= tiny)
+                m->sol_farkas[m->a_index[p]] = 0.0;
+        for (int64_t k = 0; k < nk; k++) {
+            const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+            const int64_t heads = m->cone_type[k] == JAOS_CONE_ROTATED ? 2 : 1;
+            for (int64_t t = b; t < e; t++) {
+                if (m->cone_col[t] != j)
+                    continue;
+                bool small = true;
+                for (int64_t u = b; u < e && t < b + heads; u++)
+                    small = small && fabs(m->sol_cone[u]) <= tiny;
+                if (t >= b + heads)
+                    m->sol_cone[t] = 0.0;
+                else if (small)
+                    for (int64_t u = b; u < e; u++)
+                        m->sol_cone[u] = 0.0;
+            }
+        }
+    }
+    free(a); free(traf);
+    return JAOS_OK;
+}
+
 static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
 {
     const int64_t n = m->num_col, nr = m->num_row;
@@ -2061,16 +2280,32 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
     int64_t *ps = nullptr, *pi = nullptr, *as = nullptr, *ai = nullptr;
     double *pv = nullptr, *av = nullptr, *q = nullptr, *b = nullptr;
     double *x = nullptr, *s = nullptr, *z = nullptr;
+    uint8_t *dead = jm_calloc_array(m->num_cone > 0 ? m->num_cone : 1,
+                                    sizeof *dead);
+    uint8_t *flag = jm_calloc_array(n > 0 ? n : 1, sizeof *flag);
     jm_work work = {work0};
     const double started = jm_monotonic_seconds();
     if (qc == nullptr || slot_lo == nullptr || slot_up == nullptr ||
-        slot_eq == nullptr || qc_at == nullptr || cone_at == nullptr) {
+        slot_eq == nullptr || qc_at == nullptr || cone_at == nullptr ||
+        dead == nullptr || flag == nullptr) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
     st = jm_model_ensure_rowwise(m);
     if (st != JAOS_OK)
         goto done;
+    const int64_t ndead = cm_drop_cones(m, dead, flag);
+    if (ndead > 0) {
+        int64_t idle = 0;
+        for (int64_t k = 0; k < m->num_cone; k++)
+            idle += dead[k] == CM_IDLE;
+        jm_log(m, JAOS_LOG_SUMMARY, "conic: the walk leaves out %lld cones "
+               "whose head an upper bound of 0 holds at 0, their columns "
+               "fixed at 0, and %lld whose head is free above, costs "
+               "nothing and appears nowhere else, set after the walk to the "
+               "norm of the rest", (long long)(ndead - idle),
+               (long long)idle);
+    }
     for (int64_t t = 0; t < nr + n; t++)
         slot_lo[t] = slot_up[t] = slot_eq[t] = -1;
     for (int64_t i = 0; i < nr; i++) {
@@ -2130,7 +2365,11 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         }
     }
     for (int64_t j = 0; j < n && st == JAOS_OK; j++) {
-        const double lo = m->col_lower[j], hi = m->col_upper[j];
+        double lo = m->col_lower[j], hi = m->col_upper[j];
+        if (flag[j] & CM_ZERO)
+            lo = hi = 0.0;
+        else if (flag[j] & CM_FREE)
+            lo = hi = isfinite(lo) ? lo : 0.0;
         if (isfinite(lo) && lo == hi) {
             slot_eq[nr + j] = zr.nb;
             if (!cm_put(&zr, j, 1.0) || !cm_end(&zr, lo))
@@ -2163,6 +2402,9 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
     }
     for (int64_t k = 0; k < m->num_cone && st == JAOS_OK; k++) {
         const int64_t bb = m->cone_start[k], ee = m->cone_start[k + 1];
+        cone_at[k] = -1;
+        if (dead[k])
+            continue;
         cone_at[k] = sr.nb;
         if (m->cone_type[k] == JAOS_CONE_ROTATED) {
             const int64_t c0 = m->cone_col[bb], c1 = m->cone_col[bb + 1];
@@ -2403,6 +2645,8 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                 m->sol_farkas[i] = y == 0.0 ? 0.0 : y;
         }
         for (int64_t k = 0; k < m->num_cone; k++) {
+            if (dead[k])
+                continue;
             const int64_t bb = m->cone_start[k], ee = m->cone_start[k + 1];
             const double *zk = zs + cone_at[k];
             double *out = m->sol_cone + bb;
@@ -2429,6 +2673,11 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             if (slot_up[nr + j] >= 0)
                 d -= zl[slot_up[nr + j]];
             m->sol_redcost[j] = sigma * d == 0.0 ? 0.0 : sigma * d;
+        }
+        if (ndead > 0) {
+            st = cm_dead_duals(m, dead, flag, sigma);
+            if (st != JAOS_OK)
+                goto done;
         }
         for (int64_t i = 0; i < nr; i++) {
             double act = 0.0, comp = 0.0;
@@ -2470,6 +2719,11 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         jaos_certificate_report cr;
         const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone]
                                                 : 0;
+        if (ndead > 0) {
+            st = cm_dead_certificate(m, dead, flag);
+            if (st != JAOS_OK)
+                goto done;
+        }
         bool certified = jaos_check_conic_certificate(
                              m, m->sol_farkas,
                              m->num_cone > 0 ? m->sol_cone : nullptr,
@@ -2483,17 +2737,50 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             for (int64_t t = 0; t < members; t++)
                 if (fabs(m->sol_cone[t]) > big)
                     big = fabs(m->sol_cone[t]);
-            for (int64_t i = 0; i < nr; i++)
-                if (fabs(m->sol_farkas[i]) <= CONIC_RAY_ZERO * big)
-                    m->sol_farkas[i] = 0.0;
-            for (int64_t t = 0; t < members; t++)
-                if (fabs(m->sol_cone[t]) <= CONIC_RAY_ZERO * big)
-                    m->sol_cone[t] = 0.0;
-            certified = jaos_check_conic_certificate(
-                            m, m->sol_farkas,
-                            m->num_cone > 0 ? m->sol_cone : nullptr,
-                            jm_primal_tolerance(m), &cr) == JAOS_OK &&
-                        cr.certified;
+            double *keep = jm_alloc_array(nr + members > 0 ? nr + members : 1,
+                                          sizeof *keep);
+            if (keep == nullptr) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+            if (nr > 0)
+                memcpy(keep, m->sol_farkas, (size_t)nr * sizeof *keep);
+            if (members > 0)
+                memcpy(keep + nr, m->sol_cone, (size_t)members * sizeof *keep);
+            for (int round = 0; round < 2 && !certified; round++) {
+                if (round == 0) {
+                    st = cm_cert_trim(m, big, jm_primal_tolerance(m));
+                    if (st != JAOS_OK) {
+                        free(keep);
+                        goto done;
+                    }
+                } else {
+                    if (nr > 0)
+                        memcpy(m->sol_farkas, keep, (size_t)nr * sizeof *keep);
+                    if (members > 0)
+                        memcpy(m->sol_cone, keep + nr,
+                               (size_t)members * sizeof *keep);
+                    for (int64_t i = 0; i < nr; i++)
+                        if (fabs(m->sol_farkas[i]) <= CONIC_RAY_ZERO * big)
+                            m->sol_farkas[i] = 0.0;
+                    for (int64_t t = 0; t < members; t++)
+                        if (fabs(m->sol_cone[t]) <= CONIC_RAY_ZERO * big)
+                            m->sol_cone[t] = 0.0;
+                }
+                if (ndead > 0) {
+                    st = cm_dead_certificate(m, dead, flag);
+                    if (st != JAOS_OK) {
+                        free(keep);
+                        goto done;
+                    }
+                }
+                certified = jaos_check_conic_certificate(
+                                m, m->sol_farkas,
+                                m->num_cone > 0 ? m->sol_cone : nullptr,
+                                jm_primal_tolerance(m), &cr) == JAOS_OK &&
+                            cr.certified;
+            }
+            free(keep);
         }
         if (certified) {
             m->farkas_ok = true;
@@ -2525,7 +2812,10 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             if (fabs(x[j]) > big)
                 big = fabs(x[j]);
         for (int64_t j = 0; j < n; j++)
-            m->sol_ray[j] = fabs(x[j]) <= CONIC_RAY_ZERO * big ? 0.0 : x[j];
+            m->sol_ray[j] = fabs(x[j]) <= CONIC_RAY_ZERO * big ||
+                                    (flag[j] & CM_ZERO) ? 0.0 : x[j];
+        if (ndead > 0)
+            cm_idle_heads(m, dead, m->sol_ray, true);
         jaos_ray_report rr;
         m->ray_ok = jaos_check_ray(m, m->sol_ray, jm_primal_tolerance(m),
                                    &rr) == JAOS_OK && rr.certified;
@@ -2538,8 +2828,11 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                 if (fabs(m->sol_ray[j]) > big)
                     big = fabs(m->sol_ray[j]);
             for (int64_t j = 0; j < n; j++)
-                if (fabs(m->sol_ray[j]) <= CONIC_RAY_ZERO * big)
+                if (fabs(m->sol_ray[j]) <= CONIC_RAY_ZERO * big ||
+                    (flag[j] & CM_ZERO))
                     m->sol_ray[j] = 0.0;
+            if (ndead > 0)
+                cm_idle_heads(m, dead, m->sol_ray, true);
             m->ray_ok = jaos_check_ray(m, m->sol_ray, jm_primal_tolerance(m),
                                        &rr) == JAOS_OK && rr.certified;
             m->solve_work = work.units;
@@ -2568,7 +2861,7 @@ done:
     cm_free_rows(&lr);
     cm_free_rows(&sr);
     free(soc_dim); free(slot_lo); free(slot_up); free(slot_eq); free(qc_at);
-    free(cone_at);
+    free(cone_at); free(dead); free(flag);
     free(ps); free(pi); free(pv); free(as); free(ai); free(av);
     free(q); free(b); free(x); free(s); free(z);
     return st;

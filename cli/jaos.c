@@ -726,6 +726,13 @@ static const char *status_word(jaos_solve_status s)
     return "unknown";
 }
 
+static void say_why(const jaos_model *m, const char *path, jaos_solve_status s)
+{
+    if (s == JAOS_SOLVE_NUMERICAL_ERROR && jaos_model_error(m)[0] != '\0')
+        fprintf(stderr, "jaos: %s ends numerical_error: %s\n", path,
+                jaos_model_error(m));
+}
+
 static int exit_code_for(jaos_solve_status s)
 {
     switch (s) {
@@ -1570,6 +1577,7 @@ static int cmd_solve(int argc, char **argv)
     rc = exit_code_for(ss);
 
     printf("status %s\n", status_word(ss));
+    say_why(m, o.file, ss);
     if (!o.quiet) {
 
         double obj = 0.0;
@@ -1821,6 +1829,7 @@ static int solve_for_report(jaos_model *m, const char *path,
     }
     *ss = jaos_status_of(m);
     printf("status %s\n", status_word(*ss));
+    say_why(m, path, *ss);
     return -1;
 }
 

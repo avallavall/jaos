@@ -2878,16 +2878,22 @@ jaos_status jaos_add_cols(jaos_model *m, int64_t num_new,
         return JAOS_ERR_OUT_OF_MEMORY;
     }
 
-    memcpy(cost, m->col_cost,  (size_t)m->num_col * sizeof(double));
-    memcpy(cl,   m->col_lower, (size_t)m->num_col * sizeof(double));
-    memcpy(cu,   m->col_upper, (size_t)m->num_col * sizeof(double));
+    if (m->num_col > 0) {
+        memcpy(cost, m->col_cost,  (size_t)m->num_col * sizeof(double));
+        memcpy(cl,   m->col_lower, (size_t)m->num_col * sizeof(double));
+        memcpy(cu,   m->col_upper, (size_t)m->num_col * sizeof(double));
+    }
     memcpy(cost + m->num_col, col_cost,  (size_t)num_new * sizeof(double));
     memcpy(cl   + m->num_col, col_lower, (size_t)num_new * sizeof(double));
     memcpy(cu   + m->num_col, col_upper, (size_t)num_new * sizeof(double));
 
-    memcpy(as, m->a_start, (size_t)(m->num_col + 1) * sizeof(int64_t));
-    memcpy(ai, m->a_index, (size_t)m->num_nz * sizeof(int64_t));
-    memcpy(av, m->a_value, (size_t)m->num_nz * sizeof(double));
+    as[0] = 0;
+    if (m->a_start != nullptr)
+        memcpy(as, m->a_start, (size_t)(m->num_col + 1) * sizeof(int64_t));
+    if (m->num_nz > 0) {
+        memcpy(ai, m->a_index, (size_t)m->num_nz * sizeof(int64_t));
+        memcpy(av, m->a_value, (size_t)m->num_nz * sizeof(double));
+    }
 
     jaos_status err = JAOS_OK;
     int64_t pos = m->num_nz;
@@ -3083,8 +3089,10 @@ jaos_status jaos_add_rows(jaos_model *m, int64_t num_new,
         return JAOS_ERR_OUT_OF_MEMORY;
     }
 
-    memcpy(rl, m->row_lower, (size_t)m->num_row * sizeof(double));
-    memcpy(ru, m->row_upper, (size_t)m->num_row * sizeof(double));
+    if (m->num_row > 0) {
+        memcpy(rl, m->row_lower, (size_t)m->num_row * sizeof(double));
+        memcpy(ru, m->row_upper, (size_t)m->num_row * sizeof(double));
+    }
     memcpy(rl + m->num_row, row_lower, (size_t)num_new * sizeof(double));
     memcpy(ru + m->num_row, row_upper, (size_t)num_new * sizeof(double));
 

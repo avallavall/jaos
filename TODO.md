@@ -105,13 +105,17 @@ the commit that took it, named here by hash.
 
    - **the conic tree's reach** (`src/conictree.c`, since 2026-09-19,
      `bench/measurements/02-255/`). It branches and plunges, and rounds and
-     dives at the root, with no cuts and no warm start, so 43 of CBLIB's 80 mixed-integer instances end at the work
-     limit of 1e11, each with an incumbent: the sssd-weak, uflquad-nopsc
-     and turbine07_lowb files 0.17 to 1.7 above the reference, their
-     bounds 5% to 65% below it. Pseudocost branching (02-261) closes most
-     of the sssd bounds and solves 28 of the 80 at 1e10 against 26, and
-     costs the robust_50 files 2x to 4x the work. SOS sets, semi-continuous
-     columns and indicator rows beside cones are refused.
+     dives at the root, with no cuts and no warm start, so 37 of CBLIB's
+     80 mixed-integer instances end at the work limit of 1e11
+     (`bench/measurements/02-263/`), each with an incumbent: the
+     sssd-*-8, uflquad-nopsc and turbine07_lowb_aniso files 0.14 to 1.7
+     above the reference, their bounds 5% to 65% below it. Pseudocost
+     branching (02-261) closes most of the sssd bounds and solves 28 of
+     the 80 at 1e10 against 26, and costs the robust_50 files 2x to 4x
+     the work. The cones the walk now leaves out (02-262) and the
+     certificates it trims (02-263) took turbine07, turbine54 and
+     turbine07_lowb to `OPTIMAL`. SOS sets, semi-continuous columns and
+     indicator rows beside cones are refused.
    - **a certificate for an infeasibility that rests on a quadratic row's
      curvature.** The certificate checker takes a quadratic row linearly,
      so the ball-and-half-space models of 02-253 end `INFEASIBLE` with no

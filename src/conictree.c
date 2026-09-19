@@ -3,6 +3,7 @@
 #include "jaos_sys.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -556,7 +557,9 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     int64_t sn = 0, scap = 0;
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
     int64_t work = 0, iters = 0, nodes = 0, solves = 0, next_id = 1;
-    int64_t roughs = 0, splits = 0;
+    int64_t roughs = 0, splits = 0, parked = 0;
+    double parked_key = INFINITY;
+    char why[sizeof m->err] = "";
     ct_best inc = {
         .key = m->cfg.mip_cutoff_set ? sigma * m->cfg.mip_cutoff : INFINITY,
         .sigma = sigma,
@@ -730,8 +733,12 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                 splits++;
                 continue;
             }
-            jm_set_err(m, "node %lld: %s", (long long)nodes,
-                       jaos_model_error(rel));
+            if (parked++ == 0)
+                snprintf(why, sizeof why, "node %lld: %s", (long long)nodes,
+                         jaos_model_error(rel));
+            if (cur->key < parked_key)
+                parked_key = cur->key;
+            continue;
         }
         if (ns != JAOS_SOLVE_OPTIMAL) {
             outcome = ns;
@@ -776,14 +783,16 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                     splits++;
                     continue;
                 }
-                jm_set_err(m, "node %lld: the relaxation is integral, and "
-                              "with its integer columns fixed the model "
-                              "ends %s: %s", (long long)nodes,
-                           jaos_solve_status_str(jaos_status_of(fin)),
-                           jaos_model_error(fin));
+                if (parked++ == 0)
+                    snprintf(why, sizeof why, "node %lld: the relaxation is "
+                             "integral, and with its integer columns fixed "
+                             "the model ends %s: %s", (long long)nodes,
+                             jaos_solve_status_str(jaos_status_of(fin)),
+                             jaos_model_error(fin));
+                if (key < parked_key)
+                    parked_key = key;
                 jaos_model_free(fin);
-                outcome = JAOS_SOLVE_NUMERICAL_ERROR;
-                break;
+                continue;
             }
             int r = 0;
             if (solved)
@@ -871,6 +880,12 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     if (outcome == JAOS_SOLVE_NOT_RUN)
         outcome = inc.model != nullptr ? JAOS_SOLVE_OPTIMAL
                                        : JAOS_SOLVE_INFEASIBLE;
+    if (parked > 0 &&
+        (outcome == JAOS_SOLVE_INFEASIBLE ||
+         (outcome == JAOS_SOLVE_OPTIMAL && !ct_closed(&inc, parked_key, gap)))) {
+        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+        jm_set_err(m, "%s", why);
+    }
 
     rc = JAOS_OK;
     m->solve_status = outcome;
@@ -895,6 +910,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
         for (int64_t k = 0; k < heap.n; k++)
             if (heap.v[k]->key < open)
                 open = heap.v[k]->key;
+        if (parked_key < open)
+            open = parked_key;
         m->mip_bound = sigma * (open < INFINITY ? open : best_bound);
     }
     if (inc.model != nullptr) {
@@ -927,10 +944,12 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     }
     jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %s after %lld nodes "
            "and %lld solves, %lld work units; %lld relaxations the checker "
-           "refused were branched on without a bound, and %lld nodes the "
-           "relaxation failed on were split", jaos_solve_status_str(outcome),
-           (long long)nodes, (long long)solves, (long long)work,
-           (long long)roughs, (long long)splits);
+           "refused were branched on without a bound, %lld nodes the "
+           "relaxation failed on were split, and %lld with every integer "
+           "column fixed were set aside with their bound",
+           jaos_solve_status_str(outcome), (long long)nodes, (long long)solves,
+           (long long)work, (long long)roughs, (long long)splits,
+           (long long)parked);
 
 done:
     if (rc == JAOS_ERR_OUT_OF_MEMORY && m->err[0] == '\0')

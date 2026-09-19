@@ -727,6 +727,25 @@ static void test_a_dimension_change_the_solve_can_see(void)
     jaos_model_free(m);
 }
 
+static void test_a_new_model_takes_columns_before_any_row(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[] = {1.0, 2.0}, cl[] = {0.0, 0.0}, cu[] = {10.0, 10.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(m, 2, c, cl, cu, 0, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_num_nz(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_cols(m, 1, c, cl, cu, 0, nullptr, nullptr, nullptr));
+    const double rl[] = {3.0}, ru[] = {INFINITY};
+    const int64_t rs[] = {0, 2}, ri[] = {0, 1};
+    const double rv[] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_rows(m, 1, rl, ru, 2, rs, ri, rv));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 3.0, solved_objective(m));
+    jaos_model_free(m);
+}
+
 static void test_deleting_renumbers_what_survives(void)
 {
     jaos_model *m = nullptr;
@@ -1718,6 +1737,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_new_free_roundtrip);
+    RUN_TEST(test_a_new_model_takes_columns_before_any_row);
     RUN_TEST(test_the_statistics_count_what_the_model_is);
     RUN_TEST(test_null_model_queries_read_as_empty);
     RUN_TEST(test_infinity_is_ieee_infinity);

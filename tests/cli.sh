@@ -705,6 +705,26 @@ esac
 grep -q '^cones 1$' "$tmp/cone.sol" && grep -q '^cone 0 2 ' "$tmp/cone.sol" \
     && pass "and the solution file carries the cone records" \
     || flunk "no cone records in the solution file"
+expect_exit 0 "a cone held at its tip and an idle cone solve" \
+    "$JAOS" solve "$DATA/g_cone_left_out.mps" --check --log summary
+case "$(line_of objective)" in
+    "objective 1"|"objective 1.0000000"*|"objective 0.9999999"*) pass "to 1" ;;
+    *) flunk "left-out cones objective '$(line_of objective)'" ;;
+esac
+[ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and --check takes the duals rebuilt for the two cones" \
+    || flunk "left-out cones --check: '$(line_of check_ok)'"
+printf '%s\n' "$err" | grep -q "leaves out 1 cones whose head an upper bound of 0 holds at 0, their columns fixed at 0, and 1 whose head is free above" \
+    && pass "and the log names the two cones the walk leaves out" \
+    || flunk "no left-out cones in the log"
+expect_exit 4 "the badly scaled box in a cone model ends numerical_error" \
+    "$JAOS" solve "$DATA/g_cone_badbox.mps"
+[ "$(line_of status)" = "status numerical_error" ] \
+    && pass "and says so on stdout" \
+    || flunk "badly scaled box status '$(line_of status)'"
+printf '%s\n' "$err" | grep -q "g_cone_badbox.mps ends numerical_error: the conic interior point" \
+    && pass "and gives the library's reason on stderr" \
+    || flunk "no reason on stderr for numerical_error"
 expect_exit 0 "check of the cone answer exits 0" \
     "$JAOS" check "$DATA/g_cone.mps" "$tmp/cone.sol"
 [ "$(line_of dual_feasible)" = "dual_feasible yes" ] \
