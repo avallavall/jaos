@@ -216,6 +216,7 @@ struct jaos_model {
 
     int nl_nopt;
     int64_t nl_opt[JM_NL_OPTIONS];
+    int64_t nl_rows, nl_cols;
 
     bool *col_integer;
     bool *col_semi;

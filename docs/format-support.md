@@ -298,15 +298,20 @@ a constant (`n0`, or `n c` with the constant moved into the bounds),
 `O` objectives with a constant body (the first objective is taken, its
 sense from the flag), `r` and `b` bounds in the five codes 0 to 4, `J`
 and `G` coefficients, and the binary and integer counts of header line
-7, which name the last columns as integer. `x`, `d`, `k` and `S`
+7, which name the last columns as integer. The nonlinear counts of
+header lines 3 and 5 decide nothing: JuMP declares a constant objective
+nonlinear there, and every body is judged where it is read. The `x`
+segment, the starting values, is the MIP start of a model with integer
+columns, a column it does not name starting at 0. `d`, `k` and `S`
 segments are read and dropped. The names come from the `.col` and
 `.row` files beside the file, when both are there and complete; the
 objective's name is the line after the rows in `.row`, and a file with
 no objective has a `.row` of the rows alone. Refused by line:
 a binary `.nl` (starts with `b`; write it with the text option), a
-nonlinear body in a row or objective, nonlinear or network counts in
-the header, user functions, defined variables (`V`), logical
-constraints (`L`) and complementarity bounds (code 5).
+nonlinear body in a row or objective, network counts in the header,
+integer columns in nonlinear terms (header line 7), user functions,
+defined variables (`V`), logical constraints (`L`) and complementarity
+bounds (code 5).
 
 `jaos_write_nl`, and the tool for an output name ending in `.nl` or
 `.nl.gz`, writes the same text form: the ten header lines, a `C` row
@@ -333,10 +338,12 @@ three: 1, 1 and 0) for the `.sol` file AMPL expects back, which
 a blank line, `Options`, the number of option values and the values,
 the counts of rows, of row duals sent, of columns and of column values
 sent, one number per line after that, and `objno 0 CODE`. A model not
-read from `.nl` gets the options of `g3 1 1 0`. The duals are sent for
-a continuous optimum and the values for an optimum or a stop that left
-a point; `CODE` and the rest are in `docs/cli.md` under `STUB -AMPL`.
-Pyomo reads it back (`bench/measurements/02-257/`).
+read from `.nl` gets the options of `g3 1 1 0`. A file the reader
+refused keeps its header's counts and options, so the `.sol` reports
+the failure with as many rows and columns as the file has. The duals are
+sent for a continuous optimum and the values for an optimum or a stop
+that left a point; `CODE` and the rest are in `docs/cli.md` under
+`STUB -AMPL`. Pyomo and JuMP read it back (`bench/measurements/02-257/`).
 
 ## QPLIB
 

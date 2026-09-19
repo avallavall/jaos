@@ -3136,15 +3136,17 @@ jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
         return JAOS_ERR_INVALID_INPUT;
 
     const jaos_solve_status ss = m->solve_status;
-    const int64_t nc = m->num_col, nr = m->num_row;
+    const bool empty = m->num_col == 0 && m->num_row == 0;
+    const int64_t nc = empty ? m->nl_cols : m->num_col;
+    const int64_t nr = empty ? m->nl_rows : m->num_row;
     const double *x = nullptr, *y = nullptr;
     double obj = 0.0;
-    if (ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr) {
+    if (!empty && ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr) {
         x = m->sol_col;
         obj = m->objective;
         if (!jm_model_has_integer(m) && m->sol_dual != nullptr)
             y = m->sol_dual;
-    } else if (ss != JAOS_SOLVE_NOT_RUN && m->mip_has_incumbent &&
+    } else if (!empty && ss != JAOS_SOLVE_NOT_RUN && m->mip_has_incumbent &&
                m->mip_inc_x != nullptr) {
         x = m->mip_inc_x;
         obj = m->mip_inc_obj;

@@ -1021,7 +1021,9 @@ The exit code is 0 whenever `STUB.sol` was written, because AMPL reads
 the file only after a 0, and 5 when it could not be written. The `.nl`
 reader takes linear models; a quadratic objective comes from Pyomo as a
 nonlinear body and ends with code 500 and the reader's message.
-`bench/measurements/02-257/` runs Pyomo against it.
+`bench/measurements/02-257/` runs Pyomo and JuMP against it. JuMP gives
+its options on the command line after `-AMPL`, Pyomo through
+`jaos_options`.
 
 ## Which reader is used
 

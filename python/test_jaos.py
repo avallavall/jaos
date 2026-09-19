@@ -157,6 +157,10 @@ class TestReadingFiles(unittest.TestCase):
             with self.assertRaises(jaos.JaosError) as ctx:
                 m.read_nl(data("e_nonlin.nl"))
             self.assertIn("nonlinear", str(ctx.exception))
+        with jaos.Model() as m:
+            m.read_nl(data("t_jump_lp.nl"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -7.0, places=9)
 
     def test_an_ampl_sol_file_hands_the_answer_back(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:

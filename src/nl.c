@@ -21,6 +21,7 @@ typedef struct {
     jaos_obj_sense sense;
     int nopt;
     int64_t opt[JM_NL_OPTIONS];
+    double *x0;
 } nl;
 
 #define FAIL(...) \
@@ -231,25 +232,18 @@ static jaos_status nl_header(nl *p)
     p->nobj = v[2];
     if (p->nvar < 0 || p->ncon < 0 || p->nobj < 0)
         FAIL("line 2: a count is negative");
+    p->m->nl_rows = p->ncon;
+    p->m->nl_cols = p->nvar;
+    p->m->nl_nopt = p->nopt;
+    memcpy(p->m->nl_opt, p->opt, sizeof p->m->nl_opt);
     if (!nl_next(p, &s) || nl_ints(s, v, 2) < 2)
         FAIL("line 3: expected the nonlinear constraint and objective counts");
-    if (v[0] > 0 || v[1] > 0)
-        FAIL("line 3: %" PRId64 " nonlinear constraints and %" PRId64
-             " nonlinear objectives; JAOS reads linear models only",
-             v[0], v[1]);
     if (!nl_next(p, &s) || nl_ints(s, v, 2) < 2)
         FAIL("line 4: expected the network constraint counts");
     if (v[0] > 0 || v[1] > 0)
         FAIL("line 4: network constraints, which JAOS does not read");
     if (!nl_next(p, &s) || nl_ints(s, v, 2) < 2)
         FAIL("line 5: expected the nonlinear variable counts");
-    {
-        const int got = nl_ints(s, v, 3);
-        for (int k = 0; k < got; k++)
-            if (v[k] > 0)
-                FAIL("line 5: nonlinear variables; JAOS reads linear models "
-                     "only");
-    }
     if (!nl_next(p, &s) || nl_ints(s, v, 2) < 2)
         FAIL("line 6: expected the linear network variable and function "
              "counts");
@@ -318,11 +312,34 @@ static jaos_status nl_segments(nl *p)
             }
             break;
         case 'x':
+            if (got < 1 || v[0] < 0)
+                FAIL("line %" PRId64 ": 'x' needs a count", p->line);
+            if (v[0] > 0 && p->x0 == nullptr &&
+                (p->x0 = jm_calloc_array(p->nvar > 0 ? p->nvar : 1,
+                                         sizeof *p->x0)) == nullptr)
+                FAIL_OOM();
+            for (int64_t k = 0; k < v[0]; k++) {
+                char *t;
+                int64_t j;
+                double val;
+                if (!nl_next(p, &t))
+                    FAIL("line %" PRId64 ": the initial guess segment ends "
+                         "early", p->line);
+                char *end;
+                j = strtoll(t, &end, 10);
+                if (end == t || nl_nums(end, &val, 1) != 1)
+                    FAIL("line %" PRId64 ": an initial guess needs a column "
+                         "and a value", p->line);
+                if (j < 0 || j >= p->nvar)
+                    FAIL("line %" PRId64 ": an initial guess names column "
+                         "%" PRId64 " of %" PRId64, p->line, j, p->nvar);
+                p->x0[j] = val;
+            }
+            break;
         case 'd':
             if (got < 1 || v[0] < 0)
-                FAIL("line %" PRId64 ": '%c' needs a count", p->line, s[0]);
-            if ((st = nl_skip(p, v[0], s[0] == 'x' ? "initial guess"
-                                                    : "dual guess")) != JAOS_OK)
+                FAIL("line %" PRId64 ": 'd' needs a count", p->line);
+            if ((st = nl_skip(p, v[0], "dual guess")) != JAOS_OK)
                 return st;
             break;
         case 'r':
@@ -381,9 +398,11 @@ static jaos_status nl_segments(nl *p)
         }
     }
     if (!seen_b && p->nvar > 0)
-        FAIL("the file has no 'b' segment, so the column bounds are unknown");
+        FAIL("line %" PRId64 ", the end of the file: there is no 'b' segment, "
+             "so the column bounds are unknown", p->line);
     if (!seen_r && p->ncon > 0)
-        FAIL("the file has no 'r' segment, so the row bounds are unknown");
+        FAIL("line %" PRId64 ", the end of the file: there is no 'r' segment, "
+             "so the row bounds are unknown", p->line);
     return JAOS_OK;
 }
 
@@ -566,9 +585,14 @@ jaos_status jaos_read_nl(jaos_model *m, const char *path)
         if (st == JAOS_OK) {
             m->nl_nopt = p->nopt;
             memcpy(m->nl_opt, p->opt, sizeof m->nl_opt);
+            m->nl_rows = p->ncon;
+            m->nl_cols = p->nvar;
         }
+        if (st == JAOS_OK && p->x0 != nullptr && jm_model_has_integer(m))
+            st = jaos_set_mip_start(m, p->x0);
         jm_locale_leave(&loc);
     }
+    free(p->x0);
     free(p->buf);
     free(p->cost); free(p->cl); free(p->cu); free(p->rl); free(p->ru);
     free(p->shift); free(p->ei); free(p->ej); free(p->ev);

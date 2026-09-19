@@ -442,7 +442,8 @@ expect_exit 0 "a file the reader refuses is reported in STUB.sol" \
     "$JAOS" "$tmp/ampnl" -AMPL
 grep -q "cannot read" "$tmp/ampnl.sol" \
     && [ "$(tail -1 "$tmp/ampnl.sol")" = "objno 0 500" ] \
-    && pass "with no values and the failure code" \
+    && [ "$(sed -n '8,11p' "$tmp/ampnl.sol" | tr '\n' ' ')" = "1 0 2 0 " ] \
+    && pass "with the file's counts, no values and the failure code" \
     || flunk "ampnl.sol: $(tr '\n' ' ' < "$tmp/ampnl.sol")"
 expect_exit 0 "--no-orbital still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-orbital

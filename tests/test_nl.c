@@ -110,7 +110,7 @@ static void test_what_the_nl_reader_refuses_is_named_by_line(void)
 {
     const struct { const char *file, *word; } bad[] = {
         {"tests/data/e_nonlin.nl", "nonlinear expression"},
-        {"tests/data/e_nlcount.nl", "linear models only"},
+        {"tests/data/e_nlcount.nl", "no 'b' segment"},
         {"tests/data/e_binary.nl", "binary .nl"},
         {"tests/data/e_compl.nl", "complementarity"},
     };
@@ -397,6 +397,7 @@ static void test_an_ampl_sol_carries_the_duals_and_values_of_an_lp(void)
 {
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_ampl_lp.nl"));
+    TEST_ASSERT_NULL(m->mip_start);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_write_sol_ampl(m, "build/tn_ampl.sol", nullptr));
@@ -410,6 +411,31 @@ static void test_an_ampl_sol_carries_the_duals_and_values_of_an_lp(void)
         jaos_write_sol_ampl(m, "build/tn_ampl.sol", "hello\n\nworld\n\n"));
     const char *got = slurp_sol("build/tn_ampl.sol");
     TEST_ASSERT_EQUAL_INT(0, strncmp(got, "hello\nworld\n\nOptions\n3\n", 23));
+    remove("build/tn_ampl.sol");
+    jaos_model_free(m);
+}
+
+/* JuMP's .nl of the same LP declares its objective nonlinear on header
+   line 3 while the body is the constant 7, so the header's count alone
+   decides nothing; and a file the reader refuses still leaves the
+   header's counts for the .sol that reports it. */
+static void test_the_nl_bodies_decide_and_a_refusal_keeps_the_counts(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_jump_lp.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -7.0, obj);
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_nl(m, "tests/data/e_nonlin.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_write_sol_ampl(m, "build/tn_ampl.sol", "refused"));
+    TEST_ASSERT_EQUAL_STRING("refused\n\nOptions\n3\n1\n1\n0\n1\n0\n2\n0\n"
+                             "objno 0 500\n", slurp_sol("build/tn_ampl.sol"));
     remove("build/tn_ampl.sol");
     jaos_model_free(m);
 }
@@ -436,6 +462,9 @@ static void test_an_ampl_sol_codes_the_verdicts(void)
 {
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_lin.nl"));
+    TEST_ASSERT_NOT_NULL(m->mip_start);
+    TEST_ASSERT_EQUAL_DOUBLE(1.5, m->mip_start[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, m->mip_start[2]);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -511,6 +540,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_an_ampl_sol_carries_the_duals_and_values_of_an_lp);
     RUN_TEST(test_an_ampl_sol_codes_the_verdicts);
+    RUN_TEST(test_the_nl_bodies_decide_and_a_refusal_keeps_the_counts);
     RUN_TEST(test_a_linear_nl_reads_with_its_names_bounds_and_integers);
     RUN_TEST(test_a_binary_nl_without_name_files_gets_positional_names);
     RUN_TEST(test_what_the_nl_reader_refuses_is_named_by_line);

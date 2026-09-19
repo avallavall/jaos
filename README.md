@@ -46,7 +46,8 @@ Benchmark Format (CBF) (`docs/format-support.md`). Reads and writes gzip with an
 written here. Writes its own solution file, a point file and a duals file, and
 reads them back. `jaos diff` says whether two files are the same
 model; `jaos show` prints one row or column. `jaos STUB -AMPL` answers
-AMPL's solver protocol; Pyomo calls it that way on a linear model.
+AMPL's solver protocol; Pyomo and JuMP call it that way on a linear
+model.
 
 **Linear programs.** Presolve with six reduction families and a postsolve to
 the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
