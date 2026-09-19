@@ -133,7 +133,13 @@ the commit that took it, named here by hash.
      Taking rows within 1e-6 of a side as active and letting Newton run
      six steps reaches a KKT residual of 9e-16 on 1683 constraints, and
      the checker then finds a violation of 5.1e-3, so the missing piece
-     is an active-set update after the finish; QPLIB_2676 and
+     is an active-set update after the finish. What the checker refuses
+     is the rows, not the columns: on QPLIB_3088 the ball rows q(x) <= 1
+     end 2e-6 to 1e-4 from their side with duals of 1e-7 to 2.5e-6, their
+     products near 1e-11, while every reduced cost is under 3e-9; fitting
+     each row's multiplier to its cone's whole dual and damping the
+     finish both change nothing (`conic-qc-dual-refit`,
+     `conic-newton-prox`); QPLIB_2676 and
      QPLIB_2468 stop without progress and end `NUMERICAL_ERROR`; QPLIB_3312
      (41406 columns) reaches the work limit. Of the 14 mixed-integer
      ones, the two `LMD` files end within 1e-2 of the reference at the
