@@ -141,6 +141,7 @@ typedef struct {
     bool mip_no_heuristics;
 
     int64_t mip_node_limit;
+    int64_t mip_tree_batch;
     int mip_branching;
 
     bool mip_reliability_set;

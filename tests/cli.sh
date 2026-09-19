@@ -717,6 +717,19 @@ esac
 printf '%s\n' "$err" | grep -q "leaves out 1 cones whose head an upper bound of 0 holds at 0, their columns fixed at 0, and 1 whose head is free above" \
     && pass "and the log names the two cones the walk leaves out" \
     || flunk "no left-out cones in the log"
+expect_exit 0 "a conic MIP solves in rounds of four nodes on four threads" \
+    "$JAOS" solve "$DATA/g_misocp.mps" --tree-batch 4 --threads 4 --log summary
+batch_obj="$(line_of objective)"
+printf '%s\n' "$err" | grep -q "4 open nodes to a round on up to 4 threads" \
+    && pass "and the log says so" \
+    || flunk "no round size in the log"
+expect_exit 0 "the same model solves one node at a time" \
+    "$JAOS" solve "$DATA/g_misocp.mps"
+[ "$(line_of objective)" = "$batch_obj" ] \
+    && pass "to the same objective" \
+    || flunk "rounds gave '$batch_obj', one node '$(line_of objective)'"
+expect_exit 5 "a tree batch below 1 is a usage error" \
+    "$JAOS" solve "$DATA/g_misocp.mps" --tree-batch 0
 expect_exit 4 "the badly scaled box in a cone model ends numerical_error" \
     "$JAOS" solve "$DATA/g_cone_badbox.mps"
 [ "$(line_of status)" = "status numerical_error" ] \

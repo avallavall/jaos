@@ -116,6 +116,34 @@ class TestSolving(unittest.TestCase):
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(m.objective(), 3.0, places=9)
 
+    def test_a_conic_tree_takes_rounds_of_nodes(self):
+        """The same answer whatever the round size and the thread count,
+        at both layers."""
+        with jaos.Model() as m:
+            m.read_mps(data("g_misocp.mps"))
+            m.set_mip_tree_batch(4)
+            m.set_threads(4)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertEqual(m.get_option("mip_tree_batch"), "4")
+            rounds = m.objective()
+        with jaos.Model() as m:
+            m.read_mps(data("g_misocp.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), rounds, places=9)
+        p = jaos.Problem()
+        t = p.add_var(lb=-jaos.INFINITY)
+        x = p.add_var(ub=5.0, integer=True)
+        y = p.add_var(ub=5.0, integer=True)
+        u = p.add_var(lb=-jaos.INFINITY)
+        v = p.add_var(lb=-jaos.INFINITY)
+        p.add(x - u == 1.6)
+        p.add(y - v == 2.3)
+        p.add_cone([t, u, v])
+        p.minimize(t)
+        p.set_mip_tree_batch(2)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, rounds, places=9)
+
     def test_the_basis_comes_back_one_status_per_variable(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

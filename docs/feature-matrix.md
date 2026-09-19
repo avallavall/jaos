@@ -225,7 +225,18 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
 | Primal heuristics | ◐ | ● | — | — | ● | ● | ● |
 | Solution pool | ● | ○ | — | — | ● | ● | ● |
-| Deterministic parallel tree search | ○ | ◐ | — | — | ● | ● | ? |
+| Deterministic parallel tree search | ◐ | ◐ | — | — | ● | ● | ? |
+
+**Deterministic parallel tree search moved from ○ to ◐ on 2026-09-20.**
+The conic branch and bound takes its open nodes in rounds under
+`--tree-batch N`, solves a round's relaxations on up to `--threads`
+threads, and takes their answers in the round's own order, so the tree,
+its bound and its work are the same at any thread count and only the time
+moves (2.6x to 2.8x on four threads at a round of four,
+`bench/measurements/02-264/`). Rounds are off by default: they reach an
+optimum with less work but leave a worse incumbent where a limit stops
+the tree. The linear tree of `src/mip.c` is still one thread, which is
+what keeps the mark partial.
 
 **The solution pool moved from ○ to ● on 2026-09-06.**
 `jaos_set_mip_pool_size` keeps the best distinct integer points a branch

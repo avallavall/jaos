@@ -731,6 +731,7 @@ _sig("jaos_set_log_callback", ctypes.c_int, _VP, _LOG_FN, _VP)
 _sig("jaos_set_log_level", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_progress_callback", ctypes.c_int, _VP, _PROGRESS_FN, _VP)
 _sig("jaos_set_mip_node_limit", ctypes.c_int, _VP, _I64)
+_sig("jaos_set_mip_tree_batch", ctypes.c_int, _VP, _I64)
 _sig("jaos_set_mip_branching", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_algorithm", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_option", ctypes.c_int, _VP, ctypes.c_char_p, ctypes.c_char_p)
@@ -1736,6 +1737,13 @@ class Model:
         """Stops a branch and bound before its `nodes`-th node past the
         limit, as NODE_LIMIT, keeping the incumbent; 0 removes it (D291)."""
         self._check(_lib.jaos_set_mip_node_limit(self._handle(), int(nodes)))
+
+    def set_mip_tree_batch(self, nodes):
+        """How many open nodes the conic tree takes in one round, solved
+        on up to `set_threads` threads; 1, the default, is one node at a
+        time. Above 1 the search changes, and the thread count still does
+        not change the answer."""
+        self._check(_lib.jaos_set_mip_tree_batch(self._handle(), int(nodes)))
 
     def set_mip_branching(self, rule):
         """Which column a fractional node branches on: a `Branching`;
@@ -3691,6 +3699,10 @@ class Problem:
 
     def set_mip_node_limit(self, nodes):
         self._m.set_mip_node_limit(nodes)
+        return self
+
+    def set_mip_tree_batch(self, nodes):
+        self._m.set_mip_tree_batch(nodes)
         return self
 
     def set_mip_branching(self, rule):

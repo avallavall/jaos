@@ -26,7 +26,8 @@ static const char *const DIVE_WORDS[] = {"nearer", "up", "down", "pseudocost"};
 
 enum opt_id {
     O_WORK_LIMIT, O_TIME_LIMIT, O_PRIMAL_TOL, O_DUAL_TOL, O_ALGORITHM,
-    O_LOG_LEVEL, O_MIP_GAP, O_NODE_LIMIT, O_BRANCHING, O_RELIABILITY,
+    O_LOG_LEVEL, O_MIP_GAP, O_NODE_LIMIT, O_TREE_BATCH, O_BRANCHING,
+    O_RELIABILITY,
     O_PROBE_CAP, O_PROBE_DEPTH, O_CUT_ROUNDS, O_CUT_DEPTH, O_CUT_DROP,
     O_NODE_CUT_CAP, O_COVER_ROUNDS, O_CUT_STALL, O_NODE_CUT_STALL,
     O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_MIR_AGGREGATE,
@@ -46,6 +47,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_LOG_LEVEL] = {"log_level", OPT_ENUM, LOG_WORDS, 4},
     [O_MIP_GAP] = {"mip_gap", OPT_DOUBLE, nullptr, 0},
     [O_NODE_LIMIT] = {"mip_node_limit", OPT_INT, nullptr, 0},
+    [O_TREE_BATCH] = {"mip_tree_batch", OPT_INT, nullptr, 0},
     [O_BRANCHING] = {"mip_branching", OPT_ENUM, BRANCH_WORDS, 2},
     [O_RELIABILITY] = {"mip_reliability", OPT_INT, nullptr, 0},
     [O_PROBE_CAP] = {"mip_probe_cap", OPT_DOUBLE, nullptr, 0},
@@ -203,6 +205,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_LOG_LEVEL: return jaos_set_log_level(m, (jaos_log_level)e);
     case O_MIP_GAP: return jaos_set_mip_gap(m, x);
     case O_NODE_LIMIT: return jaos_set_mip_node_limit(m, i);
+    case O_TREE_BATCH: return jaos_set_mip_tree_batch(m, i);
     case O_BRANCHING: return jaos_set_mip_branching(m, (jaos_branching)e);
     case O_RELIABILITY: return jaos_set_mip_reliability(m, i);
     case O_PROBE_CAP: return jaos_set_mip_probe_cap(m, x);
@@ -280,6 +283,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_LOG_LEVEL: e = (int)c->log_level; break;
     case O_MIP_GAP: x = c->mip_gap > 0.0 ? c->mip_gap : jm_mip_default(JM_DEF_GAP); break;
     case O_NODE_LIMIT: i = c->mip_node_limit; break;
+    case O_TREE_BATCH: i = c->mip_tree_batch > 0 ? c->mip_tree_batch : 1; break;
     case O_BRANCHING: e = c->mip_branching; break;
     case O_RELIABILITY: i = (int64_t)eff(c->mip_reliability_set, (double)c->mip_reliability, JM_DEF_RELIABILITY); break;
     case O_PROBE_CAP: x = c->mip_probe_cap_set ? c->mip_probe_cap : 0.0; break;

@@ -39,6 +39,7 @@ static const char U_SYNOPSIS[] =
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
+    "                  [--tree-batch N]\n"
     "                  [--dive-degrade F] [--feaspump N]\n"
     "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--pump-always | --no-pump-always]\n"
@@ -168,6 +169,8 @@ static const char U_SOLVE_D[] =
     "                   the root being 0 (D >= 0; default 0, the root alone)\n"
     "  --rins N         relaxations a RINS dive may solve at a node with an\n"
     "                   incumbent (N >= 0; default 0, off)\n"
+    "  --tree-batch N   open nodes the conic tree takes in one round, solved\n"
+    "                   on up to --threads threads (N >= 1; default 1)\n"
     "  --dive-degrade F  dive on into a child only while the node's own\n"
     "                   bound is within F of (1 + |its parent's bound|)\n"
     "                   (F >= 0; 0 for no bound)\n"
@@ -794,6 +797,7 @@ struct solve_options {
     int64_t mir_aggregate;
     int64_t dive_heuristic;
     int64_t dive_heuristic_depth;
+    int64_t tree_batch;
     int64_t rins;
     int64_t feaspump;
     int pump_general;
@@ -864,6 +868,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->mir_aggregate = -1;
     o->dive_heuristic = -1;
     o->dive_heuristic_depth = -1;
+    o->tree_batch = 0;
     o->rins = -1;
     o->feaspump = -1;
     o->pump_general = -1;
@@ -1124,6 +1129,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         } else if (strcmp(a, "--dive-backtrack") == 0) {
             if (!parse_int64(v, &o->dive_backtrack) || o->dive_backtrack < 0)
                 return usage_error("--dive-backtrack needs a count, 0 or "
+                                   "more, not '%s'", v);
+        } else if (strcmp(a, "--tree-batch") == 0) {
+            if (!parse_int64(v, &o->tree_batch) || o->tree_batch < 1)
+                return usage_error("--tree-batch needs a node count, 1 or "
                                    "more, not '%s'", v);
         } else if (strcmp(a, "--dive-heuristic") == 0) {
             if (!parse_int64(v, &o->dive_heuristic) || o->dive_heuristic < 0)
@@ -1391,6 +1400,10 @@ static int cmd_solve(int argc, char **argv)
     if (o.mir_aggregate >= 0 &&
         jaos_set_mip_mir_aggregate(m, o.mir_aggregate) != JAOS_OK) {
         rc = library_error("set the MIR aggregation for", o.file, m);
+        goto out;
+    }
+    if (o.tree_batch > 0 && jaos_set_mip_tree_batch(m, o.tree_batch) != JAOS_OK) {
+        rc = library_error("set the tree batch for", o.file, m);
         goto out;
     }
     if (o.dive_heuristic >= 0 &&

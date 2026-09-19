@@ -1696,6 +1696,18 @@ jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_tree_batch(jaos_model *m, int64_t nodes)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (nodes < 1) {
+        jm_set_err(m, "the tree batch must be 1 or more");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_tree_batch = nodes;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)
 {
     if (m == nullptr)

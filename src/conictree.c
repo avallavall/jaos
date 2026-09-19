@@ -180,12 +180,18 @@ static jaos_model *ct_relaxation(const jaos_model *m)
     return rel;
 }
 
-static void ct_budget(jaos_model *sub, const jaos_model *m, int64_t work)
+static void ct_budget_share(jaos_model *sub, const jaos_model *m, int64_t work,
+                            int64_t share)
 {
     if (m->cfg.work_limit <= 0)
         return;
-    const int64_t left = m->cfg.work_limit - work;
+    const int64_t left = (m->cfg.work_limit - work) / share;
     sub->cfg.work_limit = left > 0 ? left : 1;
+}
+
+static void ct_budget(jaos_model *sub, const jaos_model *m, int64_t work)
+{
+    ct_budget_share(sub, m, work, 1);
 }
 
 typedef struct {
@@ -499,6 +505,37 @@ static jaos_status ct_publish(jaos_model *m, const jaos_model *best)
     return JAOS_OK;
 }
 
+constexpr int64_t CT_BATCH_MAX = 64;
+
+typedef struct {
+    jaos_model **rels;
+    jaos_status *st;
+    int64_t nb, stride, first;
+} ct_crew;
+
+static void ct_crew_run(void *arg)
+{
+    const ct_crew *c = arg;
+    for (int64_t b = c->first; b < c->nb; b += c->stride)
+        c->st[b] = jaos_solve(c->rels[b]);
+}
+
+static void ct_solve_batch(jaos_model **rels, jaos_status *st, int64_t nb,
+                           int64_t threads)
+{
+    const int64_t w = threads < nb ? threads : nb;
+    ct_crew crew[CT_BATCH_MAX];
+    jm_thread th[CT_BATCH_MAX];
+    for (int64_t k = 0; k < w; k++)
+        crew[k] = (ct_crew){rels, st, nb, w, k};
+    for (int64_t k = 1; k < w; k++)
+        if (!jm_thread_start(&th[k], ct_crew_run, &crew[k]))
+            ct_crew_run(&crew[k]);
+    ct_crew_run(&crew[0]);
+    for (int64_t k = 1; k < w; k++)
+        jm_thread_join(&th[k]);
+}
+
 jaos_status jm_conic_branch_and_bound(jaos_model *m)
 {
     const double t0 = jm_monotonic_seconds();
@@ -544,7 +581,13 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     m->cone_ok = false;
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
-    jaos_model *rel = ct_relaxation(m);
+    const int64_t per_round = m->cfg.mip_tree_batch < 1 ? 1
+                        : m->cfg.mip_tree_batch > CT_BATCH_MAX
+                              ? CT_BATCH_MAX : m->cfg.mip_tree_batch;
+    jaos_model *rels[CT_BATCH_MAX] = {0};
+    ct_node *batch[CT_BATCH_MAX] = {0};
+    jaos_status bst[CT_BATCH_MAX] = {0};
+    rels[0] = ct_relaxation(m);
     double *ilo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ilo);
     double *ihi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ihi);
     double *x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *x);
@@ -558,18 +601,18 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
     int64_t work = 0, iters = 0, nodes = 0, solves = 0, next_id = 1;
     int64_t roughs = 0, splits = 0, parked = 0;
-    double parked_key = INFINITY;
+    double parked_key = INFINITY, stopped_key = INFINITY;
     char why[sizeof m->err] = "";
     ct_best inc = {
         .key = m->cfg.mip_cutoff_set ? sigma * m->cfg.mip_cutoff : INFINITY,
         .sigma = sigma,
     };
     double best_bound = -INFINITY;
-    if (rel == nullptr || ilo == nullptr || ihi == nullptr || x == nullptr ||
-        xc == nullptr || xd == nullptr || cur == nullptr || pc.sum == nullptr ||
-        pc.cnt == nullptr)
+    if (rels[0] == nullptr || ilo == nullptr || ihi == nullptr ||
+        x == nullptr || xc == nullptr || xd == nullptr || cur == nullptr ||
+        pc.sum == nullptr || pc.cnt == nullptr)
         goto done;
-    rel->cfg.node_solve = true;
+    rels[0]->cfg.node_solve = true;
     cur->key = -INFINITY;
     cur->bcol = -1;
 
@@ -588,9 +631,11 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %lld integer "
            "columns of %lld, depth first until an incumbent and best bound "
            "first with a plunge after it, the most fractional column "
-           "branched; at the root, %s and a dive of up to %lld solves while "
-           "no incumbent is known",
-           (long long)nint, (long long)nc,
+           "branched, %lld open nodes to a round on up to %lld threads; at "
+           "the root, %s and a dive of up to %lld solves while no incumbent "
+           "is known",
+           (long long)nint, (long long)nc, (long long)per_round,
+           (long long)jaos_threads_of(m),
            m->cfg.mip_no_heuristics ? "no rounding" : "the relaxation rounded",
            (long long)dive);
 
@@ -619,7 +664,6 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
 
     while (outcome == JAOS_SOLVE_NOT_RUN) {
         if (nodes > 0) {
-            ct_node_free(cur);
             cur = next;
             next = nullptr;
             if (cur != nullptr && ct_closed(&inc, cur->key, gap)) {
@@ -661,166 +705,148 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
             break;
         }
 
-        jaos_status st = ct_apply(rel, m, ilo, ihi, cur);
-        if (st != JAOS_OK) {
-            rc = st;
-            goto done;
+        int64_t nb = 0;
+        batch[nb++] = cur;
+        cur = nullptr;
+        while (nb < per_round && (m->cfg.mip_node_limit <= 0 ||
+                                 nodes + nb < m->cfg.mip_node_limit)) {
+            ct_node *c = nullptr;
+            while (c == nullptr && sn > 0) {
+                c = sv[--sn];
+                if (ct_closed(&inc, c->key, gap)) {
+                    ct_node_free(c);
+                    c = nullptr;
+                }
+            }
+            while (c == nullptr && (c = ct_pop(&heap)) != nullptr)
+                if (ct_closed(&inc, c->key, gap)) {
+                    ct_node_free(c);
+                    c = nullptr;
+                }
+            if (c == nullptr)
+                break;
+            batch[nb++] = c;
         }
-        nodes++;
-        ct_budget(rel, m, work);
-        st = jaos_solve(rel);
-        solves++;
-        work += jaos_work_units(rel);
-        iters += jaos_iterations(rel);
-        if (st != JAOS_OK) {
-            jm_set_err(m, "node %lld: %s", (long long)nodes,
-                       jaos_model_error(rel));
-            rc = st;
-            goto done;
+        for (int64_t b = 0; b < nb; b++) {
+            if (rels[b] == nullptr) {
+                rels[b] = ct_relaxation(m);
+                if (rels[b] == nullptr)
+                    goto done;
+                rels[b]->cfg.node_solve = true;
+            }
+            const jaos_status st = ct_apply(rels[b], m, ilo, ihi, batch[b]);
+            if (st != JAOS_OK) {
+                rc = st;
+                goto done;
+            }
+            ct_budget_share(rels[b], m, work, nb);
         }
-        const jaos_solve_status ns = jaos_status_of(rel);
-        if (ns == JAOS_SOLVE_INFEASIBLE) {
-            if (nodes == 1 && rel->farkas_ok) {
-                st = jm_model_ensure_solution_arrays(m);
+        ct_solve_batch(rels, bst, nb, jaos_threads_of(m));
+        for (int64_t b = 0; b < nb; b++) {
+            solves++;
+            work += jaos_work_units(rels[b]);
+            iters += jaos_iterations(rels[b]);
+        }
+
+        int64_t at = 0;
+        for (; at < nb && outcome == JAOS_SOLVE_NOT_RUN; at++) {
+            const int64_t b = at;
+            cur = batch[b];
+            jaos_model *rel = rels[b];
+            nodes++;
+            jaos_status st = bst[b];
+            if (st != JAOS_OK) {
+                jm_set_err(m, "node %lld: %s", (long long)nodes,
+                           jaos_model_error(rel));
+                rc = st;
+                goto done;
+            }
+            const jaos_solve_status ns = jaos_status_of(rel);
+            if (ns == JAOS_SOLVE_INFEASIBLE) {
+                if (nodes == 1 && rel->farkas_ok) {
+                    st = jm_model_ensure_solution_arrays(m);
+                    if (st != JAOS_OK) {
+                        rc = st;
+                        goto done;
+                    }
+                    const int64_t members =
+                        m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
+                    if (members > 0 && m->sol_cone == nullptr &&
+                        (m->sol_cone = jm_calloc_array(members,
+                                                       sizeof *m->sol_cone)) ==
+                            nullptr)
+                        goto done;
+                    memcpy(m->sol_farkas, rel->sol_farkas,
+                           (size_t)m->num_row * sizeof *m->sol_farkas);
+                    if (members > 0)
+                        memcpy(m->sol_cone, rel->sol_cone,
+                               (size_t)members * sizeof *m->sol_cone);
+                    m->farkas_ok = true;
+                    m->cone_ok = members > 0 && rel->cone_ok;
+                }
+                continue;
+            }
+            if (ns == JAOS_SOLVE_UNBOUNDED) {
+                jaos_model *f = nullptr;
+                st = ct_feasible(m, work, &f);
                 if (st != JAOS_OK) {
                     rc = st;
                     goto done;
                 }
-                const int64_t members = m->num_cone > 0
-                                            ? m->cone_start[m->num_cone] : 0;
-                if (members > 0 && m->sol_cone == nullptr &&
-                    (m->sol_cone = jm_calloc_array(members,
-                                                   sizeof *m->sol_cone)) ==
-                        nullptr)
-                    goto done;
-                memcpy(m->sol_farkas, rel->sol_farkas,
-                       (size_t)m->num_row * sizeof *m->sol_farkas);
-                if (members > 0)
-                    memcpy(m->sol_cone, rel->sol_cone,
-                           (size_t)members * sizeof *m->sol_cone);
-                m->farkas_ok = true;
-                m->cone_ok = members > 0 && rel->cone_ok;
+                work += jaos_work_units(f);
+                iters += jaos_iterations(f);
+                solves += f->mip_solves;
+                const jaos_solve_status fs = jaos_status_of(f);
+                outcome = fs == JAOS_SOLVE_OPTIMAL ? JAOS_SOLVE_UNBOUNDED : fs;
+                if (fs == JAOS_SOLVE_NUMERICAL_ERROR)
+                    jm_set_err(m, "the relaxation is unbounded, and the search "
+                                  "for an integer point ends as a numerical "
+                                  "error: %s", jaos_model_error(f));
+                jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: the "
+                       "relaxation is unbounded, and the search for an integer "
+                       "point ends %s", jaos_solve_status_str(fs));
+                jaos_model_free(f);
+                break;
             }
-            continue;
-        }
-        if (ns == JAOS_SOLVE_UNBOUNDED) {
-            jaos_model *f = nullptr;
-            st = ct_feasible(m, work, &f);
-            if (st != JAOS_OK) {
-                rc = st;
-                goto done;
-            }
-            work += jaos_work_units(f);
-            iters += jaos_iterations(f);
-            solves += f->mip_solves;
-            const jaos_solve_status fs = jaos_status_of(f);
-            outcome = fs == JAOS_SOLVE_OPTIMAL ? JAOS_SOLVE_UNBOUNDED : fs;
-            if (fs == JAOS_SOLVE_NUMERICAL_ERROR)
-                jm_set_err(m, "the relaxation is unbounded, and the search "
-                              "for an integer point ends as a numerical "
-                              "error: %s", jaos_model_error(f));
-            jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: the "
-                   "relaxation is unbounded, and the search for an integer "
-                   "point ends %s", jaos_solve_status_str(fs));
-            jaos_model_free(f);
-            break;
-        }
-        if (ns == JAOS_SOLVE_NUMERICAL_ERROR) {
-            const int split = ct_split(&heap, cur, rel, m, &next_id);
-            if (split < 0)
-                goto done;
-            if (split > 0) {
-                splits++;
-                continue;
-            }
-            if (parked++ == 0)
-                snprintf(why, sizeof why, "node %lld: %s", (long long)nodes,
-                         jaos_model_error(rel));
-            if (cur->key < parked_key)
-                parked_key = cur->key;
-            continue;
-        }
-        if (ns != JAOS_SOLVE_OPTIMAL) {
-            outcome = ns;
-            break;
-        }
-
-        double obj = 0.0;
-        if (jaos_objective(rel, &obj) != JAOS_OK ||
-            jaos_solution(rel, x, nullptr, nullptr, nullptr) != JAOS_OK)
-            goto done;
-        roughs += rel->conic_rough;
-        const double key = rel->conic_rough ? cur->key : sigma * obj;
-        if (!rel->conic_rough)
-            ct_learn(&pc, nc, cur, key);
-        if (nodes == 1)
-            best_bound = key;
-        if (ct_closed(&inc, key, gap))
-            continue;
-
-        const int64_t j = ct_branch_col(m, x, &pc);
-        const bool rounding = j >= 0 && nodes == 1 &&
-                              !m->cfg.mip_no_heuristics;
-        if (j < 0 || rounding) {
-            jaos_model *fin = nullptr;
-            st = ct_fixed(m, x, work, &fin);
-            if (st != JAOS_OK) {
-                rc = st;
-                goto done;
-            }
-            solves++;
-            work += jaos_work_units(fin);
-            iters += jaos_iterations(fin);
-            double fobj = 0.0;
-            const bool solved = jaos_status_of(fin) == JAOS_SOLVE_OPTIMAL &&
-                                jaos_objective(fin, &fobj) == JAOS_OK;
-            if (!solved && j < 0) {
+            if (ns == JAOS_SOLVE_NUMERICAL_ERROR) {
                 const int split = ct_split(&heap, cur, rel, m, &next_id);
-                if (split != 0) {
-                    jaos_model_free(fin);
-                    if (split < 0)
-                        goto done;
+                if (split < 0)
+                    goto done;
+                if (split > 0) {
                     splits++;
                     continue;
                 }
                 if (parked++ == 0)
-                    snprintf(why, sizeof why, "node %lld: the relaxation is "
-                             "integral, and with its integer columns fixed "
-                             "the model ends %s: %s", (long long)nodes,
-                             jaos_solve_status_str(jaos_status_of(fin)),
-                             jaos_model_error(fin));
-                if (key < parked_key)
-                    parked_key = key;
-                jaos_model_free(fin);
+                    snprintf(why, sizeof why, "node %lld: %s", (long long)nodes,
+                             jaos_model_error(rel));
+                if (cur->key < parked_key)
+                    parked_key = cur->key;
                 continue;
             }
-            int r = 0;
-            if (solved)
-                r = ct_offer(m, &inc, fin, fobj, nodes, sigma * best_bound,
-                             rounding, sv, &sn, &heap, xc);
-            else
-                jaos_model_free(fin);
-            if (r < 0)
-                goto done;
-            if (r > 0) {
-                outcome = JAOS_SOLVE_INTERRUPTED;
+            if (ns != JAOS_SOLVE_OPTIMAL) {
+                outcome = ns;
                 break;
             }
-            if (j < 0)
-                continue;
-        }
-        if (nodes == 1 && inc.model == nullptr && dive > 0) {
-            memcpy(xd, x, (size_t)nc * sizeof *xd);
-            bool found = false;
-            st = ct_dive(m, ilo, ihi, dive, &work, &iters, &solves, xd,
-                         &found);
-            if (st != JAOS_OK) {
-                rc = st;
+
+            double obj = 0.0;
+            if (jaos_objective(rel, &obj) != JAOS_OK ||
+                jaos_solution(rel, x, nullptr, nullptr, nullptr) != JAOS_OK)
                 goto done;
-            }
-            jaos_model *fin = nullptr;
-            if (found) {
-                st = ct_fixed(m, xd, work, &fin);
+            roughs += rel->conic_rough;
+            const double key = rel->conic_rough ? cur->key : sigma * obj;
+            if (!rel->conic_rough)
+                ct_learn(&pc, nc, cur, key);
+            if (nodes == 1)
+                best_bound = key;
+            if (ct_closed(&inc, key, gap))
+                continue;
+
+            const int64_t j = ct_branch_col(m, x, &pc);
+            const bool rounding = j >= 0 && nodes == 1 &&
+                                  !m->cfg.mip_no_heuristics;
+            if (j < 0 || rounding) {
+                jaos_model *fin = nullptr;
+                st = ct_fixed(m, x, work, &fin);
                 if (st != JAOS_OK) {
                     rc = st;
                     goto done;
@@ -828,54 +854,132 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                 solves++;
                 work += jaos_work_units(fin);
                 iters += jaos_iterations(fin);
+                double fobj = 0.0;
+                const bool solved = jaos_status_of(fin) == JAOS_SOLVE_OPTIMAL &&
+                                    jaos_objective(fin, &fobj) == JAOS_OK;
+                if (!solved && j < 0) {
+                    const int split = ct_split(&heap, cur, rel, m, &next_id);
+                    if (split != 0) {
+                        jaos_model_free(fin);
+                        if (split < 0)
+                            goto done;
+                        splits++;
+                        continue;
+                    }
+                    if (parked++ == 0)
+                        snprintf(why, sizeof why, "node %lld: the relaxation "
+                                 "is integral, and with its integer columns "
+                                 "fixed the model ends %s: %s", (long long)nodes,
+                                 jaos_solve_status_str(jaos_status_of(fin)),
+                                 jaos_model_error(fin));
+                    if (key < parked_key)
+                        parked_key = key;
+                    jaos_model_free(fin);
+                    continue;
+                }
+                int r = 0;
+                if (solved)
+                    r = ct_offer(m, &inc, fin, fobj, nodes, sigma * best_bound,
+                                 rounding, sv, &sn, &heap, xc);
+                else
+                    jaos_model_free(fin);
+                if (r < 0)
+                    goto done;
+                if (r > 0) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                if (j < 0)
+                    continue;
             }
-            double fobj = 0.0;
-            int r = 0;
-            if (fin != nullptr && jaos_status_of(fin) == JAOS_SOLVE_OPTIMAL &&
-                jaos_objective(fin, &fobj) == JAOS_OK)
-                r = ct_offer(m, &inc, fin, fobj, nodes, sigma * best_bound,
-                             true, sv, &sn, &heap, xc);
-            else
-                jaos_model_free(fin);
-            if (r < 0)
-                goto done;
-            if (r > 0) {
-                outcome = JAOS_SOLVE_INTERRUPTED;
-                break;
+            if (nodes == 1 && inc.model == nullptr && dive > 0) {
+                memcpy(xd, x, (size_t)nc * sizeof *xd);
+                bool found = false;
+                st = ct_dive(m, ilo, ihi, dive, &work, &iters, &solves, xd,
+                             &found);
+                if (st != JAOS_OK) {
+                    rc = st;
+                    goto done;
+                }
+                jaos_model *fin = nullptr;
+                if (found) {
+                    st = ct_fixed(m, xd, work, &fin);
+                    if (st != JAOS_OK) {
+                        rc = st;
+                        goto done;
+                    }
+                    solves++;
+                    work += jaos_work_units(fin);
+                    iters += jaos_iterations(fin);
+                }
+                double fobj = 0.0;
+                int r = 0;
+                if (fin != nullptr &&
+                    jaos_status_of(fin) == JAOS_SOLVE_OPTIMAL &&
+                    jaos_objective(fin, &fobj) == JAOS_OK)
+                    r = ct_offer(m, &inc, fin, fobj, nodes, sigma * best_bound,
+                                 true, sv, &sn, &heap, xc);
+                else
+                    jaos_model_free(fin);
+                if (r < 0)
+                    goto done;
+                if (r > 0) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
             }
-        }
-        if (ct_closed(&inc, key, gap))
-            continue;
+            if (ct_closed(&inc, key, gap))
+                continue;
 
-        const double lo = rel->col_lower[j], hi = rel->col_upper[j];
-        ct_node *down = ct_child(cur, next_id++, j, lo, floor(x[j]), key);
-        ct_node *up = ct_child(cur, next_id++, j, ceil(x[j]), hi, key);
-        if (down != nullptr) {
-            down->bcol = j;
-            down->bdir = 0;
-            down->bfrac = x[j] - floor(x[j]);
+            const double lo = rel->col_lower[j], hi = rel->col_upper[j];
+            ct_node *down = ct_child(cur, next_id++, j, lo, floor(x[j]), key);
+            ct_node *up = ct_child(cur, next_id++, j, ceil(x[j]), hi, key);
+            if (down != nullptr) {
+                down->bcol = j;
+                down->bdir = 0;
+                down->bfrac = x[j] - floor(x[j]);
+            }
+            if (up != nullptr) {
+                up->bcol = j;
+                up->bdir = 1;
+                up->bfrac = ceil(x[j]) - x[j];
+            }
+            const bool down_first = x[j] - floor(x[j]) < 0.5;
+            ct_node *other = down_first ? up : down;
+            bool kept = down != nullptr && up != nullptr;
+            if (kept && inc.model == nullptr) {
+                kept = JM_GROW(sv, scap, sn + 1);
+                if (kept)
+                    sv[sn++] = other;
+            } else if (kept) {
+                kept = ct_push(&heap, other);
+            }
+            if (!kept) {
+                ct_node_free(down);
+                ct_node_free(up);
+                goto done;
+            }
+            if (next != nullptr) {
+                kept = inc.model == nullptr ? JM_GROW(sv, scap, sn + 1)
+                                            : ct_push(&heap, next);
+                if (kept && inc.model == nullptr)
+                    sv[sn++] = next;
+                if (!kept) {
+                    ct_node_free(down_first ? down : up);
+                    goto done;
+                }
+            }
+            next = down_first ? down : up;
         }
-        if (up != nullptr) {
-            up->bcol = j;
-            up->bdir = 1;
-            up->bfrac = ceil(x[j]) - x[j];
+        for (int64_t b = at; b < nb; b++)
+            if (batch[b]->key < stopped_key)
+                stopped_key = batch[b]->key;
+        for (int64_t b = 0; b < nb; b++) {
+            if (batch[b] == cur)
+                cur = nullptr;
+            ct_node_free(batch[b]);
+            batch[b] = nullptr;
         }
-        const bool down_first = x[j] - floor(x[j]) < 0.5;
-        ct_node *other = down_first ? up : down;
-        bool kept = down != nullptr && up != nullptr;
-        if (kept && inc.model == nullptr) {
-            kept = JM_GROW(sv, scap, sn + 1);
-            if (kept)
-                sv[sn++] = other;
-        } else if (kept) {
-            kept = ct_push(&heap, other);
-        }
-        if (!kept) {
-            ct_node_free(down);
-            ct_node_free(up);
-            goto done;
-        }
-        next = down_first ? down : up;
     }
     if (outcome == JAOS_SOLVE_NOT_RUN)
         outcome = inc.model != nullptr ? JAOS_SOLVE_OPTIMAL
@@ -912,6 +1016,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                 open = heap.v[k]->key;
         if (parked_key < open)
             open = parked_key;
+        if (stopped_key < open)
+            open = stopped_key;
         m->mip_bound = sigma * (open < INFINITY ? open : best_bound);
     }
     if (inc.model != nullptr) {
@@ -954,6 +1060,12 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
 done:
     if (rc == JAOS_ERR_OUT_OF_MEMORY && m->err[0] == '\0')
         jm_set_err(m, "out of memory in the conic branch and bound");
+    for (int64_t b = 0; b < CT_BATCH_MAX; b++) {
+        if (batch[b] == cur)
+            cur = nullptr;
+        ct_node_free(batch[b]);
+        jaos_model_free(rels[b]);
+    }
     ct_node_free(cur);
     ct_node_free(next);
     while (sn > 0)
@@ -969,7 +1081,6 @@ done:
     free(xd);
     free(pc.sum);
     free(pc.cnt);
-    jaos_model_free(rel);
     jaos_model_free(inc.model);
     return rc;
 }

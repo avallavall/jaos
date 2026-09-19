@@ -173,3 +173,15 @@ the commit that took it, named here by hash.
    QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
    whole budget at the root node, and the last three never finish its
    relaxation.
+
+7. **Parallel tree search, the rest.** SPECS row 82. The conic tree takes
+   its open nodes in rounds since 2026-09-20 (`--tree-batch N`,
+   `bench/measurements/02-264/`): a round's relaxations solve on up to
+   `--threads` threads and their answers are taken in the round's own
+   order, so nothing the solve publishes depends on the thread count.
+   Rounds are off by default, because a round of four leaves a worse
+   incumbent where a work limit stops the tree. Missing: the tree of
+   `src/mip.c`. Its nodes warm start from their parent's basis and share
+   a cut pool, so a round there is not the round of cold walks the conic
+   tree has; each worker would need its own copy of the basis and the
+   pool, and the cuts a round finds would have to be taken in its order.

@@ -1109,9 +1109,61 @@ static void test_the_conic_tree_learns_which_columns_move_the_bound(void)
     TEST_ASSERT_TRUE(nodes[0] < nodes[1]);
 }
 
+/* The tree takes its nodes in rounds of `mip_tree_batch`, on as many
+   threads as it is given; the rounds do not depend on the thread count, so
+   neither does anything the solve publishes. The rounds do change the
+   search: a round of four takes this model in a different number of
+   nodes, to the same optimum. */
+static void test_the_conic_tree_answers_the_same_on_any_thread_count(void)
+{
+    int64_t nodes[2], work[2];
+    double obj[2], x[2][64];
+    const int64_t threads[2] = {1, 4};
+    for (int t = 0; t < 2; t++) {
+        jaos_model *m = weighted_rounding();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, 4));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads[t]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_TRUE(jaos_num_col(m) <= 64);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[t]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(m, x[t], nullptr, nullptr, nullptr));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[t] = rep.nodes;
+        work[t] = jaos_work_units(m);
+        if (t == 1)
+            TEST_ASSERT_EQUAL_MEMORY(x[0], x[1],
+                                     (size_t)jaos_num_col(m) * sizeof x[0][0]);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+    TEST_ASSERT_EQUAL_MEMORY(&obj[0], &obj[1], sizeof obj[0]);
+
+    jaos_model *one = weighted_rounding();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(one));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(one));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(one, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.nodes != nodes[0],
+                             "a round of four took the same nodes as one");
+    double lone = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(one, &lone));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * lone, lone, obj[0]);
+    jaos_model_free(one);
+
+    jaos_model *bad = weighted_rounding();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_set_mip_tree_batch(bad, 0));
+    jaos_model_free(bad);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);
     RUN_TEST(test_a_cone_held_at_its_tip_is_left_out_of_the_walk);
     RUN_TEST(test_a_cone_whose_head_is_free_and_idle_is_left_out);
