@@ -3194,7 +3194,12 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                 m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
                 m->cone_ok = false;
                 jm_set_err(m, "the conic interior point stopped near an "
-                              "optimum that the checker does not pass");
+                              "optimum that the checker does not pass "
+                              "(columns off by %.3g, rows by %.3g, %.3g of "
+                              "their traffic, cones by %.3g, duals by %.3g)",
+                           ck.max_col_violation, ck.max_row_violation,
+                           ck.max_row_violation_relative,
+                           ck.max_cone_violation, ck.max_dual_violation);
             }
         } else {
             jm_model_publish_objective(m);

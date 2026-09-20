@@ -133,12 +133,24 @@ the commit that took it, named here by hash.
      `row_curves_its_way`; it needs the supremum of a concave quadratic
      form, which is `a'H⁺a / 2` where the shift `u` of
      `a'x + ½x'Hx ≤ (a + Hu)'x - ½u'Hu` makes `a + Hu` vanish.
-   - **CBLIB's three `sched_*_orig`**, which end `NUMERICAL_ERROR`: the
-     walk reaches 3e-8 on the primal residual, then loses it as `mu`
-     falls, and neither its best point nor the Newton finish passes the
-     checker. The library's own solutions carry a primal error of 2e-6 to
-     9e-6 on them. The twelve filterdesign instances (71 to 872 MB) are
-     not read at all.
+   - **CBLIB's three `sched_*_orig`**, which end `NUMERICAL_ERROR`. The
+     reading is `bench/measurements/02-271/`, and the message the solve
+     prints now carries the checker's own numbers. The primal side is at
+     working precision (columns 2e-9 to 3e-8, rows 2e-8 to 2e-7 of their
+     traffic, cones 1e-11 to 2e-10). The duals are off by 9.5, 92 and
+     411, and the violation is a column's reduced cost, not a cone's
+     dual. It is not a scaling artefact: on sched_100_50_orig the worst
+     column carries a reduced cost of 2274 against a traffic of 12316.
+     The walk's own stop reads `dres / (1 + |q| + |x| + |z|)`, which is
+     under 1e-6 there, so the walk and the checker disagree on what a
+     dual residual is. Keeping the walk's best iterate instead of its
+     last was built and refused (`conic-best-rough-point`). What is left
+     to try is a least-squares fit of the row duals to the active set in
+     place of the Newton finish, since the columns at fault are the free
+     columns of the CBF cone rewrite and their multiplier comes from an
+     equality row. The library's own solutions carry a primal error of
+     2e-6 to 9e-6 on them. The twelve filterdesign instances (71 to 872
+     MB) are not read at all.
    - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13
      continuous ones, 10 end `OPTIMAL` within 2.7e-7 of the library's
      values, but 8 of those have duals the checker refuses at 1e-7, off
