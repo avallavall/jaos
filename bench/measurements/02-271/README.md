@@ -42,12 +42,42 @@ certificate counts.
 
 `bench/refusals.txt`, line `conic-best-rough-point`.
 
+## Which column the checker refuses
+
+The worst column of sched_100_50_orig is column 4997. Its bounds are 0 and
+infinity, its value is 1.04822e-07, and its reduced cost is 84.29. The
+checker takes a column as sitting at its bound when it is within
+`tol * max(1, |x|)`, which is 1e-7 here, so the column misses that window
+by 4.8e-10 and its whole reduced cost counts as a violation. The
+complementarity product is 8.8e-6. The same shape holds for the columns
+above it, up to 1818 at 1.4e-9 from the bound.
+
+So the walk is not wrong about the dual. It leaves the columns the
+distance an interior point leaves them, and the Newton finish does not
+bring this set of them home.
+
+## Two repairs, both refused
+
+Both were built, measured on the three, and taken out.
+
+1. **A free column alone in its row fixes that row's dual.** 4742 of the
+   4744 free columns of sched_100_50_orig hold one row entry each, so
+   `y_i = (c_j - z_j) / a_ij` is exact for them. 4740 rows take their dual
+   that way, and the checker's dual violation does not move at all (92.4
+   before and after), because the columns it refuses are not those.
+2. **A column within 1e-6 of a bound its reduced cost pushes it to goes
+   to the bound.** 4274, 9300 and 19345 columns move. The column
+   violation falls to 0 and the rows rise to 5.85e-05, 1.03e-04 and
+   4.82e-05 of their traffic, which the checker refuses, and the dual
+   violation moves to 166, 209 and 56.1. Moving the columns without
+   solving the rows again is not an active set.
+
+`bench/refusals.txt`, line `conic-dual-singleton-snap`.
+
 ## What is left to try
 
-A dual repair for the three: the columns whose reduced cost has the wrong
-size are free columns of the CBF cone rewrite, so their multiplier comes
-from an equality row, and a least-squares fit of the row duals to the
-active set would move them. `conic-dual-refit` refused such a fit in
-2026-09-19 for a model whose Newton finish runs, and here the finish runs
-and is refused too, so the fit would have to replace the finish rather than
-follow it.
+An active-set finish: fix the columns at a bound, solve the rows again for
+the rest, and take the duals from that system. It is the same piece
+`TODO.md` row 5 names for QPLIB's QCQP duals, where the Newton finish
+reaches a KKT residual of 9e-16 and the checker then finds a row 5.1e-3
+from its side.

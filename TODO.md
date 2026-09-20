@@ -143,14 +143,19 @@ the commit that took it, named here by hash.
      column carries a reduced cost of 2274 against a traffic of 12316.
      The walk's own stop reads `dres / (1 + |q| + |x| + |z|)`, which is
      under 1e-6 there, so the walk and the checker disagree on what a
-     dual residual is. Keeping the walk's best iterate instead of its
-     last was built and refused (`conic-best-rough-point`). What is left
-     to try is a least-squares fit of the row duals to the active set in
-     place of the Newton finish, since the columns at fault are the free
-     columns of the CBF cone rewrite and their multiplier comes from an
-     equality row. The library's own solutions carry a primal error of
-     2e-6 to 9e-6 on them. The twelve filterdesign instances (71 to 872
-     MB) are not read at all.
+     dual residual is. The column at fault on sched_100_50_orig sits
+     1.04822e-07 from a bound whose window is `tol * max(1, |x|)`, which
+     is 1e-7, so it misses by 4.8e-10 and its whole reduced cost of
+     84.29 counts. Three remedies were built and refused: keeping the
+     walk's best iterate instead of its last
+     (`conic-best-rough-point`), a free column alone in its row fixing
+     that row's dual, and a column beside a bound going to it
+     (`conic-dual-singleton-snap`). What is left to try is an
+     active-set finish: the columns at a bound fixed, the rows solved
+     again for the rest, and the duals taken from that system. It is the
+     same piece QPLIB's QCQP duals need. The library's own solutions
+     carry a primal error of 2e-6 to 9e-6 on them. The twelve
+     filterdesign instances (71 to 872 MB) are not read at all.
    - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13
      continuous ones, 10 end `OPTIMAL` within 2.7e-7 of the library's
      values, but 8 of those have duals the checker refuses at 1e-7, off
