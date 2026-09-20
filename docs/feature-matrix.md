@@ -100,6 +100,9 @@ here (`src/chol.c`, `src/barrier.c`), and a crossover since 2026-09-09: the
 interior point ranks the variables by primal against dual slack, the best
 `rows` of them are the basis guess, the LU repairs it where singular, and
 the dual simplex finishes from there. A MIP's relaxations stay on the dual.
+Since 2026-09-20 a model whose quadratic objective is diagonal reads both
+the normal matrix's factor and the augmented system's, and keeps the one
+that costs fewer operations (`bench/measurements/02-272/`).
 An infeasible or unbounded model, which the barrier cannot certify, goes to
 the dual simplex from the slack basis once the iterate diverges, so the
 verdict and its certificate are the dual's (since 2026-09-09,
@@ -132,7 +135,11 @@ unbounded ray are published only when the checkers confirm them. Over
 3000 generated models (`bench/measurements/02-253/`) every optimum
 passes the checker at 1e-7 on both sides, the same models rewritten
 with explicit rotated cones reach the same objectives within 3e-10,
-and 8 end as a numerical error, none of them a wrong verdict. On the 29
+and none ends as a numerical error since 2026-09-20. A certificate the
+checker refuses is re-weighted before it is given up, since the test is
+sharp in the proportion between the multipliers and not in their scale,
+and 599 of the 600 planted infeasibilities publish one
+(`bench/measurements/02-270/`). On the 29
 continuous CBLIB 2014 instances under 70 MB (`make cblib`,
 `bench/measurements/02-254/`), with cones of up to 99998 members, 26 end
 `OPTIMAL` and the checker takes all 26; the three `sched_*_orig` end as a
@@ -140,11 +147,10 @@ numerical error. Integer columns beside cones or quadratic rows go to a
 branch and bound of their own (`src/conictree.c`,
 `bench/measurements/02-255/`): over 3000 generated models it agrees with
 brute force every time, and on CBLIB's 80 mixed-integer instances at
-1e11 work units 37 end `OPTIMAL`, all taken by the checker, and 43 at
+1e11 work units 43 end `OPTIMAL`, all taken by the checker, and 37 at
 the work limit, each with an incumbent found by the tree's rounding, its
-root dive or its branching. What keeps the row from ●: those three CBLIB instances
-fail, and an infeasibility that rests on a quadratic row's curvature has
-no certificate the checker takes. **The first-order row reads ◐ since
+root dive or its branching. What keeps the row from ●: those three CBLIB
+instances fail, and the 37 do not close. **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,
