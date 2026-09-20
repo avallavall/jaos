@@ -37,7 +37,13 @@ All four still reach the limit. QPLIB_8785's factor falls from 9081630
 nonzeros to 3029103 and its cost per iteration from 2.8e10 work units to
 1.7e9.
 
-`make maros-meszaros`: 0 regressed, 0 improved, 0 new over the 138.
+`make maros-meszaros`: 0 regressed, 0 improved, 0 new over the 138, and
+ksip costs 165825799 work units where it cost 71842978259, 433 times less.
+Its normal factor takes 3.35e8 operations and its augmented one 4.44e5.
+The barrier still does not converge on it and the conic walk still
+finishes it; what falls is the price of each of its 200 iterations. The
+runner reads a status and a suboptimality bound, not the work, so it calls
+that neither an improvement nor a regression.
 `make test` and `make sanitize` pass. A model with no quadratic objective
 never reaches the second pattern, so every LP is untouched.
 
