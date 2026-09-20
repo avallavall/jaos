@@ -740,6 +740,16 @@ expect_exit 2 "a model whose walk's direction the checker refuses ends unbounded
 printf '%s\n' "$err" | grep -q "a solve over the directions the rows, the bounds and the cones leave open found one that does" \
     && pass "on a direction the solve over directions found" \
     || flunk "no direction solve in the log"
+expect_exit 1 "a ball with a half-space past it is infeasible" \
+    "$JAOS" solve "$DATA/g_ball_infeas.mps" --solution "$tmp/ball.sol"
+grep -q '^status infeasible$' "$tmp/ball.sol" 2>/dev/null && grep -q '^ray ' "$tmp/ball.sol" \
+    && pass "and writes the certificate the ball's curvature carries" \
+    || flunk "no certificate for the ball: $(head -n 3 "$tmp/ball.sol" 2>&1)"
+expect_exit 0 "check of that certificate exits 0" \
+    "$JAOS" check "$DATA/g_ball_infeas.mps" "$tmp/ball.sol"
+[ "$(line_of certified)" = "certified yes" ] \
+    && pass "and certifies it" \
+    || flunk "ball certificate check: '$(line_of certified)'"
 expect_exit 0 "a model whose cones all go leaves the walk" \
     "$JAOS" solve "$DATA/g_cone_dropbox.mps" --check --log summary
 case "$(line_of objective)" in

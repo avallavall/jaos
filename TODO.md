@@ -116,11 +116,15 @@ the commit that took it, named here by hash.
      certificates it trims (02-263) took turbine07, turbine54 and
      turbine07_lowb to `OPTIMAL`. SOS sets, semi-continuous columns and
      indicator rows beside cones are refused.
-   - **a certificate for an infeasibility that rests on a quadratic row's
-     curvature.** The certificate checker takes a quadratic row linearly,
-     so the ball-and-half-space models of 02-253 end `INFEASIBLE` with no
-     certificate published (311 of their 314). The checker would need the
-     supremum of a concave quadratic over the boxes.
+   - **a certificate on a quadratic row the checker takes off the
+     diagonal.** The checker caps a column by its curvature since
+     2026-09-20 (`bench/measurements/02-267/`), so 302 of 02-253's 314
+     ball-and-half-space models publish a certificate where 3 did. The 12
+     left are rows whose quadratic part is not diagonal, which
+     `row_curves_its_way` refuses, and multipliers the walk gives the
+     wrong sign. An off-diagonal part needs the supremum of a concave
+     quadratic form, which is `a'H⁺a / 2` where the shift `u` of
+     `a'x + ½x'Hx ≤ (a + Hu)'x - ½u'Hu` makes `a + Hu` vanish.
    - **CBLIB's three `sched_*_orig`**, which end `NUMERICAL_ERROR`: the
      walk reaches 3e-8 on the primal residual, then loses it as `mu`
      falls, and neither its best point nor the Newton finish passes the

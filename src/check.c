@@ -819,6 +819,28 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
             for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
                 extra[m->cone_col[t]] += cone_ray[t];
     }
+    /* The rows' quadratic parts add 1/2 x'Hx to the combination, with
+       H the diagonal of the multipliers times the parts, and every one
+       of them curving the way `row_curves_its_way` demands, so H is
+       negative. A column the curvature holds needs no bound of its own:
+       a x + 1/2 h x^2 reaches a^2 / (-2h) and no more, wherever the
+       column may go. */
+    double *hdiag = nullptr;
+    if (m->rq_nz > 0 && bounded) {
+        hdiag = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                sizeof *hdiag);
+        if (hdiag == nullptr) {
+            free(extra);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t i = 0; i < m->num_row; i++) {
+            const double y = row_ray[i];
+            if (y == 0.0)
+                continue;
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+                hdiag[m->rq_i[p]] += y * m->rq_v[p];
+        }
+    }
     double sup_cols = 0.0, sup_colsc = 0.0;
     for (int64_t j = 0; j < m->num_col && bounded; j++) {
         double asum = 0.0, acomp = 0.0, traffic = 0.0, trafficc = 0.0;
@@ -842,6 +864,11 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
 
         if (fabs(a) <= tol * traf)
             continue;
+        const double h = hdiag != nullptr ? hdiag[j] : 0.0;
+        if (h < 0.0) {
+            add_product(&sup_cols, &sup_colsc, a, a / (-2.0 * h));
+            continue;
+        }
         if (a > 0.0) {
             if (isfinite(m->col_upper[j]))
                 add_product(&sup_cols, &sup_colsc, a, m->col_upper[j]);
@@ -872,6 +899,7 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
     }
 
     free(extra);
+    free(hdiag);
     if (!bounded) {
 
         out->sup_columns = INFINITY;

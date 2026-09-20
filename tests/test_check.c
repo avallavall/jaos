@@ -1199,9 +1199,56 @@ static void test_an_overflowing_gap_term_does_not_poison_the_accumulator(void)
     jaos_model_free(m);
 }
 
+/* A ball x0^2 + x1^2 <= 1 as a quadratic row and a half-space x0 + x1
+   >= 3 past it: no point, and the proof needs the ball's curvature. With
+   the multipliers -1 on the ball and 1 on the half-space the rows need 2
+   and the columns reach 2 * (1 * 1 / (2 * 2)) = 0.5, so the gap is 1.5.
+   A multiplier that curves the wrong way carries no proof. */
+static void test_a_ball_certificate_rests_on_the_row_curvature(void)
+{
+    const double c[2] = {0.0, 0.0};
+    const double cl[2] = {-INFINITY, -INFINITY};
+    const double cu[2] = {INFINITY, INFINITY};
+    const double rl[2] = {-INFINITY, 3.0}, ru[2] = {1.0, INFINITY};
+    const int64_t s[3] = {0, 1, 2}, ix[2] = {1, 1};
+    const double v[2] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, 2, s,
+                     ix, v));
+    const int64_t qr[2] = {0, 1}, qc[2] = {0, 1};
+    const double qv[2] = {2.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 0, 2, qr, qc, qv));
+
+    jaos_certificate_report rep;
+    const double y[2] = {-1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified, "the ball's curvature is a proof");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, rep.inf_rows);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.5, rep.gap);
+
+    const double wrong[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_certificate(m, wrong, 1e-7, &rep));
+    TEST_ASSERT_FALSE_MESSAGE(rep.certified,
+                              "a multiplier curving the wrong way is no proof");
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    double own[2] = {0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, own));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, own, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+                             "the walk's own certificate must pass");
+    jaos_model_free(m);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_ball_certificate_rests_on_the_row_curvature);
     RUN_TEST(test_the_gap_can_be_two_large_halves_cancelling);
     RUN_TEST(test_the_objective_is_read_with_its_compensation);
     RUN_TEST(test_the_dual_objective_keeps_a_term_the_wide_type_would_lose);
