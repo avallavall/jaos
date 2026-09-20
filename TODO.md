@@ -134,34 +134,14 @@ the commit that took it, named here by hash.
      `row_curves_its_way`; it needs the supremum of a concave quadratic
      form, which is `a'H⁺a / 2` where the shift `u` of
      `a'x + ½x'Hx ≤ (a + Hu)'x - ½u'Hu` makes `a + Hu` vanish.
-   - **CBLIB's three `sched_*_orig`**, which end `NUMERICAL_ERROR`. The
-     reading is `bench/measurements/02-271/`, and the message the solve
-     prints now carries the checker's own numbers. The primal side is at
-     working precision (columns 2e-9 to 3e-8, rows 2e-8 to 2e-7 of their
-     traffic, cones 1e-11 to 2e-10). The duals are off by 9.5, 92 and
-     411, and the violation is a column's reduced cost, not a cone's
-     dual. It is not a scaling artefact: on sched_100_50_orig the worst
-     column carries a reduced cost of 2274 against a traffic of 12316.
-     The walk's own stop reads `dres / (1 + |q| + |x| + |z|)`, which is
-     under 1e-6 there, so the walk and the checker disagree on what a
-     dual residual is. The column at fault on sched_100_50_orig sits
-     1.04822e-07 from a bound whose window is `tol * max(1, |x|)`, which
-     is 1e-7, so it misses by 4.8e-10 and its whole reduced cost of
-     84.29 counts. Three remedies were built and refused: keeping the
-     walk's best iterate instead of its last
-     (`conic-best-rough-point`), a free column alone in its row fixing
-     that row's dual, and a column beside a bound going to it
-     (`conic-dual-singleton-snap`). Running the Newton finish again on
-     its own answer, which row 5 named as the missing active-set
-     update, reads the same set (9362 constraints on sched_100_50_orig)
-     and ends at the same violation, because `cm_active` already takes
-     every column whose slack is under its own dual and the finish puts
-     them on their bound exactly. What is left to try is a different
-     set, chosen by what the checker will measure rather than by the
-     walk's slack against its own dual. It is the same piece QPLIB's
-     QCQP duals need. The library's own solutions
-     carry a primal error of 2e-6 to 9e-6 on them. The twelve
-     filterdesign instances (71 to 872 MB) are not read at all.
+   - **CBLIB's twelve filterdesign instances** (71 to 872 MB) are not
+     read at all. The three `sched_*_orig` are done since 2026-09-20
+     (`bench/measurements/02-271/` and `02-273/`): the Newton finish's
+     point is taken when the walk's own is refused and the finish's
+     violation is smaller, and every column that leaves the finish on a
+     bound with a reduced cost pushing it the other way leaves the
+     active set, so `make cblib` reads 29 of 29 solved and taken by the
+     checker where it read 26.
    - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13
      continuous ones, 10 end `OPTIMAL` within 2.7e-7 of the library's
      values, but 8 of those have duals the checker refuses at 1e-7, off

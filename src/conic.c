@@ -1312,6 +1312,7 @@ jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i, int sgn,
 }
 
 constexpr int64_t CONIC_NEWTON_STEPS = 2;
+constexpr int64_t CONIC_NEWTON_ROUNDS = 4;
 
 static void cm_add_product(double *s, double *c, double a, double b)
 {
@@ -1475,7 +1476,8 @@ static void cm_cone_grad(const jaos_model *m, int64_t k, const double *x,
     *hval = h;
 }
 
-static jaos_status newton_polish(jaos_model *m, jm_work *work)
+static jaos_status newton_polish(jaos_model *m, jm_work *work,
+                                 const bool *skip, bool *moved)
 {
     const int64_t n = m->num_col, nr = m->num_row, nk = m->num_cone;
     const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
@@ -1545,6 +1547,8 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
             atgt[na++] = 0.0;
         }
     for (int64_t j = 0; j < n; j++) {
+        if (skip != nullptr && skip[j])
+            continue;
         if (!cm_active(x[j], m->col_lower[j], m->col_upper[j],
                        m->sol_redcost[j], &atgt[na]))
             continue;
@@ -1837,9 +1841,10 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
     const double nb = fmax(fmax(now.max_row_violation_relative,
                                 now.max_col_violation),
                            fmax(now.max_cone_violation, now.max_dual_violation));
-    const bool better = now.primal_feasible && now.dual_feasible &&
-                        (!was.primal_feasible || !was.dual_feasible ||
-                         nb < wb);
+    const bool was_ok = was.primal_feasible && was.dual_feasible;
+    const bool better = now.primal_feasible && now.dual_feasible
+                            ? !was_ok || nb < wb
+                            : !was_ok && nb < wb;
     jm_log(m, JAOS_LOG_DETAIL, "conic: Newton polish %s: worst violation "
            "%.3e to %.3e", better ? "taken" : "refused", wb, nb);
     if (!better)
@@ -1872,6 +1877,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work)
     memcpy(m->sol_redcost, nd, (size_t)n * sizeof *nd);
     if (members > 0)
         memcpy(m->sol_cone, nz, (size_t)members * sizeof *nz);
+    *moved = true;
 
 done:
     jm_chol_free(&ldl);
@@ -3176,9 +3182,36 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             const double a = act + comp;
             m->sol_row[i] = a == 0.0 ? 0.0 : a;
         }
-        st = newton_polish(m, &work);
-        if (st != JAOS_OK)
+        bool *loose = jm_calloc_array(n > 0 ? n : 1, sizeof *loose);
+        if (loose == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
             goto done;
+        }
+        for (int64_t r = 0; r < CONIC_NEWTON_ROUNDS; r++) {
+            bool moved = false;
+            st = newton_polish(m, &work, r > 0 ? loose : nullptr, &moved);
+            if (st != JAOS_OK) {
+                free(loose);
+                goto done;
+            }
+            int64_t wrong = 0;
+            for (int64_t j = 0; moved && j < n; j++) {
+                const double w = m->sol_redcost[j];
+                if (loose[j] || w == 0.0 ||
+                    m->col_lower[j] == m->col_upper[j])
+                    continue;
+                if ((w > 0.0 && m->sol_col[j] == m->col_upper[j]) ||
+                    (w < 0.0 && m->sol_col[j] == m->col_lower[j])) {
+                    loose[j] = true;
+                    wrong++;
+                }
+            }
+            if (wrong == 0)
+                break;
+            jm_log(m, JAOS_LOG_DETAIL, "conic: %lld columns leave the Newton "
+                   "finish's active set with the wrong sign", (long long)wrong);
+        }
+        free(loose);
         m->solve_work = work.units;
         jaos_check_report ck;
         if (res.relaxed &&
