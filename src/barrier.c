@@ -15,6 +15,8 @@ constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
 constexpr double  BARRIER_AUG_FLOOR = 1e-30;
+constexpr double  BARRIER_AUG_EDGE = 1.0;
+constexpr double  BARRIER_AUG_TRY = 1e8;
 constexpr double  BARRIER_START_MIN = 1e-6;
 constexpr int64_t BARRIER_MAX_ITER = 200;
 constexpr double  BARRIER_DIVERGE  = 1e6;
@@ -1109,12 +1111,60 @@ static jaos_status bx_publish(bx *s, jaos_solve_status status, jm_presolve *p)
     return JAOS_OK;
 }
 
+static double chol_flops(const jm_chol *c)
+{
+    double f = 0.0;
+    if (c->l_start == nullptr)
+        return f;
+    for (int64_t j = 0; j < c->n; j++) {
+        const double h = (double)(c->l_start[j + 1] - c->l_start[j]);
+        f += h * h;
+    }
+    return f;
+}
+
+static jaos_status bx_pick_system(bx *s)
+{
+    jaos_status st = build_normal_pattern(s);
+    if (st != JAOS_OK || s->m->col_quad == nullptr)
+        return st;
+    const double normal = chol_flops(&s->chol);
+    if (normal < BARRIER_AUG_TRY)
+        return st;
+    st = build_aug_pattern(s);
+    if (st != JAOS_OK)
+        return st;
+    const double aug = chol_flops(&s->aug);
+    s->augmented = aug * BARRIER_AUG_EDGE < normal;
+    jm_log(s->m, JAOS_LOG_SUMMARY, "barrier: the normal matrix factors in "
+           "%.3g operations and the augmented system in %.3g; the %s one is "
+           "taken", normal, aug, s->augmented ? "augmented" : "normal");
+    if (s->augmented) {
+        jm_chol_free(&s->chol);
+        jm_chol_init(&s->chol);
+        free(s->n_index);
+        s->n_index = nullptr;
+        free(s->n_value);
+        s->n_value = nullptr;
+        memset(s->dense, 0, (size_t)s->nvar * sizeof *s->dense);
+        s->ndense = 0;
+    } else {
+        jm_chol_free(&s->aug);
+        jm_chol_init(&s->aug);
+        free(s->aug_index);
+        s->aug_index = nullptr;
+        free(s->aug_value);
+        s->aug_value = nullptr;
+    }
+    return JAOS_OK;
+}
+
 static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
 {
     jaos_model *m = s->m;
     jaos_status st = JAOS_OK;
     if (!resume) {
-        st = s->augmented ? build_aug_pattern(s) : build_normal_pattern(s);
+        st = s->augmented ? build_aug_pattern(s) : bx_pick_system(s);
         if (st != JAOS_OK)
             return st;
         st = starting_point(s);
@@ -2132,8 +2182,9 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                "nonzeros in the Cholesky factor, %lld pivots replaced in the "
                "last factorisation",
                jaos_solve_status_str(outcome), (long long)s.iters,
-               (long long)s.work.units, (long long)s.chol.nnz,
-               (long long)s.chol.replaced);
+               (long long)s.work.units,
+               (long long)(s.augmented ? s.aug.nnz : s.chol.nnz),
+               (long long)(s.augmented ? s.aug.replaced : s.chol.replaced));
     else
         jm_log(m, JAOS_LOG_SUMMARY,
                "abandoned after %lld barrier iterations, %lld work units: %s",

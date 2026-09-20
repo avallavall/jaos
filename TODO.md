@@ -87,15 +87,16 @@ the commit that took it, named here by hash.
      dual violation of 2.1e4, the push leaving 931 pinned columns with
      the wrong sign. The 8 largest (10000 to 1003001 columns) reach a
      work limit of 1e11, and QPLIB_9008 (1009306 columns) runs out of
-     memory. Their normal equations fill badly: one iteration of
-     QPLIB_8785 (10399 columns) costs 2.8e10 work units, its factor 9.1
-     million nonzeros. The augmented system costs 1.6e9 there and half
-     the normal equations' work on QPLIB_10038 and 10034, the same on
-     8500, so a choice of system by the symbolic factor's size would pay
-     on some. It would not finish them: on the augmented system
-     QPLIB_8785 reaches the library's objective by iteration 39 and its
-     dual residual then shrinks by a quarter per iteration with `mu` at
-     1e-40, and QPLIB_10034 does not converge in 169 iterations.
+     memory. Their normal equations filled badly, and since 2026-09-20
+     the barrier reads both factors' operation counts and keeps the
+     cheaper (`bench/measurements/02-272/`), so QPLIB_8785 reaches 59
+     iterations in the budget where it reached 7, QPLIB_10038 16 where
+     it reached 8 and QPLIB_10034 169 where it reached 84. None of them
+     finishes: on the augmented system QPLIB_8785 reaches the library's
+     objective by iteration 39 and its dual residual then shrinks by a
+     quarter per iteration with `mu` at 1e-40, and QPLIB_10034 does not
+     converge in 169 iterations. What is left is the walk itself, not
+     the system it factors.
 
 
 5. **Cones and quadratic rows, the rest.** SPECS row 23. The conic
