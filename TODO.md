@@ -150,11 +150,15 @@ the commit that took it, named here by hash.
      work limit, 10 `LMC` files reach it, 8 of them with no incumbent,
      and QPLIB_10006 and 10007 are refused for a quadratic row over
      `CONIC_QC_DENSE` (3000) columns.
-   - **a badly scaled box**: 15 bound-only columns of QPLIB_9002, values
-     of 1e9 against `Q` entries of 4e-11, put in a cone model, end the
-     walk at a certificate the checker refuses ("columns reach inf"), so
-     `NUMERICAL_ERROR` since 2026-09-19 where it said `INFEASIBLE`
-     (`tests/test_conic.c`); the barrier solves the same QP.
+   - **a badly scaled box beside a cone that stays**: 15 bound-only
+     columns of QPLIB_9002, values of 1e9 against `Q` entries of 4e-11,
+     end the walk at a certificate the checker refuses ("columns reach
+     inf"). With the box alone the model now leaves the walk, since its
+     one cone is idle and nothing conic is left
+     (`bench/measurements/02-266/`), and the barrier solves it at
+     73622257.83. Beside a cone the walk cannot leave out
+     (`tests/data/g_cone_badbox.mps`) the walk still fails, and that is
+     the walk's own trouble with a box of that scale.
 
 6. **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
    QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,

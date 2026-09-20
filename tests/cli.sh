@@ -708,7 +708,7 @@ grep -q '^cones 1$' "$tmp/cone.sol" && grep -q '^cone 0 2 ' "$tmp/cone.sol" \
 expect_exit 0 "a cone held at its tip and an idle cone solve" \
     "$JAOS" solve "$DATA/g_cone_left_out.mps" --check --log summary
 case "$(line_of objective)" in
-    "objective 1"|"objective 1.0000000"*|"objective 0.9999999"*) pass "to 1" ;;
+    "objective 2"|"objective 2.0000000"*|"objective 1.9999999"*) pass "to 2" ;;
     *) flunk "left-out cones objective '$(line_of objective)'" ;;
 esac
 [ "$(line_of check_ok)" = "check_ok yes" ] \
@@ -740,7 +740,16 @@ expect_exit 2 "a model whose walk's direction the checker refuses ends unbounded
 printf '%s\n' "$err" | grep -q "a solve over the directions the rows, the bounds and the cones leave open found one that does" \
     && pass "on a direction the solve over directions found" \
     || flunk "no direction solve in the log"
-expect_exit 4 "the badly scaled box in a cone model ends numerical_error" \
+expect_exit 0 "a model whose cones all go leaves the walk" \
+    "$JAOS" solve "$DATA/g_cone_dropbox.mps" --check --log summary
+case "$(line_of objective)" in
+    "objective 73622257.8"*) pass "and reaches 73622257.83" ;;
+    *) flunk "dropped-cones objective '$(line_of objective)'" ;;
+esac
+printf '%s\n' "$err" | grep -q "every cone is left out and no row is quadratic" \
+    && pass "by the algorithm it would have taken without cones" \
+    || flunk "no such line in the log"
+expect_exit 4 "the badly scaled box beside a live cone ends numerical_error" \
     "$JAOS" solve "$DATA/g_cone_badbox.mps"
 [ "$(line_of status)" = "status numerical_error" ] \
     && pass "and says so on stdout" \

@@ -2423,6 +2423,126 @@ static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
     return JAOS_OK;
 }
 
+/* Every cone left out and no quadratic row: what is left is a linear or
+   quadratic model, and the walk has nothing to walk on. The copy fixes
+   the columns the cones held, drops the cones and goes to the algorithm
+   the model would have used without them; the answer comes back with the
+   cones' own parts rebuilt. */
+static jaos_status cm_without_cones(jaos_model *m, const uint8_t *drop,
+                                    const uint8_t *flag, int64_t work0,
+                                    int64_t iters0)
+{
+    const int64_t n = m->num_col, nr = m->num_row;
+    const int64_t nk = m->num_cone, members = m->cone_start[nk];
+    const double started = jm_monotonic_seconds();
+    jaos_model *red = nullptr;
+    int64_t *all = jm_alloc_array(nk, sizeof *all);
+    jaos_status st = jaos_model_copy(m, &red);
+    if (st != JAOS_OK || all == nullptr) {
+        free(all);
+        jaos_model_free(red);
+        return st == JAOS_OK ? JAOS_ERR_OUT_OF_MEMORY : st;
+    }
+    for (int64_t k = 0; k < nk; k++)
+        all[k] = k;
+    st = jaos_delete_cones(red, nk, all);
+    free(all);
+    for (int64_t j = 0; j < n && st == JAOS_OK; j++) {
+        if (flag[j] & CM_ZERO)
+            st = jaos_set_col_bounds(red, j, 0.0, 0.0);
+        else if (flag[j] & CM_FREE) {
+            const double v = isfinite(m->col_lower[j]) ? m->col_lower[j] : 0.0;
+            st = jaos_set_col_bounds(red, j, v, v);
+        }
+    }
+    if (st == JAOS_OK && m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - work0;
+        red->cfg.work_limit = left > 0 ? left : 1;
+    }
+    if (st == JAOS_OK) {
+        jm_log(m, JAOS_LOG_SUMMARY, "conic: every cone is left out and no row "
+               "is quadratic, so the model goes to the algorithm it would "
+               "have taken without them");
+        st = jaos_solve(red);
+    }
+    if (st != JAOS_OK) {
+        jm_set_err(m, "%s", jaos_model_error(red));
+        jaos_model_free(red);
+        return st;
+    }
+    st = jm_model_ensure_solution_arrays(m);
+    if (st == JAOS_OK && members > 0 && m->sol_cone == nullptr &&
+        (m->sol_cone = jm_calloc_array(members, sizeof *m->sol_cone)) ==
+            nullptr)
+        st = JAOS_ERR_OUT_OF_MEMORY;
+    if (st != JAOS_OK) {
+        jaos_model_free(red);
+        return st;
+    }
+    m->solve_status = jaos_status_of(red);
+    m->solve_iters = iters0 + jaos_iterations(red);
+    m->solve_barrier_iters = m->solve_iters;
+    m->solve_work = work0 + jaos_work_units(red);
+    m->solve_time = jm_monotonic_seconds() - started;
+    m->sol_basis_ok = false;
+    m->conic_rough = false;
+    m->farkas_ok = false;
+    m->ray_ok = false;
+    m->cone_ok = false;
+    for (int64_t t = 0; t < members; t++)
+        m->sol_cone[t] = 0.0;
+    if (n > 0) {
+        memcpy(m->sol_col, red->sol_col, (size_t)n * sizeof *m->sol_col);
+        memcpy(m->sol_redcost, red->sol_redcost,
+               (size_t)n * sizeof *m->sol_redcost);
+        memcpy(m->sol_ray, red->sol_ray, (size_t)n * sizeof *m->sol_ray);
+    }
+    if (nr > 0) {
+        memcpy(m->sol_row, red->sol_row, (size_t)nr * sizeof *m->sol_row);
+        memcpy(m->sol_dual, red->sol_dual, (size_t)nr * sizeof *m->sol_dual);
+        memcpy(m->sol_farkas, red->sol_farkas,
+               (size_t)nr * sizeof *m->sol_farkas);
+    }
+    for (int64_t j = 0; j < n; j++)
+        m->sol_col_status[j] = JAOS_BASIS_BASIC;
+    for (int64_t i = 0; i < nr; i++)
+        m->sol_row_status[i] = JAOS_BASIS_BASIC;
+    m->objective = red->objective;
+    if (m->solve_status == JAOS_SOLVE_OPTIMAL) {
+        const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+        st = cm_dead_duals(m, drop, flag, sigma);
+        m->cone_ok = st == JAOS_OK;
+        if (st == JAOS_OK) {
+            for (int64_t i = 0; i < nr; i++) {
+                double act = 0.0, comp = 0.0;
+                for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+                    cm_add_product(&act, &comp, m->ar_value[p],
+                                   m->sol_col[m->ar_index[p]]);
+                const double a = act + comp;
+                m->sol_row[i] = a == 0.0 ? 0.0 : a;
+            }
+            jm_model_publish_objective(m);
+        }
+    } else if (m->solve_status == JAOS_SOLVE_INFEASIBLE && red->farkas_ok) {
+        st = cm_dead_certificate(m, drop, flag);
+        m->farkas_ok = st == JAOS_OK;
+        m->cone_ok = m->farkas_ok;
+    } else if (m->solve_status == JAOS_SOLVE_UNBOUNDED && red->ray_ok) {
+        for (int64_t j = 0; j < n; j++)
+            if (flag[j] & CM_ZERO)
+                m->sol_ray[j] = 0.0;
+        cm_idle_heads(m, drop, m->sol_ray, true);
+        jaos_ray_report rr;
+        m->ray_ok = jaos_check_ray(m, m->sol_ray, jm_primal_tolerance(m),
+                                   &rr) == JAOS_OK && rr.certified;
+    }
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL && m->err[0] == '\0' &&
+        jaos_model_error(red)[0] != '\0')
+        jm_set_err(m, "%s", jaos_model_error(red));
+    jaos_model_free(red);
+    return st;
+}
+
 static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
 {
     const int64_t n = m->num_col, nr = m->num_row;
@@ -2456,6 +2576,10 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
     if (st != JAOS_OK)
         goto done;
     const int64_t ndead = cm_drop_cones(m, dead, flag);
+    if (ndead == m->num_cone && m->num_cone > 0 && m->rq_nz == 0) {
+        st = cm_without_cones(m, dead, flag, work0, iters0);
+        goto done;
+    }
     if (ndead > 0) {
         int64_t idle = 0;
         for (int64_t k = 0; k < m->num_cone; k++)

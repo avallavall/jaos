@@ -1,9 +1,9 @@
-* The badly scaled box of TODO.md row 5: fifteen bound-only columns of
-* QPLIB_9002 with a separable Q, two of them near 1e9 against Q entries
-* of 4e-11, and one free column alone in a cone of one member, beside a
-* cone the walk cannot leave out (t >= |u| with u at 1 and t costed), so
-* the walk runs. It ends at a certificate the checker refuses, so the
-* solve ends numerical_error with that reason.
+* The badly scaled box of QPLIB_9002: fifteen bound-only columns with a
+* separable Q, two of them near 1e9 against Q entries of 4e-11, and one
+* free column alone in a cone of one member. That cone never binds, so
+* the walk leaves it out, and with no cone left the model goes to the
+* algorithm it would have taken without cones, which solves it at
+* 73622257.83.
 NAME          GBADBOX
 ROWS
  N  obj
@@ -24,8 +24,6 @@ COLUMNS
     x13       obj       0
     x14       obj       0
     x15       obj       0
-    t         obj       1
-    u         obj       0
 RHS
 BOUNDS
  FR bnd       x0
@@ -59,8 +57,6 @@ BOUNDS
  UP bnd       x14       0
  MI bnd       x15
  UP bnd       x15       0
- FR bnd       t
- FX bnd       u         1
 QUADOBJ
     x1        x1        2
     x2        x2        2
@@ -79,7 +75,4 @@ QUADOBJ
     x15       x15       2
 CSECTION      K1        0.0       QUAD
     x0
-CSECTION      K2        0.0       QUAD
-    t
-    u
 ENDATA
