@@ -1122,6 +1122,9 @@ done:
 constexpr double  CONIC_PSD_TOL  = 1e-10;
 constexpr int64_t CONIC_QC_DENSE = 3000;
 constexpr double  CONIC_RAY_ZERO = 1e-7;
+constexpr int64_t CONIC_CERT_TILT = 32;
+constexpr int64_t CONIC_CERT_SWEEPS = 1;
+constexpr int64_t CONIC_CERT_CALLS = 1024;
 constexpr double  CONIC_RAY_ACTIVE = 1e-6;
 constexpr int64_t CONIC_RAY_ITERS = 100;
 constexpr double  CONIC_RAY_TOL   = 1e-24;
@@ -2374,6 +2377,195 @@ out:
     return st;
 }
 
+static double cm_cert_gap(jaos_model *m, const double *base, double t,
+                          double tol, jaos_certificate_report *cr,
+                          int64_t *calls)
+{
+    for (int64_t i = 0; i < m->num_row; i++)
+        m->sol_farkas[i] = m->rq_start[i + 1] > m->rq_start[i]
+                               ? t * base[i] : base[i];
+    (*calls)++;
+    if (jaos_check_conic_certificate(m, m->sol_farkas,
+                                     m->num_cone > 0 ? m->sol_cone : nullptr,
+                                     tol, cr) != JAOS_OK)
+        return -INFINITY;
+    return cr->gap;
+}
+
+static bool cm_cert_tilt(jaos_model *m, double tol,
+                         jaos_certificate_report *cr, int64_t *calls)
+{
+    if (m->rq_start == nullptr || m->rq_nz == 0 || m->num_row == 0)
+        return false;
+    double *base = jm_alloc_array(m->num_row, sizeof *base);
+    if (base == nullptr)
+        return false;
+    memcpy(base, m->sol_farkas, (size_t)m->num_row * sizeof *base);
+    double lo = 0.0, at = 1.0, best = -INFINITY;
+    for (int64_t k = -CONIC_CERT_TILT; k <= CONIC_CERT_TILT; k++) {
+        const double t = ldexp(1.0, (int)k);
+        const double g = cm_cert_gap(m, base, t, tol, cr, calls);
+        if (g > best) {
+            best = g;
+            at = t;
+        }
+    }
+    double hi = 2.0 * at;
+    lo = 0.5 * at;
+    for (int64_t k = 0; k < CONIC_CERT_TILT; k++) {
+        const double ml = lo + (hi - lo) / 3.0, mr = hi - (hi - lo) / 3.0;
+        const double gl = cm_cert_gap(m, base, ml, tol, cr, calls);
+        const double gr = cm_cert_gap(m, base, mr, tol, cr, calls);
+        if (gl > best) { best = gl; at = ml; }
+        if (gr > best) { best = gr; at = mr; }
+        if (gl < gr)
+            lo = ml;
+        else
+            hi = mr;
+    }
+    const bool ok = cm_cert_gap(m, base, at, tol, cr, calls) > -INFINITY &&
+                    cr->certified;
+    if (!ok)
+        memcpy(m->sol_farkas, base, (size_t)m->num_row * sizeof *base);
+    free(base);
+    return ok;
+}
+
+static bool cm_row_curves(const jaos_model *m, int64_t i, double y)
+{
+    if (m->rq_start == nullptr || y == 0.0)
+        return true;
+    for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+        if (m->rq_i[p] != m->rq_j[p] || y * m->rq_v[p] > 0.0)
+            return false;
+    return true;
+}
+
+static bool cm_cert_signs(jaos_model *m)
+{
+    bool moved = false;
+    for (int64_t i = 0; i < m->num_row; i++) {
+        if (cm_row_curves(m, i, m->sol_farkas[i]) ||
+            !cm_row_curves(m, i, -m->sol_farkas[i]))
+            continue;
+        m->sol_farkas[i] = -m->sol_farkas[i];
+        moved = true;
+    }
+    return moved;
+}
+
+static void cm_cert_project(jaos_model *m)
+{
+    constexpr double RT = 0.70710678118654752440;
+    for (int64_t k = 0; k < m->num_cone; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e;
+        double head = m->sol_cone[b], second = 0.0, rest = 0.0;
+        if (rot) {
+            head = (m->sol_cone[b] + m->sol_cone[b + 1]) * RT;
+            second = (m->sol_cone[b] - m->sol_cone[b + 1]) * RT;
+            rest = second * second;
+        }
+        for (int64_t t = rot ? b + 2 : b + 1; t < e; t++)
+            rest += m->sol_cone[t] * m->sol_cone[t];
+        const double norm = sqrt(rest);
+        if (norm <= head)
+            continue;
+        const double s = norm <= -head ? 0.0 : 0.5 * (head + norm) / norm;
+        const double h = norm <= -head ? 0.0 : 0.5 * (head + norm);
+        if (rot) {
+            const double u = second * s;
+            m->sol_cone[b] = (h + u) * RT;
+            m->sol_cone[b + 1] = (h - u) * RT;
+        } else {
+            m->sol_cone[b] = h;
+        }
+        for (int64_t t = rot ? b + 2 : b + 1; t < e; t++)
+            m->sol_cone[t] *= s;
+    }
+}
+
+static double cm_cert_at(jaos_model *m, int64_t i, double v, double tol,
+                         jaos_certificate_report *cr, int64_t *calls)
+{
+    const double keep = m->sol_farkas[i];
+    m->sol_farkas[i] = v;
+    (*calls)++;
+    const bool ok = jaos_check_conic_certificate(
+                        m, m->sol_farkas,
+                        m->num_cone > 0 ? m->sol_cone : nullptr, tol, cr) ==
+                    JAOS_OK;
+    m->sol_farkas[i] = keep;
+    return ok ? cr->gap : -INFINITY;
+}
+
+static bool cm_cert_climb(jaos_model *m, double tol,
+                          jaos_certificate_report *cr, int64_t *calls)
+{
+    const int64_t nr = m->num_row;
+    if (nr == 0 || *calls >= CONIC_CERT_CALLS)
+        return false;
+    double big = 0.0;
+    for (int64_t i = 0; i < nr; i++)
+        if (fabs(m->sol_farkas[i]) > big)
+            big = fabs(m->sol_farkas[i]);
+    if (!(big > 0.0))
+        return false;
+    double best = cm_cert_at(m, 0, m->sol_farkas[0], tol, cr, calls);
+    bool certified = best > -INFINITY && cr->certified;
+    for (int64_t sweep = 0; sweep < CONIC_CERT_SWEEPS && !certified; sweep++) {
+        bool moved = false;
+        for (int64_t i = 0; i < nr && !certified; i++) {
+            const double at = m->sol_farkas[i];
+            double pick = at;
+            for (int64_t k = -CONIC_CERT_TILT;
+                 k <= CONIC_CERT_TILT && *calls < CONIC_CERT_CALLS; k++) {
+                const double step = ldexp(big, (int)k);
+                for (int s = -1; s <= 1; s += 2) {
+                    const double v = at + (double)s * step;
+                    const double g = cm_cert_at(m, i, v, tol, cr, calls);
+                    if (g > best) {
+                        best = g;
+                        pick = v;
+                        certified = cr->certified;
+                    }
+                    if (certified)
+                        break;
+                }
+                if (certified)
+                    break;
+            }
+            if (pick != at) {
+                m->sol_farkas[i] = pick;
+                moved = true;
+            }
+        }
+        if (!moved)
+            break;
+    }
+    if (!certified)
+        return false;
+    return cm_cert_at(m, 0, m->sol_farkas[0], tol, cr, calls) > -INFINITY &&
+           cr->certified;
+}
+
+static bool cm_cert_search(jaos_model *m, double tol, int64_t members,
+                           jaos_certificate_report *cr, int64_t *calls)
+{
+    if (cm_cert_tilt(m, tol, cr, calls))
+        return true;
+    if (cm_cert_climb(m, tol, cr, calls))
+        return true;
+    if (cm_cert_signs(m) && cm_cert_climb(m, tol, cr, calls))
+        return true;
+    if (members > 0) {
+        cm_cert_project(m);
+        if (cm_cert_climb(m, tol, cr, calls))
+            return true;
+    }
+    return false;
+}
+
 static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
 {
     const int64_t n = m->num_col, nk = m->num_cone;
@@ -3009,6 +3201,7 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         }
     } else if (res.status == JAOS_SOLVE_INFEASIBLE) {
         jaos_certificate_report cr;
+        int64_t calls = 0;
         const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone]
                                                 : 0;
         if (ndead > 0) {
@@ -3071,9 +3264,13 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                                 m->num_cone > 0 ? m->sol_cone : nullptr,
                                 jm_primal_tolerance(m), &cr) == JAOS_OK &&
                             cr.certified;
+                if (!certified && !m->cfg.node_solve)
+                    certified = cm_cert_search(m, jm_primal_tolerance(m),
+                                               members, &cr, &calls);
             }
             free(keep);
         }
+        m->solve_work += calls * (m->num_nz + m->num_col + m->num_row + 1);
         if (certified) {
             m->farkas_ok = true;
         } else if (res.relaxed) {

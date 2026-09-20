@@ -326,6 +326,50 @@ static void test_a_non_convex_quadratic_row_is_refused(void)
 
 /* (t, x) in the cone with t <= 1 and x = 2: no point, and the certificate
    combines the two bounds with a cone multiplier. */
+static void test_a_refused_certificate_is_reweighted_until_it_holds(void)
+{
+    const char *path[2] = {"tests/data/g_cert_tilt.mps",
+                           "tests/data/g_cert_climb.mps"};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INFEASIBLE,
+                                      jaos_status_of(m), path[k]);
+        const int64_t nr = jaos_num_row(m), nk = jaos_num_cones(m);
+        double *y = jm_alloc_array(nr > 0 ? nr : 1, sizeof *y);
+        TEST_ASSERT_NOT_NULL(y);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_certificate(m, y),
+                                      path[k]);
+        int64_t members = 0;
+        for (int64_t c = 0; c < nk; c++) {
+            jaos_cone_type ty;
+            int64_t n = 0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_cone(m, c, &ty, &n, nullptr));
+            members += n;
+        }
+        double *z = jm_alloc_array(members > 0 ? members : 1, sizeof *z);
+        TEST_ASSERT_NOT_NULL(z);
+        for (int64_t c = 0, at = 0; c < nk; c++) {
+            jaos_cone_type ty;
+            int64_t n = 0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_cone(m, c, &ty, &n, nullptr));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, c, z + at));
+            at += n;
+        }
+        jaos_certificate_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_check_conic_certificate(m, y, nk > 0 ? z : nullptr, 1e-7,
+                                         &rep));
+        TEST_ASSERT_TRUE_MESSAGE(rep.certified, path[k]);
+        free(y);
+        free(z);
+        jaos_model_free(m);
+    }
+}
+
 static void test_an_infeasible_cone_is_certified(void)
 {
     jaos_model *m = fresh();
@@ -1223,6 +1267,7 @@ int main(void)
     RUN_TEST(test_a_quadratic_row_bends_the_optimum);
     RUN_TEST(test_a_concave_row_on_its_lower_side_is_convex);
     RUN_TEST(test_a_non_convex_quadratic_row_is_refused);
+    RUN_TEST(test_a_refused_certificate_is_reweighted_until_it_holds);
     RUN_TEST(test_an_infeasible_cone_is_certified);
     RUN_TEST(test_an_unbounded_cone_gives_a_ray_in_the_cone);
     RUN_TEST(test_cones_survive_a_copy_and_guard_their_columns);

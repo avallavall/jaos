@@ -116,14 +116,22 @@ the commit that took it, named here by hash.
      certificates it trims (02-263) took turbine07, turbine54 and
      turbine07_lowb to `OPTIMAL`. SOS sets, semi-continuous columns and
      indicator rows beside cones are refused.
-   - **a certificate on a quadratic row the checker takes off the
-     diagonal.** The checker caps a column by its curvature since
-     2026-09-20 (`bench/measurements/02-267/`), so 302 of 02-253's 314
-     ball-and-half-space models publish a certificate where 3 did. The 12
-     left are rows whose quadratic part is not diagonal, which
-     `row_curves_its_way` refuses, and multipliers the walk gives the
-     wrong sign. An off-diagonal part needs the supremum of a concave
-     quadratic form, which is `a'H⁺a / 2` where the shift `u` of
+   - **a certificate whose free column has to vanish exactly.** The
+     checker caps a column by its curvature since 2026-09-20
+     (`bench/measurements/02-267/`), and a refused certificate is
+     re-weighted since the same day (`bench/measurements/02-270/`), so
+     313 of 02-253's 314 ball-and-half-space models publish a
+     certificate where 3 did. What the re-weighting cannot reach is a
+     free column with no curvature: its coefficient `a` has to be 0
+     exactly, which is one equation over the multipliers, and a search
+     that moves one multiplier at a time cannot hold an equation. The
+     answer is a solve over the multipliers, which is a second-order
+     cone program: the gap is concave in them, `a²/(-2h) ≤ t` is a
+     rotated cone in `(t, -h, a)`, a column with a finite bound gives
+     two linear rows, and a free column with no curvature gives `a = 0`.
+     An off-diagonal quadratic part is still refused by
+     `row_curves_its_way`; it needs the supremum of a concave quadratic
+     form, which is `a'H⁺a / 2` where the shift `u` of
      `a'x + ½x'Hx ≤ (a + Hu)'x - ½u'Hu` makes `a + Hu` vanish.
    - **CBLIB's three `sched_*_orig`**, which end `NUMERICAL_ERROR`: the
      walk reaches 3e-8 on the primal residual, then loses it as `mu`
