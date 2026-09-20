@@ -151,10 +151,15 @@ the commit that took it, named here by hash.
      walk's best iterate instead of its last
      (`conic-best-rough-point`), a free column alone in its row fixing
      that row's dual, and a column beside a bound going to it
-     (`conic-dual-singleton-snap`). What is left to try is an
-     active-set finish: the columns at a bound fixed, the rows solved
-     again for the rest, and the duals taken from that system. It is the
-     same piece QPLIB's QCQP duals need. The library's own solutions
+     (`conic-dual-singleton-snap`). Running the Newton finish again on
+     its own answer, which row 5 named as the missing active-set
+     update, reads the same set (9362 constraints on sched_100_50_orig)
+     and ends at the same violation, because `cm_active` already takes
+     every column whose slack is under its own dual and the finish puts
+     them on their bound exactly. What is left to try is a different
+     set, chosen by what the checker will measure rather than by the
+     walk's slack against its own dual. It is the same piece QPLIB's
+     QCQP duals need. The library's own solutions
      carry a primal error of 2e-6 to 9e-6 on them. The twelve
      filterdesign instances (71 to 872 MB) are not read at all.
    - **QPLIB's convex QCQPs** (`bench/measurements/02-256/`). Of the 13

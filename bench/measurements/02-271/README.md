@@ -74,10 +74,24 @@ Both were built, measured on the three, and taken out.
 
 `bench/refusals.txt`, line `conic-dual-singleton-snap`.
 
+## A third repair, also refused
+
+`TODO.md` row 5 named an active-set update after the finish as the missing
+piece. The finish was run again on the point and the duals it had just
+produced, up to three rounds, with the accept rule relaxed so a point the
+checker still refuses is taken when its worst violation is smaller. The
+second round reads the same active set as the first, 9362 constraints on
+sched_100_50_orig and 37521 on sched_200_100_orig, reaches the same KKT
+residual and ends at the same violation, 9.459 and 0.5188. The columns the
+checker refuses are already in the set, because `cm_active` takes a column
+whose slack is under its own dual, and the finish puts them on their bound
+exactly. So the set has nothing to update, and what refuses the point is
+elsewhere.
+
 ## What is left to try
 
-An active-set finish: fix the columns at a bound, solve the rows again for
-the rest, and take the duals from that system. It is the same piece
-`TODO.md` row 5 names for QPLIB's QCQP duals, where the Newton finish
-reaches a KKT residual of 9e-16 and the checker then finds a row 5.1e-3
-from its side.
+The finish solves for the multipliers of a fixed set. What the three need
+is a different set, not another pass over the same one: the rows the walk
+leaves inactive and the columns it leaves free have to be chosen by what
+the checker will measure, not by the walk's own slack against its own
+dual.
