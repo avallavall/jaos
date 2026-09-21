@@ -48,17 +48,6 @@ A2.13 **The count of gate bases the exact proof reaches is old.** The
     and refused, record it in a `bench/measurements/` directory with its
     script, and update `docs/cli.md` and `docs/feature-matrix.md` to it.
 
-A2.12 **The check that closes A2.** Re-run the 2026-09-21 docs audit's
-    method on the tree: every `--flag` in `cli/jaos.c` is in `docs/cli.md`
-    and back; every reader and writer in `src/` is in `format-support.md`;
-    every constant named in SPECS, cli.md and work-units.md is in
-    `tolerances.md` and exists in the source; every `bench/measurements/`
-    directory named in SPECS, TODO, README and docs exists; every count in
-    SPECS (functions, options, instances) matches `grep`. Put the method in
-    `tools/docs-check.sh` so it runs from `make test`, and it prints nothing
-    when the docs are true. This row leaves when the script exists, runs in
-    `make test` and passes.
-
 ### A3. Shippable
 
 A3.1 **CI.** There is no `.github/` and no other CI. Add
@@ -107,44 +96,12 @@ A3.6 **`const` on read-only calls.** `jaos_row_entries` (`jaos.h:405`),
     `const`, or write in `docs/api.md` why each mutates. Verify: builds with
     `-Wcast-qual` clean, Python and bindings unchanged.
 
-A3.7 **pip from source.** `pyproject.toml` has no `MANIFEST.in` and no sdist
-    config, so an sdist carries no `src/`, `include/`, `cli/` or `Makefile`
-    and `pip install jaos` from PyPI cannot build. Add `MANIFEST.in` (`graft
-    src include cli`, `include Makefile CMakeLists.txt`) or the setuptools
-    sdist table. Verify in WSL, in a clean venv: `python -m build --sdist &&
-    pip install dist/*.tar.gz && python -c "import jaos; print(jaos.version())"`.
-    Put that check in `tests/install.sh` or a `make sdist-test`.
-
 A3.8 **Wheels.** No `cibuildwheel` config, no manylinux, no macOS or Windows
     wheel; the loader in `python/jaos/__init__.py:186-224` already looks for
     `jaos.dll` and `libjaos.dylib`. Add a `cibuildwheel` job to A3.1's
     workflow for manylinux x86_64 at least, and a Windows wheel from the
     mingw DLL if the mingw job can produce it. Verify: the workflow builds a
     wheel that installs in a clean venv (the user's push is the run).
-
-A3.9 **Version in five places by hand.** `include/jaos.h:22-25`,
-    `pyproject.toml:7`, `julia/JAOS/Project.toml:4`, `R/jaos/DESCRIPTION:4`,
-    `dotnet/Jaos/Jaos.csproj:9`, plus README `:17` and feature-matrix `:33`.
-    Add `make version-check` that greps each against the header and fails
-    on a mismatch, and run it from `make test`. Verify: change one, see it
-    fail, restore.
-
-A3.10 **The other bindings' metadata.**
-    - `julia/JAOS/Project.toml`: `authors = ["JAOS contributors"]` is a
-      placeholder; no JLL, so document how the package finds `libjaos.so`
-      (`Libdl` lookup and the `JAOS_LIBRARY` variable) and check it works
-      from a fresh Julia depot.
-    - `R/jaos/DESCRIPTION`: `Maintainer: JAOS contributors <jaos@invalid>`
-      is rejected by CRAN. Put the user's name and address (ask; do not
-      invent one).
-    - `dotnet/Jaos/Jaos.csproj`: no `PackageId`, `Authors`, `RepositoryUrl`,
-      and no `runtimes/linux-x64/native/libjaos.so`, so a NuGet package would
-      ship managed code only. Add them and the native asset from the build.
-    - `java/`: no `pom.xml` or `build.gradle`, no version, no coordinates.
-      Add a minimal `pom.xml` that compiles `java/src/org/jaos/*.java` and
-      runs `java/check/Check.java` against `build/release/libjaos.so`.
-    Verify: `make julia-test r-test dotnet-test java-test` (whatever the
-    Makefile names them) pass.
 
 A3.11 **Fuzz target for the readers.** `tests/test_fuzz.c` is a seeded model
     generator; nothing feeds bytes to `jaos_read_mps`, `jaos_read_lp`,

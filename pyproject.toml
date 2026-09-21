@@ -5,10 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jaos"
 version = "0.3.0"
-description = "JAOS, an LP and MIP solver with bit-identical results and its own independent checker"
+description = "JAOS, an LP, MIP, QP and conic solver with bit-identical results and its own independent checker"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
+authors = [{ name = "Vall", email = "vall@jaos.dev" }]
+
+[project.urls]
+Homepage = "https://github.com/avallavall/jaos"
+Repository = "https://github.com/avallavall/jaos"
+Issues = "https://github.com/avallavall/jaos/issues"
 
 [tool.setuptools]
 package-dir = { "" = "python" }

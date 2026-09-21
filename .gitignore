@@ -19,6 +19,7 @@
 /python/jaos.egg-info/
 /build/
 /build-exp/
+/java/target/
 
 # Test instances are fetched and checksum-verified, never committed
 # (PLAN 2.10). bench/netlib.manifest is what pins them; the files

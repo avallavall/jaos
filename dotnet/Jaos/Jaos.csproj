@@ -7,9 +7,25 @@
     <RootNamespace>Jaos</RootNamespace>
     <AssemblyName>Jaos</AssemblyName>
     <Version>0.3.0</Version>
+    <PackageId>Jaos</PackageId>
+    <Authors>Vall</Authors>
     <Description>JAOS, an LP, MIP, QP and SOCP solver, from .NET: the C library through P/Invoke.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/avallavall/jaos</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/avallavall/jaos</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>optimization;linear-programming;mixed-integer;solver</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('../../build/release/libjaos.so')">
+    <None Include="../../build/release/libjaos.so" Pack="true"
+          PackagePath="runtimes/linux-x64/native/libjaos.so" Visible="false" />
+  </ItemGroup>
 
 </Project>

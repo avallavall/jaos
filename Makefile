@@ -60,7 +60,7 @@ SHLIB := $(B)/release/libjaos.so
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
-.PHONY: all test sanitize configs cli bench compare-build compare-solvers compare refusals \
+.PHONY: all test docs-check version-check sdist-test sanitize configs cli bench compare-build compare-solvers compare refusals \
 	install uninstall pkgconfig install-test cmake-test windows-test \
 	netlib netlib-baseline \
 	netlib-kennington \
@@ -122,7 +122,18 @@ refusals:
 
 test: $(DEV_TESTS) $(BENCH_TOOLS) $(CLI) install-test cmake-test windows-test
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; \
-	echo "== tests/cli.sh"; JAOS_CLI_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/cli.sh $(CLI) || fail=1; exit $$fail
+	echo "== tests/cli.sh"; JAOS_CLI_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/cli.sh $(CLI) || fail=1; \
+	echo "== tools/docs-check.sh"; bash tools/docs-check.sh || fail=1; \
+	echo "== tools/version-check.sh"; bash tools/version-check.sh || fail=1; exit $$fail
+
+docs-check:
+	@bash tools/docs-check.sh
+
+version-check:
+	@bash tools/version-check.sh
+
+sdist-test:
+	@echo "== tests/sdist.sh"; bash tests/sdist.sh
 
 install-test: $(LIB) $(SHLIB) $(CLI) $(B)/jaos.pc
 	@echo "== tests/install.sh"; bash tests/install.sh $(CC)

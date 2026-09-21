@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 cmake mingw-w64 wine64
+      - name: make test
+        run: make test
+      - name: make sanitize
+        run: make sanitize
+      - name: make python-test
+        run: make python-test
+      - name: make sdist-test
+        run: make sdist-test

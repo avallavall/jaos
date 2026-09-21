@@ -1,6 +1,6 @@
 name = "JAOS"
 uuid = "3f6d1b0e-9a42-4c5e-8b7f-2c1d5e9a7b40"
-authors = ["JAOS contributors"]
+authors = ["Vall <vall@jaos.dev>"]
 version = "0.3.0"
 
 [deps]

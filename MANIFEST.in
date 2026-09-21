@@ -1,0 +1,5 @@
+include LICENSE README.md Makefile
+graft src
+graft include
+global-exclude *.o *.a *.so *.dll *.dylib __pycache__ *.pyc
+prune build

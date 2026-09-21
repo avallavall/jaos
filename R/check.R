@@ -1,7 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-# The R package's checks: one line each, exit 1 when any fails.
-#
-#   Rscript R/check.R [DATA]      with the package on R_LIBS
 library(jaos)
 
 args <- commandArgs(trailingOnly = TRUE)
