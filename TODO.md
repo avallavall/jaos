@@ -27,14 +27,6 @@ Each row names the file and the lines as of dc7acc7. Verify each by
 re-reading the named lines against the source the row cites, and at the
 end of A2 by the check in A2.12.
 
-A2.13 **The count of gate bases the exact proof reaches is old.** The
-    docs cite 30 proved and 74 refused of the 110 gate bases at the
-    128-limb budget, from D274 (`bench/measurements/02-180/`), restated
-    on 2026-09-07; the exact machinery changed after it. Run `jaos verify`
-    over the 94 standard and 16 Kennington instances, count proved, broken
-    and refused, record it in a `bench/measurements/` directory with its
-    script, and update `docs/cli.md` and `docs/feature-matrix.md` to it.
-
 ### A3. Shippable
 
 A3.8 **Wheels.** No `cibuildwheel` config, no manylinux, no macOS or Windows

@@ -904,10 +904,11 @@ says so on stderr, and exits 5.
 The cost is stated, not billed to the work counter, and it is not small.
 Eliminating a block of `k` rows forms about `k` cubed products of large
 integers, so on a model with a big block the proof takes seconds where the
-solve took milliseconds. The last count over the 110 gate bases proved 30
-of them and refused 74 at the 128-limb budget (D274, in
-`bench/measurements/02-180/`, restated in `02-216/` on 2026-09-07). The
-output is reproducible bit for bit.
+solve took milliseconds. Over the 110 gate bases it proves 30, refuses 74
+at the 128-limb budget and finds 6 broken, bases whose answers are right
+but which miss an exact condition by five orders below the tolerance
+(`bench/measurements/02-275/`, 2026-09-21). The output is reproducible
+bit for bit.
 
 **`--proof PATH` writes the proof to a file** instead of printing it
 . It writes one only when the verdict is `optimal`; on `broken` or
