@@ -27,16 +27,20 @@ defaults to rung T0, which was defined when JAOS had no presolve.
 
 ## The reading
 
-`results/P0.txt`, 2026-08-30, geometric mean of per-instance ratios over the
-instances above a 0.05 s floor:
+`results/P0.txt`, 2026-09-21 on tree 6ae3966, geometric mean of
+per-instance ratios over the instances above a 0.05 s floor:
 
 | | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 3.60x | 1.12x | 2.96x |
-| iterations | 1.78x | 0.73x | 1.56x |
-| time per iteration | 2.02x | 1.52x | 1.90x |
-| JAOS faster on | 1 of 17 | 10 of 21 | 1 of 14 |
-| worst instance | `stocfor3` 27.4x | `grow22` 14.8x | `stocfor3` 22.8x |
+| time per solve | 3.46x | 1.01x | 2.76x |
+| iterations | 1.63x | 0.63x | 1.37x |
+| time per iteration | 2.12x | 1.60x | 2.02x |
+| JAOS faster on | 1 of 18 | 13 of 22 | 1 of 16 |
+| worst instance | `stocfor3` 33.0x | `grow22` 8.1x | `stocfor3` 23.6x |
+
+`summarise.py` recomputes the same figures from the record to within the
+last digit's rounding. SoPlex's and Clp's objectives on `pilot87` miss the
+reference, so that instance counts against HiGHS only.
 
 The three rivals disagree about the iteration count and agree about the cost
 of one iteration. The iteration is what costs.

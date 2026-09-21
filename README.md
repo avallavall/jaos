@@ -216,14 +216,15 @@ models are refused. `bench/README.md` says how it is run.
 
 `make compare COMPARE_ARGS='-t P0'` times JAOS against HiGHS, SoPlex and Clp
 with every solver's own presolve on and the dual simplex forced. The reading
-in `bench/compare/results/P0.txt` (2026-08-30):
+in `bench/compare/results/P0.txt` (2026-09-21, tree 6ae3966):
 
 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|
-| 3.60x slower per solve | 1.12x slower | 2.96x slower |
+| 3.46x slower per solve | 1.01x slower | 2.76x slower |
 
-JAOS takes fewer iterations than SoPlex. The cost of one iteration is what
-separates it from the field.
+JAOS takes fewer iterations than SoPlex (0.63x). One iteration costs 1.6x
+to 2.1x what it costs each rival, and that is what separates JAOS from
+the field.
 
 ## Layout
 

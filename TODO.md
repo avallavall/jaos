@@ -50,10 +50,10 @@ A3.13 **Valgrind and coverage: neither exists.** ASan under `make sanitize`
 
 ### A4. The tag
 
-A4.1 **Cut v0.4.0.** After A1 to A3 and B1: bump the seven version places
-    (A3.9 lists them), `make test && make sanitize && make python-test`,
+A4.1 **Cut v0.4.0.** After A1 to A3: bump the version places
+    (`tools/version-check.sh` lists them), `make test && make sanitize && make python-test`,
     the four gates and `make miplib` (solver internals moved in A3.2's
-    build flags and in B1's re-take), commit, tag `v0.4.0`, push from
+    build flags and A3.12's allocations), commit, tag `v0.4.0`, push from
     Windows. The tag message lists what landed since 0.3.0 by SPECS row:
     cones and CBF, QCP, the conic tree and `--tree-batch`, Julia, .NET,
     Java, R, the AMPL protocol, native Windows, the concurrent solve, PDLP,
@@ -62,25 +62,18 @@ A4.1 **Cut v0.4.0.** After A1 to A3 and B1: bump the seven version places
 
 ## Milestone B: performance
 
-The gap against HiGHS is 3.60x per solve (P0, tree bfde2d4, 2026-08-30):
-1.5x to 2.0x per iteration on every instance, and the iteration count on
-four instances. Rows B1 to B9 in gain order; B10 to B12 are unmeasured
-components with no expected gain on record, so they come after. Each is unrefused today; read the named
+The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
+`bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
+the iteration count on four instances. Rows B2 to B9 in gain order; B10
+to B12 are unmeasured components with no expected gain on record, so they
+come after. Each is unrefused today; read the named
 refusal before starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
-the gates (`CLAUDE.md`, step 3). B1 is part of A4's gate; the rest follow
-the tag.
-
-B1 **Re-take P0.** 58 solver-internal commits since bfde2d4 and no reading.
-    `make compare COMPARE_ARGS='-t P0'` (the three rivals are built in
-    `bench/compare/solvers/`). Write the new table into `README.md:196-202`,
-    `bench/compare/README.md:88-97` and `docs/feature-matrix.md` where it
-    cites the ratios. Every later B row reads its before from this file.
-    Verify: `bench/compare/results/P0.txt` names today's tree.
+the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
+`P0.txt`. The rows follow the tag.
 
 B2 **Repair drifted DSE weights instead of restarting them all.** pilot87
-    runs 12.4x and pilot 10.6x HiGHS on P0 (take the per-instance ratios
-    from B1's fresh `P0.txt`, not from here), and pilot, pilot87, 25fv47
+    runs 11.5x and pilot 10.8x HiGHS on P0, and pilot, pilot87, 25fv47
     and greenbea all restart their weights on 80 to 93% of iterations
     (D63). With the restart off the iterations fall to 0.31x to 0.54x, and
     `DSE_DRIFT` at 2.0 gives a false INFEASIBLE on greenbea, at 100 grow22
@@ -95,7 +88,7 @@ B2 **Repair drifted DSE weights instead of restarting them all.** pilot87
     same batch or the next.
 
 B3 **Aggregator, doubleton-equation substitution in presolve.** stocfor3
-    is the worst instance against HiGHS (27.4x) and Clp (22.8x); 02-20 says
+    is the worst instance against HiGHS (33.0x) and Clp (23.6x); 02-20 says
     the gap is the aggregator, and 02-10 counts 28% of Kennington rows as
     doubletons. The mechanism needs bound transfer, which D97 refused six
     designs of on false INFEASIBLE. D97 reopens on a crossover at postsolve;
