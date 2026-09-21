@@ -64,7 +64,7 @@ D156 | MANUAL | a frozen-row width dies at more than one ulp of the activity it 
 # D184/D206, D141/D257, this one. Nothing re-tests it; the oracle is in
 # bench/measurements/02-169/ and 02-83/.
 D176 | MANUAL | anything reads the reduced model's objective (a callback, a statistic, a postsolve path)
-SPECS-crash-basis | MANUAL | the trigger fired on 2026-09-21 (dual Devex landed, bench/measurements/02-278/): a crash basis can start the dual on Devex weights, which are exact for any basis. Reopened as TODO B13, which builds and measures it; this line goes when B13 lands or is refused again
+SPECS-crash-basis | MANUAL | a triangular crash basis in Bixby's order with the dual started in Devex on it, refused 2026-09-21: 29 of the 94 ran past 4x their work and the 65 that finished read 1.58x, 24 past 2x (bench/measurements/02-282/, crash-candidate.diff). Reopens with a crash that keeps the basis dual feasible, such as Koberstein's, or on a set whose slack basis is far from its optimum
 mip-node-devex | MANUAL | the dual Devex fallback inside the MIP tree's node solves, refused 2026-09-21 on stein27 at 2.34x the work in a set that read 0.8913x (bench/measurements/02-278/). Reopens on a set large enough that one instance cannot decide the verdict: TODO B7's MIPLIB 2017 reading
 D93  | MANUAL | a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today
 D34  | MANUAL | never, while the two absolute premises stand (locked 2026-08-13)

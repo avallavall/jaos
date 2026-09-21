@@ -18,7 +18,7 @@ to verify it, so a row leaves when its check passes, not before.
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
 the iteration count on four instances. Rows B3 to B9 in gain order; B11
-has no expected gain on record, and B13 to B15 follow from the others, so
+has no expected gain on record, and B14 and B15 follow from the others, so
 they come after. Each is unrefused today; read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -87,17 +87,6 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     beyond best-bound (best-estimate, or a plunge with a bound gap) have no
     SPECS row and no refusal; SPECS is closed, so the user decides whether
     to add the two rows. Ask once, with B7's numbers, before building.
-
-B13 **A crash basis for the dual, started on Devex weights.** The
-    `SPECS-crash-basis` refusal held because the dual starts from exact
-    steepest-edge weights, which only the slack basis gives for free. The
-    dual Devex of `bench/measurements/02-278/` starts from weights that are
-    exact for any basis, so a crash basis no longer costs the pricing.
-    Build one (`docs/research/crash-basis.md` compares the candidates;
-    Bixby's triangular crash is the usual one) that starts the dual in
-    Devex with the crash basis as the framework, and measure it over
-    netlib, kennington and the MIP set. The bar above. The refusal line
-    goes when it lands, or gets the numbers and a new condition.
 
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
