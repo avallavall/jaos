@@ -29,13 +29,6 @@ end of A2 by the check in A2.12.
 
 ### A3. Shippable
 
-A3.8 **Wheels.** No `cibuildwheel` config, no manylinux, no macOS or Windows
-    wheel; the loader in `python/jaos/__init__.py:186-224` already looks for
-    `jaos.dll` and `libjaos.dylib`. Add a `cibuildwheel` job to A3.1's
-    workflow for manylinux x86_64 at least, and a Windows wheel from the
-    mingw DLL if the mingw job can produce it. Verify: the workflow builds a
-    wheel that installs in a clean venv (the user's push is the run).
-
 A3.11 **Fuzz target for the readers.** `tests/test_fuzz.c` is a seeded model
     generator; nothing feeds bytes to `jaos_read_mps`, `jaos_read_lp`,
     `jaos_read_nl`, `jaos_read_osil`, `jaos_read_qplib`, `jaos_read_cbf`.

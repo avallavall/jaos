@@ -46,6 +46,23 @@ in the Makefile and in CMake alike. `make install` puts it as
 `libjaos.so.VERSION` with `libjaos.so.MAJOR` and `libjaos.so` linking to
 it, which is the layout `cmake --install` writes too.
 
+## The Python wheels
+
+`pip install .` builds the library from source with `make shared`, and so
+does `pip install` of the sdist, whose `MANIFEST.in` ships `src/`,
+`include/` and the Makefile. `make sdist-test` builds both the sdist and
+a wheel, installs each into a clean venv and imports it.
+
+CI builds two wheels on every push to `main`, kept as artifacts of the
+run. `wheel` builds a manylinux x86_64 wheel with cibuildwheel and imports
+it. `wheel-windows` cross-builds `libjaos.dll` with mingw-w64, and
+`setup.py` packages that prebuilt library when `JAOS_WHEEL_LIBRARY` names
+it and tags the wheel `win_amd64` from `JAOS_WHEEL_PLAT`; the DLL imports
+`KERNEL32.dll` and `msvcrt.dll` only. `wheel-windows-test` installs it on
+a Windows runner and solves a model with `python -m jaos`. Both wheels are
+tagged `py3-none`, because the package loads the library through `ctypes`
+and fits any Python 3.
+
 ## Profile-guided optimisation
 
 `make pgo` gains about three times as much as all the flags together. It
