@@ -17,6 +17,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-14 cmake mingw-w64 wine64
+      - name: Cache the Netlib instances
+        uses: actions/cache@v4
+        with:
+          path: |
+            bench/instances
+            bench/instances-infeas
+          key: netlib-${{ hashFiles('bench/netlib.manifest', 'bench/netlib-infeas.manifest', 'bench/fetch.sh') }}
+      - name: Fetch the Netlib instances the tests read
+        run: |
+          bench/fetch.sh
+          bench/fetch.sh -m bench/netlib-infeas.manifest \
+            -b https://netlib.org/lp/infeas -p emps bench/instances-infeas
       - name: make test
         run: make test
       - name: make sanitize
@@ -25,3 +37,18 @@ jobs:
         run: make python-test
       - name: make sdist-test
         run: make sdist-test
+
+  wheel:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test the manylinux wheel
+        run: pipx run cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: cp312-manylinux_x86_64
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_COMMAND: python -c "import jaos; print(jaos.version(), jaos.library_path())"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-manylinux-x86_64
+          path: wheelhouse/*.whl
