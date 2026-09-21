@@ -147,6 +147,7 @@ typedef struct {
     int64_t *prow;
     double *pnum, *pden;
     double *rrange;
+    double *rratio;
 
 #ifndef NDEBUG
 
@@ -278,6 +279,7 @@ static void sx_free(sx *s)
     free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
+    free(s->rratio);
     free(s->prow); free(s->pnum); free(s->pden);
 #ifndef NDEBUG
     free(s->dbg_cand); free(s->dbg_rnum); free(s->dbg_rden);
@@ -383,6 +385,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
     s->rden   = jm_alloc_array(s->nvar, sizeof(double));
     s->rrange = jm_alloc_array(s->nvar, sizeof(double));
+    s->rratio = jm_alloc_array(s->nvar, sizeof(double));
     s->prow   = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->pnum   = jm_alloc_array(s->nrow, sizeof(double));
     s->pden   = jm_alloc_array(s->nrow, sizeof(double));
@@ -399,7 +402,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
-        !s->rden || !s->rrange || !s->prow || !s->pnum || !s->pden ||
+        !s->rden || !s->rrange || !s->rratio || !s->prow || !s->pnum ||
+        !s->pden ||
         !s->bs || !s->fake || !s->uray) {
         sx_free(s);
         return JAOS_ERR_OUT_OF_MEMORY;
@@ -877,7 +881,7 @@ static void refine_published_duals(sx *s)
                       ? 0.0 : s->cost[v] - price_entry(s, y, v);
 }
 
-static void shift_to_feasible(sx *s, int64_t v);
+static inline void shift_to_feasible(sx *s, int64_t v);
 static bool shifts_costs(const sx *s);
 
 constexpr int REPAIR_ATTEMPTS = 4;
@@ -1211,14 +1215,16 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
 {
     int64_t live = n;
     double absorbed = 0.0;
+    double *ratio = s->rratio;
+    for (int64_t j = 0; j < live; j++)
+        ratio[j] = s->rnum[j] / s->rden[j];
 
     while (live > 0) {
         int64_t k = 0;
         double least = HUGE_VAL;
         for (int64_t j = 0; j < live; j++) {
-            double t = s->rnum[j] / s->rden[j];
-            if (t < least) {
-                least = t;
+            if (ratio[j] < least) {
+                least = ratio[j];
                 k = j;
             }
         }
@@ -1239,6 +1245,7 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
         s->rnum[k]   = s->rnum[live];   s->rnum[live]   = a;
         s->rden[k]   = s->rden[live];   s->rden[live]   = b;
         s->rrange[k] = s->rrange[live]; s->rrange[live] = c;
+        ratio[k] = ratio[live];
     }
 
     if (live == 0 && remaining <= s->primal_tol * (1.0 + absorbed)) {
@@ -1294,12 +1301,12 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
 
 static void admit_candidate(sx *s, int64_t v, bool below, int64_t *n)
 {
+    double a = s->alpha[v];
+    if (fabs(a) < PIVOT_MIN)
+        return;
     if (s->status[v] == JM_BASIC)
         return;
     if (s->lo[v] == s->up[v])
-        return;
-    double a = s->alpha[v];
-    if (fabs(a) < PIVOT_MIN)
         return;
 
     bool ok;
@@ -1698,7 +1705,7 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
     return dual_ratio_test(s, below, violation, theta_dual);
 }
 
-static void shift_to_feasible(sx *s, int64_t v)
+static inline void shift_to_feasible(sx *s, int64_t v)
 {
     double need = 0.0;
     if (s->status[v] == JM_AT_LOWER) {

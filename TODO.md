@@ -18,7 +18,7 @@ to verify it, so a row leaves when its check passes, not before.
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
 the iteration count on four instances. Rows B3 to B9 in gain order; B11
-has no expected gain on record, and B13 and B14 follow from the others, so
+has no expected gain on record, and B13 to B15 follow from the others, so
 they come after. Each is unrefused today; read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -38,17 +38,6 @@ B3 **Aggregator, doubleton-equation substitution in presolve.** stocfor3
     now exists. Build the substitution with the postsolve that restores the
     bounds and the basis, and measure over netlib and kennington. The bar
     above. Read D97 in `git show 2d3c56b:DECISIONS.md` first.
-
-B4 **Fresh attribution of the iteration, then D93's scan.** Per iteration
-    JAOS costs 1.6x to 2.1x every rival. The attribution in
-    `docs/work-units.md` is of D32 and predates D40, D41 and D93. Run
-    `tools/icount.sh` per function over truss, fit2d, pilot87 and maros-r7,
-    write the table into `docs/work-units.md` (the dated table there goes),
-    then take the largest share. D93's dense candidate scan of the ratio
-    test is 15% of instructions on truss and its 4.2% bar is readable now
-    with `tools/icount.sh`. Bar: instructions down by more than the 0.3%
-    noise on the LU-heavy and the pricing-heavy instance, work units not
-    up, answers byte-identical.
 
 B6 **The crossover push.** SPECS's crossover row is missing a primal and
     a dual push; from the barrier's point the ranked guess costs more than
@@ -113,8 +102,18 @@ B13 **A crash basis for the dual, started on Devex weights.** The
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
     re-taken after the rows that land before it. Re-take
-    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B13
+    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B15
     have landed or been refused, and update the three.
+
+B15 **The factorization's own cost.** `jm_lu_factor` is 34.9% of pilot87's
+    instructions and 17.2% of maros-r7's (`bench/measurements/02-281/`).
+    Each column of the pivot row is walked twice: once in
+    `compact_pivot_row` to find the pivot row's value (3.5% of pilot87 on
+    its own), and once to update it. Keeping each row's values beside its
+    pattern, updated at every fill-in and drop, removes the first walk
+    without changing the arithmetic. Bar: instructions down by more than
+    0.3% on pilot87 and maros-r7, answers and work units byte-identical.
+    Refusal line if the upkeep costs more than the walk it saves.
 
 ## Milestone C: reach and polish
 

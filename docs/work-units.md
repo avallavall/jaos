@@ -354,12 +354,13 @@ solves touch, the variables its bookkeeping sweeps, the rows its pricing
 scans, the update it ends with. There is no fixed charge for the iteration
 itself, and D32 is the measurement that settled it rather than an omission.
 
-Two things came out of attributing every unit to the phase that spent it,
-both worth knowing before choosing a work limit. **The basis update is 1.8%
+D32 (2026-08-08, commit 42f0d49) attributed every unit to the phase that
+spent it, and two things came out of it, both worth knowing before choosing
+a work limit. **The basis update was 1.8%
 of an iteration**, not the bulk of it: over the standard 94 and the 16
 Kennington, the non-update work of an iteration runs from 4.4x the update's
 cost on the smallest model to 1450x on the largest. And **more than half of
-all work is the pricing row and the ratio test**, with another 27.5% in the
+all work was the pricing row and the ratio test**, with another 27.5% in the
 dual update and the steepest-edge weights — which came to exactly
 `nvar + 2*nrow` per iteration, in every one of the 110 solves. D41 replaced
 the `nvar` in that with the size of the pricing row's pattern on the
@@ -372,25 +373,32 @@ of an iteration's cost scales with a dimension or with a count of nonzeros;
 none of it is a floor. A fixed charge would bill a second time for work the
 counter already sees.
 
-| Quantity | Where the units go |
-|---|---|
-| pricing row and ratio test | 53.09% |
-| dual update and steepest-edge weights | 27.52% |
-| the two FTRANs of a pivot | 6.80% |
-| the row scan that picks the infeasibility | 5.62% |
-| refactorization and the refreshes | 5.07% |
-| the basis update | 1.79% |
-| everything outside the solve loop | 0.11% |
+Where the instructions go is what a speed change answers to. **The
+reading of 2026-09-21** (tree 8296fb8, `bench/measurements/02-281/`):
+`valgrind --tool=callgrind` on the release build, counting only inside
+`jm_dual_simplex`, each function's own share after inlining. truss is the
+pricing-heavy instance and pilot87 the factorization-heavy one; fit2d
+has 10500 columns over 25 rows, so its loop is its ratio test; maros-r7
+spends a third of its instructions in the triangular solves.
 
-Those shares are as of D32 (2026-08-08, commit 42f0d49) and predate D40,
-D41 and D93. The first two took
-the ratio test's candidate scan and the dual update off the first two rows
-wherever the pricing row is sparse — 1.895x less total work on the
-Kennington set — and D93 takes that same scan down on the iterations where
-the row is read densely, which are exactly the ones the other two do not
-reach. The ranking has certainly moved; the figures are left as measured
-rather than rescaled by arithmetic, and the next attribution run replaces
-them.
+| function | truss | fit2d | maros-r7 | pilot87 |
+|---|---|---|---|---|
+| `jm_lu_factor`, the Markowitz elimination | 1.43% | 0.03% | 17.24% | **34.93%** |
+| `ftran_u_dense` | 4.00% | 0.08% | **18.43%** | 10.01% |
+| `ftran_prefix` | 5.77% | 0.18% | 7.71% | 6.16% |
+| `jm_lu_btran_sparse` | 3.30% | 0.06% | 5.27% | 7.36% |
+| `btran_l_pattern` and `btran_u_pattern` | 4.06% | 0.04% | 4.05% | 7.40% |
+| `pivot` in `src/lu.c`, the basis update | 1.72% | 0.04% | 3.97% | 3.68% |
+| `build_pricing_row`: the pivot row's BTRAN and the pricing row | **20.38%** | 17.65% | 6.97% | 11.26% |
+| `admit_candidate`, the ratio test's filter | 15.92% | 6.66% | 2.84% | 2.92% |
+| `run`, the loop, with the row scan and the ratio test's passes inlined | 11.21% | **62.76%** | 4.84% | 2.96% |
+| `pivot` in `src/simplex.c`: the dual and primal updates and the weights | 13.27% | 3.55% | 4.32% | 3.35% |
+| `shift_to_feasible` | 7.33% | 2.34% | 1.53% | 1.13% |
+| `memset`, mostly the pricing row's clear after a dense row | 5.85% | 1.27% | 3.22% | 1.77% |
+
+callgrind counts a `rep stosb` store once per step, so the `memset` share
+overstates its time. D32's table of units by phase, which this replaces,
+predated D40, D41, D93 and the Devex fallback.
 
 ## Determinism
 
