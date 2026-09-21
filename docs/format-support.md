@@ -31,6 +31,19 @@ Both trailer fields are checked, the CRC-32 and the length. A file that
 inflates to bytes other than the ones it was built from is refused, so a
 damaged instance is never solved as though it were a different model.
 
+## Declared counts
+
+The `.nl`, QPLIB, CBF and OSiL readers take a count before the data it
+counts: the variables and constraints of a header, a CBF block count or
+`ACOORD` count, an OSiL `numberOfVariables` or `mult`. Each reader refuses
+a count above the file's length in bytes once the count passes 2^20
+(`JM_READ_DECLARED_FLOOR` in `docs/tolerances.md`), and says which count
+and which line. The length is the inflated one for a gzip file. No real
+file comes near the limit: the densest of 449 spends 14 bytes on each row,
+column or nonzero. A small file may still declare up to a million, which a
+compact CBF `F n` or an OSiL `mult` does legitimately. MPS and LP files
+declare no counts, so their readers have no such limit.
+
 ## Compressed output
 
 **Every writer here compresses when the path ends in `.gz`**, and

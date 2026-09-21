@@ -438,6 +438,9 @@ bool jm_model_has_offdiagonal(const jaos_model *m);
 JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
                                     char **out, int64_t *out_len);
 
+constexpr int64_t JM_READ_DECLARED_FLOOR = (int64_t)1 << 20;
+bool jm_declared_fits(int64_t count, int64_t bytes);
+
 JAOS_NODISCARD bool jm_gzip(const char *data, int64_t n, char **out,
                             int64_t *out_n);
 

@@ -256,6 +256,17 @@ static void test_qplib_refuses_a_bad_infinity(void)
     jaos_model_free(m);
 }
 
+static void test_qplib_refuses_a_count_past_the_file_before_allocating_it(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_read_qplib(m, "tests/data/e_qplib_huge.qplib"));
+    TEST_ASSERT_NOT_NULL_MESSAGE(
+        strstr(jaos_model_error(m), "1555555555 variables and 2 constraints"),
+        jaos_model_error(m));
+    jaos_model_free(m);
+}
+
 static void test_qplib_refuses_what_it_cannot_express(void)
 {
     jaos_model *m = fresh();
@@ -343,6 +354,7 @@ int main(void)
     RUN_TEST(test_qplib_reads_the_paper_example);
     RUN_TEST(test_qplib_reads_a_pair_as_half_its_entry);
     RUN_TEST(test_qplib_refuses_a_bad_infinity);
+    RUN_TEST(test_qplib_refuses_a_count_past_the_file_before_allocating_it);
     RUN_TEST(test_qplib_refuses_what_it_cannot_express);
     RUN_TEST(test_qplib_refuses_a_name_its_reader_would_cut_as_a_comment);
     RUN_TEST(test_osil_carries_every_part_of_the_model);

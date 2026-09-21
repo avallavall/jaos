@@ -232,6 +232,12 @@ static jaos_status nl_header(nl *p)
     p->nobj = v[2];
     if (p->nvar < 0 || p->ncon < 0 || p->nobj < 0)
         FAIL("line 2: a count is negative");
+    if (!jm_declared_fits(p->nvar, p->len) ||
+        !jm_declared_fits(p->ncon, p->len))
+        FAIL("line 2: %" PRId64 " variables and %" PRId64 " constraints in "
+             "a file of %" PRId64 " bytes; JAOS reads a count past %" PRId64
+             " only from a file at least that many bytes long",
+             p->nvar, p->ncon, p->len, JM_READ_DECLARED_FLOOR);
     p->m->nl_rows = p->ncon;
     p->m->nl_cols = p->nvar;
     p->m->nl_nopt = p->nopt;
@@ -261,7 +267,8 @@ static jaos_status nl_header(nl *p)
                 FAIL("line 7: integer variables in nonlinear terms; JAOS "
                      "reads linear models only");
     }
-    if (p->nbv < 0 || p->niv < 0 || p->nbv + p->niv > p->nvar)
+    if (p->nbv < 0 || p->niv < 0 || p->nbv > p->nvar ||
+        p->niv > p->nvar - p->nbv)
         FAIL("line 7: %" PRId64 " binary and %" PRId64 " integer variables "
              "against %" PRId64 " variables", p->nbv, p->niv, p->nvar);
     if (!nl_next(p, &s) || nl_ints(s, v, 2) < 2)

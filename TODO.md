@@ -29,16 +29,6 @@ end of A2 by the check in A2.12.
 
 ### A3. Shippable
 
-A3.11 **Fuzz target for the readers.** `tests/test_fuzz.c` is a seeded model
-    generator; nothing feeds bytes to `jaos_read_mps`, `jaos_read_lp`,
-    `jaos_read_nl`, `jaos_read_osil`, `jaos_read_qplib`, `jaos_read_cbf`.
-    Add `tests/fuzz_readers.c` with `LLVMFuzzerTestOneInput` that writes the
-    input to a scratch file and calls each reader, a `make fuzz` target
-    under clang with `-fsanitize=fuzzer,address,undefined`, and a corpus
-    seeded from `tests/data/`. Run each reader for ten minutes once and fix
-    what it finds. Verify: `make fuzz` builds; the run's findings are fixed
-    with a test each.
-
 ### A4. The tag
 
 A4.1 **Cut v0.4.0.** After A1 to A3: bump the version places

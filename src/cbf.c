@@ -135,6 +135,11 @@ static jaos_status cb_count(cbf *p, const char *what, int64_t *out)
     if (!cb_int(tok[0], out) || *out < 0)
         FAIL("line %" PRId64 ": %s is '%s', not a count", p->line, what,
              tok[0]);
+    if (!jm_declared_fits(*out, p->len))
+        FAIL("line %" PRId64 ": %s declares %" PRId64 " in a file of %" PRId64
+             " bytes; JAOS reads a count past %" PRId64 " only from a file at "
+             "least that many bytes long", p->line, what, *out, p->len,
+             JM_READ_DECLARED_FLOOR);
     return JAOS_OK;
 }
 
@@ -168,6 +173,11 @@ static jaos_status cb_blocks(cbf *p, const char *what, int64_t *total,
     int64_t k;
     if (!cb_int(tok[0], total) || *total < 0 || !cb_int(tok[1], &k) || k < 0)
         FAIL("line %" PRId64 ": %s's header is two counts", p->line, what);
+    if (!jm_declared_fits(*total, p->len) || !jm_declared_fits(k, p->len))
+        FAIL("line %" PRId64 ": %s declares %" PRId64 " in %" PRId64
+             " blocks in a file of %" PRId64 " bytes; JAOS reads a count past "
+             "%" PRId64 " only from a file at least that many bytes long",
+             p->line, what, *total, k, p->len, JM_READ_DECLARED_FLOOR);
     *out = jm_alloc_array(k > 0 ? k : 1, sizeof **out);
     if (*out == nullptr)
         FAIL_OOM();

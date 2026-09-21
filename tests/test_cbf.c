@@ -191,6 +191,23 @@ static void test_the_reader_refuses_what_jaos_does_not_carry(void)
             "the variables come first");
 }
 
+static void test_a_count_past_the_file_is_refused_before_it_is_allocated(void)
+{
+    refuses("VER\n3\nOBJSENSE\nMIN\nVAR\n4444444444 1\nF 4444444444\n",
+            "only from a file at least that many bytes long");
+    refuses("VER\n3\nOBJSENSE\nMIN\nVAR\n1 3000000\n", "in 3000000 blocks");
+    refuses("VER\n3\nOBJSENSE\nMIN\nVAR\n1 1\nF 1\nCON\n1 1\nL+ 1\n"
+            "ACOORD\n4444444444\n", "ACOORD declares 4444444444");
+
+    write_file("build/tc_wide.cbf",
+               "VER\n3\nOBJSENSE\nMIN\nVAR\n100000 1\nF 100000\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_cbf(m, "build/tc_wide.cbf"));
+    TEST_ASSERT_EQUAL_INT64(100000, jaos_num_col(m));
+    jaos_model_free(m);
+    remove("build/tc_wide.cbf");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -200,5 +217,6 @@ int main(void)
     RUN_TEST(test_the_lp_example_stops_at_change);
     RUN_TEST(test_a_model_goes_out_and_back_through_cbf);
     RUN_TEST(test_the_reader_refuses_what_jaos_does_not_carry);
+    RUN_TEST(test_a_count_past_the_file_is_refused_before_it_is_allocated);
     return UNITY_END();
 }

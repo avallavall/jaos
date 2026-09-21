@@ -308,6 +308,12 @@ static jaos_status q_parse(qp *p)
         if (p->ncon < 0)
             FAIL("line %" PRId64 ": a negative number of constraints", p->line);
     }
+    if (!jm_declared_fits(p->nvar, p->len) ||
+        !jm_declared_fits(p->ncon, p->len))
+        FAIL("line %" PRId64 ": %" PRId64 " variables and %" PRId64
+             " constraints in a file of %" PRId64 " bytes; JAOS reads a count "
+             "past %" PRId64 " only from a file at least that many bytes long",
+             p->line, p->nvar, p->ncon, p->len, JM_READ_DECLARED_FLOOR);
     const int64_t nv = p->nvar > 0 ? p->nvar : 1;
     const int64_t nr = p->ncon > 0 ? p->ncon : 1;
     p->cost = jm_calloc_array(nv, sizeof(double));

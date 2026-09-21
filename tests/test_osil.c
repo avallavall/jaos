@@ -462,6 +462,34 @@ static void test_a_cost_of_1e300_is_a_cost_and_not_an_infinity(void)
     remove("build/to_huge.osil");
 }
 
+static void test_a_count_past_the_file_is_refused_before_it_is_allocated(void)
+{
+    refuses("<osil><instanceData>"
+            "<variables numberOfVariables=\"4444444444\">\n<var/>\n"
+            "</variables></instanceData></osil>\n",
+            "numberOfVariables=\"4444444444\" in a file of");
+    refuses("<osil><instanceData><variables numberOfVariables=\"2\">\n"
+            "<var mult=\"4444444444\"/>\n</variables></instanceData></osil>\n",
+            "4444444444 variables after 0");
+    refuses("<osil><instanceData>\n"
+            "<variables numberOfVariables=\"1\"><var/></variables>\n"
+            "<constraints numberOfConstraints=\"1\"><con/></constraints>\n"
+            "<linearConstraintCoefficients numberOfValues=\"1\">\n"
+            "<start><el mult=\"4444444444\">0</el></start>\n"
+            "</linearConstraintCoefficients></instanceData></osil>\n",
+            "4444444444 <el> entries after 0");
+
+    write_file("build/to_wide.osil",
+               "<osil><instanceData>"
+               "<variables numberOfVariables=\"100000\">\n"
+               "<var mult=\"100000\"/>\n</variables></instanceData></osil>\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(m, "build/to_wide.osil"));
+    TEST_ASSERT_EQUAL_INT64(100000, jaos_num_col(m));
+    jaos_model_free(m);
+    remove("build/to_wide.osil");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -474,5 +502,6 @@ int main(void)
     RUN_TEST(test_a_var_or_con_repeated_by_mult_reads_as_that_many);
     RUN_TEST(test_osil_refuses_what_it_cannot_carry);
     RUN_TEST(test_a_quadratic_row_reads_solves_and_writes_back);
+    RUN_TEST(test_a_count_past_the_file_is_refused_before_it_is_allocated);
     return UNITY_END();
 }

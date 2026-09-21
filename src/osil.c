@@ -403,6 +403,17 @@ static jaos_status o_bound(ox *p, const char *key, double dflt, double *out)
     return JAOS_OK;
 }
 
+static jaos_status o_fits(ox *p, const char *what, int64_t have, int64_t more)
+{
+    if (!jm_declared_fits(more, p->len) ||
+        !jm_declared_fits(have + more, p->len))
+        FAIL("line %" PRId64 ": %" PRId64 " %s after %" PRId64 " in a file "
+             "of %" PRId64 " bytes; JAOS reads a count past %" PRId64
+             " only from a file at least that many bytes long",
+             p->line, more, what, have, p->len, JM_READ_DECLARED_FLOOR);
+    return JAOS_OK;
+}
+
 static jaos_status o_mult(ox *p, const char *what, int64_t *n)
 {
     *n = 1;
@@ -464,6 +475,8 @@ static jaos_status o_var(ox *p)
 {
     int64_t n;
     jaos_status st = o_mult(p, "var", &n);
+    if (st == JAOS_OK)
+        st = o_fits(p, "variables", p->nvar, n);
     for (int64_t k = 0; st == JAOS_OK && k < n; k++)
         st = o_var_one(p);
     return st;
@@ -502,6 +515,8 @@ static jaos_status o_con(ox *p)
 {
     int64_t n;
     jaos_status st = o_mult(p, "con", &n);
+    if (st == JAOS_OK)
+        st = o_fits(p, "constraints", p->ncon, n);
     for (int64_t k = 0; st == JAOS_OK && k < n; k++)
         st = o_con_one(p);
     return st;
@@ -636,6 +651,14 @@ static jaos_status o_el(ox *p)
     s = x_attr(p, "incr");
     if (s != nullptr && !x_int(s, &incr))
         FAIL("line %" PRId64 ": <el> incr=\"%s\" is not a number", p->line, s);
+    {
+        const int64_t have = p->vec == OV_VALUE   ? p->nvalue
+                             : p->vec == OV_START ? p->nstart
+                                                  : p->nidx;
+        const jaos_status fst = o_fits(p, "<el> entries", have, mult);
+        if (fst != JAOS_OK)
+            return fst;
+    }
     if (p->have_nz_count && p->vec == OV_VALUE &&
         mult > p->want_nz - p->nvalue)
         FAIL("line %" PRId64 ": <el> mult=\"%" PRId64 "\" runs past the %" PRId64
@@ -678,6 +701,11 @@ static jaos_status o_count(ox *p, const char *key, int64_t *out, bool *have)
         return JAOS_OK;
     if (!x_int(s, out) || *out < 0)
         FAIL("line %" PRId64 ": %s=\"%s\" is not a count", p->line, key, s);
+    if (!jm_declared_fits(*out, p->len))
+        FAIL("line %" PRId64 ": %s=\"%s\" in a file of %" PRId64 " bytes; "
+             "JAOS reads a count past %" PRId64 " only from a file at least "
+             "that many bytes long", p->line, key, s, p->len,
+             JM_READ_DECLARED_FLOOR);
     *have = true;
     return JAOS_OK;
 }

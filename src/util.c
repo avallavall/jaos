@@ -20,6 +20,11 @@ char *jm_token(char **cursor, const char *delims)
     return s;
 }
 
+bool jm_declared_fits(int64_t count, int64_t bytes)
+{
+    return count >= 0 && (count <= JM_READ_DECLARED_FLOOR || count <= bytes);
+}
+
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
 {
     if (need <= *cap)

@@ -29,6 +29,7 @@ No instance may regress. A baseline is rewritten only with its
 ```
 make coverage     # the share of each src/ file's lines the unit suite runs
 make valgrind     # the unit suite under valgrind's memcheck
+make fuzz         # one libFuzzer target per model reader, under clang-20
 ```
 
 `make coverage` builds the library and the unit suite at `-O0` with
@@ -42,6 +43,20 @@ of 30107 lines with the file-by-file table, is in
 `--leak-check=full`, and an invalid access, an uninitialised value or a
 definite leak fails it. It takes about a minute and a half, so it is not
 part of `make test`.
+
+`make fuzz` builds `build/fuzz/fuzz_mps`, `fuzz_lp`, `fuzz_nl`,
+`fuzz_osil`, `fuzz_qplib` and `fuzz_cbf` from `tests/fuzz_readers.c`, with
+libFuzzer, ASan and UBSan (`FUZZ_CC=` names another clang). Each writes its
+input to a file and calls one reader. Seed a corpus from `tests/data/` and
+run one:
+
+```
+mkdir -p corpus/nl && cp tests/data/*.nl corpus/nl/
+build/fuzz/fuzz_nl corpus/nl -max_total_time=600 -rss_limit_mb=2048
+```
+
+A finding is fixed with a test that reads the smallest file showing it.
+The first run of all six is in `bench/measurements/02-277/`.
 
 ## The rules a change must hold
 

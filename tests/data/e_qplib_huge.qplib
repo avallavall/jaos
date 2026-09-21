@@ -1,0 +1,5 @@
+HUGE # problem name
+DGL # diagonal objective, general variables, linear constraints
+Minimize
+1555555555 # variables
+2 # general linear constraints

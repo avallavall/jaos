@@ -41,7 +41,7 @@ EXTRA_CFLAGS ?=
 
 RELEASE_CFLAGS := $(STD) $(WARN) $(FP) $(THREADS) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
 DEV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -Og $(EXTRA_CFLAGS)
-ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
+ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer
 COV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -O0 --coverage $(EXTRA_CFLAGS)
 
 GCOV     ?= gcov-14
@@ -523,7 +523,7 @@ $(B)/release $(B)/dev $(B)/asan $(B)/cov $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
 
 FUZZ_CC      ?= clang-20
 FUZZ_CFLAGS  := -std=c23 -g -O1 -ffp-contract=off -pthread \
-                -fsanitize=fuzzer,address,undefined
+                -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined
 FUZZ_FORMATS := mps lp nl osil qplib cbf
 
 $(B)/fuzz/fuzz_%: tests/fuzz_readers.c $(SRC) $(HDRS) | $(B)/fuzz

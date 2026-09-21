@@ -113,6 +113,8 @@ static void test_what_the_nl_reader_refuses_is_named_by_line(void)
         {"tests/data/e_nlcount.nl", "no 'b' segment"},
         {"tests/data/e_binary.nl", "binary .nl"},
         {"tests/data/e_compl.nl", "complementarity"},
+        {"tests/data/e_nl_huge.nl", "only from a file at least that many"},
+        {"tests/data/e_nl_intcount.nl", "9223372036854775807 binary"},
     };
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++) {
         jaos_model *m = fresh();
