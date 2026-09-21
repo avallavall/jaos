@@ -329,6 +329,10 @@ expect_exit 0 "the bound order still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-select bound
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
     || flunk "node select: $(line_of objective)"
+expect_exit 0 "rounds of four nodes on two threads still solve it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --tree-batch 4 --threads 2
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "tree batch: $(line_of objective)"
 expect_exit 5 "--node-select refuses another word" \
     "$JAOS" solve "$DATA/nl_int.lp" --node-select depth
 expect_exit 0 "a restart still solves it" \

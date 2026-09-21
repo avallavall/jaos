@@ -1029,10 +1029,10 @@ class Model:
         self._check(_lib.jaos_set_mip_node_limit(self._handle(), int(nodes)))
 
     def set_mip_tree_batch(self, nodes):
-        """How many open nodes the conic tree takes in one round, solved
-        on up to `set_threads` threads; 1, the default, is one node at a
-        time. Above 1 the search changes, and the thread count still does
-        not change the answer."""
+        """How many open nodes a branch and bound takes in one round,
+        solved on up to `set_threads` threads; 1, the default, is one node
+        at a time. Above 1 the search changes, and the thread count still
+        does not change the answer."""
         self._check(_lib.jaos_set_mip_tree_batch(self._handle(), int(nodes)))
 
     def set_mip_branching(self, rule):

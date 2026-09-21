@@ -2900,6 +2900,71 @@ static void test_a_node_whose_relaxation_fails_is_set_aside(void)
     jaos_model_free(m);
 }
 
+static jaos_model *two_knapsacks(void)
+{
+    double cost[20], cl[20], cu[20], av[40];
+    int64_t as[21], ai[40];
+    for (int64_t j = 0; j < 20; j++) {
+        cost[j] = (double)(23 + (j * 37) % 29);
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        as[j] = 2 * j;
+        for (int64_t r = 0; r < 2; r++) {
+            ai[2 * j + r] = r;
+            av[2 * j + r] = (double)(11 + (j * (53 + 17 * r)) % 31);
+        }
+    }
+    as[20] = 40;
+    const double rl[2] = { -INFINITY, -INFINITY }, ru[2] = { 150.0, 150.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 20, 2, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     40, as, ai, av));
+    for (int64_t j = 0; j < 20; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    return m;
+}
+
+static void test_a_round_of_nodes_is_the_same_on_any_thread_count(void)
+{
+    double best = 0.0;
+    for (int64_t batch = 1; batch <= 4; batch += 3) {
+        double xref[20];
+        int64_t nodes_ref = 0, work_ref = 0;
+        for (int64_t threads = 1; threads <= 3; threads += 2) {
+            jaos_model *m = two_knapsacks();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, batch));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0, x[20];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, x, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (batch == 1 && threads == 1)
+                best = obj;
+            else
+                TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+            if (batch > 1)
+                TEST_ASSERT_TRUE(rep.nodes > batch);
+            if (threads == 1) {
+                memcpy(xref, x, sizeof xref);
+                nodes_ref = rep.nodes;
+                work_ref = jaos_work_units(m);
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes_ref, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(work_ref, jaos_work_units(m));
+                TEST_ASSERT_EQUAL_MEMORY(xref, x, sizeof xref);
+            }
+            jaos_model_free(m);
+        }
+    }
+}
+
 static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
 {
     const double frac[3] = { 0.0, 0.01, 1.0 };
@@ -4424,6 +4489,7 @@ int main(void)
     RUN_TEST(test_estimate_order_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_node_whose_relaxation_fails_is_set_aside);
+    RUN_TEST(test_a_round_of_nodes_is_the_same_on_any_thread_count);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
     RUN_TEST(test_propagation_proves_a_row_infeasible);

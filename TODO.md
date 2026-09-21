@@ -17,8 +17,8 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Row B8 comes first; B14
-follows from it, so it comes after. Each is unrefused today;
+the iteration count on four instances. B14 is the row left: it re-reads
+P0 once the rows before it have landed or been refused. Each is unrefused today;
 read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -29,10 +29,6 @@ The bar for a B row, unless it says otherwise: no instance of the four
 gates past 2.0x its baseline work, the geometric mean of work under 0.95x
 over the standard 94, and no verdict or suboptimality bound regressed.
 
-B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. A
-    wall-clock reading needs the larger set, which `make miplib2017` now
-    is (`bench/measurements/02-284/`).
-
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
     re-taken after the rows that land before it. Re-take
@@ -42,7 +38,6 @@ B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
 ## Milestone C: reach and polish
 
 The research rows. They were here before 2026-09-21 and stay as written.
-C7 is B8.
 
 C4 **Convex QP: the Maros-Meszaros set.** SPECS §1, "Convex quadratic (QP)". `make
    maros-meszaros` reads the 138 instances against BPMPD's values; the
@@ -187,15 +182,3 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer qua
    QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
    whole budget at the root node, and the last three never finish its
    relaxation.
-
-C7 **Parallel tree search, the rest.** SPECS §4, "Deterministic parallel tree search". The conic tree takes
-   its open nodes in rounds since 2026-09-20 (`--tree-batch N`,
-   `bench/measurements/02-264/`): a round's relaxations solve on up to
-   `--threads` threads and their answers are taken in the round's own
-   order, so nothing the solve publishes depends on the thread count.
-   Rounds are off by default, because a round of four leaves a worse
-   incumbent where a work limit stops the tree. Missing: the tree of
-   `src/mip.c`. Its nodes warm start from their parent's basis and share
-   a cut pool, so a round there is not the round of cold walks the conic
-   tree has; each worker would need its own copy of the basis and the
-   pool, and the cuts a round finds would have to be taken in its order.

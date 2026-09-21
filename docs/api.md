@@ -199,11 +199,11 @@ the clock, so its value changes from run to run.
   at once from its second round on. It does so only when the thread count is
   above 1 and no work limit is set. Its first round runs the methods one
   after another.
-- The conic branch and bound solves the relaxations of one round on up to
-  that many threads, each on its own copy of the model.
+- Both branch and bounds solve the relaxations of one round on up to that
+  many threads, each on its own copy of the model.
   `jaos_set_mip_tree_batch` sets the size of a round.
 
-In both cases the answer and `jaos_work_units` are the same at any thread
+In each case the answer and `jaos_work_units` are the same at any thread
 count. Only `jaos_solve_time` changes. Everything else runs on the thread
 that called `jaos_solve`.
 
@@ -934,15 +934,18 @@ no limit. The call fails when `nodes` is negative.
 
 **`jaos_set_mip_tree_batch`**\
 `jaos_status jaos_set_mip_tree_batch(jaos_model *m, int64_t nodes)`\
-Sets how many open nodes the conic branch and bound takes in one round. The
-round's relaxations are solved on up to `jaos_set_threads` threads. The tree
-takes their answers in the round's own order, so the tree does not depend on
-the thread count. The default, 1, is the tree that takes one node at a time.
-Above 1 the search changes. It reaches an optimum with less work on the
-models it finishes, and a run stopped by a limit tends to hold a better
-bound and a worse incumbent. The linear tree of `src/mip.c` takes no rounds
-and ignores this setting. A round holds at most 64 nodes. The call fails
-when `nodes` is below 1.
+Sets how many open nodes a branch and bound takes in one round. The round's
+relaxations are solved on up to `jaos_set_threads` threads. The tree takes
+their answers in the round's own order, so the tree does not depend on the
+thread count. The default, 1, is the tree that takes one node at a time.
+Above 1 the search changes. The conic tree reaches an optimum with less
+work on the models it finishes, and a run it stops at a limit tends to hold
+a better bound and a worse incumbent. The linear tree (since 2026-09-22)
+solves each node of a round from the node's own basis on a copy of the
+tree's model. It then takes the nodes in order and solves each again from
+its copy's final basis, so the cuts and conflicts one node finds reach the
+nodes after it. A round holds at most 64 nodes. The call fails when `nodes`
+is below 1.
 
 **`jaos_set_mip_branching`**\
 `jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)`\

@@ -2847,6 +2847,25 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_node_select(2)
         p.set_mip_node_select(-1)
 
+    def test_the_linear_tree_takes_rounds_of_nodes(self):
+
+        found = []
+        for batch, threads in ((1, 1), (4, 1), (4, 3)):
+            p = jaos.Problem()
+            xs = [p.add_var(integer=True, ub=1) for _ in range(20)]
+            for r in range(2):
+                p.add(sum((11 + (j * (53 + 17 * r)) % 31) * xs[j]
+                          for j in range(20)) <= 150)
+            p.maximize(sum((23 + (j * 37) % 29) * xs[j] for j in range(20)))
+            p.set_mip_cut_rounds(0)
+            p.set_mip_heuristics(False)
+            p.set_mip_tree_batch(batch)
+            p.set_threads(threads)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            found.append(p.objective_value)
+        self.assertAlmostEqual(found[1], found[0], places=9)
+        self.assertEqual(found[2], found[1])
+
     def test_a_restart_keeps_the_optimum(self):
 
         for on in (False, True):

@@ -243,7 +243,7 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
 | Primal heuristics | ◐ | ● | — | — | ● | ● | ● |
 | Solution pool | ● | ○ | — | — | ● | ● | ● |
-| Deterministic parallel tree search | ◐ | ◐ | — | — | ● | ● | ? |
+| Deterministic parallel tree search | ● | ◐ | — | — | ● | ● | ? |
 
 **Deterministic parallel tree search moved from ○ to ◐ on 2026-09-20.**
 The conic branch and bound takes its open nodes in rounds under
@@ -253,8 +253,14 @@ its bound and its work are the same at any thread count and only the time
 moves (2.6x to 2.8x on four threads at a round of four,
 `bench/measurements/02-264/`). Rounds are off by default: they reach an
 optimum with less work but leave a worse incumbent where a limit stops
-the tree. The linear tree of `src/mip.c` is still one thread, which is
-what keeps the mark partial.
+the tree. **It moved to ● on 2026-09-22**, when the linear tree of
+`src/mip.c` took rounds too: each node of a round is solved on its own
+copy of the tree's LP and the tree takes the nodes in order from their
+copies' final bases, with the same determinism. They are off by default
+there as well, since a node of a few pivots costs more in the copy and
+the second solve than its thread saves; l152lav, 750 pivots a node, falls
+from 93.91 s to 21.28 s at rounds of 8 on eight threads
+(`bench/measurements/02-290/`).
 
 **The solution pool moved from ○ to ● on 2026-09-06.**
 `jaos_set_mip_pool_size` keeps the best distinct integer points a branch
@@ -282,7 +288,7 @@ another point of the same optimal face (`bench/measurements/02-247/`).
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Parallel LP solve | ◐ | ● | ○ | ○ | ◐ | ● | ? |
-| Parallel MIP solve | ○ | ◐ | — | — | ● | ● | ● |
+| Parallel MIP solve | ◐ | ◐ | — | — | ● | ● | ● |
 | Deterministic under parallelism | ● | ? | — | — | ● | ● | ● |
 
 **JAOS reads ◐ on the LP row and ● on determinism since 2026-09-10.** The

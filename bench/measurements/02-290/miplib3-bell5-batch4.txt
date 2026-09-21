@@ -1,0 +1,34 @@
+bell5        work limit reached rows=91 cols=104 shape=ok iters=1225528 work=10650004004 nodes=404806 cuts=54 heur=5 inc=8966406.4915199876 bound=8962039.9904927388 ref=8966406.4900000002 | 
+
+1 instances: 0 solved, 1 shape ok, 0 objective ok, 0 checker ok, 0 deterministic, 1 failed
+gate: NOT MET
+
+-- against baseline --
+bell5        REGRESSED    solved: yes -> no (optimal -> work limit reached)
+bell5        REGRESSED    objective: yes -> no (optimal -> work limit reached)
+bell5        REGRESSED    checker: yes -> no (optimal -> work limit reached)
+bell5        REGRESSED    det: yes -> no (optimal -> work limit reached)
+air03        not run      in baseline, absent from this run
+bell3a       not run      in baseline, absent from this run
+blend2       not run      in baseline, absent from this run
+dcmulti      not run      in baseline, absent from this run
+egout        not run      in baseline, absent from this run
+enigma       not run      in baseline, absent from this run
+flugpl       not run      in baseline, absent from this run
+gen          not run      in baseline, absent from this run
+gt2          not run      in baseline, absent from this run
+khb05250     not run      in baseline, absent from this run
+l152lav      not run      in baseline, absent from this run
+lseu         not run      in baseline, absent from this run
+misc03       not run      in baseline, absent from this run
+misc06       not run      in baseline, absent from this run
+misc07       not run      in baseline, absent from this run
+mod008       not run      in baseline, absent from this run
+mod010       not run      in baseline, absent from this run
+p0033        not run      in baseline, absent from this run
+p0201        not run      in baseline, absent from this run
+p0282        not run      in baseline, absent from this run
+rgn          not run      in baseline, absent from this run
+stein27      not run      in baseline, absent from this run
+stein45      not run      in baseline, absent from this run
+baseline: 4 regressed, 0 improved, 0 new

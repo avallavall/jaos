@@ -60,6 +60,8 @@ constexpr int64_t MIP_RINS = 0;
 
 constexpr int64_t MIP_LOCAL_BRANCHING = 0;
 
+constexpr int64_t MIP_BATCH_MAX = 64;
+
 constexpr int64_t MIP_NODE_SELECT = 1;
 
 constexpr bool MIP_RESTART = false;
@@ -744,6 +746,138 @@ static void budget(jaos_model *lp, const jaos_model *m, int64_t work)
             m->cfg.time_limit - (now_seconds() - m->mip_started);
         lp->cfg.time_limit = left > 0.0 ? left : DBL_MIN;
     }
+}
+
+typedef struct {
+    jaos_model *lp;
+    const jaos_model *m;
+    const double *ilo, *ihi;
+    const bnode *node;
+    const cutbuf *pool;
+    int64_t nfixed;
+    cutlist in_copy;
+    jaos_status st;
+} bb_crew;
+
+typedef struct {
+    bb_crew *crew;
+    int64_t n, lanes, id;
+} bb_lane;
+
+static void bb_lane_run(void *arg)
+{
+    bb_lane *l = arg;
+    for (int64_t k = l->id; k < l->n; k += l->lanes) {
+        bb_crew *c = &l->crew[k];
+        c->st = node_apply(c->lp, c->m, c->ilo, c->ihi, c->node, c->pool,
+                           c->nfixed, &c->in_copy);
+        if (c->st == JAOS_OK)
+            c->st = jaos_solve(c->lp);
+    }
+}
+
+static jaos_status bb_take_basis(bnode *n, const jaos_model *lp,
+                                 int64_t nperm)
+{
+    const int64_t nc = lp->num_col, nr = lp->num_row;
+    jaos_basis_status *cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cs);
+    jaos_basis_status *rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rs);
+    if (cs == nullptr || rs == nullptr) {
+        free(cs);
+        free(rs);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (jaos_basis(lp, cs, rs) != JAOS_OK) {
+        free(cs);
+        free(rs);
+        return JAOS_OK;
+    }
+    free(n->cs);
+    free(n->rs);
+    n->cs = cs;
+    n->rs = rs;
+    n->nrow = nr;
+    n->nperm = nperm;
+    return JAOS_OK;
+}
+
+static jaos_status bb_round_solve(const jaos_model *lp, const jaos_model *m,
+                                  const double *ilo, const double *ihi,
+                                  bnode *const *round, int64_t n,
+                                  const cutbuf *pool, int64_t nfixed,
+                                  const cutlist *in_copy, int64_t *work,
+                                  int64_t *iters, int64_t *solves)
+{
+    bb_crew crew[MIP_BATCH_MAX] = {};
+    jaos_status st = JAOS_OK;
+    int64_t share = 0;
+    if (m->cfg.work_limit > 0) {
+        share = (m->cfg.work_limit - *work) / n;
+        if (share < 1)
+            share = 1;
+    }
+    for (int64_t k = 0; k < n; k++) {
+        crew[k] = (bb_crew){ .m = m, .ilo = ilo, .ihi = ihi,
+                             .node = round[k], .pool = pool,
+                             .nfixed = nfixed };
+        if (jaos_model_copy(lp, &crew[k].lp) != JAOS_OK ||
+            !cutlist_set(&crew[k].in_copy, in_copy->v, in_copy->n)) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto out;
+        }
+        budget(crew[k].lp, m, *work);
+        if (share > 0)
+            crew[k].lp->cfg.work_limit = share;
+    }
+    {
+        const int64_t threads = jaos_threads_of(m);
+        const int64_t lanes = threads < n ? threads : n;
+        bb_lane lane[MIP_BATCH_MAX];
+        jm_thread th[MIP_BATCH_MAX];
+        bool started[MIP_BATCH_MAX] = {};
+        for (int64_t k = 0; k < lanes; k++)
+            lane[k] = (bb_lane){ crew, n, lanes, k };
+        for (int64_t k = 1; k < lanes; k++)
+            started[k] = jm_thread_start(&th[k], bb_lane_run, &lane[k]);
+        bb_lane_run(&lane[0]);
+        for (int64_t k = 1; k < lanes; k++) {
+            if (started[k])
+                jm_thread_join(&th[k]);
+            else
+                bb_lane_run(&lane[k]);
+        }
+    }
+    for (int64_t k = 0; k < n; k++) {
+        bb_crew *c = &crew[k];
+        if (c->st == JAOS_ERR_OUT_OF_MEMORY) {
+            st = c->st;
+            goto out;
+        }
+        *work += jaos_work_units(c->lp);
+        *iters += jaos_iterations(c->lp);
+        (*solves)++;
+        if (c->st == JAOS_OK) {
+            st = bb_take_basis(round[k], c->lp, nfixed);
+            if (st != JAOS_OK)
+                goto out;
+        }
+    }
+out:
+    for (int64_t k = 0; k < n; k++) {
+        jaos_model_free(crew[k].lp);
+        free(crew[k].in_copy.v);
+    }
+    return st;
+}
+
+static double bb_round_bound(const bnode *cur, bnode *const *round,
+                             int64_t at, int64_t n)
+{
+    double b = cur->key;
+    for (int64_t r = at; r < n; r++)
+        if (round[r]->key < b)
+            b = round[r]->key;
+    return b;
 }
 
 typedef struct {
@@ -3912,6 +4046,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     bheap heap = { .by_est = node_select == 1 };
     kheap kh = {0};
     int64_t picks = 0;
+    const int64_t batch = m->cfg.mip_tree_batch < 1 ? 1
+                          : m->cfg.mip_tree_batch > MIP_BATCH_MAX
+                              ? MIP_BATCH_MAX : m->cfg.mip_tree_batch;
+    bnode *round[MIP_BATCH_MAX];
+    int64_t round_n = 0, round_at = 0;
     incumbent inc = {0};
     cutbuf cb = {0}, pool = {0};
     int64_t *act = nullptr;
@@ -4113,6 +4252,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
 
         if (nodes > 0) {
             node_free(cur);
+            cur = nullptr;
             for (;;) {
                 bool resumed = false;
                 if (next != nullptr) {
@@ -4124,6 +4264,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                                          dstack_n, dive_gap)) {
                     cur = dstack[--dstack_n];
                     resumed = true;
+                } else if (round_at < round_n) {
+                    cur = round[round_at++];
+                    best_bound = bb_round_bound(cur, round, round_at, round_n);
                 } else {
                     while (dstack_n > 0) {
                         if (!open_push(&heap, &kh, dstack[dstack_n - 1]))
@@ -4131,12 +4274,38 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         dstack_n--;
                     }
                     backtracks = 0;
-                    cur = open_pick(&heap, &kh,
-                                    picks % MIP_ESTIMATE_BOUND_EVERY == 0);
-                    picks++;
+                    int64_t want = batch;
+                    if (jm_model_has_quadratic(lp) || budget_gone(m, work))
+                        want = 1;
+                    if (m->cfg.mip_node_limit > 0 &&
+                        m->cfg.mip_node_limit - nodes < want)
+                        want = m->cfg.mip_node_limit - nodes > 1
+                                   ? m->cfg.mip_node_limit - nodes : 1;
+                    const double wk = inc.have && inc.key < cut_key
+                                          ? inc.key : cut_key;
+                    round_n = round_at = 0;
+                    while (round_n < want) {
+                        bnode *p = open_pick(&heap, &kh,
+                                             picks % MIP_ESTIMATE_BOUND_EVERY == 0);
+                        if (p == nullptr)
+                            break;
+                        picks++;
+                        if (round_n > 0 && wk < INFINITY &&
+                            wk - p->key <= gap * (1.0 + fabs(wk))) {
+                            node_free(p);
+                            continue;
+                        }
+                        round[round_n++] = p;
+                    }
+                    if (round_n > 1 &&
+                        bb_round_solve(lp, m, ilo, ihi, round, round_n, &pool,
+                                       nfixed, &in_copy, &work, &iters,
+                                       &solves) != JAOS_OK)
+                        goto done;
+                    cur = round_n > 0 ? round[round_at++] : nullptr;
                     if (cur == nullptr)
                         break;
-                    best_bound = cur->key;
+                    best_bound = bb_round_bound(cur, round, round_at, round_n);
                 }
 
                 const double bk = inc.have && inc.key < cut_key ? inc.key
@@ -5599,6 +5768,8 @@ done:
     while (dstack_n > 0)
         node_free(dstack[--dstack_n]);
     free(dstack);
+    while (round_at < round_n)
+        node_free(round[round_at++]);
     node_free(cur);
     node_free(next);
     incumbent_free(&inc);
