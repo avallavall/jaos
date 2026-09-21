@@ -93,3 +93,33 @@ jobs:
           cd "$RUNNER_TEMP"
           python -c "import jaos; print(jaos.version(), jaos.library_path())"
           python -m jaos solve "$GITHUB_WORKSPACE/tests/data/solve1.mps"
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC 14
+        run: brew install gcc@14
+      - name: Build with CMake and run the unit suite
+        run: |
+          cmake -S . -B build/mac -DCMAKE_C_COMPILER=gcc-14 -DJAOS_LTO=OFF
+          cmake --build build/mac --parallel
+          ctest --test-dir build/mac --output-on-failure -E '^cli$'
+      - name: Solve with the tool
+        run: |
+          build/mac/jaos solve tests/data/solve1.mps
+          build/mac/jaos solve tests/data/t4_int.mps
+
+  windows-clang-cl:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with clang-cl and solve with the tool
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          clang-cl --version
+          cmake -S . -B build\clcl -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release -DJAOS_LTO=OFF -DJAOS_BUILD_TESTS=OFF || exit /b 1
+          cmake --build build\clcl || exit /b 1
+          build\clcl\jaos.exe solve tests\data\solve1.mps || exit /b 1
+          build\clcl\jaos.exe solve tests\data\t4_int.mps || exit /b 1

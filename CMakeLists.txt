@@ -66,7 +66,13 @@ set(JAOS_SOURCES
     src/version.c
     src/write.c)
 
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
+   CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  set(CMAKE_C23_STANDARD_COMPILE_OPTION "/clang:-std=c23")
+  set(CMAKE_C23_EXTENSION_COMPILE_OPTION "/clang:-std=c23")
+  set(JAOS_C_FLAGS /W3 /clang:-ffp-contract=off /D_CRT_SECURE_NO_WARNINGS)
+  set(JAOS_DEV_FLAGS /Od /UNDEBUG)
+elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   set(JAOS_C_FLAGS -Wall -Wextra -Wpedantic -Werror -ffp-contract=off -g)
   set(JAOS_DEV_FLAGS -Og -UNDEBUG)
 elseif(MSVC)
