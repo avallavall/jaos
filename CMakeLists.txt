@@ -30,6 +30,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 set(JAOS_SOURCES
+    src/aggregate.c
     src/alloc.c
     src/barrier.c
     src/cbf.c

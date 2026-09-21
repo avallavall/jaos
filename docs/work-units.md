@@ -45,7 +45,7 @@ promise a run far cheaper than the one it buys.
 
 ## Where it is charged
 
-The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`,
+The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`, `src/aggregate.c`,
 `src/simplex.c`, `src/barrier.c`, `src/pdlp.c`, `src/conic.c`, and one
 pass in `src/ranging.c`. The searches built on them, the branch and bound,
 the conic tree and the concurrent solve, add up what their solves billed
@@ -86,6 +86,16 @@ where a solve stops, and phase 1 is the standing example
 of what that costs when it goes silently wrong. Nothing else in
 `src/presolve.c` bills anything; see "What is outside the budget" below for
 what that leaves.
+
+**Aggregation** (`jm_aggregate`, `src/aggregate.c`): `JM_WORK_NONZERO` per
+nonzero of the model it copies into its row and column lists, per entry it
+reads while it tests a row's candidates, per entry it looks up or changes
+while it substitutes a column, and once more per nonzero of the reduced
+model it builds. It bills onto the same `jm_work` as presolve. It runs on
+every continuous model the dual simplex solves outside a tree, so a model
+where nothing is substituted still pays one pass over its nonzeros, and a
+pass per candidate column over each equality row of two to `AGG_ROW_MAX`
+entries.
 
 **Factorization** (`jm_lu_factor`): `JM_WORK_FACTOR` once on entry, plus
 `JM_WORK_ELIMINATED` per nonzero the elimination produces.

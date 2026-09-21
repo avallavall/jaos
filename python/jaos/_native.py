@@ -222,6 +222,7 @@ class _PresolveReport(ctypes.Structure):
         ("duplicate_row", _I64),
         ("duplicate_col", _I64),
         ("dominated_col", _I64),
+        ("aggregated_col", _I64),
     ]
 
 class _ModelStats(ctypes.Structure):

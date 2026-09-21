@@ -17,7 +17,7 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B3 to B9 in gain order; B11
+the iteration count on four instances. Rows B6 to B9 in gain order; B11
 has no expected gain on record, and B14 follows from the others, so
 they come after. Each is unrefused today; read the named refusal before
 starting and stop if its condition is not met. Every row
@@ -28,16 +28,6 @@ the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
 The bar for a B row, unless it says otherwise: no instance of the four
 gates past 2.0x its baseline work, the geometric mean of work under 0.95x
 over the standard 94, and no verdict or suboptimality bound regressed.
-
-B3 **Aggregator, doubleton-equation substitution in presolve.** stocfor3
-    is the worst instance against HiGHS (33.0x) and Clp (23.6x); 02-20 says
-    the gap is the aggregator, and 02-10 counts 28% of Kennington rows as
-    doubletons. The mechanism needs bound transfer, which D97 refused six
-    designs of on false INFEASIBLE. D97 reopens on a crossover at postsolve;
-    D114 met its first precondition and `crash_basis` in `src/barrier.c`
-    now exists. Build the substitution with the postsolve that restores the
-    bounds and the basis, and measure over netlib and kennington. The bar
-    above. Read D97 in `git show 2d3c56b:DECISIONS.md` first.
 
 B6 **The crossover push.** SPECS's crossover row is missing a primal and
     a dual push; from the barrier's point the ranked guess costs more than

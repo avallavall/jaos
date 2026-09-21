@@ -4351,6 +4351,19 @@ jaos_status jm_dual_simplex(jaos_model *m)
             jm_log(m, JAOS_LOG_SUMMARY,
                    "presolve: skipped, the objective has a quadratic term");
         }
+        if ((p.outcome == JM_PRESOLVE_REDUCED ||
+             (p.outcome == JM_PRESOLVE_NONE && !quadratic)) &&
+            !m->cfg.node_solve && m->start_col_status == nullptr &&
+            !jm_model_has_integer(m) && !jm_model_has_conic(m) &&
+            m->rq_nz == 0) {
+            pst = jm_aggregate(&p,
+                               p.outcome == JM_PRESOLVE_REDUCED ? &p.reduced : m,
+                               &pre_work);
+            if (pst != JAOS_OK) {
+                jm_presolve_free(&p);
+                return pst;
+            }
+        }
 
         m->presolve_counts = p.counts;
 
@@ -4376,7 +4389,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                    "%lld rows, %lld columns, %lld nonzeros; "
                    "fixed_col=%lld empty_row=%lld empty_col=%lld "
                    "singleton_row=%lld singleton_col=%lld "
-                   "free_col_singleton=%lld rounds=%lld",
+                   "free_col_singleton=%lld aggregated_col=%lld rounds=%lld",
                    (long long)m->num_row, (long long)m->num_col,
                    (long long)m->num_nz, (long long)p.reduced.num_row,
                    (long long)p.reduced.num_col, (long long)p.reduced.num_nz,
@@ -4385,6 +4398,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                    (long long)p.counts.singleton_row,
                    (long long)p.counts.singleton_col,
                    (long long)p.counts.free_col_singleton,
+                   (long long)p.counts.aggregated_col,
                    (long long)p.counts.rounds);
         }
     #endif

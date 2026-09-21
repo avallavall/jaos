@@ -2508,6 +2508,19 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertLessEqual(rep.num_row, 2)
         self.assertEqual(rep.duplicate_row, 0)
 
+    def test_the_aggregated_column_count_reaches_python(self):
+
+        p = jaos.Problem()
+        x = [p.add_var(name=f"x{k}") for k in range(4)]
+        p.add(x[0] - x[1] == 1)
+        p.add(x[0] + x[2] >= 3)
+        p.add(x[0] + x[3] <= 10)
+        p.add(x[1] + x[2] + x[3] >= 2)
+        p.minimize(2 * x[0] + x[1] + 3 * x[2] + x[3])
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 8.0, places=12)
+        self.assertEqual(p.presolve_report().aggregated_col, 1)
+
     def test_a_starting_point_a_cutoff_and_the_statistics(self):
 
         def build():

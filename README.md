@@ -50,8 +50,9 @@ model; `jaos show` prints one row or column. `jaos STUB -AMPL` answers
 AMPL's solver protocol; Pyomo calls it that way on a linear model, and
 so can JuMP through AmplNLWriter.
 
-**Linear programs.** Presolve with six reduction families and a postsolve to
-the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
+**Linear programs.** Presolve with seven reduction families, the last one
+substituting an implied free column out of a short equation, and a
+postsolve to the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
 Forrest-Tomlin updates. Dual simplex with steepest-edge pricing that falls
 back to dual Devex when a weight drifts, a Harris
 ratio test with bound flipping, dual phase 1 by artificial bounds, a cost

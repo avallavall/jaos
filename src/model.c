@@ -2014,6 +2014,7 @@ jaos_status jaos_presolve_result(const jaos_model *m,
         .duplicate_row = c->duplicate_row,
         .duplicate_col = c->duplicate_col,
         .dominated_col = c->dominated_col,
+        .aggregated_col = c->aggregated_col,
     };
     return JAOS_OK;
 }

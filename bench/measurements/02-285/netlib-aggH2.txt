@@ -96,4 +96,10 @@ woodw        optimal    rows=1098 cols=8405 shape=ok iters=1186 work=39832765 pr
 94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
 gate: PASS
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+bore3d       REGRESSED    suboptimality bound: 3.32e-13 -> 8.52e-13 (2.6x relative to its own objective)
+cycle        REGRESSED    suboptimality bound: 2.89e-12 -> 1.16e-11 (4.0x relative to its own objective)
+scagr7       REGRESSED    suboptimality bound: 1.38e-15 -> 3.22e-15 (2.3x relative to its own objective)
+scfxm2       REGRESSED    suboptimality bound: 5.34e-16 -> 1.11e-15 (2.1x relative to its own objective)
+scrs8        REGRESSED    suboptimality bound: 8.81e-15 -> 3.94e-14 (4.5x relative to its own objective)
+baseline: 5 regressed, 0 improved, 0 new

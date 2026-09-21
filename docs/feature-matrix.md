@@ -203,13 +203,16 @@ relaxation only.
 | Resume after a work or time limit | ● | ● | ? | ? | ● | ● | ● |
 
 JAOS's presolve reads ◐: the reduced-model machinery, the postsolve stack
-and six reduction families have landed, and what is left is counted
+and seven reduction families have landed, and what is left is counted
 rather than guessed. Duplicate rows, duplicate columns and dominated
 columns are refused at 0.15% of the 139 gate models, and `make refusals`
 re-runs that condition and finds zero removable rows and columns on all 15
-plato instances. Doubleton equalities, 99.7% of them, sit behind the bound
-tightening D97 refused. The implied free column singleton reaches equality
-rows only, a third of what its counter reads. Dual fixing was measured and
+plato instances. The implied free column singleton reaches equality
+rows only, a third of what its counter reads. Since 2026-09-21 the
+aggregator (`src/aggregate.c`) substitutes an implied free column out of an
+equality of up to three entries, which covers most doubleton equalities
+without the bound transfer D97 refused (`bench/measurements/02-285/`);
+a doubleton whose column the row does not imply free still needs it. Dual fixing was measured and
 refused at 0.67% of netlib's and 1.09% of fome's live columns against a 5%
 bar. Each has its line and its reopen condition in `bench/refusals.txt`.
 

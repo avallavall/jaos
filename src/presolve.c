@@ -207,38 +207,51 @@ void jm_presolve_init(jm_presolve *p)
     p->proof_index = -1;
 }
 
+static void ps_free_reduced(jaos_model *r)
+{
+    free(r->col_cost);
+    free(r->col_lower);
+    free(r->col_upper);
+    free(r->row_lower);
+    free(r->row_upper);
+    free(r->a_start);
+    free(r->a_index);
+    free(r->a_value);
+    free(r->ar_start);
+    free(r->ar_index);
+    free(r->ar_value);
+    free(r->row_scale);
+    free(r->col_scale);
+    free(r->sol_col);
+    free(r->sol_row);
+    free(r->sol_dual);
+    free(r->sol_redcost);
+    free(r->sol_col_status);
+    free(r->sol_row_status);
+    free(r->sol_farkas);
+    free(r->sol_ray);
+    free(r->start_col_status);
+    free(r->start_row_status);
+}
+
 void jm_presolve_free(jm_presolve *p)
 {
-
-    free(p->reduced.col_cost);
-    free(p->reduced.col_lower);
-    free(p->reduced.col_upper);
-    free(p->reduced.row_lower);
-    free(p->reduced.row_upper);
-    free(p->reduced.a_start);
-    free(p->reduced.a_index);
-    free(p->reduced.a_value);
-    free(p->reduced.ar_start);
-    free(p->reduced.ar_index);
-    free(p->reduced.ar_value);
-    free(p->reduced.row_scale);
-    free(p->reduced.col_scale);
-    free(p->reduced.sol_col);
-    free(p->reduced.sol_row);
-    free(p->reduced.sol_dual);
-    free(p->reduced.sol_redcost);
-    free(p->reduced.sol_col_status);
-    free(p->reduced.sol_row_status);
-    free(p->reduced.sol_farkas);
-    free(p->reduced.sol_ray);
-    free(p->reduced.start_col_status);
-    free(p->reduced.start_row_status);
+    ps_free_reduced(&p->reduced);
+    if (p->aggregated)
+        ps_free_reduced(&p->stage1);
 
     free(p->orig_col);
     free(p->orig_row);
     free(p->col_map);
     free(p->row_map);
     free(p->arena);
+    free(p->agg);
+    free(p->agg_pidx);
+    free(p->agg_pval);
+    free(p->agg_col_map);
+    free(p->agg_row_map);
+    free(p->agg_orig_col);
+    free(p->agg_orig_row);
     memset(p, 0, sizeof *p);
 }
 
@@ -1651,7 +1664,12 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
 
     assert(p->outcome == JM_PRESOLVE_REDUCED);
     jaos_model *orig = p->orig;
-    const jaos_model *red = &p->reduced;
+    if (p->aggregated) {
+        jaos_status ast = jm_aggregate_expand(p);
+        if (ast != JAOS_OK)
+            return ast;
+    }
+    const jaos_model *red = p->aggregated ? &p->stage1 : &p->reduced;
 
     assert(red->a_start != orig->a_start && red->a_index != orig->a_index &&
            red->a_value != orig->a_value);

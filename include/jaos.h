@@ -286,6 +286,7 @@ typedef struct jaos_presolve_report {
     int64_t implied_free_col;
     int64_t tightened_bound;
     int64_t duplicate_row, duplicate_col, dominated_col;
+    int64_t aggregated_col;
 } jaos_presolve_report;
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_presolve_result(const jaos_model *m,

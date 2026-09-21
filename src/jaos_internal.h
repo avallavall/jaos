@@ -192,6 +192,7 @@ typedef struct {
     int64_t duplicate_row;
     int64_t duplicate_col;
     int64_t dominated_col;
+    int64_t aggregated_col;
     int64_t rounds;
 } jm_presolve_counts;
 
@@ -534,6 +535,13 @@ typedef enum {
 } jm_presolve_outcome;
 
 typedef struct {
+    int64_t row, col;
+    double coef, rhs, cost;
+    int64_t row_at, row_n;
+    int64_t col_at, col_n;
+} jm_agg_rec;
+
+typedef struct {
     jaos_model reduced;
     int64_t *orig_col, *orig_row;
     int64_t *col_map, *row_map;
@@ -545,6 +553,16 @@ typedef struct {
     int64_t proof_index;
     double proof_sign;
     jaos_model *orig;
+
+    bool aggregated;
+    jaos_model stage1;
+    jm_agg_rec *agg;
+    int64_t agg_len, agg_cap;
+    int64_t *agg_pidx;
+    double *agg_pval;
+    int64_t agg_plen, agg_pcap;
+    int64_t *agg_col_map, *agg_row_map;
+    int64_t *agg_orig_col, *agg_orig_row;
 } jm_presolve;
 
 void jm_presolve_init(jm_presolve *p);
@@ -554,6 +572,11 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                                            jm_work *w);
 
 JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p);
+
+JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+                                        jm_work *w);
+
+JAOS_NODISCARD jaos_status jm_aggregate_expand(jm_presolve *p);
 
 JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p);
 

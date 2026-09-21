@@ -1699,7 +1699,7 @@ if [ "$nopresolve" -eq 1 ]; then
 else
   [ "$(line_of presolve_rounds)" = "presolve_rounds 1" ] && pass "in one round" \
       || flunk "rounds: $(line_of presolve_rounds)"
-  [ "$(line_of presolve_rows)" = "presolve_rows 25" ] && pass "27 rows down to 25" \
+  [ "$(line_of presolve_rows)" = "presolve_rows 23" ] && pass "27 rows down to 23, two by the aggregator" \
       || flunk "rows: $(line_of presolve_rows)"
 fi
 expect_exit 0 "stats reads a model" \

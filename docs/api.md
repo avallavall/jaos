@@ -761,9 +761,11 @@ when `decay` is NaN or at least 1.
 `jaos_status jaos_presolve_result(const jaos_model *m, jaos_presolve_report *out)`\
 Fills `out` with what presolve did in the last solve of a continuous model
 without cones or quadratic rows. The report gives the size of the model the
-solver ran on, the rounds, and the count of each kind of reduction. A branch
-and bound or a conic solve leaves the report as it was. Before any solve,
-every field is 0. The call fails when `m` or `out` is null.
+solver ran on, the rounds, and the count of each kind of reduction.
+`aggregated_col` counts the implied free columns substituted out of an
+equation, each taking the equation with it. A branch and bound or a conic
+solve leaves the report as it was. Before any solve, every field is 0. The
+call fails when `m` or `out` is null.
 
 **`jaos_model_statistics`**\
 `jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)`\
