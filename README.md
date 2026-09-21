@@ -52,7 +52,8 @@ so can JuMP through AmplNLWriter.
 
 **Linear programs.** Presolve with six reduction families and a postsolve to
 the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
-Forrest-Tomlin updates. Dual simplex with steepest-edge pricing, a Harris
+Forrest-Tomlin updates. Dual simplex with steepest-edge pricing that falls
+back to dual Devex when a weight drifts, a Harris
 ratio test with bound flipping, dual phase 1 by artificial bounds, a cost
 perturbation on a stall and Bland's rule after it. The dual is the default;
 `--algorithm` also takes `primal`, `barrier` (Mehrotra's predictor-corrector

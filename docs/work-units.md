@@ -125,7 +125,14 @@ outside a pivot, because that sweep is repairing rather than stepping
 . The
 steepest-edge weight update charges one per row, the exact weight that feeds
 it charges one per slot it adds up rather than one per row, and each
-swap attempted while settling up charges two per row. The primal's
+swap attempted while settling up charges two per row. After a weight drifts
+the dual prices by Devex, whose update charges one per slot of the pivot
+row it reads for the row's reference weight and one per row of the entering
+column it updates, and whose reset charges one per row; it solves no second
+column, which is where it saves on the steepest-edge update. A solve that
+ends under Devex refines the duals it publishes once: one per nonzero of the
+basic columns for the residual, one BTRAN, and one per nonzero of every
+column for the reduced costs. The primal's
 steepest-edge weights, when the entering column's carried weight has drifted
 past `DSE_DRIFT` from its exact one, are reset to the slack basis's weights
 at `nnz + rows`, and in phase 2, after `PSE_CHEAP_RESTARTS` such resets,

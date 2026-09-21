@@ -17,28 +17,17 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B2 to B9 in gain order; B10
-to B12 are unmeasured components with no expected gain on record, so they
-come after. Each is unrefused today; read the named
+the iteration count on four instances. Rows B3 to B9 in gain order; B10
+to B12 are unmeasured components with no expected gain on record, and B13
+and B14 follow from the others, so they come after. Each is unrefused today; read the named
 refusal before starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
 the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
-`P0.txt`. The rows follow the tag.
+`P0.txt`.
 
-B2 **Repair drifted DSE weights instead of restarting them all.** pilot87
-    runs 11.5x and pilot 10.8x HiGHS on P0, and pilot, pilot87, 25fv47
-    and greenbea all restart their weights on 80 to 93% of iterations
-    (D63). With the restart off the iterations fall to 0.31x to 0.54x, and
-    `DSE_DRIFT` at 2.0 gives a false INFEASIBLE on greenbea, at 100 grow22
-    7.2x. D63 refused moving the threshold only. Try: recompute the weight
-    that drifted and keep the rest; or fall back to Devex weights for the
-    drifted rows until the next refactorization. pilot87 alone is 56% of
-    the netlib gate's work. Bar: the gates' 2.0x per instance, geometric
-    mean under 0.95x over the 94, no verdict changes. If refused, one line
-    in `bench/refusals.txt` with the reopen condition. If the Devex
-    fallback lands, the `SPECS-crash-basis` refusal reopens ("Devex
-    landing" is its condition): re-measure the crash basis then, in the
-    same batch or the next.
+The bar for a B row, unless it says otherwise: no instance of the four
+gates past 2.0x its baseline work, the geometric mean of work under 0.95x
+over the standard 94, and no verdict or suboptimality bound regressed.
 
 B3 **Aggregator, doubleton-equation substitution in presolve.** stocfor3
     is the worst instance against HiGHS (33.0x) and Clp (23.6x); 02-20 says
@@ -47,14 +36,14 @@ B3 **Aggregator, doubleton-equation substitution in presolve.** stocfor3
     designs of on false INFEASIBLE. D97 reopens on a crossover at postsolve;
     D114 met its first precondition and `crash_basis` in `src/barrier.c`
     now exists. Build the substitution with the postsolve that restores the
-    bounds and the basis, and measure over netlib and kennington. Same bar
-    as B2. Read D97 in `git show 2d3c56b:DECISIONS.md` first.
+    bounds and the basis, and measure over netlib and kennington. The bar
+    above. Read D97 in `git show 2d3c56b:DECISIONS.md` first.
 
 B4 **Fresh attribution of the iteration, then D93's scan.** Per iteration
-    JAOS costs 1.5x to 2.0x every rival. The attribution in
+    JAOS costs 1.6x to 2.1x every rival. The attribution in
     `docs/work-units.md` is of D32 and predates D40, D41 and D93. Run
     `tools/icount.sh` per function over truss, fit2d, pilot87 and maros-r7,
-    write the table into `docs/work-units.md` (A2.5's dated table goes),
+    write the table into `docs/work-units.md` (the dated table there goes),
     then take the largest share. D93's dense candidate scan of the ratio
     test is 15% of instructions on truss and its 4.2% bar is readable now
     with `tools/icount.sh`. Bar: instructions down by more than the 0.3%
@@ -66,7 +55,7 @@ B5 **grow22's presolve firings.** Presolve makes grow22 11.16x more
     at 0.0385x the dual's work. D112 refused a widening rule and D108/D109
     the window floor; no line refuses a rule that reads a firing's effect on
     the basis (the fill or the condition of the columns it leaves). Read
-    02-11 and D108 to D112 first. Same bar as B2, and grow22 under 2x its
+    02-11 and D108 to D112 first. The bar above, and grow22 under 2x its
     baseline work is the point of the row.
 
 B6 **The crossover push.** SPECS's crossover row is missing a primal and
@@ -114,7 +103,7 @@ B10 **Cost perturbation from the start.** The dual perturbs costs on the
     first stall and never before (SPECS "Dual simplex"). Every rival
     perturbs from the first iteration on a degenerate model. The record has
     no reading and no refusal either way. Measure it over netlib and
-    kennington under B2's bar. One line in `bench/refusals.txt` if it loses.
+    kennington under the bar above. One line in `bench/refusals.txt` if it loses.
 
 B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     branching" is partial: RINS is off by measurement and local branching
@@ -129,8 +118,25 @@ B12 **The scaling mode, never compared.** Every solve scales by
     `src/scale.c`) is reached only by `tests/test_scale.c`, and no reading
     has compared the two on Netlib (found 2026-09-21 while fixing
     `docs/scaling.md`). Measure the geometric pass in the simplex's place
-    over netlib and kennington under B2's bar; one line in
+    over netlib and kennington under the bar above; one line in
     `bench/refusals.txt` if it loses, or the default moves if it wins.
+
+B13 **A crash basis for the dual, started on Devex weights.** The
+    `SPECS-crash-basis` refusal held because the dual starts from exact
+    steepest-edge weights, which only the slack basis gives for free. The
+    dual Devex of `bench/measurements/02-278/` starts from weights that are
+    exact for any basis, so a crash basis no longer costs the pricing.
+    Build one (`docs/research/crash-basis.md` compares the candidates;
+    Bixby's triangular crash is the usual one) that starts the dual in
+    Devex with the crash basis as the framework, and measure it over
+    netlib, kennington and the MIP set. The bar above. The refusal line
+    goes when it lands, or gets the numbers and a new condition.
+
+B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
+    `bench/compare/README.md` and this milestone's intro quote P0 as
+    re-taken after the rows that land before it. Re-take
+    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B13
+    have landed or been refused, and update the three.
 
 ## Milestone C: reach and polish
 

@@ -70,7 +70,9 @@ respectively, which is why those rows read "—" and not "○".
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
-the first stall and Bland's rule after it.
+the first stall and Bland's rule after it. Since 2026-09-21 a steepest-edge
+weight that drifts from its exact value hands the pricing to dual Devex for
+the rest of the solve, except inside the MIP tree.
 
 **The primal simplex reads ◐ rather than ●** because 5 of the 94 standard
 instances still run past 10x the dual's work (`bench/results/primal.txt`,

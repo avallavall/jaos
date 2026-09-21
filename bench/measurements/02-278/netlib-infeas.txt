@@ -31,4 +31,5 @@ woodinfe     infeasible rows=35 cols=89 shape=ok iters=0 work=1 presolve=35/89/1
 29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
 gate: PASS
 
-baseline: NOT COMPARED (no baseline given)
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new

@@ -37,7 +37,7 @@ D108 | MANUAL | an instance crosses the gate's 2.0x work bar from the implied-fr
 D112 | MANUAL | D108's condition
 
 # --- design refusals, mechanism-gated ---------------------------------------
-D63  | MANUAL | the pricing rule changes; Devex replaces the question
+D63  | MANUAL | condition met on 2026-09-21: a steepest-edge weight that drifts hands the dual's pricing to dual Devex (bench/measurements/02-278/), so the restart D63 measured no longer repeats on every iteration; closed
 D74  | MANUAL | the re-entry's oscillation mechanism changes
 D95  | MANUAL | a dual-informed elimination design with a lift condition; checked against D106 and deliberately not reopened
 D97  | MANUAL | a crossover exists at postsolve (the imposed-bound collision then has a remedy); the first precondition was met by D114
@@ -64,7 +64,8 @@ D156 | MANUAL | a frozen-row width dies at more than one ulp of the activity it 
 # D184/D206, D141/D257, this one. Nothing re-tests it; the oracle is in
 # bench/measurements/02-169/ and 02-83/.
 D176 | MANUAL | anything reads the reduced model's objective (a callback, a statistic, a postsolve path)
-SPECS-crash-basis | MANUAL | pricing stops starting from exact steepest-edge weights; Devex landing is the trigger
+SPECS-crash-basis | MANUAL | the trigger fired on 2026-09-21 (dual Devex landed, bench/measurements/02-278/): a crash basis can start the dual on Devex weights, which are exact for any basis. Reopened as TODO B13, which builds and measures it; this line goes when B13 lands or is refused again
+mip-node-devex | MANUAL | the dual Devex fallback inside the MIP tree's node solves, refused 2026-09-21 on stein27 at 2.34x the work in a set that read 0.8913x (bench/measurements/02-278/). Reopens on a set large enough that one instance cannot decide the verdict: TODO B7's MIPLIB 2017 reading
 D93  | MANUAL | a controlled host that satisfies D17 (for the 4.2% bar); tools/icount.sh answers the instruction half of that question today
 D34  | MANUAL | never, while the two absolute premises stand (locked 2026-08-13)
 D231 | MANUAL | an instrument that can SEE a software prefetch exists here; tools/icount.sh -m cannot (02-144's canary), and WSL2 exposes no hardware counters. A host whose repeatability is well under a few percent would also reopen it, since D93's 6.27% is what makes the effect unreadable
