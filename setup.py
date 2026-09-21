@@ -22,11 +22,19 @@ def make_args():
     return ["make", "shared", "CC=gcc"]
 
 
+def library():
+    given = os.environ.get("JAOS_WHEEL_LIBRARY")
+    if given:
+        return os.path.abspath(given)
+    subprocess.check_call(make_args(), cwd=HERE)
+    return os.path.join(HERE, "build", "release", "libjaos.so")
+
+
 class build_with_library(build_py):
     def run(self):
-        subprocess.check_call(make_args(), cwd=HERE)
-        shutil.copy(os.path.join(HERE, "build", "release", "libjaos.so"),
-                    os.path.join(HERE, "python", "jaos", "libjaos.so"))
+        src = library()
+        shutil.copy(src, os.path.join(HERE, "python", "jaos",
+                                      os.path.basename(src)))
         super().run()
 
 
@@ -41,7 +49,7 @@ if bdist_wheel is not None:
     class bdist_wheel_any_python(bdist_wheel):
         def get_tag(self):
             _, _, plat = super().get_tag()
-            return "py3", "none", plat
+            return "py3", "none", os.environ.get("JAOS_WHEEL_PLAT", plat)
 
     cmdclass["bdist_wheel"] = bdist_wheel_any_python
 

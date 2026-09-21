@@ -16,6 +16,8 @@
 
 # Build output
 /python/jaos/libjaos.so
+/python/jaos/libjaos.dll
+/python/jaos/libjaos.dylib
 /python/jaos.egg-info/
 /build/
 /build-exp/
