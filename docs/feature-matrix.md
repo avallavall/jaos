@@ -104,7 +104,10 @@ normal equations, factored by a minimum-degree sparse Cholesky written
 here (`src/chol.c`, `src/barrier.c`), and a crossover since 2026-09-09: the
 interior point ranks the variables by primal against dual slack, the best
 `rows` of them are the basis guess, the LU repairs it where singular, and
-the dual simplex finishes from there. A MIP's relaxations stay on the dual.
+the dual simplex finishes from there. Since 2026-09-22 a primal push first
+puts every nonbasic column on a bound and the primal simplex finishes from
+that basis (`bench/measurements/02-287/`). A MIP's relaxations stay on the
+dual.
 Since 2026-09-20 a model whose quadratic objective is diagonal reads both
 the normal matrix's factor and the augmented system's, and keeps the one
 that costs fewer operations (`bench/measurements/02-272/`).
@@ -166,9 +169,9 @@ the restarts to the running average and the primal-weight rebalancing of
 Applegate et al. (2021), single-threaded and deterministic, finished by the
 same crossover and handing off the same way; `bench/results/pdlp.txt` is its
 reading, and what keeps it from ● is that reading against the dual, and no
-GPU. What keeps the barrier rows from ●: the crossover is a crash and a warm start, not
-a primal and dual push, so on the degenerate instances the simplex that
-follows can cost more than a cold dual solve; `bench/results/barrier.txt`
+GPU. What keeps the barrier rows from ●: the crossover has a primal push
+since 2026-09-22 but no dual push, so on 14 degenerate instances the simplex
+that follows still costs more than ten cold dual solves; `bench/results/barrier.txt`
 is the reading, and it is what decides whether the barrier ever becomes a
 default.
 

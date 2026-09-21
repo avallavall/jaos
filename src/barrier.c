@@ -19,6 +19,21 @@ constexpr double  BARRIER_AUG_EDGE = 1.0;
 constexpr double  BARRIER_AUG_TRY = 1e8;
 constexpr double  BARRIER_START_MIN = 1e-6;
 constexpr int64_t BARRIER_MAX_ITER = 200;
+#ifndef JAOS_CROSS_PUSH_VALUE
+#define JAOS_CROSS_PUSH_VALUE 1
+#endif
+constexpr bool    CROSS_PUSH = JAOS_CROSS_PUSH_VALUE;
+#ifndef JAOS_CROSS_PUSH_PRIMAL_VALUE
+#define JAOS_CROSS_PUSH_PRIMAL_VALUE 1
+#endif
+constexpr bool    CROSS_PUSH_PRIMAL = JAOS_CROSS_PUSH_PRIMAL_VALUE;
+#ifndef JAOS_CROSS_PUSH_SNAP_VALUE
+#define JAOS_CROSS_PUSH_SNAP_VALUE 1e-9
+#endif
+constexpr double  CROSS_PUSH_SNAP = JAOS_CROSS_PUSH_SNAP_VALUE;
+constexpr double  CROSS_PUSH_PIVOT = 1e-7;
+constexpr double  CROSS_PUSH_FEAS = 1e-9;
+constexpr double  CROSS_PUSH_UPDATE_TOL = 1e-9;
 constexpr double  BARRIER_DIVERGE  = 1e6;
 constexpr double  BARRIER_DIVERGE_QP = 1e10;
 constexpr double  BARRIER_DENSE_FACTOR = 10.0;
@@ -1508,6 +1523,292 @@ static jaos_status crash_basis(bx *s)
                           &s->work);
 }
 
+static void push_column(const bx *s, int64_t v, double *col, jm_work *w)
+{
+    const jaos_model *m = s->m;
+    if (v < s->ncol) {
+        for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+            col[m->a_index[k]] += s->av[k];
+        jm_work_add(w, (m->a_start[v + 1] - m->a_start[v]) * JM_WORK_NONZERO);
+    } else {
+        col[v - s->ncol] -= 1.0;
+        jm_work_add(w, JM_WORK_NONZERO);
+    }
+}
+
+static jaos_status push_factor(bx *s, const int64_t *basis, jm_lu *lu,
+                               int64_t *bs, int64_t *bi, double *bv)
+{
+    const jaos_model *m = s->m;
+    int64_t p = 0;
+    for (int64_t q = 0; q < s->nrow; q++) {
+        bs[q] = p;
+        const int64_t v = basis[q];
+        if (v < s->ncol) {
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+                bi[p] = m->a_index[k];
+                bv[p] = s->av[k];
+                p++;
+            }
+        } else {
+            bi[p] = v - s->ncol;
+            bv[p] = -1.0;
+            p++;
+        }
+    }
+    bs[s->nrow] = p;
+    jm_lu_free(lu);
+    jm_lu_init(lu);
+    jaos_status st = jm_lu_factor(lu, s->nrow, bs, bi, bv, LU_PIVOT_TOL,
+                                  &s->work);
+    if (st == JAOS_OK && lu->rank < s->nrow)
+        st = JAOS_ERR_NUMERICAL;
+    return st;
+}
+
+static jaos_status push_basis(bx *s, bool *pushed)
+{
+    jaos_model *m = s->m;
+    const int64_t nr = s->nrow, nc = s->ncol, nv = s->nvar;
+    *pushed = false;
+    if (nr == 0)
+        return JAOS_OK;
+    int64_t *basis = jm_alloc_array(nr, sizeof *basis);
+    int64_t *where = jm_alloc_array(nv, sizeof *where);
+    int8_t *side = jm_calloc_array(nv, sizeof *side);
+    double *x = jm_alloc_array(nv, sizeof *x);
+    double *raw = jm_alloc_array(nr, sizeof *raw);
+    double *alpha = jm_alloc_array(nr, sizeof *alpha);
+    int64_t *bs = jm_alloc_array(nr + 1, sizeof *bs);
+    int64_t *bi = jm_alloc_array(m->num_nz + nr + 1, sizeof *bi);
+    double *bv = jm_alloc_array(m->num_nz + nr + 1, sizeof *bv);
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (!basis || !where || !side || !x || !raw || !alpha || !bs || !bi ||
+        !bv)
+        goto out;
+
+    int64_t q = 0;
+    for (int64_t v = 0; v < nv; v++) {
+        const jaos_basis_status b = v < nc ? m->sol_col_status[v]
+                                           : m->sol_row_status[v - nc];
+        where[v] = -1;
+        if (b == JAOS_BASIS_BASIC) {
+            if (q == nr) {
+                jm_log(m, JAOS_LOG_DETAIL,
+                       "crossover: the guess has more basics than %lld rows, "
+                       "so it stands", (long long)nr);
+                st = JAOS_OK;
+                goto out;
+            }
+            basis[q] = v;
+            where[v] = q++;
+        }
+    }
+    if (q != nr) {
+        jm_log(m, JAOS_LOG_DETAIL,
+               "crossover: the guess has %lld basics for %lld rows, so it "
+               "stands", (long long)q, (long long)nr);
+        st = JAOS_OK;
+        goto out;
+    }
+
+    for (int64_t v = 0; v < nv; v++) {
+        x[v] = s->z[v];
+        if (where[v] >= 0)
+            continue;
+        const double lo = s->lo[v], up = s->up[v];
+        const double snap_lo = CROSS_PUSH_SNAP * (1.0 + fabs(lo));
+        const double snap_up = CROSS_PUSH_SNAP * (1.0 + fabs(up));
+        if (s->kind[v] == FIXED) {
+            x[v] = lo;
+            side[v] = -1;
+        } else if (isfinite(lo) && x[v] - lo <= snap_lo) {
+            x[v] = lo;
+            side[v] = -1;
+        } else if (isfinite(up) && up - x[v] <= snap_up) {
+            x[v] = up;
+            side[v] = 1;
+        } else if (!isfinite(lo) && !isfinite(up) && x[v] == 0.0) {
+            side[v] = 2;
+        }
+    }
+
+    st = push_factor(s, basis, &lu, bs, bi, bv);
+    if (st != JAOS_OK) {
+        jm_log(m, JAOS_LOG_DETAIL,
+               "crossover: the guess factored at rank %lld of %lld, so it "
+               "stands", (long long)lu.rank, (long long)nr);
+        st = st == JAOS_ERR_NUMERICAL ? JAOS_OK : st;
+        goto out;
+    }
+
+    memset(raw, 0, (size_t)nr * sizeof *raw);
+    for (int64_t v = 0; v < nv; v++) {
+        if (where[v] >= 0 || x[v] == 0.0)
+            continue;
+        const double xv = x[v];
+        if (v < nc) {
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                raw[m->a_index[k]] -= s->av[k] * xv;
+        } else {
+            raw[v - nc] += xv;
+        }
+    }
+    jm_work_add(&s->work, m->num_nz + nv);
+    jm_lu_ftran(&lu, raw, &s->work);
+    for (int64_t k = 0; k < nr; k++)
+        x[basis[k]] = raw[k];
+
+    int64_t left = 0, pivots = 0;
+    for (int64_t v = 0; v < nv; v++) {
+        if (where[v] >= 0 || side[v] != 0)
+            continue;
+        const double lo = s->lo[v], up = s->up[v];
+        double sgn, tmax;
+        if (isfinite(lo) && (!isfinite(up) || x[v] - lo <= up - x[v])) {
+            sgn = -1.0;
+            tmax = x[v] - lo;
+        } else if (isfinite(up)) {
+            sgn = 1.0;
+            tmax = up - x[v];
+        } else {
+            sgn = x[v] > 0.0 ? -1.0 : 1.0;
+            tmax = INFINITY;
+        }
+        if (tmax < 0.0)
+            tmax = 0.0;
+
+        memset(raw, 0, (size_t)nr * sizeof *raw);
+        push_column(s, v, raw, &s->work);
+        memcpy(alpha, raw, (size_t)nr * sizeof *alpha);
+        jm_lu_ftran(&lu, alpha, &s->work);
+        double amax = 0.0;
+        for (int64_t k = 0; k < nr; k++)
+            if (fabs(alpha[k]) > amax)
+                amax = fabs(alpha[k]);
+        jm_work_add(&s->work, 2 * nr);
+
+        double t1 = tmax;
+        for (int64_t k = 0; k < nr; k++) {
+            const double a = alpha[k];
+            if (fabs(a) <= CROSS_PUSH_PIVOT * amax || a == 0.0)
+                continue;
+            const int64_t b = basis[k];
+            const double rate = -sgn * a;
+            double t;
+            if (rate < 0.0 && isfinite(s->lo[b]))
+                t = (x[b] - s->lo[b] +
+                     CROSS_PUSH_FEAS * (1.0 + fabs(s->lo[b]))) / -rate;
+            else if (rate > 0.0 && isfinite(s->up[b]))
+                t = (s->up[b] - x[b] +
+                     CROSS_PUSH_FEAS * (1.0 + fabs(s->up[b]))) / rate;
+            else
+                continue;
+            if (t < t1)
+                t1 = t;
+        }
+        int64_t r = -1;
+        double tblock = tmax, rmag = 0.0;
+        int8_t rside = 0;
+        for (int64_t k = 0; t1 < tmax && k < nr; k++) {
+            const double a = alpha[k];
+            if (fabs(a) <= CROSS_PUSH_PIVOT * amax || a == 0.0)
+                continue;
+            const int64_t b = basis[k];
+            const double rate = -sgn * a;
+            double t;
+            int8_t hit;
+            if (rate < 0.0 && isfinite(s->lo[b])) {
+                t = (x[b] - s->lo[b]) / -rate;
+                hit = -1;
+            } else if (rate > 0.0 && isfinite(s->up[b])) {
+                t = (s->up[b] - x[b]) / rate;
+                hit = 1;
+            } else {
+                continue;
+            }
+            if (t < 0.0)
+                t = 0.0;
+            if (t <= t1 && fabs(a) > rmag) {
+                tblock = t;
+                r = k;
+                rmag = fabs(a);
+                rside = hit;
+            }
+        }
+        jm_work_add(&s->work, 2 * nr);
+        if (r < 0 && !isfinite(tmax)) {
+            left++;
+            continue;
+        }
+        const double t = tblock;
+        for (int64_t k = 0; k < nr; k++)
+            if (alpha[k] != 0.0)
+                x[basis[k]] -= sgn * t * alpha[k];
+        x[v] += sgn * t;
+        if (r < 0) {
+            x[v] = sgn < 0.0 ? lo : up;
+            side[v] = sgn < 0.0 ? -1 : 1;
+            continue;
+        }
+        const int64_t b = basis[r];
+        x[b] = rside < 0 ? s->lo[b] : s->up[b];
+        side[b] = rside;
+        where[b] = -1;
+        basis[r] = v;
+        where[v] = r;
+        pivots++;
+        const jaos_status ust =
+            jm_lu_update(&lu, r, raw, CROSS_PUSH_UPDATE_TOL, &s->work);
+        if (ust == JAOS_ERR_OUT_OF_MEMORY) {
+            st = ust;
+            goto out;
+        }
+        if (ust != JAOS_OK) {
+            st = push_factor(s, basis, &lu, bs, bi, bv);
+            if (st != JAOS_OK) {
+                jm_log(m, JAOS_LOG_DETAIL,
+                       "crossover: the push's basis went singular after "
+                       "%lld pivots, so the basis guess stands",
+                       (long long)pivots);
+                st = st == JAOS_ERR_NUMERICAL ? JAOS_OK : st;
+                goto out;
+            }
+        }
+    }
+    if (left > 0) {
+        jm_log(m, JAOS_LOG_DETAIL,
+               "crossover: the push left %lld free columns off a bound, "
+               "so the basis guess stands", (long long)left);
+        st = JAOS_OK;
+        goto out;
+    }
+
+    for (int64_t v = 0; v < nv; v++) {
+        jaos_basis_status b = JAOS_BASIS_BASIC;
+        if (where[v] < 0)
+            b = side[v] == 2 ? JAOS_BASIS_FREE
+                : side[v] > 0 ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+        if (v < nc)
+            m->sol_col_status[v] = b;
+        else
+            m->sol_row_status[v - nc] = b;
+    }
+    st = jm_model_remember_basis(m);
+    *pushed = st == JAOS_OK;
+    jm_log(m, JAOS_LOG_DETAIL,
+           "crossover: the push moved every column onto a bound with %lld "
+           "pivots", (long long)pivots);
+
+out:
+    jm_lu_free(&lu);
+    free(basis); free(where); free(side); free(x); free(raw); free(alpha);
+    free(bs); free(bi); free(bv);
+    return st;
+}
+
 static jaos_status qp_push(bx *s)
 {
     const jaos_model *m = s->m;
@@ -2009,12 +2310,18 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
         !m->cfg.barrier_no_crossover && !s.quadratic) {
         st = crash_basis(&s);
+        bool pushed = false;
+        if (st == JAOS_OK && CROSS_PUSH)
+            st = push_basis(&s, &pushed);
+        target->crossover_pushed = pushed && CROSS_PUSH_PRIMAL;
         *work = s.work;
         *crossover = st == JAOS_OK;
         jm_log(m, JAOS_LOG_SUMMARY,
                "barrier converged after %lld iterations, %lld work units; "
-               "crossing over to the simplex from its basis guess",
-               (long long)s.iters, (long long)s.work.units);
+               "crossing over to the %s simplex from its %s",
+               (long long)s.iters, (long long)s.work.units,
+               target->crossover_pushed ? "primal" : "dual",
+               pushed ? "pushed basis" : "basis guess");
         bx_free(&s);
         return st;
     }

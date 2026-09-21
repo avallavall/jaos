@@ -220,6 +220,42 @@ static void test_without_the_crossover_the_point_is_interior(void)
     jaos_model_free(m);
 }
 
+static void catch_push(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "crossing over to the primal simplex from its pushed "
+                     "basis") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_the_push_hands_the_primal_a_vertex(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    const int kinds = 1;
+#else
+    const int kinds = 2;
+#endif
+    for (int k = 0; k < kinds; k++) {
+        jaos_model *m = k == 0 ? two_column_lp() : every_bound_kind_lp();
+        int pushed = 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_callback(m, catch_push, &pushed));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        const double obj = solve_with(m, JAOS_ALGORITHM_BARRIER);
+        TEST_ASSERT_EQUAL_INT(1, pushed);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, k == 0 ? 2.0 : 21.0, obj);
+        double x[4], y[3];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(m, x, nullptr, y, nullptr));
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+        TEST_ASSERT_TRUE(rep.primal_feasible);
+        TEST_ASSERT_TRUE(rep.dual_feasible);
+        jaos_model_free(m);
+    }
+}
+
 static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
@@ -593,6 +629,7 @@ int main(void)
     RUN_TEST(test_the_crossover_publishes_a_vertex_with_a_basis);
     RUN_TEST(test_the_crossover_reaches_the_dual_on_every_bound_kind);
     RUN_TEST(test_without_the_crossover_the_point_is_interior);
+    RUN_TEST(test_the_push_hands_the_primal_a_vertex);
     RUN_TEST(test_the_barrier_does_not_call_an_infeasible_lp_optimal);
     RUN_TEST(test_the_barrier_hands_an_unbounded_lp_to_the_dual_for_its_ray);
     RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);

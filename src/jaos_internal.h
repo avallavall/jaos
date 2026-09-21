@@ -329,6 +329,8 @@ struct jaos_model {
     jaos_basis_status *start_col_status;
     jaos_basis_status *start_row_status;
 
+    bool crossover_pushed;
+
     void *parked;
 
     char err[256];

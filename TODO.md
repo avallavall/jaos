@@ -29,15 +29,14 @@ The bar for a B row, unless it says otherwise: no instance of the four
 gates past 2.0x its baseline work, the geometric mean of work under 0.95x
 over the standard 94, and no verdict or suboptimality bound regressed.
 
-B6 **The crossover push.** SPECS's crossover row is missing a primal and
-    a dual push; from the barrier's point the ranked guess costs more than
-    a cold dual solve on 21 of 94 (d2q06c 237232 iterations against 27935,
-    pilot87 83342 against 37362). `crossover-primal`, `crossover-dual-slack-key`
-    and `crossover-tight-barrier` are refused; the push itself is not.
-    Build the push (Bixby and Saltzman's form: move each nonbasic column to
-    a bound along a direction that keeps primal feasibility, then the dual
-    push), measure `make barrier`. Bar: fewer than 21 overruns and the
-    barrier's geometric mean under 2.705x the dual. SPECS row "Crossover"
+B6 **The dual push.** The primal push landed on 2026-09-22
+    (`bench/measurements/02-287/`): on the same tree, 14 overruns against
+    17 and 3.1775x the dual against 3.2602x. SPECS's crossover row still
+    misses the dual push: from the pushed basis, take each basic column
+    whose dual slack at the barrier's point is not zero out of the basis
+    by a dual ratio test, so the simplex starts nearer dual feasibility.
+    Measure `make barrier` against the primal push. Bar: fewer than 14
+    overruns and a geometric mean under 3.1775x. SPECS row "Crossover"
     changes to done when the count is zero.
 
 B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. A

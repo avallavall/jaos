@@ -4456,6 +4456,10 @@ jaos_status jm_dual_simplex(jaos_model *m)
             memset(s.cost, 0, (size_t)s.nvar * sizeof *s.cost);
             memcpy(s.cost0, s.cost, (size_t)s.nvar * sizeof *s.cost0);
         }
+        if (target->crossover_pushed) {
+            s.primal_run = true;
+            target->crossover_pushed = false;
+        }
 
         s.work = pre_work;
         s.started = jm_monotonic_seconds();
