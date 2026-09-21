@@ -39,15 +39,6 @@ A3.11 **Fuzz target for the readers.** `tests/test_fuzz.c` is a seeded model
     what it finds. Verify: `make fuzz` builds; the run's findings are fixed
     with a test each.
 
-A3.13 **Valgrind and coverage: neither exists.** ASan under `make sanitize`
-    is the only memory check and nothing measures which lines the 846 unit
-    tests reach. Add `make coverage` (`--coverage`, `gcov` or `lcov`, the
-    summary printed per `src/` file) and `make valgrind` (the unit suite
-    under `valgrind --error-exitcode=1`, one run; it is slow, so not in
-    `make test`). Run each once, fix what they find, and put the coverage
-    figure per file in `CONTRIBUTING.md` so a contributor knows where tests
-    are thin. Verify: both targets run in WSL and exit 0.
-
 ### A4. The tag
 
 A4.1 **Cut v0.4.0.** After A1 to A3: bump the version places

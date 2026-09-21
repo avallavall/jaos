@@ -24,6 +24,25 @@ make miplib J=2              # when src/mip.c changed
 No instance may regress. A baseline is rewritten only with its
 `*-baseline` target, and only after the diff has been read.
 
+## The checks outside `make test`
+
+```
+make coverage     # the share of each src/ file's lines the unit suite runs
+make valgrind     # the unit suite under valgrind's memcheck
+```
+
+`make coverage` builds the library and the unit suite at `-O0` with
+`--coverage` in `build/cov/`, runs the suite, and prints one line per
+`src/` file (gcov-14; `GCOV=` names another). A file with a low figure is
+where a new test reaches the most untested code. The first reading, 87.25%
+of 30107 lines with the file-by-file table, is in
+`bench/measurements/02-276/`.
+
+`make valgrind` runs every unit-test program under valgrind with
+`--leak-check=full`, and an invalid access, an uninitialised value or a
+definite leak fails it. It takes about a minute and a half, so it is not
+part of `make test`.
+
 ## The rules a change must hold
 
 - **Bit-identical results on every machine and every run.** No clock

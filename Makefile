@@ -42,6 +42,10 @@ EXTRA_CFLAGS ?=
 RELEASE_CFLAGS := $(STD) $(WARN) $(FP) $(THREADS) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
 DEV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -Og $(EXTRA_CFLAGS)
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
+COV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -O0 --coverage $(EXTRA_CFLAGS)
+
+GCOV     ?= gcov-14
+VALGRIND := valgrind -q --error-exitcode=1 --leak-check=full --errors-for-leak-kinds=definite
 
 UNITY_DIR    := tests/vendor/unity
 UNITY_DEFS   := -DUNITY_INCLUDE_DOUBLE
@@ -58,6 +62,7 @@ REL_OBJ  := $(SRC:src/%.c=$(B)/release/%.o)
 DEV_OBJ  := $(SRC:src/%.c=$(B)/dev/%.o)
 ASAN_OBJ := $(SRC:src/%.c=$(B)/asan/%.o)
 PIC_OBJ  := $(SRC:src/%.c=$(B)/pic/%.o)
+COV_OBJ  := $(SRC:src/%.c=$(B)/cov/%.o)
 
 LIB := $(B)/release/libjaos.a
 
@@ -65,8 +70,9 @@ SHLIB := $(B)/release/libjaos.so
 
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
+COV_TESTS  := $(TESTS:tests/%.c=$(B)/cov/%)
 
-.PHONY: all test docs-check version-check sdist-test sanitize configs cli bench compare-build compare-solvers compare refusals \
+.PHONY: all test docs-check version-check sdist-test sanitize coverage valgrind configs cli bench compare-build compare-solvers compare refusals \
 	install uninstall pkgconfig exports-test install-test cmake-test windows-test \
 	netlib netlib-baseline \
 	netlib-kennington \
@@ -126,6 +132,14 @@ $(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
 $(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@ $(LDLIBS)
 
+$(B)/cov/%.o: src/%.c $(HDRS) | $(B)/cov
+	$(CC) $(COV_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
+
+$(B)/cov/unity.o: $(UNITY_DIR)/unity.c | $(B)/cov
+	$(CC) $(UNITY_CFLAGS) -I$(UNITY_DIR) -c $< -o $@
+
+$(B)/cov/test_%: tests/test_%.c $(COV_OBJ) $(B)/cov/unity.o $(HDRS) | $(B)/cov
+	$(CC) $(COV_CFLAGS) $(TEST_INC) $< $(COV_OBJ) $(B)/cov/unity.o -o $@ $(LDLIBS)
 
 refusals:
 	@mkdir -p $(B)
@@ -161,6 +175,14 @@ windows-test: $(CLI)
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
+
+coverage: $(COV_TESTS)
+	@rm -f $(B)/cov/*.gcda
+	@fail=0; for t in $(COV_TESTS); do ./$$t > $$t.log 2>&1 || { echo "FAIL $$t"; fail=1; }; done; \
+	bash tools/coverage.sh $(GCOV) $(B)/cov; exit $$fail
+
+valgrind: $(DEV_TESTS)
+	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; $(VALGRIND) ./$$t || fail=1; done; exit $$fail
 
 python-test: $(SHLIB)
 	@JAOS_LIBRARY=$(CURDIR)/$(SHLIB) python3 -m unittest discover -s python -v
@@ -496,7 +518,7 @@ pgo:
 		all
 	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
-$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
+$(B)/release $(B)/dev $(B)/asan $(B)/cov $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
 	mkdir -p $@
 
 FUZZ_CC      ?= clang-20
