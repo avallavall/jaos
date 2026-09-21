@@ -33,16 +33,6 @@ A1.3 **The comment rule and the tree disagree.** `CLAUDE.md` says code
     goes to `docs/api.md` (A3.4). Verify: `grep -rn '/\*\|//' src cli
     include | grep -v SPDX` prints nothing.
 
-A1.5 **The CBLIB gate cannot pass as written.** `bench/results/cblib.txt`
-    reads 29 solved, 29 checker ok, 21 objective ok, "gate NOT MET", and
-    there is no `bench/cblib.baseline`. The 8 objective misses are the
-    `nql*` and `qssp*` files, whose library references are not optima (the
-    checker certifies JAOS's lower value). Fix: in `bench/cblib.manifest`
-    give those 8 the certified value with a note naming the reading that
-    certified it, run `make cblib`, then `make cblib-baseline` after reading
-    the diff. Verify: `make cblib` prints "gate: PASS" and
-    "baseline: 0 regressed".
-
 A1.6 **Values that overflow a double, three places.** Found on
     2026-09-21 while moving `test_solution_refuses_a_value_no_file_can_carry`
     to the batch's new contract. The model: two columns fixed at 1e300 in a

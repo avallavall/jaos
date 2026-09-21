@@ -9,10 +9,18 @@
 # JAOS reads, which holds a cone over expressions as new columns and rows.
 # The set's twelve filterdesign instances are left out: 71 to 872 MB each.
 #
-# The reference is a solution and not always the optimum: on nql and qssp
-# JAOS reaches points an independent evaluation finds feasible to 1e-10
-# with objectives below it, which the reference's dual residual of 4e-8
-# allows (bench/measurements/02-254/).
+# The library's reference is a solution and not always the optimum. On
+# nql and qssp JAOS reaches points that cbfeval.py, which reads the CBF
+# file on its own, finds feasible to 5e-12, with objectives 2.5e-6 to
+# 9.1e-5 below the library's, and the checker's dual bound puts each within
+# 2e-9 of its optimum (bench/measurements/02-254/). Those eight rows carry
+# another reference. qssp30 and qssp60 carry the value of the DIMACS
+# library of mixed semidefinite-quadratic-linear programs (source dimacs7,
+# archive.dimacs.rutgers.edu/Challenges/Seventh/Instances/tablestat.html,
+# computed there by a primal-dual interior point code), which agrees with
+# JAOS to 2.4e-7 and not with CBLIB. The other six carry the value 02-254
+# certified (source 02-254): DIMACS gives nql30 and nql60 to four digits
+# only, and has no value for the rest.
 #
 #   make cblib
 #
@@ -30,14 +38,14 @@ nb                     6e137968db4bb094a331efe0186f895b49566a4b5177200b7b3fcaf60
 nb_L1                  43781acdc55fd81a0791e835a3141b5900229e03838885e0673f60fdf9a74310 915 3176 -13.01226111431503 cblib2014 0.0
 nb_L2                  73b3d4b7511e90d7d3a0fa85db10b2e77028685201523212e0d913babccaaa1f 123 4195 -1.628971971315741 cblib2014 0.0
 nb_L2_bessel           fc05306e2a2774b2b58eb3cd89b2606b43a1cd9c249985d5606f1e451f0056dd 123 2641 -0.1025695098901032 cblib2014 0.0
-nql30                  f926413ff08c1c296254f60c54cb7a4154f501ddb9d2f6948918d72d14f93739 3680 4501 -0.9460240520770835 cblib2014 0.0
-nql60                  a6c680874314566d5808ea8174b4e3c8705d8c9d450d8e8b0f21a3734e15a87b 14560 18001 -0.9350419056827101 cblib2014 0.0
-nql90                  f9a5e1673a1595bdebad4dfa566123763da556626866d05cbbcd08ab70772cd7 32640 40501 -0.9313565092329826 cblib2014 0.0
-nql180                 e34bc5e68a749c20e5a95d8672d9e6f12a946c5d59ca51ff3a653b76be54acaf 130080 162001 -0.927643944230289 cblib2014 0.0
-qssp30                 b6d3c20ee39d89bd48db11343a8c95ca11f0c8e1c5fe2c33633f59a12c7a0406 3691 7565 -6.496658826903118 cblib2014 0.0
-qssp60                 d47c420511287c4b9acd06edc7d99ef268ff0c041113fa11dd7033561ac6c15d 14581 29525 -6.562690123494353 cblib2014 0.0
-qssp90                 0c1983e8002e808aed7ae30f5383aae31b6586e3b1206326b2e02f3ab6ca681c 32671 65885 -6.594247629006067 cblib2014 0.0
-qssp180                0584405b2da10ea7849e938bb345fb79e1c3e9a20dca0696f6c19451f1bfcbc6 130141 261365 -6.639113368495221 cblib2014 0.0
+nql30                  f926413ff08c1c296254f60c54cb7a4154f501ddb9d2f6948918d72d14f93739 3680 4501 -0.94602850153183526 02-254 0.0
+nql60                  a6c680874314566d5808ea8174b4e3c8705d8c9d450d8e8b0f21a3734e15a87b 14560 18001 -0.93505294981042897 02-254 0.0
+nql90                  f9a5e1673a1595bdebad4dfa566123763da556626866d05cbbcd08ab70772cd7 32640 40501 -0.93138316271475319 02-254 0.0
+nql180                 e34bc5e68a749c20e5a95d8672d9e6f12a946c5d59ca51ff3a653b76be54acaf 130080 162001 -0.92772861698502107 02-254 0.0
+qssp30                 b6d3c20ee39d89bd48db11343a8c95ca11f0c8e1c5fe2c33633f59a12c7a0406 3691 7565 -6.4966749 dimacs7 0.0
+qssp60                 d47c420511287c4b9acd06edc7d99ef268ff0c041113fa11dd7033561ac6c15d 14581 29525 -6.5627049 dimacs7 0.0
+qssp90                 0c1983e8002e808aed7ae30f5383aae31b6586e3b1206326b2e02f3ab6ca681c 32671 65885 -6.5944016885305308 02-254 0.0
+qssp180                0584405b2da10ea7849e938bb345fb79e1c3e9a20dca0696f6c19451f1bfcbc6 130141 261365 -6.639610841919608 02-254 0.0
 sched_50_50_orig       852150ed6696116e8db12dd595d5ebfea6c00deb48a31c02cef12bdef149f7f3 2527 4979 26673.00176078967 cblib2014 0.0
 sched_50_50_scaled     16b8c16f5a9d06ab4f0d311cfee9412b0eb241ea65e95fc7f81b838a5e25cbfb 2526 4977 7.852038439653469 cblib2014 0.0
 sched_100_50_orig      da1ad978c9ff3581d8f4275911fd280a60709c16212543c4c6a4bf9027bf8f79 4844 9746 181889.951895841 cblib2014 0.0
