@@ -3252,6 +3252,25 @@ static void expect_trivially_infeasible(jaos_model *m)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
 }
 
+static void test_a_row_activity_that_overflows_is_not_an_optimum(void)
+{
+    const double cost[2] = {0.0, 0.0};
+    const double cl[2] = {1e300, 1e300}, cu[2] = {1e300, 1e300};
+    const double rl[1] = {-INFINITY}, ru[1] = {INFINITY};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1e10, 1e10};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 2,
+                     as, ai, av));
+    (void)jaos_solve(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "row activity of inf"));
+    double obj = 0.0;
+    TEST_ASSERT_NOT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    jaos_model_free(m);
+}
+
 static void test_an_objective_that_overflows_is_not_an_optimum(void)
 {
     const double cost[2] = {1e300, -1e300};
@@ -3629,5 +3648,6 @@ int main(void)
     RUN_TEST(test_the_algorithm_is_a_caller_option);
     RUN_TEST(test_devex_and_dantzig_pricing_reach_the_same_optimum);
     RUN_TEST(test_an_objective_that_overflows_is_not_an_optimum);
+    RUN_TEST(test_a_row_activity_that_overflows_is_not_an_optimum);
     return UNITY_END();
 }

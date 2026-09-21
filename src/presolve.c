@@ -12,6 +12,11 @@ static double ps_published(double v)
     return v == 0.0 ? 0.0 : v;
 }
 
+static double ps_row_total(double s, double c)
+{
+    return ps_published((isfinite(s) && isfinite(c)) ? s + c : s);
+}
+
 static int64_t ps_restore_index(int64_t index, int64_t dim)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE)
@@ -336,8 +341,6 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 double etol = 0.0;
                 assert(ps_traffic_usable(cur_rl[i], cur_ru[i], row_traffic[i]));
                 if (row_traffic[i] > 0.0) {
-
-                    assert(isfinite(row_traffic[i]));
                     const double scale = isfinite(row_traffic[i])
                         ? row_traffic[i]
                         : ps_bound_scale(cur_rl[i], cur_ru[i]);
@@ -1629,6 +1632,8 @@ static void ps_verify_row_activities(const jaos_model *orig)
     for (int64_t i = 0; i < orig->num_row; i++) {
         if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
             continue;
+        if (!isfinite(act[i]) || !isfinite(orig->sol_row[i]))
+            continue;
         const double w = ps_round_tol(traffic[i]);
         const double window = nnz[i] > 1 ? w * (double)(nnz[i] - 1) : w;
         assert(fabs(orig->sol_row[i] - act[i]) <= window);
@@ -1788,7 +1793,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
         ps_replay_one(orig, p, r, rowc);
 
     for (int64_t i = 0; i < orig->num_row; i++)
-        orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
+        orig->sol_row[i] = ps_row_total(orig->sol_row[i], rowc[i]);
     free(rowc);
 
 #ifndef NDEBUG
@@ -1839,7 +1844,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
         ps_replay_one(orig, p, r, rowc);
 
     for (int64_t i = 0; i < orig->num_row; i++)
-        orig->sol_row[i] = ps_published(orig->sol_row[i] + rowc[i]);
+        orig->sol_row[i] = ps_row_total(orig->sol_row[i], rowc[i]);
     free(rowc);
 
 #ifndef NDEBUG

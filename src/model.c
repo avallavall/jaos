@@ -1080,7 +1080,7 @@ jaos_status jaos_set_quadratic(jaos_model *m, int64_t nnz,
         goto done;
     for (int64_t k = 0; k < nnz; k++) {
         int64_t i = rows[k], j = cols[k];
-        if (i == j)
+        if (i == j || values[k] == 0.0)
             continue;
         if (i < j) {
             const int64_t t = i;
@@ -2526,6 +2526,41 @@ void jm_model_publish_objective(jaos_model *m)
         jm_set_err(m, "the point the solve ends on has an objective of %g, "
                       "which is no answer; the costs and the point multiply "
                       "past what a double holds", m->objective);
+        return;
+    }
+
+    const char *what = nullptr;
+    int64_t at = -1;
+    double bad = 0.0;
+    for (int64_t j = 0; what == nullptr && m->sol_col != nullptr &&
+                        j < m->num_col; j++) {
+        if (!isfinite(m->sol_col[j])) {
+            what = "column value";
+            bad = m->sol_col[j];
+            at = j;
+        } else if (m->sol_redcost != nullptr && !isfinite(m->sol_redcost[j])) {
+            what = "reduced cost";
+            bad = m->sol_redcost[j];
+            at = j;
+        }
+    }
+    for (int64_t i = 0; what == nullptr && m->sol_row != nullptr &&
+                        i < m->num_row; i++) {
+        if (!isfinite(m->sol_row[i])) {
+            what = "row activity";
+            bad = m->sol_row[i];
+            at = i;
+        } else if (m->sol_dual != nullptr && !isfinite(m->sol_dual[i])) {
+            what = "row dual";
+            bad = m->sol_dual[i];
+            at = i;
+        }
+    }
+    if (what != nullptr) {
+        m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+        jm_set_err(m, "the point the solve ends on has a %s of %g at index "
+                      "%lld, which is no answer; a product in it runs past "
+                      "what a double holds", what, bad, (long long)at);
     }
 }
 

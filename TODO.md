@@ -33,26 +33,18 @@ A1.3 **The comment rule and the tree disagree.** `CLAUDE.md` says code
     goes to `docs/api.md` (A3.4). Verify: `grep -rn '/\*\|//' src cli
     include | grep -v SPDX` prints nothing.
 
-A1.6 **Values that overflow a double, three places.** Found on
-    2026-09-21 while moving `test_solution_refuses_a_value_no_file_can_carry`
-    to the batch's new contract. The model: two columns fixed at 1e300 in a
-    free row with coefficients 1e10.
-    - `src/presolve.c:340` asserts `isfinite(row_traffic[i])`, and the next
-      line handles a traffic that is not finite. The model is legal input
-      and a debug build aborts on it. Drop the assertion.
-    - A release build ends `OPTIMAL` with the row activity `-nan`.
-      `ps_row_add` computes `inf - inf` as its correction as soon as one
-      term overflows. The batch ends a solve `NUMERICAL_ERROR` when the
-      objective is not finite; the same rule goes for every published
-      value (point, activities, duals, reduced costs), checked once where
-      `jm_model_publish_objective` runs.
-    - The checker recomputes each activity from the point. A row whose
-      activity is `inf - inf` gives a NaN violation, and `max2` in
-      `src/check.c` drops a NaN when a later row has a violation, so an
-      infeasible point can pass. A NaN violation must count as infinite.
-    Verify: a test per case (the model solves without aborting and ends
-    `NUMERICAL_ERROR`; the checker refuses a point whose first of two rows
-    overflows), and the rule written in `docs/api.md` with A3.4.
+A1.7 **JAOS writes a gzipped answer file it cannot read.** Found on
+    2026-09-21 while fixing `docs/format-support.md`.
+    `jaos_write_solution` and `jaos_write_mps_basis` compress when the path
+    ends in `.gz`, and the readers of those files (`read_solution_file` at
+    `src/write.c:2082`, the MPS basis reader at `:2603`, the point and
+    duals reader at `:2809`) open them with plain `fopen` and parse text.
+    So `solve --solution out.sol.gz` followed by `check FILE out.sol.gz` or
+    `solve --start out.sol.gz` fails. `tests/test_write.c` checks only the
+    gzip magic of those files and never reads them back. Fix: read them
+    through `jm_slurp` and parse the lines from the buffer. Verify: a test
+    that writes each answer file as `.gz` and reads it back, and a
+    `tests/cli.sh` check of the same round trip.
 
 ### A2. Every document true
 
@@ -210,6 +202,14 @@ A2.11 **The time limit and determinism.** `jaos_set_time_limit` reads
     bit-identical across machines. Say so in `docs/cli.md` at `--time-limit`
     and in `docs/api.md` (A3.4), if not already said.
 
+A2.13 **The count of gate bases the exact proof reaches is old.** The
+    docs cite 30 proved and 74 refused of the 110 gate bases at the
+    128-limb budget, from D274 (`bench/measurements/02-180/`), restated
+    on 2026-09-07; the exact machinery changed after it. Run `jaos verify`
+    over the 94 standard and 16 Kennington instances, count proved, broken
+    and refused, record it in a `bench/measurements/` directory with its
+    script, and update `docs/cli.md` and `docs/feature-matrix.md` to it.
+
 A2.12 **The check that closes A2.** Re-run the 2026-09-21 docs audit's
     method on the tree: every `--flag` in `cli/jaos.c` is in `docs/cli.md`
     and back; every reader and writer in `src/` is in `format-support.md`;
@@ -359,7 +359,7 @@ A4.1 **Cut v0.4.0.** After A1 to A3 and B1: bump the seven version places
 
 The gap against HiGHS is 3.60x per solve (P0, tree bfde2d4, 2026-08-30):
 1.5x to 2.0x per iteration on every instance, and the iteration count on
-four instances. Rows B1 to B9 in gain order; B10 and B11 are unmeasured
+four instances. Rows B1 to B9 in gain order; B10 to B12 are unmeasured
 components with no expected gain on record, so they come after. Each is unrefused today; read the named
 refusal before starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -473,6 +473,14 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     SPECS row and no refusal; SPECS is closed, so the user decides whether
     to add the two rows. Ask once, with B7's numbers, before building.
 
+B12 **The scaling mode, never compared.** Every solve scales by
+    Curtis-Reid. The geometric-mean pass (`JM_SCALE_GEOMETRIC` in
+    `src/scale.c`) is reached only by `tests/test_scale.c`, and no reading
+    has compared the two on Netlib (found 2026-09-21 while fixing
+    `docs/scaling.md`). Measure the geometric pass in the simplex's place
+    over netlib and kennington under B2's bar; one line in
+    `bench/refusals.txt` if it loses, or the default moves if it wins.
+
 ## Milestone C: reach and polish
 
 The research rows. They were here before 2026-09-21 and stay as written.
@@ -501,7 +509,7 @@ C3 **Primal simplex: 5 of the 94 standard instances run past 10x the dual's
    **The five are two faults, not one**, so a remedy aimed at either reads
    as noise over the set unless it is measured on its own group (d5a43e9).
 
-   - d6cube and degen3 stand still. d6cube holds one vertex for 8508
+   - d6cube stands still, as degen3 does under the bar at 4.0x. d6cube holds one vertex for 8508
      consecutive phase-2 bases. They need a remedy that leaves a vertex.
      EXPAND is now measured whole (`primal-expand-schedule`, 2026-09-15):
      the step, the growing width, the reset and the hold at the ceiling
@@ -516,7 +524,7 @@ C3 **Primal simplex: 5 of the 94 standard instances run past 10x the dual's
    The walk revisits no basis, so there is no cycle for an anti-cycling
    rule to break, which is why Bland's rule never pays here (f954aee).
 
-C4 **Convex QP: the Maros-Meszaros set.** SPECS row 22. `make
+C4 **Convex QP: the Maros-Meszaros set.** SPECS §1, "Convex quadratic (QP)". `make
    maros-meszaros` reads the 138 instances against BPMPD's values; the
    first reading (`bench/measurements/02-250/`) found and 808022a fixed
    the NaN points, the 1e-6 row slips, the four unreadable files and the
@@ -569,7 +577,7 @@ C4 **Convex QP: the Maros-Meszaros set.** SPECS row 22. `make
      the system it factors.
 
 
-C5 **Cones and quadratic rows, the rest.** SPECS row 23. The conic
+C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained, second-order cone". The conic
    interior point, its Newton finish and every format with CBF landed on
    2026-09-19 (`bench/measurements/02-253/`), and the CBLIB reading the
    same day (`make cblib`, `bench/measurements/02-254/`). Missing:
@@ -645,7 +653,7 @@ C5 **Cones and quadratic rows, the rest.** SPECS row 23. The conic
      (`tests/data/g_cone_badbox.mps`) the walk still fails, and that is
      the walk's own trouble with a box of that scale.
 
-C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
+C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer quadratic". Of
    QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,
    `02-258/`, `02-259/`), 4 end `OPTIMAL` and 13 reach a work limit of
    1e11: QPLIB_3871, 3698, 3792, 3694 and 3861 with incumbents 27% to
@@ -660,7 +668,7 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS row 24. Of
    whole budget at the root node, and the last three never finish its
    relaxation.
 
-C7 **Parallel tree search, the rest.** SPECS row 82. The conic tree takes
+C7 **Parallel tree search, the rest.** SPECS §4, "Deterministic parallel tree search". The conic tree takes
    its open nodes in rounds since 2026-09-20 (`--tree-batch N`,
    `bench/measurements/02-264/`): a round's relaxations solve on up to
    `--threads` threads and their answers are taken in the round's own

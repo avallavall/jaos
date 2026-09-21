@@ -59,6 +59,30 @@ static void test_t1_accepts_the_true_optimum(void)
     jaos_model_free(m);
 }
 
+static void test_a_row_the_checker_cannot_evaluate_is_refused(void)
+{
+    const double c[] = {0.0, 0.0};
+    const double cl[] = {-INFINITY, -INFINITY}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {0.0, -INFINITY}, ru[] = {0.0, INFINITY};
+    const int64_t s[] = {0, 2, 4}, ix[] = {0, 1, 0, 1};
+    const double v[] = {1e10, 1.0, -1e10, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    const double y[] = {0.0, 0.0};
+    jaos_check_report rep;
+    const double off[] = {1e300, 0.5e300};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, off, y, TOL, &rep));
+    TEST_ASSERT_FALSE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(isinf(rep.max_row_violation));
+    const double on[] = {1e300, 1e300};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, on, y, TOL, &rep));
+    TEST_ASSERT_FALSE(rep.primal_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_qp_point_is_judged_with_the_quadratic_gradient(void)
 {
     jaos_model *m = make_t1();
@@ -1291,5 +1315,6 @@ int main(void)
     RUN_TEST(test_ray_lifted_through_an_implied_free_column);
     RUN_TEST(test_a_wrong_ray_is_rejected);
     RUN_TEST(test_a_qp_point_is_judged_with_the_quadratic_gradient);
+    RUN_TEST(test_a_row_the_checker_cannot_evaluate_is_refused);
     return UNITY_END();
 }

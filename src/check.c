@@ -6,7 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static double max2(double a, double b) { return a > b ? a : b; }
+static double max2(double a, double b)
+{
+    if (isnan(a) || isnan(b))
+        return INFINITY;
+    return a > b ? a : b;
+}
 
 static double interval_violation(double v, double lo, double hi)
 {
@@ -519,8 +524,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
         for (int64_t j = 0; j < m->num_col; j++)
             if (m->col_integer[j]) {
                 const double f = fabs(col_value[j] - jm_round(col_value[j]));
-                if (f > int_viol)
-                    int_viol = f;
+                int_viol = max2(int_viol, f);
             }
     for (int64_t k = 0; k < m->num_sos; k++) {
         const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
@@ -534,8 +538,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
             if (here > best)
                 best = here;
         }
-        if (total - best > int_viol)
-            int_viol = total - best;
+        int_viol = max2(int_viol, total - best);
     }
     out->max_integrality_violation = int_viol;
 

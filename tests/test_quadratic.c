@@ -71,6 +71,43 @@ static void test_a_paired_q_reads_back_as_it_was_set(void)
     jaos_model_free(m);
 }
 
+static void test_zero_pairs_are_dropped_and_the_rest_stay_in_place(void)
+{
+    jaos_model *m = fresh();
+    const double cost[4] = {-1.0, -1.0, -1.0, -1.0};
+    const double cl[4] = {0.0, 0.0, 0.0, 0.0};
+    const double cu[4] = {10.0, 10.0, 10.0, 10.0};
+    const int64_t as[5] = {0, 0, 0, 0, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 0, JAOS_MINIMIZE, 0.0, cost, cl, cu, nullptr,
+                     nullptr, 0, as, nullptr, nullptr));
+    const int64_t qr[10] = {0, 1, 2, 3, 1, 2, 3, 2, 3, 0};
+    const int64_t qc[10] = {0, 1, 2, 3, 0, 0, 0, 1, 2, 1};
+    const double qv[10] = {2.0, 2.0, 2.0, 2.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0};
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_set_quadratic(m, 10, qr, qc, qv), jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT64(6, jaos_quadratic_nz(m));
+    int64_t r[6], c[6];
+    double v[6];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_quadratic(m, r, c, v));
+    int pairs = 0;
+    for (int k = 0; k < 6; k++) {
+        if (r[k] == c[k]) {
+            TEST_ASSERT_EQUAL_DOUBLE(2.0, v[k]);
+            continue;
+        }
+        TEST_ASSERT_EQUAL_INT64(c[k] + 1, r[k]);
+        TEST_ASSERT_TRUE(c[k] == 1 || c[k] == 2);
+        TEST_ASSERT_EQUAL_DOUBLE(1.0, v[k]);
+        pairs++;
+    }
+    TEST_ASSERT_EQUAL_INT(2, pairs);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  jaos_model_error(m));
+    jaos_model_free(m);
+}
+
 static void test_a_paired_q_solves_to_the_point_it_should(void)
 {
     jaos_model *m = paired_qp();
@@ -1258,6 +1295,7 @@ int main(void)
     RUN_TEST(test_a_bounded_qp_with_free_columns_is_not_called_unbounded);
     RUN_TEST(test_a_paired_unbounded_qp_finds_the_ray_through_the_pair);
     RUN_TEST(test_the_ray_checker_refuses_a_direction_the_curvature_turns);
+    RUN_TEST(test_zero_pairs_are_dropped_and_the_rest_stay_in_place);
     return UNITY_END();
 }
 
