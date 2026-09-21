@@ -18,7 +18,7 @@ to verify it, so a row leaves when its check passes, not before.
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
 the iteration count on four instances. Rows B3 to B9 in gain order; B11
-has no expected gain on record, and B14 and B15 follow from the others, so
+has no expected gain on record, and B14 follows from the others, so
 they come after. Each is unrefused today; read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -91,18 +91,8 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
     re-taken after the rows that land before it. Re-take
-    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B15
+    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B11
     have landed or been refused, and update the three.
-
-B15 **The factorization's own cost.** `jm_lu_factor` is 34.9% of pilot87's
-    instructions and 17.2% of maros-r7's (`bench/measurements/02-281/`).
-    Each column of the pivot row is walked twice: once in
-    `compact_pivot_row` to find the pivot row's value (3.5% of pilot87 on
-    its own), and once to update it. Keeping each row's values beside its
-    pattern, updated at every fill-in and drop, removes the first walk
-    without changing the arithmetic. Bar: instructions down by more than
-    0.3% on pilot87 and maros-r7, answers and work units byte-identical.
-    Refusal line if the upkeep costs more than the walk it saves.
 
 ## Milestone C: reach and polish
 

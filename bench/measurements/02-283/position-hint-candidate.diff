@@ -1,0 +1,93 @@
+diff --git a/src/lu.c b/src/lu.c
+index 046da62..42a29e9 100644
+--- a/src/lu.c
++++ b/src/lu.c
+@@ -57,6 +57,7 @@ void jm_svec_erase(jm_svec *v, int64_t i)
+ 
+ typedef struct {
+     int64_t *idx;
++    int64_t *at;
+     int64_t n, cap;
+ } pat;
+ 
+@@ -89,11 +90,19 @@ typedef struct {
+     double drop;
+ } elim;
+ 
+-static bool pat_push(pat *p, int64_t j)
++static bool pat_push(pat *p, int64_t j, int64_t at)
+ {
+-    if (!JM_GROW(p->idx, p->cap, p->n + 1))
+-        return false;
++    if (p->n + 1 > p->cap) {
++        int64_t cap = p->cap;
++        if (!JM_GROW(p->idx, cap, p->n + 1))
++            return false;
++        cap = p->cap;
++        if (!JM_GROW(p->at, cap, p->n + 1))
++            return false;
++        p->cap = cap;
++    }
+     p->idx[p->n] = j;
++    p->at[p->n] = at;
+     p->n++;
+     return true;
+ }
+@@ -104,8 +113,10 @@ static void elim_free(elim *e)
+         for (int64_t j = 0; j < e->dim; j++)
+             jm_svec_free(&e->col[j]);
+     if (e->row)
+-        for (int64_t i = 0; i < e->dim; i++)
++        for (int64_t i = 0; i < e->dim; i++) {
+             free(e->row[i].idx);
++            free(e->row[i].at);
++        }
+     free(e->col);
+     free(e->row);
+     free(e->col_cnt);
+@@ -237,16 +248,23 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
+         e->seen[j] = stamp;
+ 
+         const jm_svec *cv = &e->col[j];
+-        double aij = 0.0;
+-        for (int64_t q = 0; q < cv->n; q++)
++        const int64_t hint = e->row[pi].at[k] < cv->n ? e->row[pi].at[k]
++                                                       : cv->n - 1;
++        int64_t found = -1;
++        for (int64_t q = hint; q >= 0; q--)
+             if (cv->idx[q] == pi) {
+-                aij = cv->val[q];
++                found = q;
+                 break;
+             }
++        for (int64_t q = hint + 1; found < 0 && q < cv->n; q++)
++            if (cv->idx[q] == pi)
++                found = q;
++        const double aij = found >= 0 ? cv->val[found] : 0.0;
+         if (aij == 0.0)
+             continue;
+ 
+         e->row[pi].idx[keep] = j;
++        e->row[pi].at[keep] = found;
+         e->rowval[keep] = aij;
+         keep++;
+     }
+@@ -404,7 +422,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
+             if (fabs(v) <= e.drop)
+                 continue;
+             int64_t i = index[k];
+-            if (!jm_svec_push(&e.col[j], i, v) || !pat_push(&e.row[i], j)) {
++            if (!jm_svec_push(&e.col[j], i, v) ||
++                !pat_push(&e.row[i], j, e.col[j].n - 1)) {
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+                 goto done;
+             }
+@@ -536,7 +555,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
+                     continue;
+                 }
+                 double v = -(e.piv_mult[k] * urow);
+-                if (!pat_push(&e.row[i], j)) {
++                if (!pat_push(&e.row[i], j, keep)) {
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+                     goto done;
+                 }
