@@ -120,14 +120,6 @@ B15 **The factorization's own cost.** `jm_lu_factor` is 34.9% of pilot87's
 The research rows. They were here before 2026-09-21 and stay as written.
 C3 is B's item 9 (the primal's five instances). C7 is B8.
 
-C1 **Windows build, the rest.** The shim is in (`src/jaos_sys.h`),
-   mingw-w64 builds the library and the tool, wine gives the Linux answers,
-   and since 2026-09-19 `tests/windows.sh` runs the tool and the Python
-   binding natively on the Windows host WSL runs on (02-251). Missing:
-   clang-cl, which needs Microsoft's C runtime headers and libraries,
-   licensed by Microsoft and not on this machine, and macOS, which needs a
-   Mac.
-
 C3 **Primal simplex: 5 of the 94 standard instances run past 10x the dual's
    work** (`bench/results/primal.txt`): d6cube, dfl001, fit1d, fit2d, seba.
    None disagrees. The SPECS row stays partial until the count is zero.

@@ -160,12 +160,24 @@ cmake --build build/win
 ```
 
 MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
-`nullptr`, which its C front end does not accept. clang-cl should, since the
-shim compiles under `_WIN32` with no GCC-only call in it, but clang-cl needs
-Microsoft's C runtime headers and libraries, which come only under
-Microsoft's licence, and no machine here has them. The Python binding looks for `jaos.dll` or
+`nullptr`, which its C front end does not accept. clang-cl 20 can, with
+Microsoft's C runtime: CMake gives it `/clang:-std=c23`,
+`/clang:-ffp-contract=off` and `/WX`, and CI's `windows-clang-cl` job
+builds the archive, the DLL and the tool on `windows-latest` and solves an
+LP and a MIP with it. `-DJAOS_BUILD_TESTS=OFF` is needed there, because
+`tests/test_fuzz.c` uses POSIX calls. The Python binding looks for `jaos.dll` or
 `libjaos.dll` on Windows, beside itself or under `build/cmake`, and for
 `libjaos.dylib` on macOS; `JAOS_LIBRARY` overrides both.
+
+## macOS
+
+Apple's clang has no C23 `constexpr`, so macOS builds with Homebrew's GCC 14
+through CMake: `cmake -S . -B build/mac -DCMAKE_C_COMPILER=gcc-14
+-DJAOS_LTO=OFF`. CI's `macos` job builds it on `macos-latest`, runs the
+unit suite under `ctest` (all but `tests/cli.sh`, which reads the fetched
+Netlib files) and solves an LP and a MIP with the tool. The first run found
+two `snprintf` calls that could cut a name, which Linux's GCC had not
+flagged; both now check the length.
 
 ## What stays in the shipping build
 

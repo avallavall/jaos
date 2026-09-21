@@ -155,7 +155,8 @@ p.Solve();
 GCC 14 or later, Linux. The same sources cross-compile for Windows with
 mingw-w64 through the CMake package, and the tool and the Python binding
 run natively on Windows with Linux's answers byte for byte
-(`tests/windows.sh`); see [`docs/build.md`](docs/build.md).
+(`tests/windows.sh`). CI also builds them with clang-cl on Windows and
+with GCC 14 on macOS; see [`docs/build.md`](docs/build.md).
 
 ```
 make              # build/release/libjaos.a
