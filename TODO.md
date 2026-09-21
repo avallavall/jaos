@@ -17,8 +17,8 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B6 and B8 in gain order; B14
-follows from the others, so it comes after. Each is unrefused today;
+the iteration count on four instances. Row B8 comes first; B14
+follows from it, so it comes after. Each is unrefused today;
 read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
@@ -28,16 +28,6 @@ the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
 The bar for a B row, unless it says otherwise: no instance of the four
 gates past 2.0x its baseline work, the geometric mean of work under 0.95x
 over the standard 94, and no verdict or suboptimality bound regressed.
-
-B6 **The dual push.** The primal push landed on 2026-09-22
-    (`bench/measurements/02-287/`): on the same tree, 14 overruns against
-    17 and 3.1775x the dual against 3.2602x. SPECS's crossover row still
-    misses the dual push: from the pushed basis, take each basic column
-    whose dual slack at the barrier's point is not zero out of the basis
-    by a dual ratio test, so the simplex starts nearer dual feasibility.
-    Measure `make barrier` against the primal push. Bar: fewer than 14
-    overruns and a geometric mean under 3.1775x. SPECS row "Crossover"
-    changes to done when the count is zero.
 
 B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. A
     wall-clock reading needs the larger set, which `make miplib2017` now

@@ -1,0 +1,212 @@
+diff --git a/src/barrier.c b/src/barrier.c
+index f0c9c2a..a28a81b 100644
+--- a/src/barrier.c
++++ b/src/barrier.c
+@@ -34,6 +34,14 @@ constexpr double  CROSS_PUSH_SNAP = JAOS_CROSS_PUSH_SNAP_VALUE;
+ constexpr double  CROSS_PUSH_PIVOT = 1e-7;
+ constexpr double  CROSS_PUSH_FEAS = 1e-9;
+ constexpr double  CROSS_PUSH_UPDATE_TOL = 1e-9;
++#ifndef JAOS_CROSS_PUSH_DUAL_VALUE
++#define JAOS_CROSS_PUSH_DUAL_VALUE 1
++#endif
++constexpr bool    CROSS_PUSH_DUAL = JAOS_CROSS_PUSH_DUAL_VALUE;
++#ifndef JAOS_CROSS_DUAL_TOL_VALUE
++#define JAOS_CROSS_DUAL_TOL_VALUE 1e-7
++#endif
++constexpr double  CROSS_DUAL_TOL = JAOS_CROSS_DUAL_TOL_VALUE;
+ constexpr double  BARRIER_DIVERGE  = 1e6;
+ constexpr double  BARRIER_DIVERGE_QP = 1e10;
+ constexpr double  BARRIER_DENSE_FACTOR = 10.0;
+@@ -1566,6 +1574,168 @@ static jaos_status push_factor(bx *s, const int64_t *basis, jm_lu *lu,
+     return st;
+ }
+ 
++static double push_dot(const bx *s, int64_t v, const double *y)
++{
++    const jaos_model *m = s->m;
++    if (v >= s->ncol)
++        return -y[v - s->ncol];
++    double t = 0.0;
++    for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
++        t += s->av[k] * y[m->a_index[k]];
++    return t;
++}
++
++static jaos_status push_dual(bx *s, int64_t *basis, int64_t *where,
++                             int8_t *side, double *x, jm_lu *lu,
++                             int64_t *bs, int64_t *bi, double *bv,
++                             int64_t *moved)
++{
++    const jaos_model *m = s->m;
++    const int64_t nr = s->nrow, nv = s->nvar;
++    double *y = jm_alloc_array(nr, sizeof *y);
++    double *rho = jm_alloc_array(nr, sizeof *rho);
++    double *col = jm_alloc_array(nr, sizeof *col);
++    double *d = jm_alloc_array(nv, sizeof *d);
++    double *alpha = jm_alloc_array(nv, sizeof *alpha);
++    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
++    *moved = 0;
++    if (!y || !rho || !col || !d || !alpha)
++        goto out;
++    memcpy(y, s->y, (size_t)nr * sizeof *y);
++    for (int64_t v = 0; v < nv; v++)
++        d[v] = s->cost[v] - push_dot(s, v, y);
++    jm_work_add(&s->work, m->num_nz + nv);
++
++    for (int64_t v = 0; v < nv; v++) {
++        const int64_t r = where[v];
++        if (r < 0 || fabs(d[v]) <= CROSS_DUAL_TOL * (1.0 + fabs(s->cost[v])))
++            continue;
++        const int8_t leave = d[v] > 0.0 ? -1 : 1;
++        const double bound = leave < 0 ? s->lo[v] : s->up[v];
++        if (!isfinite(bound) ||
++            fabs(x[v] - bound) > CROSS_PUSH_FEAS * (1.0 + fabs(bound)))
++            continue;
++        memset(rho, 0, (size_t)nr * sizeof *rho);
++        rho[r] = 1.0;
++        jm_lu_btran(lu, rho, &s->work);
++        const double dir = d[v] > 0.0 ? 1.0 : -1.0;
++        memset(alpha, 0, (size_t)nv * sizeof *alpha);
++        int64_t touched = 0;
++        for (int64_t i = 0; i < nr; i++) {
++            const double ri = rho[i];
++            if (ri == 0.0)
++                continue;
++            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
++                alpha[m->ar_index[p]] += s->arv[p] * ri;
++            touched += m->ar_start[i + 1] - m->ar_start[i];
++            alpha[s->ncol + i] = -ri;
++        }
++        double amax = 0.0;
++        for (int64_t u = 0; u < nv; u++) {
++            if (where[u] >= 0)
++                alpha[u] = 0.0;
++            else if (fabs(alpha[u]) > amax)
++                amax = fabs(alpha[u]);
++        }
++        jm_work_add(&s->work, touched + nr + nv);
++        const double target = fabs(d[v]);
++        double t1 = target;
++        for (int64_t u = 0; u < nv; u++) {
++            const double a = dir * alpha[u];
++            if (where[u] >= 0 || s->kind[u] == FIXED ||
++                fabs(a) <= CROSS_PUSH_PIVOT * amax)
++                continue;
++            const double tol = CROSS_DUAL_TOL * (1.0 + fabs(s->cost[u]));
++            double t;
++            if (side[u] == 2)
++                t = tol / fabs(a);
++            else if (side[u] < 0 && a > 0.0)
++                t = (d[u] + tol) / a;
++            else if (side[u] > 0 && a < 0.0)
++                t = (d[u] - tol) / a;
++            else
++                continue;
++            if (t < t1)
++                t1 = t;
++        }
++        int64_t enter = -1;
++        double tau = target, amag = 0.0;
++        for (int64_t u = 0; t1 < target && u < nv; u++) {
++            const double a = dir * alpha[u];
++            if (where[u] >= 0 || s->kind[u] == FIXED ||
++                fabs(a) <= CROSS_PUSH_PIVOT * amax)
++                continue;
++            double t;
++            if (side[u] == 2)
++                t = 0.0;
++            else if (side[u] < 0 && a > 0.0)
++                t = d[u] / a;
++            else if (side[u] > 0 && a < 0.0)
++                t = d[u] / a;
++            else
++                continue;
++            if (t < 0.0)
++                t = 0.0;
++            if (t <= t1 && fabs(a) > amag) {
++                enter = u;
++                tau = t;
++                amag = fabs(a);
++            }
++        }
++        jm_work_add(&s->work, 2 * nv);
++        const double step = dir * tau;
++        for (int64_t i = 0; i < nr; i++)
++            y[i] += step * rho[i];
++        for (int64_t u = 0; u < nv; u++)
++            if (where[u] < 0)
++                d[u] -= step * alpha[u];
++        jm_work_add(&s->work, nr + nv);
++        if (enter < 0) {
++            d[v] = 0.0;
++            continue;
++        }
++        d[v] -= step;
++        memset(col, 0, (size_t)nr * sizeof *col);
++        push_column(s, enter, col, &s->work);
++        basis[r] = enter;
++        where[enter] = r;
++        where[v] = -1;
++        const int8_t was = side[enter];
++        side[v] = leave;
++        const double xv = x[v];
++        x[v] = bound;
++        d[enter] = 0.0;
++        jaos_status ust = jm_lu_update(lu, r, col, CROSS_PUSH_UPDATE_TOL,
++                                       &s->work);
++        if (ust == JAOS_ERR_OUT_OF_MEMORY) {
++            st = ust;
++            goto out;
++        }
++        if (ust != JAOS_OK)
++            ust = push_factor(s, basis, lu, bs, bi, bv);
++        if (ust != JAOS_OK) {
++            basis[r] = v;
++            where[v] = r;
++            where[enter] = -1;
++            side[enter] = was;
++            x[v] = xv;
++            st = push_factor(s, basis, lu, bs, bi, bv);
++            if (st == JAOS_ERR_NUMERICAL)
++                st = JAOS_OK;
++            goto out;
++        }
++        (*moved)++;
++    }
++    st = JAOS_OK;
++out:
++    free(y);
++    free(rho);
++    free(col);
++    free(d);
++    free(alpha);
++    return st;
++}
++
+ static jaos_status push_basis(bx *s, bool *pushed)
+ {
+     jaos_model *m = s->m;
+@@ -1785,6 +1955,13 @@ static jaos_status push_basis(bx *s, bool *pushed)
+         st = JAOS_OK;
+         goto out;
+     }
++    int64_t dual_pivots = 0;
++    if (CROSS_PUSH_DUAL) {
++        st = push_dual(s, basis, where, side, x, &lu, bs, bi, bv,
++                       &dual_pivots);
++        if (st != JAOS_OK)
++            goto out;
++    }
+ 
+     for (int64_t v = 0; v < nv; v++) {
+         jaos_basis_status b = JAOS_BASIS_BASIC;
+@@ -1800,7 +1977,8 @@ static jaos_status push_basis(bx *s, bool *pushed)
+     *pushed = st == JAOS_OK;
+     jm_log(m, JAOS_LOG_DETAIL,
+            "crossover: the push moved every column onto a bound with %lld "
+-           "pivots", (long long)pivots);
++           "pivots, and the dual push made %lld more", (long long)pivots,
++           (long long)dual_pivots);
+ 
+ out:
+     jm_lu_free(&lu);
