@@ -1,0 +1,107 @@
+# instance    verdict   dual=iters/work  primal=iters/work  split=p1/p2/dual-re-entry
+25fv47       ok        dual=2605/66139403 primal=2566/138598177 split=p1:1554/p2:1012/dual:0 verdict=optimal/optimal obj=5501.8458882867444/5501.8458882867444 checker=dual:ok/primal:ok 
+80bau3b      ok        dual=3616/70148386 primal=3892/194353488 split=p1:1096/p2:2796/dual:0 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/primal:ok 
+adlittle     ok        dual=70/142968 primal=90/311189 split=p1:11/p2:79/dual:0 verdict=optimal/optimal obj=225494.96316238036/225494.96316238039 checker=dual:ok/primal:ok 
+afiro        ok        dual=16/13013 primal=10/27222 split=p1:6/p2:4/dual:0 verdict=optimal/optimal obj=-464.75314285714285/-464.75314285714285 checker=dual:ok/primal:ok 
+agg          ok        dual=147/522716 primal=322/2690157 split=p1:223/p2:99/dual:0 verdict=optimal/optimal obj=-35991767.286576502/-35991767.286576509 checker=dual:ok/primal:ok 
+agg2         ok        dual=290/1831288 primal=525/6500304 split=p1:332/p2:193/dual:0 verdict=optimal/optimal obj=-20239252.355977111/-20239252.355977111 checker=dual:ok/primal:ok 
+agg3         ok        dual=418/2802484 primal=393/4545657 split=p1:221/p2:172/dual:0 verdict=optimal/optimal obj=10312115.935089221/10312115.935089221 checker=dual:ok/primal:ok 
+bandm        ok        dual=369/2754907 primal=335/4576470 split=p1:176/p2:159/dual:0 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/primal:ok 
+beaconfd     ok        dual=76/91184 primal=100/485289 split=p1:80/p2:20/dual:0 verdict=optimal/optimal obj=33592.485807199999/33592.485807199999 checker=dual:ok/primal:ok 
+blend        ok        dual=88/200475 primal=60/276208 split=p1:0/p2:60/dual:0 verdict=optimal/optimal obj=-30.812149845828223/-30.812149845828223 checker=dual:ok/primal:ok 
+bnl1         ok        dual=731/6443866 primal=972/25560290 split=p1:739/p2:233/dual:0 verdict=optimal/optimal obj=1977.629561522888/1977.629561522888 checker=dual:ok/primal:ok 
+bnl2         ok        dual=1113/12350283 primal=2338/116045380 split=p1:1276/p2:1062/dual:0 verdict=optimal/optimal obj=1811.2365403585452/1811.2365403585452 checker=dual:ok/primal:ok 
+boeing1      ok        dual=404/2526451 primal=417/4704462 split=p1:193/p2:224/dual:0 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/primal:ok 
+boeing2      ok        dual=118/328081 primal=134/601774 split=p1:92/p2:42/dual:0 verdict=optimal/optimal obj=-315.0187280152029/-315.0187280152029 checker=dual:ok/primal:ok 
+bore3d       ok        dual=75/101405 primal=48/230188 split=p1:35/p2:13/dual:0 verdict=optimal/optimal obj=1373.0803942084929/1373.0803942084929 checker=dual:ok/primal:ok 
+brandy       ok        dual=181/1048853 primal=305/3714127 split=p1:164/p2:141/dual:0 verdict=optimal/optimal obj=1518.5098964881283/1518.5098964881283 checker=dual:ok/primal:ok 
+capri        ok        dual=206/350124 primal=248/1587129 split=p1:178/p2:70/dual:0 verdict=optimal/optimal obj=2690.0129137681602/2690.0129137681602 checker=dual:ok/primal:ok 
+cycle        ok        dual=917/13858374 primal=1666/56436240 split=p1:44/p2:1622/dual:0 verdict=optimal/optimal obj=-5.2263930248941017/-5.2263930248941017 checker=dual:ok/primal:ok 
+czprob       ok        dual=1154/13403922 primal=861/21592858 split=p1:436/p2:425/dual:0 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/primal:ok 
+d2q06c       ok        dual=8846/638194700 primal=5478/736715960 split=p1:1202/p2:4276/dual:0 verdict=optimal/optimal obj=122784.21081418944/122784.21081418944 checker=dual:ok/primal:ok 
+d6cube       overrun   dual=419/25172424 split=p1:2106/p2:0/dual:0 over 10x the dual's work
+degen2       ok        dual=591/5724618 primal=1168/26028783 split=p1:876/p2:292/dual:0 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/primal:ok 
+degen3       ok        dual=2303/80494684 primal=8225/671040475 split=p1:7211/p2:1014/dual:0 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/primal:ok 
+dfl001       overrun   dual=20409/2432237195 split=p1:5644/p2:110407/dual:0 over 10x the dual's work
+e226         ok        dual=265/1569384 primal=220/2205433 split=p1:51/p2:169/dual:0 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/primal:ok 
+etamacro     ok        dual=571/3429151 primal=489/5320314 split=p1:252/p2:236/dual:1 verdict=optimal/optimal obj=-755.7152333749134/-755.71523335229574 checker=dual:ok/primal:ok 
+fffff800     ok        dual=690/5601840 primal=487/8845886 split=p1:355/p2:132/dual:0 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/primal:ok 
+finnis       ok        dual=263/575799 primal=385/3105726 split=p1:180/p2:205/dual:0 verdict=optimal/optimal obj=172791.06559561161/172791.06559561161 checker=dual:ok/primal:ok 
+fit1d        overrun   dual=66/1699588 split=p1:0/p2:537/dual:0 over 10x the dual's work
+fit1p        ok        dual=494/13400777 primal=408/16294421 split=p1:1/p2:407/dual:0 verdict=optimal/optimal obj=9146.3780924209277/9146.3780924209277 checker=dual:ok/primal:ok 
+fit2d        overrun   dual=131/73063702 split=p1:0/p2:2615/dual:0 over 10x the dual's work
+fit2p        ok        dual=4663/657788130 primal=6439/871387087 split=p1:0/p2:6439/dual:0 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/primal:ok 
+forplan      ok        dual=188/1239595 primal=191/3204659 split=p1:105/p2:86/dual:0 verdict=optimal/optimal obj=-664.21896127220464/-664.21896127220441 checker=dual:ok/primal:ok 
+ganges       ok        dual=969/3679797 primal=725/17056032 split=p1:517/p2:208/dual:0 verdict=optimal/optimal obj=-109585.7361292782/-109585.73612927817 checker=dual:ok/primal:ok 
+gfrd-pnc     ok        dual=446/2305440 primal=590/4229208 split=p1:331/p2:259/dual:0 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/primal:ok 
+greenbea     ok        dual=3179/129223081 primal=6265/511956800 split=p1:2708/p2:3557/dual:0 verdict=optimal/optimal obj=-72555248.129845992/-72555248.129845992 checker=dual:ok/primal:ok 
+greenbeb     ok        dual=4336/171604141 primal=4276/347358454 split=p1:2672/p2:1604/dual:0 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/primal:ok 
+grow15       overrun   dual=1197/18954780 split=p1:0/p2:1052/dual:7047 over 10x the dual's work
+grow22       ok        dual=2014/45291483 primal=779/22925636 split=p1:0/p2:779/dual:0 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/primal:ok 
+grow7        ok        dual=542/7493007 primal=242/2924981 split=p1:0/p2:242/dual:0 verdict=optimal/optimal obj=-47787811.814711548/-47787811.814711504 checker=dual:ok/primal:ok 
+israel       ok        dual=100/601912 primal=216/2518417 split=p1:82/p2:134/dual:0 verdict=optimal/optimal obj=-896644.82186304568/-896644.82186304568 checker=dual:ok/primal:ok 
+kb2          ok        dual=43/65110 primal=56/175257 split=p1:3/p2:53/dual:0 verdict=optimal/optimal obj=-1749.9001299062056/-1749.9001299062056 checker=dual:ok/primal:ok 
+lotfi        ok        dual=200/838797 primal=169/850464 split=p1:70/p2:99/dual:0 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/primal:ok 
+maros        ok        dual=1108/12073170 primal=728/17634429 split=p1:331/p2:397/dual:0 verdict=optimal/optimal obj=-58063.743701125895/-58063.743701125888 checker=dual:ok/primal:ok 
+maros-r7     ok        dual=2574/266093754 primal=5949/2352866258 split=p1:4086/p2:1863/dual:0 verdict=optimal/optimal obj=1497185.1664796439/1497185.1664796439 checker=dual:ok/primal:ok 
+modszk1      ok        dual=611/4897234 primal=579/6717065 split=p1:0/p2:579/dual:0 verdict=optimal/optimal obj=320.61972906430913/320.61972906418089 checker=dual:ok/primal:ok 
+nesm         ok        dual=2746/60675391 primal=2659/94677417 split=p1:1364/p2:1295/dual:0 verdict=optimal/optimal obj=14076036.487562729/14076036.487562733 checker=dual:ok/primal:ok 
+perold       ok        dual=1340/31965938 primal=1621/71660119 split=p1:1151/p2:470/dual:0 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/primal:ok 
+pilot        ok        dual=5636/936582057 primal=18675/6622200131 split=p1:16735/p2:1940/dual:0 verdict=optimal/optimal obj=-557.48972928406818/-557.4897292893346 checker=dual:ok/primal:ok 
+pilot-ja     ok        dual=1488/45781989 primal=1688/114685682 split=p1:930/p2:758/dual:0 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813431 checker=dual:ok/primal:ok 
+pilot-we     ok        dual=2754/78683805 primal=1126/58744188 split=p1:362/p2:764/dual:0 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/primal:ok 
+pilot4       ok        dual=832/20080862 primal=689/26219560 split=p1:289/p2:400/dual:0 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838889 checker=dual:ok/primal:ok 
+pilot87      ok        dual=9490/3312348432 primal=13735/9533610865 split=p1:10757/p2:2978/dual:0 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/primal:ok 
+pilotnov     ok        dual=2675/94411386 primal=1110/67169194 split=p1:905/p2:205/dual:0 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/primal:ok 
+recipe       ok        dual=42/24988 primal=24/36655 split=p1:0/p2:24/dual:0 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
+sc105        ok        dual=69/72645 primal=32/85781 split=p1:5/p2:27/dual:0 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/primal:ok 
+sc205        ok        dual=159/443540 primal=63/364865 split=p1:2/p2:61/dual:0 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/primal:ok 
+sc50a        ok        dual=34/25256 primal=15/34522 split=p1:0/p2:15/dual:0 verdict=optimal/optimal obj=-64.575077058564489/-64.575077058564489 checker=dual:ok/primal:ok 
+sc50b        ok        dual=31/21783 primal=14/31734 split=p1:0/p2:14/dual:0 verdict=optimal/optimal obj=-69.999999999999986/-69.999999999999986 checker=dual:ok/primal:ok 
+scagr25      ok        dual=395/1386553 primal=324/2626005 split=p1:128/p2:196/dual:0 verdict=optimal/optimal obj=-14753433.06076852/-14753433.06076852 checker=dual:ok/primal:ok 
+scagr7       ok        dual=117/187077 primal=73/164005 split=p1:41/p2:32/dual:0 verdict=optimal/optimal obj=-2331389.8243309837/-2331389.8243309837 checker=dual:ok/primal:ok 
+scfxm1       ok        dual=389/1530096 primal=325/3405624 split=p1:193/p2:132/dual:0 verdict=optimal/optimal obj=18416.759028348944/18416.759028348944 checker=dual:ok/primal:ok 
+scfxm2       ok        dual=873/6621015 primal=632/10660244 split=p1:374/p2:258/dual:0 verdict=optimal/optimal obj=36660.261564998815/36660.261564998815 checker=dual:ok/primal:ok 
+scfxm3       ok        dual=1301/10868310 primal=1014/25380739 split=p1:628/p2:386/dual:0 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/primal:ok 
+scorpion     ok        dual=183/338833 primal=164/1009551 split=p1:109/p2:55/dual:0 verdict=optimal/optimal obj=1878.1248227381068/1878.1248227381068 checker=dual:ok/primal:ok 
+scrs8        ok        dual=466/1888201 primal=438/8608718 split=p1:201/p2:237/dual:0 verdict=optimal/optimal obj=904.29695380079147/904.29695380079147 checker=dual:ok/primal:ok 
+scsd1        ok        dual=98/501390 primal=172/1625579 split=p1:49/p2:123/dual:0 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/primal:ok 
+scsd6        ok        dual=240/1638632 primal=419/5059913 split=p1:107/p2:312/dual:0 verdict=optimal/optimal obj=50.500000077144342/50.500000077144342 checker=dual:ok/primal:ok 
+scsd8        ok        dual=654/7452981 primal=1040/28491543 split=p1:198/p2:842/dual:0 verdict=optimal/optimal obj=904.99999992546441/904.99999992546441 checker=dual:ok/primal:ok 
+sctap1       ok        dual=184/583672 primal=225/1230919 split=p1:117/p2:108/dual:0 verdict=optimal/optimal obj=1412.25/1412.25 checker=dual:ok/primal:ok 
+sctap2       overrun   dual=291/1187790 split=p1:308/p2:365/dual:0 over 10x the dual's work
+sctap3       overrun   dual=369/1566401 split=p1:296/p2:368/dual:0 over 10x the dual's work
+seba         overrun   dual=102/200947 split=p1:120/p2:0/dual:0 over 10x the dual's work
+share1b      ok        dual=169/525449 primal=191/1098114 split=p1:105/p2:86/dual:0 verdict=optimal/optimal obj=-76589.318579185667/-76589.318579185652 checker=dual:ok/primal:ok 
+share2b      ok        dual=97/188901 primal=93/350653 split=p1:54/p2:39/dual:0 verdict=optimal/optimal obj=-415.73224074141922/-415.73224074141922 checker=dual:ok/primal:ok 
+shell        ok        dual=347/1009316 primal=359/2623574 split=p1:147/p2:212/dual:0 verdict=optimal/optimal obj=1208825346/1208825346 checker=dual:ok/primal:ok 
+ship04l      ok        dual=407/733149 primal=239/1507527 split=p1:14/p2:225/dual:0 verdict=optimal/optimal obj=1793324.5379703557/1793324.5379703557 checker=dual:ok/primal:ok 
+ship04s      ok        dual=333/496220 primal=175/971389 split=p1:19/p2:156/dual:0 verdict=optimal/optimal obj=1798714.7004453922/1798714.7004453922 checker=dual:ok/primal:ok 
+ship08l      ok        dual=710/2795149 primal=414/4234602 split=p1:25/p2:389/dual:0 verdict=optimal/optimal obj=1909055.2113891314/1909055.2113891314 checker=dual:ok/primal:ok 
+ship08s      ok        dual=461/1041642 primal=237/1477761 split=p1:32/p2:205/dual:0 verdict=optimal/optimal obj=1920098.2105346196/1920098.2105346199 checker=dual:ok/primal:ok 
+ship12l      ok        dual=1014/4527387 primal=699/7603695 split=p1:54/p2:645/dual:0 verdict=optimal/optimal obj=1470187.9193292649/1470187.9193292649 checker=dual:ok/primal:ok 
+ship12s      ok        dual=657/1725081 primal=381/2823110 split=p1:57/p2:324/dual:0 verdict=optimal/optimal obj=1489236.1344061291/1489236.1344061291 checker=dual:ok/primal:ok 
+sierra       overrun   dual=539/1635609 split=p1:610/p2:420/dual:0 over 10x the dual's work
+stair        ok        dual=428/8920126 primal=526/21198120 split=p1:378/p2:148/dual:0 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/primal:ok 
+standata     ok        dual=49/96890 primal=172/671733 split=p1:35/p2:137/dual:0 verdict=optimal/optimal obj=1257.6994999999999/1257.6994999999999 checker=dual:ok/primal:ok 
+standmps     ok        dual=188/379651 primal=243/1675865 split=p1:155/p2:88/dual:0 verdict=optimal/optimal obj=1406.0174999999999/1406.0174999999999 checker=dual:ok/primal:ok 
+stocfor1     ok        dual=78/123060 primal=58/123165 split=p1:19/p2:39/dual:0 verdict=optimal/optimal obj=-41131.976219436416/-41131.976219436416 checker=dual:ok/primal:ok 
+stocfor2     ok        dual=1618/12491253 primal=1575/47396881 split=p1:823/p2:752/dual:0 verdict=optimal/optimal obj=-39024.408537882038/-39024.408537882038 checker=dual:ok/primal:ok 
+stocfor3     ok        dual=12977/437174377 primal=12689/2564862764 split=p1:6855/p2:5834/dual:0 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/primal:ok 
+truss        ok        dual=17667/1158326577 primal=4897/428251045 split=p1:1034/p2:3863/dual:0 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/primal:ok 
+tuff         ok        dual=177/728144 primal=134/2037564 split=p1:111/p2:23/dual:0 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361284 checker=dual:ok/primal:ok 
+vtp-base     ok        dual=46/42245 primal=67/105071 split=p1:34/p2:33/dual:0 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/primal:ok 
+wood1p       ok        dual=573/44132682 primal=364/57130058 split=p1:158/p2:206/dual:0 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734093 checker=dual:ok/primal:ok 
+woodw        ok        dual=1186/39832765 primal=2503/181556003 split=p1:1782/p2:721/dual:0 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/primal:ok 
+
+-- primal against dual --
+measured 85, skipped 0, unreached 0, unbounded? 0, overrun 9, disagreed 0, rejected 0, errors 0
+iterations by method: phase 1 83509 (31.7%), phase 2 172977 (65.6%), dual re-entry 7048 (2.7%)
+  that is a sum over the set (D46): dfl001 carries 44.0% of it and pilot 7.1%. Median per-instance phase-1 share 48.7% over 94 instance(s).
+  9 of 94 did not finish inside 10x the dual's work; they are listed in TODO.md, each with what makes it slow.
+iterations (primal+1)/(dual+1), geometric mean: 0.9743
+work units primal/dual, geometric mean:         2.1893
+work ratio, best  truss at 0.3697
+work ratio, worst bnl2 at 9.3962
+took more iterations primal than dual:          37 of 85
+bit-identical cost on both sides:               0 of 85

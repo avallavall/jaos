@@ -1,0 +1,131 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 401a6ad..2263854 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -903,6 +903,107 @@ static void dual_devex_reset(sx *s)
+     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+ }
+ 
++#ifndef JAOS_PRIMAL_CRASH_VALUE
++#define JAOS_PRIMAL_CRASH_VALUE 1
++#endif
++constexpr bool PRIMAL_CRASH = JAOS_PRIMAL_CRASH_VALUE;
++#ifndef JAOS_PRIMAL_CRASH_PIVOT_VALUE
++#define JAOS_PRIMAL_CRASH_PIVOT_VALUE 0.9
++#endif
++constexpr double PRIMAL_CRASH_PIVOT = JAOS_PRIMAL_CRASH_PIVOT_VALUE;
++
++static bool build_crash_basis(sx *s)
++{
++    const jaos_model *m = s->m;
++    const int64_t nr = s->nrow, nc = s->ncol;
++    if (nr == 0 || nc == 0)
++        return false;
++    const int64_t nkey = 3 * (nr + 1);
++    int64_t *order = jm_alloc_array(nc, sizeof *order);
++    int64_t *count = jm_calloc_array(nkey + 1, sizeof *count);
++    int64_t *key = jm_alloc_array(nc, sizeof *key);
++    unsigned char *touched = jm_calloc_array(nr, sizeof *touched);
++    int64_t *pivot_col = jm_alloc_array(nr, sizeof *pivot_col);
++    bool ok = order && count && key && touched && pivot_col;
++    int64_t chosen = 0;
++    if (ok) {
++        for (int64_t j = 0; j < nc; j++) {
++            const bool lo = isfinite(s->lo[j]), up = isfinite(s->up[j]);
++            const int64_t cnt = m->a_start[j + 1] - m->a_start[j];
++            int64_t cat = lo && up ? 2 : (lo || up ? 1 : 0);
++            if ((lo && up && s->lo[j] == s->up[j]) || cnt == 0)
++                cat = -1;
++            key[j] = cat < 0 ? -1 : cat * (nr + 1) + (cnt < nr ? cnt : nr);
++            if (key[j] >= 0)
++                count[key[j] + 1]++;
++        }
++        for (int64_t k = 0; k < nkey; k++)
++            count[k + 1] += count[k];
++        const int64_t n = count[nkey];
++        for (int64_t j = 0; j < nc; j++)
++            if (key[j] >= 0)
++                order[count[key[j]]++] = j;
++        for (int64_t i = 0; i < nr; i++)
++            pivot_col[i] = -1;
++        int64_t scanned = 0;
++        for (int64_t t = 0; t < n; t++) {
++            const int64_t j = order[t];
++            double colmax = 0.0, best = 0.0;
++            int64_t bi = -1;
++            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++                const int64_t i = m->a_index[k];
++                const double a = fabs(s->av[k]);
++                if (a > colmax)
++                    colmax = a;
++                if (!touched[i] && a > best) {
++                    best = a;
++                    bi = i;
++                }
++            }
++            scanned += m->a_start[j + 1] - m->a_start[j];
++            if (bi < 0 || best < PRIMAL_CRASH_PIVOT * colmax)
++                continue;
++            pivot_col[bi] = j;
++            chosen++;
++            for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
++                touched[m->a_index[k]] = 1;
++        }
++        jm_work_add(&s->work, (scanned + nc + nr) * JM_WORK_NONZERO);
++    }
++    if (!ok || chosen == 0) {
++        free(order); free(count); free(key); free(touched); free(pivot_col);
++        return false;
++    }
++    for (int64_t v = 0; v < s->nvar; v++)
++        s->where[v] = -1;
++    for (int64_t i = 0; i < nr; i++) {
++        const int64_t v = pivot_col[i] >= 0 ? pivot_col[i] : nc + i;
++        s->basis[i] = v;
++        s->status[v] = JM_BASIC;
++        s->where[v] = i;
++    }
++    for (int64_t v = 0; v < s->nvar; v++) {
++        if (s->where[v] >= 0)
++            continue;
++        if (isfinite(s->lo[v]))
++            s->status[v] = JM_AT_LOWER;
++        else if (isfinite(s->up[v]))
++            s->status[v] = JM_AT_UPPER;
++        else
++            s->status[v] = JM_FREE;
++    }
++    free(order); free(count); free(key); free(touched); free(pivot_col);
++    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
++    s->dse_guess = false;
++    s->n_guess_restart = 0;
++    s->dse_exact_pending = false;
++    s->dual_devex = true;
++    dual_devex_reset(s);
++    jm_log(s->m, JAOS_LOG_DETAIL, "a crash basis of %lld structural columns",
++           (long long)chosen);
++    return true;
++}
++
+ static bool repair_singular_basis(sx *s)
+ {
+     const int64_t n = s->nrow;
+@@ -4478,10 +4579,16 @@ jaos_status jm_dual_simplex(jaos_model *m)
+             resumed = false;
+         } else {
+             warm = allow_warm && build_warm_basis(&s);
+-            if (!warm)
++            bool crash = false;
++            if (!warm && allow_warm && PRIMAL_CRASH && s.primal_run &&
++                !m->cfg.node_solve)
++                crash = build_crash_basis(&s);
++            if (!warm && !crash)
+                 build_initial_basis(&s);
+             jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
+-                   warm ? "the basis on the model" : "the slack basis");
++                   warm ? "the basis on the model"
++                   : crash ? "a crash basis" : "the slack basis");
++            warm = warm || crash;
+         }
+ 
+         if (at_settle) {

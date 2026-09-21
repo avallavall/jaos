@@ -74,7 +74,7 @@ the first stall and Bland's rule after it. Since 2026-09-21 a steepest-edge
 weight that drifts from its exact value hands the pricing to dual Devex for
 the rest of the solve, except inside the MIP tree.
 
-**The primal simplex reads ◐ rather than ●** because 5 of the 94 standard
+**The primal simplex reads ◐ rather than ●** because 6 of the 94 standard
 instances still run past 10x the dual's work (`bench/results/primal.txt`,
 `TODO.md`). `jaos_set_algorithm` and `--algorithm primal` select it. It has
 steepest-edge pricing since 2026-09-08, with Devex and Dantzig behind
