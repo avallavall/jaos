@@ -2817,6 +2817,50 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertAlmostEqual(p.objective_value, 23.0, places=9)
         p.set_mip_rins(-1)
 
+    def test_local_branching_keeps_the_optimum(self):
+
+        for size in (0, 2):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_local_branching(size)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        p.set_mip_local_branching(-1)
+
+    def test_estimate_order_keeps_the_optimum(self):
+
+        for rule in (0, 1):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_node_select(rule)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        with self.assertRaises(jaos.JaosError):
+            p.set_mip_node_select(2)
+        p.set_mip_node_select(-1)
+
+    def test_a_restart_keeps_the_optimum(self):
+
+        for on in (False, True):
+            p = jaos.Problem()
+            x = p.add_var(integer=True, ub=1, name="x")
+            y = p.add_var(integer=True, ub=1, name="y")
+            z = p.add_var(integer=True, ub=1, name="z")
+            p.add(3 * x + 5 * y + 2 * z <= 8)
+            p.maximize(10 * x + 13 * y + 7 * z)
+            p.set_mip_restart(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+        p.set_mip_restart(-1)
+
     def test_a_dive_bounded_by_the_degradation_keeps_the_optimum(self):
 
         for frac in (0.0, 0.01, 1.0):

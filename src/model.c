@@ -1943,6 +1943,33 @@ jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_restart(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_restart_set = on >= 0;
+    m->cfg.mip_restart = on > 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_node_select(jaos_model *m, int64_t rule)
+{
+    if (m == nullptr || rule > 1)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_node_select_set = rule >= 0;
+    m->cfg.mip_node_select = rule >= 0 ? rule : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_local_branching(jaos_model *m, int64_t size)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_local_branching_set = size >= 0;
+    m->cfg.mip_local_branching = size >= 0 ? size : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_dive_degrade(jaos_model *m, double frac)
 {
     if (m == nullptr)

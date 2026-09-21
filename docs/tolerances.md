@@ -665,35 +665,33 @@ control, one bit lower, where all three succeed. That pair is what makes the
 limit a measurement instead of a comment, and it caught the first version of
 `jm_nat_shl`, which charged a spare limb for any shift that was not a whole
 number of limbs and so refused a value that fits.
-## Branch and bound's twenty-nine numbers, and three switches
+## Branch and bound's sixty-five numbers, and seven switches
 
 All in `src/mip.c`: the first two are D288's, the four under them the root
-cuts', then the cut depth's, the node cut cap's, the
-cover rounds', the two stalls', the MIR cuts' three
-, the aggregation's two, the dive heuristic's two
-RINS's and the feasibility pump's two, the
-dive's backtrack budget and its resume gap,
-the branching rule's
-, the two after it strong branching's, then the probe cap's
- and the probe depth's. The MIP set is where a sweep of any of
-them runs. The rounds, the cut depth, the node cut cap, the cover rounds,
-the two stalls, the MIR rounds, the aggregation steps, the dive
-heuristic's solves and its depth, RINS's budget, the pump's rounds, the
-backtrack budget,
-the resume gap, the dive's degradation bound, the
-reliability, the cap and the probe depth have theirs; the other eleven
-are
-listed with what each one waits for stated
-beside it. Six switches sit beside the numbers as `constexpr bool`,
-read on the same set:
-`MIP_ROOT_CUT_DROP`, on since D306 (0.799x the work over the 24 with it,
-none past 2x, `bench/measurements/02-202/`); `MIP_COVER_LIFT`, off; `MIP_NODE_MIR`, off; and `MIP_PUMP_GENERAL`, off
-; `MIP_PUMP_ALWAYS`, whether the pump runs at the root where
-something already holds an incumbent, D318's guard re-asked for the
-objective pump; and
+cuts', then the cut depth's, the node cut cap's, the cover rounds', the
+two stalls', the MIR cuts' three, the aggregation's two, the dive
+heuristic's two, RINS's, local branching's two, the node order's two, the
+restart's share and the feasibility pump's two, the dive's backtrack
+budget and its resume gap, the branching rule's, the two after it strong
+branching's, then the probe cap's and the probe depth's. The MIP set is
+where a sweep of any of them runs, and since 2026-09-21 the 2017 set too.
+The rounds, the cut depth, the node cut cap, the cover rounds, the two
+stalls, the MIR rounds, the aggregation steps, the dive heuristic's solves
+and its depth, RINS's budget, local branching's size, the node order and
+its bound pick, the restart's share, the pump's rounds, the backtrack
+budget, the resume gap, the dive's degradation bound, the reliability, the
+cap and the probe depth have theirs. Each of the others says beside it what
+it waits for. Seven switches sit beside the numbers as `constexpr bool`,
+read on the same set: `MIP_ROOT_CUT_DROP`, on since D306 (0.799x the work
+over the 24 with it, none past 2x, `bench/measurements/02-202/`);
+`MIP_COVER_LIFT`, off; `MIP_NODE_MIR`, off; `MIP_PUMP_GENERAL`, off;
+`MIP_PUMP_ALWAYS`, whether the pump runs at the root where something
+already holds an incumbent, D318's guard re-asked for the objective pump;
 `MIP_RCFIX`, whether the root pulls in an integer column's far bound to
 the furthest integer its reduced cost still allows once an incumbent
-exists.
+exists; and `MIP_RESTART`, off, whether the tree starts again from the root
+once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns
+(`bench/refusals.txt`, mip-restart).
 
 | constant | value | what it decides |
 |---|---|---|
@@ -733,6 +731,11 @@ exists.
 | `MIP_MIR_LAMBDA` | 1e6 | the largest multiplier an aggregation step may use, and 1 / this the smallest: the step forms `agg - lambda row_r`, so a multiplier far from 1 makes the aggregate a difference of numbers of very different size and the coefficients carry a rounding the cut's own map then multiplies by up to 1 / `MIP_CUT_AWAY`. Not swept: held, at `MIP_CUT_DYNAMISM`'s own bound on a kept cut's coefficient spread, and the per-coefficient magnitude test against `MIP_MIR_ROUND` is what actually refuses a side |
 | `MIP_DIVE_HEURISTIC_DEPTH` | 0 | the deepest node the dive heuristic runs at, the root being 0; every node at this depth or above gets its own dive on its own relaxation, and 0 is the root alone, D313's form. `jaos_set_mip_dive_heuristic_depth` overrides it; nothing happens with the dive heuristic off. **Swept at 1, 2 and 4** over the MIP set of 24: 1.049x, 1.144x with two instances past 2x, 1.356x with four past 2x and `khb05250` at 2.846x on a tree that did not move. No node count moves at any depth, so it is judged on the first incumbent like D290 and D313: earlier on 4, 5 and 8 instances and later on none (`bell3a` node 230 to 3). Refused as a default because the rate is worse than what is already on: D290 moved 8 of 17 for 1.8%, D313 6 of 24 for 3.2%, depth 1 four more of 24 for 4.9% |
 | `MIP_RINS` | 0 | how many relaxations a RINS dive may solve at a node: the integer columns the incumbent and the node's relaxation already place at the same integer are fixed there and D313's dive runs on what is left, once per distinct incumbent. 0, the default, is off. `jaos_set_mip_rins` overrides it. **Swept at 10, 50 and 200** over the MIP set of 24: 1.007x, 1.008x and 1.008x, none past 2x, every instance finished, and 50 and 200 byte-identical because a neighbourhood with most columns fixed ends in few solves. Refused as a default on the other column: it found a point on one instance of the 24 and moved no first incumbent, since D313's root dive reaches them first |
+| `MIP_LOCAL_BRANCHING` | 0 | how many binary columns the local branching tree may flip from the incumbent; 0 is off. `jaos_set_mip_local_branching` overrides it. On the 2017 set at 1e10 work units (`bench/measurements/02-286/`), 10 flips read 0.975x on the mean primal plus dual gap and 20 flips 0.992x, with no instance finished; 10 flips improve 10 incumbents, pk1 196 to 45, exp-1-500-5-5 102167 to 77608 and tr12-30 195766 to 167155 among them. So it stays off |
+| `MIP_LOCAL_BRANCHING_NODES` | 1000 | the node limit of one local branching tree. Not swept: set so that one tree costs a small share of the 1e10 units the 2017 reading allows an instance |
+| `MIP_NODE_SELECT` | 1 | which open node the tree takes when it does not dive: 0 is the lowest bound, 1 the lowest estimate. A child's estimate is its parent's bound plus, over the fractional integer columns of the parent's relaxation, the smaller of each column's two pseudocost gains, with the branching column's own gain taken in the child's direction. `jaos_set_mip_node_select` and `--node-select` override it. On the 2017 set at 1e10 work units (`bench/measurements/02-286/`) the estimate with the bound every fifth pick reads 0.896x on the mean primal plus dual gap, incumbents on 17 instances against 15 and none solved either way. On MIPLIB 3 it reads 0.922x the work over 23 instances with none past 2x, and bell5 at 1.694x. So it is on. The estimate also left one relaxation of neos-3754480-nidda failing at node 5719, which ended that tree until a failed node was set aside |
+| `MIP_ESTIMATE_BOUND_EVERY` | 5 | under the estimate order, every this-many-th pick takes the lowest bound instead, so the tree's bound keeps rising. **Swept at 10 and 5**, and at 2 and 3 on bell5 alone: 10 reads 0.858x on the 2017 set, better than 5, but leaves bell5 without an incumbent at 6.3e9 work units, twice its baseline. 2 and 3 leave it unfinished there too, 3 with the optimum in hand. 5 finishes it at 5.33e9 |
+| `MIP_RESTART_FRAC` | 0.2 | the share of the integer columns the root's reduced costs must fix against the root's incumbent before the tree starts again from the root, under `--restart`. **Swept at 0.2 and 0.05** on the 2017 set at 1e10 work units: neither fired on any of the 30, because a restart needs an incumbent at the root and that many fixings. Both read the default's gaps; the check itself bills `nc` work units at a root that has an incumbent, so sp150x300d ends one iteration apart. Held |
 | `MIP_FEASPUMP` | 20 | how many rounds the feasibility pump may run at the root: each round rounds the point it holds and re-solves the copy for the point of the relaxation nearest that rounding in L1. It runs only while nothing has an answer yet, since this is the plain pump and looks for a feasible point rather than a good one. 0 is off. `jaos_set_mip_feaspump` overrides it. **Swept at 1, 3, 5, 20, 50 and 100** over the MIP set of 24: 1.006x, 1.011x, 1.014x, **1.026x**, 1.037x and 1.053x, with the first incumbent moving to node 1 on 0, 2, 4, 6, 6 and 6 instances and later on none, every instance finished and none past 2x. No node count moves at any setting, so it is judged on the first incumbent like D290 and D313; 20 is the setting with the best mean among those that reach every instance a larger one reaches, and 50 and 100 say the curve is flat past it |
 | `MIP_PUMP_FLIPS` | 10 | how many integer columns a stalled pump moves to the other side: a rounding that comes back unchanged would repeat for ever, so the columns whose relaxation value sits furthest from the rounding are flipped, the lowest index breaking a tie. Fischetti, Glover and Lodi draw this count at random, which would break D8's bit-identical results, so it is fixed and the choice inside it is a total order. Not swept: held. It moves which points the pump visits and no number in an answer, and `tests/test_mip.c` carries a model whose rounding repeats so the path is executed |
 | `MIP_PUMP_OBJ` | 0.5 | the objective pump's decay: each of the pump's rounds minimizes `(1 - a)` times the distance plus `a` times the model's own objective, the two scaled to comparable Euclidean norms, and `a` multiplies by this each round from 1, so the blend fades to the plain distance. 0 is the plain pump. `jaos_set_mip_pump_obj` overrides it. **Swept at 0.3, 0.5, 0.7 and 0.9** over the MIP set of 24: 0.987x, **0.984x**, 0.985x and 0.985x the work of the plain pump, 2 better and 0 worse at every decay, none past 2x, no node count moved; at 0.3 and 0.5 the first incumbent moves to node 1 on `gt2` (from 382) and later on none, at 0.7 and 0.9 `lseu`'s moves from node 1 to 47. 0.5 is the best mean and the largest decay that loses nothing; `dcmulti` 0.908x and `misc03` 0.786x are the two better, on trees that did not change, because the pump's own re-solves cost less when the objective moves less between rounds |

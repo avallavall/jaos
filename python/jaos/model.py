@@ -842,6 +842,37 @@ class Model:
         """
         self._check(_lib.jaos_set_mip_rins(self._handle(), int(solves)))
 
+    def set_mip_local_branching(self, size):
+        """Binaries a small tree may flip around each new incumbent.
+
+        The tree solves the model with one more row, which keeps the
+        binaries within ``size`` flips of the incumbent, and takes any
+        better point it finds. 0, the default, is off; a negative value
+        restores it.
+        """
+        self._check(_lib.jaos_set_mip_local_branching(self._handle(),
+                                                      int(size)))
+
+    def set_mip_node_select(self, rule):
+        """Which open node the tree takes next.
+
+        0 is the lowest bound; 1, the default, is the lowest pseudocost
+        estimate, with the lowest bound every fifth pick. A negative
+        value restores the default.
+        """
+        self._check(_lib.jaos_set_mip_node_select(self._handle(),
+                                                  int(rule)))
+
+    def set_mip_restart(self, on):
+        """Start the tree again from the root when the root incumbent's
+        reduced costs fix a fifth of the integer columns.
+
+        Off by default; a negative value restores the default.
+        """
+        self._check(_lib.jaos_set_mip_restart(self._handle(),
+                                              -1 if on is None or on < 0
+                                              else int(bool(on))))
+
     def set_mip_feaspump(self, rounds):
         """Rounds the feasibility pump may run at the root (D318).
 

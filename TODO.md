@@ -17,9 +17,9 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B6 to B9 in gain order; B11
-has no expected gain on record, and B14 follows from the others, so
-they come after. Each is unrefused today; read the named refusal before
+the iteration count on four instances. Rows B6 to B9 in gain order; B14
+follows from the others, so it comes after. Each is unrefused today;
+read the named refusal before
 starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
 the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
@@ -49,14 +49,6 @@ B9 **A parallel simplex or a parallel barrier.** SPECS's "Parallel LP"
     refused. The barrier's normal-equation Cholesky is the natural first
     (parallel column blocks in `src/chol.c` with a fixed schedule, so the
     result is bit-identical). Last in B; it needs a design reading first.
-
-B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
-    branching" is partial: RINS is off by measurement and local branching
-    was never built. Build it behind a switch and measure on B7's set. MIP
-    restarts (a root restart after enough fixings) and a node selection
-    beyond best-bound (best-estimate, or a plunge with a bound gap) have no
-    SPECS row and no refusal; SPECS is closed, so the user decides whether
-    to add the two rows. Ask once, with B7's numbers, before building.
 
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as

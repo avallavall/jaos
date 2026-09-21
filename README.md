@@ -73,8 +73,9 @@ a branch and bound of its own, which can take its open nodes in rounds
 solved on several threads with the same answer at any thread count
 (`--tree-batch`).
 
-**Mixed-integer programs.** Branch and bound over the dual simplex, best bound
-first, pseudocost branching. Gomory, knapsack cover, mixed-integer rounding
+**Mixed-integer programs.** Branch and bound over the dual simplex, best
+estimate first with the best bound every fifth pick, pseudocost branching.
+Gomory, knapsack cover, mixed-integer rounding
 and clique cuts at the root and below it. A rounding heuristic, a root dive and a
 feasibility pump. A solution pool of distinct integer assignments, a MIP
 start, a cutoff, a node limit, an

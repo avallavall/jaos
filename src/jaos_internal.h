@@ -93,6 +93,12 @@ typedef struct {
     int64_t mip_dive_heuristic_depth;
     bool mip_rins_set;
     int64_t mip_rins;
+    bool mip_local_branching_set;
+    int64_t mip_local_branching;
+    bool mip_node_select_set;
+    int64_t mip_node_select;
+    bool mip_restart_set;
+    bool mip_restart;
     bool mip_feaspump_set;
     int64_t mip_feaspump;
     bool mip_pump_general_set;
@@ -350,7 +356,8 @@ enum jm_mip_key {
     JM_DEF_FEASPUMP, JM_DEF_PUMP_GENERAL, JM_DEF_PUMP_OBJ, JM_DEF_PUMP_ALWAYS,
     JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_CONFLICTS, JM_DEF_SYMMETRY, JM_DEF_ORBITAL, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
-    JM_DEF_FLOW_COVER_ROUNDS,
+    JM_DEF_FLOW_COVER_ROUNDS, JM_DEF_LOCAL_BRANCHING, JM_DEF_NODE_SELECT,
+    JM_DEF_RESTART,
 };
 double jm_mip_default(enum jm_mip_key key);
 

@@ -1,6 +1,6 @@
 # The C API
 
-`include/jaos.h` is the public header of JAOS. It declares 197 functions,
+`include/jaos.h` is the public header of JAOS. It declares 200 functions,
 the enums and structs they use, and the version macros. This page describes
 every function in the order the header declares them. Each statement comes
 from the code in `src/`. `docs/cli.md` shows the same calls behind the
@@ -151,6 +151,9 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_dive_heuristic` | `mip_dive_heuristic` | integer | 50 |
 | `jaos_set_mip_dive_heuristic_depth` | `mip_dive_heuristic_depth` | integer | 0 |
 | `jaos_set_mip_rins` | `mip_rins` | integer | 0 |
+| `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
+| `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
+| `jaos_set_mip_restart` | `mip_restart` | boolean | off |
 | `jaos_set_mip_feaspump` | `mip_feaspump` | integer | 20 |
 | `jaos_set_mip_pump_general` | `mip_pump_general` | boolean | false |
 | `jaos_set_mip_pump_obj` | `mip_pump_obj` | number | 0.5 |
@@ -734,6 +737,35 @@ depth 0. The default is 0, the root only.
 Sets the most solves of RINS. RINS fixes the integer columns on which the
 incumbent and a node's relaxation agree, and dives on the rest. It runs once
 per distinct incumbent. The default is 0, off.
+
+**`jaos_set_mip_local_branching`**\
+`jaos_status jaos_set_mip_local_branching(jaos_model *m, int64_t size)`\
+Sets the neighbourhood of local branching. For each distinct incumbent, a
+small tree solves the model with one more row: at most `size` binary columns
+may take the other value than they have in the incumbent. The small tree
+stops at `MIP_LOCAL_BRANCHING_NODES` nodes, and a better point it finds
+becomes the incumbent. The default is 0, off. A negative value restores the
+default.
+
+**`jaos_set_mip_node_select`**\
+`jaos_status jaos_set_mip_node_select(jaos_model *m, int64_t rule)`\
+Sets which open node the tree takes next. 0 takes the lowest bound. 1,
+the default, takes the lowest estimate: the node's bound plus, for
+each fractional integer column of its parent's relaxation, the smaller
+of its two pseudocost gains, with the branching column's own gain in
+the child's direction; every `MIP_ESTIMATE_BOUND_EVERY`-th pick still
+takes the lowest bound. A negative value restores the default. The call
+fails when `rule` is above 1.
+
+**`jaos_set_mip_restart`**\
+`jaos_status jaos_set_mip_restart(jaos_model *m, int on)`\
+Turns the restart on or off. It is off by default. After the root, when an
+incumbent exists, the reduced costs of the root relaxation fix every integer
+column they can against the incumbent's value. When they fix at least
+`MIP_RESTART_FRAC` of the integer columns, the tree stops and starts again
+from the root with those columns fixed and the incumbent as its start; the
+second tree gets the work, time and nodes the first one left, and the model's
+bounds are put back afterwards. A negative value restores the default.
 
 **`jaos_set_mip_feaspump`**\
 `jaos_status jaos_set_mip_feaspump(jaos_model *m, int64_t rounds)`\

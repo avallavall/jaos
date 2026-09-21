@@ -652,6 +652,12 @@ _sig("jaos_set_mip_dive_heuristic_depth", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_rins", ctypes.c_int, _VP, _I64)
 
+_sig("jaos_set_mip_local_branching", ctypes.c_int, _VP, _I64)
+
+_sig("jaos_set_mip_node_select", ctypes.c_int, _VP, _I64)
+
+_sig("jaos_set_mip_restart", ctypes.c_int, _VP, ctypes.c_int)
+
 _sig("jaos_set_mip_feaspump", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_pump_general", ctypes.c_int, _VP, ctypes.c_int)

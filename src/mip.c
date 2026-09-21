@@ -58,6 +58,29 @@ constexpr int64_t MIP_DIVE_HEURISTIC_DEPTH = 0;
 
 constexpr int64_t MIP_RINS = 0;
 
+constexpr int64_t MIP_LOCAL_BRANCHING = 0;
+
+constexpr int64_t MIP_NODE_SELECT = 1;
+
+constexpr bool MIP_RESTART = false;
+
+#ifndef JAOS_MIP_RESTART_FRAC_VALUE
+#define JAOS_MIP_RESTART_FRAC_VALUE 0.2
+#endif
+constexpr double MIP_RESTART_FRAC = JAOS_MIP_RESTART_FRAC_VALUE;
+
+#ifndef JAOS_MIP_ESTIMATE_BOUND_EVERY_VALUE
+#define JAOS_MIP_ESTIMATE_BOUND_EVERY_VALUE 5
+#endif
+constexpr int64_t MIP_ESTIMATE_BOUND_EVERY =
+    JAOS_MIP_ESTIMATE_BOUND_EVERY_VALUE;
+
+#ifndef JAOS_MIP_LOCAL_BRANCHING_NODES_VALUE
+#define JAOS_MIP_LOCAL_BRANCHING_NODES_VALUE 1000
+#endif
+constexpr int64_t MIP_LOCAL_BRANCHING_NODES =
+    JAOS_MIP_LOCAL_BRANCHING_NODES_VALUE;
+
 constexpr double MIP_MIR_LAMBDA = 1e6;
 
 constexpr int64_t MIP_DIVE_BACKTRACK = 0;
@@ -271,6 +294,8 @@ typedef struct {
     bool no_cuts;
     int64_t nrow, nperm;
     int64_t fcap;
+    double est;
+    int64_t hpos;
 } bnode;
 
 static void node_free(bnode *n)
@@ -285,47 +310,76 @@ static void node_free(bnode *n)
 typedef struct {
     bnode **v;
     int64_t n, cap;
+    bool by_est;
 } bheap;
 
-static bool node_before(const bnode *a, const bnode *b)
+static bool node_before(const bheap *h, const bnode *a, const bnode *b)
 {
-    return a->key < b->key || (a->key == b->key && a->id < b->id);
+    const double ka = h->by_est ? a->est : a->key;
+    const double kb = h->by_est ? b->est : b->key;
+    return ka < kb || (ka == kb && a->id < b->id);
+}
+
+static void heap_swap(bheap *h, int64_t i, int64_t j)
+{
+    bnode *t = h->v[i];
+    h->v[i] = h->v[j];
+    h->v[j] = t;
+    h->v[i]->hpos = i;
+    h->v[j]->hpos = j;
+}
+
+static void heap_up(bheap *h, int64_t i)
+{
+    while (i > 0) {
+        const int64_t p = (i - 1) / 2;
+        if (!node_before(h, h->v[i], h->v[p]))
+            break;
+        heap_swap(h, i, p);
+        i = p;
+    }
+}
+
+static void heap_down(bheap *h, int64_t i)
+{
+    for (;;) {
+        const int64_t l = 2 * i + 1, r = l + 1;
+        int64_t best = i;
+        if (l < h->n && node_before(h, h->v[l], h->v[best])) best = l;
+        if (r < h->n && node_before(h, h->v[r], h->v[best])) best = r;
+        if (best == i)
+            break;
+        heap_swap(h, i, best);
+        i = best;
+    }
 }
 
 static bool heap_push(bheap *h, bnode *x)
 {
     if (!JM_GROW(h->v, h->cap, h->n + 1))
         return false;
-    int64_t i = h->n++;
+    const int64_t i = h->n++;
     h->v[i] = x;
-    while (i > 0) {
-        const int64_t p = (i - 1) / 2;
-        if (!node_before(h->v[i], h->v[p]))
-            break;
-        bnode *t = h->v[i]; h->v[i] = h->v[p]; h->v[p] = t;
-        i = p;
-    }
+    x->hpos = i;
+    heap_up(h, i);
     return true;
+}
+
+static bnode *heap_take(bheap *h, int64_t i)
+{
+    bnode *x = h->v[i];
+    h->v[i] = h->v[--h->n];
+    if (i < h->n) {
+        h->v[i]->hpos = i;
+        heap_up(h, i);
+        heap_down(h, h->v[i]->hpos);
+    }
+    return x;
 }
 
 static bnode *heap_pop(bheap *h)
 {
-    if (h->n == 0)
-        return nullptr;
-    bnode *top = h->v[0];
-    h->v[0] = h->v[--h->n];
-    int64_t i = 0;
-    for (;;) {
-        const int64_t l = 2 * i + 1, r = l + 1;
-        int64_t best = i;
-        if (l < h->n && node_before(h->v[l], h->v[best])) best = l;
-        if (r < h->n && node_before(h->v[r], h->v[best])) best = r;
-        if (best == i)
-            break;
-        bnode *t = h->v[i]; h->v[i] = h->v[best]; h->v[best] = t;
-        i = best;
-    }
-    return top;
+    return h->n == 0 ? nullptr : heap_take(h, 0);
 }
 
 static double open_key(const bheap *h, bnode *const *stack, int64_t n)
@@ -337,12 +391,100 @@ static double open_key(const bheap *h, bnode *const *stack, int64_t n)
     return k;
 }
 
-static bool resume_within(const bnode *n, const bheap *h, bnode *const *stack,
-                          int64_t stack_n, double frac)
+typedef struct {
+    double key;
+    int64_t id;
+} kentry;
+
+typedef struct {
+    kentry *v;
+    int64_t n, cap;
+    bnode **byid;
+    int64_t byid_cap;
+} kheap;
+
+static bool kentry_before(kentry a, kentry b)
+{
+    return a.key < b.key || (a.key == b.key && a.id < b.id);
+}
+
+static bool kheap_push(kheap *h, bnode *x)
+{
+    if (!JM_GROW(h->v, h->cap, h->n + 1) ||
+        !JM_GROW(h->byid, h->byid_cap, x->id + 1))
+        return false;
+    h->byid[x->id] = x;
+    int64_t i = h->n++;
+    h->v[i] = (kentry){ x->key, x->id };
+    while (i > 0) {
+        const int64_t p = (i - 1) / 2;
+        if (!kentry_before(h->v[i], h->v[p]))
+            break;
+        const kentry t = h->v[i]; h->v[i] = h->v[p]; h->v[p] = t;
+        i = p;
+    }
+    return true;
+}
+
+static void kheap_prune(kheap *h)
+{
+    while (h->n > 0 && h->byid[h->v[0].id] == nullptr) {
+        h->v[0] = h->v[--h->n];
+        int64_t i = 0;
+        for (;;) {
+            const int64_t l = 2 * i + 1, r = l + 1;
+            int64_t best = i;
+            if (l < h->n && kentry_before(h->v[l], h->v[best])) best = l;
+            if (r < h->n && kentry_before(h->v[r], h->v[best])) best = r;
+            if (best == i)
+                break;
+            const kentry t = h->v[i]; h->v[i] = h->v[best]; h->v[best] = t;
+            i = best;
+        }
+    }
+}
+
+static bool open_push(bheap *h, kheap *kh, bnode *x)
+{
+    if (!heap_push(h, x))
+        return false;
+    return !h->by_est || kheap_push(kh, x);
+}
+
+static bnode *open_pick(bheap *h, kheap *kh, bool by_bound)
+{
+    bnode *x = nullptr;
+    if (h->by_est && by_bound) {
+        kheap_prune(kh);
+        if (kh->n > 0)
+            x = heap_take(h, kh->byid[kh->v[0].id]->hpos);
+    } else {
+        x = heap_pop(h);
+    }
+    if (x != nullptr && h->by_est)
+        kh->byid[x->id] = nullptr;
+    return x;
+}
+
+static double open_bound(const bheap *h, kheap *kh, bnode *const *stack,
+                         int64_t n)
+{
+    if (!h->by_est)
+        return open_key(h, stack, n);
+    kheap_prune(kh);
+    double k = kh->n > 0 ? kh->v[0].key : INFINITY;
+    for (int64_t i = 0; i < n; i++)
+        if (stack[i]->key < k)
+            k = stack[i]->key;
+    return k;
+}
+
+static bool resume_within(const bnode *n, const bheap *h, kheap *kh,
+                          bnode *const *stack, int64_t stack_n, double frac)
 {
     if (frac <= 0.0)
         return true;
-    const double best = open_key(h, stack, stack_n);
+    const double best = open_bound(h, kh, stack, stack_n);
     if (!isfinite(best))
         return true;
     return n->key - best <= frac * (1.0 + fabs(best));
@@ -775,6 +917,9 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_DIVE_HEURISTIC: return (double)MIP_DIVE_HEURISTIC;
     case JM_DEF_DIVE_HEURISTIC_DEPTH: return (double)MIP_DIVE_HEURISTIC_DEPTH;
     case JM_DEF_RINS: return (double)MIP_RINS;
+    case JM_DEF_LOCAL_BRANCHING: return (double)MIP_LOCAL_BRANCHING;
+    case JM_DEF_NODE_SELECT: return (double)MIP_NODE_SELECT;
+    case JM_DEF_RESTART: return MIP_RESTART ? 1.0 : 0.0;
     case JM_DEF_DIVE_BACKTRACK: return (double)MIP_DIVE_BACKTRACK;
     case JM_DEF_DIVE_GAP: return MIP_DIVE_GAP;
     case JM_DEF_DIVE_DEGRADE: return MIP_DIVE_DEGRADE;
@@ -2503,6 +2648,75 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
     return added;
 }
 
+static bool lb_binary(const jaos_model *m, int64_t j)
+{
+    return m->col_integer != nullptr && m->col_integer[j] &&
+           m->col_lower[j] == 0.0 && m->col_upper[j] == 1.0;
+}
+
+static int local_branching(const jaos_model *m, const double *xinc,
+                           double incobj, int64_t size, int64_t *work,
+                           double *xout)
+{
+    const int64_t nc = m->num_col;
+    int64_t nb = 0, ones = 0;
+    for (int64_t j = 0; j < nc; j++)
+        if (lb_binary(m, j)) {
+            nb++;
+            ones += xinc[j] > 0.5;
+        }
+    *work += nc;
+    if (nb == 0)
+        return 0;
+    int64_t *idx = jm_alloc_array(nb, sizeof *idx);
+    double *val = jm_alloc_array(nb, sizeof *val);
+    jaos_model *sub = nullptr;
+    int got = -1;
+    if (idx == nullptr || val == nullptr ||
+        jaos_model_copy(m, &sub) != JAOS_OK)
+        goto out;
+    int64_t k = 0;
+    for (int64_t j = 0; j < nc; j++)
+        if (lb_binary(m, j)) {
+            idx[k] = j;
+            val[k] = xinc[j] > 0.5 ? -1.0 : 1.0;
+            k++;
+        }
+    const int64_t start[2] = {0, nb};
+    const double lo = -INFINITY, hi = (double)(size - ones);
+    if (jaos_add_rows(sub, 1, &lo, &hi, nb, start, idx, val) != JAOS_OK)
+        goto out;
+    sub->cfg.log_cb = nullptr;
+    sub->cfg.log_level = JAOS_LOG_OFF;
+    sub->cfg.progress_cb = nullptr;
+    sub->cfg.incumbent_cb = nullptr;
+    sub->cfg.node_cb = nullptr;
+    sub->cfg.time_limit = 0.0;
+    sub->cfg.mip_local_branching_set = true;
+    sub->cfg.mip_local_branching = 0;
+    sub->cfg.mip_node_limit = MIP_LOCAL_BRANCHING_NODES;
+    sub->cfg.mip_cutoff_set = true;
+    sub->cfg.mip_cutoff = incobj;
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - *work;
+        sub->cfg.work_limit = left > 0 ? left : 1;
+    }
+    const jaos_status st = jaos_solve(sub);
+    *work += sub->solve_work;
+    got = 0;
+    if (st == JAOS_OK && sub->mip_has_incumbent && sub->mip_inc_x != nullptr) {
+        memcpy(xout, sub->mip_inc_x, (size_t)nc * sizeof *xout);
+        got = 1;
+    } else if (st == JAOS_ERR_OUT_OF_MEMORY) {
+        got = -1;
+    }
+out:
+    jaos_model_free(sub);
+    free(idx);
+    free(val);
+    return got;
+}
+
 static int dive_for_point(const jaos_model *m, const jaos_model *lp,
                           int64_t solves, const double *agree_a,
                           const double *agree_b, double *out, int64_t *work,
@@ -3579,7 +3793,14 @@ static void root_certificate(jaos_model *m, const jaos_model *lp)
     m->farkas_ok = true;
 }
 
-jaos_status jm_branch_and_bound(jaos_model *m)
+typedef struct {
+    bool want, asked;
+    double *lo, *hi, *start;
+    int64_t work, iters, nodes, solves;
+    double seconds;
+} bb_restart;
+
+static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
 {
     const double t0 = now_seconds();
     m->mip_started = t0;
@@ -3621,6 +3842,10 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const int64_t dive_heur_depth = m->cfg.mip_dive_heuristic_depth_set
         ? m->cfg.mip_dive_heuristic_depth : MIP_DIVE_HEURISTIC_DEPTH;
     const int64_t rins = m->cfg.mip_rins_set ? m->cfg.mip_rins : MIP_RINS;
+    const int64_t node_select = m->cfg.mip_node_select_set
+        ? m->cfg.mip_node_select : MIP_NODE_SELECT;
+    const int64_t lb_size = m->cfg.mip_local_branching_set
+        ? m->cfg.mip_local_branching : MIP_LOCAL_BRANCHING;
     const int64_t feaspump = m->cfg.mip_feaspump_set ? m->cfg.mip_feaspump
                                                      : MIP_FEASPUMP;
     const bool pump_general = m->cfg.mip_pump_general_set
@@ -3684,7 +3909,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
-    bheap heap = {0};
+    bheap heap = { .by_est = node_select == 1 };
+    kheap kh = {0};
+    int64_t picks = 0;
     incumbent inc = {0};
     cutbuf cb = {0}, pool = {0};
     int64_t *act = nullptr;
@@ -3711,6 +3938,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     int64_t pump_points = 0;
     double rins_key = 0.0;
     bool rins_seen = false;
+    int64_t lb_points = 0;
+    double lb_key = 0.0;
+    bool lb_seen = false;
     int64_t covers = 0;
     int64_t cliques = 0;
     int64_t zero_halves = 0;
@@ -3750,6 +3980,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
     int64_t work = 0, iters = 0;
     double best_bound = -INFINITY;
+    int64_t parked = 0;
+    double parked_key = INFINITY;
+    char parked_why[sizeof m->err] = "";
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
     int64_t *fcol = nullptr;
     double *flo = nullptr, *fhi = nullptr;
@@ -3887,18 +4120,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     next = nullptr;
                 } else if (dstack_n > 0 &&
                            (backtrack == 0 || backtracks < backtrack) &&
-                           resume_within(dstack[dstack_n - 1], &heap, dstack,
+                           resume_within(dstack[dstack_n - 1], &heap, &kh, dstack,
                                          dstack_n, dive_gap)) {
                     cur = dstack[--dstack_n];
                     resumed = true;
                 } else {
                     while (dstack_n > 0) {
-                        if (!heap_push(&heap, dstack[dstack_n - 1]))
+                        if (!open_push(&heap, &kh, dstack[dstack_n - 1]))
                             goto done;
                         dstack_n--;
                     }
                     backtracks = 0;
-                    cur = heap_pop(&heap);
+                    cur = open_pick(&heap, &kh,
+                                    picks % MIP_ESTIMATE_BOUND_EVERY == 0);
+                    picks++;
                     if (cur == nullptr)
                         break;
                     best_bound = cur->key;
@@ -4031,6 +4266,20 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         const int64_t node_work = jaos_work_units(lp);
         work += node_work;
         iters += jaos_iterations(lp);
+        if (nodes > 1 &&
+            (st == JAOS_ERR_NUMERICAL ||
+             (st == JAOS_OK &&
+              jaos_status_of(lp) == JAOS_SOLVE_NUMERICAL_ERROR))) {
+            if (parked++ == 0)
+                snprintf(parked_why, sizeof parked_why, "node %lld: %s",
+                         (long long)nodes, jaos_model_error(lp));
+            if (cur->key < parked_key)
+                parked_key = cur->key;
+            jm_log(m, JAOS_LOG_PROGRESS,
+                   "node %lld: the relaxation failed, set aside with its "
+                   "bound", (long long)nodes);
+            continue;
+        }
         if (st != JAOS_OK) {
             if (st == JAOS_ERR_NUMERICAL) {
                 outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -4572,6 +4821,47 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             }
         }
 
+        if (lb_size > 0 && inc.have && branch >= 0 &&
+            !budget_gone(m, work) && (!lb_seen || inc.key != lb_key)) {
+            lb_seen = true;
+            lb_key = inc.key;
+            const int got = local_branching(m, inc.x, inc.obj, lb_size,
+                                            &work, xr);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && hkey < inc.key) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    lb_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "node %lld: incumbent %.17g by local branching",
+                           (long long)nodes, hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (nodes > 1 && branch >= 0 && cur->depth <= cut_depth &&
             !cur->no_cuts) {
             const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
@@ -4663,7 +4953,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             int leave = 0;
             for (int64_t round = 0; round < MIP_STEER_ROUNDS; round++) {
                 int64_t want = branch;
-                const double ok = open_key(&heap, dstack, dstack_n);
+                const double ok = open_bound(&heap, &kh, dstack, dstack_n);
                 const jaos_callback_action a = steer_fire(
                     m, &sw, nodes, depth_here, obj,
                     sigma * (ok < key ? ok : key), x, branch < 0, &want);
@@ -4760,7 +5050,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     jm_log(m, JAOS_LOG_PROGRESS,
                            "node %lld: incumbent %.17g by rounding",
                            (long long)nodes, hobj);
-                    const double ok = open_key(&heap, dstack, dstack_n);
+                    const double ok = open_bound(&heap, &kh, dstack, dstack_n);
                     if (!incumbent_announce(m, &inc, nodes,
                             sigma * (ok < key ? ok : key), true)) {
                         outcome = JAOS_SOLVE_INTERRUPTED;
@@ -4810,8 +5100,55 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                        "root: %lld column bounds fixed by their reduced costs",
                        (long long)rcfixed);
         }
+        if (nodes == 1 && rs != nullptr && rs->want && inc.have &&
+            branch >= 0 && inc.key >= key) {
+            if (rcd == nullptr) {
+                rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
+                if (rcd == nullptr)
+                    goto done;
+            }
+            if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) != JAOS_OK)
+                goto done;
+            work += nc;
+            const double room = inc.key - key;
+            int64_t nint = 0, fixed = 0;
+            for (int64_t j = 0; j < nc; j++) {
+                rs->lo[j] = ilo[j];
+                rs->hi[j] = ihi[j];
+                if (!m->col_integer[j] || semi_live(m, j))
+                    continue;
+                nint++;
+                const double d = sigma * rcd[j];
+                const jaos_basis_status bs = lp->sol_col_status[j];
+                if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 &&
+                    ilo[j] > -INFINITY) {
+                    const double nh =
+                        ilo[j] + floor(room / d + MIP_RCFIX_SLACK);
+                    if (nh < rs->hi[j])
+                        rs->hi[j] = nh;
+                } else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
+                           ihi[j] < INFINITY) {
+                    const double nl =
+                        ihi[j] - floor(room / -d + MIP_RCFIX_SLACK);
+                    if (nl > rs->lo[j])
+                        rs->lo[j] = nl;
+                }
+                fixed += rs->lo[j] >= rs->hi[j] && ilo[j] < ihi[j];
+            }
+            if (nint > 0 &&
+                (double)fixed >= MIP_RESTART_FRAC * (double)nint) {
+                rs->asked = true;
+                if (nc > 0)
+                    memcpy(rs->start, inc.x, (size_t)nc * sizeof *rs->start);
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: %lld of %lld integer columns fixed by their "
+                       "reduced costs, so the tree starts again from the root",
+                       (long long)fixed, (long long)nint);
+                break;
+            }
+        }
         if (nodes % MIP_LOG_EVERY == 0) {
-            const double ok = open_key(&heap, dstack, dstack_n);
+            const double ok = open_bound(&heap, &kh, dstack, dstack_n);
             jm_log(m, JAOS_LOG_PROGRESS,
                    "node %lld: %lld open, bound %.17g, incumbent %s",
                    (long long)nodes, (long long)(heap.n + dstack_n),
@@ -4846,7 +5183,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             spool_offer(&sp, inc.x, key, obj);
             jm_log(m, JAOS_LOG_PROGRESS, "node %lld: incumbent %.17g, integral",
                    (long long)nodes, obj);
-            const double ok = open_key(&heap, dstack, dstack_n);
+            const double ok = open_bound(&heap, &kh, dstack, dstack_n);
             if (!incumbent_announce(m, &inc, nodes,
                     sigma * (ok < key ? ok : key), false)) {
                 outcome = JAOS_SOLVE_INTERRUPTED;
@@ -5029,6 +5366,29 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             node_free(up);
             goto done;
         }
+        down->est = up->est = key;
+        if (heap.by_est && branch >= 0 && m->col_integer[branch]) {
+            double sum = 0.0, own = 0.0;
+            for (int64_t j = 0; j < nc; j++) {
+                if (!m->col_integer[j])
+                    continue;
+                const double fj = x[j] - floor(x[j]);
+                if (fj <= MIP_INT_TOL || fj >= 1.0 - MIP_INT_TOL)
+                    continue;
+                const double gd = fj * pseudocost(j, 0, nc, pc_sum, pc_n);
+                const double gu = (1.0 - fj) * pseudocost(j, 1, nc, pc_sum,
+                                                          pc_n);
+                const double g = gd < gu ? gd : gu;
+                sum += g;
+                if (j == branch)
+                    own = g;
+            }
+            work += nc;
+            const double rest = key + (sum - own);
+            down->est = rest + frac_d * pseudocost(branch, 0, nc, pc_sum,
+                                                   pc_n);
+            up->est = rest + frac_u * pseudocost(branch, 1, nc, pc_sum, pc_n);
+        }
 
         const bool dive_here = dive &&
             (degrade <= 0.0 || cur == nullptr ||
@@ -5056,22 +5416,40 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                     goto done;
                 }
                 dstack[dstack_n++] = other;
-            } else if (!heap_push(&heap, other)) {
+            } else if (!open_push(&heap, &kh, other)) {
                 node_free(down);
                 node_free(up);
                 goto done;
             }
             next = first;
-        } else if (!heap_push(&heap, down)) {
+        } else if (!open_push(&heap, &kh, down)) {
             node_free(down);
             node_free(up);
             goto done;
-        } else if (!heap_push(&heap, up)) {
+        } else if (!open_push(&heap, &kh, up)) {
             node_free(up);
             goto done;
         }
     }
 
+    if (rs != nullptr && rs->asked) {
+        rs->work = work;
+        rs->iters = iters;
+        rs->nodes = nodes;
+        rs->solves = solves;
+        rs->seconds = now_seconds() - t0;
+        rc = JAOS_OK;
+        goto done;
+    }
+    if (parked > 0) {
+        const double bk = inc.have && inc.key < cut_key ? inc.key : cut_key;
+        if (outcome == JAOS_SOLVE_INFEASIBLE ||
+            (outcome == JAOS_SOLVE_OPTIMAL &&
+             !(bk < INFINITY && bk - parked_key <= gap * (1.0 + fabs(bk))))) {
+            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+            jm_set_err(m, "%s", parked_why);
+        }
+    }
     rc = JAOS_OK;
     m->solve_status = outcome;
 
@@ -5087,7 +5465,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->mip_rcfix_n = rcfixed;
     m->mip_prop_n = tightened;
     {
-        const double ok = open_key(&heap, dstack, dstack_n);
+        double ok = open_bound(&heap, &kh, dstack, dstack_n);
+        if (parked_key < ok)
+            ok = parked_key;
         m->mip_bound = sigma * (ok < best_bound ? ok : best_bound);
     }
     if (outcome == JAOS_SOLVE_OPTIMAL)
@@ -5095,23 +5475,26 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jm_log(m, JAOS_LOG_SUMMARY,
            "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
            "(%lld below the root), %lld points by rounding, %lld of them "
-           "by the dive heuristic, %lld by RINS and %lld by the pump, "
+           "by the dive heuristic, %lld by RINS, %lld by local branching "
+           "and %lld by the pump, "
            "%lld probes, "
            "%lld of them capped, %lld columns fixed by cliques and %lld "
            "nodes cut by them, the callback fired %lld times, added %lld "
            "rows, rejected %lld points and chose %lld branches, %lld "
-           "conflicts over %lld binaries, %lld branchings widened to an orbit "
-           "and %lld columns fixed by orbits",
+           "conflicts over %lld binaries, %lld branchings widened to an orbit, "
+           "%lld columns fixed by orbits and %lld nodes the relaxation "
+           "failed on set aside with their bound",
            jaos_solve_status_str(outcome), (long long)nodes,
            (long long)solves, (long long)cuts, (long long)local_cuts,
            (long long)heur_points, (long long)dive_points,
-           (long long)rins_points, (long long)pump_points,
+           (long long)rins_points, (long long)lb_points,
+           (long long)pump_points,
            (long long)probes, (long long)capped, (long long)clique_fixed,
            (long long)clique_cut_nodes, (long long)sw.fired,
            (long long)sw.rows, (long long)sw.rejected,
            (long long)sw.steered, (long long)conflicts,
            (long long)conflict_lits, (long long)orbital_branches,
-           (long long)orbital_fixed);
+           (long long)orbital_fixed, (long long)parked);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;
@@ -5211,6 +5594,8 @@ done:
     while (heap.n > 0)
         node_free(heap_pop(&heap));
     free(heap.v);
+    free(kh.v);
+    free(kh.byid);
     while (dstack_n > 0)
         node_free(dstack[--dstack_n]);
     free(dstack);
@@ -5282,4 +5667,74 @@ jaos_status jaos_mip_incumbent(const jaos_model *m, double *col_value,
     if (objective != nullptr)
         *objective = m->mip_inc_obj;
     return JAOS_OK;
+}
+
+jaos_status jm_branch_and_bound(jaos_model *m)
+{
+    const bool restart = m->cfg.mip_restart_set ? m->cfg.mip_restart
+                                                : MIP_RESTART;
+    if (!restart)
+        return bb_tree(m, nullptr);
+    const int64_t nc = m->num_col;
+    const int64_t n = nc > 0 ? nc : 1;
+    bb_restart rs = { .want = true };
+    rs.lo = jm_alloc_array(n, sizeof *rs.lo);
+    rs.hi = jm_alloc_array(n, sizeof *rs.hi);
+    rs.start = jm_alloc_array(n, sizeof *rs.start);
+    double *lo0 = jm_alloc_array(n, sizeof *lo0);
+    double *hi0 = jm_alloc_array(n, sizeof *hi0);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (rs.lo == nullptr || rs.hi == nullptr || rs.start == nullptr ||
+        lo0 == nullptr || hi0 == nullptr)
+        goto out;
+    st = bb_tree(m, &rs);
+    if (st != JAOS_OK || !rs.asked)
+        goto out;
+
+    if (nc > 0) {
+        memcpy(lo0, m->col_lower, (size_t)nc * sizeof *lo0);
+        memcpy(hi0, m->col_upper, (size_t)nc * sizeof *hi0);
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j] || semi_live(m, j))
+            continue;
+        if (rs.lo[j] > m->col_lower[j])
+            m->col_lower[j] = rs.lo[j];
+        if (rs.hi[j] < m->col_upper[j])
+            m->col_upper[j] = rs.hi[j];
+    }
+    const int64_t work_limit = m->cfg.work_limit;
+    const double time_limit = m->cfg.time_limit;
+    const int64_t node_limit = m->cfg.mip_node_limit;
+    if (work_limit > 0)
+        m->cfg.work_limit = work_limit > rs.work ? work_limit - rs.work : 1;
+    if (time_limit > 0.0)
+        m->cfg.time_limit = time_limit > rs.seconds ? time_limit - rs.seconds
+                                                    : DBL_MIN;
+    if (node_limit > 0)
+        m->cfg.mip_node_limit = node_limit > rs.nodes ? node_limit - rs.nodes
+                                                      : 1;
+    double *start0 = m->mip_start;
+    m->mip_start = rs.start;
+    st = bb_tree(m, nullptr);
+    m->mip_start = start0;
+    m->cfg.work_limit = work_limit;
+    m->cfg.time_limit = time_limit;
+    m->cfg.mip_node_limit = node_limit;
+    if (nc > 0) {
+        memcpy(m->col_lower, lo0, (size_t)nc * sizeof *lo0);
+        memcpy(m->col_upper, hi0, (size_t)nc * sizeof *hi0);
+    }
+    m->solve_work += rs.work;
+    m->solve_iters += rs.iters;
+    m->solve_time += rs.seconds;
+    m->mip_nodes += rs.nodes;
+    m->mip_solves += rs.solves;
+out:
+    free(rs.lo);
+    free(rs.hi);
+    free(rs.start);
+    free(lo0);
+    free(hi0);
+    return st;
 }

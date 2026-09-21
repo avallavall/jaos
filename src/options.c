@@ -34,7 +34,7 @@ enum opt_id {
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
-    O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_THREADS,
+    O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_LOCAL_BRANCHING, O_NODE_SELECT, O_RESTART, O_THREADS,
     O_COUNT
 };
 
@@ -92,6 +92,9 @@ static const opt_def OPTS[O_COUNT] = {
     [O_CLIQUE_ROUNDS] = {"mip_clique_rounds", OPT_INT, nullptr, 0},
     [O_ZERO_HALF_ROUNDS] = {"mip_zero_half_rounds", OPT_INT, nullptr, 0},
     [O_FLOW_COVER_ROUNDS] = {"mip_flow_cover_rounds", OPT_INT, nullptr, 0},
+    [O_LOCAL_BRANCHING] = {"mip_local_branching", OPT_INT, nullptr, 0},
+    [O_NODE_SELECT] = {"mip_node_select", OPT_INT, nullptr, 0},
+    [O_RESTART] = {"mip_restart", OPT_BOOL, nullptr, 0},
     [O_THREADS] = {"threads", OPT_INT, nullptr, 0},
 };
 
@@ -250,6 +253,9 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_CLIQUE_ROUNDS: return jaos_set_mip_clique_rounds(m, i);
     case O_ZERO_HALF_ROUNDS: return jaos_set_mip_zero_half_rounds(m, i);
     case O_FLOW_COVER_ROUNDS: return jaos_set_mip_flow_cover_rounds(m, i);
+    case O_LOCAL_BRANCHING: return jaos_set_mip_local_branching(m, i);
+    case O_NODE_SELECT: return jaos_set_mip_node_select(m, i);
+    case O_RESTART: return jaos_set_mip_restart(m, b);
     case O_THREADS: return jaos_set_threads(m, i);
     case O_COUNT: break;
     }
@@ -328,6 +334,9 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_CLIQUE_ROUNDS: i = (int64_t)eff(c->mip_clique_rounds_set, (double)c->mip_clique_rounds, JM_DEF_CLIQUE_ROUNDS); break;
     case O_ZERO_HALF_ROUNDS: i = (int64_t)eff(c->mip_zero_half_rounds_set, (double)c->mip_zero_half_rounds, JM_DEF_ZERO_HALF_ROUNDS); break;
     case O_FLOW_COVER_ROUNDS: i = (int64_t)eff(c->mip_flow_cover_rounds_set, (double)c->mip_flow_cover_rounds, JM_DEF_FLOW_COVER_ROUNDS); break;
+    case O_LOCAL_BRANCHING: i = (int64_t)eff(c->mip_local_branching_set, (double)c->mip_local_branching, JM_DEF_LOCAL_BRANCHING); break;
+    case O_NODE_SELECT: i = (int64_t)eff(c->mip_node_select_set, (double)c->mip_node_select, JM_DEF_NODE_SELECT); break;
+    case O_RESTART: b = eff(c->mip_restart_set, c->mip_restart ? 1.0 : 0.0, JM_DEF_RESTART) != 0.0; break;
     case O_THREADS: i = jaos_threads_of(m); break;
     case O_COUNT: return JAOS_ERR_INVALID_INPUT;
     }

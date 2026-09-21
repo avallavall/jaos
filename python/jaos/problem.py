@@ -1012,6 +1012,24 @@ class Problem:
         self._m.set_mip_rins(solves)
         return self
 
+    def set_mip_local_branching(self, size):
+        """Binaries a small tree may flip around each new incumbent; 0 is
+        off and the default, negative restores it."""
+        self._m.set_mip_local_branching(size)
+        return self
+
+    def set_mip_node_select(self, rule):
+        """Which open node the tree takes next: 0 the lowest bound, 1 the
+        lowest pseudocost estimate, the default; negative restores it."""
+        self._m.set_mip_node_select(rule)
+        return self
+
+    def set_mip_restart(self, on):
+        """Restart the tree from the root when the root incumbent's reduced
+        costs fix a fifth of the integer columns; off by default."""
+        self._m.set_mip_restart(on)
+        return self
+
     def set_mip_feaspump(self, rounds):
         """Rounds the feasibility pump may run at the root (D318); 0 is off
         and the default, negative restores it."""

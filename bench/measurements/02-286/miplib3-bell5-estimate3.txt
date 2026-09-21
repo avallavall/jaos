@@ -1,0 +1,6 @@
+bell5        work limit reached rows=91 cols=104 shape=ok iters=1191292 work=6300005522 nodes=398958 cuts=46 heur=4 inc=8966406.4915199876 bound=8961306.7645643149 ref=8966406.4900000002 | 
+
+1 instances: 0 solved, 1 shape ok, 0 objective ok, 0 checker ok, 0 deterministic, 1 failed
+gate: NOT MET
+
+baseline: NOT COMPARED (no baseline given)

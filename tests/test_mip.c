@@ -2730,6 +2730,176 @@ static void test_a_time_limit_stops_the_root_between_its_solves(void)
     jaos_model_free(m);
 }
 
+static void test_local_branching_searches_the_incumbents_neighbourhood(void)
+{
+    const int64_t size[2] = { 0, 3 };
+    int64_t work[2] = { 0, 0 };
+    for (int arm = 0; arm < 2; arm++) {
+        double x1[5], x2[5];
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_mip_local_branching(m, size[arm]));
+            TEST_ASSERT_TRUE(m->cfg.mip_local_branching_set);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            if (pass == 0)
+                work[arm] = jaos_work_units(m);
+            else
+                TEST_ASSERT_EQUAL_INT64(work[arm], jaos_work_units(m));
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_TRUE(x1[0] == 1.0 && x1[1] == 1.0);
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+
+    TEST_ASSERT_TRUE(work[1] > work[0]);
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_local_branching(m, 5));
+    TEST_ASSERT_TRUE(m->cfg.mip_local_branching_set);
+    TEST_ASSERT_EQUAL_INT64(5, m->cfg.mip_local_branching);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_local_branching(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_local_branching_set);
+    jaos_model_free(m);
+}
+
+static void test_estimate_order_keeps_the_optimum_and_repeats(void)
+{
+    for (int64_t rule = 0; rule < 2; rule++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0, work1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_select(m, rule));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                work1 = jaos_work_units(m);
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(work1, jaos_work_units(m));
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_node_select(m, 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_select(m, 1));
+    TEST_ASSERT_TRUE(m->cfg.mip_node_select_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_select(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_node_select_set);
+    jaos_model_free(m);
+}
+
+static void test_a_restart_keeps_the_optimum_and_repeats(void)
+{
+    for (int on = 0; on < 2; on++) {
+        double x1[5], x2[5];
+        int64_t nodes1 = 0, work1 = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            jaos_model *m = knapsack5();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_restart(m, on));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 23.0, obj);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, pass == 0 ? x1 : x2, nullptr, nullptr,
+                              nullptr));
+            TEST_ASSERT_EQUAL_DOUBLE(0.0, m->col_lower[0]);
+            TEST_ASSERT_EQUAL_DOUBLE(1.0, m->col_upper[0]);
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            if (pass == 0) {
+                nodes1 = rep.nodes;
+                work1 = jaos_work_units(m);
+            } else {
+                TEST_ASSERT_EQUAL_INT64(nodes1, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(work1, jaos_work_units(m));
+            }
+            jaos_model_free(m);
+        }
+        TEST_ASSERT_EQUAL_MEMORY(x1, x2, sizeof x1);
+    }
+
+    jaos_model *m = knapsack();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_restart(m, 1));
+    TEST_ASSERT_TRUE(m->cfg.mip_restart_set && m->cfg.mip_restart);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_restart(m, -1));
+    TEST_ASSERT_FALSE(m->cfg.mip_restart_set);
+    jaos_model_free(m);
+}
+
+static jaos_model *overflowing_down_branch(double gap)
+{
+    const double cost[2] = { -1.0, 1.2 };
+    const double cl[2] = { -3.0, 0.0 }, cu[2] = { 0.0, INFINITY };
+    const double rl[2] = { 1.5, -INFINITY }, ru[2] = { INFINITY, INFINITY };
+    const int64_t as[3] = { 0, 2, 3 }, ai[3] = { 0, 1, 0 };
+    const double av[3] = { -1.0, 1e308, 1.0 };
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     3, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_gap(m, gap));
+    return m;
+}
+
+static void test_a_node_whose_relaxation_fails_is_set_aside(void)
+{
+    jaos_model *m = overflowing_down_branch(0.05);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(3, r.nodes);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.6, r.incumbent);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.6, r.bound);
+    jaos_model_free(m);
+
+    m = overflowing_down_branch(1e-6);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NUMERICAL_ERROR, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_EQUAL_INT64(3, r.nodes);
+    TEST_ASSERT_TRUE(r.has_incumbent);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.6, r.incumbent);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.5, r.bound);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "node 2: "));
+    jaos_model_free(m);
+}
+
 static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
 {
     const double frac[3] = { 0.0, 0.01, 1.0 };
@@ -4250,6 +4420,10 @@ int main(void)
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_time_limit_stops_the_root_between_its_solves);
+    RUN_TEST(test_local_branching_searches_the_incumbents_neighbourhood);
+    RUN_TEST(test_estimate_order_keeps_the_optimum_and_repeats);
+    RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);
+    RUN_TEST(test_a_node_whose_relaxation_fails_is_set_aside);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
     RUN_TEST(test_propagation_proves_a_row_infeasible);

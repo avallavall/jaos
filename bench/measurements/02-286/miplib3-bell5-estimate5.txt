@@ -1,0 +1,6 @@
+bell5        optimal    rows=91 cols=104 shape=ok iters=517975 work=5327074571 nodes=327119 cuts=46 heur=4 first=1663 obj=8966413.7053800002 ref=8966406.4900000002[miplib3] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=8f21dba7bbff8f03 basis=2d73deaadf20996d
+
+1 instances: 1 solved, 1 shape ok, 1 objective ok, 1 checker ok, 1 deterministic, 0 failed
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)

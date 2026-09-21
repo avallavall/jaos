@@ -319,6 +319,22 @@ expect_exit 0 "RINS still solves it" \
     || flunk "rins: $(line_of objective)"
 expect_exit 5 "--rins refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --rins -1
+expect_exit 0 "local branching still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive-heuristic 0 --local-branching 3
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "local branching: $(line_of objective)"
+expect_exit 5 "--local-branching refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --local-branching -1
+expect_exit 0 "the bound order still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --node-select bound
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "node select: $(line_of objective)"
+expect_exit 5 "--node-select refuses another word" \
+    "$JAOS" solve "$DATA/nl_int.lp" --node-select depth
+expect_exit 0 "a restart still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --restart
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "restart: $(line_of objective)"
 expect_exit 0 "a dive bounded by the degradation still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-degrade 0.01
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

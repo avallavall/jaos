@@ -253,6 +253,14 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves);
 
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_local_branching(jaos_model *m,
+                                                          int64_t size);
+
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_node_select(jaos_model *m,
+                                                      int64_t rule);
+
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_restart(jaos_model *m, int on);
+
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_feaspump(jaos_model *m,
                                                  int64_t rounds);
 

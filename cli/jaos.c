@@ -39,11 +39,13 @@ static const char U_SYNOPSIS[] =
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
+    "                  [--local-branching K]\n"
     "                  [--tree-batch N]\n"
     "                  [--dive-degrade F] [--feaspump N]\n"
     "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
+    "                  [--restart | --no-restart]\n"
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
     "                  [--conflicts | --no-conflicts]\n"
@@ -54,6 +56,7 @@ static const char U_SYNOPSIS[] =
     "                  [--no-heuristics]\n"
     "                  [--opt NAME=VALUE]... [--params FILE]\n"
     "                  [--node-limit N] [--branching RULE]\n"
+    "                  [--node-select RULE]\n"
     "                  [--reliability N] [--probe-cap M] [--probe-depth D]\n"
     "                  [--no-cut-drop] [--pool-size K] [--log LEVEL]\n"
     "                  [--check] [--quiet]\n"
@@ -169,6 +172,8 @@ static const char U_SOLVE_D[] =
     "                   the root being 0 (D >= 0; default 0, the root alone)\n"
     "  --rins N         relaxations a RINS dive may solve at a node with an\n"
     "                   incumbent (N >= 0; default 0, off)\n"
+    "  --local-branching K  search the binaries within K flips of each new\n"
+    "                   incumbent by a small tree (K >= 0; default 0, off)\n"
     "  --tree-batch N   open nodes the conic tree takes in one round, solved\n"
     "                   on up to --threads threads (N >= 1; default 1)\n"
     "  --dive-degrade F  dive on into a child only while the node's own\n"
@@ -187,6 +192,9 @@ static const char U_SOLVE_D[] =
     "                   keeps the guard, which is the default\n";
 
 static const char U_SOLVE_D2[] =
+    "  --restart        start the tree again from the root when the root\n"
+    "                   incumbent's reduced costs fix a fifth of the integer\n"
+    "                   columns (default off; --no-restart turns it off)\n"
     "  --rcfix          fix integer column bounds at the root by their\n"
     "                   reduced costs once an incumbent exists; on by\n"
     "                   default, --no-rcfix turns it off\n"
@@ -242,6 +250,10 @@ static const char U_SOLVE_E[] =
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
     "                   or most-fractional\n"
+    "  --node-select RULE which open node a MIP takes next: estimate\n"
+    "                   (default), the lowest pseudocost estimate with the\n"
+    "                   lowest bound every fifth pick, or bound, the lowest\n"
+    "                   bound\n"
     "  --reliability N  branches per direction before a column's pseudocost\n"
     "                   is trusted; below it its children are solved (default\n"
     "                   0, never: D293 refused it as a default)\n"
@@ -799,11 +811,13 @@ struct solve_options {
     int64_t dive_heuristic_depth;
     int64_t tree_batch;
     int64_t rins;
+    int64_t local_branching;
     int64_t feaspump;
     int pump_general;
     bool has_pump_obj;
     int pump_always;
     int rcfix;
+    int restart;
     int tighten;
     int probing;
     bool has_probing_cap;
@@ -819,6 +833,7 @@ struct solve_options {
     double dive_degrade;
     int64_t node_limit;
     int branching;
+    int node_select;
     int algorithm;
     const char *opts[64];
     int nopts;
@@ -857,6 +872,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->node_mir = -1;
     o->pump_always = -1;
     o->rcfix = -1;
+    o->restart = -1;
     o->tighten = -1;
     o->probing = -1;
     o->clique_fix = -1;
@@ -870,9 +886,11 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->dive_heuristic_depth = -1;
     o->tree_batch = 0;
     o->rins = -1;
+    o->local_branching = -1;
     o->feaspump = -1;
     o->pump_general = -1;
     o->branching = -1;
+    o->node_select = -1;
     o->algorithm = -1;
     o->nopts = 0;
     o->params = nullptr;
@@ -927,6 +945,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-pump-always") == 0) {
             o->pump_always = 0;
+            continue;
+        }
+        if (strcmp(a, "--restart") == 0) {
+            o->restart = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-restart") == 0) {
+            o->restart = 0;
             continue;
         }
         if (strcmp(a, "--rcfix") == 0) {
@@ -1110,6 +1136,14 @@ static int parse_solve_options(int argc, char **argv, int first,
             else
                 return usage_error("--branching needs pseudocost or "
                                    "most-fractional, not '%s'", v);
+        } else if (strcmp(a, "--node-select") == 0) {
+            if (strcmp(v, "bound") == 0)
+                o->node_select = 0;
+            else if (strcmp(v, "estimate") == 0)
+                o->node_select = 1;
+            else
+                return usage_error("--node-select needs bound or estimate, "
+                                   "not '%s'", v);
         } else if (strcmp(a, "--node-limit") == 0) {
             if (!parse_int64(v, &o->node_limit) || o->node_limit <= 0)
                 return usage_error("--node-limit needs a positive integer, "
@@ -1172,6 +1206,10 @@ static int parse_solve_options(int argc, char **argv, int first,
             if (!parse_int64(v, &o->rins) || o->rins < 0)
                 return usage_error("--rins needs a count of solves, 0 or "
                                    "more, not '%s'", v);
+        } else if (strcmp(a, "--local-branching") == 0) {
+            if (!parse_int64(v, &o->local_branching) || o->local_branching < 0)
+                return usage_error("--local-branching needs a count of "
+                                   "flips, 0 or more, not '%s'", v);
         } else if (strcmp(a, "--dive-degrade") == 0) {
             if (!parse_double(v, &o->dive_degrade) || o->dive_degrade < 0.0)
                 return usage_error("--dive-degrade needs a fraction of the "
@@ -1303,6 +1341,11 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("set the branching rule for", o.file, m);
         goto out;
     }
+    if (o.node_select >= 0 &&
+        jaos_set_mip_node_select(m, o.node_select) != JAOS_OK) {
+        rc = library_error("set the node selection for", o.file, m);
+        goto out;
+    }
     if (o.has_probe_cap && jaos_set_mip_probe_cap(m, o.probe_cap) != JAOS_OK) {
         rc = library_error("set the probe cap for", o.file, m);
         goto out;
@@ -1421,6 +1464,11 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("set RINS for", o.file, m);
         goto out;
     }
+    if (o.local_branching >= 0 &&
+        jaos_set_mip_local_branching(m, o.local_branching) != JAOS_OK) {
+        rc = library_error("set local branching for", o.file, m);
+        goto out;
+    }
     if (o.feaspump >= 0 && jaos_set_mip_feaspump(m, o.feaspump) != JAOS_OK) {
         rc = library_error("set the feasibility pump for", o.file, m);
         goto out;
@@ -1437,6 +1485,10 @@ static int cmd_solve(int argc, char **argv)
     if (o.pump_always >= 0 &&
         jaos_set_mip_pump_always(m, o.pump_always) != JAOS_OK) {
         rc = library_error("set the pump's guard for", o.file, m);
+        goto out;
+    }
+    if (o.restart >= 0 && jaos_set_mip_restart(m, o.restart) != JAOS_OK) {
+        rc = library_error("set the restart for", o.file, m);
         goto out;
     }
     if (o.rcfix >= 0 && jaos_set_mip_rcfix(m, o.rcfix) != JAOS_OK) {

@@ -10,7 +10,7 @@ sp150x300d   work limit reached rows=450 cols=600 shape=ok iters=1141642 work=10
 mas76        work limit reached rows=12 cols=151 shape=ok iters=2343004 work=10000014124 nodes=121826 cuts=67 heur=1 inc=47559.808836799995 bound=39550.328840976457 ref=40005.053989999993 | 
 mas74        work limit reached rows=13 cols=151 shape=ok iters=2221712 work=10000007377 nodes=94661 cuts=69 heur=1 inc=17337.601919400004 bound=11114.770951710114 ref=11801.185719999999 | 
 gen-ip002    work limit reached rows=24 cols=41 shape=ok iters=2052841 work=10000043414 nodes=210287 cuts=74 heur=8 inc=-4783.7333916000007 bound=-4807.2077272044253 ref=-4783.7333920000001 | 
-neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=1198413 work=10000052453 nodes=27579 cuts=1 heur=1 inc=14284.609513653457 bound=-552445.31218370039 ref=12941.73838561778 | 
+neos-3754480-nidda numerical error rows=402 cols=253 shape=ok iters=286601 work=2196143192 nodes=5719 cuts=1 heur=1 inc=14748.311284568552 bound=-684220.68215406907 ref=12941.73838561778 | node 5719: the settled point is not dual feasible: a reduced cost breaches its bound by 1.05945e-09 after settling, from a cold start; publishing that as OPTIMAL would certify a point the reduced costs do not support
 neos-2657525-crna work limit reached rows=342 cols=524 shape=ok iters=1746123 work=10000007149 nodes=6284 cuts=196 heur=0 inc=none bound=0 ref=1.810748 | 
 assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=597232 work=10000106561 nodes=6527 cuts=174 heur=1 inc=212 bound=190.57928117975422 ref=211.99999999999801 | 
 glass4       work limit reached rows=396 cols=322 shape=ok iters=1085674 work=10000009618 nodes=189379 cuts=153 heur=0 inc=none bound=800004105.75539565 ref=1200012599.972384 | 
