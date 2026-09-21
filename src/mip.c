@@ -228,11 +228,11 @@ static jaos_status pool_add(jaos_model *lp, const cutbuf *pool,
     int64_t nnz = 0;
     for (int64_t k = 0; k < n; k++)
         nnz += pool->start[which[k] + 1] - pool->start[which[k]];
-    int64_t *start = malloc((size_t)(n + 1) * sizeof *start);
-    int64_t *idx = malloc((size_t)(nnz > 0 ? nnz : 1) * sizeof *idx);
-    double *val = malloc((size_t)(nnz > 0 ? nnz : 1) * sizeof *val);
-    double *lo = malloc((size_t)n * sizeof *lo);
-    double *up = malloc((size_t)n * sizeof *up);
+    int64_t *start = jm_alloc_array(n + 1, sizeof *start);
+    int64_t *idx = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *idx);
+    double *val = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *val);
+    double *lo = jm_alloc_array(n, sizeof *lo);
+    double *up = jm_alloc_array(n, sizeof *up);
     jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
     if (start == nullptr || idx == nullptr || val == nullptr ||
         lo == nullptr || up == nullptr)
@@ -362,12 +362,12 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
     const int64_t d = (parent ? parent->depth : 0) + 1;
     const int64_t pf = parent ? parent->nfix : 0;
     const int64_t nf = pf + nfix;
-    n->col = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->col);
-    n->lo = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->lo);
-    n->hi = malloc((size_t)(nf > 0 ? nf : 1) * sizeof *n->hi);
-    n->cs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *n->cs);
-    n->rs = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *n->rs);
-    n->cuts = malloc((size_t)(act_n > 0 ? act_n : 1) * sizeof *n->cuts);
+    n->col = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->col);
+    n->lo = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->lo);
+    n->hi = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->hi);
+    n->cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *n->cs);
+    n->rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *n->rs);
+    n->cuts = jm_alloc_array(act_n > 0 ? act_n : 1, sizeof *n->cuts);
     if (!n->col || !n->lo || !n->hi || !n->cs || !n->rs || !n->cuts) {
         node_free(n);
         return nullptr;
@@ -450,7 +450,7 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
 
     if (!cutlist_same(in_copy, want, want_n)) {
         if (in_copy->n > 0) {
-            int64_t *del = malloc((size_t)in_copy->n * sizeof *del);
+            int64_t *del = jm_alloc_array(in_copy->n, sizeof *del);
             if (del == nullptr)
                 return JAOS_ERR_OUT_OF_MEMORY;
             for (int64_t k = 0; k < in_copy->n; k++)
@@ -487,7 +487,7 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
             if (nfixed + copies != lp->num_row || nfixed < n->nperm)
                 return JAOS_ERR_INVALID_INPUT;
             jaos_basis_status *rs =
-                malloc((size_t)(lp->num_row > 0 ? lp->num_row : 1) * sizeof *rs);
+                jm_alloc_array(lp->num_row > 0 ? lp->num_row : 1, sizeof *rs);
             if (rs == nullptr)
                 return JAOS_ERR_OUT_OF_MEMORY;
             if (n->nperm > 0)
@@ -509,9 +509,9 @@ static bool node_add_fix(bnode *n, int64_t col, double lo, double hi)
 {
     if (n->nfix >= n->fcap) {
         const int64_t cap = n->fcap > 0 ? 2 * n->fcap : 4;
-        int64_t *c = realloc(n->col, (size_t)cap * sizeof *c);
-        double *l = realloc(n->lo, (size_t)cap * sizeof *l);
-        double *h = realloc(n->hi, (size_t)cap * sizeof *h);
+        int64_t *c = jm_realloc_array(n->col, cap, sizeof *c);
+        double *l = jm_realloc_array(n->lo, cap, sizeof *l);
+        double *h = jm_realloc_array(n->hi, cap, sizeof *h);
         if (c != nullptr)
             n->col = c;
         if (l != nullptr)
@@ -604,12 +604,12 @@ static bool incumbent_take(incumbent *inc, const jaos_model *lp, int64_t nr,
 {
     const int64_t nc = lp->num_col;
     if (inc->x == nullptr) {
-        inc->x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *inc->x);
-        inc->cd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *inc->cd);
-        inc->cs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *inc->cs);
-        inc->ra = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *inc->ra);
-        inc->rd = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *inc->rd);
-        inc->rs = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *inc->rs);
+        inc->x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *inc->x);
+        inc->cd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *inc->cd);
+        inc->cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *inc->cs);
+        inc->ra = jm_alloc_array(nr > 0 ? nr : 1, sizeof *inc->ra);
+        inc->rd = jm_alloc_array(nr > 0 ? nr : 1, sizeof *inc->rd);
+        inc->rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *inc->rs);
         if (!inc->x || !inc->cd || !inc->cs || !inc->ra || !inc->rd || !inc->rs)
             return false;
     }
@@ -1175,7 +1175,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
 
 static jaos_status cuts_add(jaos_model *lp, const cutbuf *cb)
 {
-    double *up = malloc((size_t)cb->n * sizeof *up);
+    double *up = jm_alloc_array(cb->n, sizeof *up);
     if (up == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
     for (int64_t r = 0; r < cb->n; r++)
@@ -1690,7 +1690,7 @@ static int64_t clique_table_build(const jaos_model *m, jaos_model *lp,
         ne = w;
     }
     int64_t *adj_start = calloc((size_t)(2 * nc + 1), sizeof *adj_start);
-    int64_t *adj = malloc((size_t)(2 * ne) * sizeof *adj);
+    int64_t *adj = jm_alloc_array(2 * ne, sizeof *adj);
     if (adj_start == nullptr || adj == nullptr) {
         free(edges); free(adj_start); free(adj);
         return -1;
@@ -1779,9 +1779,9 @@ static int64_t clique_round(const jaos_model *m, const clique_table *t,
         return 0;
     *work += 2 * ne;
 
-    litval *lits = malloc((size_t)(2 * ne) * sizeof *lits);
+    litval *lits = jm_alloc_array(2 * ne, sizeof *lits);
     bool *used = calloc((size_t)(2 * nc), sizeof *used);
-    int64_t *members = malloc((size_t)(2 * nc) * sizeof *members);
+    int64_t *members = jm_alloc_array(2 * nc, sizeof *members);
     if (lits == nullptr || used == nullptr || members == nullptr) {
         free(lits); free(used); free(members);
         return -1;
@@ -1961,10 +1961,10 @@ static int64_t zero_half_round(const jaos_model *m, jaos_model *lp,
     const double tol = jm_primal_tolerance(m);
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
-    zhrow *cand = malloc((size_t)(nr > 0 ? 2 * nr : 1) * sizeof *cand);
-    int8_t *par = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *par);
-    int64_t *touched = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *touched);
-    double *bnd = malloc((size_t)(nc > 0 ? 3 * nc : 1) * sizeof *bnd);
+    zhrow *cand = jm_alloc_array(nr > 0 ? 2 * nr : 1, sizeof *cand);
+    int8_t *par = jm_alloc_array(nc > 0 ? nc : 1, sizeof *par);
+    int64_t *touched = jm_alloc_array(nc > 0 ? nc : 1, sizeof *touched);
+    double *bnd = jm_alloc_array(nc > 0 ? 3 * nc : 1, sizeof *bnd);
     int64_t added = -1;
     if (cand == nullptr || par == nullptr || touched == nullptr ||
         bnd == nullptr)
@@ -2090,10 +2090,10 @@ static int64_t flow_cover_round(const jaos_model *m, jaos_model *lp,
     const double tol = jm_primal_tolerance(m);
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
-    int64_t *vub_y = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *vub_y);
-    double *vub_u = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *vub_u);
-    fitem *plus = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *plus);
-    fitem *minus = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *minus);
+    int64_t *vub_y = jm_alloc_array(nc > 0 ? nc : 1, sizeof *vub_y);
+    double *vub_u = jm_alloc_array(nc > 0 ? nc : 1, sizeof *vub_u);
+    fitem *plus = jm_alloc_array(nc > 0 ? nc : 1, sizeof *plus);
+    fitem *minus = jm_alloc_array(nc > 0 ? nc : 1, sizeof *minus);
     int64_t added = -1;
     if (vub_y == nullptr || vub_u == nullptr || plus == nullptr ||
         minus == nullptr)
@@ -2614,7 +2614,7 @@ static int halve_for_point(const jaos_model *m, const jaos_model *lp,
     jaos_model *hv = nullptr;
     if (jaos_model_copy(lp, &hv) != JAOS_OK)
         return -1;
-    mip_frac *fr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *fr);
+    mip_frac *fr = jm_alloc_array(nc > 0 ? nc : 1, sizeof *fr);
     if (fr == nullptr) {
         jaos_model_free(hv);
         return -1;
@@ -2743,15 +2743,15 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
     if (g > 0) {
 
         *work += nc;
-        gcol = malloc((size_t)g * sizeof *gcol);
-        double *ac = malloc((size_t)g * sizeof *ac);
-        double *alo = malloc((size_t)g * sizeof *alo);
-        double *ahi = malloc((size_t)g * sizeof *ahi);
-        double *rlo = malloc((size_t)(2 * g) * sizeof *rlo);
-        double *rhi = malloc((size_t)(2 * g) * sizeof *rhi);
-        int64_t *rs = malloc((size_t)(2 * g + 1) * sizeof *rs);
-        int64_t *ri = malloc((size_t)(4 * g) * sizeof *ri);
-        double *rv = malloc((size_t)(4 * g) * sizeof *rv);
+        gcol = jm_alloc_array(g, sizeof *gcol);
+        double *ac = jm_alloc_array(g, sizeof *ac);
+        double *alo = jm_alloc_array(g, sizeof *alo);
+        double *ahi = jm_alloc_array(g, sizeof *ahi);
+        double *rlo = jm_alloc_array(2 * g, sizeof *rlo);
+        double *rhi = jm_alloc_array(2 * g, sizeof *rhi);
+        int64_t *rs = jm_alloc_array(2 * g + 1, sizeof *rs);
+        int64_t *ri = jm_alloc_array(4 * g, sizeof *ri);
+        double *rv = jm_alloc_array(4 * g, sizeof *rv);
         bool ok = gcol != nullptr && ac != nullptr && alo != nullptr &&
                   ahi != nullptr && rlo != nullptr && rhi != nullptr &&
                   rs != nullptr && ri != nullptr && rv != nullptr;
@@ -2803,7 +2803,7 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
 
     sol = out;
     if (g > 0) {
-        sol = malloc((size_t)(nc + g) * sizeof *sol);
+        sol = jm_alloc_array(nc + g, sizeof *sol);
         if (sol == nullptr) {
             rc = -1;
             goto out_free;
@@ -3070,7 +3070,7 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     }
     jaos_status st = JAOS_OK;
     if (in_copy->n > 0) {
-        int64_t *del = malloc((size_t)in_copy->n * sizeof *del);
+        int64_t *del = jm_alloc_array(in_copy->n, sizeof *del);
         if (del == nullptr)
             return JAOS_ERR_OUT_OF_MEMORY;
         for (int64_t k = 0; k < in_copy->n; k++)
@@ -3325,9 +3325,9 @@ static bool spool_init(spool *sp, int64_t cap, int64_t nc,
             sp->integer = integer;
             break;
         }
-    sp->x = malloc((size_t)(cap * (nc > 0 ? nc : 1)) * sizeof *sp->x);
-    sp->key = malloc((size_t)cap * sizeof *sp->key);
-    sp->obj = malloc((size_t)cap * sizeof *sp->obj);
+    sp->x = jm_alloc_array(cap * (nc > 0 ? nc : 1), sizeof *sp->x);
+    sp->key = jm_alloc_array(cap, sizeof *sp->key);
+    sp->obj = jm_alloc_array(cap, sizeof *sp->obj);
     return sp->x != nullptr && sp->key != nullptr && sp->obj != nullptr;
 }
 
@@ -3779,25 +3779,25 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     }
     jaos_clear_basis(lp);
 
-    x = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x);
-    xr = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *xr);
-    x2 = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *x2);
-    ra = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *ra);
-    ilo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ilo);
-    ihi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ihi);
+    x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *x);
+    xr = jm_alloc_array(nc > 0 ? nc : 1, sizeof *xr);
+    x2 = jm_alloc_array(nc > 0 ? nc : 1, sizeof *x2);
+    ra = jm_alloc_array(nr > 0 ? nr : 1, sizeof *ra);
+    ilo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ilo);
+    ihi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ihi);
     pc_sum = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_sum);
     pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
-    cand = malloc((size_t)MIP_STRONG_CANDIDATES * sizeof *cand);
-    pcs = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pcs);
+    cand = jm_alloc_array(MIP_STRONG_CANDIDATES, sizeof *cand);
+    pcs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pcs);
     if (propagate > 0) {
-        plo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *plo);
-        phi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *phi);
+        plo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *plo);
+        phi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *phi);
         if (plo == nullptr || phi == nullptr)
             goto done;
     }
-    fcol = malloc((size_t)(2 * nc + 2) * sizeof *fcol);
-    flo = malloc((size_t)(2 * nc + 2) * sizeof *flo);
-    fhi = malloc((size_t)(2 * nc + 2) * sizeof *fhi);
+    fcol = jm_alloc_array(2 * nc + 2, sizeof *fcol);
+    flo = jm_alloc_array(2 * nc + 2, sizeof *flo);
+    fhi = jm_alloc_array(2 * nc + 2, sizeof *fhi);
     if (x == nullptr || xr == nullptr || x2 == nullptr || ra == nullptr ||
         ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
@@ -3937,7 +3937,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
         if (nodes > 1 && orbital_on && sym.ngen > 0) {
             if (ouf == nullptr) {
-                ouf = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ouf);
+                ouf = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ouf);
                 ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *ozero);
                 if (ouf == nullptr || ozero == nullptr)
                     goto done;
@@ -4031,8 +4031,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 root_certificate(m, lp);
             if (conflicts_on && nodes > 1) {
                 if (cacol == nullptr) {
-                    cacol = malloc((size_t)(nc > 0 ? 3 * nc : 1) * sizeof *cacol);
-                    clast = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *clast);
+                    cacol = jm_alloc_array(nc > 0 ? 3 * nc : 1, sizeof *cacol);
+                    clast = jm_alloc_array(nc > 0 ? nc : 1, sizeof *clast);
                     if (cacol == nullptr || clast == nullptr)
                         goto done;
                     cblo = cacol + nc;
@@ -4080,8 +4080,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
         if (nodes == 1 && probing) {
             if (pbuf == nullptr) {
-                pbuf = malloc((size_t)(nc > 0 ? 4 * nc : 1) * sizeof *pbuf);
-                porder = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *porder);
+                pbuf = jm_alloc_array(nc > 0 ? 4 * nc : 1, sizeof *pbuf);
+                porder = jm_alloc_array(nc > 0 ? nc : 1, sizeof *porder);
                 if (pbuf == nullptr || porder == nullptr)
                     goto done;
             }
@@ -4141,14 +4141,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
         if (nodes == 1 && (clique_rounds > 0 || clique_fix_on)) {
             if (items == nullptr)
-                items = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *items);
+                items = jm_alloc_array(nc > 0 ? nc : 1, sizeof *items);
             if (items == nullptr)
                 goto done;
             if (clique_table_build(m, lp, ilo, ihi, items, pextra, npextra,
                                    &ctab, &work) < 0)
                 goto done;
             if (ctab.ne > 0 && clique_fix_on) {
-                cstack = malloc((size_t)(2 * nc) * sizeof *cstack);
+                cstack = jm_alloc_array(2 * nc, sizeof *cstack);
                 if (cstack == nullptr)
                     goto done;
             }
@@ -4173,33 +4173,33 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
             const int64_t need = nc + lp->num_row + 1 +
                                  (nc + 4 * nr + 1) * root_rounds;
-            double *grown = realloc(row, (size_t)need * sizeof *row);
+            double *grown = jm_realloc_array(row, need, sizeof *row);
             if (grown == nullptr)
                 goto done;
             row = grown;
             row_cap = need;
             if (cut == nullptr)
-                cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
+                cut = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cut);
             if (cut == nullptr)
                 goto done;
             if ((cover_rounds > 0 || clique_rounds > 0) && items == nullptr)
-                items = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *items);
+                items = jm_alloc_array(nc > 0 ? nc : 1, sizeof *items);
             if (clique_rounds > 0 && items == nullptr)
                 goto done;
             if (cover_rounds > 0 && mu == nullptr)
-                mu = malloc((size_t)(nc + 1) * sizeof *mu);
+                mu = jm_alloc_array(nc + 1, sizeof *mu);
             if (cover_rounds > 0 && (items == nullptr || mu == nullptr))
                 goto done;
             if (mir_rounds > 0 && mbest == nullptr)
-                mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
+                mbest = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mbest);
             if (mir_rounds > 0 && mdelta == nullptr)
-                mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
+                mdelta = jm_alloc_array(MIP_MIR_DELTAS + 1, sizeof *mdelta);
             if (mir_rounds > 0 && magg == nullptr)
-                magg = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *magg);
+                magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
             if (mir_rounds > 0 && mir_aggregate > 0 && mused == nullptr) {
-                mused = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *mused);
-                mpicked = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mpicked);
-                mcmag = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mcmag);
+                mused = jm_alloc_array(nr > 0 ? nr : 1, sizeof *mused);
+                mpicked = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mpicked);
+                mcmag = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mcmag);
             }
             if (mir_rounds > 0 && (mbest == nullptr || mdelta == nullptr ||
                                    magg == nullptr ||
@@ -4467,9 +4467,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             !budget_gone(m, work) && (!inc.have || pump_always)) {
 
             if (prnd == nullptr) {
-                prnd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *prnd);
-                pprev = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pprev);
-                pprev2 = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pprev2);
+                prnd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *prnd);
+                pprev = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pprev);
+                pprev2 = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pprev2);
                 if (prnd == nullptr || pprev == nullptr || pprev2 == nullptr)
                     goto done;
             }
@@ -4561,14 +4561,14 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             !cur->no_cuts) {
             const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
             if (need > row_cap) {
-                double *grown = realloc(row, (size_t)need * sizeof *row);
+                double *grown = jm_realloc_array(row, need, sizeof *row);
                 if (grown == nullptr)
                     goto done;
                 row = grown;
                 row_cap = need;
             }
             if (cut == nullptr)
-                cut = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cut);
+                cut = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cut);
             if (cut == nullptr)
                 goto done;
             cb.n = cb.nnz = 0;
@@ -4578,11 +4578,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
             if (node_mir) {
                 if (mbest == nullptr)
-                    mbest = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *mbest);
+                    mbest = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mbest);
                 if (mdelta == nullptr)
-                    mdelta = malloc((size_t)(MIP_MIR_DELTAS + 1) * sizeof *mdelta);
+                    mdelta = jm_alloc_array(MIP_MIR_DELTAS + 1, sizeof *mdelta);
                 if (magg == nullptr)
-                    magg = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *magg);
+                    magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
                 if (mbest == nullptr || mdelta == nullptr || magg == nullptr)
                     goto done;
                 const int64_t mv = mir_round(m, lp, x, lp->col_lower,
@@ -4758,7 +4758,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         if (nodes == 1 && rcfix && inc.have && branch >= 0 &&
             inc.key >= key) {
             if (rcd == nullptr) {
-                rcd = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *rcd);
+                rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
                 if (rcd == nullptr)
                     goto done;
             }
@@ -4849,8 +4849,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 
         if (branch >= 0 && reliability > 0 &&
             (probe_depth < 0 || depth_here <= probe_depth)) {
-            jaos_basis_status *grown = realloc(prs, (size_t)(nrl > 0 ? nrl : 1)
-                                                        * sizeof *prs);
+            jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
+                                                        sizeof *prs);
             if (grown == nullptr)
                 goto done;
             prs = grown;
@@ -4881,7 +4881,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         const jaos_basis_status *child_rs = lp->sol_row_status;
         if (cut_drop && act_n > 0) {
             if (nrl > crs_cap) {
-                jaos_basis_status *g = realloc(crs, (size_t)nrl * sizeof *crs);
+                jaos_basis_status *g = jm_realloc_array(crs, nrl, sizeof *crs);
                 if (g == nullptr)
                     goto done;
                 crs = g;
@@ -4928,7 +4928,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                 ilo[branch] == 0.0 && ihi[branch] == 1.0 && fhi[0] == 0.0 &&
                 ulo[0] == 1.0) {
                 if (ouf == nullptr) {
-                    ouf = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *ouf);
+                    ouf = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ouf);
                     ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *ozero);
                     if (ouf == nullptr || ozero == nullptr)
                         goto done;

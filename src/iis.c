@@ -103,10 +103,10 @@ static jaos_status make_copy(iis *g, jaos_model *m)
     const int64_t nr = g->nrow, nc = g->ncol;
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     double *zero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *zero);
-    double *rl = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *rl);
-    double *ru = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *ru);
-    double *cl = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cl);
-    double *cu = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *cu);
+    double *rl = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rl);
+    double *ru = jm_alloc_array(nr > 0 ? nr : 1, sizeof *ru);
+    double *cl = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cl);
+    double *cu = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cu);
     if (zero == nullptr || rl == nullptr || ru == nullptr ||
         cl == nullptr || cu == nullptr)
         goto out;
@@ -212,7 +212,7 @@ jaos_status jaos_iis(jaos_model *m, jaos_iis_side *row_side,
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     g.rs = calloc((size_t)(g.nrow > 0 ? g.nrow : 1), sizeof *g.rs);
     g.cs = calloc((size_t)(g.ncol > 0 ? g.ncol : 1), sizeof *g.cs);
-    double *y = malloc((size_t)(g.nrow > 0 ? g.nrow : 1) * sizeof *y);
+    double *y = jm_alloc_array(g.nrow > 0 ? g.nrow : 1, sizeof *y);
     if (g.rs == nullptr || g.cs == nullptr || y == nullptr)
         goto out;
 

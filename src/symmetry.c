@@ -158,7 +158,7 @@ static int sg_find_under(sg *g, int64_t *color, const int64_t *inv1,
     const int64_t n = g->n;
     if (!sg_refine(g, color))
         return -1;
-    int64_t *mem = malloc((size_t)n * sizeof *mem);
+    int64_t *mem = jm_alloc_array(n, sizeof *mem);
     if (mem == nullptr)
         return -1;
     const int64_t m = sg_first_cell(g, color, mem);
@@ -171,7 +171,7 @@ static int sg_find_under(sg *g, int64_t *color, const int64_t *inv1,
             return 1;
         return *leaves_left > 0 ? 0 : -1;
     }
-    int64_t *save = malloc((size_t)n * sizeof *save);
+    int64_t *save = jm_alloc_array(n, sizeof *save);
     if (save == nullptr) {
         free(mem);
         return -1;
@@ -316,17 +316,17 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     g->nc = nc;
     g->nr = nr;
     g->adj_start = jm_calloc_array(n + 1, sizeof *g->adj_start);
-    g->adj = malloc((size_t)(2 * nz > 0 ? 2 * nz : 1) * sizeof *g->adj);
-    g->lab = malloc((size_t)(2 * nz > 0 ? 2 * nz : 1) * sizeof *g->lab);
-    g->color0 = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->color0);
-    g->order = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->order);
-    g->key = malloc((size_t)(2 * nz > 0 ? 2 * nz : 1) * sizeof *g->key);
-    g->cells = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->cells);
-    g->inv = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->inv);
-    g->perm = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->perm);
-    g->uf = malloc((size_t)(n > 0 ? n : 1) * sizeof *g->uf);
-    double *vals = malloc((size_t)(nz > 0 ? nz : 1) * sizeof *vals);
-    ckey *keys = malloc((size_t)(n > 0 ? n : 1) * sizeof *keys);
+    g->adj = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->adj);
+    g->lab = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->lab);
+    g->color0 = jm_alloc_array(n > 0 ? n : 1, sizeof *g->color0);
+    g->order = jm_alloc_array(n > 0 ? n : 1, sizeof *g->order);
+    g->key = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->key);
+    g->cells = jm_alloc_array(n > 0 ? n : 1, sizeof *g->cells);
+    g->inv = jm_alloc_array(n > 0 ? n : 1, sizeof *g->inv);
+    g->perm = jm_alloc_array(n > 0 ? n : 1, sizeof *g->perm);
+    g->uf = jm_alloc_array(n > 0 ? n : 1, sizeof *g->uf);
+    double *vals = jm_alloc_array(nz > 0 ? nz : 1, sizeof *vals);
+    ckey *keys = jm_alloc_array(n > 0 ? n : 1, sizeof *keys);
     int64_t *indmark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *indmark);
     if (g->adj_start == nullptr || g->adj == nullptr || g->lab == nullptr ||
         g->color0 == nullptr || g->order == nullptr || g->key == nullptr ||
@@ -449,10 +449,10 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
     }
     const int64_t n = g.n;
     g.budget = work_cap;
-    int64_t *color = malloc((size_t)n * sizeof *color);
-    int64_t *members = malloc((size_t)n * sizeof *members);
-    int64_t *leaf1 = malloc((size_t)n * sizeof *leaf1);
-    int64_t *inv1 = malloc((size_t)n * sizeof *inv1);
+    int64_t *color = jm_alloc_array(n, sizeof *color);
+    int64_t *members = jm_alloc_array(n, sizeof *members);
+    int64_t *leaf1 = jm_alloc_array(n, sizeof *leaf1);
+    int64_t *inv1 = jm_alloc_array(n, sizeof *inv1);
     int64_t *saved = nullptr, *cellv = nullptr, *cellstart = nullptr;
     int64_t *chosen = nullptr;
     st = JAOS_ERR_OUT_OF_MEMORY;
@@ -464,10 +464,10 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
         st = JAOS_OK;
         goto out;
     }
-    saved = malloc((size_t)(SYM_MAX_DEPTH * n) * sizeof *saved);
-    cellv = malloc((size_t)(SYM_MAX_DEPTH * n) * sizeof *cellv);
+    saved = jm_alloc_array(SYM_MAX_DEPTH * n, sizeof *saved);
+    cellv = jm_alloc_array(SYM_MAX_DEPTH * n, sizeof *cellv);
     cellstart = jm_calloc_array(SYM_MAX_DEPTH + 1, sizeof *cellstart);
-    chosen = malloc((size_t)SYM_MAX_DEPTH * sizeof *chosen);
+    chosen = jm_alloc_array(SYM_MAX_DEPTH, sizeof *chosen);
     if (saved == nullptr || cellv == nullptr || cellstart == nullptr ||
         chosen == nullptr)
         goto out;
@@ -521,8 +521,8 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
     st = JAOS_OK;
     if (g.ngen > 0) {
         const int64_t nc = g.nc;
-        out->gen = malloc((size_t)(g.ngen * nc) * sizeof *out->gen);
-        out->orbit = malloc((size_t)nc * sizeof *out->orbit);
+        out->gen = jm_alloc_array(g.ngen * nc, sizeof *out->gen);
+        out->orbit = jm_alloc_array(nc, sizeof *out->orbit);
         if (out->gen == nullptr || out->orbit == nullptr) {
             st = JAOS_ERR_OUT_OF_MEMORY;
             goto out;

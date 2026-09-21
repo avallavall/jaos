@@ -893,6 +893,7 @@ cadences that decide only when something is noticed or printed.
 | `JM_NAME_BUF` | 24 | The buffer for a positional name, `C<j+1>` or `R<i+1>`, which holds any 64-bit index |
 | `JM_NL_OPTIONS` | 9 | The option slots of a `.nl` header, kept for the `.sol` written back |
 | `PROOF_LINE` | 4096 | The longest line the proof-file reader takes |
+| `SLURP_CHUNK` | 65536 | The bytes one read of a file asks for, straight into the heap buffer that grows to hold the whole file. Before 2026-09-21 the read went through a stack buffer of that size, a sixteenth of a Windows thread's stack |
 | `WINDOW` | 32768 | DEFLATE's window (RFC 1951) |
 | `MIN_MATCH`, `MAX_MATCH` | 3, 258 | DEFLATE's shortest and longest match (RFC 1951) |
 | `HUFF_MAXSYM` | 288 | The literal and length alphabet of RFC 1951 |

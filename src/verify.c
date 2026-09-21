@@ -343,13 +343,13 @@ typedef struct {
 static bool tarjan(const vbasis *b, const int64_t *match_row, vsccs *out)
 {
     const int64_t n = b->n;
-    int64_t *index = malloc((size_t)(n > 0 ? n : 1) * sizeof *index);
-    int64_t *low   = malloc((size_t)(n > 0 ? n : 1) * sizeof *low);
-    int64_t *stk   = malloc((size_t)(n > 0 ? n : 1) * sizeof *stk);
+    int64_t *index = jm_alloc_array(n > 0 ? n : 1, sizeof *index);
+    int64_t *low   = jm_alloc_array(n > 0 ? n : 1, sizeof *low);
+    int64_t *stk   = jm_alloc_array(n > 0 ? n : 1, sizeof *stk);
     bool    *on    = calloc((size_t)(n > 0 ? n : 1), sizeof *on);
-    int64_t *comp  = malloc((size_t)(n > 0 ? n : 1) * sizeof *comp);
-    int64_t *dn    = malloc(((size_t)n + 2) * sizeof *dn);
-    int64_t *dp    = malloc(((size_t)n + 2) * sizeof *dp);
+    int64_t *comp  = jm_alloc_array(n > 0 ? n : 1, sizeof *comp);
+    int64_t *dn    = jm_alloc_array(n + 2, sizeof *dn);
+    int64_t *dp    = jm_alloc_array(n + 2, sizeof *dp);
     if (!index || !low || !stk || !on || !comp || !dn || !dp) {
         free(index); free(low); free(stk); free(on); free(comp);
         free(dn); free(dp);
@@ -820,8 +820,8 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
     if (!vrowwise_build(&b, &rw))
         goto done;
 
-    mc = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mc);
-    mr = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mr);
+    mc = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mc);
+    mr = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mr);
     if (mc == nullptr || mr == nullptr)
         goto done;
     if (!transversal(&b, mc, mr)) {
@@ -1434,8 +1434,8 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
     if (!vrowwise_build(&b, &rw))
         goto done;
 
-    mc = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mc);
-    mr = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mr);
+    mc = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mc);
+    mr = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mr);
     if (mc == nullptr || mr == nullptr)
         goto done;
     if (!transversal(&b, mc, mr)) {
@@ -1640,8 +1640,8 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
     }
     if (!vrowwise_build(&b, &rw))
         goto done;
-    mc = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mc);
-    mr = malloc((size_t)(b.n > 0 ? b.n : 1) * sizeof *mr);
+    mc = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mc);
+    mr = jm_alloc_array(b.n > 0 ? b.n : 1, sizeof *mr);
     if (mc == nullptr || mr == nullptr)
         goto done;
     if (!transversal(&b, mc, mr)) {

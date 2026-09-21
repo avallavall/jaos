@@ -46,15 +46,6 @@ A3.11 **Fuzz target for the readers.** `tests/test_fuzz.c` is a seeded model
     what it finds. Verify: `make fuzz` builds; the run's findings are fixed
     with a test each.
 
-A3.12 **Small robustness rows.** `src/inflate.c:441` keeps a 64 KB chunk on
-    the stack (a Windows worker thread has 1 MB; move it to the heap or note
-    the bound). `src/model.c:757` truncates a log line at 1024 bytes
-    silently (say so in `docs/api.md` or grow it). `cli/jaos.c:1719, 3203`
-    hard-code a 4096-byte path (use `PATH_MAX` from `jaos_sys.h` or
-    allocate). 285 direct `malloc/calloc/realloc` sites bypass
-    `jm_alloc_array`'s overflow check; grep each for a size that is a
-    product and route those through `jm_alloc_array`.
-
 A3.13 **Valgrind and coverage: neither exists.** ASan under `make sanitize`
     is the only memory check and nothing measures which lines the 846 unit
     tests reach. Add `make coverage` (`--coverage`, `gcov` or `lcov`, the

@@ -1716,16 +1716,22 @@ static int cmd_solve(int argc, char **argv)
             fprintf(stderr, "jaos: no pool files written: the solve left no "
                     "integer point\n");
         } else {
-            char path[4096];
-            bool all = true;
+            const size_t cap = strlen(o.pool_out) + 32;
+            char *path = malloc(cap);
+            bool all = path != nullptr;
+            if (path == nullptr) {
+                fputs("jaos: out of memory\n", stderr);
+                rc = EXIT_USAGE;
+            }
             for (int64_t k = 0; all && k < npool; k++) {
                 double obj = 0.0;
                 if (jaos_mip_pool_solution(m, k, px, &obj) != JAOS_OK) {
                     rc = library_error("read the solution pool of", o.file, m);
                     all = false;
-                } else if (snprintf(path, sizeof path, "%s-%" PRId64 ".pt",
-                                    o.pool_out, k) >= (int)sizeof path) {
-                    fprintf(stderr, "jaos: the pool prefix is too long\n");
+                } else if (snprintf(path, cap, "%s-%" PRId64 ".pt",
+                                    o.pool_out, k) < 0) {
+                    fprintf(stderr, "jaos: cannot name pool file %" PRId64
+                            "\n", k);
                     rc = EXIT_USAGE;
                     all = false;
                 } else if (jaos_write_point_values(m, path, px) != JAOS_OK) {
@@ -1735,6 +1741,7 @@ static int cmd_solve(int argc, char **argv)
             }
             if (all)
                 printf("pool_files %" PRId64 "\n", npool);
+            free(path);
         }
         free(px);
     }
@@ -3194,20 +3201,10 @@ static bool ampl_options(jaos_model *m, const char *text, char *msg,
     return ok;
 }
 
-static int run_ampl(int argc, char **argv)
+static int ampl_solve(const char *nlpath, const char *solpath, int argc,
+                      char **argv)
 {
-    const char *stub = argv[1];
-    size_t n = strlen(stub);
-    if (n > 3 && strcmp(stub + n - 3, ".nl") == 0)
-        n -= 3;
-    char nlpath[4096], solpath[4096], msg[1024] = "";
-    if (n + 5 > sizeof nlpath) {
-        fprintf(stderr, "jaos: the stub '%s' is too long\n", stub);
-        return EXIT_USAGE;
-    }
-    snprintf(nlpath, sizeof nlpath, "%.*s.nl", (int)n, stub);
-    snprintf(solpath, sizeof solpath, "%.*s.sol", (int)n, stub);
-
+    char msg[1024] = "";
     jaos_model *m = nullptr;
     if (jaos_model_new(&m) != JAOS_OK) {
         fprintf(stderr, "jaos: out of memory\n");
@@ -3233,6 +3230,26 @@ static int run_ampl(int argc, char **argv)
     }
     jaos_model_free(m);
     return 0;
+}
+
+static int run_ampl(int argc, char **argv)
+{
+    const char *stub = argv[1];
+    size_t n = strlen(stub);
+    if (n > 3 && strcmp(stub + n - 3, ".nl") == 0)
+        n -= 3;
+    char *nlpath = malloc(n + 4), *solpath = malloc(n + 5);
+    int rc = EXIT_USAGE;
+    if (nlpath == nullptr || solpath == nullptr) {
+        fputs("jaos: out of memory\n", stderr);
+    } else {
+        snprintf(nlpath, n + 4, "%.*s.nl", (int)n, stub);
+        snprintf(solpath, n + 5, "%.*s.sol", (int)n, stub);
+        rc = ampl_solve(nlpath, solpath, argc, argv);
+    }
+    free(nlpath);
+    free(solpath);
+    return rc;
 }
 
 int main(int argc, char **argv)

@@ -473,8 +473,8 @@ static jaos_status nl_build(nl *p, const char *path)
     }
     int64_t *as = jm_calloc_array(nc + 1, sizeof *as);
     int64_t *fill = jm_calloc_array(nc > 0 ? nc : 1, sizeof *fill);
-    int64_t *ai = malloc((size_t)(p->nent > 0 ? p->nent : 1) * sizeof *ai);
-    double *av = malloc((size_t)(p->nent > 0 ? p->nent : 1) * sizeof *av);
+    int64_t *ai = jm_alloc_array(p->nent > 0 ? p->nent : 1, sizeof *ai);
+    double *av = jm_alloc_array(p->nent > 0 ? p->nent : 1, sizeof *av);
     jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
     if (as == nullptr || fill == nullptr || ai == nullptr || av == nullptr) {
         jm_set_err(m, "out of memory");
@@ -562,9 +562,9 @@ jaos_status jaos_read_nl(jaos_model *m, const char *path)
             const int64_t nr = p->ncon > 0 ? p->ncon : 1;
             p->cost = jm_calloc_array(nc, sizeof *p->cost);
             p->cl = jm_calloc_array(nc, sizeof *p->cl);
-            p->cu = malloc((size_t)nc * sizeof *p->cu);
-            p->rl = malloc((size_t)nr * sizeof *p->rl);
-            p->ru = malloc((size_t)nr * sizeof *p->ru);
+            p->cu = jm_alloc_array(nc, sizeof *p->cu);
+            p->rl = jm_alloc_array(nr, sizeof *p->rl);
+            p->ru = jm_alloc_array(nr, sizeof *p->ru);
             p->shift = jm_calloc_array(nr, sizeof *p->shift);
             if (p->cost == nullptr || p->cl == nullptr || p->cu == nullptr ||
                 p->rl == nullptr || p->ru == nullptr || p->shift == nullptr) {

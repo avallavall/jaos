@@ -1106,8 +1106,8 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
     if (w->st != JAOS_OK)
         return w->st;
 
-    int64_t *order = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *order);
-    int64_t *pos = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *pos);
+    int64_t *order = jm_alloc_array(nc > 0 ? nc : 1, sizeof *order);
+    int64_t *pos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pos);
     if (order == nullptr || pos == nullptr) {
         free(order);
         free(pos);

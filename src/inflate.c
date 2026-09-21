@@ -48,6 +48,8 @@ static int64_t bits_byte_pos(const bits *b)
 
 #define HUFF_MAXSYM 288
 
+constexpr int64_t SLURP_CHUNK = 65536;
+
 typedef struct {
     int16_t count[16];
     int16_t symbol[HUFF_MAXSYM];
@@ -438,16 +440,16 @@ jaos_status jm_slurp(jaos_model *m, const char *path,
 
     sink raw = {0};
     jaos_status st = JAOS_OK;
-    char chunk[65536];
-    size_t got;
-    while ((got = fread(chunk, 1, sizeof chunk, f)) > 0) {
-        if (!JM_GROW(raw.buf, raw.cap, raw.len + (int64_t)got + 1)) {
+    for (;;) {
+        if (!JM_GROW(raw.buf, raw.cap, raw.len + SLURP_CHUNK + 1)) {
             st = JAOS_ERR_OUT_OF_MEMORY;
             jm_set_err(m, "out of memory reading '%s'", path);
             goto done;
         }
-        memcpy(raw.buf + raw.len, chunk, got);
+        const size_t got = fread(raw.buf + raw.len, 1, (size_t)SLURP_CHUNK, f);
         raw.len += (int64_t)got;
+        if (got < (size_t)SLURP_CHUNK)
+            break;
     }
     if (ferror(f)) {
         st = JAOS_ERR_IO;

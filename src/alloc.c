@@ -16,6 +16,18 @@ void *jm_alloc_array(int64_t n, size_t elsize)
     return malloc(total);
 }
 
+void *jm_realloc_array(void *p, int64_t n, size_t elsize)
+{
+    if (n < 0)
+        return nullptr;
+    size_t total;
+    if (ckd_mul(&total, (size_t)n, elsize))
+        return nullptr;
+    if (total == 0)
+        total = 1;
+    return realloc(p, total);
+}
+
 void *jm_calloc_array(int64_t n, size_t elsize)
 {
     if (n < 0)

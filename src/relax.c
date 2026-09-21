@@ -67,11 +67,11 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
     int64_t *ap = nullptr, *ai = nullptr;
     double *av = nullptr;
 
-    g->row_s = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *g->row_s);
-    g->row_t = malloc((size_t)(nr > 0 ? nr : 1) * sizeof *g->row_t);
-    g->col_s = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->col_s);
-    g->col_t = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->col_t);
-    g->box   = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *g->box);
+    g->row_s = jm_alloc_array(nr > 0 ? nr : 1, sizeof *g->row_s);
+    g->row_t = jm_alloc_array(nr > 0 ? nr : 1, sizeof *g->row_t);
+    g->col_s = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->col_s);
+    g->col_t = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->col_t);
+    g->box   = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->box);
     if (g->row_s == nullptr || g->row_t == nullptr ||
         g->col_s == nullptr || g->col_t == nullptr || g->box == nullptr)
         goto out;
@@ -105,13 +105,13 @@ static jaos_status rx_build(rx *g, jaos_model *m, jaos_relax_scope scope)
     const int64_t tnz = m->num_nz + ecol + erow;
 
     cost = calloc((size_t)(tc > 0 ? tc : 1), sizeof *cost);
-    cl   = malloc((size_t)(tc > 0 ? tc : 1) * sizeof *cl);
-    cu   = malloc((size_t)(tc > 0 ? tc : 1) * sizeof *cu);
-    rl   = malloc((size_t)(tr > 0 ? tr : 1) * sizeof *rl);
-    ru   = malloc((size_t)(tr > 0 ? tr : 1) * sizeof *ru);
-    ap   = malloc((size_t)(tc + 1) * sizeof *ap);
-    ai   = malloc((size_t)(tnz > 0 ? tnz : 1) * sizeof *ai);
-    av   = malloc((size_t)(tnz > 0 ? tnz : 1) * sizeof *av);
+    cl   = jm_alloc_array(tc > 0 ? tc : 1, sizeof *cl);
+    cu   = jm_alloc_array(tc > 0 ? tc : 1, sizeof *cu);
+    rl   = jm_alloc_array(tr > 0 ? tr : 1, sizeof *rl);
+    ru   = jm_alloc_array(tr > 0 ? tr : 1, sizeof *ru);
+    ap   = jm_alloc_array(tc + 1, sizeof *ap);
+    ai   = jm_alloc_array(tnz > 0 ? tnz : 1, sizeof *ai);
+    av   = jm_alloc_array(tnz > 0 ? tnz : 1, sizeof *av);
     if (cost == nullptr || cl == nullptr || cu == nullptr || rl == nullptr ||
         ru == nullptr || ap == nullptr || ai == nullptr || av == nullptr)
         goto out;
@@ -370,7 +370,7 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
     }
 
     const int64_t tc = g.nc + g.ecol;
-    x = malloc((size_t)(tc > 0 ? tc : 1) * sizeof *x);
+    x = jm_alloc_array(tc > 0 ? tc : 1, sizeof *x);
     if (x == nullptr) {
         rc = JAOS_ERR_OUT_OF_MEMORY;
         goto out;

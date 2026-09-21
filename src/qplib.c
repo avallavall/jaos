@@ -621,8 +621,8 @@ static jaos_status q_build(qp *p)
     const int64_t nc = p->nvar, nr = p->ncon;
     int64_t *as = jm_calloc_array(nc + 1, sizeof *as);
     int64_t *fill = jm_calloc_array(nc > 0 ? nc : 1, sizeof *fill);
-    int64_t *ai = malloc((size_t)(p->nent > 0 ? p->nent : 1) * sizeof *ai);
-    double *av = malloc((size_t)(p->nent > 0 ? p->nent : 1) * sizeof *av);
+    int64_t *ai = jm_alloc_array(p->nent > 0 ? p->nent : 1, sizeof *ai);
+    double *av = jm_alloc_array(p->nent > 0 ? p->nent : 1, sizeof *av);
     jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
     if (as == nullptr || fill == nullptr || ai == nullptr || av == nullptr) {
         jm_set_err(m, "out of memory");

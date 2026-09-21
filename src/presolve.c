@@ -1438,8 +1438,8 @@ JAOS_NODISCARD static bool ps_lift_farkas(const jm_presolve *p, double *y)
     const jaos_model *orig = p->orig;
     const int64_t nr = orig->num_row, nc = orig->num_col;
 
-    double *lo = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *lo);
-    double *hi = malloc((size_t)(nc > 0 ? nc : 1) * sizeof *hi);
+    double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
     bool *absorbed = calloc((size_t)(nc > 0 ? nc : 1), sizeof *absorbed);
     if (lo == nullptr || hi == nullptr || absorbed == nullptr) {
         free(lo);

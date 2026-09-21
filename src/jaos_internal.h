@@ -386,6 +386,7 @@ int64_t jm_nonbasic_expand(int64_t nvar, const uint64_t *mark, int64_t *out);
 
 void *jm_alloc_array(int64_t n, size_t elsize);
 void *jm_calloc_array(int64_t n, size_t elsize);
+void *jm_realloc_array(void *p, int64_t n, size_t elsize);
 
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize);
 char *jm_token(char **cursor, const char *delims);

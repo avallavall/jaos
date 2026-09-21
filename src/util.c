@@ -101,11 +101,11 @@ bool jm_nmap_insert(jm_nmap *m, const char *name, int64_t value)
         return false;
     if (m->n + 1 > m->cap) {
         int64_t ncap = m->cap < 16 ? 16 : m->cap * 2;
-        int64_t *p = realloc(m->off, (size_t)ncap * sizeof *p);
+        int64_t *p = jm_realloc_array(m->off, ncap, sizeof *p);
         if (p == nullptr)
             return false;
         m->off = p;
-        p = realloc(m->val, (size_t)ncap * sizeof *p);
+        p = jm_realloc_array(m->val, ncap, sizeof *p);
         if (p == nullptr)
             return false;
         m->val = p;
