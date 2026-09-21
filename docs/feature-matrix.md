@@ -33,7 +33,7 @@ and corrected four (Hexaly reads no MPS or LP file and works with no
 modelling system, and HiGHS's dependencies are optional). scipopt.org and
 soplex.zib.de refused automated requests that day, so SCIP's and SoPlex's
 cells rest on their GitHub release notes, changelogs and papers.
-Versions: JAOS 0.3.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
+Versions: JAOS 0.4.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
 SCIP 10.1.0 · Gurobi 13.0.3 · Hexaly 15.0. SoPlex 8.1.0 and SCIP 10.1.0
 came out on 2026-09-18, and neither release moved a cell.*
 

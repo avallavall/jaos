@@ -651,7 +651,7 @@ and decides the records that follow it.
 
 ```
 # JAOS solution file, format 1
-# written by JAOS 0.3.0
+# written by JAOS 0.4.0
 status optimal
 objective 5501.8458882867444
 columns 1571
@@ -688,7 +688,7 @@ no `objective` line, and no `col` or `row` record.
 
 ```
 # JAOS solution file, format 1
-# written by JAOS 0.3.0
+# written by JAOS 0.4.0
 status infeasible
 columns 3
 rows 3
@@ -751,7 +751,7 @@ alone, over the rationals.
 
 ```
 # JAOS proof file, format 1
-# written by JAOS 0.3.0
+# written by JAOS 0.4.0
 # every number is an integer or a ratio of two, exactly
 proof optimal
 sense min
@@ -784,7 +784,7 @@ mixes the two is refused.
 
 ```
 # JAOS proof file, format 1
-# written by JAOS 0.3.0
+# written by JAOS 0.4.0
 # every number is an integer or a ratio of two, exactly
 proof infeasible
 sense min
@@ -879,7 +879,7 @@ so the independent checker can judge **somebody else's**: JAOS's own
 solution file is JAOS's own, and nothing else writes one.
 
 ```
-# written by JAOS 0.3.0
+# written by JAOS 0.4.0
 X1        4
 X2        3
 X3        3

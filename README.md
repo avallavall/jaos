@@ -15,7 +15,7 @@ accepts it against the model as the caller loaded it.
 
 ## Status
 
-The last tagged release is 0.3.0. JAOS answers all 139 Netlib reference
+The last tagged release is 0.4.0. JAOS answers all 139 Netlib reference
 instances correctly and solves 24 MIPLIB 3 instances to their catalogue
 optima. It is slower than the established open-source LP solvers by a factor
 that is measured and published in `bench/compare/`.

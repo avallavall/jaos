@@ -6,7 +6,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>Jaos</RootNamespace>
     <AssemblyName>Jaos</AssemblyName>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <PackageId>Jaos</PackageId>
     <Authors>Vall</Authors>
     <Description>JAOS, an LP, MIP, QP and SOCP solver, from .NET: the C library through P/Invoke.</Description>

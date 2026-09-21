@@ -31,4 +31,10 @@ check README.md \
 check docs/feature-matrix.md \
     "$(sed -n 's/^Versions: JAOS \([0-9.]*[0-9]\) .*/\1/p' docs/feature-matrix.md)"
 
+for f in docs/cli.md docs/format-support.md; do
+    for w in $(grep -o 'JAOS [0-9][0-9.]*[0-9]' "$f" | cut -d' ' -f2 | sort -u); do
+        check "an example output in $f" "$w"
+    done
+done
+
 exit $fail

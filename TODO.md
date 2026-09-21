@@ -6,40 +6,12 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 A row says what is wrong and what the fix needs. The reading behind it is in
 the commit that took it, named here by hash.
 
-Three milestones, in this order. A row in a later milestone waits for the
-earlier ones unless it says otherwise. Every row was taken from the reading
-of 2026-09-21 (the three audits of the docs, the code and the bench record)
+Two milestones, in this order; milestone A, publishing 0.4.0, ended with
+the tag `v0.4.0`. A row in a later milestone waits for the earlier ones
+unless it says otherwise. Every row was taken from the reading of
+2026-09-21 (the three audits of the docs, the code and the bench record)
 and nothing from that reading is left out of this file. Each row says how
 to verify it, so a row leaves when its check passes, not before.
-
-## Milestone A: publish 0.4.0
-
-The solver is correct and nobody can install it. A is what makes it
-installable and makes every document true. Order inside A: A1 clears the
-tree, A2 makes the docs true, A3 makes the library shippable, A4 cuts the
-tag. A2 and A3 can interleave; A4 waits for both.
-
-### A1. The working tree
-
-### A2. Every document true
-
-Each row names the file and the lines as of dc7acc7. Verify each by
-re-reading the named lines against the source the row cites, and at the
-end of A2 by the check in A2.12.
-
-### A3. Shippable
-
-### A4. The tag
-
-A4.1 **Cut v0.4.0.** After A1 to A3: bump the version places
-    (`tools/version-check.sh` lists them), `make test && make sanitize && make python-test`,
-    the four gates and `make miplib` (solver internals moved in A3.2's
-    build flags and A3.12's allocations), commit, tag `v0.4.0`, push from
-    Windows. The tag message lists what landed since 0.3.0 by SPECS row:
-    cones and CBF, QCP, the conic tree and `--tree-batch`, Julia, .NET,
-    Java, R, the AMPL protocol, native Windows, the concurrent solve, PDLP,
-    the resume, the proof file. Verify: `git describe` says `v0.4.0`;
-    `pip install` of the sdist reports 0.4.0.
 
 ## Milestone B: performance
 

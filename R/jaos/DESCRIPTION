@@ -1,7 +1,7 @@
 Package: jaos
 Type: Package
 Title: JAOS, an LP, MIP, QP and SOCP Solver
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: person("Vall", email = "vall@jaos.dev", role = c("aut", "cre"))
 Description: The JAOS C library from R: models read from MPS, LP, NL,
     QPLIB, OSiL and CBF files or built from vectors, solved, and read back
