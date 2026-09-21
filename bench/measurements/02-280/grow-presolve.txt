@@ -1,0 +1,8 @@
+grow15       optimal    rows=300 cols=645 shape=ok iters=1197 work=18949180 presolve=300/645/5620->300/625/5600 obj=-106870941.29357538 ref=-106870941.29357533[koch] objective=ok checker=ok (col=0 row=8.62e-09 rowrel=1.64e-12 dual=0 gap=1.53e-16 Q=2.44e-08 N=4.95e-08 drop=0 cert=yes sub=0 rays=0 rsub=2.28e-16) det=ok digest=b2ea6d62a98439de basis=ec5a26f8fb8512e6
+grow22       optimal    rows=440 cols=946 shape=ok iters=2014 work=45283251 presolve=440/946/8252->440/926/8232 obj=-160834336.48256299 ref=-160834336.48256296[koch] objective=ok checker=ok (col=0 row=8.56e-10 rowrel=1e-13 dual=0 gap=5.04e-17 Q=3.82e-08 N=4.21e-08 drop=0 cert=yes sub=0 rays=0 rsub=2.38e-16) det=ok digest=18e883f576a49ef9 basis=df7d292084d20964
+grow7        optimal    rows=140 cols=301 shape=ok iters=542 work=7490415 presolve=140/301/2612->140/281/2592 obj=-47787811.814711548 ref=-47787811.814711504[koch] objective=ok checker=ok (col=0 row=8.36e-09 rowrel=1.33e-13 dual=0 gap=4.16e-16 Q=7.99e-09 N=4.61e-08 drop=0 cert=yes sub=0 rays=0 rsub=1.67e-16) det=ok digest=f0acc5758b303967 basis=a16e7abf27264e67
+
+3 instances: 3 solved, 3 shape ok, 3 objective ok, 3 checker ok, 3 deterministic, 0 failed
+gate: PASS
+
+baseline: NOT COMPARED (no baseline given)

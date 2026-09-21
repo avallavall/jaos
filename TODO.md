@@ -17,10 +17,10 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B3 to B9 in gain order; B10
-to B12 are unmeasured components with no expected gain on record, and B13
-and B14 follow from the others, so they come after. Each is unrefused today; read the named
-refusal before starting and stop if its condition is not met. Every row
+the iteration count on four instances. Rows B3 to B9 in gain order; B11
+has no expected gain on record, and B13 and B14 follow from the others, so
+they come after. Each is unrefused today; read the named refusal before
+starting and stop if its condition is not met. Every row
 that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
 the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
 `P0.txt`.
@@ -49,14 +49,6 @@ B4 **Fresh attribution of the iteration, then D93's scan.** Per iteration
     with `tools/icount.sh`. Bar: instructions down by more than the 0.3%
     noise on the LU-heavy and the pricing-heavy instance, work units not
     up, answers byte-identical.
-
-B5 **grow22's presolve firings.** Presolve makes grow22 11.16x more
-    expensive from 20 singleton-column firings (02-11); the primal solves it
-    at 0.0385x the dual's work. D112 refused a widening rule and D108/D109
-    the window floor; no line refuses a rule that reads a firing's effect on
-    the basis (the fill or the condition of the columns it leaves). Read
-    02-11 and D108 to D112 first. The bar above, and grow22 under 2x its
-    baseline work is the point of the row.
 
 B6 **The crossover push.** SPECS's crossover row is missing a primal and
     a dual push; from the barrier's point the ranked guess costs more than
@@ -98,12 +90,6 @@ B9 **A parallel simplex or a parallel barrier.** SPECS's "Parallel LP"
     refused. The barrier's normal-equation Cholesky is the natural first
     (parallel column blocks in `src/chol.c` with a fixed schedule, so the
     result is bit-identical). Last in B; it needs a design reading first.
-
-B10 **Cost perturbation from the start.** The dual perturbs costs on the
-    first stall and never before (SPECS "Dual simplex"). Every rival
-    perturbs from the first iteration on a degenerate model. The record has
-    no reading and no refusal either way. Measure it over netlib and
-    kennington under the bar above. One line in `bench/refusals.txt` if it loses.
 
 B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     branching" is partial: RINS is off by measurement and local branching

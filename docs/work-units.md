@@ -130,7 +130,8 @@ the dual prices by Devex, whose update charges one per slot of the pivot
 row it reads for the row's reference weight and one per row of the entering
 column it updates, and whose reset charges one per row; it solves no second
 column, which is where it saves on the steepest-edge update. A solve that
-ends under Devex refines the duals it publishes once: one per nonzero of the
+ends under Devex, or that perturbed its costs, refines the duals it
+publishes once: one per nonzero of the
 basic columns for the residual, one BTRAN, and one per nonzero of every
 column for the reduced costs. The primal's
 steepest-edge weights, when the entering column's carried weight has drifted

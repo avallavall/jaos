@@ -59,6 +59,8 @@ static_assert(ITER_SANITY_FACTOR >= 60,
 
 constexpr int64_t STALL_FACTOR = 10;
 
+constexpr int64_t PERTURB_STALL_FACTOR = 1;
+
 #ifndef JAOS_DUAL_PERTURB
 #define JAOS_DUAL_PERTURB 1e-6
 #endif
@@ -1060,6 +1062,11 @@ static void perturb_costs(sx *s)
 static int64_t price_row(sx *s, bool *below, double *violation)
 {
 
+    if (!s->bland && DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
+        shifts_costs(s) && !s->m->cfg.node_solve &&
+        s->iters - s->last_gain >
+            PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1))
+        perturb_costs(s);
     if (!s->bland &&
         s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
         if (DUAL_PERTURB > 0.0 && !s->costs_perturbed && shifts_costs(s)) {
@@ -4034,7 +4041,7 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
-    if (s->dual_devex)
+    if (s->dual_devex || s->n_perturb > 0)
         refine_published_duals(s);
     for (int64_t i = 0; i < m->num_row; i++)
         m->sol_dual[i] = published(sigma * y[i] * rho[i]);
