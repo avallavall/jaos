@@ -1,7 +1,8 @@
 # bench — the acceptance gate
 
 The gate is three Netlib sets. A fourth set is for the MIP tree, and three
-PLATO sets exist for presolve measurements.
+PLATO sets exist for presolve measurements. MIPLIB 2017 is a MIP reading
+with a work limit, not a gate.
 
 | target | set | instances | time at `J=12` |
 |---|---|---|---|
@@ -9,6 +10,7 @@ PLATO sets exist for presolve measurements.
 | `make netlib-kennington` | Kennington | 16 | ~8 min |
 | `make netlib-infeas` | Netlib infeasible | 29 | ~10 s |
 | `make miplib` | MIPLIB 3 | 24 | ~4 min |
+| `make miplib2017` | MIPLIB 2017, the 30 smallest benchmark instances with an optimum | 30 | not a gate; ~6 min at `J=6` |
 | `make plato-pds`, `plato-fome`, `plato-nug` | PLATO | 15 | not a gate |
 | `make maros-meszaros` | Maros-Meszaros convex QP | 138 | not a gate; the QP reading |
 | `make cblib` | CBLIB 2014, the continuous part | 29 | not a gate; the conic reading |
@@ -65,6 +67,11 @@ each reads one method against the dual simplex on the same instances.
 - `make concurrent`: the concurrent solve against the dual.
 - `make plato-pds`, `make plato-fome`, `make plato-nug`: the PLATO sets,
   for presolve measurements (the table above).
+- `make miplib2017`: the 30 smallest instances of the MIPLIB 2017
+  benchmark set with a proven optimum, each solve stopped at a work limit
+  (`MIPLIB2017_WORK`, 1e10 by default, the runner's `-L`). A line that
+  stops at the limit carries the incumbent, the bound and the reference.
+  A reading, not a gate: there is no baseline.
 - `bench/compare/`: JAOS against HiGHS, SoPlex and Clp, in seconds.
 - `bench/measurements/<id>/`: raw readings behind each refusal in
   `refusals.txt`. `make refusals` re-runs the ones that have a script.

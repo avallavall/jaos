@@ -50,29 +50,9 @@ B6 **The crossover push.** SPECS's crossover row is missing a primal and
     barrier's geometric mean under 2.705x the dual. SPECS row "Crossover"
     changes to done when the count is zero.
 
-B7 **The MIPLIB 2017 reading.** The MIP tree has only ever been measured
-    on the 24 MIPLIB 3 instances (18 to 10757 columns). Eight standard
-    components sit off behind switches after readings of 0.97x to 1.18x on
-    that set, and node dives (D289) were refused and not kept. No rival's
-    node count or time is in the record for any MIP. Add
-    `bench/instances-miplib2017/` with the easy subset (the manifest with
-    checksums as the others have), a `make miplib2017` runner with a
-    reference objective per instance, a work limit per instance, and a
-    first reading into `bench/results/miplib2017.txt` and a
-    `bench/measurements/` directory. Extend `bench/compare` to the MIP set
-    the way it reads LP: HiGHS and SCIP (or CBC) beside JAOS on MIPLIB 3
-    and the 2017 subset, seconds and node counts, in
-    `bench/compare/results/`, so the MIP gap is a number and not a guess.
-    Then re-measure the switched-off components on 2017, one at a time:
-    reliability branching (D293), bound propagation (D324), reduced-cost
-    fixing (D323), root probing, flow cover, zero-half, lifted cover
-    (D307), RINS (D315), node dives (D289). Each that pays there without
-    breaking MIPLIB 3's bar lands on; each that does not gets its refusal
-    line extended with the 2017 number. SPECS "The bars" then says what the
-    reading is.
-
-B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. After
-    B7, because a wall-clock reading needs the larger set.
+B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. A
+    wall-clock reading needs the larger set, which `make miplib2017` now
+    is (`bench/measurements/02-284/`).
 
 B9 **A parallel simplex or a parallel barrier.** SPECS's "Parallel LP"
     row: one method on N cores on one factorisation. Absent and not
@@ -87,6 +67,14 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     beyond best-bound (best-estimate, or a plunge with a bound gap) have no
     SPECS row and no refusal; SPECS is closed, so the user decides whether
     to add the two rows. Ask once, with B7's numbers, before building.
+
+B16 **The MIP time limit is not kept at the root.** Found by B7's
+    comparison (`bench/compare/results/mip-miplib2017.txt`): at
+    `--time-limit 20` JAOS stops csched008 after 40.7 s and 42.4 s in two
+    runs, with one node, and neos-3381206-awhea after 21.5 s. Some root
+    step does not read the clock. Find it, make it stop at the limit, and
+    add a test that a root which runs long stops within the limit. Verify:
+    both instances stop within 1 s of `--time-limit 20`.
 
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as

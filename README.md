@@ -228,6 +228,12 @@ JAOS takes fewer iterations than SoPlex (0.63x). One iteration costs 1.6x
 to 2.1x what it costs each rival, and that is what separates JAOS from
 the field.
 
+On MIP, `bench/compare/run-mip.sh` gives each solver 20 s per instance, one
+thread and a relative gap of 1e-6 (2026-09-21, tree 3086162). On MIPLIB 3
+JAOS solves 23 of 24, HiGHS 1.15.1 and SCIP 10.0 all 24, and JAOS's shifted
+mean time is 1.43x HiGHS's and 1.48x SCIP's. On the 30 MIPLIB 2017
+instances of `make miplib2017` JAOS solves none, HiGHS 8 and SCIP 7.
+
 ## Layout
 
 ```

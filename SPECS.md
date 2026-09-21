@@ -171,4 +171,9 @@ Gurobi and Hexaly. An empty JAOS cell there is a row here that is not done.
 - MIPLIB 3: 24 instances to the catalogue optimum. `make miplib`.
 - Speed against HiGHS, SoPlex and Clp: `bench/compare/results/P0.txt`,
   `make compare COMPARE_ARGS='-t P0'`.
-- MIPLIB 2017 easy and benchmark subsets: not started.
+- MIPLIB 2017: the 30 smallest benchmark instances with a proven optimum,
+  each stopped at 1e10 work units. None finishes, 15 end with an
+  incumbent, 1 at the reference (`make miplib2017`,
+  `bench/measurements/02-284/`). A reading, not a gate.
+- MIP speed against HiGHS and SCIP: `bench/compare/results/mip-*.txt`,
+  `bench/compare/run-mip.sh`.

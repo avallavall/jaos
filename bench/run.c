@@ -246,6 +246,10 @@ typedef enum {
 } expectation;
 
 static expectation g_expect = EXPECT_OPTIMAL;
+static int64_t g_work_limit = 0;
+static const char *g_opt_name[32];
+static const char *g_opt_value[32];
+static int g_nopt = 0;
 
 static const char *g_ext = "mps";
 
@@ -408,6 +412,14 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
+    if (g_work_limit > 0)
+        (void)jaos_set_work_limit(m, g_work_limit);
+    for (int k = 0; k < g_nopt; k++)
+        if (jaos_set_option(m, g_opt_name[k], g_opt_value[k]) != JAOS_OK) {
+            fprintf(stderr, "-O %s=%s: %s\n", g_opt_name[k], g_opt_value[k],
+                    jaos_model_error(m) ? jaos_model_error(m) : "refused");
+            exit(2);
+        }
     const double t0 = now_seconds();
     st = jaos_solve(m);
     const double dt = now_seconds() - t0;
@@ -432,12 +444,17 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
 
     if (ss != JAOS_SOLVE_OPTIMAL) {
         stamp(e->name, dt);
+        char inc[64] = "none";
+        if (mr.has_incumbent)
+            snprintf(inc, sizeof inc, "%.17g", mr.incumbent);
         emit("%-12s %-10s rows=%lld cols=%lld shape=%s iters=%lld "
-                     "work=%lld nodes=%lld cuts=%lld heur=%lld | %s\n",
+                     "work=%lld nodes=%lld cuts=%lld heur=%lld inc=%s "
+                     "bound=%.17g ref=%.17g | %s\n",
                 e->name, jaos_solve_status_str(ss), (long long)nr,
                 (long long)nc, shape ? "ok" : "MISMATCH", (long long)iters,
                 (long long)work, (long long)mr.nodes, (long long)mr.cuts,
-                (long long)mr.heuristic_points,
+                (long long)mr.heuristic_points, inc, mr.bound,
+                e->reference + e->objconst,
                 jaos_model_error(m) ? jaos_model_error(m) : "");
         record(e->name, jaos_solve_status_str(ss), false, shape, false, false,
                false, (long long)iters, (long long)work, -1.0);
@@ -987,6 +1004,26 @@ int main(int argc, char **argv)
             write_baseline = argv[++i];
         else if (strcmp(argv[i], "-x") == 0 && i + 1 < argc)
             g_ext = argv[++i];
+        else if (strcmp(argv[i], "-O") == 0 && i + 1 < argc) {
+            char *pair = argv[++i];
+            char *eq = strchr(pair, '=');
+            if (eq == nullptr || g_nopt == 32) {
+                fprintf(stderr, "-O takes name=value, at most 32 times\n");
+                return 2;
+            }
+            *eq = '\0';
+            g_opt_name[g_nopt] = pair;
+            g_opt_value[g_nopt] = eq + 1;
+            g_nopt++;
+        }
+        else if (strcmp(argv[i], "-L") == 0 && i + 1 < argc) {
+            g_work_limit = (int64_t)strtod(argv[++i], nullptr);
+            if (g_work_limit < 1) {
+                fprintf(stderr, "-L takes a positive work limit, not %s\n",
+                        argv[i]);
+                return 2;
+            }
+        }
         else if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
             jobs = atoi(argv[++i]);
             if (jobs < 1) {

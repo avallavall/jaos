@@ -1,0 +1,7 @@
+# HiGHS in the MIP comparison: one thread, and the relative gap JAOS stops at
+# (MIP_GAP in docs/tolerances.md) in place of HiGHS's own 1e-4.
+threads = 1
+mip_rel_gap = 1e-6
+output_flag = true
+log_to_console = true
+log_file = /dev/null

@@ -79,7 +79,7 @@ COV_TESTS  := $(TESTS:tests/%.c=$(B)/cov/%)
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
 	plato plato-pds plato-fome plato-nug \
 	plato-pds-baseline plato-fome-baseline plato-nug-baseline \
-	miplib miplib-baseline cblib cblib-baseline \
+	miplib miplib-baseline miplib2017 cblib cblib-baseline \
 	warm warm-kennington primal primal-kennington barrier barrier-infeas \
 	pdlp pdlp-infeas concurrent \
 	shared python-test julia-test dotnet-test java java-test r-test fuzz \
@@ -446,6 +446,19 @@ miplib: $(B)/bench/run
 		-d bench/instances-miplib \
 		-b bench/miplib.baseline \
 		-o bench/results/miplib.txt
+
+MIPLIB2017_WORK ?= 1e10
+MIPLIB2017_ARGS ?=
+MIPLIB2017_OUT  ?= bench/results/miplib2017.txt
+
+miplib2017: $(B)/bench/run
+	@bench/fetch.sh -m bench/miplib2017.manifest \
+		-b https://miplib.zib.de/WebData/instances -p mps-gz \
+		bench/instances-miplib2017
+	@mkdir -p bench/results
+	./$(B)/bench/run -j $(J) -m bench/miplib2017.manifest -e mip \
+		-d bench/instances-miplib2017 -L $(MIPLIB2017_WORK) $(MIPLIB2017_ARGS) \
+		-o $(MIPLIB2017_OUT)
 
 maros-meszaros: $(B)/bench/run
 	@bench/fetch.sh -m bench/maros-meszaros.manifest \

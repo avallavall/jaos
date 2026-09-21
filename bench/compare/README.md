@@ -1,6 +1,7 @@
 # The comparison harness
 
-Times JAOS against HiGHS, SoPlex and Clp on the Netlib standard set. Nothing
+Times JAOS against HiGHS, SoPlex and Clp on the Netlib standard set, and
+against HiGHS and SCIP on MIPLIB 3 and the MIPLIB 2017 reading. Nothing
 here is part of what JAOS ships. Its record is `results/`, and it carries
 seconds, which `bench/results/` never does.
 
@@ -14,6 +15,16 @@ make compare COMPARE_ARGS='-t P0'
 `*.manifest` files. Rung `P0` is every solver's own presolve on, the dual
 simplex forced, no crash basis, one thread. Never run bare `make compare`: it
 defaults to rung T0, which was defined when JAOS had no presolve.
+
+The MIP comparison runs one set at a time:
+
+```
+SCIP_PYTHON=/path/to/python bash bench/compare/run-mip.sh \
+    -m bench/miplib2017.manifest -d bench/instances-miplib2017 -t 20
+```
+
+`SCIP_PYTHON` names a Python that has `pyscipopt`; without it SCIP is left
+out.
 
 ## The rungs
 
@@ -45,12 +56,38 @@ reference, so that instance counts against HiGHS only.
 The three rivals disagree about the iteration count and agree about the cost
 of one iteration. The iteration is what costs.
 
+## The MIP reading
+
+`run-mip.sh` solves each instance with JAOS, HiGHS 1.15.1 and SCIP 10.0
+(through `pyscipopt` 6.2.1), 20 s each and one thread. All three stop at the
+relative gap JAOS stops at, 1e-6 (`MIP_GAP`): `highs-mip.opt` and
+`scip_solve.py` set it for the other two. An instance counts as solved when
+the solver ends optimal, or at its gap limit, with the objective at the
+reference within `1e-6 * max(|ref|, 1)`. `summarise_mip.py` prints the
+solved counts, the shifted geometric mean of the seconds (a shift of 1 s,
+an unsolved instance counted at the limit), and the ratio of the shifted
+means.
+
+2026-09-21, tree 3086162, `results/mip-miplib.txt` and
+`results/mip-miplib2017.txt`:
+
+| set | JAOS | HiGHS | SCIP | JAOS / HiGHS | JAOS / SCIP |
+|---|---|---|---|---|---|
+| MIPLIB 3, 24 instances | 23 solved, 1.43 s | 24, 0.70 s | 24, 0.64 s | 1.43x | 1.48x |
+| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 14.38 s | 7, 12.87 s | 1.37x | 1.51x |
+
+JAOS leaves l152lav at the limit on MIPLIB 3. On the 2017 set it finishes
+none of the eight the rivals finish. A first run left HiGHS on its own
+thread count and a gap of 1e-4 and SCIP at a gap of 0;
+`bench/measurements/02-284/` keeps that run as `mip-*-unequal.txt`.
+
 ## Rules
 
 - A time without a verified answer is discarded. Every competitor's objective
   is checked against the Koch reference within the gate's tolerance.
 - Tolerances are equalised: JAOS runs at the stricter of HiGHS's 1e-7 and
-  SoPlex's 1e-6.
+  SoPlex's 1e-6. On MIP the three share the relative gap 1e-6 and one
+  thread.
 - Every result line names the machine. A number taken under WSL is a
   development number.
 - The harness repeats to about 1.4% on this host, measured from JAOS's own
