@@ -744,6 +744,9 @@ typedef struct {
     int64_t *s;
     int64_t *path;
     int64_t *mark;
+    int64_t *row_work;
+
+    int64_t threads;
 } jm_chol;
 
 void jm_chol_init(jm_chol *c);

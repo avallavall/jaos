@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <assert.h>
 #include <math.h>
@@ -11,6 +12,15 @@ constexpr double CHOL_PIVOT_HUGE = 1e128;
 constexpr double TINY            = 1e-300;
 constexpr double CHOL_DENSE      = 10.0;
 constexpr int64_t CHOL_DENSE_MIN = 16;
+#ifndef JAOS_CHOL_BLOCK_VALUE
+#define JAOS_CHOL_BLOCK_VALUE 32
+#endif
+constexpr int64_t CHOL_BLOCK = JAOS_CHOL_BLOCK_VALUE;
+#ifndef JAOS_CHOL_BLOCK_WORK_VALUE
+#define JAOS_CHOL_BLOCK_WORK_VALUE 1000000
+#endif
+constexpr int64_t CHOL_BLOCK_WORK = JAOS_CHOL_BLOCK_WORK_VALUE;
+constexpr int64_t CHOL_THREADS_MAX = 64;
 
 typedef struct {
     int64_t *idx;
@@ -341,6 +351,7 @@ void jm_chol_free(jm_chol *c)
     free(c->s);
     free(c->path);
     free(c->mark);
+    free(c->row_work);
     memset(c, 0, sizeof *c);
 }
 
@@ -400,10 +411,11 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
     c->s    = jm_alloc_array(n, sizeof *c->s);
     c->path = jm_alloc_array(n, sizeof *c->path);
     c->mark = jm_alloc_array(n, sizeof *c->mark);
+    c->row_work = jm_alloc_array(n, sizeof *c->row_work);
     if (c->perm == nullptr || c->inv == nullptr || c->parent == nullptr ||
         c->l_start == nullptr || c->a_start == nullptr || c->fill == nullptr ||
         c->x == nullptr || c->s == nullptr || c->path == nullptr ||
-        c->mark == nullptr)
+        c->mark == nullptr || c->row_work == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
 
     md g;
@@ -463,8 +475,10 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
     for (int64_t k = 0; k < n; k++) {
         int64_t top = ereach(c, k);
         reach += n - top;
+        int64_t row = 0;
         for (int64_t q = top; q < n; q++)
-            c->fill[c->s[q]]++;
+            row += c->fill[c->s[q]]++ - 1;
+        c->row_work[k] = row;
     }
     jm_work_add(w, (reach + c->a_start[n]) * JM_WORK_NONZERO);
 
@@ -483,11 +497,180 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
     return JAOS_OK;
 }
 
+static void chol_pivot(jm_chol *c, int64_t k, double diag, double d)
+{
+    double low = fabs(diag) * CHOL_PIVOT_REL;
+    if (low < TINY)
+        low = TINY;
+    if (!(d > low)) {
+        d = CHOL_PIVOT_HUGE;
+        c->replaced++;
+    }
+    c->l_value[c->l_start[k]] = sqrt(d);
+}
+
+static void chol_row(jm_chol *c, const double *value, int64_t k,
+                     int64_t *gathered, int64_t *eliminated)
+{
+    const int64_t n = c->n;
+    const int64_t top = ereach(c, k);
+    double diag = 0.0;
+    for (int64_t p = c->a_start[k]; p < c->a_start[k + 1]; p++) {
+        const int64_t i = c->a_index[p];
+        const double v = value[c->a_src[p]];
+        if (i == k)
+            diag += v;
+        else
+            c->x[i] += v;
+    }
+    *gathered += c->a_start[k + 1] - c->a_start[k] + n - top;
+    double d = diag;
+    for (int64_t q = top; q < n; q++) {
+        const int64_t i = c->s[q];
+        const double lki = c->x[i] / c->l_value[c->l_start[i]];
+        c->x[i] = 0.0;
+        const int64_t p0 = c->l_start[i] + 1, p1 = c->fill[i];
+        for (int64_t p = p0; p < p1; p++)
+            c->x[c->l_index[p]] -= c->l_value[p] * lki;
+        *eliminated += p1 - p0;
+        d -= lki * lki;
+        c->l_index[p1] = k;
+        c->l_value[p1] = lki;
+        c->fill[i] = p1 + 1;
+    }
+    chol_pivot(c, k, diag, d);
+}
+
+typedef struct {
+    int64_t k0, k1;
+    int64_t off[CHOL_BLOCK], len[CHOL_BLOCK], who[CHOL_BLOCK];
+    double diag[CHOL_BLOCK];
+    double xb[CHOL_BLOCK * CHOL_BLOCK];
+} chol_block;
+
+typedef struct {
+    jm_chol *c;
+    const double *value;
+    chol_block *b;
+    int64_t id, lanes;
+    int64_t *mark, *s, *path;
+    double *x;
+    int64_t *rs, *rp;
+    double *rl;
+    int64_t cap_s, cap_p, cap_l, used;
+    int64_t gathered, eliminated;
+    bool failed;
+} chol_lane;
+
+static bool chol_front(chol_lane *t, int64_t k)
+{
+    jm_chol *c = t->c;
+    chol_block *b = t->b;
+    const int64_t n = c->n, k0 = b->k0, at = k - k0;
+    int64_t top = n;
+    t->mark[k] = k;
+    for (int64_t p = c->a_start[k]; p < c->a_start[k + 1]; p++) {
+        int64_t i = c->a_index[p];
+        int64_t len = 0;
+        for (; t->mark[i] != k; i = c->parent[i]) {
+            t->path[len++] = i;
+            t->mark[i] = k;
+        }
+        while (len > 0)
+            t->s[--top] = t->path[--len];
+    }
+    const int64_t r = n - top;
+    if (!JM_GROW(t->rs, t->cap_s, t->used + r) ||
+        !JM_GROW(t->rp, t->cap_p, t->used + r) ||
+        !JM_GROW(t->rl, t->cap_l, t->used + r))
+        return false;
+    int64_t *rs = t->rs + t->used, *rp = t->rp + t->used;
+    double *rl = t->rl + t->used;
+    double diag = 0.0;
+    for (int64_t p = c->a_start[k]; p < c->a_start[k + 1]; p++) {
+        const int64_t i = c->a_index[p];
+        const double v = t->value[c->a_src[p]];
+        if (i == k)
+            diag += v;
+        else
+            t->x[i] += v;
+    }
+    t->gathered += c->a_start[k + 1] - c->a_start[k] + r;
+    for (int64_t q = 0; q < r; q++) {
+        const int64_t i = t->s[top + q];
+        rs[q] = i;
+        rp[q] = 0;
+        rl[q] = 0.0;
+        if (i >= k0)
+            continue;
+        const double lki = t->x[i] / c->l_value[c->l_start[i]];
+        t->x[i] = 0.0;
+        const int64_t p0 = c->l_start[i] + 1, p1 = c->fill[i];
+        for (int64_t p = p0; p < p1; p++)
+            t->x[c->l_index[p]] -= c->l_value[p] * lki;
+        t->eliminated += p1 - p0;
+        rl[q] = lki;
+        rp[q] = p1;
+    }
+    for (int64_t j = k0; j < k; j++) {
+        b->xb[at * CHOL_BLOCK + (j - k0)] = t->x[j];
+        t->x[j] = 0.0;
+    }
+    b->off[at] = t->used;
+    b->len[at] = r;
+    b->who[at] = t->id;
+    b->diag[at] = diag;
+    t->used += r;
+    return true;
+}
+
+static void chol_lane_run(void *arg)
+{
+    chol_lane *t = arg;
+    for (int64_t k = t->b->k0 + t->id; k < t->b->k1 && !t->failed;
+         k += t->lanes)
+        t->failed = !chol_front(t, k);
+}
+
+static void chol_back(jm_chol *c, const chol_block *b, const chol_lane *lane,
+                      int64_t k, int64_t *eliminated)
+{
+    const int64_t k0 = b->k0, at = k - k0;
+    const chol_lane *t = &lane[b->who[at]];
+    const int64_t *rs = t->rs + b->off[at], *rp = t->rp + b->off[at];
+    const double *rl = t->rl + b->off[at];
+    for (int64_t j = k0; j < k; j++)
+        c->x[j] = b->xb[at * CHOL_BLOCK + (j - k0)];
+    double d = b->diag[at];
+    for (int64_t q = 0; q < b->len[at]; q++) {
+        const int64_t i = rs[q];
+        const int64_t p1 = c->fill[i];
+        double lki;
+        int64_t p0;
+        if (i < k0) {
+            lki = rl[q];
+            p0 = rp[q];
+        } else {
+            lki = c->x[i] / c->l_value[c->l_start[i]];
+            c->x[i] = 0.0;
+            p0 = c->l_start[i] + 1;
+        }
+        for (int64_t p = p0; p < p1; p++)
+            c->x[c->l_index[p]] -= c->l_value[p] * lki;
+        *eliminated += p1 - p0;
+        d -= lki * lki;
+        c->l_index[p1] = k;
+        c->l_value[p1] = lki;
+        c->fill[i] = p1 + 1;
+    }
+    chol_pivot(c, k, b->diag[at], d);
+}
+
 jaos_status jm_chol_numeric(jm_chol *c, const double *value, jm_work *w)
 {
     if (!c->symbolic || (c->n > 0 && value == nullptr))
         return JAOS_ERR_INVALID_INPUT;
-    int64_t n = c->n;
+    const int64_t n = c->n;
     int64_t gathered = 0, eliminated = 0;
 
     jm_work_add(w, JM_WORK_FACTOR);
@@ -498,42 +681,83 @@ jaos_status jm_chol_numeric(jm_chol *c, const double *value, jm_work *w)
         c->x[k] = 0.0;
     }
 
-    for (int64_t k = 0; k < n; k++) {
-        int64_t top = ereach(c, k);
-        double diag = 0.0;
-        for (int64_t p = c->a_start[k]; p < c->a_start[k + 1]; p++) {
-            int64_t i = c->a_index[p];
-            double v = value[c->a_src[p]];
-            if (i == k)
-                diag += v;
-            else
-                c->x[i] += v;
+    const int64_t lanes = c->threads > CHOL_THREADS_MAX ? CHOL_THREADS_MAX
+                          : c->threads > 1 ? c->threads : 1;
+    chol_lane lane[CHOL_THREADS_MAX] = {};
+    chol_block *b = nullptr;
+    int64_t *lmark = nullptr, *lsp = nullptr;
+    double *lx = nullptr;
+    jaos_status st = JAOS_OK;
+    if (lanes > 1) {
+        b = jm_calloc_array(1, sizeof *b);
+        lmark = jm_alloc_array(lanes * n, sizeof *lmark);
+        lsp = jm_alloc_array(2 * lanes * n, sizeof *lsp);
+        lx = jm_calloc_array(lanes * n, sizeof *lx);
+        if (b == nullptr || lmark == nullptr || lsp == nullptr ||
+            lx == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto out;
         }
-        gathered += c->a_start[k + 1] - c->a_start[k];
-        double d = diag;
-        for (int64_t q = top; q < n; q++) {
-            int64_t i = c->s[q];
-            double lki = c->x[i] / c->l_value[c->l_start[i]];
-            c->x[i] = 0.0;
-            int64_t p0 = c->l_start[i] + 1, p1 = c->fill[i];
-            for (int64_t p = p0; p < p1; p++)
-                c->x[c->l_index[p]] -= c->l_value[p] * lki;
-            eliminated += p1 - p0;
-            d -= lki * lki;
-            c->l_index[p1] = k;
-            c->l_value[p1] = lki;
-            c->fill[i] = p1 + 1;
-        }
-        gathered += n - top;
-        double low = fabs(diag) * CHOL_PIVOT_REL;
-        if (low < TINY)
-            low = TINY;
-        if (!(d > low)) {
-            d = CHOL_PIVOT_HUGE;
-            c->replaced++;
-        }
-        c->l_value[c->l_start[k]] = sqrt(d);
+        for (int64_t i = 0; i < lanes * n; i++)
+            lmark[i] = -1;
+        for (int64_t t = 0; t < lanes; t++)
+            lane[t] = (chol_lane){ .c = c, .value = value, .b = b, .id = t,
+                                   .lanes = lanes, .mark = lmark + t * n,
+                                   .s = lsp + 2 * t * n,
+                                   .path = lsp + (2 * t + 1) * n,
+                                   .x = lx + t * n };
     }
+    for (int64_t k0 = 0; k0 < n;) {
+        const int64_t k1 = n - k0 > CHOL_BLOCK ? k0 + CHOL_BLOCK : n;
+        int64_t work = 0;
+        for (int64_t k = k0; lanes > 1 && k < k1; k++)
+            work += c->row_work[k];
+        if (lanes == 1 || work < CHOL_BLOCK_WORK) {
+            for (int64_t k = k0; k < k1; k++)
+                chol_row(c, value, k, &gathered, &eliminated);
+            k0 = k1;
+            continue;
+        }
+        b->k0 = k0;
+        b->k1 = k1;
+        for (int64_t t = 0; t < lanes; t++)
+            lane[t].used = 0;
+        jm_thread th[CHOL_THREADS_MAX];
+        bool started[CHOL_THREADS_MAX] = {};
+        for (int64_t t = 1; t < lanes; t++)
+            started[t] = jm_thread_start(&th[t], chol_lane_run, &lane[t]);
+        chol_lane_run(&lane[0]);
+        for (int64_t t = 1; t < lanes; t++) {
+            if (started[t])
+                jm_thread_join(&th[t]);
+            else
+                chol_lane_run(&lane[t]);
+        }
+        for (int64_t t = 0; t < lanes; t++)
+            if (lane[t].failed) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto out;
+            }
+        for (int64_t k = k0; k < k1; k++)
+            chol_back(c, b, lane, k, &eliminated);
+        k0 = k1;
+    }
+    for (int64_t t = 0; t < lanes; t++) {
+        gathered += lane[t].gathered;
+        eliminated += lane[t].eliminated;
+    }
+out:
+    for (int64_t t = 0; t < lanes; t++) {
+        free(lane[t].rs);
+        free(lane[t].rp);
+        free(lane[t].rl);
+    }
+    free(b);
+    free(lmark);
+    free(lsp);
+    free(lx);
+    if (st != JAOS_OK)
+        return st;
     for (int64_t k = 0; k < n; k++)
         assert(c->fill[k] == c->l_start[k + 1]);
     jm_work_add(w, gathered * JM_WORK_NONZERO + eliminated * JM_WORK_ELIMINATED);

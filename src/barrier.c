@@ -758,6 +758,7 @@ static jaos_status form_normal(bx *s)
         }
     }
     jm_work_add(&s->work, (terms + s->n_start[s->nrow]) * JM_WORK_NONZERO);
+    s->chol.threads = jaos_threads_of(s->m);
     jaos_status st = jm_chol_numeric(&s->chol, s->n_value, &s->work);
     if (st != JAOS_OK || s->ndense == 0)
         return st;

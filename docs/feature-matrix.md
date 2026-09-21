@@ -297,6 +297,14 @@ identical at 1 and at 3 threads, while the wall clock over the set falls
 from 132.6 s to 110.4 s. The benchmark runner's `-j N` is something else,
 process-level concurrency with one instance per process.
 
+**Since 2026-09-22 the barrier spreads its factorisation over N cores.**
+Under `--threads N` the normal equations' Cholesky solves each block of 32
+rows on N threads and applies the updates inside the block in a fixed
+order, so the factor, the answer and the work units are the same at any
+count (`bench/measurements/02-288/`). dfl001 falls from 67.7 s to 38.8 s on
+four threads. The simplex still runs on one thread, which keeps the LP row
+at ◐.
+
 SCIP reads ◐ on the LP row because `lp/threads` threads the LP only when
 the LP solver it drives is threaded, and its default, SoPlex, is not. It
 reads ● on determinism because ConcurrentSCIP is documented as completely

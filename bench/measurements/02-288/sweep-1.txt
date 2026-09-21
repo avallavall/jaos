@@ -1,0 +1,12 @@
+b32 dfl001 threads=1 wall=67.67s objective=11266396.046671389 work_units=216800375511 
+b32 dfl001 threads=2 wall=50.77s objective=11266396.046671389 work_units=216800375511 
+b32 dfl001 threads=4 wall=38.76s objective=11266396.046671389 work_units=216800375511 
+b32 dfl001 threads=8 wall=38.05s objective=11266396.046671389 work_units=216800375511 
+b16 dfl001 threads=4 wall=43.01s objective=11266396.046671389 work_units=216800375511 
+b64 dfl001 threads=4 wall=35.87s objective=11266396.046671389 work_units=216800375511 
+w1e5 dfl001 threads=4 wall=32.80s objective=11266396.046671389 work_units=216800375511 
+w1e7 dfl001 threads=4 wall=39.63s objective=11266396.046671389 work_units=216800375511 
+b32 maros-r7 threads=1 wall=4.00s objective=1497185.1664796439 work_units=15025908083 
+b16 maros-r7 threads=4 wall=3.26s objective=1497185.1664796439 work_units=15025908083 
+b32 maros-r7 threads=4 wall=2.85s objective=1497185.1664796439 work_units=15025908083 
+b16 maros-r7 threads=4 wall=3.20s objective=1497185.1664796439 work_units=15025908083 

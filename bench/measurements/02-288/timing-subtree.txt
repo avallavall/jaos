@@ -1,0 +1,37 @@
+dfl001 threads=1 wall=114.26s factorizations=201
+   par 0: sub 0.00s top 0.00s; seq 201: 99.50s
+barrier: 6071 rows, 12230 columns, 35632 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier stopped after 200 iterations, 214368314504 work units: the barrier did not converge in 200 iterations (primal 3.684e-06, dual 1.488e-15, gap 5.605e-09): the model may be infeasible or unbounde
+optimal after 20409 iterations, 216800375511 work units; 315 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+iterations 20609
+dfl001 threads=4 wall=102.85s factorizations=201
+   par 201: sub 4.23s top 84.19s; seq 0: 0.00s
+barrier: 6071 rows, 12230 columns, 35632 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier stopped after 200 iterations, 214368314504 work units: the barrier did not converge in 200 iterations (primal 3.684e-06, dual 1.488e-15, gap 5.605e-09): the model may be infeasible or unbounde
+optimal after 20409 iterations, 216800375511 work units; 315 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+iterations 20609
+pilot87 threads=1 wall=72.28s factorizations=45
+   par 0: sub 0.00s top 0.00s; seq 45: 3.54s
+barrier: 2030 rows, 4883 columns, 73152 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier converged after 44 iterations, 9783233650 work units; crossing over to the simplex from its basis guess
+the settled point from the supplied basis is not dual feasible; restarting cold from the slack basis after 60516 iterations, 1033 refactorizations, 803 weight restarts, 0 stalls, 78 stability rebuilds
+optimal after 9490 iterations, 48891649173 work units; 148 refactorizations, 65 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+pilot87 threads=4 wall=74.69s factorizations=45
+   par 45: sub 0.04s top 2.91s; seq 0: 0.00s
+barrier: 2030 rows, 4883 columns, 73152 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier converged after 44 iterations, 9783233650 work units; crossing over to the simplex from its basis guess
+the settled point from the supplied basis is not dual feasible; restarting cold from the slack basis after 60516 iterations, 1033 refactorizations, 803 weight restarts, 0 stalls, 78 stability rebuilds
+optimal after 9490 iterations, 48891649173 work units; 148 refactorizations, 65 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+maros-r7 threads=1 wall=7.32s factorizations=83
+   par 0: sub 0.00s top 0.00s; seq 83: 3.80s
+barrier: 3136 rows, 9408 columns, 144848 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier converged after 82 iterations, 14831931446 work units; crossing over to the simplex from its basis guess
+optimal after 3254 iterations, 16775433170 work units; 60 refactorizations, 142 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+iterations 3336
+maros-r7 threads=4 wall=8.26s factorizations=83
+   par 83: sub 0.07s top 4.25s; seq 0: 0.00s
+barrier: 3136 rows, 9408 columns, 144848 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier converged after 82 iterations, 14831931446 work units; crossing over to the simplex from its basis guess
+optimal after 3254 iterations, 16775433170 work units; 60 refactorizations, 142 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+iterations 3336
+CHOLDIAG par n=4919 nnz=1405960 parts=4 [3809 rows 28377856 elim] [18 rows 0 elim] [19 rows 0 elim] [20 rows 0 elim] [1053 rows 500962002 elim] sub=0.0332s top=0.4799s

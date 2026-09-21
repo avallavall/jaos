@@ -339,6 +339,100 @@ static void test_bit_identical_across_runs(void)
     jm_chol_free(&c2);
 }
 
+static void big_normal_equations(int64_t n, int64_t cols, double density,
+                                 int64_t *start, int64_t **index,
+                                 double **value)
+{
+    double *b = calloc((size_t)(n * cols), sizeof *b);
+    double *a = calloc((size_t)(n * n), sizeof *a);
+    TEST_ASSERT_NOT_NULL(b);
+    TEST_ASSERT_NOT_NULL(a);
+    for (int64_t j = 0; j < cols; j++)
+        for (int64_t i = 0; i < n; i++)
+            if (rng_unit() < density)
+                b[i * cols + j] = 2.0 * rng_unit() - 1.0;
+    for (int64_t i = 0; i < n; i++)
+        for (int64_t k = 0; k <= i; k++) {
+            double s = i == k ? 1e-3 : 0.0;
+            for (int64_t j = 0; j < cols; j++)
+                s += b[i * cols + j] * b[k * cols + j];
+            a[i * n + k] = a[k * n + i] = s;
+        }
+    int64_t nnz = 0;
+    for (int64_t p = 0; p < n * n; p++)
+        nnz += a[p] != 0.0;
+    *index = malloc((size_t)nnz * sizeof **index);
+    *value = malloc((size_t)nnz * sizeof **value);
+    TEST_ASSERT_NOT_NULL(*index);
+    TEST_ASSERT_NOT_NULL(*value);
+    nnz = 0;
+    for (int64_t j = 0; j < n; j++) {
+        start[j] = nnz;
+        for (int64_t i = 0; i < n; i++)
+            if (a[i * n + j] != 0.0) {
+                (*index)[nnz] = i;
+                (*value)[nnz] = a[i * n + j];
+                nnz++;
+            }
+    }
+    start[n] = nnz;
+    free(a);
+    free(b);
+}
+
+static void test_bit_identical_across_thread_counts(void)
+{
+    rng = 0x5eedu;
+    const int64_t sizes[2][2] = { { 400, 600 }, { 700, 1400 } };
+    const double density[2] = { 1.0, 0.004 };
+    for (int s = 0; s < 2; s++) {
+        const int64_t n = sizes[s][0];
+        int64_t *start = malloc((size_t)(n + 1) * sizeof *start);
+        TEST_ASSERT_NOT_NULL(start);
+        int64_t *index = nullptr;
+        double *value = nullptr;
+        big_normal_equations(n, sizes[s][1], density[s], start, &index,
+                             &value);
+        jm_chol ref;
+        jm_work wref = {0};
+        jm_chol_init(&ref);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jm_chol_symbolic(&ref, n, start, index, &wref));
+        int64_t heaviest = 0;
+        for (int64_t k0 = 0; k0 < n; k0 += 32) {
+            int64_t sum = 0;
+            for (int64_t k = k0; k < n && k < k0 + 32; k++)
+                sum += ref.row_work[k];
+            if (sum > heaviest)
+                heaviest = sum;
+        }
+        TEST_ASSERT_TRUE(heaviest >= 1000000);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_chol_numeric(&ref, value, &wref));
+        const int threads[4] = { 2, 3, 4, 7 };
+        for (int t = 0; t < 4; t++) {
+            jm_chol c;
+            jm_work w = {0};
+            jm_chol_init(&c);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jm_chol_symbolic(&c, n, start, index, &w));
+            c.threads = threads[t];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_chol_numeric(&c, value, &w));
+            TEST_ASSERT_EQUAL_INT64(ref.nnz, c.nnz);
+            TEST_ASSERT_EQUAL_MEMORY(ref.l_index, c.l_index,
+                                     sizeof(int64_t) * (size_t)c.nnz);
+            TEST_ASSERT_EQUAL_MEMORY(ref.l_value, c.l_value,
+                                     sizeof(double) * (size_t)c.nnz);
+            TEST_ASSERT_EQUAL_INT64(ref.replaced, c.replaced);
+            TEST_ASSERT_EQUAL_INT64(wref.units, w.units);
+            jm_chol_free(&c);
+        }
+        jm_chol_free(&ref);
+        free(start);
+        free(index);
+        free(value);
+    }
+}
+
 static void test_work_is_counted(void)
 {
     sym m;
@@ -621,6 +715,7 @@ int main(void)
     RUN_TEST(test_singular_pivot_is_replaced);
     RUN_TEST(test_numeric_refactors_on_the_same_pattern);
     RUN_TEST(test_bit_identical_across_runs);
+    RUN_TEST(test_bit_identical_across_thread_counts);
     RUN_TEST(test_work_is_counted);
     RUN_TEST(test_empty_system);
     RUN_TEST(test_rejects_bad_input);

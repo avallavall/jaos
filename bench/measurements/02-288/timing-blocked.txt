@@ -1,0 +1,10 @@
+18 Tests 0 Failures 0 Ignored 
+OK
+dfl001 threads=1 wall=71.75s status=optimal objective=11266396.046671389 iterations=20609 work_units=216800375511 
+dfl001 threads=4 wall=41.92s status=optimal objective=11266396.046671389 iterations=20609 work_units=216800375511 
+pilot87 threads=1 wall=65.85s status=optimal objective=301.71034733311052 iterations=9534 work_units=48891649173 
+pilot87 threads=4 wall=61.59s status=optimal objective=301.71034733311052 iterations=9534 work_units=48891649173 
+maros-r7 threads=1 wall=6.45s status=optimal objective=1497185.1664796439 iterations=3336 work_units=16775433170 
+maros-r7 threads=4 wall=5.73s status=optimal objective=1497185.1664796439 iterations=3336 work_units=16775433170 
+d2q06c threads=1 wall=19.65s status=optimal objective=122784.21081418944 iterations=8877 work_units=7954442728 
+d2q06c threads=4 wall=19.61s status=optimal objective=122784.21081418944 iterations=8877 work_units=7954442728 

@@ -17,7 +17,7 @@ to verify it, so a row leaves when its check passes, not before.
 
 The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
 `bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. Rows B6 to B9 in gain order; B14
+the iteration count on four instances. Rows B6 and B8 in gain order; B14
 follows from the others, so it comes after. Each is unrefused today;
 read the named refusal before
 starting and stop if its condition is not met. Every row
@@ -42,12 +42,6 @@ B6 **The dual push.** The primal push landed on 2026-09-22
 B8 **Parallel tree for `src/mip.c`.** Row C7 below has the design. A
     wall-clock reading needs the larger set, which `make miplib2017` now
     is (`bench/measurements/02-284/`).
-
-B9 **A parallel simplex or a parallel barrier.** SPECS's "Parallel LP"
-    row: one method on N cores on one factorisation. Absent and not
-    refused. The barrier's normal-equation Cholesky is the natural first
-    (parallel column blocks in `src/chol.c` with a fixed schedule, so the
-    result is bit-identical). Last in B; it needs a design reading first.
 
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
