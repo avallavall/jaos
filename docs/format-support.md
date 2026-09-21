@@ -9,7 +9,11 @@ during the Netlib campaign, it lands in this file in the same commit.
 ## Compressed input
 
 Every model reader (MPS, LP, `.nl`, OSiL, QPLIB and CBF) takes a gzip
-file (RFC 1952) wherever it takes a plain one. The decision is made on the
+file (RFC 1952) wherever it takes a plain one, and so does every reader of
+an answer file: the solution, the MPS basis, the point and the duals files,
+which the writers compress on a `.gz` name. Before 2026-09-21 those four
+readers took plain text only, so JAOS wrote a `.gz` answer it could not
+read back. The decision is made on the
 first two bytes of the file, so a `.gz` name is neither required nor
 trusted, and a file that is not gzip goes to the parser unchanged. No other
 container is recognised: a bzip2 or xz file reaches the format's parser as

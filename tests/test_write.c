@@ -1912,6 +1912,72 @@ static void test_the_answer_writers_take_a_gz_name(void)
     jaos_model_free(m);
 }
 
+static void test_every_answer_file_written_as_gz_reads_back(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+
+    const char *sol = "build/tw_back.sol.gz", *bas = "build/tw_back.bas.gz";
+    const char *pt = "build/tw_back.pt.gz", *du = "build/tw_back.du.gz";
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_solution(m, sol));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_mps_basis(m, bas));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_point(m, pt));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_duals(m, du));
+
+    double *x = calloc((size_t)nc, sizeof *x);
+    double *d = calloc((size_t)nc, sizeof *d);
+    double *act = calloc((size_t)nr, sizeof *act);
+    double *y = calloc((size_t)nr, sizeof *y);
+    double *x2 = calloc((size_t)nc, sizeof *x2);
+    double *y2 = calloc((size_t)nr, sizeof *y2);
+    jaos_basis_status *cs = calloc((size_t)nc, sizeof *cs);
+    jaos_basis_status *rs = calloc((size_t)nr, sizeof *rs);
+    jaos_basis_status *cs2 = calloc((size_t)nc, sizeof *cs2);
+    jaos_basis_status *rs2 = calloc((size_t)nr, sizeof *rs2);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(rs2);
+
+    double want = 0.0, obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &want));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x2, nullptr, y2, nullptr));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_read_solution(m, sol, &obj, x, d, cs, act, y, rs),
+        jaos_model_error(m));
+    TEST_ASSERT_TRUE(obj == want);
+    for (int64_t j = 0; j < nc; j++)
+        TEST_ASSERT_TRUE(x[j] == x2[j]);
+    for (int64_t i = 0; i < nr; i++)
+        TEST_ASSERT_TRUE(y[i] == y2[i]);
+
+    jaos_solve_status ss = JAOS_SOLVE_NOT_RUN;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution_file_status(m, sol, &ss));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, ss);
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_read_mps_basis(m, bas, cs2, rs2), jaos_model_error(m));
+    for (int64_t j = 0; j < nc; j++)
+        TEST_ASSERT_EQUAL_INT(cs[j], cs2[j]);
+    for (int64_t i = 0; i < nr; i++)
+        TEST_ASSERT_EQUAL_INT(rs[i], rs2[i]);
+
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_read_point(m, pt, x2),
+                                  jaos_model_error(m));
+    for (int64_t j = 0; j < nc; j++)
+        TEST_ASSERT_TRUE(x[j] == x2[j]);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_read_duals(m, du, y2),
+                                  jaos_model_error(m));
+    for (int64_t i = 0; i < nr; i++)
+        TEST_ASSERT_TRUE(y[i] == y2[i]);
+
+    free(x); free(d); free(act); free(y); free(x2); free(y2);
+    free(cs); free(rs); free(cs2); free(rs2);
+    remove(sol); remove(bas); remove(pt); remove(du);
+    jaos_model_free(m);
+}
+
 static void test_a_refused_compressed_write_leaves_nothing(void)
 {
     jaos_model *m = fresh();
@@ -2439,6 +2505,7 @@ int main(void)
     RUN_TEST(test_both_model_writers_take_a_gz_name);
     RUN_TEST(test_a_plain_name_still_writes_text);
     RUN_TEST(test_the_answer_writers_take_a_gz_name);
+    RUN_TEST(test_every_answer_file_written_as_gz_reads_back);
     RUN_TEST(test_a_refused_compressed_write_leaves_nothing);
     RUN_TEST(test_a_point_file_round_trips);
     RUN_TEST(test_the_point_reader_takes_a_file_written_by_hand);

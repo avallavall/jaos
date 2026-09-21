@@ -2079,11 +2079,11 @@ typedef struct {
 static jaos_status read_solution_file(jaos_model *m, const char *path,
                                       int want_optimal, sol_read *o)
 {
-    FILE *f = fopen(path, "rb");
-    if (f == nullptr) {
-        jm_set_err(m, "cannot open '%s' for reading", path);
-        return JAOS_ERR_IO;
-    }
+    char *src = nullptr;
+    int64_t srclen = 0, at = 0;
+    const jaos_status open_st = jm_slurp(m, path, &src, &srclen);
+    if (open_st != JAOS_OK)
+        return open_st;
 
     jm_locale loc;
     jm_locale_c_enter(&loc);
@@ -2103,7 +2103,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
 #define RD_FAIL(...)  do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (jm_getline(&line, &lsz, f) >= 0) {
+    while (jm_memline(src, srclen, &at, &line, &lsz) >= 0) {
         lno++;
         if (ended)
             RD_FAIL("line %" PRId64 ": content after 'end'", lno);
@@ -2397,7 +2397,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
 #undef RD_FAIL
 done:
     free(line);
-    fclose(f);
+    free(src);
     jm_locale_leave(&loc);
     return st;
 }
@@ -2600,11 +2600,11 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
 
-    FILE *f = fopen(path, "rb");
-    if (f == nullptr) {
-        jm_set_err(m, "cannot open '%s' for reading", path);
-        return JAOS_ERR_IO;
-    }
+    char *src = nullptr;
+    int64_t srclen = 0, at = 0;
+    const jaos_status open_st = jm_slurp(m, path, &src, &srclen);
+    if (open_st != JAOS_OK)
+        return open_st;
 
     jaos_status st = JAOS_OK;
     char *line = nullptr;
@@ -2631,7 +2631,7 @@ jaos_status jaos_read_mps_basis(jaos_model *m, const char *path,
 #define BAS_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (jm_getline(&line, &lsz, f) >= 0) {
+    while (jm_memline(src, srclen, &at, &line, &lsz) >= 0) {
         lno++;
         if (ended)
             BAS_FAIL("line %" PRId64 ": content after 'ENDATA'", lno);
@@ -2739,7 +2739,7 @@ done:
     free(rs);
     free(cseen);
     free(rseen);
-    fclose(f);
+    free(src);
     return st;
 }
 
@@ -2752,13 +2752,14 @@ static bool starts_with(const char *s, const char *pre)
     return strncmp(s, pre, strlen(pre)) == 0;
 }
 
-static enum pt_shape sniff_shape(FILE *f)
+static enum pt_shape sniff_shape(const char *src, int64_t srclen)
 {
     enum pt_shape shape = PT_PLAIN;
     char *line = nullptr;
     size_t lsz = 0;
+    int64_t at = 0;
     bool first = true;
-    while (jm_getline(&line, &lsz, f) >= 0) {
+    while (jm_memline(src, srclen, &at, &line, &lsz) >= 0) {
         if (starts_with(line, "<?xml") || strstr(line, "<CPLEXSolution") != nullptr) {
             shape = PT_CPLEX;
             break;
@@ -2781,7 +2782,6 @@ static enum pt_shape sniff_shape(FILE *f)
         }
     }
     free(line);
-    rewind(f);
     return shape;
 }
 
@@ -2806,11 +2806,11 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
 {
     const int64_t n = is_col ? m->num_col : m->num_row;
 
-    FILE *f = fopen(path, "rb");
-    if (f == nullptr) {
-        jm_set_err(m, "cannot open '%s' for reading", path);
-        return JAOS_ERR_IO;
-    }
+    char *src = nullptr;
+    int64_t srclen = 0, at = 0;
+    const jaos_status open_st = jm_slurp(m, path, &src, &srclen);
+    if (open_st != JAOS_OK)
+        return open_st;
 
     jm_locale loc;
     jm_locale_c_enter(&loc);
@@ -2819,7 +2819,7 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
     char *line = nullptr;
     size_t lsz = 0;
     int64_t lno = 0, seen = 0;
-    const enum pt_shape shape = sniff_shape(f);
+    const enum pt_shape shape = sniff_shape(src, srclen);
     const bool lenient = shape == PT_MIPLIB || shape == PT_SCIP;
     int64_t block_left = -1, blocks = 0;
     const char *want_block = is_col ? "# Columns" : "# Rows";
@@ -2837,7 +2837,7 @@ static jaos_status read_named_values(jaos_model *m, const char *path,
 #define PT_FAIL(...) do { st = JAOS_ERR_INVALID_INPUT; \
     jm_set_err(m, __VA_ARGS__); goto done; } while (0)
 
-    while (jm_getline(&line, &lsz, f) >= 0) {
+    while (jm_memline(src, srclen, &at, &line, &lsz) >= 0) {
         lno++;
         char name[NAME_LEN], numtxt[64];
         const char *nm = nullptr, *val = nullptr;
@@ -2940,7 +2940,7 @@ done:
     free(line);
     free(got);
     jm_locale_leave(&loc);
-    fclose(f);
+    free(src);
     return st;
 }
 

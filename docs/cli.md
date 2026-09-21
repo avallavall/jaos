@@ -346,8 +346,10 @@ model with its own names is worth more to a person reading it.
 `out.mps.gz` and `out.lp.gz` work and name the same two formats. That is
 not special to `convert`: every path this tool writes to compresses when
 it ends in `.gz`, `--solution` and `--write-basis` and `relax --apply`
-included. `docs/format-support.md`, "Compressed output", has the rule and
-what it costs in size.
+included, and every path it reads takes such a file back: `--start`,
+`--basis`, `check`'s solution, `--point` and `--duals`.
+`docs/format-support.md`, "Compressed output", has the rule and what it
+costs in size.
 
 What JAOS writes, JAOS reads back as the same model, names included: the
 input's names are written out, and a row or column the input did not name

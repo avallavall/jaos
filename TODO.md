@@ -21,19 +21,6 @@ tag. A2 and A3 can interleave; A4 waits for both.
 
 ### A1. The working tree
 
-A1.7 **JAOS writes a gzipped answer file it cannot read.** Found on
-    2026-09-21 while fixing `docs/format-support.md`.
-    `jaos_write_solution` and `jaos_write_mps_basis` compress when the path
-    ends in `.gz`, and the readers of those files (`read_solution_file` at
-    `src/write.c:2082`, the MPS basis reader at `:2603`, the point and
-    duals reader at `:2809`) open them with plain `fopen` and parse text.
-    So `solve --solution out.sol.gz` followed by `check FILE out.sol.gz` or
-    `solve --start out.sol.gz` fails. `tests/test_write.c` checks only the
-    gzip magic of those files and never reads them back. Fix: read them
-    through `jm_slurp` and parse the lines from the buffer. Verify: a test
-    that writes each answer file as `.gz` and reads it back, and a
-    `tests/cli.sh` check of the same round trip.
-
 ### A2. Every document true
 
 Each row names the file and the lines as of dc7acc7. Verify each by

@@ -1133,11 +1133,24 @@ expect_exit 0 "--solution takes a .gz name" \
     "$JAOS" solve "$DATA/solve1.mps" --solution "$tmp/z.sol.gz"
 [ -s "$tmp/z.sol.gz" ] && pass "and the file is there" \
     || flunk "the .gz solution is missing"
+expect_exit 0 "and check reads the .gz solution back" \
+    "$JAOS" check "$DATA/solve1.mps" "$tmp/z.sol.gz"
 if [ "$faulty" -eq 0 ]; then
 expect_exit 0 "--write-basis takes one too" \
     "$JAOS" solve "$DATA/solve1.mps" --write-basis "$tmp/z.bas.gz"
 [ -s "$tmp/z.bas.gz" ] && pass "and that file is there" \
     || flunk "the .gz basis is missing"
+expect_exit 0 "and a solve warm-starts from the .gz basis" \
+    "$JAOS" solve "$DATA/solve1.mps" --basis "$tmp/z.bas.gz"
+[ "$(line_of iterations)" = "iterations 0" ] \
+    && pass "with no iteration left to take" \
+    || flunk "the warm start from the .gz basis took '$(line_of iterations)'"
+expect_exit 0 "--write-point and --write-duals take .gz names" \
+    "$JAOS" solve "$DATA/solve1.mps" --write-point "$tmp/z.pt.gz" \
+    --write-duals "$tmp/z.du.gz"
+expect_exit 0 "and check reads both back" \
+    "$JAOS" check "$DATA/solve1.mps" --point "$tmp/z.pt.gz" \
+    --duals "$tmp/z.du.gz"
 fi
 
 expect_exit 0 "convert --positional exits 0" \
