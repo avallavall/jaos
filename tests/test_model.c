@@ -1574,7 +1574,6 @@ static void test_deleting_an_indicator_s_switch_is_refused(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, 2, 1));
 
-    /* The row is off while column 2 may be zero, so nothing has to hold. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     double obj = -1.0;
@@ -1593,7 +1592,6 @@ static void test_deleting_an_indicator_s_switch_is_refused(void)
     TEST_ASSERT_EQUAL_INT64(2, col);
     TEST_ASSERT_EQUAL_INT(1, val);
 
-    /* Dropping the row first is the way through, and then the column goes. */
     const int64_t row[1] = {0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_rows(m, 1, row));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_delete_cols(m, 1, gone));
@@ -1628,13 +1626,10 @@ static void test_taking_the_integer_mark_off_an_indicator_s_switch(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 2, &is_int));
     TEST_ASSERT_TRUE(is_int);
 
-    /* Setting it again is not a change and is allowed. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
-    /* A column no indicator reads may lose its mark. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, false));
 
-    /* Clearing the indicator is the way through. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 0, -1, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, false));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, 2, &is_int));

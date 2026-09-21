@@ -20,12 +20,6 @@ static jaos_model *fresh(void)
     return m;
 }
 
-/* minimise  1/2 (2 x0^2 + 2 x1^2 + 2 x0 x1) - 3 x0 - 3 x1
-   subject to x0 + x1 <= 4, both in [0, 3].
-
-   Q = [[2, 1], [1, 2]] is positive definite, so the objective is convex.
-   Its unconstrained minimum solves Q x = (3, 3), which is x = (1, 1),
-   inside every bound; the objective there is 1/2 (2 + 2 + 2) - 6 = -3. */
 static jaos_model *paired_qp(void)
 {
     jaos_model *m = fresh();
@@ -124,10 +118,6 @@ static void test_a_paired_q_solves_to_the_point_it_should(void)
     jaos_model_free(m);
 }
 
-/* The same Q with x0 held to [1.5, 3]: the unconstrained minimum (1, 1)
-   is cut off, x0 sits on its lower bound with a reduced cost of 0.75, and
-   x1 settles at 0.75, where the objective is -2.8125.  The barrier's point
-   stops short of the bound by about mu / z; the push puts it there. */
 static jaos_model *bound_qp(void)
 {
     jaos_model *m = fresh();
@@ -184,11 +174,6 @@ static void test_without_the_push_the_point_stops_short_of_the_bound(void)
     jaos_model_free(m);
 }
 
-/* Generated model 930 of seed 4 in bench/measurements/02-248: four
-   separable columns, one equality row.  Mehrotra's walk on it settles
-   into a cycle of period two with mu between 0.3 and 0.7 and never
-   converges; the stall rule takes one step length and a centring floor
-   on sigma from the fifth flat iteration, and it finishes. */
 static void test_a_stalled_barrier_recentres_and_finishes(void)
 {
     jaos_model *m = fresh();
@@ -237,9 +222,6 @@ static void test_the_checker_judges_a_paired_q(void)
     jaos_model_free(m);
 }
 
-/* The cross term is what a diagonal Q cannot say.  With the same
-   diagonal and no pairing the optimum is elsewhere, so a solver that
-   quietly dropped the off-diagonal entry would land there instead. */
 static void test_the_cross_term_moves_the_answer(void)
 {
     jaos_model *a = paired_qp();
@@ -461,8 +443,6 @@ static void write_lines(const char *path, const char *const *lines)
     fclose(f);
 }
 
-/* QUADOBJ names the lower triangle once and QMATRIX names both halves.
-   One rule reads either: a pair given twice has to agree. */
 static void test_mps_reads_both_halves_when_the_file_gives_them(void)
 {
     static const char *const lower[] = {
@@ -540,9 +520,6 @@ static void test_mps_refuses_two_halves_that_disagree(void)
     remove("build/tq_bad.mps");
 }
 
-/* The LP dialect writes the objective as c'x + [ ... ] / 2, so a square
-   carries Q[j][j] and a product carries twice Q[i][j]: the block is
-   halved and the pair counts on both sides of the diagonal. */
 static void test_lp_carries_a_paired_q_both_ways(void)
 {
     static const char *const lines[] = {
@@ -585,8 +562,6 @@ static void test_lp_carries_a_paired_q_both_ways(void)
     remove("build/tq_back.lp");
 }
 
-/* Without the / 2 the block is not halved, so the same Q needs half the
-   coefficients. Both spellings have to reach the same model. */
 static void test_lp_takes_the_block_undivided(void)
 {
     static const char *const halved[] = {
@@ -612,9 +587,6 @@ static void test_lp_takes_the_block_undivided(void)
     remove("build/tq_undiv.lp");
 }
 
-/* QPLIB names the lower triangle of Q and OSiL names each qTerm as
-   coef * x_i * x_j, so a pair is Q[i][j] there and a square is half of
-   Q[j][j].  Both have to come back as the model that was written. */
 static void round_trip_paired(jaos_status (*write)(jaos_model *,
                                                    const char *),
                               jaos_status (*read)(jaos_model *,
@@ -663,12 +635,6 @@ static void test_osil_carries_a_paired_q_both_ways(void)
     round_trip_paired(jaos_write_osil, jaos_read_osil, "build/tqq.osil");
 }
 
-/* The starting point solves a plain least-squares system, with theta at
-   1, which leaves Q's diagonal out.  Its off-diagonal entries have to
-   stay out too: half of Q makes the block indefinite, the LDL replaces
-   the pivots it cannot sign, and the dual iterate leaves the model on
-   the first step.  These are models where that happened, taken from
-   generated ones; each is convex by construction, Q = L L' + eps I. */
 static void solve_convex(int64_t nc, int64_t nr, const double *cost,
                          const double *cl, const double *cu,
                          const double *rl, const double *ru,
@@ -722,13 +688,6 @@ static void test_a_paired_q_reaches_the_optimum_the_diagonal_does(void)
     }
 }
 
-/* The tree scores a rounded heuristic point itself, and it used to score it
-   with the diagonal of Q alone.  Off the diagonal the score can come out
-   better than any point really is; the point becomes the incumbent and the
-   bound it hands the tree cuts off the true optimum.  Two separable blocks
-   and one lone column, so every point is walkable by hand: the answer is
-   x = (0, 0, 1, 0, 0) at -3, and the diagonal alone scores (0, 0, 1, 0, 1)
-   at -3.5, which is what used to do the cutting. */
 static void test_a_paired_q_in_a_mip_does_not_cut_off_the_optimum(void)
 {
     jaos_model *m = fresh();
@@ -781,12 +740,6 @@ static void catch_objective(void *user, jaos_log_level level, const char *line)
     b->lines++;
 }
 
-/* A fixed column drops out of the Newton system, and its share of
-   1/2 z'Qz used to drop out of the barrier's objectives with it: on this
-   model, whose optimum is 20/9 at (1/9, 1/6, 1, 1), the barrier reported
-   -5.444444445 where the two fixed columns account for 7.666666667.  The
-   share belongs to both objectives, so the gap and the walk do not move;
-   what moves is the number the barrier reports. */
 static void test_the_barrier_counts_a_fixed_column_in_its_objective(void)
 {
     const double inf = jaos_infinity();
@@ -829,12 +782,6 @@ static void test_the_barrier_counts_a_fixed_column_in_its_objective(void)
     jaos_model_free(m);
 }
 
-/* Maximised, a paired Q runs the other way through the convexity test, the
-   barrier and the checker: convex there means -Q positive semi-definite.
-   maximise 3x0 + 3x1 - x0^2 - x1^2 - x0 x1 has its optimum at (1, 1), inside
-   every bound, worth 3.  Negating the objective and minimising must give the
-   same point and -3.  Widening the pair to -3 makes -Q indefinite, det
-   4 - 9 = -5, and the model has to be refused by name. */
 static void test_a_paired_q_maximised(void)
 {
     const double inf = jaos_infinity();
@@ -902,9 +849,6 @@ static void test_a_paired_q_maximised(void)
     }
 }
 
-/* The model keeps Q as a diagonal in col_quad and a strict lower triangle
-   beside it, and two calls write into that.  Whichever way the same matrix
-   goes in, the same matrix has to read back. */
 static void test_the_two_quadratic_calls_reach_the_same_matrix(void)
 {
     const int64_t qr[5] = {0, 1, 1, 2, 2}, qc[5] = {0, 1, 0, 2, 1};
@@ -946,9 +890,6 @@ static void test_the_two_quadratic_calls_reach_the_same_matrix(void)
     jaos_model_free(b);
 }
 
-/* maximise x1 + x2 - 1/2 x1^2 over x1 + x2 >= 1, x1 in [0, 40], x2 >= 0.
-   x2 has no upper bound and no curvature, so d = (0, 1) takes the
-   objective up for ever. */
 static jaos_model *unbounded_qp(void)
 {
     jaos_model *m = fresh();
@@ -981,9 +922,6 @@ static void test_an_unbounded_qp_ends_unbounded_with_its_ray(void)
     jaos_model_free(m);
 }
 
-/* minimise -x2 + 1/2 (x1^2 + x2^2) over x1 + x2 >= -10, both free: the
-   curvature holds every direction, the optimum is x = (0, 1) at -0.5, and
-   the ray probe never runs. */
 static void test_a_bounded_qp_with_free_columns_is_not_called_unbounded(void)
 {
     jaos_model *m = fresh();
@@ -1006,10 +944,6 @@ static void test_a_bounded_qp_with_free_columns_is_not_called_unbounded(void)
     jaos_model_free(m);
 }
 
-/* minimise -x1 - x2 + 1/2 (x1 - x2)^2 with x >= 0 and x1 - x2 <= 3.
-   Q = [[1, -1], [-1, 1]] is singular, with (1, 1) its null space, so the
-   only improving direction the curvature lets through runs along both
-   columns at once, and the probe has to find it through the pair. */
 static jaos_model *paired_unbounded_qp(void)
 {
     jaos_model *m = fresh();
@@ -1069,13 +1003,6 @@ static double fac_rnd(void)
     return (double)(fac_seed >> 11) / 9007199254740992.0;
 }
 
-/* The relaxation of a facility-location QP, 3 facilities and 35
-   customers: min sum c_ij x_ij + q_ij x_ij^2 / 2 + sum f_j y_j with
-   sum_j x_ij = 1 and x_ij <= y_j, all in [0, 1]. Each y_j sits in 35
-   rows, so the normal equations leave the three out and correct for them;
-   near the optimum that correction loses its digits, the walk leaves the
-   point it had at iteration 5, and the barrier starts again on the
-   augmented system. The shape of QPLIB's 3871, 3694, 3792 and 3861. */
 static void test_a_qp_whose_dense_columns_lose_the_walk_still_solves(void)
 {
     enum { F = 3, C = 35, NX = F * C, NC = NX + F, NR = C + NX };
@@ -1141,11 +1068,6 @@ static void catch_retry(void *user, jaos_log_level level, const char *line)
         *(bool *)user = true;
 }
 
-/* Maros and Meszaros's ksip on 101 points instead of 1001: minimise
-   sum_j (x_j + x_j^2 / 2) / (j + 1) over 20 free columns subject to
-   sum_j t^j x_j >= sin(t) at t = 0, 0.01, ..., 1. The barrier's walk ends
-   without an answer on it, as on ksip itself, and the conic interior point
-   solves the model again, its work counted on from the barrier's. */
 static void test_a_qp_the_barrier_cannot_finish_goes_to_the_conic_walk(void)
 {
     enum { P = 101, N = 20 };
@@ -1207,11 +1129,6 @@ static void catch_rounded(void *user, jaos_log_level level, const char *line)
         *(bool *)user = true;
 }
 
-/* minimise (x - 0.2)^2 + (y - 1.2)^2 + z^2 subject to x + y + z = 1.7,
-   x and y integer in [0, 3], z in [-5, 5]. The relaxation is
-   (0.3, 1.3, 0.1); rounding it alone breaks the row, and rounding the
-   integer columns and solving for z gives (0, 1, 0.7) at 0.57, which is
-   the optimum. */
 static jaos_model *mixed_rounding_qp(void)
 {
     const double cost[] = {-0.4, -2.4, 0.0};

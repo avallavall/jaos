@@ -179,9 +179,6 @@ static void test_qplib_reads_the_published_layout(void)
     jaos_model_free(m);
 }
 
-/* QPLIB's Q is the lower-left triangle of 1/2 x'Qx, so a pair's entry of
-   2.0 is the term x y, which JAOS holds as the symmetric entry 1.0; the
-   same in a row. g_pair.lp writes the same model. */
 static void test_qplib_reads_a_pair_as_half_its_entry(void)
 {
     jaos_model *m = fresh();

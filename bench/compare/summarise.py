@@ -49,9 +49,6 @@ for s in solvers:
             continue
         if j[1] < FLOOR or c[1] < FLOOR:
             continue
-        # c[2] == 0 happens: Clp reports zero iterations on instances it
-        # finishes without a simplex step. Kept in the time row, dropped from
-        # the iteration rows, counted and printed.
         pairs.append((i, j[1] / c[1], (j[2] / c[2]) if c[2] else None))
     if not pairs:
         print(f"\nvs {s}: nothing above the floor")
@@ -76,7 +73,6 @@ for s in solvers:
     print(f"  JAOS faster on {faster} of {len(pairs)};  "
           f"worst {worst[0]} {worst[1]:.1f}x;  best {best[0]} {best[1]:.2f}x")
 
-# Answers the harness cannot count for you: who disagreed with the reference.
 print("\n# instances where a solver's answer was rejected")
 for i in insts:
     bad = [s for s in ("jaos",) + tuple(solvers)

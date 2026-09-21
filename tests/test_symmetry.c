@@ -206,11 +206,6 @@ static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)
     jaos_model_free(m);
 }
 
-/* Columns 0 to 3 agree in cost, in bounds, in integrality and in the one
-   row.  They differ only off the diagonal of Q: column 3 pairs with column
-   4 and the other three do not.  The graph carries no pair, so the search
-   used to report three generators on a model with no symmetry, and orbital
-   fixing acted on them.  The answer is x3 = x4 = 1 at -3. */
 static void test_an_off_diagonal_q_stops_the_search(void)
 {
     const double cost[5] = {-1.0, -1.0, -1.0, -1.0, -3.0};
@@ -250,9 +245,6 @@ static void test_an_off_diagonal_q_stops_the_search(void)
     jaos_model_free(m);
 }
 
-/* Four groups of ten binary columns alike, each group covering at least
-   5.5 and all of them at most 30: symmetry detection sorts forty vertices
-   of four colours, and every tree finds the same orbits. */
 static jaos_model *grouped(void)
 {
     enum { G = 4, W = 10, N = G * W };

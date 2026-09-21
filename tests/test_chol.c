@@ -426,14 +426,6 @@ static double ldlt_residual(const sym *m, const jm_chol *c, const double *b)
     return worst / (1.0 + scale);
 }
 
-/* The augmented system of an LP with a quadratic objective:
-
-       [ -(Q + T)   A^T ] [ dx ]   [ r1 ]
-       [    A        0  ] [ dy ] = [ r2 ]
-
-   which is quasi-definite when Q + T is positive definite: negative on
-   the first block's diagonal, positive on the second's.  This is the
-   system a full Q needs and the normal equations cannot take. */
 static void make_augmented(sym *m, int64_t ncol, int64_t nrow,
                            double density, double delta, int8_t *sign)
 {

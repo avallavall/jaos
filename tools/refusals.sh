@@ -1,5 +1,4 @@
 #!/bin/bash
-# if anything FLIPPED, so a milestone boundary that runs this cannot miss a
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root" || exit 2

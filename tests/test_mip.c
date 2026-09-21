@@ -671,9 +671,6 @@ static void test_an_integer_model_with_no_integer_point_is_infeasible(void)
     jaos_model_free(m);
 }
 
-/* minimise -y over 2x = rhs with x integer in [-5, 5] and y >= 0: the
-   relaxation is unbounded in y, and the model is unbounded only when an
-   integer x meets the row. */
 static jaos_model *ray_over_parity(double rhs)
 {
     const double inf = jaos_infinity();
@@ -1811,10 +1808,6 @@ static void test_the_solution_pool_holds_the_best_points_best_first(void)
 
 static void test_the_pool_never_holds_one_point_twice(void)
 {
-    /* The tree reaches this point twice, once with a column at +0 and once
-     * at -0. They are the same point, and `spool_offer` compared the two by
-     * their bytes, so the pool kept both and reported two answers where the
-     * model has one. */
     const double cost[5] = { -1.0, -5.0, -2.0, 3.0, 3.0 };
     const double cl[5] = { -1.0, -3.0, 0.0, 0.0, 0.0 };
     const double cu[5] = { 2.0, 1.0, 1.0, 1.0, 4.0 };
@@ -1858,10 +1851,6 @@ static void test_the_pool_never_holds_one_point_twice(void)
 
 static void test_the_pool_counts_integer_assignments_not_vertices(void)
 {
-    /* One binary z and three continuous columns whose costs are zero, so
-     * every integer assignment has a whole face of vertices: max z over
-     * x + y + w <= 2 with z <= x + y. The pool can hold two entries at
-     * most, one per value of z, whatever vertices the heuristics reach. */
     const double cost[4] = { 1.0, 0.0, 0.0, 0.0 };
     const double cl[4] = { 0.0, 0.0, 0.0, 0.0 };
     const double cu[4] = { 1.0, 1.0, 1.0, 1.0 };
@@ -3888,10 +3877,6 @@ static void test_clique_cuts_close_a_pairwise_conflict_at_the_root(void)
 
 static void test_an_sos_member_that_cannot_be_zero(void)
 {
-    /* C2 lives in [2, 6], so it is never zero and never the member the set
-       switches off. C1 has to be zero then, and the row asks C1 >= 1, so
-       the model has no point at all. The branch used to hold C2 at zero by
-       overwriting its box, and published C1 = 1, C2 = 0 as an optimum. */
     const double cost[2] = {-2.0, 1.0};
     const double cl[2]   = { 0.0, 2.0};
     const double cu[2]   = { 6.0, 6.0};
@@ -3915,7 +3900,6 @@ static void test_an_sos_member_that_cannot_be_zero(void)
         if (type == 1) {
             TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
         } else {
-            /* SOS2 lets both be nonzero, so this one has an answer. */
             TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
             double x[2];
             TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -3999,17 +3983,6 @@ static void test_special_ordered_sets_branch_to_their_optimum(void)
 #endif
 }
 
-/* A row the node's point already satisfies, which is what a valid cut looks
-   like from the tree's side.  It still goes on the node LP, and adding a row
-   drops the answer that LP is carrying.  The re-solve that follows a row the
-   point breaks did not run here, so the tree read vectors that had just been
-   freed and the solve ended in a segmentation fault; and once the answer was
-   restored, the re-solve could land on another vertex of the same optimal
-   face, so a tree still holding its own copy of the point took a fractional
-   one under a verdict of integral and rounded it into an incumbent no row
-   admits.  The first model below is the crash, the second the incumbent: it
-   answered -16 at (2, 1, 0, 1, 1), where its second row reads 3 against a
-   bound of 1, and enumeration says -10. */
 static jaos_callback_action wide_row(jaos_node *ev, void *user)
 {
     int64_t *calls = user;

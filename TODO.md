@@ -21,18 +21,6 @@ tag. A2 and A3 can interleave; A4 waits for both.
 
 ### A1. The working tree
 
-A1.3 **The comment rule and the tree disagree.** `CLAUDE.md` says code
-    carries no comments. `src/mip.c` (32 lines), `src/barrier.c` (28),
-    `src/model.c` (15, the `quadratic_convex` block at 764), `src/simplex.c`
-    (14), `src/conic.c` (12), `src/symmetry.c` (9), `src/check.c` (6) and
-    `include/jaos.h` (8, the `jaos_set_mip_tree_batch` paragraph at 327)
-    carry about 120 comment lines, all prose on an invariant. Fix: the rule
-    stays; delete every block, and where the block states an invariant the
-    code cannot, put the sentence in the commit message that removes it and,
-    if it names a constant, in `docs/tolerances.md`; the header's paragraph
-    goes to `docs/api.md` (A3.4). Verify: `grep -rn '/\*\|//' src cli
-    include | grep -v SPDX` prints nothing.
-
 A1.7 **JAOS writes a gzipped answer file it cannot read.** Found on
     2026-09-21 while fixing `docs/format-support.md`.
     `jaos_write_solution` and `jaos_write_mps_basis` compress when the path
@@ -516,7 +504,11 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer qua
    (02-259) and do not reach those, so the difference is in the search.
    QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
    whole budget at the root node, and the last three never finish its
-   relaxation.
+   relaxation. Symmetry detection also stops on a model whose `Q` has an
+   off-diagonal pair (`src/symmetry.c`): the graph's colours carry the
+   diagonal of `Q` and nothing carries a pair, so it could report a
+   generator the model has not got. The pairs as edges between their two
+   columns, labelled by value as the row entries are, would let it run.
 
 C7 **Parallel tree search, the rest.** SPECS §4, "Deterministic parallel tree search". The conic tree takes
    its open nodes in rounds since 2026-09-20 (`--tree-batch N`,

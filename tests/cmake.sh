@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The CMake package: configure, build, install into a staging root, then
-# build a consumer that finds it with find_package and nothing else.
 set -u
 
 CC=${1:-gcc}

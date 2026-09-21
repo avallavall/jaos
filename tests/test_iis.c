@@ -559,9 +559,6 @@ static void test_the_subsystem_of_a_mip_carries_no_integrality(void)
     jaos_model_free(m);
 }
 
-/* A subsystem is a set of bound sides with no objective, so the quadratic
-   term goes with the objective.  The builder used to free the diagonal and
-   leave the pairs behind, which left the subsystem a QP. */
 static void test_the_subsystem_of_a_quadratic_carries_no_quadratic(void)
 {
     const double cost[2] = {0.0, 0.0}, cl[2] = {0.0, 0.0}, cu[2] = {3.0, 3.0};

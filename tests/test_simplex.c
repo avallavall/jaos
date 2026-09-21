@@ -2510,8 +2510,6 @@ static void test_a_budget_stop_can_be_resumed(void)
 
     TEST_ASSERT_NOT_NULL(m->start_col_status);
 
-    /* The stop parked the walk; solving on resumes it, and the counts
-     * are the whole walk's. */
     watch_the_start(m);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
     solve_and_verify(m, 4.5);
@@ -2519,8 +2517,6 @@ static void test_a_budget_stop_can_be_resumed(void)
     TEST_ASSERT_EQUAL_INT64(whole_iters, jaos_iterations(m));
     TEST_ASSERT_EQUAL_INT64(whole_work, jaos_work_units(m));
 
-    /* A basis set after a stop drops the parked walk: the next solve
-     * starts from that basis, and its counts are its own. */
     jaos_clear_basis(m);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, whole_work / 2));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));

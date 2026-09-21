@@ -447,9 +447,6 @@ static void test_a_second_solve_reaches_the_same_verdict(void)
 
 static void test_an_sos_set_the_rows_alone_do_not_break(void)
 {
-    /* x >= 2 and y >= 2, and an SOS1 set that lets only one of them be
-       nonzero. The rows alone are satisfiable and the set is what breaks
-       the model, so a relaxation that drops the set moves nothing. */
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     const double c[2] = {1.0, 1.0};
@@ -480,9 +477,6 @@ static void test_an_sos_set_the_rows_alone_do_not_break(void)
 
 static void test_a_semi_continuous_column_may_take_its_zero(void)
 {
-    /* x is zero or between 5 and 10, and the row caps it at zero. The
-       zero satisfies both, so nothing has to move. A copy that forgets
-       the column is semi-continuous sees 5 <= x <= 0 and moves a bound. */
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     const double c[1] = {1.0};
@@ -511,9 +505,6 @@ static void test_a_semi_continuous_column_may_take_its_zero(void)
 
 static void test_an_indicator_row_that_is_switched_off_holds_nothing(void)
 {
-    /* Row 0 holds only while z is 1, and z is fixed at 0, so x <= 3 and
-       the row asking x >= 5 never applies. A copy that forgets the
-       indicator reads the row as always on and moves a bound. */
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     const double c[2] = {1.0, 0.0};

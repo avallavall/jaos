@@ -298,9 +298,6 @@ void jm_model_drop_parked(jaos_model *m)
     free(pk);
 }
 
-/* A parked solve resumes only into the walk it left: the same algorithm,
- * the same tolerances, the same pricing. Any edit to the model has
- * already dropped it (model.c); this is what a changed option does. */
 static bool park_fits(const jaos_model *m, const jm_parked *pk)
 {
     const jm_config *a = &m->cfg, *b = &pk->cfg;
@@ -3101,9 +3098,6 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                 return JAOS_ERR_OUT_OF_MEMORY;
         }
 
-        /* A stop from the callback lands after the costs of this
-         * iteration are summed and billed; the sum is kept, so the
-         * resumed walk does not sum and bill it again. */
         double total;
         if (s->held_valid) {
             total = s->held_total;
@@ -3633,9 +3627,6 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                    (long long)s->n_guess_restart);
         }
 
-        /* A stop from the callback lands after the row is priced and
-         * billed; the choice is kept, so the resumed walk does not price
-         * and bill it again. */
         bool below = false;
         double violation = 0.0;
         int64_t r;
@@ -4148,11 +4139,6 @@ jaos_status jm_dual_simplex(jaos_model *m)
     bool resumed = false;
     bool at_settle = false;
 
-    /* A solve that stopped on a limit or an interrupt left its whole
-     * state parked on the model: the factorisation, its update chain,
-     * the pricing weights, the shifts, the phase. Nothing has changed
-     * since, so the walk goes on from where it stopped, and the counts
-     * go on with it. */
     if (m->parked != nullptr) {
         jm_parked *pk = m->parked;
         if (park_fits(m, pk)) {

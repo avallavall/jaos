@@ -296,9 +296,6 @@ static void test_underflowing_product_still_scales_the_row(void)
     jaos_model_free(m);
 }
 
-/* Maros-Meszaros dtoc3 asked Curtis-Reid for factors of 2^91 and the
-   barrier answered the origin under them.  A factor stops at 2^20, and a
-   matrix that wants more is reported as clamped. */
 static void test_a_scale_factor_stops_at_two_to_the_twenty(void)
 {
     const int64_t as[] = {0, 1};

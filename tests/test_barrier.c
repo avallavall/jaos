@@ -474,11 +474,6 @@ static void test_a_qp_whose_rows_leave_no_interior_still_solves(void)
     jaos_model_free(m);
 }
 
-/* The augmented system and the normal equations answer the same
-   question: eliminating dz from the first turns it into the second.  So
-   a model solved through either must give the same optimum.  The
-   augmented form is the one that keeps its shape when Q stops being
-   diagonal, which is what a full Q needs. */
 static void solve_both_ways(const char *path, double tol)
 {
     double obj[2] = {0.0, 0.0};

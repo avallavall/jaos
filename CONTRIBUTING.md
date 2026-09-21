@@ -37,7 +37,9 @@ No instance may regress. A baseline is rewritten only with its
 - **Work units are the cost.** Seconds never go in `bench/results/` or a
   baseline; `docs/work-units.md` says what each kernel charges.
 - **Code carries no comments.** What a change does and why goes in its
-  commit message; a constant's reason goes in `docs/tolerances.md`.
+  commit message; a constant's reason goes in `docs/tolerances.md`. The
+  exceptions are the SPDX line, a script's `#!` line, and documentation a
+  tool reads: Python docstrings, .NET XML comments and Julia docstrings.
 
 ## Where a feature has to reach
 

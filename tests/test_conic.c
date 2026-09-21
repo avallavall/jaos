@@ -27,8 +27,6 @@ static void run(const jm_cone_problem *pb, answer *a)
 
 static const int64_t no_p_start[4] = {0, 0, 0, 0};
 
-/* minimise -x - y over x + y <= 1, x, y >= 0: the optimum is -1 on the
-   whole edge; the slacks sit in one nonnegative block of three. */
 static void test_an_lp_reaches_its_optimum(void)
 {
     const int64_t as[3] = {0, 2, 4};
@@ -47,8 +45,6 @@ static void test_an_lp_reaches_its_optimum(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, 1.0, a.x[0] + a.x[1]);
 }
 
-/* minimise t over (t, x, y) in the second-order cone with x = 3 and
-   y = 4 as two rows of the zero cone: t is the norm, 5. */
 static void test_a_cone_gives_the_norm(void)
 {
     const int64_t as[4] = {0, 1, 3, 5};
@@ -71,8 +67,6 @@ static void test_a_cone_gives_the_norm(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, 5.0, a.r.dobj);
 }
 
-/* minimise 1/2 x^2 - 3 x over x <= 2: the free minimum 3 is cut off and
-   the optimum is x = 2 at -4, the bound's multiplier 1. */
 static void test_a_quadratic_objective_stops_at_its_bound(void)
 {
     const int64_t ps[2] = {0, 1}, pi[1] = {0};
@@ -92,8 +86,6 @@ static void test_a_quadratic_objective_stops_at_its_bound(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-6, 1.0, a.z[0]);
 }
 
-/* x >= 1 and x <= 0 as two nonnegative slacks: no x meets both, and the
-   certificate adds the two rows to 0 <= -1. */
 static void test_an_infeasible_pair_of_rows_is_certified(void)
 {
     const int64_t as[2] = {0, 2}, ai[2] = {0, 1};
@@ -112,7 +104,6 @@ static void test_an_infeasible_pair_of_rows_is_certified(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, 0.0, -a.z[0] + a.z[1]);
 }
 
-/* minimise -x over x >= 0: the ray is x itself. */
 static void test_an_unbounded_objective_gives_its_ray(void)
 {
     const int64_t as[2] = {0, 1}, ai[1] = {0};
@@ -129,9 +120,6 @@ static void test_an_unbounded_objective_gives_its_ray(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-7, 1.0, a.x[0]);
 }
 
-/* minimise x + y over the cone x >= ||(1, y)|| with x, y free: along the
-   boundary x = sqrt(1 + y^2), so x + y falls to 0 without reaching it and
-   the optimum is 0, not attained. The walk must end near it, not refuse. */
 static void test_a_cone_whose_infimum_is_not_attained_ends_near_it(void)
 {
     const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 2};
@@ -184,7 +172,6 @@ static void assert_checked(jaos_model *m, bool with_cones)
     (void)nc;
 }
 
-/* minimise t over (t, x, y) in the cone with the rows x = 3 and y = 4. */
 static jaos_model *norm_model(jaos_obj_sense sense)
 {
     jaos_model *m = fresh();
@@ -232,7 +219,6 @@ static void test_a_maximised_cone_publishes_its_duals_the_right_way(void)
     jaos_model_free(m);
 }
 
-/* minimise t with 2 t u >= x^2, u fixed at 1 and x fixed at 3: t = 4.5. */
 static void test_a_rotated_cone_halves_the_square(void)
 {
     jaos_model *m = fresh();
@@ -254,8 +240,6 @@ static void test_a_rotated_cone_halves_the_square(void)
     jaos_model_free(m);
 }
 
-/* minimise -x - y over x^2 + y^2 <= 2, a quadratic row 1/2 x'Qx with
-   Q = 2I: the optimum is (1, 1) at -2, the row's dual -1/2. */
 static void test_a_quadratic_row_bends_the_optimum(void)
 {
     jaos_model *m = fresh();
@@ -283,7 +267,6 @@ static void test_a_quadratic_row_bends_the_optimum(void)
     jaos_model_free(m);
 }
 
-/* maximise x over -x^2 >= -4, a concave row on its lower side: x = 2. */
 static void test_a_concave_row_on_its_lower_side_is_convex(void)
 {
     jaos_model *m = fresh();
@@ -324,8 +307,6 @@ static void test_a_non_convex_quadratic_row_is_refused(void)
     jaos_model_free(m);
 }
 
-/* (t, x) in the cone with t <= 1 and x = 2: no point, and the certificate
-   combines the two bounds with a cone multiplier. */
 static void test_a_refused_certificate_is_reweighted_until_it_holds(void)
 {
     const char *path[2] = {"tests/data/g_cert_tilt.mps",
@@ -399,7 +380,6 @@ static void test_an_infeasible_cone_is_certified(void)
     jaos_model_free(m);
 }
 
-/* minimise -t over (t, x) in the cone: t runs away along (1, 0). */
 static void test_an_unbounded_cone_gives_a_ray_in_the_cone(void)
 {
     jaos_model *m = fresh();
@@ -599,8 +579,6 @@ static void assert_integer_answer(jaos_model *m, double want)
     TEST_ASSERT_TRUE(rep.max_integrality_violation == 0.0);
 }
 
-/* minimise t with t >= ||(x - 1.6, y - 2.3)|| over integer x and y in
-   [0, 5]: the nearest integer point is (2, 2), at 0.5. */
 static void test_integer_columns_in_a_cone_branch_to_the_optimum(void)
 {
     jaos_model *m = fresh();
@@ -626,8 +604,6 @@ static void test_integer_columns_in_a_cone_branch_to_the_optimum(void)
     jaos_model_free(m);
 }
 
-/* maximise x + y over x^2 + y^2 <= 10 with x and y integer and at least
-   0: the relaxation stops at sqrt(5) each, and 4 is the best integer sum. */
 static void test_integer_columns_under_a_quadratic_row(void)
 {
     jaos_model *m = fresh();
@@ -648,8 +624,6 @@ static void test_integer_columns_under_a_quadratic_row(void)
     jaos_model_free(m);
 }
 
-/* t >= |x - 0.5| with t <= 0.4 and x integer: the relaxation is feasible
-   and every integer x is 0.5 away. */
 static void test_an_integer_point_outside_every_cone_is_infeasible(void)
 {
     jaos_model *m = fresh();
@@ -694,9 +668,6 @@ static jaos_model *nearest_point_model(void)
     return m;
 }
 
-/* the root relaxation of the nearest point model sits at (1.6, 2.3), and
-   its rounding (2, 2) is the optimum: an incumbent at node 1, which the
-   tree finds later with the rounding and the dive off. */
 static void test_the_rounded_root_is_an_incumbent_at_node_1(void)
 {
     jaos_model *m = nearest_point_model();
@@ -717,12 +688,6 @@ static void test_the_rounded_root_is_an_incumbent_at_node_1(void)
     jaos_model_free(m);
 }
 
-/* minimise ||x|| over four weights that sum to 1, each at most its
-   binary z, with at most two z at 1. The relaxation is symmetric: the
-   weights at 0.25 and the four z alike, so rounding it gives four z at 0,
-   which hold no weight, or four at 1, over the cap. The dive fixes the z
-   nearest an integer, half at a time, and reaches two assets at 0.5, the
-   optimum 1/sqrt(2), at node 1. */
 static void test_the_root_dive_finds_a_cardinality_point(void)
 {
     jaos_model *m = fresh();
@@ -750,7 +715,6 @@ static void test_the_root_dive_finds_a_cardinality_point(void)
     jaos_model_free(m);
 }
 
-/* an SOS set beside a cone is refused by name. */
 static void test_an_sos_set_beside_a_cone_is_refused(void)
 {
     jaos_model *m = norm_model(JAOS_MINIMIZE);
@@ -788,8 +752,6 @@ static void assert_wide_checked(jaos_model *m, int64_t members)
     free(z);
 }
 
-/* minimise -a'x over ||x|| <= t with t fixed at 1, x of WIDE members: the
-   optimum is x = a / ||a|| at -||a||. */
 static void test_a_wide_cone_gives_the_norm(void)
 {
     jaos_model *m = fresh();
@@ -825,8 +787,6 @@ static void test_a_wide_cone_gives_the_norm(void)
     jaos_model_free(m);
 }
 
-/* minimise t with 2 t u >= ||x||², u fixed at 1/2 and x fixed at a, WIDE
-   members: t = ||a||². */
 static void test_a_wide_rotated_cone_gives_the_sum_of_squares(void)
 {
     jaos_model *m = fresh();
@@ -870,14 +830,6 @@ static void catch_left_out(void *user, jaos_log_level level, const char *line)
         (*(int *)user)++;
 }
 
-/* 15 columns of QPLIB_9002 with nothing but their bounds and a diagonal
-   Q, after a free column in a cone of one: 13 columns in (-inf, 0] with
-   q = 2, and two in [1.7e6, 2.2e7] and [1.8e9, 2.3e10] with q of 4.6e-8
-   and 4.4e-11. It is feasible, its optimum 73622257.83 with the two on
-   their lower bounds, and the conic walk once called it infeasible on a
-   certificate the checker refuses. The live file adds a cone the walk
-   cannot leave out, t >= |u| with u at 1 and t costed, so the walk runs
-   and the optimum is one more. */
 static jaos_model *badly_scaled_box(bool live)
 {
     jaos_model *m = fresh();
@@ -887,9 +839,6 @@ static jaos_model *badly_scaled_box(bool live)
     return m;
 }
 
-/* Its one cone never binds, so the walk leaves it out, and with no cone
-   left the model goes to the algorithm it would have taken without cones,
-   which reaches 73622257.83 where the walk could not. */
 static void test_a_model_whose_cones_all_go_leaves_the_walk(void)
 {
     int left_out = 0;
@@ -910,11 +859,6 @@ static void test_a_model_whose_cones_all_go_leaves_the_walk(void)
     jaos_model_free(m);
 }
 
-/* The box above with an integer column in [0, 1] that touches nothing:
-   the root fails and is split on it, and both leaves fail too. A leaf
-   with every integer column fixed cannot be split, so the tree sets it
-   aside with its bound and goes on; with no incumbent it ends
-   NUMERICAL_ERROR, naming the first leaf, after all three nodes. */
 static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
 {
     jaos_model *m = badly_scaled_box(true);
@@ -933,11 +877,6 @@ static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
     jaos_model_free(m);
 }
 
-/* Two generated models the walk cannot end on its own: one leaves an
-   improving direction the ray checker refuses, 2.1e-6 past a row side,
-   and one stops after 25 iterations with nothing to answer from. The
-   solve over the directions the rows, the bounds and the cones leave open
-   ends both unbounded with a ray the checker takes. */
 static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void)
 {
     const char *path[2] = {"tests/data/g_ray_probe.mps",
@@ -979,13 +918,6 @@ static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void
     jaos_model_free(m);
 }
 
-/* (h, a, b) in the cone with h in [-1, 0]: the cone holds all three at 0,
-   and a + c >= 1 puts c at 1. The row's dual is 1, so a keeps a reduced
-   cost of 1 and the cone takes it; a head cost above the norm of the rest
-   goes to the head's multiplier too, so the head's reduced cost keeps the
-   sign of a column at its upper bound. A second cone, t >= |u| with u at
-   1 and t costed, is one the walk cannot leave out, so the walk runs and
-   t ends at 1. */
 static jaos_model *dead_cone_model(jaos_obj_sense sense, double head_cost,
                                    int *left_out)
 {
@@ -1041,8 +973,6 @@ static void test_a_cone_held_at_its_tip_is_left_out_of_the_walk(void)
         }
 }
 
-/* (h, a, b) in the cone with h free, costless and in no row: the cone never
-   binds, and its dual is 0. */
 static jaos_model *idle_cone_model(const double *rl, const double *ru,
                                    int64_t nr, const int64_t *as,
                                    const int64_t *ai, const double *av,
@@ -1118,11 +1048,6 @@ static void test_a_cone_whose_head_is_free_and_idle_is_left_out(void)
     jaos_model_free(m);
 }
 
-/* minimise t over (t, y) in a second-order cone with y_j = w_j (x_j - a_j)
-   and x_j integer in [0, 5]: the answer rounds each a_j. The columns of
-   weight 1 sit at a half, the most fractional, and the columns of weight
-   100 at 0.3, so a rule that learns what a branch gains goes to the heavy
-   columns, and the most fractional rule does not. */
 static jaos_model *weighted_rounding(void)
 {
     enum { N = 6, C = 1 + 2 * N };
@@ -1191,11 +1116,6 @@ static void test_the_conic_tree_learns_which_columns_move_the_bound(void)
     TEST_ASSERT_TRUE(nodes[0] < nodes[1]);
 }
 
-/* The tree takes its nodes in rounds of `mip_tree_batch`, on as many
-   threads as it is given; the rounds do not depend on the thread count, so
-   neither does anything the solve publishes. The rounds do change the
-   search: a round of four takes this model in a different number of
-   nodes, to the same optimum. */
 static void test_the_conic_tree_answers_the_same_on_any_thread_count(void)
 {
     int64_t nodes[2], work[2];

@@ -324,14 +324,6 @@ JAOS_NODISCARD jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on);
 JAOS_NODISCARD jaos_status jaos_set_mip_node_limit(jaos_model *m,
                                                    int64_t nodes);
 
-/* How many open nodes the conic branch and bound takes in one round. The
-   round's relaxations are solved on up to `jaos_set_threads` threads, and
-   its answers are taken in the round's own order, so the tree does not
-   depend on the thread count. 1, the default, is the tree that takes one
-   node at a time. Above 1 the search changes: it reaches an optimum with
-   less work on the models it finishes, and a run stopped by a limit tends
-   to hold a better bound and a worse incumbent. The linear tree of
-   src/mip.c takes no rounds and ignores this. */
 JAOS_NODISCARD jaos_status jaos_set_mip_tree_batch(jaos_model *m,
                                                    int64_t nodes);
 

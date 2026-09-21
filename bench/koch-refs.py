@@ -51,7 +51,6 @@ out = {}
 for m in re.finditer(r'\by\(', ps):
     seg = ps[m.end() - 1:m.end() - 1 + 1500]
 
-    # Join consecutive strings until they spell an instance name.
     joined = ''
     start = None
     for k, p in enumerate(STRING.finditer(seg)):

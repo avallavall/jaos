@@ -3050,28 +3050,6 @@ static void steer_free(steer *sw)
     memset(&sw->rb, 0, sizeof sw->rb);
 }
 
-/* The rows a node callback handed in go on `lp`, and adding a row drops the
- * answer `lp` is carrying, every published vector with it.  A row the point
- * breaks is followed by a re-solve at the call site, so that case restores
- * the answer on its own.  A row the point already satisfies is not, and the
- * point is still the optimum of the tightened node, so the caller went on to
- * read an answer that had just been freed: a callback adding a row that cuts
- * nothing off, which is what a valid cut looks like, ended the solve in a
- * segmentation fault.  The re-solve belongs here, where the rows go in, so
- * that every call site is covered by it.  A node with no rows to flush
- * returns above and pays nothing.  Should the re-solve not land on an
- * optimum, which the point standing feasible says it must, the row counts as
- * broken and the caller's own path for that takes it from there.
- *
- * The value it lands on is the one it left, since the point it had is still
- * feasible and was optimal over more; the point itself need not be, because
- * an optimal face holds more than one vertex and the walk can stop on
- * another. So a caller holding a point across the flush has to read it back
- * afterwards. The node loop does, and it matters: it decided the node was
- * integral from the point it held, and taking the answer without reading it
- * again copied a fractional point under that verdict and rounded it, which
- * published an incumbent no row of the model admits.
- */
 static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
                                const cutbuf *pool, const cutlist *in_copy,
                                int64_t *nfixed, int64_t *nperm,
@@ -3363,13 +3341,6 @@ static void spool_offer(spool *sp, const double *x, double key, double obj)
     const int64_t nc = sp->nc;
     if (sp->n == sp->cap && !(key < sp->key[sp->n - 1]))
         return;
-    /* Two points are one entry when they agree on every integer column:
-     * the pool keeps distinct integer assignments, as the field's pools
-     * do, and two vertices of one optimal face that differ only in a
-     * continuous column, or in its last bits, are one answer. The better
-     * of the two is the one kept. A model whose only discrete structure
-     * is SOS or semi-continuous has no integer column, and there the
-     * whole point decides, +0 and -0 being one value. */
     for (int64_t i = 0; i < sp->n; i++) {
         bool held = true;
         for (int64_t j = 0; j < nc && held; j++) {
@@ -5009,9 +4980,6 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             nfd = nfu = 0;
             for (int64_t t = 0; t < n; t++) {
                 const int64_t j = m->sos_col[b + t];
-                /* A member is held at zero, and zero has to be inside the
-                   column's own box. Where it is not, the two ends cross and
-                   the child is the infeasible node it really is. */
                 const double zlo = fmax(0.0, m->col_lower[j]);
                 const double zhi = fmin(0.0, m->col_upper[j]);
                 if (t > r) {

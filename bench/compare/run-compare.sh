@@ -1,23 +1,4 @@
 #!/bin/bash
-# Time JAOS against the competitors on one rung of the ladder.
-#
-# What this is and is not: bench/results/ is the gate's record and carries no
-# wall-clock number, because a timing nobody can reproduce is not evidence.
-# This is a different record, in bench/compare/results/, and it carries
-# seconds because seconds are the whole question a competitive comparison
-# asks. Every line names the machine it came from, and a machine that D17
-# excludes for published figures says so on every line.
-#
-# The rules bench/compare/README.md sets and this script enforces:
-#   - a time without a verified answer is discarded
-#   - tolerances are equalised explicitly, in the per-solver tier files
-#   - the minimum of N runs, never the mean
-#   - two times per run: what the solver reports for its solve, and what the
-#     process took
-#
-# Usage: run-compare.sh [-t TIER] [-n REPEATS] [-s SOLVERS] [-o FILE] [inst...]
-#   -s   comma-separated competitors, default every one that is built
-#
 # SPDX-License-Identifier: Apache-2.0
 set -u
 
@@ -41,7 +22,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Which competitors are built and asked for.
 solvers=""
 for s in highs soplex clp; do
     bin=$(ls "$here"/solvers/"$s"-* 2>/dev/null | head -1)
@@ -53,26 +33,12 @@ for s in highs soplex clp; do
 done
 [ -n "$solvers" ] || { echo "no competitor built: make compare-solvers" >&2; exit 2; }
 
-# Below this many seconds a time is not a measurement: HiGHS reports its own
-# solve time to two decimals, so anything under it divides by a rounded zero.
-# D45 found the same floor from the other side, trusting only the instances
-# long enough for the clock to mean anything.
 FLOOR=0.05
 
-# JAOS is built with the flags a competitor's own Release build gets, so the
-# comparison is of solvers rather than of optimisation levels. These change no
-# answer: PLAN 1.2 records that they reproduce the gate's record byte for byte
-# over all 139 instances.
 CMP_CFLAGS="-std=c23 -ffp-contract=off -O3 -march=native -flto -DNDEBUG"
 jaos=build/bench/jaos_time_cmp
 mkdir -p build/bench
 
-# Rebuilt when anything it is made of has moved, not only when its own source
-# has. This used to test `jaos_time.c` alone, so a change to `src/` measured
-# whatever binary was lying around — and the record it produced was
-# indistinguishable from a measurement of the tree that produced it. That is
-# not hypothetical: it happened, and the gap came back unchanged from a tree
-# that was 1.5x faster (D60).
 stale=""
 [ -x "$jaos" ] || stale="it does not exist"
 if [ -z "$stale" ]; then
@@ -93,9 +59,6 @@ log=$(mktemp); trap 'rm -f "$log" "$out".*.ratios' EXIT
 
 [ -n "$out" ] || out="$here/results/$tier.txt"
 mkdir -p "$(dirname "$out")"
-# Which tree these seconds came from, on the record itself. A comparison is
-# only ever read next to another one, and two records that do not say what
-# they measured cannot be subtracted (D60).
 tree_id=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head -1)
 {
@@ -105,12 +68,6 @@ tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head
     echo "# instance solver status objective iters solve_s process_s"
 } > "$out"
 
-# The reference optimum plus the objective constant, from the gate's own
-# manifest — the one thing here that came from no solver. The constant is Q2:
-# an `RHS` entry on the objective row sets one, every solver applies it as
-# CPLEX documents, and both published reference sets leave it out. `e226` is
-# where that shows, and omitting it made two solvers look wrong against a
-# reference they agree with.
 ref_of() {
     awk -v n="$1" '!/^#/ && NF>3 && $1==n {printf "%.17g", $5 + $7; exit}' \
         bench/netlib.manifest
@@ -131,7 +88,6 @@ tier_args() {   # solver -> its arguments for this tier, one per line
     [ -f "$f" ] && grep -v '^[[:space:]]*#' "$f" | grep -v '^[[:space:]]*$'
 }
 
-# One run of one competitor. Prints status, objective, iterations, seconds.
 run_competitor() {
     s=$1; mps=$2
     bin=$(ls "$here"/solvers/"$s"-* | head -1)
@@ -146,7 +102,6 @@ run_competitor() {
                 END{printf "%s\t%s\t%s\t%s", (st?st:"none"), ob, it, tm}' "$log"
             ;;
         soplex)
-            # shellcheck disable=SC2046
             "$bin" $(tier_args soplex) "$mps" > "$log" 2>&1
             awk -F': *' '
                 /^SoPlex status/    {st=$2; gsub(/.*\[|\].*/,"",st)}
@@ -156,12 +111,7 @@ run_competitor() {
                 END{printf "%s\t%s\t%s\t%s", (st?st:"none"), ob, it, tm}' "$log"
             ;;
         clp)
-            # shellcheck disable=SC2046
             "$bin" "$mps" $(tier_args clp) > "$log" 2>&1
-            # Clp's closing line carries all four numbers and is the only one
-            # that does: "Optimal objective 5501.845888 - 2111 iterations
-            # time 0.082". Whitespace fields, not the colon-separated ones
-            # the other two use, so this awk stands on its own.
             awk '/ iterations time /{st=$1; ob=$3; it=$5; tm=$8}
                  END{printf "%s\t%s\t%s\t%s", (st?st:"none"), ob, it, tm}' "$log"
             ;;
@@ -227,19 +177,6 @@ echo
 for s in $solvers; do
     f="$out.$s.ratios"
     [ -f "$f" ] || { echo "$s: nothing above the ${FLOOR}s floor"; continue; }
-    # A competitor may report zero iterations on an instance it finished
-    # without a simplex step -- Clp does, on d6cube, maros-r7 and woodw,
-    # whenever it is free to choose its algorithm. Dividing by that count is a
-    # FATAL error in awk, not a NaN, so the whole block aborted and printed
-    # nothing at all: Clp's summary was silently absent from T1, T2 and T3
-    # from 2026-08-11 until this was found on 2026-08-14. The records held the
-    # data the whole time. Nobody noticed because no Clp rung figure was ever
-    # quoted, which is the reading of "silent" that matters.
-    #
-    # So: the time row keeps every instance, the two iteration rows drop the
-    # ones that cannot contribute, and the count that was dropped is printed.
-    # A summary that quietly covers less than it says is the failure this
-    # whole harness exists to avoid.
     awk -v s="$s" 'BEGIN{st=0;si=0;sti=0;n=0;ni=0;zi=0;w=0;worst=0;wn="";best=1e18;bn=""}
         {st+=log($1); n++; if ($1<1) w++;
          if ($4+0 > 0) { si+=log($3/$4); sti+=log($1); ni++ } else { zi++ }

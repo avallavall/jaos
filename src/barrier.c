@@ -337,9 +337,6 @@ static jaos_status bx_init(bx *s, jaos_model *m, bool augmented)
     return JAOS_OK;
 }
 
-/* The quadratic gradient Q z, with Q held as its diagonal in `quad` and
- * its strict lower triangle in qs/qi/qv.  Every off-diagonal entry is
- * stored once and counts twice, once on each side. */
 static void mul_q(bx *s, const double *z, double *out)
 {
     for (int64_t j = 0; j < s->nvar; j++)
@@ -439,17 +436,6 @@ static jaos_status build_normal_pattern(bx *s)
     return jm_chol_symbolic(&s->chol, nr, s->n_start, s->n_index, &s->work);
 }
 
-/* The augmented system the Newton step really solves:
- *
- *     [ -inv   E^T ] [ dz ]   [ rt ]
- *     [   E    dI  ] [ dy ] = [ r  ]
- *
- * where inv is the diagonal of Theta^{-1}.  Eliminating dz gives the
- * normal equations `form_normal` builds, so the two paths answer the
- * same question; this one keeps its shape when inv stops being diagonal,
- * which is what a full Q costs.  A fixed column has dz = 0 and is left
- * out, so the live variables come first and the rows after them.
- */
 static jaos_status build_aug_pattern(bx *s)
 {
     const jaos_model *m = s->m;
@@ -557,12 +543,6 @@ static jaos_status build_aug_pattern(bx *s)
                             &s->work);
 }
 
-/* `with_q` is false only for the starting point, which solves a plain
- * least-squares system: the normal path builds it with theta at 1,
- * which leaves Q's diagonal out, so Q's off-diagonal entries have to
- * stay out too. Half of Q makes the block indefinite, the LDL
- * replaces the pivots it cannot sign, and the dual iterate leaves
- * the model on the first step. */
 static jaos_status form_aug(bx *s, bool with_q)
 {
     const jaos_model *m = s->m;
@@ -793,14 +773,6 @@ static void newton(bx *s, const double *r, const double *rt, double *dy,
     jm_work_add(&s->work, 2 * s->nvar * JM_WORK_NONZERO);
 }
 
-/* A fixed column has no residual and no complementarity, so it drops out of
- * the Newton system, but it still stands in the objective: `fixed_obj`
- * carries its linear part and its share of `1/2 z'Qz` is added here.  It
- * goes to both objectives with the same sign, because their difference is
- * the complementarity of the columns that are not fixed and a fixed column
- * has none; adding it to one side only would put a term in the gap that
- * nothing drives to zero.
- */
 static void residuals(bx *s, double *pobj, double *dobj, double *mu)
 {
     mul_e(s, s->z, s->rp);

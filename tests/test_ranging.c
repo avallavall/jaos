@@ -460,13 +460,6 @@ static void test_a_mutual_singleton_on_an_open_row_ranges(void)
 #endif
 }
 
-/* A degenerate optimum: three constraints are tight at (1, 1) where two
-   columns need only two, because r0 and r1 are the same row written twice.
-   Several bases hold that point and they do not all report the same
-   interval, so this is where ranging can be wrong while every non-degenerate
-   model agrees. What ranging claims is that the basis holds across the
-   interval, which makes the objective linear in the parameter; the check is
-   that and needs no sign convention. */
 static jaos_model *degenerate_pair(void)
 {
     const double c[]  = {-2.0, -1.0};

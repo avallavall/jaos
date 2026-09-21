@@ -1223,11 +1223,6 @@ static void test_an_overflowing_gap_term_does_not_poison_the_accumulator(void)
     jaos_model_free(m);
 }
 
-/* A ball x0^2 + x1^2 <= 1 as a quadratic row and a half-space x0 + x1
-   >= 3 past it: no point, and the proof needs the ball's curvature. With
-   the multipliers -1 on the ball and 1 on the half-space the rows need 2
-   and the columns reach 2 * (1 * 1 / (2 * 2)) = 0.5, so the gap is 1.5.
-   A multiplier that curves the wrong way carries no proof. */
 static void test_a_ball_certificate_rests_on_the_row_curvature(void)
 {
     const double c[2] = {0.0, 0.0};

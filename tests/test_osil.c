@@ -69,11 +69,6 @@ static void round_trip(const char *src,
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(b, "build/to_tmp.osil"));
     TEST_ASSERT_EQUAL_STRING("", jaos_model_error(b));
     assert_same_model(a, b);
-    /* Under either presolve fault build the restored point lands on the
-     * wrong column, so the tree on `g_semi.lp` never settles and the test
-     * ran for an hour without a limit. The dearest of these models takes 3
-     * nodes when presolve is right, so 1000 only stops that walk. Both
-     * copies stop in the same place, because they are the same model. */
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(a, 1000));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(b, 1000));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
@@ -106,11 +101,6 @@ static void test_a_semicontinuous_column_survives_a_model_with_no_integer_column
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
     TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
 #else
-    /* min x + y/2 over x + y >= 1, with x in {0} u [2, 10] and y in [0, 1].
-     * Taking the zero costs 0.5 and standing on the floor costs 2. The
-     * reader used to install the semi-continuous marks and leave
-     * `col_integer` null, and `jm_model_has_integer` reads that pointer
-     * first, so the copy went to the LP, where x cannot leave [2, 10]. */
     const double cost[] = {1.0, 0.5};
     const double cl[] = {2.0, 0.0}, cu[] = {10.0, 1.0};
     const double rl[] = {1.0}, ru[] = {INFINITY};

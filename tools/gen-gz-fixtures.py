@@ -98,8 +98,6 @@ def no_distance_block():
     w.bits(0, 5)        # HLIT  -> 257 literal/length codes
     w.bits(0, 5)        # HDIST -> 1 distance code
     w.bits(14, 4)       # HCLEN -> 18 code-length codes sent
-    # Lengths for the code-length alphabet, in the order RFC 1951 fixes.
-    # Only symbols 18 (a long run of zeros), 0 and 1 are used.
     for v in [0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]:
         w.bits(v, 3)
     C18, C0, C1 = (0, 1), (2, 2), (3, 2)   # canonical over {18:1, 0:2, 1:2}
@@ -139,7 +137,6 @@ def main():
 
     types = {}
 
-    # The three block types, all decoding to the same model as t1.mps.
     m, types["t1.mps.gz"] = member(t1, level=9, fname="t1.mps")
     put("t1.mps.gz", m)
     m, types["t1_stored.mps.gz"] = member(t1, level=0)
@@ -150,29 +147,24 @@ def main():
                                          fcomment="a comment", fhcrc=True)
     put("t1_fixed.mps.gz", m)
 
-    # Two members end to end, which is a legal gzip file.
     half = len(t1) // 2
     a, _ = member(t1[:half], level=9)
     b, _ = member(t1[half:], level=9)
     put("t1_two.mps.gz", a + b)
 
-    # The LP reader, and a longer instance for back-references further back.
     m, types["g1.lp.gz"] = member(g1, level=9, fname="g1.lp")
     put("g1.lp.gz", m)
     m, types["solve1.mps.gz"] = member(solve1, level=9, fname="solve1.mps")
     put("solve1.mps.gz", m)
 
-    # Zero padding after the member, which gzip itself ignores.
     m, _ = member(t1, level=9)
     put("t1_padded.mps.gz", m + b"\x00" * 32)
 
-    # Two shapes no format reader can express, decoded through jm_slurp.
     body, payload = no_distance_block()
     put("gz_nodist.gz", raw_member(body, payload))
     put("gz_empty.gz", raw_member(raw_deflate(b"", 9,
                                               zlib.Z_DEFAULT_STRATEGY), b""))
 
-    # The rejections, one file per class.
     bad, _ = member(t1, level=9, cm=7)
     put("eg_method.mps.gz", bad)
 
@@ -189,8 +181,6 @@ def main():
     reserved[3] |= 0x20
     put("eg_reserved.mps.gz", bytes(reserved))
 
-    # The header's own checksum, damaged. On this fixture FHCRC sits after
-    # 10 header bytes, the FEXTRA block, and the two NUL-terminated names.
     withcrc, _ = member(t1, level=9, strategy=zlib.Z_FIXED,
                         fextra=b"XX\x02\x00ab", fname="t1.mps",
                         fcomment="a comment", fhcrc=True)

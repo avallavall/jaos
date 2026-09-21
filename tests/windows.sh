@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# The Windows build: cross-compile the library and the tool with mingw-w64
-# through the CMake package, and run the tool under wine where wine exists,
-# and natively on the Windows host when this runs inside WSL.
 set -u
 
 if ! command -v cmake >/dev/null 2>&1; then

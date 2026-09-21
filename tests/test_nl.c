@@ -390,9 +390,6 @@ static const char *slurp_sol(const char *path)
     return buf;
 }
 
-/* Pyomo's .nl of min -3x - 2y + 7 over x + 2y <= 8, 3x - y >= -2,
-   1 <= x + y <= 5, 0 <= x <= 4, y >= 0: the optimum is x = 4, y = 1 at
-   -7, and only the third row binds, with dual -2. */
 static void test_an_ampl_sol_carries_the_duals_and_values_of_an_lp(void)
 {
     jaos_model *m = fresh();
@@ -415,10 +412,6 @@ static void test_an_ampl_sol_carries_the_duals_and_values_of_an_lp(void)
     jaos_model_free(m);
 }
 
-/* JuMP's .nl of the same LP declares its objective nonlinear on header
-   line 3 while the body is the constant 7, so the header's count alone
-   decides nothing; and a file the reader refuses still leaves the
-   header's counts for the .sol that reports it. */
 static void test_the_nl_bodies_decide_and_a_refusal_keeps_the_counts(void)
 {
     jaos_model *m = fresh();
@@ -492,10 +485,6 @@ static void test_an_ampl_sol_codes_the_verdicts(void)
                                      "1\n0\n1\n0\nobjno 0 200\n"));
     jaos_model_free(m);
 
-    /* max x + y over 2x + 2y <= 3 with x and y binary. A callback that
-       stops the search at its first incumbent, the start (1, 0), leaves
-       that point to hand back; a work limit of one unit stops it before
-       any point. */
     const double kc[2] = {1.0, 1.0}, kl[2] = {0.0, 0.0}, ku[2] = {1.0, 1.0};
     const double krl[1] = {-inf}, kru[1] = {3.0};
     const int64_t kas[3] = {0, 1, 2}, kai[2] = {0, 0};

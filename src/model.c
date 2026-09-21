@@ -762,15 +762,6 @@ void jm_log(const jaos_model *m, jaos_log_level level, const char *fmt, ...)
     m->cfg.log_cb(m->cfg.log_user, level, line);
 }
 
-/* Is sigma * Q positive semi-definite?  A quadratic objective is convex
- * exactly when it is, and a diagonal Q answers by inspection, which the
- * caller has already done.  With off-diagonal entries there is no test
- * by inspection, so the model factors sigma * Q plus a ridge with the
- * quasi-definite LDL and asks every pivot to come out positive: a ridge
- * of eps times the largest entry keeps a semi-definite Q above zero and
- * leaves an indefinite one below it.  The factor is thrown away; only
- * the answer is kept.
- */
 static jaos_status quadratic_convex(jaos_model *m, double sigma)
 {
     const int64_t nc = m->num_col;
@@ -1013,12 +1004,6 @@ void jm_model_drop_quadratic(jaos_model *m)
     drop_offdiagonal(m);
 }
 
-/* The whole quadratic objective at once: the objective becomes
- * c'x + 1/2 x'Qx with Q symmetric.  Every off-diagonal pair is given
- * once, as (i, j) or as (j, i); the diagonal goes to col_quad, where the
- * separable form already lives, and the rest is kept as the strict lower
- * triangle so nothing that reads only the diagonal has to change.
- */
 jaos_status jaos_set_quadratic(jaos_model *m, int64_t nnz,
                                const int64_t *rows, const int64_t *cols,
                                const double *values)

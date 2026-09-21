@@ -325,7 +325,6 @@ expect_exit 0 "a dive bounded by the degradation still solves it" \
     || flunk "dive degrade: $(line_of objective)"
 expect_exit 5 "--dive-degrade refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --dive --dive-degrade -1
-# error.
 expect_exit 0 "the feasibility pump still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --no-heuristics --dive-heuristic 0 --feaspump 5
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
@@ -1534,8 +1533,6 @@ expect_exit 0 "and the moved model solves" "$JAOS" solve "$tmp/snap.mps"
 fi
 expect_exit 5 "relax --cols on the runaway model stops at a work limit" \
     "$JAOS" relax "$DATA/relax_runaway.mps" --cols --work-limit 2000000
-# Under a fault build the tree on the elastic copy grows until the process
-# runs out of memory, so the refusal names that instead of the work limit.
 if [ "$faulty" -eq 0 ]; then
 case "$err" in
     *"work limit"*) pass "and says the work limit stopped it" ;;
@@ -1767,8 +1764,6 @@ case "$err" in
     *MIP*) pass "and says the model is a MIP" ;;
     *) flunk "verify of a MIP said '$err'" ;;
 esac
-# A work limit of one unit would end a solve as work_limit before any
-# answer, so a refusal that still names the MIP came before the solve.
 expect_exit 5 "ranging refuses a MIP before it solves" \
     "$JAOS" ranging "$DATA/t4_int.mps" --work-limit 1
 case "$err" in

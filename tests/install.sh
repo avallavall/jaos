@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# if something OUTSIDE this repository can compile against it, so this
 set -u
 
 CC=${1:-gcc}

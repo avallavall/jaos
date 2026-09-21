@@ -2241,13 +2241,6 @@ static jaos_status cm_zero_row(jaos_model *r, double *row, int64_t *idx,
     return jaos_add_rows(r, 1, &zero, &zero, n, rs, idx, row);
 }
 
-/* A direction that keeps every row, bound and cone and lowers the
-   objective is an improving ray, whatever the walk's own direction did.
-   The columns are the directions, boxed at 1 where a bound is infinite
-   and held at 0 where it is finite; a row's side that is finite holds its
-   direction's activity on that side of 0; a quadratic part, in a row or
-   in the objective, has to vanish along the direction, so `Q d = 0` goes
-   in as rows; and a cone's recession cone is the cone itself. */
 static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
 {
     *found = false;
@@ -2621,11 +2614,6 @@ static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
     return JAOS_OK;
 }
 
-/* Every cone left out and no quadratic row: what is left is a linear or
-   quadratic model, and the walk has nothing to walk on. The copy fixes
-   the columns the cones held, drops the cones and goes to the algorithm
-   the model would have used without them; the answer comes back with the
-   cones' own parts rebuilt. */
 static jaos_status cm_without_cones(jaos_model *m, const uint8_t *drop,
                                     const uint8_t *flag, int64_t work0,
                                     int64_t iters0)

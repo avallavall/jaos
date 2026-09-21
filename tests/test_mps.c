@@ -166,9 +166,6 @@ static void write_text(const char *path, const char *text)
     fclose(f);
 }
 
-/* The Maros-Meszaros QPS files: a BOUNDS or RHS line with no set name,
-   and the fixed layout with a space inside a name, which reads as an
-   underscore so nothing downstream has to spell whitespace. */
 static void test_a_bound_or_rhs_line_may_leave_the_set_name_out(void)
 {
     write_text("build/tm_noset.mps",

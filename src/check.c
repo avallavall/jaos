@@ -822,12 +822,6 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
             for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
                 extra[m->cone_col[t]] += cone_ray[t];
     }
-    /* The rows' quadratic parts add 1/2 x'Hx to the combination, with
-       H the diagonal of the multipliers times the parts, and every one
-       of them curving the way `row_curves_its_way` demands, so H is
-       negative. A column the curvature holds needs no bound of its own:
-       a x + 1/2 h x^2 reaches a^2 / (-2h) and no more, wherever the
-       column may go. */
     double *hdiag = nullptr;
     if (m->rq_nz > 0 && bounded) {
         hdiag = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
