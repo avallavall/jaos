@@ -1238,7 +1238,9 @@ Returns the thread count. It is 1 unless it was set.
 Stops a solve after `seconds` of wall-clock time, and the solve ends
 `JAOS_SOLVE_TIME_LIMIT`. The default is 0, and 0 or a negative value means
 no limit. The call fails when `seconds` is NaN. This is the one setting that
-makes a result depend on the machine.
+makes a result depend on the machine. In a MIP, every relaxation the tree
+solves, at a node, in a cut round or in a heuristic, gets only the time that
+is left.
 
 **`jaos_set_primal_tolerance`**\
 `jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol)`\

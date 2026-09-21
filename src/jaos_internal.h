@@ -251,6 +251,7 @@ struct jaos_model {
     int64_t mip_rcfix_n, mip_prop_n;
     int64_t mip_sym_gen, mip_sym_orbits;
     double mip_bound;
+    double mip_started;
     bool mip_has_incumbent;
     double mip_inc_obj;
 

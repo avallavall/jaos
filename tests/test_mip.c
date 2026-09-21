@@ -2653,6 +2653,83 @@ static void test_rins_searches_the_incumbents_neighbourhood(void)
     jaos_model_free(m);
 }
 
+static uint64_t cover_draw(uint64_t *s)
+{
+    *s = *s * 6364136223846793005ull + 1442695040888963407ull;
+    return *s >> 33;
+}
+
+static jaos_model *binary_cover(void)
+{
+    enum { NC = 200, NR = 100, PER = 20, NZ = NR * PER };
+    static double c[NC], cl[NC], cu[NC], rl[NR], ru[NR], v[NZ];
+    static int64_t start[NC + 1], index[NZ], rowof[NZ], colof[NZ];
+    static double val[NZ];
+    uint64_t s = 12345;
+    int64_t nz = 0;
+    memset(start, 0, sizeof start);
+    for (int64_t i = 0; i < NR; i++) {
+        double tot = 0.0;
+        for (int64_t k = 0; k < PER; k++) {
+            const int64_t j = k * (NC / PER) +
+                              (int64_t)(cover_draw(&s) % (NC / PER));
+            const double w = 1.0 + (double)(cover_draw(&s) % 100);
+            rowof[nz] = i;
+            colof[nz] = j;
+            val[nz] = w;
+            nz++;
+            start[j + 1]++;
+            tot += w;
+        }
+        rl[i] = floor(tot / 3.0);
+        ru[i] = INFINITY;
+    }
+    for (int64_t j = 0; j < NC; j++) {
+        c[j] = 1.0 + (double)(cover_draw(&s) % 100);
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        start[j + 1] += start[j];
+    }
+    int64_t fill[NC];
+    memcpy(fill, start, sizeof fill);
+    for (int64_t k = 0; k < nz; k++) {
+        index[fill[colof[k]]] = rowof[k];
+        v[fill[colof[k]]] = val[k];
+        fill[colof[k]]++;
+    }
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, nz,
+                     start, index, v));
+    for (int64_t j = 0; j < NC; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+    return m;
+}
+
+static void test_a_time_limit_stops_the_root_between_its_solves(void)
+{
+    jaos_model *m = binary_cover();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+    jaos_mip_report full;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &full));
+    const double whole = jaos_solve_time(m);
+    jaos_model_free(m);
+    TEST_ASSERT_TRUE(full.lp_solves > 20);
+
+    m = binary_cover();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, whole / 5.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_TIME_LIMIT, jaos_status_of(m));
+    jaos_mip_report cut;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &cut));
+    TEST_ASSERT_TRUE(cut.lp_solves < full.lp_solves);
+    TEST_ASSERT_TRUE(jaos_solve_time(m) < 0.6 * whole);
+    jaos_model_free(m);
+}
+
 static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
 {
     const double frac[3] = { 0.0, 0.01, 1.0 };
@@ -4172,6 +4249,7 @@ int main(void)
     RUN_TEST(test_the_objective_pump_finds_a_better_root_point);
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
+    RUN_TEST(test_a_time_limit_stops_the_root_between_its_solves);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
     RUN_TEST(test_propagation_proves_a_row_infeasible);

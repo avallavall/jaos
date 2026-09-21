@@ -574,22 +574,34 @@ static int64_t orbit_stabilizer(const jaos_model *m, const jm_symmetry *sym,
     return kept;
 }
 
+static double now_seconds(void)
+{
+    return jm_monotonic_seconds();
+}
+
+static bool time_gone(const jaos_model *m)
+{
+    return m->cfg.time_limit > 0.0 &&
+           now_seconds() - m->mip_started >= m->cfg.time_limit;
+}
+
 static bool budget_gone(const jaos_model *m, int64_t work)
 {
-    return m->cfg.work_limit > 0 && work >= m->cfg.work_limit;
+    return (m->cfg.work_limit > 0 && work >= m->cfg.work_limit) ||
+           time_gone(m);
 }
 
 static void budget(jaos_model *lp, const jaos_model *m, int64_t work)
 {
-    if (m->cfg.work_limit <= 0)
-        return;
-    const int64_t left = m->cfg.work_limit - work;
-    lp->cfg.work_limit = left > 0 ? left : 1;
-}
-
-static double now_seconds(void)
-{
-    return jm_monotonic_seconds();
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - work;
+        lp->cfg.work_limit = left > 0 ? left : 1;
+    }
+    if (m->cfg.time_limit > 0.0) {
+        const double left =
+            m->cfg.time_limit - (now_seconds() - m->mip_started);
+        lp->cfg.time_limit = left > 0.0 ? left : DBL_MIN;
+    }
 }
 
 typedef struct {
@@ -983,7 +995,9 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
         st = jaos_solve(lp);
     (*solves)++;
     *work += jaos_work_units(lp);
-    if (st == JAOS_OK && jaos_status_of(lp) != JAOS_SOLVE_OPTIMAL)
+    if (st == JAOS_OK && jaos_status_of(lp) != JAOS_SOLVE_OPTIMAL &&
+        jaos_status_of(lp) != JAOS_SOLVE_WORK_LIMIT &&
+        jaos_status_of(lp) != JAOS_SOLVE_TIME_LIMIT)
         st = JAOS_ERR_NUMERICAL;
     return st;
 }
@@ -3568,6 +3582,7 @@ static void root_certificate(jaos_model *m, const jaos_model *lp)
 jaos_status jm_branch_and_bound(jaos_model *m)
 {
     const double t0 = now_seconds();
+    m->mip_started = t0;
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     const bool quadratic = jm_model_has_quadratic(m);

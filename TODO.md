@@ -68,14 +68,6 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     SPECS row and no refusal; SPECS is closed, so the user decides whether
     to add the two rows. Ask once, with B7's numbers, before building.
 
-B16 **The MIP time limit is not kept at the root.** Found by B7's
-    comparison (`bench/compare/results/mip-miplib2017.txt`): at
-    `--time-limit 20` JAOS stops csched008 after 40.7 s and 42.4 s in two
-    runs, with one node, and neos-3381206-awhea after 21.5 s. Some root
-    step does not read the clock. Find it, make it stop at the limit, and
-    add a test that a root which runs long stops within the limit. Verify:
-    both instances stop within 1 s of `--time-limit 20`.
-
 B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
     `bench/compare/README.md` and this milestone's intro quote P0 as
     re-taken after the rows that land before it. Re-take
