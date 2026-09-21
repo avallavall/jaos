@@ -29,6 +29,23 @@ check target of its own. What each needs on the machine:
 They were read under Ubuntu 24.04 with Python 3.12.3, Julia 1.13,
 .NET 8.0.131, OpenJDK 25.0.4 and R 4.3.3.
 
+## What the shared library exports
+
+The library's objects are compiled with `-fvisibility=hidden` and
+`JAOS_BUILD`, and every function of `include/jaos.h` carries `JAOS_API`:
+`__attribute__((visibility("default")))` with GCC and clang,
+`__declspec(dllexport)` when a Windows DLL is built. So `libjaos.so` and
+`libjaos.dll` export the header's functions and nothing else, and the
+internal `jm_*` calls stay inside. `tests/exports.sh`, run by `make test`,
+compares the library's dynamic symbols with the header's declarations and
+fails on any difference. A static link is not affected: the tests and the
+bench tools still reach the internal calls through `libjaos.a`.
+
+The shared library's soname is `libjaos.so.MAJOR` (`libjaos.so.0` today),
+in the Makefile and in CMake alike. `make install` puts it as
+`libjaos.so.VERSION` with `libjaos.so.MAJOR` and `libjaos.so` linking to
+it, which is the layout `cmake --install` writes too.
+
 ## Profile-guided optimisation
 
 `make pgo` gains about three times as much as all the flags together. It
@@ -82,7 +99,7 @@ from its own copy of the objects at `-Og` with `NDEBUG` undefined, exactly as
 the Makefile does, because `jaos_internal.h` lays out structures differently
 under `NDEBUG` and a test has to agree with the library it links.
 
-`cmake --install` puts the header, `libjaos.a`, `libjaos.so`, `jaos`,
+`cmake --install` puts the header, `libjaos.a`, `libjaos.so` and its links, `jaos`,
 `jaos.pc` and `lib/cmake/jaos/` under the prefix. A consumer then writes
 `find_package(jaos REQUIRED)` and links `jaos::jaos` or `jaos::shared`;
 `jaos::cli` is the tool. `tests/cmake.sh` is what `make test` runs to check

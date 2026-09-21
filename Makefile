@@ -12,6 +12,12 @@ STD  := -std=c23
 WARN := -Wall -Wextra -Wpedantic
 INC  := -Iinclude
 
+LIBONLY := -fvisibility=hidden -DJAOS_BUILD
+
+HASH := \#
+JAOS_VERSION := $(shell sed -n 's/^$(HASH)define JAOS_VERSION_STRING "\(.*\)"/\1/p' include/jaos.h)
+JAOS_MAJOR   := $(shell sed -n 's/^$(HASH)define JAOS_VERSION_MAJOR \([0-9]*\)/\1/p' include/jaos.h)
+
 FP := -ffp-contract=off
 
 THREADS := -pthread
@@ -61,7 +67,7 @@ DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 
 .PHONY: all test docs-check version-check sdist-test sanitize configs cli bench compare-build compare-solvers compare refusals \
-	install uninstall pkgconfig install-test cmake-test windows-test \
+	install uninstall pkgconfig exports-test install-test cmake-test windows-test \
 	netlib netlib-baseline \
 	netlib-kennington \
 	netlib-infeas netlib-kennington-baseline netlib-infeas-baseline \
@@ -70,7 +76,7 @@ ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
 	miplib miplib-baseline cblib cblib-baseline \
 	warm warm-kennington primal primal-kennington barrier barrier-infeas \
 	pdlp pdlp-infeas concurrent \
-	shared python-test julia-test dotnet-test java java-test r-test \
+	shared python-test julia-test dotnet-test java java-test r-test fuzz \
 	pgo clean
 
 .SECONDARY:
@@ -87,21 +93,26 @@ $(LIB): $(REL_OBJ)
 HDRS := include/jaos.h src/jaos_internal.h
 
 $(B)/release/%.o: src/%.c $(HDRS) | $(B)/release
-	$(CC) $(RELEASE_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(RELEASE_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
 
 $(B)/dev/%.o: src/%.c $(HDRS) | $(B)/dev
-	$(CC) $(DEV_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(DEV_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
 
 $(B)/asan/%.o: src/%.c $(HDRS) | $(B)/asan
-	$(CC) $(ASAN_CFLAGS) $(INC) -c $< -o $@
+	$(CC) $(ASAN_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
 
 $(B)/pic/%.o: src/%.c $(HDRS) | $(B)/pic
-	$(CC) $(RELEASE_CFLAGS) -fPIC $(INC) -c $< -o $@
+	$(CC) $(RELEASE_CFLAGS) -fPIC $(LIBONLY) $(INC) -c $< -o $@
 
 $(SHLIB): $(PIC_OBJ) | $(B)/release
-	$(CC) $(RELEASE_CFLAGS) -shared -o $@ $^ $(LDLIBS)
+	$(CC) $(RELEASE_CFLAGS) -shared -Wl,-soname,libjaos.so.$(JAOS_MAJOR) -o $@ $^ $(LDLIBS)
 
-shared: $(SHLIB)
+SHLINK := $(B)/release/libjaos.so.$(JAOS_MAJOR)
+
+$(SHLINK): $(SHLIB)
+	ln -sf libjaos.so $@
+
+shared: $(SHLIB) $(SHLINK)
 
 $(B)/dev/unity.o: $(UNITY_DIR)/unity.c | $(B)/dev
 	$(CC) $(UNITY_CFLAGS) -I$(UNITY_DIR) -c $< -o $@
@@ -120,7 +131,7 @@ refusals:
 	@mkdir -p $(B)
 	@bash tools/refusals.sh
 
-test: $(DEV_TESTS) $(BENCH_TOOLS) $(CLI) install-test cmake-test windows-test
+test: $(DEV_TESTS) $(BENCH_TOOLS) $(CLI) exports-test install-test cmake-test windows-test
 	@fail=0; for t in $(DEV_TESTS); do echo "== $$t"; ./$$t || fail=1; done; \
 	echo "== tests/cli.sh"; JAOS_CLI_TEST_FLAGS='$(EXTRA_CFLAGS)' bash tests/cli.sh $(CLI) || fail=1; \
 	echo "== tools/docs-check.sh"; bash tools/docs-check.sh || fail=1; \
@@ -134,6 +145,9 @@ version-check:
 
 sdist-test:
 	@echo "== tests/sdist.sh"; bash tests/sdist.sh
+
+exports-test: $(SHLIB)
+	@echo "== tests/exports.sh"; bash tests/exports.sh $(SHLIB)
 
 install-test: $(LIB) $(SHLIB) $(CLI) $(B)/jaos.pc
 	@echo "== tests/install.sh"; bash tests/install.sh $(CC)
@@ -166,7 +180,7 @@ java:
 	@$(JAVAC) -d $(B)/java/classes java/src/org/jaos/*.java
 	@jar --create --file $(B)/java/jaos.jar -C $(B)/java/classes .
 
-r-test: $(SHLIB)
+r-test: $(SHLIB) $(SHLINK)
 	@mkdir -p $(B)/R
 	@JAOS_INCLUDE=$(CURDIR)/include JAOS_LIB_DIR=$(CURDIR)/$(B)/release \
 		R CMD INSTALL --clean --library=$(B)/R R/jaos > $(B)/R/install.log 2>&1 \
@@ -482,8 +496,19 @@ pgo:
 		all
 	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
-$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/cli $(B)/pic:
+$(B)/release $(B)/dev $(B)/asan $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
 	mkdir -p $@
+
+FUZZ_CC      ?= clang-20
+FUZZ_CFLAGS  := -std=c23 -g -O1 -ffp-contract=off -pthread \
+                -fsanitize=fuzzer,address,undefined
+FUZZ_FORMATS := mps lp nl osil qplib cbf
+
+$(B)/fuzz/fuzz_%: tests/fuzz_readers.c $(SRC) $(HDRS) | $(B)/fuzz
+	$(FUZZ_CC) $(FUZZ_CFLAGS) -DJAOS_FUZZ_FORMAT='"$*"' $(INC) -Isrc \
+		tests/fuzz_readers.c $(SRC) -o $@ -lm
+
+fuzz: $(FUZZ_FORMATS:%=$(B)/fuzz/fuzz_%)
 
 clean:
 	rm -rf $(B)
@@ -496,7 +521,6 @@ INCLUDEDIR ?= $(PREFIX)/include
 PKGCONFIGDIR ?= $(LIBDIR)/pkgconfig
 INSTALL    ?= install
 
-JAOS_VERSION := $(shell sed -n 's/^#define JAOS_VERSION_STRING "\(.*\)"/\1/p' include/jaos.h)
 
 $(B)/jaos.pc: include/jaos.h Makefile | $(B)/release
 	@printf 'prefix=%s\n' '$(PREFIX)'                          >  $@
@@ -519,7 +543,9 @@ install: $(LIB) $(SHLIB) $(CLI) $(B)/jaos.pc
 		$(DESTDIR)$(BINDIR) $(DESTDIR)$(PKGCONFIGDIR)
 	$(INSTALL) -m 644 include/jaos.h $(DESTDIR)$(INCLUDEDIR)/jaos.h
 	$(INSTALL) -m 644 $(LIB) $(DESTDIR)$(LIBDIR)/libjaos.a
-	$(INSTALL) -m 755 $(SHLIB) $(DESTDIR)$(LIBDIR)/libjaos.so
+	$(INSTALL) -m 755 $(SHLIB) $(DESTDIR)$(LIBDIR)/libjaos.so.$(JAOS_VERSION)
+	ln -sf libjaos.so.$(JAOS_VERSION) $(DESTDIR)$(LIBDIR)/libjaos.so.$(JAOS_MAJOR)
+	ln -sf libjaos.so.$(JAOS_MAJOR) $(DESTDIR)$(LIBDIR)/libjaos.so
 	$(INSTALL) -m 755 $(CLI) $(DESTDIR)$(BINDIR)/jaos
 	$(INSTALL) -m 644 $(B)/jaos.pc $(DESTDIR)$(PKGCONFIGDIR)/jaos.pc
 	@echo "== installed jaos $(JAOS_VERSION) under $(DESTDIR)$(PREFIX)"
@@ -528,6 +554,8 @@ uninstall:
 	rm -f $(DESTDIR)$(INCLUDEDIR)/jaos.h
 	rm -f $(DESTDIR)$(LIBDIR)/libjaos.a
 	rm -f $(DESTDIR)$(LIBDIR)/libjaos.so
+	rm -f $(DESTDIR)$(LIBDIR)/libjaos.so.$(JAOS_MAJOR)
+	rm -f $(DESTDIR)$(LIBDIR)/libjaos.so.$(JAOS_VERSION)
 	rm -f $(DESTDIR)$(BINDIR)/jaos
 	rm -f $(DESTDIR)$(PKGCONFIGDIR)/jaos.pc
 	@echo "== removed jaos from $(DESTDIR)$(PREFIX)"

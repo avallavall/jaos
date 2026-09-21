@@ -35,6 +35,18 @@ got=$(sed -n 's/^Version: //p' "$STAGED/lib/pkgconfig/jaos.pc")
     && pass "jaos.pc carries the header's version, $want" \
     || flunk "jaos.pc says '$got' and the header says '$want'"
 
+maj=$(sed -n 's/^#define JAOS_VERSION_MAJOR \([0-9]*\)$/\1/p' include/jaos.h)
+[ -f "$STAGED/lib/libjaos.so.$want" ] && [ -L "$STAGED/lib/libjaos.so.$maj" ] \
+    && [ -L "$STAGED/lib/libjaos.so" ] \
+    && pass "libjaos.so and libjaos.so.$maj link to libjaos.so.$want" \
+    || flunk "the shared library is not libjaos.so.$want with two links"
+if command -v readelf >/dev/null 2>&1; then
+    soname=$(readelf -d "$STAGED/lib/libjaos.so.$want" \
+        | sed -n 's/.*Library soname: \[\(.*\)\].*/\1/p')
+    [ "$soname" = "libjaos.so.$maj" ] && pass "its soname is libjaos.so.$maj" \
+        || flunk "its soname is '$soname', not libjaos.so.$maj"
+fi
+
 grep -q "^prefix=$PREFIX_IN_TREE\$" "$STAGED/lib/pkgconfig/jaos.pc" \
     && pass "and the prefix it was configured with" \
     || flunk "jaos.pc's prefix is not $PREFIX_IN_TREE"
@@ -46,8 +58,6 @@ if command -v pkg-config >/dev/null 2>&1; then
 fi
 
 cat > "$ROOT/user.c" <<'EOF'
-/* A consumer that knows nothing about the source tree: one include, one
- * link, the public API and nothing else. */
 #include <jaos.h>
 #include <stdio.h>
 

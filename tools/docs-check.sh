@@ -41,7 +41,7 @@ if ! cmp -s "$tmp/code-opts" "$tmp/doc-opts"; then
     diff "$tmp/code-opts" "$tmp/doc-opts" | sed 's/^/    /'
 fi
 
-nfun=$(grep '^JAOS_NODISCARD\|^[a-z].* \*\?jaos_[a-z0-9_]*(' include/jaos.h \
+nfun=$(grep '^JAOS_NODISCARD\|^JAOS_API\|^[a-z].* \*\?jaos_[a-z0-9_]*(' include/jaos.h \
     | grep -o 'jaos_[a-z0-9_]*[[:space:]]*(' | sort -u | wc -l)
 nopt=$(wc -l < "$tmp/code-opts")
 grep -q "\`include/jaos.h\`, $nfun functions" SPECS.md \
@@ -93,7 +93,7 @@ for f in docs/*.md docs/research/*.md; do
 done
 
 if [ -f docs/api.md ]; then
-    grep '^JAOS_NODISCARD\|^[a-z].* \*\?jaos_[a-z0-9_]*(' include/jaos.h \
+    grep '^JAOS_NODISCARD\|^JAOS_API\|^[a-z].* \*\?jaos_[a-z0-9_]*(' include/jaos.h \
         | grep -o 'jaos_[a-z0-9_]*[[:space:]]*(' | sed 's/[[:space:]]*($//' \
         | sort -u > "$tmp/fns"
     while read -r fn; do

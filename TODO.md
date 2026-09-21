@@ -37,29 +37,6 @@ A2.13 **The count of gate bases the exact proof reaches is old.** The
 
 ### A3. Shippable
 
-A3.1 **CI.** There is no `.github/` and no other CI. Add
-    `.github/workflows/ci.yml`: an Ubuntu job with GCC 14 that runs `make
-    test && make sanitize && make python-test` (the shared library first),
-    and a second job with mingw-w64 and wine that runs `tests/windows.sh`.
-    Verify: the workflow file parses (`act` is not required; a push to a
-    branch and a green run is the check, and it is the user's to trigger).
-
-A3.2 **Symbol visibility.** All 91 non-static `jm_*` functions in
-    `src/jaos_internal.h` export from `libjaos.so` and from the mingw DLL.
-    Add a `JAOS_API` macro in `include/jaos.h` (`__attribute__((visibility
-    ("default")))` on GCC and clang, `__declspec(dllexport)`/`dllimport` on
-    Windows), mark the 197 public functions, build with
-    `-fvisibility=hidden` in both `Makefile` and `CMakeLists.txt`. Verify:
-    `nm -D build/release/libjaos.so | grep ' T ' | grep -v jaos_` prints
-    nothing, and `tests/windows.sh` still runs.
-
-A3.3 **The shared library's identity.** `Makefile:58` links `libjaos.so`
-    with no soname; `CMakeLists.txt:123` sets `SOVERSION 0`. Give the
-    Makefile the same soname (`libjaos.so.0`, with the unversioned symlink)
-    so `make install` and the CMake install agree. Verify:
-    `readelf -d build/release/libjaos.so | grep SONAME` and
-    `tests/install.sh`.
-
 A3.4 **API reference.** 197 public functions and no document lists them.
     Write `docs/api.md`: every function grouped as `jaos.h` groups them, one
     line each with what it does, its status return and what it fills; the
@@ -70,12 +47,6 @@ A3.4 **API reference.** 197 public functions and no document lists them.
     document list and from `docs/README.md` (A2.2).
     Verify: a script step in `tools/docs-check.sh` that every `jaos_*` in the
     header appears in `docs/api.md`.
-
-A3.5 **The header, before 1.0.** 34 enumerators carry no explicit value and
-    `include/jaos.h:819` is an anonymous `typedef enum` (`jaos_proof_kind`).
-    Give every enumerator its value and the enum its tag. Verify: the value
-    of every enumerator is unchanged (compare `jaos options` and the Python
-    tests, which read them by number).
 
 A3.6 **`const` on read-only calls.** `jaos_row_entries` (`jaos.h:405`),
     every `jaos_write_*` (`:435-449`) and `jaos_write_proof` take a non-const

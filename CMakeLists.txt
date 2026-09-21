@@ -121,7 +121,8 @@ if(JAOS_BUILD_SHARED)
       EXPORT_NAME shared
       VERSION ${PROJECT_VERSION}
       SOVERSION ${PROJECT_VERSION_MAJOR}
-      WINDOWS_EXPORT_ALL_SYMBOLS ON)
+      C_VISIBILITY_PRESET hidden)
+  target_compile_definitions(jaos_shared PRIVATE JAOS_BUILD)
   jaos_shipping_target(jaos_shared)
   list(APPEND JAOS_INSTALL_TARGETS jaos_shared)
 endif()
