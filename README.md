@@ -240,7 +240,7 @@ cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers
 bench/measurements/   raw readings behind every measured verdict
-docs/                 the CLI, formats, tolerances, scaling, work units, the build, the feature matrix
+docs/                 the API, the CLI, formats, tolerances, scaling, work units, the build, the feature matrix
 docs/research/        designs worked out on paper
 ```
 
@@ -249,7 +249,7 @@ docs/research/        designs worked out on paper
 - `SPECS.md` — every feature JAOS must have, with its status.
 - `TODO.md` — the current milestone's backlog.
 - `bench/refusals.txt` — ideas measured as worse, and what would reopen each.
-- `docs/` — the tool, the formats, the constants behind the code;
+- `docs/` — the API, the tool, the formats, the constants behind the code;
   [`docs/README.md`](docs/README.md) lists every page.
 - `CONTRIBUTING.md` — how to build, test and send a change, and the rules
   it must hold.

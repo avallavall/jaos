@@ -49,7 +49,7 @@ A feature is done when it reaches all of these, in one batch:
 2. the tool in `cli/jaos.c`, with a check in `tests/cli.sh`;
 3. `python/jaos` at both layers (the ctypes calls and the modelling
    layer), with a test in `python/test_jaos.py`;
-4. the documents it changes: `docs/cli.md`, `docs/format-support.md` and
+4. the documents it changes: `docs/api.md`, `docs/cli.md`, `docs/format-support.md` and
    the README.
 
 ## The record

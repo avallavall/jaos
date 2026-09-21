@@ -37,23 +37,6 @@ A2.13 **The count of gate bases the exact proof reaches is old.** The
 
 ### A3. Shippable
 
-A3.4 **API reference.** 197 public functions and no document lists them.
-    Write `docs/api.md`: every function grouped as `jaos.h` groups them, one
-    line each with what it does, its status return and what it fills; the
-    ownership rules (`jaos_model_new`/`free`/`copy`, strings owned by the
-    model); that `jaos_get_option` is the read path for every `jaos_set_*`
-    and each setter's option name; the `jaos_set_mip_tree_batch` paragraph
-    from the header; the time-limit note of A2.11. Link from README's
-    document list and from `docs/README.md` (A2.2).
-    Verify: a script step in `tools/docs-check.sh` that every `jaos_*` in the
-    header appears in `docs/api.md`.
-
-A3.6 **`const` on read-only calls.** `jaos_row_entries` (`jaos.h:405`),
-    every `jaos_write_*` (`:435-449`) and `jaos_write_proof` take a non-const
-    model, so a `const jaos_model *` cannot be written out. Make them take
-    `const`, or write in `docs/api.md` why each mutates. Verify: builds with
-    `-Wcast-qual` clean, Python and bindings unchanged.
-
 A3.8 **Wheels.** No `cibuildwheel` config, no manylinux, no macOS or Windows
     wheel; the loader in `python/jaos/__init__.py:186-224` already looks for
     `jaos.dll` and `libjaos.dylib`. Add a `cibuildwheel` job to A3.1's

@@ -6,6 +6,7 @@ code and the formats.
 
 | file | what it holds |
 |---|---|
+| [`api.md`](api.md) | every function of `include/jaos.h`, in the header's order, with the rules every call follows |
 | [`build.md`](build.md) | the build configurations, the Windows build and the CMake package |
 | [`cli.md`](cli.md) | the `jaos` tool: every command, every flag, the exit codes |
 | [`feature-matrix.md`](feature-matrix.md) | JAOS beside HiGHS, SoPlex, Clp, SCIP, Gurobi and Hexaly, row by row |
