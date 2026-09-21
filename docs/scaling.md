@@ -94,5 +94,7 @@ Every solve uses Curtis-Reid: the dual and the primal simplex, the
 barrier, PDLP and ranging all call `jm_model_scale` with
 `JM_SCALE_CURTIS_REID`. The geometric pass is `JM_SCALE_GEOMETRIC` in
 `src/scale.c`, reached only by `tests/test_scale.c`. No option or API call
-selects it, and no reading in `bench/` has compared the two modes on
-Netlib.
+selects it. Put in the simplex's place it loses as a default
+(`bench/measurements/02-279/`, `scale-geometric` in `bench/refusals.txt`):
+netlib reads 0.9984x the work but grow15 4.4x, and four MIP instances pass
+2x, while wood1p and grow22 run at a quarter of the work under it.

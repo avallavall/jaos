@@ -113,14 +113,6 @@ B11 **Local branching, MIP restarts, node selection.** SPECS "RINS, local
     SPECS row and no refusal; SPECS is closed, so the user decides whether
     to add the two rows. Ask once, with B7's numbers, before building.
 
-B12 **The scaling mode, never compared.** Every solve scales by
-    Curtis-Reid. The geometric-mean pass (`JM_SCALE_GEOMETRIC` in
-    `src/scale.c`) is reached only by `tests/test_scale.c`, and no reading
-    has compared the two on Netlib (found 2026-09-21 while fixing
-    `docs/scaling.md`). Measure the geometric pass in the simplex's place
-    over netlib and kennington under the bar above; one line in
-    `bench/refusals.txt` if it loses, or the default moves if it wins.
-
 B13 **A crash basis for the dual, started on Devex weights.** The
     `SPECS-crash-basis` refusal held because the dual starts from exact
     steepest-edge weights, which only the slack basis gives for free. The
