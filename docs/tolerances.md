@@ -423,7 +423,7 @@ error, and the row receiving the fixed column is charged one shift at its own
 traffic. `bench/measurements/02-73/` has the model where that publishes
 INFEASIBLE on a feasible model. **Carrying the error into the window was built
 and refused**: it stops the refusal and then publishes a point violating
-two rows by 7.5 times `CHECK_TOL`, because a window decides whether to refuse
+two rows by 7.5 times `CHECK_TOL` (1e-6, the tolerance `bench/run.c` hands the checker), because a window decides whether to refuse
 and cannot correct a value that is already wrong.
 
 **The error itself was removed instead, and the counts were then taken
@@ -554,7 +554,7 @@ criterion is relative, and a test that pins a large objective absolutely is
 stricter than the project's own gate — which makes it a test about
 floating-point luck rather than about the solver.
 
-## What is not settled
+## How the gate settled the eight failures
 
 Instances have now argued with them. The Netlib gate has been run over the
 whole standard set (`bench/results/netlib.txt`), and **all 94 instances come
@@ -813,7 +813,7 @@ units.
 | `CONIC_SCALE_MIN`, `CONIC_SCALE_MAX` | 1e-4, 1e4 | The clamp on every Ruiz factor and on the objective's scale. Not swept |
 | `CONIC_STALL_STEP` | 1e-10 | A step below this is a stall. Not swept |
 | `CONIC_NEWTON_STEPS` | 2 | Newton steps of the finish; a step that does not lower the KKT residual is undone and the finish stops there. On `tests/data/g_qcp.mps` the residual goes 1.8e-6, 1.3e-11, 4.6e-16. **Swept at 1 and 4**: one step fails 15 and leaves a dual violation of 3.7e-5; four fail the same 12 as two at 1.5% more work |
-| `CONIC_NEWTON_WIDE` | 64 | A cone on its boundary with more members than this enters the finish's Newton system as the diagonal part of its Hessian and one rank-one term held by one extra variable; a narrower one is written dense. It replaced `CONIC_NEWTON_DENSE` (1e6 entries, past which the finish did not run) on 2026-09-19, when CBLIB's cones of 2475 to 99998 members made the finish skip sched and fail to allocate chainsing's `d²` map. **Read at 16, 64 and 256**: the same answers on both readings of 02-254 |
+| `CONIC_NEWTON_WIDE` | 64 | A cone on its boundary with more members than this enters the finish's Newton system as the diagonal part of its Hessian and one rank-one term held by one extra variable; a narrower one is written dense. Before 2026-09-19 the finish did not run past a limit of 1e6 entries, and it changed when CBLIB's cones of 2475 to 99998 members made the finish skip sched and fail to allocate chainsing's `d²` map. **Read at 16, 64 and 256**: the same answers on both readings of 02-254 |
 | `CONIC_PSD_TOL` | 1e-10 | A quadratic row's `Q` is factored by pivoted Cholesky, and a pivot below this times the largest entry ends the factor: what is left has to be zero to the same tolerance, or the row is refused as not convex. Not swept |
 | `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's `Q` may touch, because the factor is dense. Not swept |
 | `CONIC_RAY_ZERO` | 1e-7 | A ray's parts, and an infeasibility certificate's multipliers, below this times the largest are set to zero before the checker sees them. Before it none of 34 rays passed, a part of 1e-9 that should be zero pushing past a finite bound, and 135 of 286 capped-cone infeasibilities published no certificate, a multiplier of that size on a row with a free column. **Swept at 1e-9 and 1e-5**: 91 fail at 1e-9, the same 12 at 1e-5 as at 1e-7. Since 2026-09-19 it also bounds a narrower cleanup, tried first on a certificate the checker refuses (`bench/measurements/02-263/`): a column free in its coefficient's direction whose terms add up to no more than this times the largest entry has the entries that touch it zeroed. On turbine07_lowb's nodes that passes where zeroing every small entry left a column of traffic 272 at -0.0066. Not swept apart: the same scale decides what is negligible in both |
@@ -860,3 +860,46 @@ MIP set's 24 instances are the same to the bit. On QPLIB's 17 convex
 mixed-integer QPs (`bench/measurements/02-259/`) QPLIB_3913 and 4270 get
 an incumbent where they had none and QPLIB_3547's goes from 0 to -0.2007
 against a reference of -0.56; the other 14 end as before.
+
+## The other constants
+
+These were in the code without a line here until 2026-09-21. The first
+group decides a solve; the rest are sizes a format or a buffer sets, and
+cadences that decide only when something is noticed or printed.
+
+| Constant | Value | What it decides |
+|---|---|---|
+| `STALL_FACTOR` | 10 | The dual simplex turns to Bland's rule when the best total primal infeasibility has not improved for `STALL_FACTOR * (nrow + ncol + 1)` iterations, and turns it off as soon as the total improves. **Measured on both sides** (D17, commit 0661af8): the longest plateau on an instance that terminates is truss's, at 1.67 of its size |
+| `NOISE_MARGIN` | 1e5 | A reduced cost of the wrong sign below `NOISE_MARGIN * DBL_EPSILON` times its column's traffic is read as rounding, not as a cost, where the simplex re-enters a column. **Measured** (commit af171bc): over both feasible sets noise and real costs sit seven orders apart and 1e5 is the geometric middle; 1e5 and 1e7 give identical answers, and 1e3 works and costs pds-20 28% more work |
+| `SPARSE_ALPHA_DEN` | 4 | The pricing row is read through its pattern while the pattern holds at most `nvar / SPARSE_ALPHA_DEN` entries. **Swept** at eight settings over two sets and three over Kennington (commit 0af0412): sparse always is worse than dense always, and the osa models pay up to 1.35x for it |
+| `SPARSE_RHO_DEN` | 4 | The row `rho` is ordered and walked through its pattern while it holds at most `nrow / SPARSE_RHO_DEN` entries. **Swept** at seven settings (commit 9e400be) |
+| `SPARSE_COL_DEN` | 8 | The forward solve keeps its answer's pattern while the column holds at most `nrow / SPARSE_COL_DEN` entries. **Not measured**: commit c9ce295 says so of it alone |
+| `PIVOT_SEARCH_LIMIT` | 4 | The Markowitz search in `src/lu.c` stops once it has examined this many candidates and holds an acceptable pivot. Not swept |
+| `REPAIR_ATTEMPTS` | 4 | The most repairs of a singular basis in one refactorisation. One pass suffices in exact arithmetic; the cap is a backstop against threshold pivoting declining a pivot the algebra says exists (commit 06d49c1). Not swept |
+| `MIP_STEER_ROUNDS` | 1000 | The most rounds of a node callback at one node: each round fires the callback, adds the rows it returned and solves the node again when one cuts the point. A backstop. Not swept |
+| `CONIC_RAY_PROBE_TOL` | 1e-6 | The tolerance the ray checker is handed for a direction the conic solve over directions finds (commit 99a6ff5). Not swept |
+| `VERIFY_PROD_BITS` | 256 | The exact verifier's bound keeps a product of more than this many bits as its top 256 bits and an exponent, rounded up, so the bound stays an upper bound. Not swept |
+| `GEO_MAX_PASS` | 20 | The most passes of the geometric-mean scaling, which stops sooner when the spread stops improving. Only the tests reach it (`docs/scaling.md`). Not swept |
+| `CONCURRENT_ARMS` | 3 | The concurrent solve's arms, in order: the dual, the primal, the barrier |
+| `TIME_CHECK_EVERY` | 64 | The simplex reads the clock for a time limit once every this many iterations |
+| `PROGRESS_EVERY` | 64 | The simplex calls the progress callback once every this many iterations |
+| `LOG_EVERY` | 1000 | A log line every this many simplex iterations |
+| `MIP_LOG_EVERY` | 100 | A log line every this many branch-and-bound nodes |
+| `OSIL_INF` | 1e30 | OSiL's infinity: a bound of this magnitude or more reads as infinite. Set by the format |
+| `QPLIB_INF` | 1e20 | The QPLIB reader's infinity until the file's own "value for infinity" line sets it, which comes before every bound |
+| `NAME_MAX_LEN` | 255 | The longest name the LP reader takes |
+| `MAXTOK` | 16 | The most fields on one MPS line |
+| `OSIL_MAX_ATTR` | 16 | The most attributes the OSiL reader keeps on one tag |
+| `JM_NAME_BUF` | 24 | The buffer for a positional name, `C<j+1>` or `R<i+1>`, which holds any 64-bit index |
+| `JM_NL_OPTIONS` | 9 | The option slots of a `.nl` header, kept for the `.sol` written back |
+| `PROOF_LINE` | 4096 | The longest line the proof-file reader takes |
+| `WINDOW` | 32768 | DEFLATE's window (RFC 1951) |
+| `MIN_MATCH`, `MAX_MATCH` | 3, 258 | DEFLATE's shortest and longest match (RFC 1951) |
+| `HUFF_MAXSYM` | 288 | The literal and length alphabet of RFC 1951 |
+| `GZ_FHCRC`, `GZ_FEXTRA`, `GZ_FNAME`, `GZ_FCOMMENT`, `GZ_RESERVED` | 0x02, 0x04, 0x08, 0x10, 0xe0 | The gzip header's flag bits (RFC 1952) |
+| `HASH_BITS`, `HASH_SIZE` | 15, 32768 | The deflate encoder's hash table over three-byte prefixes. Not swept |
+| `CHAIN_MAX` | 128 | The most earlier positions the encoder tries for one match. With the table above it sets the output at 1.3387x the size of `gzip -9` (`bench/measurements/02-217/`). Not swept |
+
+`JM_WORK_NONZERO`, `JM_WORK_ELIMINATED`, `JM_WORK_UPDATE` and
+`JM_WORK_FACTOR` are the work units' weights, and `docs/work-units.md`
+carries them.

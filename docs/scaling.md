@@ -83,15 +83,16 @@ Empty rows and columns carry no information; their factor stays 1.
 Reference: A.R. Curtis, J.K. Reid, "On the Automatic Scaling of Matrices for
 Gaussian Elimination", IMA J. Applied Mathematics 10(1):118–124, 1972.
 
-## Geometric-mean equilibration (option)
+## Geometric-mean equilibration (internal)
 
 Alternating passes setting each factor to `1/sqrt(min * max)` over the row
-or column, stopping when the spread stops improving. Kept as an option
-because it responds differently to a handful of extreme outliers, which
-Curtis-Reid averages over.
+or column, stopping when the spread stops improving. It responds
+differently to a handful of extreme outliers, which Curtis-Reid averages
+over.
 
-## What is not settled yet
-
-Which mode is the better default across Netlib is a question for the
-campaign, decided by measurement rather than by preference. Both modes exist
-so the comparison can be run.
+Every solve uses Curtis-Reid: the dual and the primal simplex, the
+barrier, PDLP and ranging all call `jm_model_scale` with
+`JM_SCALE_CURTIS_REID`. The geometric pass is `JM_SCALE_GEOMETRIC` in
+`src/scale.c`, reached only by `tests/test_scale.c`. No option or API call
+selects it, and no reading in `bench/` has compared the two modes on
+Netlib.

@@ -1,19 +1,20 @@
 # File format support
 
-Dialect decisions for the readers, and the contract the three
-writers hold themselves to; the writers have their own section at the
-end of this file. Anything not listed here is
+Dialect decisions for the readers, and the contract the writers hold
+themselves to; the writers have their own section at the end of this
+file. Anything not listed here is
 either standard behaviour or not yet decided; when an edge case is settled
 during the Netlib campaign, it lands in this file in the same commit.
 
 ## Compressed input
 
-Both readers take a gzip file (RFC 1952) wherever they take a plain one. The
-decision is made on the first two bytes of the file, so a `.gz` name is
-neither required nor trusted, and a file that is not gzip goes to the parser
-unchanged. No other container is recognised: a bzip2 or xz file reaches the
-MPS or LP parser as text and is refused there, with a parse error rather than
-a message about compression.
+Every model reader (MPS, LP, `.nl`, OSiL, QPLIB and CBF) takes a gzip
+file (RFC 1952) wherever it takes a plain one. The decision is made on the
+first two bytes of the file, so a `.gz` name is neither required nor
+trusted, and a file that is not gzip goes to the parser unchanged. No other
+container is recognised: a bzip2 or xz file reaches the format's parser as
+text and is refused there, with a parse error rather than a message about
+compression.
 
 The decoder is `src/inflate.c`. It is written here because JAOS links nothing
 but libc and libm, which is the same rule that puts every other dependency
@@ -504,11 +505,16 @@ fetched.
 
 ## Writing
 
-`jaos_write_mps`, `jaos_write_lp` and `jaos_write_solution`, added 2026-08-31,
-`jaos_write_nl`, added 2026-09-09, and `jaos_write_qplib` and
-`jaos_write_osil` the same day. One rule shapes all of them: **what JAOS
-writes, JAOS reads back as the same model.** `jaos_write_cbf`, added
-2026-09-19, keeps the weaker rule the section above says, because CBF has
+Six writers put a model in a file: `jaos_write_mps` and `jaos_write_lp`,
+added 2026-08-31, `jaos_write_nl`, `jaos_write_qplib` and
+`jaos_write_osil`, added 2026-09-09, and `jaos_write_cbf`, added
+2026-09-19. Eight put an answer in one: `jaos_write_solution`,
+`jaos_write_mps_basis`, `jaos_write_point` and `jaos_write_point_values`,
+`jaos_write_duals` and `jaos_write_dual_values`, `jaos_write_proof` and
+`jaos_write_sol_ampl`. The first seven have their sections below; the
+last is AMPL's `.sol`, described with the NL format above. One rule shapes
+all of them: **what JAOS writes, JAOS reads back as the same model.**
+`jaos_write_cbf` keeps the weaker rule the CBF section says, because CBF has
 no names and no bounds but its cones. Where a format cannot express
 what the model holds, the call fails, `jaos_model_error` names the row or
 the column, and no file is left behind.
@@ -517,8 +523,9 @@ the column, and no file is left behind.
   the file's, where the model was read from one, and positional --
   `C<j+1>` for a column, `R<i+1>` for a row, `COST` for the objective --
   where nobody named them. Reading the file back gives the same indices and
-  the same names, because both formats list rows and columns in index order
-  and both readers assign indices in order of first appearance. Two rows
+  the same names, because every format that carries names lists rows and
+  columns in index order and its reader assigns indices in order of first
+  appearance. Two rows
   (the objective among them) or two columns called the same are refused by
   name, whichever format, because no reader can tell them apart; a
   positional name takes part, so a column named `C2` beside an unnamed
@@ -604,17 +611,13 @@ ordinary form for a term whose coefficient is zero, which is what it missed.
 the row comes back empty. The writer already emitted zero terms in the
 objective, where every column appears whatever its cost.
 
-**104 of the 139 gate instances round-trip through the LP writer under the
-model's own names, 35 are refused and 0 differ**
-: 34 for a name the scanner
-cannot read back and 1 for a free row. It was 138 and 1 while the writer
-printed positional names, 104 and 35 at D265 (`02-172`),
-and 02-138's own file is the D226 reading, taken before D239; every file is
-left as it was, because one file cannot carry two trees. D278 re-took the same reading after the reader change and
-got the same three numbers and the same single refusal
-(`bench/measurements/02-183/lpcover.txt`), which is what a change to the
-reader alone should do: the writer never emits a constant inside a
-constraint, so nothing it produces takes the new path.
+**All 139 gate instances round-trip through the LP writer, under the
+model's own names and under positional ones alike: none is refused and
+none differs** (`bench/measurements/02-274/`, 2026-09-21). The earlier
+readings are kept where they were taken: 104 written and 35 refused under
+the names at D265 (`02-172`), 34 of them for a name the scanner could not
+read back and 1 for `greenbea`'s free row, which is written as `>= -inf`
+since 2026-09-19.
 
 Expressions are wrapped at 72 characters, which the reader does not care
 about and a person reading the file does.
@@ -798,13 +801,15 @@ four status words, the same `format 1` line — and split across two files
 they drift.
 
 **A value no file can carry is refused, and this is the one refusal that is
-about the answer rather than about the model.** The two model writers get
+about the answer rather than about the model.** The model writers get
 their finite values from the model's own setters, which reject a non-finite
-cost or bound. A solved answer has no such guarantee: the objective is a sum
-and can overflow, so a model whose bounds reach 1e300 reaches an optimum
-holding an infinity or a NaN. Printing one would put a word in the file whose
-spelling belongs to the host libc, so the call fails and names the row or the
-column instead.
+cost or bound. A solved answer has no such guarantee: the objective and a
+row's activity are sums and can overflow on a model whose bounds reach
+1e300. Since 2026-09-21 such a solve ends `numerical_error` rather than
+`optimal`, so no optimum carries an infinity or a NaN. The writer keeps its
+own test as well: printing such a value would put a word in the file whose
+spelling belongs to the host libc, so the call fails and names the row or
+the column instead.
 
 ### The MPS basis file
 

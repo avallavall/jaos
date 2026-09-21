@@ -35,9 +35,10 @@ catalogue optimum, and the node count is part of the baseline.
 
 For CBLIB the files stay gzipped CBF (`-x cbf.gz`), the checker is
 `jaos_check_conic_solution` with every cone's dual, and the reference is
-the library's own solution, which on nql and qssp is not the optimum
-(`bench/cblib.manifest` says why), so the objective column there reads 0
-for an answer the checker takes.
+the library's own solution, except on nql and qssp, where the library's
+solution is not the optimum: those eight carry the DIMACS value or the
+value `bench/measurements/02-254/` certified (`bench/cblib.manifest` says
+which and why).
 
 ## Baselines and results
 
@@ -50,12 +51,20 @@ Rewrite a baseline only with `make <set>-baseline`, after reading the diff.
 
 ## The other runners
 
+Each writes `bench/results/<target>.txt`. None has a baseline or a verdict;
+each reads one method against the dual simplex on the same instances.
+
 - `make warm` and `make warm-kennington`: warm re-solve after one branching
   step per instance, against a cold solve. A ratio, not a verdict.
-- `make primal`: the primal simplex on the standard set, three-way split of
-  agreement with the dual.
-- `make barrier`: the barrier on the standard set against the dual, in work
-  units, with whether the checker accepts the interior point it publishes.
+- `make primal` and `make primal-kennington`: the primal simplex, three-way
+  split of agreement with the dual. No Kennington reading is committed.
+- `make barrier` and `make barrier-infeas`: the barrier against the dual, in
+  work units, with whether the checker accepts the point it publishes, on
+  the standard set and on the infeasible one.
+- `make pdlp` and `make pdlp-infeas`: the first-order method, the same way.
+- `make concurrent`: the concurrent solve against the dual.
+- `make plato-pds`, `make plato-fome`, `make plato-nug`: the PLATO sets,
+  for presolve measurements (the table above).
 - `bench/compare/`: JAOS against HiGHS, SoPlex and Clp, in seconds.
 - `bench/measurements/<id>/`: raw readings behind each refusal in
   `refusals.txt`. `make refusals` re-runs the ones that have a script.

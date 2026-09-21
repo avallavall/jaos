@@ -7,15 +7,19 @@ same number of units on every machine — which is what makes
 
 Read `jaos_work_units` after a solve to see what it cost.
 
-**A budget that stops can be started again.** A solve cut off by a work
-or time limit keeps the basis it stopped on, so raising the limit and calling
-`jaos_solve` again continues from there instead of walking back from the slack
-basis. There is no answer to read in between — the run did not produce one, and
-`jaos_basis` says so, because a stopping point is not a solution. Until that
-landed, a budget was a way to abandon work and nothing else, which is a strange
-thing to have built a deterministic counter for. The barrier is the
-exception: it has no basis to keep, so a barrier run cut off by a budget
-starts again from its starting point when `jaos_solve` is called again.
+**A budget that stops can be started again.** A simplex solve cut off by a
+work limit, a time limit or a callback parks its whole state on the model:
+the factorisation, its update chain, the pricing weights, the shifts and the
+phase. Raising the limit and calling `jaos_solve` again goes on from exactly
+where it stopped, so an LP stopped and solved on ends on the uninterrupted
+answer to the bit, work and iterations included (since 2026-09-15,
+`bench/measurements/02-247/`). There is no answer to read in between: the
+run did not produce one, and `jaos_basis` says so, because a stopping point
+is not a solution. An edit, a new basis, or a changed algorithm or
+tolerance drops the parked state, and the next solve starts warm from the
+basis the stop left. The barrier, PDLP and the conic interior point have no
+basis to keep, so a run of one of them cut off by a budget starts again
+from its starting point.
 
 ## The weights
 
@@ -41,19 +45,16 @@ promise a run far cheaper than the one it buys.
 
 ## Where it is charged
 
-Everything below is in `src/lu.c`, `src/chol.c`, `src/presolve.c` and
-`src/simplex.c`. Nothing else counts.
+The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`,
+`src/simplex.c`, `src/barrier.c`, `src/pdlp.c`, `src/conic.c`, and one
+pass in `src/ranging.c`. The searches built on them, the branch and bound,
+the conic tree and the concurrent solve, add up what their solves billed
+and charge their own passes on top. Each has its paragraph below.
 
-**Presolve is one-way, and this is the door.** A work figure
-read before presolve existed and one read after are not comparable on any
-model presolve actually reduces — the model a solve billed then is not the
-model a solve bills now. Every historical figure and every
-figure in the three committed baselines was taken before this paragraph
-existed, on every one of the 26 standard-set instances 02-01's own reduction
-already touches. Read them as figures about two different problems, because
-on those instances they are. The rewrite that acknowledges this in the
-baselines themselves is `02-07`'s own task, deliberately not a side effect
-of landing this section.
+**Presolve changed what a figure means.** A work figure read before
+presolve existed and one read after are not comparable on a model presolve
+reduces, because the solve billed a different model. All eight committed
+baselines were taken with presolve on.
 
 **Presolve** (`jm_presolve_run`): `JM_WORK_NONZERO` per nonzero a round
 actually visits while computing a reduction — the entries of a column being
@@ -236,6 +237,47 @@ The dual simplex that finishes from the guess is billed as any warm-started
 solve is, on the same counter, so `jaos_work_units` reads the whole
 journey from the starting point to the vertex.
 
+**PDLP** (`src/pdlp.c`) bills by the same rule. Every product with `A` or
+`A^T` charges one per nonzero plus one per entry of the vector it writes;
+each Ruiz round of the preconditioning is one such pass. Every sweep over
+the iterates (the step, the running averages, the restart test, the KKT
+error, and the ray test every `PDLP_CHECK_EVERY` iterations) charges one
+per entry it reads. The crossover that finishes it is the barrier's,
+billed as above.
+
+**The conic interior point** (`src/conic.c`) bills its passes the same
+way: each product with the matrix or with a cone's block one per nonzero
+plus one per entry written, each sweep over the iterate one per entry
+(twelve per variable and row for the step's bookkeeping), each pass of
+iterative refinement one per entry of the system, and the Newton finish one
+pass over its system per step. Its factorisations go through
+`src/chol.c` and are billed there. An infeasibility certificate the
+checker refuses is searched again before it is given up, at most
+`CONIC_CERT_CALLS` checker calls, and each call charges one pass over the
+model, `nnz + cols + rows + 1`.
+
+**Ranging** (`src/ranging.c`) refactors the published basis and bills the
+factorisation and its solves at the LU's rates, plus one unit per entry of
+each pattern it walks.
+
+**The branch and bound** (`src/mip.c`) has no kernel of its own. Each
+node's relaxation is solved on the tree's copy of the model and billed as
+any solve, and the tree adds that bill to its total. Every other pass it
+makes (a cut separator, a heuristic, probing, the clique table, orbital
+fixing, propagation) adds one unit per entry of the model it reads, and a
+round of Gomory cuts adds the tableau rows it reads. Symmetry detection
+(`src/symmetry.c`) searches under a cap and bills what it spent of it.
+`jaos_work_units` after a MIP solve is that total, and the work limit is a
+limit on it.
+
+**The conic tree** (`src/conictree.c`) adds up the work of every conic
+solve it runs: the nodes, the rounding and the dive. Each solve gets the
+budget that is left, and under `--tree-batch N` a round's nodes share it.
+
+**The concurrent solve** (`src/concurrent.c`) bills the sum over its three
+arms, in the rounds the one-thread schedule runs them, so the total is the
+same at any thread count.
+
 ## What is outside the budget
 
 **Model loading is not charged.** Reading a file or calling `jaos_load_lp`
@@ -332,7 +374,8 @@ counter already sees.
 | the basis update | 1.79% |
 | everything outside the solve loop | 0.11% |
 
-Those shares are as of D32 and predate D40, D41 and D93. The first two took
+Those shares are as of D32 (2026-08-08, commit 42f0d49) and predate D40,
+D41 and D93. The first two took
 the ratio test's candidate scan and the dual update off the first two rows
 wherever the pricing row is sparse — 1.895x less total work on the
 Kennington set — and D93 takes that same scan down on the iterations where

@@ -26,13 +26,16 @@ are there for reference and their entries come from public documentation, not
 from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
 Gurobi and are left out only to keep the table readable.
 
-*JAOS's column was last checked against `src/` and `cli/` on 2026-09-08. The other
-columns were last checked against their published documentation on
-2026-09-04, and that pass moved six cells — two of them corrections rather
-than news, because HiGHS's and SCIP's IIS both predate the previous check.
-Versions: JAOS 0.3.0 · HiGHS 1.15.1 · SoPlex 8.0.3 · Clp 1.17.11 ·
-SCIP 10.0.3 · Gurobi 13.0.3 · Hexaly 15.0. No rival's major version moved
-since 2026-08-13; only patch levels did.*
+*JAOS's column was last checked against `SPECS.md`, `src/` and `cli/` on
+2026-09-21. The other columns were last checked against their published
+documentation on 2026-09-21: that pass answered 28 cells that read `?`
+and corrected four (Hexaly reads no MPS or LP file and works with no
+modelling system, and HiGHS's dependencies are optional). scipopt.org and
+soplex.zib.de refused automated requests that day, so SCIP's and SoPlex's
+cells rest on their GitHub release notes, changelogs and papers.
+Versions: JAOS 0.3.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
+SCIP 10.1.0 · Gurobi 13.0.3 · Hexaly 15.0. SoPlex 8.1.0 and SCIP 10.1.0
+came out on 2026-09-18, and neither release moved a cell.*
 
 ---
 
@@ -43,7 +46,7 @@ since 2026-08-13; only patch levels did.*
 | Linear programming (LP) | ● | ● | ● | ● | ● | ● | ● |
 | Quadratic programming (QP) | ◐ | ● | ○ | ○ | ● | ● | ● |
 | Quadratically constrained (QCP, SOCP) | ◐ | ○ | ○ | ○ | ● | ● | ● |
-| Mixed-integer linear (MILP) | ◐ | ● | — | — | ● | ● | ● |
+| Mixed-integer linear (MILP) | ● | ● | — | — | ● | ● | ● |
 | Mixed-integer quadratic (MIQP, MIQCP) | ◐ | ○ | — | — | ● | ● | ● |
 | Nonlinear (NLP) | ○ | ○ | — | — | ● | ● | ● |
 | Mixed-integer nonlinear (MINLP) | ○ | ○ | — | — | ● | ● | ● |
@@ -69,7 +72,7 @@ JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
 the first stall and Bland's rule after it.
 
-**The primal simplex reads ◐ rather than ●** because 6 of the 94 standard
+**The primal simplex reads ◐ rather than ●** because 5 of the 94 standard
 instances still run past 10x the dual's work (`bench/results/primal.txt`,
 `TODO.md`). `jaos_set_algorithm` and `--algorithm primal` select it. It has
 steepest-edge pricing since 2026-09-08, with Devex and Dantzig behind
@@ -116,8 +119,8 @@ push (`qp_push` in `src/barrier.c`): the active set read off the
 complementarity is pinned on its bounds and the equality-constrained QP on
 the rest is solved through the same factorisation, so the published point
 sits exactly on the bounds the optimum sits on and the checker takes both
-sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 134
-end `OPTIMAL` and the checker takes 133; on QPLIB's 19 convex QPs
+sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 137
+end `OPTIMAL` and the checker takes 136 (`bench/results/maros-meszaros.txt`); on QPLIB's 19 convex QPs
 (`bench/measurements/02-256/`) 10 end `OPTIMAL` and the checker takes 9,
 the 8 largest stopping at a work limit of 1e11. The rest of those two
 sets is what keeps the row from ●.
@@ -141,16 +144,19 @@ sharp in the proportion between the multipliers and not in their scale,
 and 599 of the 600 planted infeasibilities publish one
 (`bench/measurements/02-270/`). On the 29
 continuous CBLIB 2014 instances under 70 MB (`make cblib`,
-`bench/measurements/02-254/`), with cones of up to 99998 members, 26 end
-`OPTIMAL` and the checker takes all 26; the three `sched_*_orig` end as a
-numerical error. Integer columns beside cones or quadratic rows go to a
+`bench/measurements/02-254/`), with cones of up to 99998 members, all 29
+end `OPTIMAL` and the checker takes all 29 (since 2026-09-20,
+`bench/measurements/02-273/`). Integer columns beside cones or quadratic rows go to a
 branch and bound of their own (`src/conictree.c`,
 `bench/measurements/02-255/`): over 3000 generated models it agrees with
 brute force every time, and on CBLIB's 80 mixed-integer instances at
 1e11 work units 43 end `OPTIMAL`, all taken by the checker, and 37 at
 the work limit, each with an incumbent found by the tree's rounding, its
-root dive or its branching. What keeps the row from ●: those three CBLIB
-instances fail, and the 37 do not close. **The first-order row reads ◐ since
+root dive or its branching. What keeps the row from ●: on QPLIB's convex
+QCQPs 8 of the 10 optima have duals the checker refuses, the
+mixed-integer QCQPs reach the work limit, a quadratic row over
+`CONIC_QC_DENSE` columns is refused, and the 37 mixed-integer CBLIB
+instances do not close (`SPECS.md` §1, the quadratically constrained row). **The first-order row reads ◐ since
 2026-09-09**: `--algorithm pdlp` and `JAOS_ALGORITHM_PDLP` run primal-dual
 hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,
@@ -191,21 +197,19 @@ relaxation only.
 | Add and delete rows and columns | ● | ● | ● | ● | ● | ● | ● |
 | Warm start from a previous basis | ● | ● | ● | ● | ● | ● | ? |
 | Read and write a starting basis | ● | ● | ● | ● | ● | ● | ? |
-| Exchange a basis in the MPS basis format | ● | ● | ● | ● | ● | ● | ? |
+| Exchange a basis in the MPS basis format | ● | ● | ● | ● | ● | ● | ○ |
 | Resume after a work or time limit | ● | ● | ? | ? | ● | ● | ● |
 
-JAOS's presolve rows are ◐ as of phase 2: the reduced-model machinery, the
-postsolve stack and six reduction families have landed, and what is left is
-counted rather than guessed — duplicate rows, duplicate columns and dominated
-columns are deferred at 0.15% of these 139 models, doubleton
-equalities and 99.7% of them sit behind the bound tightening D97 refused, and
-the implied free column singleton reaches equality rows only, which is a
-third of what its counter reads. `TODO.md` §1 and §3 own the
-remainder. Two later measurements belong here: `make refusals` re-runs D101's
-reopen condition and finds zero removable rows and columns on all 15 plato
-instances, and dual fixing was measured and refused at 0.67% of
-netlib's and 1.09% of fome's live columns against a 5% bar. Before
-phase 2 both rows were ○.
+JAOS's presolve reads ◐: the reduced-model machinery, the postsolve stack
+and six reduction families have landed, and what is left is counted
+rather than guessed. Duplicate rows, duplicate columns and dominated
+columns are refused at 0.15% of the 139 gate models, and `make refusals`
+re-runs that condition and finds zero removable rows and columns on all 15
+plato instances. Doubleton equalities, 99.7% of them, sit behind the bound
+tightening D97 refused. The implied free column singleton reaches equality
+rows only, a third of what its counter reads. Dual fixing was measured and
+refused at 0.67% of netlib's and 1.09% of fome's live columns against a 5%
+bar. Each has its line and its reopen condition in `bench/refusals.txt`.
 
 **Postsolve moved from ◐ to ● on 2026-09-04, and it was a bookkeeping error
 rather than a change.** The cell was ◐ with no gap named anywhere, which the
@@ -265,17 +269,13 @@ to the bit, work and iterations included. Before, the next solve started
 warm from the basis the stop left, and 15 of 33102 such resumes landed on
 another point of the same optimal face (`bench/measurements/02-247/`).
 
-This whole section is out of scope for the current milestone and is not
-scheduled. It is here because it is most of what separates an LP solver from a
-solver people buy.
-
 ## 5. Parallelism
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| Parallel LP solve | ◐ | ● | ○ | ○ | ? | ● | ? |
+| Parallel LP solve | ◐ | ● | ○ | ○ | ◐ | ● | ? |
 | Parallel MIP solve | ○ | ◐ | — | — | ● | ● | ● |
-| Deterministic under parallelism | ● | ? | — | — | ? | ● | ? |
+| Deterministic under parallelism | ● | ? | — | — | ● | ● | ● |
 
 **JAOS reads ◐ on the LP row and ● on determinism since 2026-09-10.** The
 one thing that takes a second thread is `--algorithm concurrent
@@ -288,6 +288,15 @@ enters that: over the standard 94 the work units and the objective are
 identical at 1 and at 3 threads, while the wall clock over the set falls
 from 132.6 s to 110.4 s. The benchmark runner's `-j N` is something else,
 process-level concurrency with one instance per process.
+
+SCIP reads ◐ on the LP row because `lp/threads` threads the LP only when
+the LP solver it drives is threaded, and its default, SoPlex, is not. It
+reads ● on determinism because ConcurrentSCIP is documented as completely
+deterministic and reproducible between runs; the unreleased 11.0
+changelog makes the opportunistic mode the default, so that cell may move.
+Hexaly's ● on determinism is inferred: its documentation promises the same
+results over several runs once the seed and every phase's iteration limit
+are fixed, and sets no condition on the thread count.
 
 ## 6. Correctness and verification
 
@@ -304,32 +313,39 @@ including the row where the field is ahead.
 | Machine-checkable certificate of the result | ● | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
-| Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ? |
-| The IIS written out as a model of its own | ● | ? | — | — | ? | ? | ? |
-| Feasibility relaxation of an infeasible model | ● | ? | ? | ? | ? | ? | ? |
+| Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ● |
+| The IIS written out as a model of its own | ● | ● | — | — | ● | ● | ? |
+| Feasibility relaxation of an infeasible model | ◐ | ● | ? | ? | ◐ | ● | ? |
 | **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | **Check a point another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
-**The relaxation row's six other columns are `?` and that is not a shorthand for `○`.** JAOS grew `jaos_feasrelax` on 2026-09-07 and the rivals' documentation was not re-read for this row, so the honest entry is unknown. It is due at the next pass over the other columns.
+**The relaxation row reads ◐.** `jaos_feasrelax` and `jaos relax` move
+the rows, the columns or both by the least total amount that makes the
+model feasible, integer columns included. What keeps it from ●: a model
+whose rows and integrality admit no point at all never ends, because no box
+is ever wide enough, and only a work limit stops it (`SPECS.md` §6).
+HiGHS (`Highs_feasibilityRelaxation`, since 1.8.0) and Gurobi (`feasRelax`)
+document the same operation. SCIP documents none; a PySCIPOpt recipe that
+adds slack columns is the nearest, hence ◐. SoPlex, Clp and Hexaly
+document nothing either way.
 
-**The IIS-as-a-model row is new on 2026-09-07** and its other
-columns are `?`, not `○`: HiGHS, SCIP and Gurobi all have an IIS, and
-whether each can write the subsystem out as a model rather than as a list
-was not re-read for this row. SoPlex and Clp have no IIS at all, which is
-what the `—` says. JAOS's is `jaos_iis_model` and `jaos iis --write OUT`,
-and all 29 reference infeasibilities have theirs written and solved again
-to INFEASIBLE (`bench/measurements/02-218/`).
+**The IIS written out as a model.** JAOS's is `jaos_iis_model` and
+`jaos iis --write OUT`, and all 29 reference infeasibilities have theirs
+written and solved again to INFEASIBLE (`bench/measurements/02-218/`).
+HiGHS writes its IIS with `writeIisModel`, SCIP 10 with the `write/iis`
+dialog, and Gurobi with `GRBwrite` to an `.ilp` file. Hexaly computes an
+inconsistency core and documents no way to write it out. SoPlex and Clp
+have no IIS at all, which is what the `—` says.
 
-**The row after it is new on 2026-09-07 and is the tolerance-judged
-half of the one above it.** A point file is one `NAME VALUE` line per
+**Checking a point another solver produced is the tolerance-judged half of
+proving its basis.** A point file is one `NAME VALUE` line per
 column and nothing else, so `jaos check FILE --point POINT` runs the
 independent checker on an answer this library did not compute; `--duals`
 brings the multipliers for the dual half. The others ship no checker to
 point at anything, which is the same `○` the "independent checker" row
 carries and for the same reason.
 
-**The row above it is new on 2026-09-07 and its six `○`s are
-meant.**
+**Proving a basis another solver produced: the six `○`s are meant.**
 `jaos_verify_basis` runs the exact proof over a basis the caller hands in,
 with no solve at all, so JAOS reads a model, reads the basis another
 solver stopped on -- `jaos_read_mps_basis` reads the format the field
@@ -347,8 +363,9 @@ Three rows carry most of the meaning.
 After `jaos_verify` proves a basis, every column's value, every row's dual
 and the objective are on the model as exact rationals, and `jaos verify
 --values` prints them. It is ◐ because it is an exact answer for the bases
-the proof reaches -- 30 of the 110 gate bases at the current limb budget --
-and not an exact solver: the simplex still finds the basis in floating
+the proof reaches (30 of the 110 gate bases at the 128-limb budget when
+last counted, D274 in `bench/measurements/02-180/`) and not an exact
+solver: the simplex still finds the basis in floating
 point, and where the proof is refused there are no values. SoPlex and SCIP
 solve over the rationals; JAOS proves and reports what a floating-point
 basis is, exactly.
@@ -378,16 +395,6 @@ publishes is already exact. Measured over the reference sets
 (`bench/measurements/02-211/`): 18 of the 29 pinned infeasibles certify
 exactly, and every one of the 28 optimum proofs that exists passes the
 file checker, which shares no code with the prover that made it.
-
-**It moved from ○ to ◐ on 2026-09-05
-.** The solution file now carries the Farkas certificate of an
-infeasible answer and the ray of an unbounded one, and `jaos check` judges
-either from the model and the file alone, so a verdict can leave the
-process that found it and be checked by another. It is ◐ and not ● because
-the optimum's proof is still the tolerance-judged checker report: the
-exact rational proof `jaos_verify` computes is not written to a file, and
-the point and duals a solution file carries certify optimality only to a
-tolerance.
 
 **The IIS, and this row was wrong until 2026-09-04.** It read "among the open
 solvers here only Gurobi documents the feature", with HiGHS and SCIP at ○.
@@ -424,56 +431,58 @@ floating-point checker judging against tolerances. SoPlex has solved LPs exactly
 over the rationals since version 2.1 and added precision boosting in 6.0; SCIP
 10.0 solves MILPs with no numerical tolerances at all and can emit a VIPR
 certificate that an external program verifies in exact rational arithmetic.
-`SPECS.md` lists exact rational verification as **partial** — the arithmetic
-landed at D266 and `jm_exact_evaluate` walks a published point with no
-rounding — and the verifier is what is still missing. This is what
-that line is missing against.
+JAOS proves a floating-point basis optimal over the rationals and reports
+its exact values (`SPECS.md` §6, done), but it does not solve exactly:
+"exact solving with no tolerances" is the row `SPECS.md` marks missing, and
+it is what JAOS lacks against SoPlex and SCIP here.
 
 ## 7. Input and output
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| Read MPS (fixed and free) | ● | ● | ● | ● | ● | ● | ● |
-| Read LP format | ◐ | ● | ● | ● | ● | ● | ● |
-| Read compressed input | ● | ● | ● | ● | ● | ● | ? |
-| Write compressed output | ● | ? | ? | ? | ? | ? | ? |
+| Read MPS (fixed and free) | ● | ● | ● | ● | ● | ● | ○ |
+| Read LP format | ● | ● | ● | ● | ● | ● | ○ |
+| Read compressed input | ● | ● | ● | ● | ● | ● | ● |
+| Write compressed output | ● | ? | ? | ◐ | ? | ● | ● |
 | Direct load from arrays | ● | ● | ● | ● | ● | ● | ● |
-| Write MPS | ● | ● | ● | ● | ● | ● | ? |
-| Write LP | ● | ● | ● | ● | ● | ● | ? |
+| Write MPS | ● | ● | ● | ● | ● | ● | ○ |
+| Write LP | ● | ● | ● | ● | ● | ● | ○ |
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
-| Reject unsupported constructs with a line number | ● | ? | ? | ? | ? | ? | ? |
+| Reject unsupported constructs with a line number | ● | ? | ? | ● | ? | ● | ? |
 
-**The compressed-output row is new on 2026-09-07 and its six other
-columns are `?` rather than `○`.** Every writer here compresses when the
-path ends in `.gz`, over an encoder written in this repository for the
-reason the decoder was. The rivals' documentation was not re-read for this
-row, so the honest entry is unknown; it is due at the next pass over the
-other columns. What is measured is JAOS's own: `gzip -t` accepts all 139
-gate instances and `gzip -dc` returns the plain write byte for byte, at
-1.3387x the size of `gzip -9` (`bench/measurements/02-217/`).
+**Compressed output.** Every JAOS writer compresses when the path ends in
+`.gz`, over an encoder written in this repository for the reason the
+decoder was: `gzip -t` accepts all 139 gate instances and `gzip -dc`
+returns the plain write byte for byte, at 1.3387x the size of `gzip -9`
+(`bench/measurements/02-217/`). Gurobi writes `.gz`, `.bz2`, `.zip`, `.7z`
+and `.xz` when the system has the utilities. Clp writes gzip through
+CoinUtils' `CoinMpsIO` but not through `ClpModel::writeMps`, hence ◐.
+Hexaly compresses its own HXB and HXM files. HiGHS, SoPlex and SCIP
+document reading `.gz` and say nothing about writing it, so those stay `?`.
+
+**Hexaly reads and writes no MPS or LP file.** Its own documentation says
+so: a model is built in its modelling language or its APIs and saved as
+HXB or HXM. The ○s in its column of this section are that, and its ● on
+compressed input is its own HXB format.
+
+**Reject with a line number.** Clp's documented MPS messages carry the
+line (`Bad image at line %d`), and Gurobi's LP reader names the line in
+its error. HiGHS, SoPlex and SCIP document no message text, so those stay
+`?`.
 
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
 
-The three writer rows moved from ○ on 2026-08-31. Write LP was ◐ because
-the dialect is narrower than a model: a free row was refused by name, and the
-message pointed at `jaos_write_mps`, which has no such limit. A ranged row
-was **not** refused — D239 wrote it as the two-sided form and read it back as
-one row with two ends — and a row with no coefficients is written as a zero
-term and read back as the empty row it was. What JAOS writes it reads
-back as the same model, checked field by field and name by name: 139 of 139
-gate instances through MPS, and **104 of 139 through LP with 35 refused and
-0 differing**. 34 of the 35
-are a name the LP scanner cannot read back -- Netlib names start with digits
-and hold `*` and `-` -- and the writer refuses them by name rather than
-rename them, pointing at MPS. It was 138 and 1 while the writer printed
-positional names, which no scanner refuses.
-
-**Since D346 the caller can ask for that.** `jaos convert IN OUT
---positional` takes every name off the model first, and the same 139 read
-**138 written and re-solved with 1 refused** (`bench/measurements/02-219/`)
--- the same 138 and 1, now a flag instead of a limitation. The one left was
-`greenbea`'s free row, which no renaming reached.
+**What JAOS writes it reads back as the same model**, checked field by
+field and name by name. Over the 139 gate instances that holds through
+MPS for every file, and through LP for every file, under the model's own
+names and under positional ones alike (`bench/measurements/02-274/`,
+2026-09-21). A name the LP dialect cannot spell, as Netlib's often cannot
+(they start with digits and hold `*` and `-`), is written under `c<j+1>`
+or `r<i+1>` with a comment map at the top of the file, and `jaos convert
+IN OUT --positional` takes every name off first. A row with no
+coefficients is written as a zero term and read back as the empty row it
+was.
 
 **Write LP reads ● since 2026-09-19.** A free row is written `>= -inf`,
 which HiGHS reads as a free row too, and a ranged row as two rows joined by
@@ -496,14 +505,14 @@ and this page has not measured that.
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| Command-line tool | ● | ● | ● | ● | ● | ● | ? |
+| Command-line tool | ● | ● | ● | ● | ● | ● | ● |
 | C or C++ | ● | ● | ● | ● | ● | ● | ● |
 | Python | ● | ● | ● | ● | ● | ● | ● |
-| Julia | ● | ● | ● | ● | ● | ● | ? |
+| Julia | ● | ● | ● | ● | ● | ● | ◐ |
 | Java, .NET | ● | ◐ | ○ | ○ | ◐ | ● | ● |
-| MATLAB, R | ◐ | ◐ | ○ | ● | ● | ● | ? |
-| AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ● |
-| `make install` with a pkg-config file | ● | ? | ? | ? | ? | — | — |
+| MATLAB, R | ◐ | ◐ | ○ | ● | ● | ● | ○ |
+| AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ○ |
+| `make install` with a pkg-config file | ● | ● | ? | ● | ? | — | — |
 
 **The modelling-system row reads ◐ since 2026-09-19**: `jaos STUB -AMPL`
 answers AMPL's solver protocol, `STUB.nl` in and `STUB.sol` out, which
@@ -511,7 +520,9 @@ AMPL, Pyomo's `asl:` interface and JuMP's AmplNLWriter all use. Pyomo
 6.10 and JuMP 1.31 read the answers back
 (`bench/measurements/02-257/`); GAMS needs a link library of its own,
 and a nonlinear body, which is how those systems write a quadratic
-objective, is refused by the `.nl` reader.
+objective, is refused by the `.nl` reader. Hexaly reads ○: its own page
+says it works with none of Pyomo, PuLP, AMPL, GAMS or AIMMS, and GAMS
+dropped it in version 38 (2022).
 
 **The Julia row reads ● since 2026-09-19**: `julia/JAOS` is a Julia
 package over `libjaos.so`, with the C calls through `ccall` and
@@ -534,25 +545,30 @@ and read back a model, and each has its checks (`make dotnet-test`,
 `make java-test`, `make r-test`). MATLAB is not there: a MEX file needs
 a MATLAB licence to build and test.
 
-**The install row is new on 2026-09-07.** `make install` puts the
-header, both library forms, the tool and a generated `jaos.pc` under
-`PREFIX`, with `DESTDIR` staging, and `tests/install.sh` compiles a
-program against the installed tree on every `make test`. The four open
-solvers all ship a build system that installs; whether each ships a
-pkg-config file was not re-read for this row, so those are `?`. Gurobi
-and Hexaly ship binaries rather than a build, which is what the `—` says.
+**The install row.** `make install` puts the header, both library forms,
+the tool and a generated `jaos.pc` under `PREFIX`, with `DESTDIR`
+staging, and `tests/install.sh` compiles a program against the installed
+tree on every `make test`. HiGHS and Clp carry a pkg-config template
+(`highs.pc.in`, `clp.pc.in`) at their repositories' roots. SoPlex and SCIP
+ship CMake package configs and document no `.pc` file, so those stay `?`.
+Gurobi and Hexaly ship binaries rather than a build, which is what the `—`
+says.
+
+**Hexaly's language row.** Hexaly's APIs are Python, Java, C# and C++. Its
+Julia cell is ◐ for a third-party wrapper that Hexaly does not support,
+and its old R package was archived on CRAN on 2026-04-22.
 
 ## 9. Controlling a solve
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Time limit | ● | ● | ● | ● | ● | ● | ● |
-| Deterministic work limit | ● | ◐ | ? | ? | ● | ● | ? |
+| Deterministic work limit | ● | ◐ | ◐ | ◐ | ● | ● | ● |
 | Set primal and dual tolerances | ● | ● | ● | ● | ● | ● | ? |
 | Logging with verbosity levels | ● | ● | ● | ● | ● | ● | ● |
-| Progress callback that can stop the solve | ● | ● | ? | ● | ● | ● | ● |
+| Progress callback that can stop the solve | ● | ● | ◐ | ● | ● | ● | ● |
 | Callbacks that steer the search | ◐ | ◐ | ○ | ○ | ● | ● | ○ |
-| Choose the algorithm | ○ | ● | ● | ● | ● | ● | — |
+| Choose the algorithm | ● | ● | ● | ● | ● | ● | — |
 | Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ? |
 
 **The steering row reached ◐ on 2026-09-08.** One node callback
@@ -563,14 +579,17 @@ when a row cuts it) and names the column to branch on. What keeps it
 from ●: no way to hand the tree a solution from inside the callback, and
 no callback at the presolve or the LP.
 
-JAOS's "choose the algorithm" is ○ by decision, not by omission: D64 draws the
-line at what depends on the caller's data against what depends on the method,
-and the method side is the solver's. That is a defensible position for a library
-with one algorithm and becomes harder to hold once there are several.
+JAOS's "choose the algorithm" is `jaos_set_algorithm`, `--algorithm` and
+the `algorithm` option: `dual` (the default), `primal`, `barrier`, `pdlp`
+or `concurrent`.
 
 JAOS's deterministic work limit is worth noting as a ● where most of the field
 is weaker: the budget is counted in reproducible work units, so the same model
-stops at the same point on any machine.
+stops at the same point on any machine. HiGHS, SoPlex and Clp read ◐
+because what they limit deterministically is the iteration count, not the
+work. Hexaly limits iterations per phase and documents the result as
+reproducible with a fixed seed. SoPlex reads ◐ on the progress row: it
+takes an interrupt flag and documents no callback.
 
 ## 10. Licence and distribution
 
@@ -578,102 +597,51 @@ stops at the same point on any machine.
 |---|---|---|---|---|---|---|---|
 | Open source | ● | ● | ● | ● | ● | ○ | ○ |
 | Free for commercial use | ● | ● | ◐ | ● | ◐ | ○ | ○ |
-| No external dependencies | ● | ○ | ○ | ○ | ○ | — | — |
+| No external dependencies | ● | ◐ | ○ | ○ | ○ | — | — |
 
 JAOS is Apache 2.0 with no dependencies at all. That is unusual and it is a
-deliberate constraint, not an accident of youth.
+deliberate constraint, not an accident of youth. HiGHS reads ◐: its README
+says no third-party dependency is required and zlib is optional, and its
+new interior point solver, HiPO, links Metis and OpenBLAS (1.15.0).
 
 ---
 
 ## What the matrix says
 
-**JAOS is an LP and mixed-integer solver, and most of this page is still
-empty for it.** That is expected at 0.3.0 and it is not a criticism. What
-matters is whether the empty cells are the right ones to be empty. JAOS is
-present in nine of the ten sections now; the one it is absent from entirely
-is parallelism.
+**JAOS is present in every section of this page.** It solves LP and MILP
+completely, and QP, QCP and SOCP, with integer columns or without, in
+part; `SPECS.md` §1 names each gap. Parallelism reads ◐ on the LP row (the
+concurrent solve) and on the tree (the conic tree's rounds), and ○ on a
+parallel MIP tree. The JAOS cells left at ○ are the rows `SPECS.md` marks
+out of scope (nonlinear, constraint programming, black-box, GPU) or
+missing (exact solving, a parallel MIP tree).
 
-**That sentence read differently at 0.2.0**, when it said JAOS was absent
-from mixed-integer machinery too. The MILP column filled between the two
-releases: branch and bound over the dual simplex, three cut families,
-three heuristics, a solution pool and the tree's own caller inputs, every
-default swept and every refused switch left reachable so its refusal can
-be re-tested.
+**Three things JAOS has that the field mostly does not.** Bit-identical
+results across machines, which Gurobi explicitly does not promise. An
+independent checker of the solver's own answer, shipped with the solver,
+which none of the others ship: SCIP ships `viprchk`, and that verifies a
+certificate SCIP emits, which is a different object. A budget counted in
+reproducible work units rather than seconds. All three come from the same
+decision, and it is the project's distinguishing feature.
 
-**Three things JAOS has that the field mostly does not.** Bit-identical results
-across machines, which Gurobi explicitly does not promise. An independent
-checker of the solver's own answer, shipped with the solver, which none of the
-others ship — SCIP ships `viprchk`, but that verifies a certificate SCIP
-emits, which is a different object. A budget counted in reproducible work
-units rather than seconds. All three come from the same decision, and it is
-the project's actual distinguishing feature.
-
-**Since 2026-09-07 the second of those reaches further than JAOS's own
-answers.** `jaos_verify_basis` proves a basis the caller hands in, over
+**The checker and the exact verifier also judge answers JAOS did not
+compute.** `jaos_verify_basis` proves a basis the caller hands in, over
 the rationals with no tolerance and with no solve at all, and
 `jaos check --point` runs the floating-point checker on a point file
-another program wrote. A basis arrives in the format the field
-exchanges one in, and a point in two lines of awk. None of the
-others exposes its verifier to an answer it did not produce, and that is
-a sharper claim than "ships a checker".
+another program wrote. A basis arrives in the MPS basis format the field
+exchanges one in. None of the others exposes its verifier to an answer it
+did not produce.
 
-**And one thing this page claimed and had wrong until 2026-09-04.** The IIS
-was listed as Gurobi's alone among the open solvers. HiGHS and SCIP both have
-one, both before this page was written. It is off the distinctive list.
+**Where the field is ahead on JAOS's own subject.** SoPlex and SCIP solve
+exactly over the rationals, and SCIP emits certificates an external
+checker verifies. JAOS proves a floating-point basis exactly and reports
+its exact values, and it does not solve exactly. Its checker is a
+floating-point checker judging against tolerances, and a check is not a
+proof.
 
-**One place where JAOS is behind where it thought it was ahead.** Verification
-is JAOS's own subject, and SoPlex and SCIP are further along it: exact rational
-LP solutions, exact MILP solving with no tolerances, and certificates an
-external checker verifies. JAOS's checker is a good floating-point checker. It
-is not a proof. `SPECS.md` lists exact rational verification as partial — the
-arithmetic is here since D266 and the verifier is not — and this page says
-what it is missing against.
-
-**That sentence was written before 2026-09-07, and six new rows arrived
-that day.** Exchanging a basis in the MPS basis format, proving a
-basis another solver produced, checking a point another solver
-produced, writing compressed output, writing the IIS out as
-a model, and installing with a pkg-config file. Four of the
-six are the same kind of cell: **JAOS's own machinery pointed at somebody
-else's answer**. The checker and the exact verifier were the project's
-distinguishing features already; what changed is that neither is now
-limited to judging what this solver produced.
-
-**The current milestone will barely move the rest of this page, and that
-is by design.**
-M2 is about speed, not features. Of everything on this page, only the presolve
-and postsolve rows change when M2 closes, and they are at ◐ already rather
-than at ○. Nor do they reach ●: the families left are deferred or refused with
-a measurement — duplicate rows and columns and dominated columns deferred
-, bound tightening refused, dual fixing
-measured and refused.
-The measured gap at rung P0 is 3.60x HiGHS, 1.12x SoPlex and 2.96x Clp
-(`bench/compare/results/P0.txt`, 2026-08-30), and closing it moves no cell
-here at all. P0 is the rung to read: T0 was taken before JAOS had a
-presolve, so against a presolving JAOS it puts presolve on one side only.
-
-That is the answer to "is the plan improving the features as phases close": for
-this milestone, almost not. If the feature matrix is the thing that should be
-improving, the roadmap after M2 has to say so, because M2's own success
-criterion is a time ratio and nothing else.
-
-**What would move the most cells for the least work**, if features rather than
-speed became the goal: Python bindings, then sensitivity and ranging. The three
-writer rows were the other half of that answer and they landed on 2026-08-31.
-That did not close section 7: Read LP and Write LP are both still ◐, on the
-dialect's own limits. Neither of the two left is on the speed path. The
-barrier method and the MIP section are large pieces of work and are correctly
-not scheduled yet.
-
-**That answer was taken up and all three cells moved.**
-Compressed input is present and so is Python, both under the
-premise that keeps every dependency out: the inflate is written here and the
-binding is ctypes over the standard library. **Sensitivity and ranging landed
-on 2026-09-03**, and it was not the small job this paragraph implied — it
-needs the basis and a factorization of it. The published basis has the
-promised count on every gate solve since D257, and D258 ranges over that
-basis refactored on the model as loaded, so the presolve half this paragraph
-feared does not exist.
+**This page counts features, not speed.** The measured time against HiGHS,
+SoPlex and Clp is in `bench/compare/README.md`, and closing that gap moves
+no cell here.
 
 ---
 
@@ -685,6 +653,16 @@ and the measured results in `bench/`.
 
 - HiGHS solver capabilities and parallelism: <https://ergo-code.github.io/HiGHS/dev/solvers/> and <https://ergo-code.github.io/HiGHS/stable/parallel/>
 - HiGHS 2026 development, QP and GPU PDLP: <https://highs.dev/assets/HiGHS_Newsletter_26_0.pdf>
+- The 2026-09-21 pass, by row:
+  - IIS written as a model: HiGHS <https://ergo-code.github.io/HiGHS/stable/guide/advanced/>, SCIP's changelog <https://github.com/scipopt/scip/blob/master/CHANGELOG> and the Suite 10.0 paper §3.9 <https://arxiv.org/pdf/2511.18580>, Gurobi <https://docs.gurobi.com/projects/optimizer/en/current/reference/c/inputoutput.html> and <https://docs.gurobi.com/projects/optimizer/en/current/reference/fileformats.html>
+  - Feasibility relaxation: HiGHS <https://ergo-code.github.io/HiGHS/stable/interfaces/c_api/> and <https://github.com/ERGO-Code/HiGHS/releases/tag/v1.8.0>, SCIP (PySCIPOpt recipe) <https://github.com/scipopt/PySCIPOpt/discussions/854>, Gurobi <https://docs.gurobi.com/projects/optimizer/en/current/features/infeasibility.html>
+  - Hexaly's formats, IIS, command line, determinism and work limit: <https://www.hexaly.com/gurobi>, <https://www.hexaly.com/docs/last/cppapi/optimizer/hexalyoptimizer.html>, <https://www.hexaly.com/docs/last/features/inconsistency.html>, <https://www.hexaly.com/docs/last/modelerreference/mainmode.html>, <https://www.hexaly.com/docs/last/java/com/hexaly/optimizer/HxPhase.html>, <https://github.com/NexOR-Optimization/Hexaly.jl>, <https://cran.r-project.org/web/packages/localsolver/index.html>, <https://www.gams.com/41/docs/RN_38.html>
+  - Clp's compressed output, line numbers and iteration limit: <https://coin-or.github.io/CoinUtils/Doxygen/classCoinMpsIO.html>, <https://coin-or.github.io/Clp/messages.html>, <https://coin-or.github.io/Clp/Doxygen/classClpModel.html>
+  - Gurobi's LP reader naming the line: <https://support.gurobi.com/hc/en-us/community/posts/10103119821329-Error-reading-LP-format-file-Unrecognized-constraint-RHS-or-sense>
+  - pkg-config templates: <https://github.com/ERGO-Code/HiGHS> and <https://github.com/coin-or/Clp>
+  - SCIP's LP threads and determinism: <https://github.com/scipopt/scip/blob/master/CHANGELOG> and the Suite 4.0 report <https://optimization-online.org/wp-content/uploads/2017/03/5895.pdf>
+  - SoPlex's iteration limit and interrupt flag: <https://github.com/scipopt/soplex/blob/master/CHANGELOG>
+  - Versions: <https://github.com/scipopt/soplex/releases/tag/v8.1.0>, <https://github.com/scipopt/scip/releases/tag/v10.1.0>, <https://pypi.org/project/hexaly/>
 - Gurobi 13.0 problem classes and new methods: <https://www.gurobi.com/resources/reports/what-s-new-in-gurobi-13-0>
 - Gurobi determinism across machines: <https://support.gurobi.com/hc/en-us/articles/360031636051-Is-Gurobi-deterministic> and <https://support.gurobi.com/hc/en-us/articles/360045849232-Why-does-Gurobi-perform-differently-on-different-machines>. The explicit negative is stated by Gurobi staff here — "running Gurobi on different hardware may lead to different optimal solutions being returned", "deterministic behavior is only guaranteed when repeating runs on an identical setup": <https://support.gurobi.com/hc/en-us/community/posts/23910882878993-Deterministic-behaviour-in-different-machines>
 - HiGHS IIS options (`iis_strategy`, `iis_time_limit`): <https://ergo-code.github.io/HiGHS/stable/options/definitions/>

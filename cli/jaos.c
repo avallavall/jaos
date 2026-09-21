@@ -25,7 +25,7 @@ static const char U_SYNOPSIS[] =
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
     "                  [--mip-start SOLUTION] [--cutoff V]\n"
     "                  [--basis BAS] [--write-basis BAS]\n"
-    "                  [--write-point PT] [--pool-out PRE]\n"
+    "                  [--write-point PT] [--write-duals D] [--pool-out PRE]\n"
     "                  [--proof PATH]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--threads N]\n"

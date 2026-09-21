@@ -1,6 +1,6 @@
 # Exact verification of a final basis — what the literature says
 
-Background for `SPECS.md` section 5, whose verifier is still missing.
+Background for the exact verifier (`SPECS.md` §6), written before it was built.
 Produced by `literature-scout` on 2026-09-04, on four questions: which
 elimination, what the published verifiers actually do, whether anything
 avoids a full exact solve, and how those papers report an instance they

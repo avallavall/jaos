@@ -1,10 +1,11 @@
 # JAOS — Just Another Optimization Solver
 
-JAOS solves linear and mixed-integer programs, convex quadratic programs,
-and second-order cone and convex quadratically constrained programs, with
-integer columns or without. It is written from scratch in
-C23, links nothing but libc and libm, builds to one static library with GCC on
-Linux, and is licensed under Apache 2.0.
+JAOS solves linear and mixed-integer linear programs. It also solves convex
+quadratic programs, and second-order cone and convex quadratically
+constrained programs, with integer columns or without; `SPECS.md` marks
+those classes partial and says what each still lacks. It is written from
+scratch in C23, links nothing but libc and libm, builds to one static
+library with GCC on Linux, and is licensed under Apache 2.0.
 
 Two properties hold on every commit. The answer is bit-identical on every
 machine and every run: no clock decides anything, no iteration order depends
@@ -52,12 +53,27 @@ so can JuMP through AmplNLWriter.
 **Linear programs.** Presolve with six reduction families and a postsolve to
 the caller's model. Curtis-Reid scaling. Sparse LU with Markowitz pivoting and
 Forrest-Tomlin updates. Dual simplex with steepest-edge pricing, a Harris
-ratio test with bound flipping, dual phase 1 by artificial bounds, Bland's
-rule on a stall.
+ratio test with bound flipping, dual phase 1 by artificial bounds, a cost
+perturbation on a stall and Bland's rule after it. The dual is the default;
+`--algorithm` also takes `primal`, `barrier` (Mehrotra's predictor-corrector
+with a crossover to a basis), `pdlp` (the first-order method) and
+`concurrent` (the dual, the primal and the barrier raced under a work
+budget, the same winner on every machine).
+
+**Quadratic and conic programs.** A convex quadratic objective is solved by
+the barrier, whose point is finished by a push onto its active set.
+Second-order cones, rotated or not, and convex quadratic rows are solved by
+a homogeneous self-dual interior point with Nesterov-Todd scaling and a
+Newton finish, and the checker judges the answer with the cones' duals.
+Integer columns beside a quadratic objective go to the branch and bound
+below, over barrier relaxations; beside cones or quadratic rows they go to
+a branch and bound of its own, which can take its open nodes in rounds
+solved on several threads with the same answer at any thread count
+(`--tree-batch`).
 
 **Mixed-integer programs.** Branch and bound over the dual simplex, best bound
-first, pseudocost branching. Gomory, knapsack cover and mixed-integer rounding
-cuts at the root and below it. A rounding heuristic, a root dive and a
+first, pseudocost branching. Gomory, knapsack cover, mixed-integer rounding
+and clique cuts at the root and below it. A rounding heuristic, a root dive and a
 feasibility pump. A solution pool of distinct integer assignments, a MIP
 start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
@@ -83,7 +99,8 @@ basis, which is the warm start from a file.
 
 **Command line.** `make cli` builds `jaos`. `jaos solve model.mps` prints one
 fact per line; the exit code is the verdict. `convert`, `check`, `stats`,
-`diff`, `show`, `iis`, `relax`, `verify`, `ranging`. Reference:
+`options`, `diff`, `show`, `iis`, `relax`, `verify`, `ranging`, and
+`jaos STUB -AMPL` for AMPL's solver protocol. Reference:
 [`docs/cli.md`](docs/cli.md).
 
 **Python.** The `jaos` package in `python/` over `libjaos.so`, standard
@@ -135,7 +152,9 @@ p.Solve();
 ## Build and test
 
 GCC 14 or later, Linux. The same sources cross-compile for Windows with
-mingw-w64 through the CMake package; see [`docs/build.md`](docs/build.md).
+mingw-w64 through the CMake package, and the tool and the Python binding
+run natively on Windows with Linux's answers byte for byte
+(`tests/windows.sh`); see [`docs/build.md`](docs/build.md).
 
 ```
 make              # build/release/libjaos.a
@@ -156,8 +175,10 @@ make pgo          # rebuild from a profile of it solving real models
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
-sets, and `make maros-meszaros` the 138 convex QPs of Maros and Meszaros. Every set takes `J=N` to run N instances at a time. `bench/fetch.sh`
-downloads the instances and checks them against pinned sha256 hashes.
+sets, `make maros-meszaros` the 138 convex QPs of Maros and Meszaros, and
+`make cblib` the 29 continuous instances of CBLIB 2014. Every set takes
+`J=N` to run N instances at a time. `bench/fetch.sh` downloads the
+instances and checks them against pinned sha256 hashes.
 
 ```
 make install                        # /usr/local
@@ -219,7 +240,7 @@ cli/                  the command-line tool, over the public header only
 bench/                instance manifests, the gate runner, baselines, results
 bench/compare/        the harness that times JAOS against other solvers
 bench/measurements/   raw readings behind every measured verdict
-docs/                 formats, tolerances, scaling, work units, the build, the CLI
+docs/                 the CLI, formats, tolerances, scaling, work units, the build, the feature matrix
 docs/research/        designs worked out on paper
 ```
 
@@ -228,7 +249,11 @@ docs/research/        designs worked out on paper
 - `SPECS.md` — every feature JAOS must have, with its status.
 - `TODO.md` — the current milestone's backlog.
 - `bench/refusals.txt` — ideas measured as worse, and what would reopen each.
-- `docs/` — the constants behind the code and the formats it reads and writes.
+- `docs/` — the tool, the formats, the constants behind the code;
+  [`docs/README.md`](docs/README.md) lists every page.
+- `CONTRIBUTING.md` — how to build, test and send a change, and the rules
+  it must hold.
+- `SECURITY.md` — how to report a vulnerability.
 
 A `D<n>` reference in `docs/` points at the retired decision log:
 `git show 2d3c56b:DECISIONS.md`.
