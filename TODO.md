@@ -64,13 +64,6 @@ A3.13 **Valgrind and coverage: neither exists.** ASan under `make sanitize`
     figure per file in `CONTRIBUTING.md` so a contributor knows where tests
     are thin. Verify: both targets run in WSL and exit 0.
 
-A3.14 **`python/jaos/__init__.py` is one 4083-line file.** Split into
-    `_native.py` (ctypes), `model.py` (the modelling layer) and
-    `reports.py`, with `__init__.py` re-exporting so nothing a user imports
-    changes. `src/write.c` (3206 lines, every writer) may split per format
-    the same way. Verify: `make python-test`, `make test`. Last in A3; it
-    blocks nothing.
-
 ### A4. The tag
 
 A4.1 **Cut v0.4.0.** After A1 to A3 and B1: bump the seven version places
