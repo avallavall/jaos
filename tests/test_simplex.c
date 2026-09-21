@@ -3252,6 +3252,32 @@ static void expect_trivially_infeasible(jaos_model *m)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_basis(m, cs, rs));
 }
 
+static void test_an_objective_that_overflows_is_not_an_optimum(void)
+{
+    const double cost[2] = {1e300, -1e300};
+    const double cl[2] = {-1e300, -1e300}, cu[2] = {1e300, 1e300};
+    const double rl[1] = {-1e300}, ru[1] = {1e300};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1e-300, 1e300};
+    static const jaos_algorithm alg[] = {
+        JAOS_ALGORITHM_DUAL, JAOS_ALGORITHM_PRIMAL, JAOS_ALGORITHM_BARRIER,
+        JAOS_ALGORITHM_PDLP,
+    };
+    for (size_t a = 0; a < sizeof alg / sizeof *alg; a++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         2, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, alg[a]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 20000000));
+        (void)jaos_solve(m);
+        TEST_ASSERT_NOT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_NOT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        jaos_model_free(m);
+    }
+}
+
 static void test_an_inverted_column_box_is_infeasible(void)
 {
     jaos_model *m = make_inverted(false);
@@ -3602,5 +3628,6 @@ int main(void)
     RUN_TEST(test_a_retired_loan_leaves_a_basis_of_the_model);
     RUN_TEST(test_the_algorithm_is_a_caller_option);
     RUN_TEST(test_devex_and_dantzig_pricing_reach_the_same_optimum);
+    RUN_TEST(test_an_objective_that_overflows_is_not_an_optimum);
     return UNITY_END();
 }

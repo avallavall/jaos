@@ -159,10 +159,13 @@ header is a line whose first character is non-blank, `*` opens a comment.
     matches the classic convention documented by CPLEX and lp_solve.
 - **Multiple RHS / RANGES / BOUNDS sets**: the first set name seen wins;
   entries for other set names are skipped. That *is* the semantic of multiple
-  sets — alternates exist to be selected, and JAOS selects the first.
+  sets — alternates exist to be selected, and JAOS selects the first. A set
+  name longer than 63 characters is refused by line (since 2026-09-21),
+  because the reader keeps 63 and could not tell two longer names apart.
 - **Duplicates are errors**: a repeated coefficient for the same (row, column),
   a repeated RHS or RANGES entry for the same row, a repeated objective
-  coefficient in one column, a column whose entries are not contiguous.
+  coefficient in one column, a column whose entries are not contiguous, a
+  second `ROWS` section (since 2026-09-21).
 - **OBJSENSE**: section form (value on the header line or on the next data
   line), `MIN[IMIZE]` / `MAX[IMIZE]`. Default is minimize.
 - **Numbers**: parsed under an explicit "C" locale — the host application's
@@ -273,7 +276,9 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   `Q[x][y] = Q[y][x] = q/2`, the pair counting once on each side of the
   diagonal. The same product written twice, as `x * y` and as `y * x`,
   adds up rather than being refused, because a block is a sum. A power
-  other than 2 or a divisor other than 2 is refused by line. The writer
+  other than 2 or a divisor other than 2 is refused by line, and so are
+  squared terms on one variable that add up past what a double holds
+  (since 2026-09-21). The writer
   prints one block after the linear terms, the diagonal as `q x ^ 2` and
   each pair as `2q x * y`, so a model written and read back is the model
   that was written.
@@ -363,7 +368,9 @@ with `B` giving every variable bounds 0 and 1 and `M` or `G` reading the
 type section (0 continuous, 1 integer, 2 binary); its third letter `N`,
 `B`, `L`, or since 2026-09-19 `D`, `C` or `Q` for quadratic rows. After
 the type come the sense, the counts, the objective `Q` entries (1-based,
-`½ x^T Q x` so the diagonal is `q` as JAOS holds it), the objective
+`½ x^T Q x` so the diagonal is `q` as JAOS holds it; diagonal entries on
+one variable that add up past what a double holds are refused by line
+since 2026-09-21), the objective
 coefficients as a default plus exceptions, the constant, for a quadratic
 row type the constraint `Q` entries as `row column column value` in the
 same `½` convention, the constraint
@@ -413,7 +420,10 @@ The reader takes both matrix layouts: `<start>` over the columns with a
 with a `<colIdx>` block. An `<el>` carries the format's `mult` and
 `incr` attributes. Variable types are `C`, `B`, `I`, `S` and `D`; a `B`
 column reads as an integer column with an upper bound of 1. A bound of
-`INF`, `-INF` or a magnitude of 1e30 or more is an infinite bound. XML
+`INF`, `-INF` or a magnitude of 1e30 or more is an infinite bound. The
+rule is the bounds' alone: a cost, a matrix entry or the objective's
+constant of that size is read as the number it is. Before 2026-09-21 it
+became an infinity and the assembled model was refused. XML
 comments, the declaration, namespace prefixes and the five named
 entities plus the numeric ones are handled. A name with whitespace in
 it, which the COIN-OR OS sample files carry (`Par, Inc. Objective
@@ -424,7 +434,8 @@ written, the MPS came out unreadable and the `.row` file was dropped.
 A name a control character or the length leaves outside what a model
 holds is refused by line. A `qTerm` with `idx` at zero or above is a
 term of that row's quadratic part (since 2026-09-19; before, it was
-refused). Refused by line: a
+refused). Refused by line: an `<el>` whose `mult` asks for more values
+or indices than the file declares (since 2026-09-21), a
 `<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
 whose `idx` is below -1, a second `<obj>`, an SOS block, a named `<var>` or
 `<con>` repeated by `mult` (an unnamed one repeated by `mult` reads as
@@ -463,7 +474,8 @@ twice, the cone goes on those variables instead and the block adds no
 row. Refused by line: `PSDVAR`, `PSDCON`, `OBJFCOORD`, `FCOORD`,
 `HCOORD` and `DCOORD` (semidefinite), `POWCONES` and `POW*CONES`, the
 cones `EXP`, `EXP*` and every parametric `@k:...` cone, a keyword given
-twice, the structure after the data, an index past its count, and a
+twice, the structure after the data, an index past its count, a cone
+that asks for more entries than its header leaves (since 2026-09-21), and a
 coefficient given twice to one position, which the manual calls an
 error. `CHANGE` ends the reading: the manual lets a reader take it for
 the end of the file, and JAOS reads the first instance of a hotstart

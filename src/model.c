@@ -1062,6 +1062,8 @@ jaos_status jaos_set_quadratic(jaos_model *m, int64_t nnz,
             diag[i] += values[k];
             continue;
         }
+        if (values[k] == 0.0)
+            continue;
         if (i < j) {
             const int64_t t = i;
             i = j;
@@ -2519,6 +2521,12 @@ void jm_model_publish_objective(jaos_model *m)
     }
 
     m->objective = (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+    if (!isfinite(m->objective)) {
+        m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+        jm_set_err(m, "the point the solve ends on has an objective of %g, "
+                      "which is no answer; the costs and the point multiply "
+                      "past what a double holds", m->objective);
+    }
 }
 
 static bool status_in_range(jaos_basis_status s)

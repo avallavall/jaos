@@ -21,22 +21,6 @@ tag. A2 and A3 can interleave; A4 waits for both.
 
 ### A1. The working tree
 
-A1.1 **The pending reader batch.** Eight files carry an uncommitted
-    hardening of the readers (CBF cone counts against the header, LP and
-    QPLIB diagonal overflow, MPS set names over 63 characters and a second
-    ROWS section, OSiL `mult` against the declared count and a 1e30 cost
-    kept as a cost, an objective that overflows ends `NUMERICAL_ERROR`),
-    with `test_a_cost_of_1e300_is_a_cost_and_not_an_infinity` in
-    `tests/test_osil.c` and `test_an_objective_that_overflows_is_not_an_optimum`
-    in `tests/test_simplex.c`. It has not run. Fix: strip the two comment
-    blocks it adds to `src/osil.c` (A1.3 decides the rule; this batch
-    follows the rule as written), `make test && make sanitize`, commit.
-    Verify: `git status --short` shows nothing under `src/` and `tests/`.
-
-A1.2 **`build-exp/` is 55 MB, untracked, not ignored.** `.gitignore` has
-    `/build/` only. Fix: add `/build-exp/` beside it. Verify: `git status
-    --short` shows no `??` line.
-
 A1.3 **The comment rule and the tree disagree.** `CLAUDE.md` says code
     carries no comments. `src/mip.c` (32 lines), `src/barrier.c` (28),
     `src/model.c` (15, the `quadratic_convex` block at 764), `src/simplex.c`
@@ -49,11 +33,6 @@ A1.3 **The comment rule and the tree disagree.** `CLAUDE.md` says code
     goes to `docs/api.md` (A3.4). Verify: `grep -rn '/\*\|//' src cli
     include | grep -v SPDX` prints nothing.
 
-A1.4 **Three files show `M` with an empty diff** (`python/jaos/__init__.py`,
-    `python/test_jaos.py`, `src/options.c`). The index stat cache is stale;
-    the blobs match. Fix: `git update-index --refresh` from Windows. Verify:
-    `git status --short` lists only real changes.
-
 A1.5 **The CBLIB gate cannot pass as written.** `bench/results/cblib.txt`
     reads 29 solved, 29 checker ok, 21 objective ok, "gate NOT MET", and
     there is no `bench/cblib.baseline`. The 8 objective misses are the
@@ -63,6 +42,27 @@ A1.5 **The CBLIB gate cannot pass as written.** `bench/results/cblib.txt`
     certified it, run `make cblib`, then `make cblib-baseline` after reading
     the diff. Verify: `make cblib` prints "gate: PASS" and
     "baseline: 0 regressed".
+
+A1.6 **Values that overflow a double, three places.** Found on
+    2026-09-21 while moving `test_solution_refuses_a_value_no_file_can_carry`
+    to the batch's new contract. The model: two columns fixed at 1e300 in a
+    free row with coefficients 1e10.
+    - `src/presolve.c:340` asserts `isfinite(row_traffic[i])`, and the next
+      line handles a traffic that is not finite. The model is legal input
+      and a debug build aborts on it. Drop the assertion.
+    - A release build ends `OPTIMAL` with the row activity `-nan`.
+      `ps_row_add` computes `inf - inf` as its correction as soon as one
+      term overflows. The batch ends a solve `NUMERICAL_ERROR` when the
+      objective is not finite; the same rule goes for every published
+      value (point, activities, duals, reduced costs), checked once where
+      `jm_model_publish_objective` runs.
+    - The checker recomputes each activity from the point. A row whose
+      activity is `inf - inf` gives a NaN violation, and `max2` in
+      `src/check.c` drops a NaN when a later row has a violation, so an
+      infeasible point can pass. A NaN violation must count as infinite.
+    Verify: a test per case (the model solves without aborting and ends
+    `NUMERICAL_ERROR`; the checker refuses a point whose first of two rows
+    overflows), and the rule written in `docs/api.md` with A3.4.
 
 ### A2. Every document true
 

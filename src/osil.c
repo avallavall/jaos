@@ -255,18 +255,25 @@ static bool x_num(const char *s, double *out)
     while (*s == ' ' || *s == '\t')
         s++;
     char *end;
-    double v = strtod(s, &end);
+    const double v = strtod(s, &end);
     if (end == s)
         return false;
     while (*end == ' ' || *end == '\t')
         end++;
     if (*end != '\0')
         return false;
-    if (v >= OSIL_INF)
-        v = INFINITY;
-    else if (v <= -OSIL_INF)
-        v = -INFINITY;
     *out = v;
+    return true;
+}
+
+static bool x_bound_num(const char *s, double *out)
+{
+    if (!x_num(s, out))
+        return false;
+    if (*out >= OSIL_INF)
+        *out = INFINITY;
+    else if (*out <= -OSIL_INF)
+        *out = -INFINITY;
     return true;
 }
 
@@ -290,13 +297,9 @@ static bool x_text_num(const ox *p, double *out)
 {
     const char *s = p->buf + p->pos;
     char *end;
-    double v = strtod(s, &end);
+    const double v = strtod(s, &end);
     if (end == s)
         return false;
-    if (v >= OSIL_INF)
-        v = INFINITY;
-    else if (v <= -OSIL_INF)
-        v = -INFINITY;
     *out = v;
     return true;
 }
@@ -394,7 +397,7 @@ static jaos_status o_bound(ox *p, const char *key, double dflt, double *out)
         *out = dflt;
         return JAOS_OK;
     }
-    if (!x_num(s, out))
+    if (!x_bound_num(s, out))
         FAIL("line %" PRId64 ": '%s' is not a number in %s=\"%s\"", p->line,
              s, key, s);
     return JAOS_OK;
@@ -633,6 +636,13 @@ static jaos_status o_el(ox *p)
     s = x_attr(p, "incr");
     if (s != nullptr && !x_int(s, &incr))
         FAIL("line %" PRId64 ": <el> incr=\"%s\" is not a number", p->line, s);
+    if (p->have_nz_count && p->vec == OV_VALUE &&
+        mult > p->want_nz - p->nvalue)
+        FAIL("line %" PRId64 ": <el> mult=\"%" PRId64 "\" runs past the %" PRId64
+             " values the file declares", p->line, mult, p->want_nz);
+    if (p->have_nz_count && p->vec == OV_IDX && mult > p->want_nz - p->nidx)
+        FAIL("line %" PRId64 ": <el> mult=\"%" PRId64 "\" runs past the %" PRId64
+             " indices the file declares", p->line, mult, p->want_nz);
     double v;
     if (!x_text_num(p, &v))
         FAIL("line %" PRId64 ": <el> holds no number", p->line);
@@ -640,9 +650,9 @@ static jaos_status o_el(ox *p)
         if (p->vec == OV_VALUE) {
             if (!JM_GROW(p->value, p->vcap, p->nvalue + 1))
                 FAIL_OOM();
-            p->value[p->nvalue++] = v + (double)(k * incr);
+            p->value[p->nvalue++] = v + (double)k * (double)incr;
         } else {
-            const double d = v + (double)(k * incr);
+            const double d = v + (double)k * (double)incr;
             if (d != floor(d) || d < 0.0 || d > (double)INT64_MAX)
                 FAIL("line %" PRId64 ": <el> holds %g where an index was "
                      "wanted", p->line, d);

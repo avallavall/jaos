@@ -430,9 +430,52 @@ static void test_osil_refuses_what_it_cannot_carry(void)
             "ends inside a tag");
 }
 
+static void test_a_cost_of_1e300_is_a_cost_and_not_an_infinity(void)
+{
+    const double cost[2] = {1e300, -1e300};
+    const double cl[2] = {-1e6, -1e6}, cu[2] = {1e6, 1e6};
+    const double rl[1] = {-1e6}, ru[1] = {1e6};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1e-300, 1e200};
+    jaos_model *a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, 2, 1, JAOS_MINIMIZE, 1e200, cost, cl, cu, rl, ru, 2,
+                     as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_osil(a, "build/to_huge.osil"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+        jaos_read_osil(b, "build/to_huge.osil"), jaos_model_error(b));
+    double c0 = 0.0, c1 = 0.0, v = 0.0, lo = 0.0, hi = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(b, 0, &c0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(b, 1, &c1));
+    TEST_ASSERT_EQUAL_DOUBLE(1e300, c0);
+    TEST_ASSERT_EQUAL_DOUBLE(-1e300, c1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(b, 0, 1, &v));
+    TEST_ASSERT_EQUAL_DOUBLE(1e200, v);
+    double off = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective_offset(b, &off));
+    TEST_ASSERT_EQUAL_DOUBLE(1e200, off);
+    jaos_model *c = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(c, 1, 0, JAOS_MINIMIZE, 0.0, (double[]){1.0},
+                     (double[]){-1e40}, (double[]){1e40}, nullptr, nullptr,
+                     0, (int64_t[]){0, 0}, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_osil(c, "build/to_huge.osil"));
+    jaos_model *d = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_osil(d, "build/to_huge.osil"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(d, 0, &lo, &hi));
+    TEST_ASSERT_TRUE(lo == -jaos_infinity() && hi == jaos_infinity());
+    jaos_model_free(a);
+    jaos_model_free(b);
+    jaos_model_free(c);
+    jaos_model_free(d);
+    remove("build/to_huge.osil");
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_a_cost_of_1e300_is_a_cost_and_not_an_infinity);
     RUN_TEST(test_osil_round_trips_an_lp_a_qp_and_a_mip);
     RUN_TEST(test_a_semicontinuous_column_survives_a_model_with_no_integer_column);
     RUN_TEST(test_osil_round_trips_through_gzip);

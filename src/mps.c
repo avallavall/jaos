@@ -373,6 +373,10 @@ static jaos_status rd_vector_line(rd *r, char **tok, int nt, bool is_range)
              "pairs", r->lno, what);
     const int off = nt % 2 == 0 ? 0 : 1;
     if (off == 1) {
+        if (strlen(tok[0]) >= 64)
+            FAIL("line %" PRId64 ": the %s set name '%s' is longer than 63 "
+                 "characters, and a longer one would not be told from "
+                 "another set's", r->lno, what, tok[0]);
         if (set[0] == '\0')
             snprintf(set, 64, "%s", tok[0]);
         else if (strcmp(set, tok[0]) != 0)
@@ -658,6 +662,10 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
              needs_value ? "exactly one value" : "no value");
 
     const char *setname = off ? tok[1] : "";
+    if (strlen(setname) >= sizeof r->bnd_set)
+        FAIL("line %" PRId64 ": the BOUNDS set name '%s' is longer than 63 "
+             "characters, and a longer one would not be told from another "
+             "set's", r->lno, setname);
     if (r->bnd_set[0] == '\0' && setname[0] != '\0')
         snprintf(r->bnd_set, sizeof r->bnd_set, "%s", setname);
     else if (setname[0] != '\0' && strcmp(r->bnd_set, setname) != 0)
@@ -908,6 +916,8 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (objname_pending)
                     FAIL("line %" PRId64 ": OBJNAME with no row name",
                          r->lno);
+                if (sec >= S_ROWS)
+                    FAIL("line %" PRId64 ": a second ROWS section", r->lno);
                 sec = S_ROWS;
             } else if (strcmp(kw, "COLUMNS") == 0) {
                 if (sec != S_ROWS)
@@ -916,6 +926,7 @@ jaos_status jaos_read_mps(jaos_model *m, const char *path)
                 if (r->objname != nullptr && !r->have_obj)
                     FAIL("line %" PRId64 ": OBJNAME names '%s', and ROWS has "
                          "no free row by that name", r->lno, r->objname);
+                free(r->rowstamp);
                 r->rowstamp = jm_calloc_array(r->nrow, sizeof(int64_t));
                 if (r->rowstamp == nullptr)
                     FAIL_OOM();

@@ -350,6 +350,9 @@ static jaos_status q_parse(qp *p)
                 FAIL("line %" PRId64 ": a Q entry is not finite", p->line);
             if (i == j) {
                 p->quad[i - 1] += v;
+                if (!isfinite(p->quad[i - 1]))
+                    FAIL("line %" PRId64 ": the Q entries on variable %lld "
+                         "add up past what a double holds", p->line, i);
                 continue;
             }
 

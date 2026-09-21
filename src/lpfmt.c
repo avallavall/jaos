@@ -401,6 +401,9 @@ static jaos_status parse_quadratic(lp *p, double sign, int64_t row)
         }
         if (qrow[k] == qcol[k]) {
             p->cquad[qcol[k]] += v;
+            if (!isfinite(p->cquad[qcol[k]]))
+                FAIL("line %" PRId64 ": the squared terms on one variable add "
+                     "up past what a double holds", p->line);
             p->any_quad = true;
             continue;
         }

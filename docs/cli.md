@@ -88,7 +88,10 @@ time 0.000087
 - `status` is one word: `optimal`, `infeasible`, `unbounded`, `work_limit`,
   `time_limit`, `node_limit`, `numerical_error` or `interrupted`. On
   `numerical_error` the reason the library gives goes to stderr as
-  `jaos: FILE ends numerical_error: REASON` (since 2026-09-19).
+  `jaos: FILE ends numerical_error: REASON` (since 2026-09-19). A solve
+  whose point makes the objective overflow a double ends
+  `numerical_error` with that reason (since 2026-09-21); before, it ended
+  `optimal` with an objective of `inf`.
 - `objective` is printed only when the solve found an optimum. The library
   refuses to give an objective for any other outcome, because a number
   cannot be told apart from a genuine objective of zero, and the tool

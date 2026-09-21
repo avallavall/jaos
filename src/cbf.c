@@ -185,6 +185,10 @@ static jaos_status cb_blocks(cbf *p, const char *what, int64_t *total,
         if (kind == CB_QR && d < 2)
             FAIL("line %" PRId64 ": a QR cone takes 2 members or more",
                  p->line);
+        if (d > *total - sum)
+            FAIL("line %" PRId64 ": a cone of %s asks for %" PRId64 " entries "
+                 "and the header leaves %" PRId64, p->line, what, d,
+                 *total - sum);
         (*out)[t] = (cb_block){kind, d};
         sum += d;
     }
