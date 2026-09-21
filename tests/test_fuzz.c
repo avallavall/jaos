@@ -97,8 +97,10 @@ static void corpus_load(void)
             continue;
         if (ncorpus == CORPUS_MAX)
             break;
-        snprintf(corpus[ncorpus].name, sizeof corpus[ncorpus].name, "%s",
-                 e->d_name);
+        const size_t len = strlen(e->d_name);
+        if (len >= sizeof corpus[ncorpus].name)
+            continue;
+        memcpy(corpus[ncorpus].name, e->d_name, len + 1);
         ncorpus++;
     }
     closedir(d);

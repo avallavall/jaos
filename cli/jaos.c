@@ -3172,7 +3172,10 @@ static bool ampl_set(jaos_model *m, const char *name, const char *value,
 static bool ampl_options(jaos_model *m, const char *text, char *msg,
                          size_t cap)
 {
-    char *copy = strdup(text);
+    const size_t len = strlen(text);
+    char *copy = malloc(len + 1);
+    if (copy != nullptr)
+        memcpy(copy, text, len + 1);
     if (copy == nullptr) {
         snprintf(msg, cap, "JAOS %s: out of memory reading the options",
                  jaos_version());

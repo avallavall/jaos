@@ -561,7 +561,10 @@ static void lp_write_map(wr *w, const jaos_model *orig)
 
 static jaos_status lp_substitute(jm_nmap *taken, const char *base, char *buf)
 {
-    snprintf(buf, NAME_LEN, "%s", base);
+    const size_t len = strlen(base);
+    if (len >= (size_t)NAME_LEN)
+        return JAOS_ERR_INVALID_INPUT;
+    memcpy(buf, base, len + 1);
     int64_t v;
     while (jm_nmap_get(taken, buf, &v)) {
         const size_t n = strlen(buf);
