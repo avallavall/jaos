@@ -258,6 +258,25 @@ static void test_an_inverted_box_has_no_relaxation(void)
     jaos_model_free(m);
 }
 
+static void test_a_model_with_no_integer_point_ends_by_itself(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/relax_runaway.mps"));
+    double rm[3], cm[4];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m),
+                                "no point in the columns' box widened by"));
+    TEST_ASSERT_TRUE(rep.work_units > 0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_ROWS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    jaos_model_free(m);
+}
+
 static void test_a_scope_that_is_not_one_of_the_three_is_refused(void)
 {
     jaos_model *m = over_reach();
@@ -549,6 +568,7 @@ int main(void)
     RUN_TEST(test_the_callers_model_is_untouched);
     RUN_TEST(test_two_rows_share_the_violation);
     RUN_TEST(test_an_inverted_box_has_no_relaxation);
+    RUN_TEST(test_a_model_with_no_integer_point_ends_by_itself);
     RUN_TEST(test_a_scope_that_is_not_one_of_the_three_is_refused);
     RUN_TEST(test_an_infeasible_answer_publishes_its_basis);
     RUN_TEST(test_a_verdict_presolve_reached_publishes_no_basis);

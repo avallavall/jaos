@@ -10,23 +10,12 @@ Milestone A, publishing 0.4.0, ended with the tag `v0.4.0`. Milestone B,
 performance, ended on 2026-09-22 with P0 re-taken. Milestone C, reach and
 polish, ended on 2026-09-22 (`bench/measurements/02-293/` to `02-296/`).
 
-## Milestone D: the two gaps a caller meets first
+## Milestone D: the gaps a caller meets first
 
-Both rows come from a `SPECS.md` row that reads **partial**, and both end
-at a caller's model rather than at a benchmark set.
-
-D1 **The feasibility relaxation over the columns never ends on a model
-   with no integer point.** SPECS §5, "Feasibility relaxation". Over the
-   columns the elastic copy frees every column, and a free integer column
-   gives the tree an unbounded space. The bound `M` doubles until the
-   total comes out at or below it, so a model whose rows plus integrality
-   admit no point at all doubles for ever: `tests/data/relax_runaway.mps`
-   only stops on `relax --work-limit N`, and the copy then ends
-   `work_limit`. The fix needs a cap on the doubling and a verdict that
-   says what the cap means, since a wider box is not proved empty.
-   Verify: `jaos relax --cols tests/data/relax_runaway.mps` ends with that
-   verdict and a message naming the widest box tried, in bounded work and
-   with no work limit given, and `tests/test_relax.c` checks it.
+The row comes from a `SPECS.md` row that reads **partial**, and it ends at
+a caller's model rather than at a benchmark set. D1, the feasibility
+relaxation that never ended over the columns, landed on 2026-09-22
+(`bench/measurements/02-297/`).
 
 D2 **The `.nl` reader takes only a constant body, so a quadratic
    objective is refused.** SPECS §7, "Modelling-system links". Pyomo

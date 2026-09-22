@@ -8,6 +8,8 @@
 constexpr double RELAX_BOX_FLOOR = 1.0;
 constexpr double RELAX_BOX_START = 2.0;
 constexpr double RELAX_BOX_GROWTH = 2.0;
+constexpr int64_t RELAX_BOX_ROUNDS = 16;
+constexpr int64_t RELAX_ROUND_WORK = 64;
 
 typedef struct {
     bool lo, hi;
@@ -259,11 +261,13 @@ static jaos_status rx_box(rx *g, const jaos_model *m, double width)
     return JAOS_OK;
 }
 
-static jaos_status rx_solve(rx *g, jaos_model *m, int64_t *used)
+static jaos_status rx_solve(rx *g, jaos_model *m, int64_t *used, int64_t cap)
 {
     const int64_t limit = m->cfg.work_limit;
     if (limit > 0)
         g->c->cfg.work_limit = limit > *used ? limit - *used : 1;
+    if (cap > 0 && (limit <= 0 || cap < g->c->cfg.work_limit))
+        g->c->cfg.work_limit = cap;
     const jaos_status rc = jaos_solve(g->c);
     if (rc != JAOS_OK) {
         jm_set_err(m, "the relaxation's solve failed: %s (%s)",
@@ -310,10 +314,11 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
     if (rc != JAOS_OK)
         goto out;
 
-    int64_t used = 0;
+    int64_t used = 0, unit = 0, rounds = 0;
+    bool too_wide = false;
     double width = 0.0;
     if (g.nbox > 0) {
-        rc = rx_solve(&g, m, &used);
+        rc = rx_solve(&g, m, &used, 0);
         if (rc != JAOS_OK)
             goto out;
         out->work_units = used;
@@ -336,14 +341,28 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
                 if (rc != JAOS_OK)
                     goto out;
             }
-            rc = rx_solve(&g, m, &used);
+            const int64_t left = m->cfg.work_limit > 0
+                                     ? m->cfg.work_limit - used : INT64_MAX;
+            const int64_t cap = unit > 0 ? unit * RELAX_ROUND_WORK : 0;
+            const bool ours = cap > 0 && cap < left;
+            rc = rx_solve(&g, m, &used, cap);
             if (rc != JAOS_OK)
                 goto out;
             out->work_units = used;
             out->status = jaos_status_of(g.c);
             if (g.nbox == 0)
                 break;
+            if (unit == 0)
+                unit = used > 0 ? used : 1;
+            if (ours && out->status == JAOS_SOLVE_WORK_LIMIT) {
+                too_wide = true;
+                break;
+            }
             if (out->status == JAOS_SOLVE_INFEASIBLE) {
+                if (++rounds >= RELAX_BOX_ROUNDS) {
+                    too_wide = true;
+                    break;
+                }
                 width *= RELAX_BOX_GROWTH;
                 continue;
             }
@@ -353,6 +372,10 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
                 if (rc != JAOS_OK)
                     goto out;
                 if (v > width) {
+                    if (++rounds >= RELAX_BOX_ROUNDS) {
+                        too_wide = true;
+                        break;
+                    }
                     width *= RELAX_BOX_GROWTH;
                     continue;
                 }
@@ -362,9 +385,16 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
     }
     if (out->status != JAOS_SOLVE_OPTIMAL) {
 
-        jm_set_err(m, "the relaxation's solve answered %s, so there is no "
-                      "smallest violation to report",
-                   jaos_solve_status_str(out->status));
+        if (too_wide)
+            jm_set_err(m, "no point in the columns' box widened by %.6g, "
+                          "after %lld rounds and %lld work units, so there "
+                          "is no smallest violation to report; the rows and "
+                          "the integrality may admit no point at all",
+                       width, (long long)(rounds + 1), (long long)used);
+        else
+            jm_set_err(m, "the relaxation's solve answered %s, so there is no "
+                          "smallest violation to report",
+                       jaos_solve_status_str(out->status));
         rc = JAOS_ERR_NUMERICAL;
         goto out;
     }

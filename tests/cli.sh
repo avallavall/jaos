@@ -1573,6 +1573,15 @@ case "$err" in
     *) flunk "the stopped relax said '$err'" ;;
 esac
 fi
+expect_exit 5 "relax --cols on the runaway model ends with no work limit" \
+    "$JAOS" relax "$DATA/relax_runaway.mps" --cols
+if [ "$faulty" -eq 0 ]; then
+case "$err" in
+    *"no point in the columns' box widened by"*)
+        pass "and names the widest box it tried" ;;
+    *) flunk "the capped relax said '$err'" ;;
+esac
+fi
 expect_exit 5 "relax --work-limit needs a number" \
     "$JAOS" relax "$DATA/t1.mps" --work-limit x
 expect_exit 5 "relax --work-limit needs a positive number" \
