@@ -115,8 +115,14 @@ C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained
      `row_curves_its_way`; it needs the supremum of a concave quadratic
      form, which is `a'H⁺a / 2` where the shift `u` of
      `a'x + ½x'Hx ≤ (a + Hu)'x - ½u'Hu` makes `a + Hu` vanish.
-   - **CBLIB's twelve filterdesign instances** (71 to 872 MB) are not
-     read at all. The three `sched_*_orig` are done since 2026-09-20
+   - **CBLIB's twelve filterdesign instances** (71 to 872 MB) stay out
+     of `make cblib`. The smallest, 2013_firL1Linfeps (30085 rows, 59173
+     columns, 9.9 million nonzeros, 19724 cones), reads in 3.4 s and
+     1.15 GB and solves `OPTIMAL` at -0.0152549488, taken by the
+     checker, in 109 conic iterations, 3.6e12 work units, 59 minutes and
+     2.75 GB (`bench/measurements/02-296/`); CBLIB's table reads
+     -0.0152549399. The other eleven are 72 to 872 MB. The three
+     `sched_*_orig` are done since 2026-09-20
      (`bench/measurements/02-271/` and `02-273/`): the Newton finish's
      point is taken when the walk's own is refused and the finish's
      violation is smaller, and every column that leaves the finish on a
@@ -139,7 +145,11 @@ C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained
      products near 1e-11, while every reduced cost is under 3e-9; fitting
      each row's multiplier to its cone's whole dual and damping the
      finish both change nothing (`conic-qc-dual-refit`,
-     `conic-newton-prox`); QPLIB_2676 and
+     `conic-newton-prox`), and taking every row within 1e-6 of a side as
+     active, six Newton steps and an active-set update for the rows the
+     finish breaks leave QPLIB_2482's first step with a KKT residual of
+     2.3e-6 against 4.7e-7, so the finish keeps its old point
+     (`conic-qc-active-rows`, `bench/measurements/02-296/`); QPLIB_2676 and
      QPLIB_2468 stop without progress and end `NUMERICAL_ERROR`; QPLIB_3312
      (41406 columns) reaches the work limit. Of the 14 mixed-integer
      ones, the two `LMD` files end within 1e-2 of the reference at the

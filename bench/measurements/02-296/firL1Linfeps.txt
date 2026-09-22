@@ -1,0 +1,27 @@
+conic interior point: 59173 columns, 89258 rows in 30085 equalities, 1 inequalities and 19724 second-order cones
+optimal after 109 conic iterations, 3604582682087 work units
+status optimal
+objective -0.015254948786391173
+iterations 109
+work_units 3604582682087
+time 3546.530084
+max_col_violation 0
+max_row_violation 1.0665711570877848e-16
+max_row_violation_relative 2.5690935116613286e-17
+max_dual_violation 1.7347234759768071e-18
+primal_objective -0.015254948786391173
+dual_objective -0.015254948786391168
+objective_gap 3.5513037420861757e-18
+gap_positive 6.1579401057876677e-17
+gap_negative 6.5239054713166439e-17
+max_dropped_multiplier 4.1722272297838818e-11
+dropped_terms 49306
+certified_suboptimality 2.8105565367240887e-65
+unquantified_rays 0
+relative_suboptimality 6.0654125479995995e-17
+primal_feasible yes
+dual_feasible yes
+checked_duals yes
+gap_certified no
+max_cone_violation 2.7755575615628914e-17
+check_ok yes

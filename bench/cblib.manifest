@@ -8,6 +8,8 @@
 # library's solution files, from MOSEK); rows and columns are the model
 # JAOS reads, which holds a cone over expressions as new columns and rows.
 # The set's twelve filterdesign instances are left out: 71 to 872 MB each.
+# The smallest of them, 2013_firL1Linfeps, reads in 3.4 s and solves in
+# 59 minutes and 2.75 GB (bench/measurements/02-296/).
 #
 # The library's reference is a solution and not always the optimum. On
 # nql and qssp JAOS reaches points that cbfeval.py, which reads the CBF
