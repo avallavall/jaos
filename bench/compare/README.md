@@ -38,23 +38,26 @@ out.
 
 ## The reading
 
-`results/P0.txt`, 2026-09-21 on tree 6ae3966, geometric mean of
+`results/P0.txt`, 2026-09-22 on tree 7311fa3, geometric mean of
 per-instance ratios over the instances above a 0.05 s floor:
 
 | | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 3.46x | 1.01x | 2.76x |
-| iterations | 1.63x | 0.63x | 1.37x |
-| time per iteration | 2.12x | 1.60x | 2.02x |
-| JAOS faster on | 1 of 18 | 13 of 22 | 1 of 16 |
-| worst instance | `stocfor3` 33.0x | `grow22` 8.1x | `stocfor3` 23.6x |
+| time per solve | 2.03x | 0.66x | 1.93x |
+| iterations | 1.14x | 0.45x | 1.06x |
+| time per iteration | 1.78x | 1.48x | 1.83x |
+| JAOS faster on | 1 of 19 | 15 of 20 | 4 of 16 |
+| worst instance | `stocfor3` 18.3x | `truss` 1.9x | `stocfor3` 15.7x |
 
-`summarise.py` recomputes the same figures from the record to within the
-last digit's rounding. SoPlex's and Clp's objectives on `pilot87` miss the
-reference, so that instance counts against HiGHS only.
+`summarise.py` recomputes the same figures from the record. SoPlex's and
+Clp's objectives on `pilot87` miss the reference, so that instance counts
+against HiGHS only.
 
-The three rivals disagree about the iteration count and agree about the cost
-of one iteration. The iteration is what costs.
+The reading before, `results/P0-2026-09-21.txt` on tree 6ae3966, read 3.46x,
+1.01x and 2.76x per solve. The aggregator (2e04b47) did most of the
+difference: it took out rows and columns the dual used to pivot on, so the
+iteration counts fell from 1.63x, 0.63x and 1.37x. One iteration still
+costs 1.5x to 1.8x what it costs each rival.
 
 ## The MIP reading
 

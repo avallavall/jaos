@@ -220,15 +220,15 @@ models are refused. `bench/README.md` says how it is run.
 
 `make compare COMPARE_ARGS='-t P0'` times JAOS against HiGHS, SoPlex and Clp
 with every solver's own presolve on and the dual simplex forced. The reading
-in `bench/compare/results/P0.txt` (2026-09-21, tree 6ae3966):
+in `bench/compare/results/P0.txt` (2026-09-22, tree 7311fa3):
 
 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|
-| 3.46x slower per solve | 1.01x slower | 2.76x slower |
+| 2.03x slower per solve | 0.66x, faster | 1.93x slower |
 
-JAOS takes fewer iterations than SoPlex (0.63x). One iteration costs 1.6x
-to 2.1x what it costs each rival, and that is what separates JAOS from
-the field.
+JAOS takes about as many iterations as HiGHS and Clp (1.14x and 1.06x) and
+fewer than SoPlex (0.45x). One iteration costs 1.5x to 1.8x what it costs
+each rival, and that is what separates JAOS from the field.
 
 On MIP, `bench/compare/run-mip.sh` gives each solver 20 s per instance, one
 thread and a relative gap of 1e-6 (2026-09-21, tree 3086162). On MIPLIB 3

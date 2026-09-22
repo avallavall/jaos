@@ -6,34 +6,13 @@ When the file is empty, pick the next rows from SPECS and fill it again.
 A row says what is wrong and what the fix needs. The reading behind it is in
 the commit that took it, named here by hash.
 
-Two milestones, in this order; milestone A, publishing 0.4.0, ended with
-the tag `v0.4.0`. A row in a later milestone waits for the earlier ones
+Milestone A, publishing 0.4.0, ended with the tag `v0.4.0`, and milestone
+B, performance, ended on 2026-09-22 with P0 re-taken. A row in a later
+milestone waits for the earlier ones
 unless it says otherwise. Every row was taken from the reading of
 2026-09-21 (the three audits of the docs, the code and the bench record)
 and nothing from that reading is left out of this file. Each row says how
 to verify it, so a row leaves when its check passes, not before.
-
-## Milestone B: performance
-
-The gap against HiGHS is 3.46x per solve (P0, tree 6ae3966, 2026-09-21,
-`bench/compare/results/P0.txt`): 2.12x per iteration over the set, and
-the iteration count on four instances. B14 is the row left: it re-reads
-P0 once the rows before it have landed or been refused. Each is unrefused today;
-read the named refusal before
-starting and stop if its condition is not met. Every row
-that changes `simplex.c`, `lu.c`, `presolve.c`, `scale.c` or `mip.c` runs
-the gates (`CLAUDE.md`, step 3). Every B row reads its before from that
-`P0.txt`.
-
-The bar for a B row, unless it says otherwise: no instance of the four
-gates past 2.0x its baseline work, the geometric mean of work under 0.95x
-over the standard 94, and no verdict or suboptimality bound regressed.
-
-B14 **Re-take P0 when milestone B ends.** `README.md`'s Results table,
-    `bench/compare/README.md` and this milestone's intro quote P0 as
-    re-taken after the rows that land before it. Re-take
-    `make compare COMPARE_ARGS='-t P0'` on a quiet machine once B3 to B11
-    have landed or been refused, and update the three.
 
 ## Milestone C: reach and polish
 
