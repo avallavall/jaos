@@ -1,0 +1,35 @@
+markshare_4_0 work limit reached rows=4 cols=34 shape=ok iters=1576759 work=10000025946 nodes=505509 cuts=106 heur=1 inc=3 bound=0 ref=1 | 
+markshare2   work limit reached rows=7 cols=74 shape=ok iters=2933933 work=10000002206 nodes=637278 cuts=102 heur=1 inc=1413 bound=0 ref=1 | 
+enlight_hard work limit reached rows=100 cols=200 shape=ok iters=12579126 work=10000000075 nodes=595345 cuts=288 heur=0 inc=none bound=22.999999999999929 ref=37 | 
+pk1          work limit reached rows=45 cols=86 shape=ok iters=2613763 work=10000009299 nodes=111684 cuts=71 heur=1 inc=11 bound=6.8830995438421398 ref=11 | 
+neos5        work limit reached rows=63 cols=63 shape=ok iters=1463699 work=10000002246 nodes=31300 cuts=94 heur=5 inc=15.5 bound=14 ref=15 | 
+gen-ip054    work limit reached rows=27 cols=30 shape=ok iters=2689505 work=10000043447 nodes=271187 cuts=72 heur=13 inc=6855.5712030780005 bound=6793.8578255377706 ref=6840.9656417899996 | 
+timtab1      work limit reached rows=171 cols=397 shape=ok iters=7894564 work=10000000224 nodes=80983 cuts=523 heur=0 inc=none bound=379848.27912992652 ref=764771.99999977998 | 
+neos-3046615-murg work limit reached rows=498 cols=274 shape=ok iters=1541442 work=10000026264 nodes=140148 cuts=0 heur=0 inc=1720 bound=431 ref=1600 | 
+sp150x300d   work limit reached rows=450 cols=600 shape=ok iters=1141642 work=10000016277 nodes=139275 cuts=66 heur=1 inc=68.999999999998224 bound=68.371597244996636 ref=69 | 
+mas76        work limit reached rows=12 cols=151 shape=ok iters=2343914 work=10000000109 nodes=121875 cuts=68 heur=1 inc=47559.808836799995 bound=39550.430141957484 ref=40005.053989999993 | 
+mas74        work limit reached rows=13 cols=151 shape=ok iters=2221535 work=10000000268 nodes=94653 cuts=68 heur=1 inc=17337.601919400004 bound=11114.764657511563 ref=11801.185719999999 | 
+gen-ip002    work limit reached rows=24 cols=41 shape=ok iters=2052841 work=10000043414 nodes=210287 cuts=74 heur=8 inc=-4783.7333916000007 bound=-4807.2077272044253 ref=-4783.7333920000001 | 
+neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=1198413 work=10000052453 nodes=27579 cuts=1 heur=1 inc=14284.609513653457 bound=-552445.31218370039 ref=12941.73838561778 | 
+neos-2657525-crna work limit reached rows=342 cols=524 shape=ok iters=1746123 work=10000007149 nodes=6284 cuts=196 heur=0 inc=none bound=0 ref=1.810748 | 
+assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=597228 work=10000058374 nodes=6527 cuts=174 heur=1 inc=212 bound=190.57928117975422 ref=211.99999999999801 | 
+glass4       work limit reached rows=396 cols=322 shape=ok iters=1085549 work=10000015937 nodes=189349 cuts=147 heur=0 inc=none bound=800004105.75539565 ref=1200012599.972384 | 
+supportcase26 work limit reached rows=870 cols=436 shape=ok iters=1103856 work=10000015723 nodes=90181 cuts=0 heur=0 inc=1861.1275999367231 bound=1459.263785346599 ref=1745.1238129999999 | 
+neos-911970  work limit reached rows=107 cols=888 shape=ok iters=765131 work=10000009693 nodes=538 cuts=343 heur=1 inc=179.50999999999692 bound=28.306910091801154 ref=54.759999999999998 | 
+mad          work limit reached rows=52 cols=220 shape=ok iters=2083810 work=10000001582 nodes=9082 cuts=118 heur=1 inc=2.4050000000000002 bound=0 ref=0.026800000000000001 | 
+graphdraw-domain work limit reached rows=865 cols=254 shape=ok iters=2056515 work=10000002087 nodes=72596 cuts=202 heur=0 inc=none bound=14073.712201624458 ref=19685.999975500381 | 
+exp-1-500-5-5 work limit reached rows=550 cols=990 shape=ok iters=1176668 work=10000017729 nodes=145741 cuts=169 heur=1 inc=102166.99999999978 bound=48483.412019471551 ref=65887 | 
+tr12-30      work limit reached rows=750 cols=1080 shape=ok iters=317591 work=10000014880 nodes=90174 cuts=404 heur=1 inc=195766 bound=89977.256824410171 ref=130595.9999999999 | 
+neos-3381206-awhea work limit reached rows=479 cols=2375 shape=ok iters=107176 work=10000051965 nodes=87 cuts=2203 heur=0 inc=none bound=415.24000000000001 ref=453 | 
+ic97_potential work limit reached rows=1046 cols=728 shape=ok iters=1212481 work=10000001450 nodes=28642 cuts=503 heur=0 inc=none bound=3868.4626063591572 ref=3941.9999309022501 | 
+neos-3627168-kasai work limit reached rows=1655 cols=1462 shape=ok iters=1365748 work=10000006871 nodes=5202 cuts=174 heur=0 inc=none bound=948631.48958282627 ref=988585.61999999976 | 
+binkar10_1   work limit reached rows=1026 cols=2298 shape=ok iters=729672 work=10000002140 nodes=11434 cuts=83 heur=0 inc=6748.4000129999959 bound=6711.2235149470453 ref=6742.1998835000004 | 
+csched008    work limit reached rows=351 cols=1536 shape=ok iters=79261 work=10000291722 nodes=1 cuts=181 heur=0 inc=none bound=-inf ref=173 | 
+csched007    work limit reached rows=351 cols=1758 shape=ok iters=352708 work=10000004151 nodes=92 cuts=247 heur=0 inc=none bound=292.44357113106747 ref=350.99999999999551 | 
+beasleyC3    work limit reached rows=1750 cols=2500 shape=ok iters=662204 work=10000023775 nodes=6547 cuts=237 heur=0 inc=none bound=328.94877157715086 ref=753.9999999999128 | 
+p200x1188c   work limit reached rows=1388 cols=2376 shape=ok iters=698673 work=10000023514 nodes=14510 cuts=27 heur=1 inc=29761 bound=8771.5539240506332 ref=15078 | 
+
+30 instances: 0 solved, 30 shape ok, 0 objective ok, 0 checker ok, 0 deterministic, 30 failed
+gate: NOT MET
+
+baseline: NOT COMPARED (no baseline given)
