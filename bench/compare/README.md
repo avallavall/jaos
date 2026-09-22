@@ -5,16 +5,23 @@ against HiGHS and SCIP on MIPLIB 3 and the MIPLIB 2017 reading. Nothing
 here is part of what JAOS ships. Its record is `results/`, and it carries
 seconds, which `bench/results/` never does.
 
+JAOS is timed against other solvers on LP and MIP only. A QP rung and a
+conic rung are a row in `TODO.md`.
+
 ## Run it
 
 ```
+make compare-solvers
 make compare COMPARE_ARGS='-t P0'
 ```
 
-`build_*` fetches and builds each competitor, pinned by checksum in the
-`*.manifest` files. Rung `P0` is every solver's own presolve on, the dual
-simplex forced, no crash basis, one thread. Never run bare `make compare`: it
-defaults to rung T0, which was defined when JAOS had no presolve.
+`make compare-solvers` runs `fetch-solvers.sh`, whose `build_*` functions
+fetch and build each competitor, pinned by checksum in the `*.manifest`
+files. Run it once first: `make compare` builds HiGHS alone, so without it
+SoPlex and Clp are not timed. Rung `P0` is every solver's own presolve on,
+the dual simplex forced, no crash basis, one thread. Never run bare
+`make compare`: it defaults to rung T0, which was defined when JAOS had no
+presolve.
 
 The MIP comparison runs one set at a time:
 
@@ -32,9 +39,16 @@ out.
 |---|---|---|
 | T0 | dual simplex, no presolve | dual forced, presolve off. Historical |
 | **P0** | dual simplex, presolve | dual forced, presolve on. The rung JAOS is judged on |
-| T1 | unchanged | free to pick primal or dual |
-| T2 | unchanged | presolve on |
-| T3 | unchanged | stock defaults |
+| T1 | as T0 | free to pick primal or dual. Historical |
+| T2 | as T0 | presolve on. Historical |
+| T3 | as T0 | stock defaults. Historical |
+
+T0 to T3 were last run on 2026-08-11 on tree e467810, before JAOS had
+presolve. Each of T1 to T3 changes one setting of the others against T0.
+The harness now solves JAOS with its defaults, presolve on, so a new run of
+those rungs would no longer change one thing at a time. `results/` also keeps three older records: `P0-2026-08-14.txt` and
+`T2-2026-08-14.txt` (tree fd1bd6d) and `P0-2026-08-17.txt` (tree
+a88e99b).
 
 ## The reading
 
@@ -53,8 +67,10 @@ per-instance ratios over the instances above a 0.05 s floor:
 Clp's objectives on `pilot87` miss the reference, so that instance counts
 against HiGHS only.
 
-The reading before, `results/P0-2026-09-21.txt` on tree 6ae3966, read 3.46x,
-1.01x and 2.76x per solve. The aggregator (2e04b47) did most of the
+The reading before, `results/P0-2026-09-21.txt` on tree 6ae3966, reads
+3.47x, 1.01x and 2.77x per solve in `summarise.py`. The harness's own
+summary block printed 3.46x, 1.01x and 2.76x, because it rounds each
+per-instance ratio to two decimals before the mean. The aggregator (2e04b47) did most of the
 difference: it took out rows and columns the dual used to pivot on, so the
 iteration counts fell from 1.63x, 0.63x and 1.37x. One iteration still
 costs 1.5x to 1.8x what it costs each rival.
@@ -79,6 +95,8 @@ means.
 | MIPLIB 3, 24 instances | 23 solved, 1.43 s | 24, 0.70 s | 24, 0.64 s | 1.43x | 1.48x |
 | MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 14.38 s | 7, 12.87 s | 1.37x | 1.51x |
 
+These numbers were taken at tree 3086162, before the current MIP defaults
+(the best-estimate node order, ae25a70), and a re-take is due.
 JAOS leaves l152lav at the limit on MIPLIB 3. On the 2017 set it finishes
 none of the eight the rivals finish. A first run left HiGHS on its own
 thread count and a gap of 1e-4 and SCIP at a gap of 0;
@@ -87,11 +105,14 @@ thread count and a gap of 1e-4 and SCIP at a gap of 0;
 ## Rules
 
 - A time without a verified answer is discarded. Every competitor's objective
-  is checked against the Koch reference within the gate's tolerance.
-- Tolerances are equalised: JAOS runs at the stricter of HiGHS's 1e-7 and
-  SoPlex's 1e-6. On MIP the three share the relative gap 1e-6 and one
+  is checked within the gate's tolerance: against the Koch reference on LP,
+  and against the reference in the manifest on MIP.
+- On LP all four solvers run at a primal tolerance of 1e-7. The
+  competitors' dual tolerance is 1e-7, and JAOS's is its default, 1e-9
+  (`DUAL_TOL`). On MIP the three share the relative gap 1e-6 and one
   thread.
-- Every result line names the machine. A number taken under WSL is a
-  development number.
+- Every result file names the machine in its header. The LP harness also
+  marks a run under WSL, which is a development number, and a tree with
+  uncommitted changes. `run-mip.sh` writes neither mark.
 - The harness repeats to about 1.4% on this host, measured from JAOS's own
   cross-rung ratio.

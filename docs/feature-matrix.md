@@ -6,9 +6,12 @@ target is the right target. This page is the other half: the feature list a
 mathematical-programming solver is measured against, and where each solver
 stands on it.
 
-The list was written from what the field offers, not from what JAOS has. Most
-of it is therefore empty for JAOS, which is the point. A matrix drawn the other
-way round would flatter the project and teach nobody anything.
+The list was written from what the field offers, not from what JAOS has. It
+carries every `SPECS.md` row the field compares on, and a JAOS cell at ◐ or
+○ is a row `SPECS.md` does not mark done. The rows about JAOS's own tooling
+(copying a model, names, model and presolve statistics, whether the model
+is a MIP, the `diff` and `show` commands) have no counterpart in the other
+columns, so they stay out.
 
 **How to read it**
 
@@ -18,21 +21,26 @@ way round would flatter the project and teach nobody anything.
 | ◐ | present but partial — the gap is named in the notes |
 | ○ | absent |
 | — | not applicable to that solver's scope |
-| ? | not verified for this page; treat as unknown, not as absent |
+| ? | the vendor documents nothing either way; the note says what was searched. Treat it as unknown, not as absent |
 
-**The solvers.** The first three are the ones JAOS is benchmarked against, so
-their columns can be checked by running `make compare`. SCIP, Gurobi and Hexaly
-are there for reference and their entries come from public documentation, not
-from measurement here. CPLEX, Xpress, COPT and Mosek are in the same class as
-Gurobi and are left out only to keep the table readable.
+**The solvers.** The first three are the ones JAOS is timed against on LP:
+`make compare-solvers` builds them and `make compare COMPARE_ARGS='-t P0'`
+measures their speed. JAOS is also timed against HiGHS and SCIP on MIP.
+No run here checks a feature cell. Every cell outside JAOS's column comes
+from public documentation, not from measurement here. CPLEX, Xpress, COPT
+and Mosek are in the same class as Gurobi and are left out only to keep the
+table readable.
 
 *JAOS's column was last checked against `SPECS.md`, `src/` and `cli/` on
-2026-09-21. The other columns were last checked against their published
-documentation on 2026-09-21: that pass answered 28 cells that read `?`
-and corrected four (Hexaly reads no MPS or LP file and works with no
-modelling system, and HiGHS's dependencies are optional). scipopt.org and
-soplex.zib.de refused automated requests that day, so SCIP's and SoPlex's
-cells rest on their GitHub release notes, changelogs and papers.
+2026-09-22. The other columns were last checked against their published
+documentation on 2026-09-22. That pass added twenty rows, answered the
+`?` cells the vendors document, named the gap of every partial cell, and
+left `?` only where a vendor documents nothing, with what was searched in
+the note. scipopt.org and soplex.zib.de refused automated requests again
+(HTTP 429), so SCIP's and SoPlex's cells rest on their GitHub READMEs,
+CHANGELOGs, the FAQ text in their repositories and the Suite papers. The
+timing in `bench/compare/` ran SoPlex 8.0.3 and SCIP 10.0, one release
+behind this line.
 Versions: JAOS 0.4.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
 SCIP 10.1.0 · Gurobi 13.0.3 · Hexaly 15.0. SoPlex 8.1.0 and SCIP 10.1.0
 came out on 2026-09-18, and neither release moved a cell.*
@@ -44,7 +52,7 @@ came out on 2026-09-18, and neither release moved a cell.*
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Linear programming (LP) | ● | ● | ● | ● | ● | ● | ● |
-| Quadratic programming (QP) | ◐ | ● | ○ | ○ | ● | ● | ● |
+| Quadratic programming (QP) | ◐ | ● | ○ | ● | ● | ● | ● |
 | Quadratically constrained (QCP, SOCP) | ◐ | ○ | ○ | ○ | ● | ● | ● |
 | Mixed-integer linear (MILP) | ● | ● | — | — | ● | ● | ● |
 | Mixed-integer quadratic (MIQP, MIQCP) | ◐ | ○ | — | — | ● | ● | ● |
@@ -56,17 +64,48 @@ came out on 2026-09-18, and neither release moved a cell.*
 SoPlex and Clp are LP solvers by design; their integer side is SCIP and CBC
 respectively, which is why those rows read "—" and not "○".
 
+**Clp's QP cell was ○ and is ●.** Clp's FAQ says "The CLP barrier method
+solves convex QPs as well as LPs", and `ClpModel::loadQuadraticObjective`
+loads the quadratic part. This repository saw it happen: Clp 1.17.11 with
+`-barrier` solved Maros-Meszaros QPs (`bench/measurements/02-293/`).
+
+**SCIP's constraint-programming cell reads ◐.** SCIP has a cumulative
+scheduling constraint, logical constraints (and, or, xor, disjunction,
+pseudo-Boolean), a FlatZinc reader and a pure CP/SAT mode. It has no
+alldifferent constraint and none of the other CP global constraints
+(element, table, circuit, no-overlap).
+
+JAOS's QP and QCP rows are explained under section 2. **The MIQP row
+reads ◐.** A quadratic objective with integer columns solves in the linear
+tree on barrier relaxations. Of QPLIB's 17 convex mixed-integer QPs, 4 end
+`OPTIMAL` and 13 reach a work limit of 1e11 (`SPECS.md` §1). The
+mixed-integer QCQPs are part of the QCP note.
+
 ## 2. LP algorithms
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Dual simplex | ● | ● | ● | ● | ● | ● | ? |
 | Primal simplex | ◐ | ● | ● | ● | ● | ● | ? |
-| Barrier / interior point | ◐ | ● | ○ | ● | ● | ● | ? |
-| Crossover to a basic solution | ◐ | ● | — | ◐ | ● | ● | ? |
+| Barrier / interior point | ◐ | ● | ○ | ● | ● | ● | ◐ |
+| Crossover to a basic solution | ◐ | ● | — | ● | ● | ● | ? |
 | First-order method (PDLP / PDHG) | ◐ | ● | ○ | ○ | ○ | ● | ○ |
 | GPU acceleration | ○ | ● | ○ | ○ | ○ | ● | ○ |
-| Concurrent solve (race several methods) | ◐ | ◐ | ○ | ○ | ● | ● | ? |
+| Concurrent solve (race several methods) | ◐ | ○ | ○ | ○ | ● | ● | ? |
+
+**The other columns in this table.** HiGHS's concurrent cell was ◐ and is
+○: its `solver` option lists every LP method, and none of them races the
+others. The parallel dual simplex variants (SIP, PAMI) run one method on
+several threads. Clp's crossover cell was ◐ with no gap named and is ●:
+`ClpSimplex::barrier` crosses over to the simplex when asked, and the
+`crossover` option gives "a basic solution suitable for ranging". Hexaly
+says it uses "simplex methods when linear and interior point methods when
+nonlinear". Its barrier cell reads ◐ for that reason: an interior point
+method is documented (14.0), but not as an LP method, and the user cannot
+choose it. Its dual, primal, crossover and concurrent cells stay `?`:
+Hexaly never names a simplex variant, a crossover or a race of LP methods
+(searched: the docs index, `HxParam`, the 13.0 to 15.0 release notes, its
+conference abstracts, "Hexaly dual simplex", "Hexaly crossover").
 
 JAOS's dual simplex has steepest-edge pricing, a Harris two-pass ratio test with
 bound flipping, dual phase 1 by artificial bounds, a cost perturbation on
@@ -75,8 +114,9 @@ weight that drifts from its exact value hands the pricing to dual Devex for
 the rest of the solve, except inside the MIP tree.
 
 **The primal simplex reads ◐ rather than ●** because 6 of the 94 standard
-instances still run past 10x the dual's work (`bench/results/primal.txt`,
-`TODO.md`). `jaos_set_algorithm` and `--algorithm primal` select it. It has
+instances still run past 10x the dual's work (`bench/results/primal.txt`),
+and on pilot87 the primal ends `NUMERICAL_ERROR` where the dual finds the
+optimum (the one disagreement in that file). `jaos_set_algorithm` and `--algorithm primal` select it. It has
 steepest-edge pricing since 2026-09-08, with Devex and Dantzig behind
 `cfg.primal_devex` and `cfg.primal_dantzig` for measurement, a composite
 phase 1 and a Harris ratio test; the same day its phase 2 stopped shifting
@@ -86,17 +126,20 @@ hand the solve to the dual. Stage 7, the unboundedness verdict, landed on
 proof the dual already used, and the shared lent-bound verdict also
 proves a ray that needs several columns at once.
 
-**Concurrent reads ◐ since 2026-09-10, and the gap is the set that
-would show it paying.** `--algorithm concurrent` copies the model three
+**Concurrent reads ◐ since 2026-09-10, and the gap is a set where it
+pays.** `--algorithm concurrent` copies the model three
 times, sets the dual, the primal and the barrier on the copies and runs
 them under a work budget that grows each round; the first to answer wins
 and the work billed is the sum over the three. Nothing reads a clock, so
 the winner is the same on every machine, which the threaded version in the
 other columns cannot promise. `--threads N` above 1 starts the three at
 once and stops every arm behind one that has answered, and the answer and
-the work units do not move.  `bench/results/concurrent.txt`:
-94 of 94 agree inside 10x the dual's work, none disagrees, work geometric
-mean 1.090x the dual, and the primal wins `grow22` at 0.372x.
+the work units do not move. `bench/results/concurrent.txt`, re-taken on
+2026-09-22: 94 of 94 agree inside 10x the dual's work, none disagrees, and
+the work geometric mean is 1.0735x the dual. No instance costs less than
+the dual alone: the best is `25fv47` at 1.0000x and the worst `greenbeb` at
+3.3472x. The primal won `grow22` in the 2026-09-10 reading; the dual now
+takes 2014 iterations there and answers first.
 
 **The barrier reads ◐ since 2026-09-08.** `--algorithm barrier` and
 `JAOS_ALGORITHM_BARRIER` select Mehrotra's predictor-corrector on the
@@ -125,10 +168,13 @@ complementarity is pinned on its bounds and the equality-constrained QP on
 the rest is solved through the same factorisation, so the published point
 sits exactly on the bounds the optimum sits on and the checker takes both
 sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 137
-end `OPTIMAL` and the checker takes 136 (`bench/results/maros-meszaros.txt`); on QPLIB's 19 convex QPs
-(`bench/measurements/02-256/`) 10 end `OPTIMAL` and the checker takes 9,
-the 8 largest stopping at a work limit of 1e11. The rest of those two
-sets is what keeps the row from ●.
+end `OPTIMAL` and the checker takes 136 (`bench/results/maros-meszaros.txt`).
+On QPLIB's 19 convex QPs (`bench/measurements/02-256/`, `02-295/`) 11 end
+`OPTIMAL` and the checker takes 9 of them at 1e-7. QPLIB_9002 misses on
+its duals. QPLIB_8785 misses by a gap of 1.3e-7 and passes at 1e-6. Seven
+of the eight largest (10000 to 1003001 columns) stop at a work limit of
+1e11, and QPLIB_9008 runs out of memory. The rest of those two sets is
+what keeps the row from ●.
 **The QCP/SOCP row reads ◐ since 2026-09-19**: second-order cones,
 quadratic and rotated, over columns (`jaos_add_cone`) and convex
 quadratic rows `a'x + ½ x'Qx` with one finite side
@@ -167,9 +213,11 @@ hybrid gradient on the scaled model after Ruiz and Pock-Chambolle
 preconditioning (`src/pdlp.c`), with the adaptive step,
 the restarts to the running average and the primal-weight rebalancing of
 Applegate et al. (2021), single-threaded and deterministic, finished by the
-same crossover and handing off the same way; `bench/results/pdlp.txt` is its
-reading, and what keeps it from ● is that reading against the dual, and no
-GPU. What keeps the barrier rows from ●: the crossover has a primal push
+same crossover and handing off the same way. `bench/results/pdlp.txt`,
+re-taken on 2026-09-22, is its reading: 24 of the 94 end inside 10x the
+dual's work, 70 run past it, none disagrees, and the work geometric mean
+is 5.5471x the dual. That reading and the lack of a GPU keep the row
+from ●. What keeps the barrier rows from ●: the crossover has a primal push
 since 2026-09-22 but no dual push, so on 14 degenerate instances the simplex
 that follows still costs more than ten cold dual solves; `bench/results/barrier.txt`
 is the reading, and it is what decides whether the barrier ever becomes a
@@ -200,10 +248,23 @@ relaxation only.
 | Hyper-sparse triangular solves | ● | ● | ● | ● | ● | ● | ? |
 | Modify a loaded model (bounds, costs, coefficients) | ● | ● | ● | ● | ● | ● | ● |
 | Add and delete rows and columns | ● | ● | ● | ● | ● | ● | ● |
-| Warm start from a previous basis | ● | ● | ● | ● | ● | ● | ? |
-| Read and write a starting basis | ● | ● | ● | ● | ● | ● | ? |
+| Warm start from a previous basis | ● | ● | ● | ● | ● | ● | ○ |
+| Read and write a starting basis | ● | ● | ● | ● | ● | ● | ○ |
 | Exchange a basis in the MPS basis format | ● | ● | ● | ● | ● | ● | ○ |
-| Resume after a work or time limit | ● | ● | ? | ? | ● | ● | ● |
+| Resume after a work or time limit | ● | ● | ? | ● | ● | ● | ● |
+
+**The other columns in this table.** Hexaly's API has no basis at all: the
+method lists of `HxSolution` and `HexalyOptimizer` hold no basis call, a
+warm start is a point given through `set_value`, and the only file it reads
+back is its own HXB. Its scaling, LU and hyper-sparse cells stay `?`:
+nothing in its documentation index, `HxParam` or release notes names them.
+Clp's resume cell reads ●: a limit stops the solve with status 3, and the
+next `primal()` or `dual()` starts from the basis the stop left, keeping the
+factorisation when `startFinishOptions` asks. That is a warm restart from
+the basis, where JAOS resumes the exact iterate. SoPlex's stays `?`: its
+front page claims hot starts from any regular basis, but nothing says a
+second `optimize()` after a limit goes on from the stop (searched: the
+v8.1.0 CHANGELOG, the FAQ, INSTALL.md, the Suite 8.0 to 10.0 papers).
 
 JAOS's presolve reads ◐: the reduced-model machinery, the postsolve stack
 and seven reduction families have landed, and what is left is counted
@@ -240,10 +301,97 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Branch and bound | ● | ● | — | — | ● | ● | ● |
+| Pseudocost branching | ● | ● | — | — | ● | ● | ? |
+| Strong branching | ◐ | ● | — | — | ● | ● | ? |
+| Node selection beyond best bound | ● | ● | — | — | ● | ? | ? |
+| MIP restarts | ◐ | ● | — | — | ● | ● | ? |
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
+| MIP presolve: probing, clique table, coefficient tightening | ◐ | ◐ | — | — | ● | ● | ? |
+| Bound propagation and reduced-cost fixing | ◐ | ● | — | — | ● | ● | ◐ |
+| Conflict analysis | ● | ● | — | — | ● | ● | ? |
+| Symmetry detection | ● | ● | — | — | ● | ● | ? |
 | Primal heuristics | ◐ | ● | — | — | ● | ● | ● |
+| MIP start and cutoff | ● | ◐ | — | — | ● | ● | ◐ |
+| Node limit and incumbent callback | ● | ● | — | — | ● | ● | ○ |
 | Solution pool | ● | ○ | — | — | ● | ● | ● |
-| Deterministic parallel tree search | ● | ◐ | — | — | ● | ● | ? |
+| Semi-continuous variables | ● | ● | — | — | ● | ● | ◐ |
+| SOS1 and SOS2 constraints | ● | ○ | — | — | ● | ● | ◐ |
+| Indicator constraints | ● | ○ | — | — | ● | ● | ◐ |
+| Deterministic parallel tree search | ● | ? | — | — | ● | ● | ? |
+
+**JAOS's ◐ rows in this table.**
+- *Strong branching*: `--reliability N` solves up to eight candidates'
+  children on the spot until a column's pseudocost is trusted. It is off:
+  reliability 1 reads 0.971x the work over the MIP set, with mod010 at
+  2.84x and enigma at 2.07x.
+- *MIP restarts*: `--restart` starts the tree again from the root once the
+  root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns. It
+  never fired on the MIPLIB 2017 set, so it is off. A MIP presolve for the
+  restart to run again is missing (`SPECS.md` §4).
+- *Cutting planes*: Gomory, knapsack cover, MIR and clique cuts run at the
+  root, and Gomory cuts to depth 3. Flow cover, zero-half and lifted cover
+  cuts exist behind switches and are off. Read again on the 2017 set on
+  2026-09-22, none of the three reached the pay rule
+  (`bench/measurements/02-298/`).
+- *MIP presolve*: coefficient tightening runs at the root (`--tighten`), and
+  the clique table feeds the clique cuts. Probing (`--probing`, 1.109x with
+  no column fixed on the MIP set) and fixing by clique conflicts at each
+  node (`--clique-fix`, 1.026x) are off by measurement.
+- *Bound propagation and reduced-cost fixing*: both exist and are off by
+  measurement, `--propagate N` at 1.093x the work at one pass and `--rcfix`
+  at 1.010x. Node propagation is on for a quadratic objective
+  (`MIP_QUAD_PROPAGATE`).
+- *Primal heuristics*: rounding, a root dive and the feasibility pump are
+  on. RINS and local branching exist behind `--rins` and
+  `--local-branching` and are off by measurement, so no improvement
+  heuristic runs by default.
+
+**The other columns in the new rows.** SoPlex and Clp read "—" as in
+section 1. HiGHS: reliability pseudocosts (`mip_pscost_minreliable`),
+strong branching (refactored in 1.12.0), dives followed by the best open
+node, restarts (`mip_allow_restart`, on), `mip_max_nodes` and an
+improving-solution callback, reduced-cost fixing (1.15.0 notes), symmetry
+detection (`mip_detect_symmetry`, on), semi-continuous and semi-integer
+types, and conflicts in its cut framework (Turner's 2025 workshop slides).
+Its MIP presolve reads ◐: probing and the clique table are documented, and
+coefficient tightening is never named. Its start-and-cutoff cell reads ◐:
+`setSolution` takes a MIP start, and no MIP objective cutoff is documented
+(`objective_bound` is described for the dual simplex only). HiGHS has no
+SOS constraints (issue 2148, answered by its lead developer) and no
+indicator constraints (`HighsLp` holds neither). Its deterministic tree
+search cell was ◐ and is `?`: a parallel tree search exists since 1.15.0,
+and no HiGHS page says whether the tree stays the same at any thread count
+(searched: the parallel page, the options list, the 1.15.0 and 1.15.1
+release notes, issues on "deterministic"). SCIP documents every new row:
+`relpscost` by default, full strong branching, the `estimate` node
+selector by default since 1.0, restarts at the root and in the tree,
+`SCIPaddSol` and `SCIPsetObjlimit`, `limits/nodes` and a best-solution
+event, the `redcost` propagators, probing, the clique table and
+coefficient tightening, semi-continuous columns read as bound
+disjunctions, the `sos1`, `sos2` and `indicator` handlers, symmetry
+handling and conflict analysis (Suite 10.0 report, CHANGELOG, FAQ).
+Gurobi documents every new row except node selection: `VarBranch` (pseudo
+reduced cost, pseudo shadow price, strong branching), restarts (12.0
+release slides), `Start` and `Cutoff`, `NodeLimit` and the `MIPSOL`
+callback, the `S`, `N` variable types, SOS and indicator constraints, the
+`Symmetry` parameter, conflict analysis, and propagation, reduced-cost
+fixing, probing, clique merging and coefficient strengthening (its
+developers' presolve paper and the fixed-issue lists of 10.0 to 13.0). Its
+node-selection cell is `?`: no parameter selects the node order, and two
+Gurobi staff answers say users cannot control it, without saying which
+rule Gurobi uses (searched: the parameter reference, the MIP logging page,
+the parameter guidelines, the 12.0 slides, "node selection", "best
+estimate", "plunging"). Hexaly: a start through `set_value` and no
+objective cutoff (`objective_threshold` stops the search), no node limit
+and no new-solution callback type, and "propagation methods" named with no
+word on reduced-cost fixing. It has no native semi-continuous, SOS or
+indicator object; each is written through its logical operators (`x == 0
+|| x >= l`, `!b || (a*x <= c)`), and SOS2 has only the `piecewise`
+operator. Its pseudocost, strong branching, node selection, restart,
+presolve, symmetry and conflict cells are `?`: Hexaly publishes almost
+nothing about its tree search (searched: the docs index, `HxParam`, the
+13.0 to 15.0 release notes, its ISMP 2024, EURO 2025, OR 2026 and NORM
+2026 abstracts, "Hexaly branching").
 
 **Deterministic parallel tree search moved from ○ to ◐ on 2026-09-20.**
 The conic branch and bound takes its open nodes in rounds under
@@ -289,27 +437,34 @@ another point of the same optimal face (`bench/measurements/02-247/`).
 |---|---|---|---|---|---|---|---|
 | Parallel LP solve | ◐ | ● | ○ | ○ | ◐ | ● | ? |
 | Parallel MIP solve | ◐ | ◐ | — | — | ● | ● | ● |
-| Deterministic under parallelism | ● | ? | — | — | ● | ● | ● |
+| Deterministic under parallelism | ● | ◐ | — | — | ● | ● | ● |
 
-**JAOS reads ◐ on the LP row and ● on determinism since 2026-09-10.** The
-one thing that takes a second thread is `--algorithm concurrent
---threads N`: the dual, the primal and the barrier run on the same LP at
-the same time and the first to answer is published. What the field means
-by a parallel LP solve is one method spreading a factorisation over N
-cores, and that is the gap. Determinism reads ● because the winner is the
-first arm in a fixed order to answer inside a work budget, and no clock
-enters that: over the standard 94 the work units and the objective are
-identical at 1 and at 3 threads, while the wall clock over the set falls
-from 132.6 s to 110.4 s. The benchmark runner's `-j N` is something else,
-process-level concurrency with one instance per process.
+**JAOS reads ◐ on the LP row, ◐ on the MIP row and ● on determinism.**
+Three things run on more than one thread under `--threads N`.
+`--algorithm concurrent` runs the dual, the primal and the barrier on the
+same LP at the same time and publishes the first to answer (since
+2026-09-10). The barrier factors its normal equations on N threads (since
+2026-09-22, below). Both trees take rounds of open nodes on N threads under
+`--tree-batch` (section 4). The LP row stays ◐ because the simplex runs on
+one thread, and so does the rest of the barrier (forming the normal matrix,
+the solves). The MIP row stays ◐ because the rounds are off by default: no
+round is cheap enough where a node takes a few pivots (`SPECS.md` §5). A
+race of four setups of the tree was measured and refused (`mip-race` in
+`bench/refusals.txt`).
 
-**Since 2026-09-22 the barrier spreads its factorisation over N cores.**
-Under `--threads N` the normal equations' Cholesky solves each block of 32
-rows on N threads and applies the updates inside the block in a fixed
-order, so the factor, the answer and the work units are the same at any
-count (`bench/measurements/02-288/`). dfl001 falls from 67.7 s to 38.8 s on
-four threads. The simplex still runs on one thread, which keeps the LP row
-at ◐.
+Determinism reads ● because no clock decides anything in the three. The
+concurrent solve's winner is the first arm in a fixed order to answer
+inside a work budget, and over the standard 94 its work units and objective
+are identical at 1 and at 3 threads. The barrier's factor applies its
+updates in a fixed order. A round's nodes are taken in the round's own
+order. The benchmark runner's `-j N` is something else, process-level
+concurrency with one instance per process.
+
+**The barrier's factor on N threads.** Under `--threads N` the normal
+equations' Cholesky solves each block of 32 rows on N threads and applies
+the updates inside the block in a fixed order, so the factor, the answer
+and the work units are the same at any count (`bench/measurements/02-288/`).
+dfl001 falls from 67.7 s to 38.8 s on four threads.
 
 SCIP reads ◐ on the LP row because `lp/threads` threads the LP only when
 the LP solver it drives is threaded, and its default, SoPlex, is not. It
@@ -318,7 +473,19 @@ deterministic and reproducible between runs; the unreleased 11.0
 changelog makes the opportunistic mode the default, so that cell may move.
 Hexaly's ● on determinism is inferred: its documentation promises the same
 results over several runs once the seed and every phase's iteration limit
-are fixed, and sets no condition on the thread count.
+are fixed, and sets no condition on the thread count. That sentence says
+nothing about a tree or about one LP solve, so its deterministic tree
+search cell (section 4) and its parallel LP cell stay `?`: its threads
+"parallelize the search", and no page says more (searched: `HxParam`,
+`HxPhase`, "Hexaly deterministic threads reproducible").
+
+HiGHS's parallel MIP cell reads ◐: its multithreaded tree search arrived in
+1.15.0 as a first variant that the release notes call a prototype, and it
+runs only when `parallel` is "on" (the default is "choose"). Its
+determinism cell was `?` and is ◐: the HiPO paper by its team says the
+parallel interior point is deterministic and that changing the thread
+count does not change the output. Nothing is documented for the parallel
+tree search or the parallel dual simplex.
 
 ## 6. Correctness and verification
 
@@ -327,37 +494,65 @@ including the row where the field is ahead.
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
-| **Bit-identical results across different machines** | ● | ? | ? | ? | ? | ○ | ? |
+| **Bit-identical results across different machines** | ● | ○ | ? | ? | ? | ○ | ? |
 | Deterministic on the same machine and version | ● | ● | ● | ● | ● | ● | ● |
 | Independent checker shipped with the solver | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | Exact rational LP solutions | ◐ | ○ | ● | ○ | ● | ○ | ○ |
 | Exact solving with no numerical tolerances | ○ | ○ | ● | ○ | ● | ○ | ○ |
 | Machine-checkable certificate of the result | ● | ○ | ◐ | ○ | ● | ○ | ○ |
 | Certified bound on suboptimality | ◐ | ○ | ● | ○ | ● | ○ | ○ |
-| Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ? |
+| Infeasibility / unboundedness certificate | ● | ◐ | ◐ | ◐ | ● | ● | ○ |
 | Irreducible infeasible subsystem (IIS) | ● | ● | ○ | ○ | ● | ● | ● |
-| The IIS written out as a model of its own | ● | ● | — | — | ● | ● | ? |
-| Feasibility relaxation of an infeasible model | ◐ | ● | ? | ? | ◐ | ● | ? |
+| The IIS written out as a model of its own | ● | ● | — | — | ● | ● | ○ |
+| Feasibility relaxation of an infeasible model | ◐ | ● | ? | ○ | ◐ | ● | ○ |
 | **Prove a basis another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 | **Check a point another solver produced** | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
 **The relaxation row reads ◐.** `jaos_feasrelax` and `jaos relax` move
 the rows, the columns or both by the least total amount that makes the
-model feasible, integer columns included. What keeps it from ●: a model
-whose rows and integrality admit no point at all never ends, because no box
-is ever wide enough, and only a work limit stops it (`SPECS.md` §6).
+model feasible, integer columns included. On a model whose rows and
+integrality admit no point at all, no box is ever wide enough. Since
+2026-09-22 the search over the columns still ends by itself there: it
+widens the box at most `RELAX_BOX_ROUNDS` times and names the widest box it
+tried (`bench/measurements/02-297/`). What keeps it from ●: it cannot prove
+that the widest box is empty, which is an integer feasibility question over
+an unbounded space (`SPECS.md` §6).
 HiGHS (`Highs_feasibilityRelaxation`, since 1.8.0) and Gurobi (`feasRelax`)
 document the same operation. SCIP documents none; a PySCIPOpt recipe that
-adds slack columns is the nearest, hence ◐. SoPlex, Clp and Hexaly
-document nothing either way.
+adds slack columns is the nearest, hence ◐. Clp and Hexaly read ○: neither
+the Clp executable's full command list nor its class member lists hold
+such a call, and Hexaly's own advice is to rewrite a constraint by hand as
+an objective placed before the real one. SoPlex stays `?`: not documented
+by the vendor (searched: the v8.1.0 CHANGELOG, the FAQ, the command-line
+help, the Suite papers, "SoPlex feasibility relaxation").
 
 **The IIS written out as a model.** JAOS's is `jaos_iis_model` and
 `jaos iis --write OUT`, and all 29 reference infeasibilities have theirs
 written and solved again to INFEASIBLE (`bench/measurements/02-218/`).
 HiGHS writes its IIS with `writeIisModel`, SCIP 10 with the `write/iis`
-dialog, and Gurobi with `GRBwrite` to an `.ilp` file. Hexaly computes an
-inconsistency core and documents no way to write it out. SoPlex and Clp
-have no IIS at all, which is what the `—` says.
+dialog, and Gurobi with `GRBwrite` to an `.ilp` file. Hexaly's cell was
+`?` and is ○: `compute_inconsistency()` returns a core whose full method
+list prints it as text and has no save call, and `save_environment` writes
+the whole model. SoPlex and Clp have no IIS at all, which is what the `—`
+says.
+
+**The certificate row's partial cells.** HiGHS returns a ray only when its
+simplex found one. When presolve found the infeasibility, it solves the LP
+again without presolve to compute the ray, and it documents no ray for a
+MIP. SoPlex returns a ray only "if available": by default it does not
+re-solve the original LP after a presolved or scaled solve ends infeasible
+or unbounded (`bool:ensureray` turns that on), and its `INForUNBD` status
+ends without saying which. Clp's `infeasibilityRay()` and `unboundedRay()`
+return NULL when there is none: inside branch and bound, on a crunched
+model, after the barrier or on a verdict from presolve there is none
+unless an option asks. Hexaly's cell was `?` and is ○: `HxSolution` has
+no ray, its statuses include no unbounded one, and it reports an
+infeasibility as an inconsistency core of expressions.
+
+**SoPlex's certificate cell reads ◐.** In exact mode SoPlex writes the
+rational primal values and dual multipliers to files (`-X`, `-Y`, since
+7.0.0) and can check them itself (`int:checkmode=2`). It defines no
+certificate format and ships no checker. The VIPR certificate is SCIP's.
 
 **Checking a point another solver produced is the tolerance-judged half of
 proving its basis.** A point file is one `NAME VALUE` line per
@@ -389,7 +584,12 @@ the proof reaches (30 of the 110 gate bases at the 128-limb budget,
 `bench/measurements/02-275/`) and not an exact solver: the simplex still finds the basis in floating
 point, and where the proof is refused there are no values. SoPlex and SCIP
 solve over the rationals; JAOS proves and reports what a floating-point
-basis is, exactly.
+basis is, exactly. The row joins two `SPECS.md` rows: "Exact rational
+values of a proved basis", which is done, and "Exact solving with no
+tolerances", which is missing.
+
+**The certified bound on suboptimality reads ◐.** The bound is sound, but
+alone it cannot separate a wrong vertex from a right one (`SPECS.md` §6).
 
 **The machine-checkable certificate reached ● on 2026-09-07.**
 `jaos_write_proof` writes the exact rational proof to a file and
@@ -412,10 +612,11 @@ budget admits certifying.
 **Since D328 the file carries all three outcomes**: a Farkas certificate
 and an unbounded ray as well, checked the same way and with no tolerance.
 Those two need no proof step at all, because the vector the solve
-publishes is already exact. Measured over the reference sets
-(`bench/measurements/02-211/`): 18 of the 29 pinned infeasibles certify
-exactly, and every one of the 28 optimum proofs that exists passes the
-file checker, which shares no code with the prover that made it.
+publishes is already exact. When D328 was measured over the reference
+sets (`bench/measurements/02-211/`), 18 of the 29 pinned infeasibles
+certified exactly; D333 later took that to 25 of 29 (above). Every one of
+the 28 optimum proofs that existed passed the file checker, which shares
+no code with the prover that made it.
 
 **The IIS, and this row was wrong until 2026-09-04.** It read "among the open
 solvers here only Gurobi documents the feature", with HiGHS and SCIP at ○.
@@ -442,9 +643,17 @@ cost.
 deterministic on the same machine but not between different machines, and that
 an LP with several optima can return a different one on different hardware.
 JAOS gives the stronger guarantee: the same bits on every machine and every run.
-The other columns are marked `?` because none of those projects makes an
-explicit cross-machine claim either way, and absence of a claim is not evidence
-of failure.
+HiGHS's cell was `?` and is ○: its team's HiPO paper says the same
+configuration on different machines "can lead to different results", from
+the compiler's optimisations and the BLAS library. The other columns stay
+`?`: not documented by the vendor. SoPlex (7.0.1) and SCIP (9.0.1) added
+the build flag `-ffp-contract=off` "to enhance reproducibility across
+different systems", which states an aim and makes no claim. Hexaly promises
+the same results over several runs with a fixed seed and says nothing of
+other hardware. Searched: the CHANGELOGs, FAQs, INSTALL files and Suite
+papers of SoPlex and SCIP, Clp's README, user guide, FAQ and issues, and
+Hexaly's `HxPhase` and export pages, with "deterministic", "reproducib",
+"different machines" and "platform".
 
 **Exact arithmetic and certificates.** JAOS ships an independent checker that no
 other solver here does, and that is a real difference. But it is a
@@ -469,6 +678,8 @@ it is what JAOS lacks against SoPlex and SCIP here.
 | Write MPS | ● | ● | ● | ● | ● | ● | ○ |
 | Write LP | ● | ● | ● | ● | ● | ● | ○ |
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
+| Point and duals files | ● | ● | ◐ | ◐ | ● | ● | ○ |
+| Read other solvers' solution files | ● | ● | ○ | ○ | ● | ○ | ○ |
 | Reject unsupported constructs with a line number | ● | ? | ? | ● | ? | ● | ? |
 
 **Compressed output.** Every JAOS writer compresses when the path ends in
@@ -479,7 +690,11 @@ returns the plain write byte for byte, at 1.3387x the size of `gzip -9`
 and `.xz` when the system has the utilities. Clp writes gzip through
 CoinUtils' `CoinMpsIO` but not through `ClpModel::writeMps`, hence ◐.
 Hexaly compresses its own HXB and HXM files. HiGHS, SoPlex and SCIP
-document reading `.gz` and say nothing about writing it, so those stay `?`.
+document reading `.gz` and say nothing about writing it, so those stay
+`?`: not documented by the vendor (searched: HiGHS's guide, executable
+page, options and release notes; SoPlex's INSTALL.md, help text and
+CHANGELOG; SCIP's INSTALL.md, CHANGELOG, FAQ and PySCIPOpt docs; "gz",
+"compress", "zlib", "write").
 
 **Hexaly reads and writes no MPS or LP file.** Its own documentation says
 so: a model is built in its modelling language or its APIs and saved as
@@ -488,8 +703,28 @@ compressed input is its own HXB format.
 
 **Reject with a line number.** Clp's documented MPS messages carry the
 line (`Bad image at line %d`), and Gurobi's LP reader names the line in
-its error. HiGHS, SoPlex and SCIP document no message text, so those stay
-`?`.
+its error. HiGHS, SoPlex, SCIP and Hexaly stay `?`: not documented by the
+vendor. HiGHS names the line only for an options file (1.15.0). SoPlex's
+CHANGELOG says its readers reject bad input and never shows the message.
+SCIP documents no reader message outside its source listings, which were
+not read. Hexaly's `HxError` line number is a line of Hexaly's own
+source. Searched: each vendor's guide, CHANGELOG or release notes, FAQ and
+issues, with "line", "parse" and "syntax error".
+
+**Point, duals and other solvers' solution files.** JAOS writes a point
+and a duals file, one `NAME VALUE` line each (`--write-point`,
+`--write-duals`), and `jaos_read_point` and `jaos_read_duals` read those
+back and the shapes Gurobi, MIPLIB, SCIP, HiGHS and CPLEX write. HiGHS
+writes the primal and dual solution (`write_solution_to_file`), reads a
+solution back, and reads a MIPLIB solution file since 1.8.1. SoPlex reads
+◐: it writes the point and the duals (`-x`, `-y`) and reads no point back.
+Clp reads ◐: its text `solution` file is write-only, and the file it reads
+back is its own binary `saveSolution` file. SCIP writes and reads `.sol`
+files, reads CPLEX's XML solution files and `.mst` starts, and writes duals
+for a pure LP only. Gurobi writes the point (SOL) and the duals (ATTR) and
+reads both back. Its other-solvers cell is ○: every solution format it
+lists as readable is its own, though its SOL shape is the `name value`
+line others write. Hexaly saves a solution only inside its HXB file.
 
 JAOS's LP reader covers a CPLEX-style core; the exact subset is in
 `docs/format-support.md`.
@@ -533,15 +768,19 @@ and this page has not measured that.
 | Java, .NET | ● | ◐ | ○ | ○ | ◐ | ● | ● |
 | MATLAB, R | ◐ | ◐ | ○ | ● | ● | ● | ○ |
 | AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ○ |
-| `make install` with a pkg-config file | ● | ● | ? | ● | ? | — | — |
+| Python package installable with pip | ● | ● | ● | ● | ● | ● | ● |
+| `make install` with a pkg-config file | ● | ● | ◐ | ● | ◐ | — | — |
+| CMake package | ● | ● | ● | ○ | ● | — | — |
+| Windows and macOS builds | ● | ● | ● | ● | ● | ● | ● |
 
 **The modelling-system row reads ◐ since 2026-09-19**: `jaos STUB -AMPL`
 answers AMPL's solver protocol, `STUB.nl` in and `STUB.sol` out, which
 AMPL, Pyomo's `asl:` interface and JuMP's AmplNLWriter all use. Pyomo
 6.10 and JuMP 1.31 read the answers back
-(`bench/measurements/02-257/`); GAMS needs a link library of its own,
-and a nonlinear body, which is how those systems write a quadratic
-objective, is refused by the `.nl` reader. Hexaly reads ○: its own page
+(`bench/measurements/02-257/`). Since 2026-09-22 the `.nl` reader takes a
+body of degree two, so a Pyomo quadratic objective reads. What keeps the
+row from ●: GAMS needs a link library of its own, and a `.nl` body above
+degree two is refused by line. Hexaly reads ○: its own page
 says it works with none of Pyomo, PuLP, AMPL, GAMS or AIMMS, and GAMS
 dropped it in version 38 (2022).
 
@@ -571,13 +810,33 @@ the tool and a generated `jaos.pc` under `PREFIX`, with `DESTDIR`
 staging, and `tests/install.sh` compiles a program against the installed
 tree on every `make test`. HiGHS and Clp carry a pkg-config template
 (`highs.pc.in`, `clp.pc.in`) at their repositories' roots. SoPlex and SCIP
-ship CMake package configs and document no `.pc` file, so those stay `?`.
-Gurobi and Hexaly ship binaries rather than a build, which is what the `—`
-says.
+were `?` and read ◐: both document `make install`, and both install a CMake
+package config (`soplex-config.cmake`, `scip-config.cmake`) and no `.pc`
+file. Gurobi and Hexaly ship binaries rather than a build, which is what
+the `—` says, and neither ships a CMake config (Gurobi's support page hands
+the user a `FindGUROBI.cmake` template to copy). Clp builds with autotools
+and ships no CMake config.
+
+**The packaging rows.** JAOS's Python package installs with `pip install .`
+from the repository; it is not on PyPI. HiGHS (`highspy`), SCIP
+(`pyscipopt`), Gurobi (`gurobipy`) and Hexaly (`hexaly`, which needs a
+Hexaly installation) are on PyPI. SoPlex's PySoPlex installs with `pip
+install .` from its GitHub sources, and its CI builds it against SoPlex
+7.0. Clp's cell stands on CyLP, a COIN-OR project on PyPI (`cylp`) that
+Clp's own README does not list. JAOS builds on Windows with mingw-w64 and
+clang-cl and on macOS with GCC 14 in CI (`docs/build.md`). The other five
+ship Windows and macOS binaries; SCIP's macOS build is arm64 only.
 
 **Hexaly's language row.** Hexaly's APIs are Python, Java, C# and C++. Its
 Julia cell is ◐ for a third-party wrapper that Hexaly does not support,
 and its old R package was archived on CRAN on 2026-04-22.
+
+**HiGHS's and SCIP's partial language cells.** HiGHS has no Java binding;
+.NET is covered by its C# NuGet package `Highs.Native`. Its MATLAB, R cell
+reads ◐ because its team maintains neither: the R package `highs` on CRAN
+is user-developed, MATLAB has used HiGHS inside its own solvers since
+2024a, and HiGHSMEX is a third-party interface. SCIP has no .NET binding;
+Java is covered by JSCIPOpt, which the SCIP team maintains.
 
 ## 9. Controlling a solve
 
@@ -585,20 +844,26 @@ and its old R package was archived on CRAN on 2026-04-22.
 |---|---|---|---|---|---|---|---|
 | Time limit | ● | ● | ● | ● | ● | ● | ● |
 | Deterministic work limit | ● | ◐ | ◐ | ◐ | ● | ● | ● |
-| Set primal and dual tolerances | ● | ● | ● | ● | ● | ● | ? |
+| Set primal and dual tolerances | ● | ● | ● | ● | ● | ● | ○ |
 | Logging with verbosity levels | ● | ● | ● | ● | ● | ● | ● |
 | Progress callback that can stop the solve | ● | ● | ◐ | ● | ● | ● | ● |
 | Callbacks that steer the search | ◐ | ◐ | ○ | ○ | ● | ● | ○ |
 | Choose the algorithm | ● | ● | ● | ● | ● | ● | — |
-| Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ? |
+| Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ○ |
+| Options as name-value strings and a parameter file | ● | ● | ● | ◐ | ● | ● | ◐ |
+| Thread count | ● | ● | ○ | ○ | ● | ● | ◐ |
 
 **The steering row reached ◐ on 2026-09-08.** One node callback
 (`jaos_set_node_callback`) sees every node's point once solved and cut,
 and every point a heuristic would make an incumbent; it adds rows that
 hold for every solution (user cuts, lazy constraints, the point rejected
 when a row cuts it) and names the column to branch on. What keeps it
-from ●: no way to hand the tree a solution from inside the callback, and
-no callback at the presolve or the LP.
+from ●: no callback hands the tree a solution, which is the gap `SPECS.md`
+§9 names. JAOS also has no callback at the presolve or inside the LP.
+HiGHS's cell reads ◐ for the opposite gap: its user-solution callback
+(`kCallbackMipUserSolution`) hands the tree a solution, and none of its
+callback types adds a user cut or a lazy constraint or picks the branching
+column.
 
 JAOS's "choose the algorithm" is `jaos_set_algorithm`, `--algorithm` and
 the `algorithm` option: `dual` (the default), `primal`, `barrier`, `pdlp`
@@ -612,18 +877,36 @@ work. Hexaly limits iterations per phase and documents the result as
 reproducible with a fixed seed. SoPlex reads ◐ on the progress row: it
 takes an interrupt flag and documents no callback.
 
+Hexaly's tolerance and ranging cells were `?` and are ○: its full
+parameter list has no feasibility or optimality tolerance (only a gap
+limit), and `HxSolution` offers no dual, reduced cost or range. On the
+options row, Clp reads ◐: it takes any option by name on its command line,
+and 1.17.11 documents no parameter file (commands can only come from
+standard input or an environment variable). Hexaly reads ◐: its command
+line takes `name=value` for its parameters, and it documents no plain
+options file. SoPlex (`--loadset`), SCIP (`.set` files), HiGHS
+(`--options_file`) and Gurobi (`.prm`) have both. On the thread row,
+SoPlex and Clp are single-threaded: SoPlex's FAQ says there is no parallel
+version, and Clp's `setNumberThreads` is documented as "not really being
+used". Hexaly reads ◐ because it calls its thread count "indicative" and
+may use more. SCIP 10.1.0 added `-t`, which sets the thread count of its
+concurrent solve.
+
 ## 10. Licence and distribution
 
 | | JAOS | HiGHS | SoPlex | Clp | SCIP | Gurobi | Hexaly |
 |---|---|---|---|---|---|---|---|
 | Open source | ● | ● | ● | ● | ● | ○ | ○ |
-| Free for commercial use | ● | ● | ◐ | ● | ◐ | ○ | ○ |
+| Free for commercial use | ● | ● | ● | ● | ● | ○ | ○ |
 | No external dependencies | ● | ◐ | ○ | ○ | ○ | — | — |
 
 JAOS is Apache 2.0 with no dependencies at all. That is unusual and it is a
 deliberate constraint, not an accident of youth. HiGHS reads ◐: its README
 says no third-party dependency is required and zlib is optional, and its
 new interior point solver, HiPO, links Metis and OpenBLAS (1.15.0).
+SoPlex and SCIP read ● on commercial use since 2026-09-22: both have been
+under Apache 2.0 since SoPlex 6.0.3 and SCIP 8.0.3 (November 2022), and
+the cells were ◐ with no gap named.
 
 ---
 
@@ -632,10 +915,12 @@ new interior point solver, HiPO, links Metis and OpenBLAS (1.15.0).
 **JAOS is present in every section of this page.** It solves LP and MILP
 completely, and QP, QCP and SOCP, with integer columns or without, in
 part; `SPECS.md` §1 names each gap. Parallelism reads ◐ on the LP row (the
-concurrent solve) and on the tree (the conic tree's rounds), and ○ on a
-parallel MIP tree. The JAOS cells left at ○ are the rows `SPECS.md` marks
-out of scope (nonlinear, constraint programming, black-box, GPU) or
-missing (exact solving, a parallel MIP tree).
+concurrent solve and the barrier's factor, with the simplex on one thread),
+● on the deterministic tree search (rounds of nodes in both trees), and ◐
+on a parallel MIP solve (the rounds are off by default). Exact solving is
+the one JAOS ○ on a row `SPECS.md` marks missing. The other JAOS ○ cells
+are rows it marks out of scope (nonlinear, constraint programming,
+black-box, GPU).
 
 **Three things JAOS has that the field mostly does not.** Bit-identical
 results across machines, which Gurobi explicitly does not promise. An
@@ -661,8 +946,10 @@ floating-point checker judging against tolerances, and a check is not a
 proof.
 
 **This page counts features, not speed.** The measured time against HiGHS,
-SoPlex and Clp is in `bench/compare/README.md`, and closing that gap moves
-no cell here.
+SoPlex and Clp on LP, and against HiGHS and SCIP on MIP, is in
+`bench/compare/README.md`, and closing that gap moves no cell here. JAOS is
+timed against other solvers on LP and MIP only. A QP rung and a conic rung
+are a row in `TODO.md`.
 
 ---
 
@@ -684,6 +971,13 @@ and the measured results in `bench/`.
   - SCIP's LP threads and determinism: <https://github.com/scipopt/scip/blob/master/CHANGELOG> and the Suite 4.0 report <https://optimization-online.org/wp-content/uploads/2017/03/5895.pdf>
   - SoPlex's iteration limit and interrupt flag: <https://github.com/scipopt/soplex/blob/master/CHANGELOG>
   - Versions: <https://github.com/scipopt/soplex/releases/tag/v8.1.0>, <https://github.com/scipopt/scip/releases/tag/v10.1.0>, <https://pypi.org/project/hexaly/>
+- The 2026-09-22 pass, by solver:
+  - HiGHS: options <https://ergo-code.github.io/HiGHS/dev/options/definitions/>, parallel <https://ergo-code.github.io/HiGHS/dev/parallel/>, callbacks <https://ergo-code.github.io/HiGHS/dev/callbacks/>, C API <https://ergo-code.github.io/HiGHS/dev/interfaces/c_api/>, C# <https://ergo-code.github.io/HiGHS/dev/interfaces/csharp/>, other interfaces <https://ergo-code.github.io/HiGHS/dev/interfaces/other/>, types <https://ergo-code.github.io/HiGHS/dev/structures/enums/> and <https://ergo-code.github.io/HiGHS/dev/structures/classes/HighsLp/>, CMake <https://github.com/ERGO-Code/HiGHS/blob/master/cmake/README.md>, release notes 1.8.0, 1.8.1, 1.12.0, 1.13.0 and 1.15.0 <https://github.com/ERGO-Code/HiGHS/releases>, SOS <https://github.com/ERGO-Code/HiGHS/issues/2148>, HiPO paper <https://arxiv.org/pdf/2508.04370>, and the HiGHS Workshop 2025 slides by Hall, Turner and Galabova
+  - SoPlex: CHANGELOG, INSTALL.md and LICENSE at v8.1.0 <https://github.com/scipopt/soplex/tree/v8.1.0>, the command-line help <https://manpages.debian.org/unstable/soplex/soplex.1.en.html>, PySoPlex <https://github.com/scipopt/PySoPlex>, the Suite 9.0 paper <https://arxiv.org/pdf/2402.17702>
+  - Clp: FAQ <https://coin-or.github.io/Clp/faq.html>, user guide <https://www.coin-or.org/Clp/userguide/>, class references <https://coin-or.github.io/Clp/Doxygen/classClpModel.html>, <https://coin-or.github.io/Clp/Doxygen/classClpSimplex.html> and <https://coin-or.github.io/Clp/Doxygen/classClpSolve.html>, the 1.17.11 release <https://github.com/coin-or/Clp/releases/tag/releases%2F1.17.11>, the executable's online help, CyLP <https://pypi.org/project/cylp/>, parameter-file discussion <https://github.com/coin-or/Clp/discussions/219>
+  - SCIP: CHANGELOG, INSTALL.md and FAQ text at v10.1.0 <https://github.com/scipopt/scip/tree/v10.1.0>, the 10.1.0 release <https://github.com/scipopt/scip/releases/tag/v10.1.0>, the Suite 10.0 report <https://arxiv.org/abs/2511.18580>, PySCIPOpt <https://pyscipopt.readthedocs.io/en/latest/>, JSCIPOpt <https://github.com/scipopt/JSCIPOpt>
+  - Gurobi: parameters <https://docs.gurobi.com/projects/optimizer/en/current/reference/parameters.html>, variable attributes <https://docs.gurobi.com/projects/optimizer/en/current/reference/attributes/variable.html>, constraints <https://docs.gurobi.com/projects/optimizer/en/current/concepts/modeling/constraints.html>, callback codes <https://docs.gurobi.com/projects/optimizer/en/current/reference/numericcodes/callbacks.html>, file formats <https://docs.gurobi.com/projects/optimizer/en/current/reference/fileformats.html>, platforms <https://docs.gurobi.com/projects/optimizer/en/current/reference/releasenotes/platforms.html>, fixed issues <https://docs.gurobi.com/projects/optimizer/en/current/reference/releasenotes/fixedbugs.html>, the 12.0 slides <https://cdn.gurobi.com/wp-content/uploads/Gurobi-12.0_Webinar.pdf>, its developers' presolve paper <https://opus4.kobv.de/opus4-zib/files/6037/Presolve.pdf>, CMake <https://support.gurobi.com/hc/en-us/articles/360039499751-How-do-I-use-CMake-to-build-Gurobi-C-C-projects>, node selection <https://support.gurobi.com/hc/en-us/community/posts/4404024478737-How-to-program-a-pure-Branch-Bound>
+  - Hexaly: `HxParam` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxparam.html>, `HxSolution` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxsolution.html>, `HxInconsistency` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxinconsistency.html>, `HxOperator` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxoperator.html>, `HxCallbackType` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxcallbacktype.html>, `HxError` <https://www.hexaly.com/docs/last/pythonapi/optimizer/hxerror.html>, initial solutions <https://www.hexaly.com/docs/last/features/initialsolution.html>, command line <https://www.hexaly.com/docs/last/modelerreference/commandline.html>, 14.0 <https://www.hexaly.com/announcements/hexaly-14-0>, ISMP 2024 abstract <https://www.hexaly.com/events/meet-the-hexaly-team-at-ismp-2024>, installation <https://www.hexaly.com/docs/last/installation/pythonsetup.html>
 - Gurobi 13.0 problem classes and new methods: <https://www.gurobi.com/resources/reports/what-s-new-in-gurobi-13-0>
 - Gurobi determinism across machines: <https://support.gurobi.com/hc/en-us/articles/360031636051-Is-Gurobi-deterministic> and <https://support.gurobi.com/hc/en-us/articles/360045849232-Why-does-Gurobi-perform-differently-on-different-machines>. The explicit negative is stated by Gurobi staff here — "running Gurobi on different hardware may lead to different optimal solutions being returned", "deterministic behavior is only guaranteed when repeating runs on an identical setup": <https://support.gurobi.com/hc/en-us/community/posts/23910882878993-Deterministic-behaviour-in-different-machines>
 - HiGHS IIS options (`iis_strategy`, `iis_time_limit`): <https://ergo-code.github.io/HiGHS/stable/options/definitions/>

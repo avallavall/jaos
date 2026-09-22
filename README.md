@@ -17,28 +17,41 @@ accepts it against the model as the caller loaded it.
 
 The last tagged release is 0.4.0. JAOS answers all 139 Netlib reference
 instances correctly and solves 24 MIPLIB 3 instances to their catalogue
-optima. It is slower than the established open-source LP solvers by a factor
-that is measured and published in `bench/compare/`.
+optima. On the Netlib set it is about 2x slower per solve than HiGHS and
+Clp, and faster than SoPlex. `bench/compare/` measures and publishes the
+factors.
 
-`SPECS.md` lists every feature with its status. `TODO.md` is what is being
-built now.
+`SPECS.md` lists every feature with its status. `TODO.md` holds the current
+milestone's backlog, and it is empty between milestones.
 
 ## What it does
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
 #include "jaos.h"
 
-jaos_model *m;
-jaos_model_new(&m);
-jaos_read_mps(m, "model.mps");
-jaos_solve(m);
-
-if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
-    double obj;
-    jaos_objective(m, &obj);
-    jaos_solution(m, x, row_activity, row_dual, col_dual);
+int main(void)
+{
+    jaos_model *m;
+    if (jaos_model_new(&m) != JAOS_OK)
+        return 1;
+    if (jaos_read_mps(m, "model.mps") != JAOS_OK || jaos_solve(m) != JAOS_OK) {
+        fprintf(stderr, "%s\n", jaos_model_error(m));
+        jaos_model_free(m);
+        return 1;
+    }
+    if (jaos_status_of(m) == JAOS_SOLVE_OPTIMAL) {
+        double obj;
+        double *x = malloc((size_t)jaos_num_col(m) * sizeof *x);
+        if (x != nullptr && jaos_objective(m, &obj) == JAOS_OK &&
+            jaos_solution(m, x, nullptr, nullptr, nullptr) == JAOS_OK)
+            printf("objective %.17g\n", obj);
+        free(x);
+    }
+    jaos_model_free(m);
+    return 0;
 }
-jaos_model_free(m);
 ```
 
 **Files.** Reads fixed and free MPS and writes free MPS. Reads and writes the
@@ -47,8 +60,8 @@ Benchmark Format (CBF) (`docs/format-support.md`). Reads and writes gzip with an
 written here. Writes its own solution file, a point file and a duals file, and
 reads them back. `jaos diff` says whether two files are the same
 model; `jaos show` prints one row or column. `jaos STUB -AMPL` answers
-AMPL's solver protocol; Pyomo calls it that way on a linear model, and
-so can JuMP through AmplNLWriter.
+AMPL's solver protocol; Pyomo calls it that way on a linear or quadratic
+model, and so can JuMP through AmplNLWriter.
 
 **Linear programs.** Presolve with seven reduction families, the last one
 substituting an implied free column out of a short equation, and a
@@ -75,14 +88,17 @@ solved on several threads with the same answer at any thread count
 
 **Mixed-integer programs.** Branch and bound over the dual simplex, best
 estimate first with the best bound every fifth pick, pseudocost branching.
-Gomory, knapsack cover, mixed-integer rounding
-and clique cuts at the root and below it. A rounding heuristic, a root dive and a
+Gomory, knapsack cover, mixed-integer rounding and clique cuts at the root,
+and Gomory cuts to depth 3. A rounding heuristic, a root dive and a
 feasibility pump. A solution pool of distinct integer assignments, a MIP
 start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.
-Symmetry detection at the root and orbital branching on its orbits.
-Every default was set on the MIPLIB 3 set (`make miplib`).
+Symmetry detection at the root and orbital branching on its orbits. The
+tree can take its open nodes in rounds solved on several threads, with the
+same answer at any thread count (`--tree-batch`, off by default).
+Every default was set on the MIPLIB 3 set (`make miplib`), and the node
+order on the MIPLIB 2017 reading as well (`bench/measurements/02-286/`).
 
 **After the answer.** The independent checker. Sensitivity and ranging for
 every cost and bound. Farkas certificates and unbounded rays, floating and
@@ -123,7 +139,8 @@ p.solve()
 **Julia.** The `JAOS` package in `julia/JAOS` over `libjaos.so`: the C
 calls through `ccall`, and `JAOS.Optimizer`, a MathOptInterface optimizer,
 so JuMP uses it directly. It passes MathOptInterface's own conformance
-suite. `make shared` builds the library; `Pkg.develop(path="julia/JAOS")`
+suite, with four tests left out because JAOS refuses what they ask (a
+non-convex quadratic row, and an IIS that keeps integrality). `make shared` builds the library; `Pkg.develop(path="julia/JAOS")`
 adds the package.
 
 ```julia
@@ -138,10 +155,13 @@ optimize!(model)
 
 **.NET, Java and R.** `dotnet/Jaos` (.NET 8, P/Invoke), `java/src`
 (Java 22 or later, the foreign-function API, no glue code) and `R/jaos`
-(an R package over `.Call`) reach the same calls: read, build, solve,
-values, duals, cone duals, certificates, rays, the MIP report, options and
-the log. The .NET and Java packages add a small modelling layer
-(`Problem`, `Var`, `Expr`); R has `jaos_solve_lp` over a dense matrix.
+(an R package over `.Call`) reach a part of the C API. All three read
+every format, write MPS, LP and the solution file, build a model, set
+options by name, solve, and read back values, duals, cone duals,
+certificates, rays and the MIP report. .NET and Java also deliver the log
+to a function of the caller's; R has no log callback. The .NET and Java
+packages add a small modelling layer (`Problem`, `Var`, `Expr`); R has
+`jaos_solve_lp` over a dense matrix.
 
 ```csharp
 using var p = new Problem();
@@ -174,12 +194,14 @@ make java-test    # the Java binding's checks; `make java` builds build/java/jao
 make r-test       # the R package, installed into build/R, and its checks
 make netlib       # the 94-instance gate (fetches the instances first)
 make miplib       # the 24-instance MIP set
-make compare      # time JAOS against HiGHS, SoPlex and Clp
+make compare-solvers               # build HiGHS, SoPlex and Clp, once
+make compare COMPARE_ARGS='-t P0'  # time JAOS against them on Netlib
 make pgo          # rebuild from a profile of it solving real models
 ```
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
-sets, `make maros-meszaros` the 138 convex QPs of Maros and Meszaros, and
+sets, `make maros-meszaros` the 138 QPs of Maros and Meszaros (137 of them
+convex), and
 `make cblib` the 29 continuous instances of CBLIB 2014. Every set takes
 `J=N` to run N instances at a time. `bench/fetch.sh` downloads the
 instances and checks them against pinned sha256 hashes.
@@ -219,7 +241,8 @@ gate's tolerance, the checker accepts every answer, and the 29 infeasible
 models are refused. `bench/README.md` says how it is run.
 
 `make compare COMPARE_ARGS='-t P0'` times JAOS against HiGHS, SoPlex and Clp
-with every solver's own presolve on and the dual simplex forced. The reading
+with every solver's own presolve on and the dual simplex forced. It times
+SoPlex and Clp only after `make compare-solvers` has built them. The reading
 in `bench/compare/results/P0.txt` (2026-09-22, tree 7311fa3):
 
 | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
@@ -234,7 +257,12 @@ On MIP, `bench/compare/run-mip.sh` gives each solver 20 s per instance, one
 thread and a relative gap of 1e-6 (2026-09-21, tree 3086162). On MIPLIB 3
 JAOS solves 23 of 24, HiGHS 1.15.1 and SCIP 10.0 all 24, and JAOS's shifted
 mean time is 1.43x HiGHS's and 1.48x SCIP's. On the 30 MIPLIB 2017
-instances of `make miplib2017` JAOS solves none, HiGHS 8 and SCIP 7.
+instances of `make miplib2017` JAOS solves none, HiGHS 8 and SCIP 7. These
+MIP numbers were taken at tree 3086162, before the current MIP defaults
+(the best-estimate node order, ae25a70), and a re-take is due.
+
+JAOS is timed against other solvers on LP and MIP only. A QP rung and a
+conic rung are a row in `TODO.md`.
 
 ## Layout
 
