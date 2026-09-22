@@ -311,21 +311,23 @@ static bool ckey_same(const ckey *p, const ckey *q)
 static jaos_status sg_build(sg *g, const jaos_model *m)
 {
     const int64_t nc = m->num_col, nr = m->num_row, nz = m->num_nz;
+    const int64_t qz = m->q_start != nullptr ? m->q_nz : 0;
+    const int64_t ez = 2 * (nz + qz);
     const int64_t n = nc + nr;
     g->n = n;
     g->nc = nc;
     g->nr = nr;
     g->adj_start = jm_calloc_array(n + 1, sizeof *g->adj_start);
-    g->adj = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->adj);
-    g->lab = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->lab);
+    g->adj = jm_alloc_array(ez > 0 ? ez : 1, sizeof *g->adj);
+    g->lab = jm_alloc_array(ez > 0 ? ez : 1, sizeof *g->lab);
     g->color0 = jm_alloc_array(n > 0 ? n : 1, sizeof *g->color0);
     g->order = jm_alloc_array(n > 0 ? n : 1, sizeof *g->order);
-    g->key = jm_alloc_array(2 * nz > 0 ? 2 * nz : 1, sizeof *g->key);
+    g->key = jm_alloc_array(ez > 0 ? ez : 1, sizeof *g->key);
     g->cells = jm_alloc_array(n > 0 ? n : 1, sizeof *g->cells);
     g->inv = jm_alloc_array(n > 0 ? n : 1, sizeof *g->inv);
     g->perm = jm_alloc_array(n > 0 ? n : 1, sizeof *g->perm);
     g->uf = jm_alloc_array(n > 0 ? n : 1, sizeof *g->uf);
-    double *vals = jm_alloc_array(nz > 0 ? nz : 1, sizeof *vals);
+    double *vals = jm_alloc_array(nz + qz > 0 ? nz + qz : 1, sizeof *vals);
     ckey *keys = jm_alloc_array(n > 0 ? n : 1, sizeof *keys);
     int64_t *indmark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *indmark);
     if (g->adj_start == nullptr || g->adj == nullptr || g->lab == nullptr ||
@@ -348,10 +350,23 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     for (int64_t k = 0; k < nz; k++)
         if (nv == 0 || vals[k] != vals[nv - 1])
             vals[nv++] = vals[k];
+    double *qvals = vals + nv;
+    if (qz > 0)
+        memcpy(qvals, m->q_value, (size_t)qz * sizeof *qvals);
+    qsort(qvals, (size_t)qz, sizeof *qvals, dbl_cmp);
+    int64_t nq = 0;
+    for (int64_t k = 0; k < qz; k++)
+        if (nq == 0 || qvals[k] != qvals[nq - 1])
+            qvals[nq++] = qvals[k];
     for (int64_t j = 0; j < nc; j++)
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
             g->adj_start[j + 1]++;
             g->adj_start[nc + m->a_index[p] + 1]++;
+        }
+    for (int64_t j = 0; j < nc && qz > 0; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            g->adj_start[j + 1]++;
+            g->adj_start[m->q_index[p] + 1]++;
         }
     for (int64_t v = 0; v < n; v++)
         g->adj_start[v + 1] += g->adj_start[v];
@@ -361,6 +376,17 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
             const int64_t i = nc + m->a_index[p];
             const int64_t l = rank_of(vals, nv, m->a_value[p]);
+            g->adj[g->cells[j]] = i;
+            g->lab[g->cells[j]] = l;
+            g->cells[j]++;
+            g->adj[g->cells[i]] = j;
+            g->lab[g->cells[i]] = l;
+            g->cells[i]++;
+        }
+    for (int64_t j = 0; j < nc && qz > 0; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            const int64_t i = m->q_index[p];
+            const int64_t l = nv + rank_of(qvals, nq, m->q_value[p]);
             g->adj[g->cells[j]] = i;
             g->lab[g->cells[j]] = l;
             g->cells[j]++;
@@ -439,7 +465,7 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
 {
     memset(out, 0, sizeof *out);
     out->nc = m->num_col;
-    if (m->num_col == 0 || m->num_sos > 0 || m->q_nz > 0)
+    if (m->num_col == 0 || m->num_sos > 0)
         return JAOS_OK;
     sg g = {0};
     jaos_status st = sg_build(&g, m);

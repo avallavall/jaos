@@ -186,11 +186,7 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer qua
    (02-259) and do not reach those, so the difference is in the search.
    QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
    whole budget at the root node, and the last three never finish its
-   relaxation. Symmetry detection also stops on a model whose `Q` has an
-   off-diagonal pair (`src/symmetry.c`): the graph's colours carry the
-   diagonal of `Q` and nothing carries a pair, so it could report a
-   generator the model has not got. The pairs as edges between their two
-   columns, labelled by value as the row entries are, would let it run.
+   relaxation.
 
 C7 **Parallel tree search, the rest.** SPECS §4, "Deterministic parallel tree search". The conic tree takes
    its open nodes in rounds since 2026-09-20 (`--tree-batch N`,

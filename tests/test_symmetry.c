@@ -206,7 +206,7 @@ static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)
     jaos_model_free(m);
 }
 
-static void test_an_off_diagonal_q_stops_the_search(void)
+static void test_an_off_diagonal_q_pair_is_an_edge(void)
 {
     const double cost[5] = {-1.0, -1.0, -1.0, -1.0, -3.0};
     const double cl[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
@@ -231,9 +231,18 @@ static void test_an_off_diagonal_q_stops_the_search(void)
     int64_t work = 0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jm_symmetry_find(m, 1000000, &s, &work));
-    TEST_ASSERT_EQUAL_INT64(0, s.ngen);
+    TEST_ASSERT_TRUE(s.ngen >= 1);
+    TEST_ASSERT_EQUAL_INT64(s.orbit[0], s.orbit[1]);
+    TEST_ASSERT_EQUAL_INT64(s.orbit[0], s.orbit[2]);
+    TEST_ASSERT_TRUE(s.orbit[3] != s.orbit[0]);
+    TEST_ASSERT_TRUE(s.orbit[4] != s.orbit[0]);
+    for (int64_t k = 0; k < s.ngen; k++) {
+        TEST_ASSERT_EQUAL_INT64(3, s.gen[k * 5 + 3]);
+        TEST_ASSERT_EQUAL_INT64(4, s.gen[k * 5 + 4]);
+    }
     jm_symmetry_free(&s);
 
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_symmetry(m, 1));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     double obj = 0.0;
@@ -241,7 +250,7 @@ static void test_an_off_diagonal_q_stops_the_search(void)
     TEST_ASSERT_DOUBLE_WITHIN(1e-6, -3.0, obj);
     jaos_mip_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
-    TEST_ASSERT_EQUAL_INT64(0, rep.symmetry_generators);
+    TEST_ASSERT_TRUE(rep.symmetry_generators >= 1);
     jaos_model_free(m);
 }
 
@@ -331,7 +340,7 @@ int main(void)
     RUN_TEST(test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection);
     RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
-    RUN_TEST(test_an_off_diagonal_q_stops_the_search);
+    RUN_TEST(test_an_off_diagonal_q_pair_is_an_edge);
     RUN_TEST(test_trees_in_parallel_threads_find_what_one_thread_finds);
     return UNITY_END();
 }
