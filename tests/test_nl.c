@@ -106,10 +106,43 @@ static void test_a_binary_nl_without_name_files_gets_positional_names(void)
     jaos_model_free(m);
 }
 
+static void test_a_quadratic_body_reads_as_q(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_quad.nl"));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_quadratic_nz(m));
+    int64_t qr[3], qc[3];
+    double qv[3], cost = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_quadratic(m, qr, qc, qv));
+    for (int64_t k = 0; k < 3; k++) {
+        const bool diag = qr[k] == qc[k];
+        TEST_ASSERT_TRUE(qr[k] >= qc[k]);
+        TEST_ASSERT_EQUAL_DOUBLE(2.0, qv[k]);
+        TEST_ASSERT_TRUE(diag || (qr[k] == 1 && qc[k] == 0));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 0, &cost));
+    TEST_ASSERT_EQUAL_DOUBLE(-1.0, cost);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 1, &cost));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, cost);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 0.0, obj);
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/e_nonlin.nl"));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_row_quadratic_nz(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "not convex"));
+    jaos_model_free(m);
+}
+
 static void test_what_the_nl_reader_refuses_is_named_by_line(void)
 {
     const struct { const char *file, *word; } bad[] = {
-        {"tests/data/e_nonlin.nl", "nonlinear expression"},
+        {"tests/data/e_nl_log.nl", "operator o43"},
         {"tests/data/e_nlcount.nl", "no 'b' segment"},
         {"tests/data/e_binary.nl", "binary .nl"},
         {"tests/data/e_compl.nl", "complementarity"},
@@ -426,7 +459,7 @@ static void test_the_nl_bodies_decide_and_a_refusal_keeps_the_counts(void)
 
     m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_read_nl(m, "tests/data/e_nonlin.nl"));
+                          jaos_read_nl(m, "tests/data/e_nl_log.nl"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_write_sol_ampl(m, "build/tn_ampl.sol", "refused"));
     TEST_ASSERT_EQUAL_STRING("refused\n\nOptions\n3\n1\n1\n0\n1\n0\n2\n0\n"
@@ -534,6 +567,7 @@ int main(void)
     RUN_TEST(test_the_nl_bodies_decide_and_a_refusal_keeps_the_counts);
     RUN_TEST(test_a_linear_nl_reads_with_its_names_bounds_and_integers);
     RUN_TEST(test_a_binary_nl_without_name_files_gets_positional_names);
+    RUN_TEST(test_a_quadratic_body_reads_as_q);
     RUN_TEST(test_what_the_nl_reader_refuses_is_named_by_line);
     RUN_TEST(test_an_nl_without_an_objective_keeps_its_row_names);
     RUN_TEST(test_a_written_nl_reads_back_as_the_same_model);

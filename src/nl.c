@@ -22,7 +22,21 @@ typedef struct {
     int nopt;
     int64_t opt[JM_NL_OPTIONS];
     double *x0;
+    int64_t *qr, *qi, *qj;
+    double *qv;
+    int64_t nq, qrcap, qicap, qjcap, qvcap;
 } nl;
+
+typedef struct {
+    int64_t i, j;
+    double v;
+} nl_term;
+
+typedef struct {
+    double c;
+    nl_term *t;
+    int64_t n, cap;
+} nl_form;
 
 #define FAIL(...) \
     do { \
@@ -86,17 +100,196 @@ static int nl_nums(const char *s, double *v, int n)
     return got;
 }
 
-static jaos_status nl_expr(nl *p, const char *what, int64_t which, double *c)
+static void form_free(nl_form *f)
+{
+    free(f->t);
+    f->t = nullptr;
+    f->n = f->cap = 0;
+    f->c = 0.0;
+}
+
+static bool form_put(nl_form *f, int64_t i, int64_t j, double v)
+{
+    if (v == 0.0)
+        return true;
+    if (!JM_GROW(f->t, f->cap, f->n + 1))
+        return false;
+    f->t[f->n].i = i;
+    f->t[f->n].j = j;
+    f->t[f->n++].v = v;
+    return true;
+}
+
+static bool form_add(nl_form *a, const nl_form *b, double s)
+{
+    a->c += s * b->c;
+    for (int64_t k = 0; k < b->n; k++)
+        if (!form_put(a, b->t[k].i, b->t[k].j, s * b->t[k].v))
+            return false;
+    return true;
+}
+
+static int form_mul(nl_form *out, const nl_form *a, const nl_form *b)
+{
+    out->c = a->c * b->c;
+    for (int64_t k = 0; k < a->n; k++)
+        if (!form_put(out, a->t[k].i, a->t[k].j, a->t[k].v * b->c))
+            return -1;
+    for (int64_t k = 0; k < b->n; k++)
+        if (!form_put(out, b->t[k].i, b->t[k].j, b->t[k].v * a->c))
+            return -1;
+    for (int64_t ka = 0; ka < a->n; ka++)
+        for (int64_t kb = 0; kb < b->n; kb++) {
+            if (a->t[ka].j >= 0 || b->t[kb].j >= 0)
+                return 1;
+            const int64_t x = a->t[ka].i, y = b->t[kb].i;
+            if (!form_put(out, x > y ? x : y, x > y ? y : x,
+                          a->t[ka].v * b->t[kb].v))
+                return -1;
+        }
+    return 0;
+}
+
+static jaos_status nl_body(nl *p, const char *what, int64_t which, nl_form *f);
+
+static jaos_status nl_pair(nl *p, const char *what, int64_t which,
+                           nl_form *a, nl_form *b)
+{
+    jaos_status st = nl_body(p, what, which, a);
+    if (st == JAOS_OK)
+        st = nl_body(p, what, which, b);
+    return st;
+}
+
+static jaos_status nl_body(nl *p, const char *what, int64_t which, nl_form *f)
 {
     char *s;
     if (!nl_next(p, &s))
         FAIL("line %" PRId64 ": %s %" PRId64 " has no expression", p->line,
              what, which);
-    if (s[0] != 'n' || nl_nums(s + 1, c, 1) != 1)
-        FAIL("line %" PRId64 ": %s %" PRId64 " has a nonlinear expression, "
-             "which JAOS does not read; only a constant body is taken",
+    if (s[0] == 'n') {
+        if (nl_nums(s + 1, &f->c, 1) != 1 || !isfinite(f->c))
+            FAIL("line %" PRId64 ": %s %" PRId64 " has a constant JAOS "
+                 "cannot read", p->line, what, which);
+        return JAOS_OK;
+    }
+    if (s[0] == 'v') {
+        int64_t j;
+        if (nl_ints(s + 1, &j, 1) != 1 || j < 0 || j >= p->nvar)
+            FAIL("line %" PRId64 ": %s %" PRId64 " names a column outside "
+                 "the %" PRId64 " the header declares", p->line, what, which,
+                 p->nvar);
+        if (!form_put(f, j, -1, 1.0))
+            FAIL_OOM();
+        return JAOS_OK;
+    }
+    if (s[0] != 'o') {
+        FAIL("line %" PRId64 ": %s %" PRId64 " has a body starting '%c', "
+             "which JAOS does not read", p->line, what, which, s[0]);
+    }
+    int64_t op;
+    if (nl_ints(s + 1, &op, 1) != 1)
+        FAIL("line %" PRId64 ": %s %" PRId64 " has an operator with no "
+             "number", p->line, what, which);
+    nl_form a = {0}, b = {0};
+    jaos_status st = JAOS_OK;
+    int deg = 0;
+    switch (op) {
+    case 0:
+    case 1:
+        st = nl_pair(p, what, which, &a, &b);
+        if (st == JAOS_OK && (!form_add(f, &a, 1.0) ||
+                              !form_add(f, &b, op == 0 ? 1.0 : -1.0)))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        break;
+    case 2:
+        st = nl_pair(p, what, which, &a, &b);
+        if (st == JAOS_OK) {
+            deg = form_mul(f, &a, &b);
+            if (deg < 0)
+                st = JAOS_ERR_OUT_OF_MEMORY;
+        }
+        break;
+    case 3:
+        st = nl_pair(p, what, which, &a, &b);
+        if (st == JAOS_OK && (b.n > 0 || b.c == 0.0)) {
+            form_free(&a);
+            form_free(&b);
+            FAIL("line %" PRId64 ": %s %" PRId64 " divides by something "
+                 "other than a nonzero constant", p->line, what, which);
+        }
+        if (st == JAOS_OK && !form_add(f, &a, 1.0 / b.c))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        break;
+    case 5:
+        st = nl_pair(p, what, which, &a, &b);
+        if (st == JAOS_OK && (b.n > 0 || (b.c != 1.0 && b.c != 2.0))) {
+            form_free(&a);
+            form_free(&b);
+            FAIL("line %" PRId64 ": %s %" PRId64 " takes a power other than "
+                 "one or two", p->line, what, which);
+        }
+        if (st == JAOS_OK && b.c == 1.0 && !form_add(f, &a, 1.0))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        if (st == JAOS_OK && b.c == 2.0) {
+            deg = form_mul(f, &a, &a);
+            if (deg < 0)
+                st = JAOS_ERR_OUT_OF_MEMORY;
+        }
+        break;
+    case 16:
+        st = nl_body(p, what, which, &a);
+        if (st == JAOS_OK && !form_add(f, &a, -1.0))
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        break;
+    case 54: {
+        char *t;
+        int64_t n;
+        if (!nl_next(p, &t) || nl_ints(t, &n, 1) != 1 || n < 0)
+            FAIL("line %" PRId64 ": %s %" PRId64 "'s sum has no count",
+                 p->line, what, which);
+        for (int64_t k = 0; k < n && st == JAOS_OK; k++) {
+            form_free(&a);
+            st = nl_body(p, what, which, &a);
+            if (st == JAOS_OK && !form_add(f, &a, 1.0))
+                st = JAOS_ERR_OUT_OF_MEMORY;
+        }
+        break;
+    }
+    default:
+        FAIL("line %" PRId64 ": %s %" PRId64 " uses operator o%" PRId64
+             ", which JAOS does not read; it takes a body of degree two or "
+             "less over + - * / ^ and sumlist", p->line, what, which, op);
+    }
+    form_free(&a);
+    form_free(&b);
+    if (st == JAOS_ERR_OUT_OF_MEMORY)
+        FAIL_OOM();
+    if (st != JAOS_OK)
+        return st;
+    if (deg > 0)
+        FAIL("line %" PRId64 ": %s %" PRId64 " has a product of degree "
+             "three or more, and JAOS reads a quadratic body at most",
              p->line, what, which);
     return JAOS_OK;
+}
+
+static bool nl_keep_quad(nl *p, int64_t row, const nl_form *f)
+{
+    for (int64_t k = 0; k < f->n; k++) {
+        if (f->t[k].j < 0)
+            continue;
+        if (!JM_GROW(p->qr, p->qrcap, p->nq + 1) ||
+            !JM_GROW(p->qi, p->qicap, p->nq + 1) ||
+            !JM_GROW(p->qj, p->qjcap, p->nq + 1) ||
+            !JM_GROW(p->qv, p->qvcap, p->nq + 1))
+            return false;
+        p->qr[p->nq] = row;
+        p->qi[p->nq] = f->t[k].i;
+        p->qj[p->nq] = f->t[k].j;
+        p->qv[p->nq++] = f->t[k].v;
+    }
+    return true;
 }
 
 static jaos_status nl_bounds(nl *p, const char *what, int64_t which,
@@ -297,27 +490,58 @@ static jaos_status nl_segments(nl *p)
         int64_t v[3];
         const int got = nl_ints(s + 1, v, 3);
         jaos_status st = JAOS_OK;
-        double c = 0.0;
         switch (s[0]) {
-        case 'C':
+        case 'C': {
             if (got < 1 || v[0] < 0 || v[0] >= p->ncon)
                 FAIL("line %" PRId64 ": 'C' needs a row index below %" PRId64,
                      p->line, p->ncon);
-            if ((st = nl_expr(p, "row", v[0], &c)) != JAOS_OK)
+            nl_form f = {0};
+            if ((st = nl_body(p, "row", v[0], &f)) != JAOS_OK) {
+                form_free(&f);
                 return st;
-            p->shift[v[0]] = c;
+            }
+            p->shift[v[0]] = f.c;
+            bool ok = nl_keep_quad(p, v[0], &f);
+            for (int64_t k = 0; ok && k < f.n; k++) {
+                if (f.t[k].j >= 0)
+                    continue;
+                ok = JM_GROW(p->ei, p->ecap, p->nent + 1) &&
+                     JM_GROW(p->ej, p->jcap, p->nent + 1) &&
+                     JM_GROW(p->ev, p->vcap, p->nent + 1);
+                if (!ok)
+                    break;
+                p->ei[p->nent] = v[0];
+                p->ej[p->nent] = f.t[k].i;
+                p->ev[p->nent++] = f.t[k].v;
+            }
+            form_free(&f);
+            if (!ok)
+                FAIL_OOM();
             break;
-        case 'O':
+        }
+        case 'O': {
             if (got < 2 || v[0] < 0 || v[0] >= p->nobj)
                 FAIL("line %" PRId64 ": 'O' needs an objective index below %"
                      PRId64 " and a sense", p->line, p->nobj);
-            if ((st = nl_expr(p, "objective", v[0], &c)) != JAOS_OK)
+            nl_form f = {0};
+            if ((st = nl_body(p, "objective", v[0], &f)) != JAOS_OK) {
+                form_free(&f);
                 return st;
-            if (v[0] == 0) {
-                p->offset = c;
-                p->sense = v[1] == 1 ? JAOS_MAXIMIZE : JAOS_MINIMIZE;
             }
+            bool ok = true;
+            if (v[0] == 0) {
+                p->offset = f.c;
+                p->sense = v[1] == 1 ? JAOS_MAXIMIZE : JAOS_MINIMIZE;
+                ok = nl_keep_quad(p, -1, &f);
+                for (int64_t k = 0; ok && k < f.n; k++)
+                    if (f.t[k].j < 0)
+                        p->cost[f.t[k].i] += f.t[k].v;
+            }
+            form_free(&f);
+            if (!ok)
+                FAIL_OOM();
             break;
+        }
         case 'x':
             if (got < 1 || v[0] < 0)
                 FAIL("line %" PRId64 ": 'x' needs a count", p->line);
@@ -468,6 +692,75 @@ static char **nl_names(jaos_model *m, const char *base, const char *ext,
     return names;
 }
 
+typedef struct {
+    int64_t r, i, j;
+    double v;
+} nl_qent;
+
+static int nl_qcmp(const void *a, const void *b)
+{
+    const nl_qent *x = a, *y = b;
+    if (x->r != y->r)
+        return x->r < y->r ? -1 : 1;
+    if (x->i != y->i)
+        return x->i < y->i ? -1 : 1;
+    return x->j < y->j ? -1 : x->j > y->j;
+}
+
+static jaos_status nl_quadratics(nl *p)
+{
+    jaos_model *m = p->m;
+    if (p->nq == 0)
+        return JAOS_OK;
+    nl_qent *q = jm_alloc_array(p->nq, sizeof *q);
+    int64_t *qi = jm_alloc_array(p->nq, sizeof *qi);
+    int64_t *qj = jm_alloc_array(p->nq, sizeof *qj);
+    double *qv = jm_alloc_array(p->nq, sizeof *qv);
+    if (q == nullptr || qi == nullptr || qj == nullptr || qv == nullptr) {
+        free(q); free(qi); free(qj); free(qv);
+        jm_set_err(m, "out of memory");
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t k = 0; k < p->nq; k++) {
+        q[k].r = p->qr[k];
+        q[k].i = p->qi[k];
+        q[k].j = p->qj[k];
+        q[k].v = p->qv[k];
+    }
+    qsort(q, (size_t)p->nq, sizeof *q, nl_qcmp);
+    int64_t u = 0;
+    for (int64_t k = 0; k < p->nq; k++) {
+        if (u > 0 && q[u - 1].r == q[k].r && q[u - 1].i == q[k].i &&
+            q[u - 1].j == q[k].j) {
+            q[u - 1].v += q[k].v;
+            continue;
+        }
+        q[u++] = q[k];
+    }
+    jaos_status st = JAOS_OK;
+    int64_t at = 0;
+    while (at < u && st == JAOS_OK) {
+        const int64_t row = q[at].r;
+        int64_t n = 0;
+        while (at < u && q[at].r == row) {
+            if (q[at].v != 0.0) {
+                qi[n] = q[at].i;
+                qj[n] = q[at].j;
+                qv[n++] = q[at].i == q[at].j ? 2.0 * q[at].v : q[at].v;
+            }
+            at++;
+        }
+        if (n == 0)
+            continue;
+        st = row < 0 ? jaos_set_quadratic(m, n, qi, qj, qv)
+                     : jaos_set_row_quadratic(m, row, n, qi, qj, qv);
+        if (st != JAOS_OK && m->err[0] == '\0')
+            jm_set_err(m, "the .nl model's quadratic part failed validation");
+    }
+    free(q); free(qi); free(qj); free(qv);
+    return st;
+}
+
 static jaos_status nl_build(nl *p, const char *path)
 {
     jaos_model *m = p->m;
@@ -499,6 +792,8 @@ static jaos_status nl_build(nl *p, const char *path)
     }
     st = jaos_load_lp(m, nc, nr, p->sense, p->offset, p->cost, p->cl, p->cu,
                       p->rl, p->ru, p->nent, nc > 0 ? as : nullptr, ai, av);
+    if (st == JAOS_OK)
+        st = nl_quadratics(p);
     if (st != JAOS_OK) {
         if (m->err[0] == '\0')
             jm_set_err(m, "the .nl model failed validation");
@@ -603,5 +898,6 @@ jaos_status jaos_read_nl(jaos_model *m, const char *path)
     free(p->buf);
     free(p->cost); free(p->cl); free(p->cu); free(p->rl); free(p->ru);
     free(p->shift); free(p->ei); free(p->ej); free(p->ev);
+    free(p->qr); free(p->qi); free(p->qj); free(p->qv);
     return st;
 }

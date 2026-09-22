@@ -181,7 +181,7 @@ class TestReadingFiles(unittest.TestCase):
                 answers.append((m.objective(), m.work_units))
         self.assertEqual(answers[0], answers[1])
 
-    def test_an_nl_file_reads_with_its_names_and_a_nonlinear_one_is_refused(self):
+    def test_an_nl_file_reads_with_its_names_and_an_unreadable_body_is_refused(self):
         with jaos.Model() as m:
             m.read_nl(data("t_lin.nl"))
             self.assertEqual((m.num_col, m.num_row, m.num_nz), (3, 3, 6))
@@ -192,8 +192,13 @@ class TestReadingFiles(unittest.TestCase):
             self.assertAlmostEqual(m.objective(), -4.0, places=9)
         with jaos.Model() as m:
             with self.assertRaises(jaos.JaosError) as ctx:
-                m.read_nl(data("e_nonlin.nl"))
-            self.assertIn("nonlinear", str(ctx.exception))
+                m.read_nl(data("e_nl_log.nl"))
+            self.assertIn("operator o43", str(ctx.exception))
+        with jaos.Model() as m:
+            m.read_nl(data("t_quad.nl"))
+            self.assertEqual(m.quadratic_nz(), 3)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 0.0, places=7)
         with jaos.Model() as m:
             m.read_nl(data("t_jump_lp.nl"))
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)

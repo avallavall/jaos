@@ -316,11 +316,10 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
 
 AMPL's `.nl` format in its text form (the file starts with `g`), read
 by `jaos_read_nl` and by the tool for a name ending in `.nl` or `.nl.gz`.
-JAOS reads the linear part: the ten header lines, `C` rows whose body is
-a constant (`n0`, or `n c` with the constant moved into the bounds),
-`O` objectives with a constant body (the first objective is taken, its
-sense from the flag), `r` and `b` bounds in the five codes 0 to 4, `J`
-and `G` coefficients, and the binary and integer counts of header line
+JAOS reads a model of degree two: the ten header lines, `C` rows and `O`
+objectives whose body is a form of degree two or less (the first
+objective is taken, its sense from the flag), `r` and `b` bounds in the
+five codes 0 to 4, `J` and `G` coefficients, and the binary and integer counts of header line
 7, which name the last columns as integer. The nonlinear counts of
 header lines 3 and 5 decide nothing: JuMP declares a constant objective
 nonlinear there, and every body is judged where it is read. The `x`
@@ -329,9 +328,20 @@ columns, a column it does not name starting at 0. `d`, `k` and `S`
 segments are read and dropped. The names come from the `.col` and
 `.row` files beside the file, when both are there and complete; the
 objective's name is the line after the rows in `.row`, and a file with
-no objective has a `.row` of the rows alone. Refused by line:
-a binary `.nl` (starts with `b`; write it with the text option), a
-nonlinear body in a row or objective, network counts in the header,
+no objective has a `.row` of the rows alone. A body is read in prefix form over `n` constants, `v` columns, `o0`
+plus, `o1` minus, `o2` times, `o3` divide, `o5` power and `o16` unary
+minus, and `o54`, the sum of a counted list. Its constant moves into the
+row's bounds or becomes the objective's; its linear part joins the `J`
+or `G` coefficients of the same row or objective; its quadratic part
+becomes the row's `Q` or the objective's, where a body term `b x_i x_i`
+is `Q_ii = 2b` and `a x_i x_j` is `Q_ij = a`, since a model's objective
+is `c'x + ½ x'Qx` and a row's quadratic part is read the same way. A
+pair the body gives twice is summed rather than refused. Pyomo writes a
+quadratic objective this way. Refused by line:
+a binary `.nl` (starts with `b`; write it with the text option), a body
+that divides by anything but a nonzero constant, takes a power other
+than one or two, uses any other operator (named by its number), or
+whose products reach degree three, network counts in the header,
 integer columns in nonlinear terms (header line 7), user functions,
 defined variables (`V`), logical constraints (`L`) and complementarity
 bounds (code 5).

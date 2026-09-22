@@ -429,8 +429,14 @@ expect_exit 0 "an .nl file is read by its extension" \
     "$JAOS" solve "$DATA/t_lin.nl"
 [ "$(line_of objective)" = "objective -4" ] && pass "to -4" \
     || flunk "nl: $(line_of objective)"
-expect_exit 5 "a nonlinear .nl is refused" \
+expect_exit 5 "an .nl body JAOS does not read is refused" \
+    "$JAOS" solve "$DATA/e_nl_log.nl"
+expect_exit 5 "a bilinear .nl row reads and the solve refuses it" \
     "$JAOS" solve "$DATA/e_nonlin.nl"
+expect_exit 0 "an .nl quadratic objective reads and solves" \
+    "$JAOS" solve "$DATA/t_quad.nl"
+[ "$(line_of objective)" = "objective 0" ] && pass "to 0" \
+    || flunk "nl quadratic objective: $(line_of objective)"
 cp "$DATA/t_ampl_lp.nl" "$tmp/amp.nl"
 expect_exit 0 "jaos STUB -AMPL solves STUB.nl for AMPL" \
     "$JAOS" "$tmp/amp" -AMPL
@@ -456,7 +462,7 @@ expect_exit 0 "an unknown option is reported in STUB.sol" \
 grep -q "nosuch" "$tmp/amp.sol" && [ "$(tail -1 "$tmp/amp.sol")" = "objno 0 500" ] \
     && pass "with AMPL's failure code" \
     || flunk "amp.sol with nosuch: $(tr '\n' ' ' < "$tmp/amp.sol")"
-cp "$DATA/e_nonlin.nl" "$tmp/ampnl.nl"
+cp "$DATA/e_nl_log.nl" "$tmp/ampnl.nl"
 expect_exit 0 "a file the reader refuses is reported in STUB.sol" \
     "$JAOS" "$tmp/ampnl" -AMPL
 grep -q "cannot read" "$tmp/ampnl.sol" \
