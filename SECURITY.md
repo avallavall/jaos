@@ -10,10 +10,14 @@ prints.
 ## What is exposed
 
 JAOS reads files it did not write: MPS, LP, `.nl`, OSiL, QPLIB and CBF
-models, gzip-compressed or not, the solution, basis, point and duals files
-its own writers produce, and option files. Those readers are the part that
-takes untrusted input, and a crash, a hang or a read or write outside a
-buffer on some input is a vulnerability. Every reader is meant to refuse
+models, gzip-compressed or not, and option files. It also reads the
+solution, basis, certificate, cone-duals and proof files its own writers
+produce (`jaos_read_certificate`, `jaos_read_cone_duals`,
+`jaos_check_proof` and `jaos check FILE --proof`), point and duals files,
+and MPS basis files (`jaos_read_mps_basis` and `--basis`). A point, duals
+or MPS basis file may come from another solver. Those readers are the part
+that takes untrusted input, and a crash, a hang or a read or write outside
+a buffer on some input is a vulnerability. Every reader is meant to refuse
 what it cannot hold with a message that names the line.
 
 The solver works on a model already in memory. A model that makes it run

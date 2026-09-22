@@ -111,14 +111,14 @@ static const char U_SOLVE_A[] =
     "                   question it asks\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
-    "  --threads N      the thread count. Only `--algorithm concurrent`\n"
-    "                   runs more than one: with N above 1 it runs its\n"
-    "                   three methods at once and stops the ones a\n"
-    "                   winner has already beaten. The answer and the\n"
-    "                   work are the same at any N; the wall clock is\n"
-    "                   not. Default 1\n"
+    "  --threads N      the thread count. Four things run more than one:\n"
+    "                   `--algorithm concurrent`, the barrier's Cholesky\n"
+    "                   factor, and the rounds of nodes of the conic and\n"
+    "                   the linear branch and bound under --tree-batch\n"
+    "                   above 1. The answer and the work are the same at\n"
+    "                   any N; the wall clock is not. Default 1\n"
     "  --primal-tol T   primal feasibility tolerance (default 1e-7)\n"
-    "  --dual-tol T     dual feasibility tolerance (default 1e-7)\n"
+    "  --dual-tol T     dual feasibility tolerance (default 1e-9)\n"
     "  --cut-rounds N   rounds of Gomory cuts at the root of a MIP (default\n"
     "                   1; 0 for none)\n"
     "  --cover-rounds N rounds of knapsack cover cuts at the root of a MIP,\n"
@@ -180,7 +180,7 @@ static const char U_SOLVE_D[] =
     "                   bound is within F of (1 + |its parent's bound|)\n"
     "                   (F >= 0; 0 for no bound)\n"
     "  --feaspump N     rounds the feasibility pump may run at the root\n"
-    "                   (N >= 0; default 0, off)\n"
+    "                   (N >= 0; default 20, 0 is off)\n"
     "  --pump-general B whether the pump carries an auxiliary distance\n"
     "                   column per general integer column (0 or 1)\n"
     "  --pump-obj F     the objective pump: each round blends the model's\n"
@@ -196,8 +196,8 @@ static const char U_SOLVE_D2[] =
     "                   incumbent's reduced costs fix a fifth of the integer\n"
     "                   columns (default off; --no-restart turns it off)\n"
     "  --rcfix          fix integer column bounds at the root by their\n"
-    "                   reduced costs once an incumbent exists; on by\n"
-    "                   default, --no-rcfix turns it off\n"
+    "                   reduced costs once an incumbent exists; off by\n"
+    "                   default, --no-rcfix is the default\n"
     "  --tighten        at the root, shrink a binary column's coefficient\n"
     "                   in a one-sided row it can never make tight; on by\n"
     "                   default, --no-tighten turns it off\n"
@@ -220,8 +220,9 @@ static const char U_SOLVE_D2[] =
     "                   turns it off\n"
     "  --symmetry       at the root, find the model's symmetries (column\n"
     "                   permutations that map it to itself) and report the\n"
-    "                   orbits; off by default until the tree uses them,\n"
-    "                   --no-symmetry is the default\n"
+    "                   orbits; off on its own, but --orbital, on by\n"
+    "                   default, runs the same search, so this switch\n"
+    "                   matters with --no-orbital\n"
     "  --orbital        orbital branching and fixing: a branching on a\n"
     "                   binary zeroes its whole orbit on the zero side,\n"
     "                   and a node zeroes every orbit that holds a zeroed\n"
@@ -278,11 +279,12 @@ static const char U_CONVERT[] =
     "  which every writer here takes and every reader already took. Exit\n"
     "  0 when written.\n"
     "  --positional     take every name off first, so the file is written\n"
-    "                   with R1, C1 and COST. It is the escape hatch for\n"
-    "                   a name the LP dialect cannot spell -- one holding\n"
-    "                   a `-`, or starting with a digit -- which the LP\n"
-    "                   writer otherwise refuses by name. What is lost is\n"
-    "                   the names, and nothing else about the model\n";
+    "                   with R1, C1 and COST. Without it, a name the LP\n"
+    "                   dialect cannot spell (one holding a `-`, or\n"
+    "                   starting with a digit) is written as c<j+1> or\n"
+    "                   r<i+1>, with a comment at the top of the file\n"
+    "                   saying what it was. What is lost is the names,\n"
+    "                   and nothing else about the model\n";
 
 static const char U_CHECK[] =
     "check judges SOLUTION, a file `solve --solution` wrote, against FILE\n"
@@ -303,12 +305,13 @@ static const char U_IIS[] =
     "  infeasible subsystem: `row I lower|upper` and `col J lower|upper`\n"
     "  lines, then the counts. Exit 0 with an IIS, 1 when the model is not\n"
     "  infeasible.\n"
-    "  --write OUT      write the subsystem itself to OUT, .mps, .lp or .nl:\n"
-    "                   the member sides kept, every other side relaxed,\n"
-    "                   the rows and columns nothing is left to say about\n"
-    "                   dropped, and every cost zeroed, so the file is a\n"
-    "                   feasibility question and solves infeasible. The\n"
-    "                   names survive, the indices do not\n"
+    "  --write OUT      write the subsystem itself to OUT, in the format\n"
+    "                   its extension names (.mps, .lp, .nl, .qplib, .osil\n"
+    "                   or .cbf): the member sides kept, every other side\n"
+    "                   relaxed, the rows and columns nothing is left to\n"
+    "                   say about dropped, and every cost zeroed, so the\n"
+    "                   file is a feasibility question and solves\n"
+    "                   infeasible. The names survive, the indices do not\n"
     "  --positional     take every name off the subsystem first, the same\n"
     "                   escape hatch `convert` has\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n";
@@ -322,17 +325,18 @@ static const char U_RELAX[] =
     "  runs on an elastic copy and the model itself is never solved.\n"
     "  --rows           only row bounds may move\n"
     "  --cols           only column bounds may move\n"
-    "  --apply OUT      write the model with every move applied to\n"
-    "                   OUT, .mps, .lp or .nl: the same file the moves\n"
-    "                   describe, so it can be solved rather than\n"
+    "  --apply OUT      write the model with every move applied to OUT,\n"
+    "                   in the format its extension names (.mps, .lp,\n"
+    "                   .nl, .qplib, .osil or .cbf): the same file the\n"
+    "                   moves describe, so it can be solved rather than\n"
     "                   read\n"
     "  --positional     take every name off before writing OUT, the same\n"
     "                   escape hatch `convert` has\n"
     "  --work-limit N   stop the elastic copy after N deterministic work\n"
-    "                   units (N > 0). --cols frees every column, and a\n"
-    "                   free integer column gives the tree an unbounded\n"
-    "                   space, so a model whose rows admit no integer point\n"
-    "                   needs this to stop\n"
+    "                   units (N > 0). Without it --cols still ends on a\n"
+    "                   model whose rows admit no integer point: the box\n"
+    "                   widens at most 16 times, each round under a work\n"
+    "                   cap, and the tool then exits 5\n"
     "  Exit 0 with an answer, 5 when the model has no relaxation at all\n"
     "  (a lower bound above its upper) or the copy did not finish.\n";
 
@@ -409,13 +413,14 @@ static const char U_RANGING[] =
 static const char U_FOOTER[] =
     "\n"
     "A file named .lp or .lp.gz is read as LP format, .nl or .nl.gz as\n"
-    "AMPL's nl format (linear models, the text form), .qplib as QPLIB,\n"
-    ".osil as OSiL, .cbf as the Conic Benchmark Format, anything else as\n"
-    "MPS.\n"
+    "AMPL's nl format (the text form, degree two at most), .qplib as\n"
+    "QPLIB, .osil as OSiL, .cbf as the Conic Benchmark Format, anything\n"
+    "else as MPS.\n"
     "All readers accept gzip-compressed input, and every path this tool\n"
-    "writes to compresses when it ends in .gz. Indices count from 0; column\n"
-    "J is C<J+1> and row I is R<I+1> in the files JAOS writes. Every command\n"
-    "exits 5 on a usage or I/O error, or when the solve did not finish.\n";
+    "writes to compresses when it ends in .gz, except a proof file, which\n"
+    "is always plain text. Indices count from 0; column J is C<J+1> and\n"
+    "row I is R<I+1> in the files JAOS writes. Every command exits 5 on a\n"
+    "usage or I/O error, or when the solve did not finish.\n";
 
 typedef struct { const char *name; const char *part[6]; } u_entry;
 
@@ -2181,9 +2186,9 @@ static int cmd_iis(int argc, char **argv)
     if (write != nullptr) {
         write_fn = writer_for(write);
         if (write_fn == nullptr)
-            return usage_error("--write writes .mps, .lp or .nl, any with a "
-                               ".gz after it, and '%s' is none of those",
-                               write);
+            return usage_error("--write writes .mps, .lp, .nl, .qplib, "
+                               ".osil or .cbf, any with a .gz after it, "
+                               "and '%s' is none of those", write);
     }
 
     jaos_model *m = nullptr;
@@ -2305,9 +2310,9 @@ static int cmd_relax(int argc, char **argv)
     if (apply != nullptr) {
         write = writer_for(apply);
         if (write == nullptr)
-            return usage_error("--apply writes .mps, .lp or .nl, any with a "
-                               ".gz after it, and '%s' is none of those",
-                               apply);
+            return usage_error("--apply writes .mps, .lp, .nl, .qplib, "
+                               ".osil or .cbf, any with a .gz after it, "
+                               "and '%s' is none of those", apply);
     }
 
     jaos_model *m = nullptr;

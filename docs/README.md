@@ -19,16 +19,18 @@ code and the formats.
 
 `research/` holds designs and literature readings worked out on paper
 before a change. Each was written for one decision and is not updated
-after it; the status column says what became of it.
+after it; the status column says what became of it. In a note,
+`DECISIONS.md` means `git show 2d3c56b:DECISIONS.md`, and `TODO.md §N`
+means the TODO of the note's date.
 
 | note | status |
 |---|---|
-| [`approximate-edge-pricing.md`](research/approximate-edge-pricing.md) | built for the primal simplex, measured and refused (D244 in `bench/refusals.txt`) |
+| [`approximate-edge-pricing.md`](research/approximate-edge-pricing.md) | built for the primal simplex, measured and refused (D244 in `bench/refusals.txt`). `PRIMAL_EDGE_DRIFT` is in neither `src/` nor `tolerances.md`; the sweep is in `bench/measurements/02-156/` |
 | [`crash-basis.md`](research/crash-basis.md) | built, measured and refused (`SPECS-crash-basis` in `bench/refusals.txt`) |
-| [`dual-postsolve-imposed-bound.md`](research/dual-postsolve-imposed-bound.md) | not built; it is D97's precondition, and TODO row B3 reopens it |
+| [`dual-postsolve-imposed-bound.md`](research/dual-postsolve-imposed-bound.md) | not built; it is D97's precondition. TODO row B3 closed on 2026-09-21 with the aggregator (2e04b47), which substitutes only implied free columns and needs no imposed bound. D97 stays refused, and the presolve row of `SPECS.md` lists the bound-moving substitution as missing. The primal simplex and the crossover that the note waits for both exist; the crossover landed in aaccdeb on 2026-09-09 |
 | [`exact-verification.md`](research/exact-verification.md) | built: the exact proof of a basis and its values (`SPECS.md` §6) |
 | [`harris-primal.md`](research/harris-primal.md) | built: the primal simplex's two-pass ratio test |
 | [`hyper-sparsity.md`](research/hyper-sparsity.md) | built: the hyper-sparse FTRAN and BTRAN (`SPECS.md` §3) |
 | [`netlib-campaign.md`](research/netlib-campaign.md) | the record of the first Netlib gate campaign, closed |
 | [`postsolve-basis-recovery.md`](research/postsolve-basis-recovery.md) | built: postsolve publishes a basis of `num_row` basics (D257) |
-| [`primal-simplex.md`](research/primal-simplex.md) | built: the primal simplex (`SPECS.md` §2, partial) |
+| [`primal-simplex.md`](research/primal-simplex.md) | built: the primal simplex (`SPECS.md` §2, partial). Its §5 "no interior-point method" and its §8 "Harris blocks Devex" are out of date: the barrier landed in 090e5ab, Devex in the primal in 8b13b6f and in the dual in 5eafa49 |

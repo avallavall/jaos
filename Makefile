@@ -404,7 +404,6 @@ plato-nug: $(B)/bench/run
 	@mkdir -p bench/results
 	./$(B)/bench/run -j $(J) -m bench/plato-nug.manifest -e noref \
 		-d bench/instances-plato-nug \
-		-b bench/plato-nug.baseline \
 		-o bench/results/plato-nug.txt
 
 plato-pds-baseline: $(B)/bench/run

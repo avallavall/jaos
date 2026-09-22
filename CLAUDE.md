@@ -1,6 +1,6 @@
 # JAOS — Just Another Optimization Solver
 
-An LP and MIP solver in C23. No dependencies, Apache 2.0, Linux/GCC 14.
+An LP, MIP, QP and conic solver in C23. No dependencies, Apache 2.0, Linux/GCC 14.
 Built and tested under WSL; the Windows side has no compiler. The POSIX
 calls sit behind `src/jaos_sys.h`, and `tests/windows.sh` cross-compiles
 with mingw-w64 and runs the tool under wine, both installed in the WSL.
@@ -27,15 +27,25 @@ formats, the CLI reference and the comparison with other solvers.
 
 1. Take items from `TODO.md`. Build them as a batch. Every feature reaches:
    the C API in `include/jaos.h`, a test in `tests/`, the CLI in `cli/jaos.c`
-   with a check in `tests/cli.sh`, and `python/jaos.py` at both layers with a
-   test in `python/test_jaos.py`. Update `docs/cli.md` or
-   `docs/format-support.md` when a command or a format changes.
+   with a check in `tests/cli.sh`, and `python/jaos/` at both layers
+   (`Model` in `model.py` over the ctypes calls of `_native.py`, and
+   `Problem` in `problem.py`) with a test in `python/test_jaos.py`. Update
+   `docs/api.md`, `docs/cli.md` or `docs/format-support.md` when a
+   function, a command or a format changes.
 2. `make test && make sanitize`. `make python-test` when `python/` changed.
 3. Only when solver internals changed (`simplex.c`, `lu.c`, `presolve.c`,
-   `scale.c`, `mip.c`): `make netlib netlib-infeas netlib-kennington J=12`.
-   Read `bench/results/*.txt` against the baselines; no instance may regress.
-   `make miplib` when `mip.c` changed. Rewrite a baseline only with its
-   `*-baseline` target and only after reading the diff.
+   `aggregate.c`, `scale.c`, `mip.c`): `make netlib netlib-infeas J=12`,
+   then `make netlib-kennington J=2` in its own job, and `make miplib J=2`
+   in its own job when `mip.c` changed. Kennington and MIPLIB run at `J=2`
+   because a MIPLIB tree once grew past 8 GB at a higher J.
+   `make maros-meszaros` when `barrier.c` or `chol.c` changed.
+   `make cblib` when `conic.c`, `conictree.c` or `chol.c` changed.
+   Read `bench/results/*.txt` against the baselines; no instance may
+   regress. When the dual or the primal simplex, presolve or the crossover
+   changed, also re-take `make primal barrier pdlp concurrent warm J=12`
+   and read them. Those readings went stale for two weeks and hid three
+   bugs. Rewrite a baseline only with its `*-baseline` target and only
+   after reading the diff.
 4. Update the SPECS row, delete the TODO line, commit, push.
 
 Commits and pushes are at Claude's discretion. No reviewer agents, no

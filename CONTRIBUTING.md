@@ -6,14 +6,15 @@ GCC 14 or later on Linux, or under WSL on Windows.
 
 ```
 make              # build/release/libjaos.a
-make test         # the unit suite, the CLI's test, the install, CMake and Windows checks
+make test         # the unit suite, the CLI's test, and the exports, install,
+                  # CMake, Windows, docs and version checks
 make sanitize     # the unit suite under ASan and UBSan
 make python-test  # the Python binding, when python/ changed
 ```
 
 A change that touches the solver itself (`src/simplex.c`, `src/lu.c`,
-`src/presolve.c`, `src/scale.c`, `src/mip.c`) also runs the gates and reads
-their results against the committed baselines:
+`src/presolve.c`, `src/aggregate.c`, `src/scale.c`, `src/mip.c`) also runs
+the gates and reads their results against the committed baselines:
 
 ```
 make netlib netlib-infeas J=12
@@ -21,7 +22,11 @@ make netlib-kennington J=2
 make miplib J=2              # when src/mip.c changed
 ```
 
-No instance may regress. A baseline is rewritten only with its
+Kennington and MIPLIB run at `J=2`, each in its own job, because a MIPLIB
+tree once grew past 8 GB at a higher `J`. Two more sets have committed
+baselines: `make maros-meszaros` runs when `src/barrier.c` or `src/chol.c`
+changed, and `make cblib` when `src/conic.c`, `src/conictree.c` or
+`src/chol.c` changed. No instance may regress. A baseline is rewritten only with its
 `*-baseline` target, and only after the diff has been read.
 
 ## The checks outside `make test`
@@ -73,7 +78,8 @@ The first run of all six is in `bench/measurements/02-277/`.
 - **Code carries no comments.** What a change does and why goes in its
   commit message; a constant's reason goes in `docs/tolerances.md`. The
   exceptions are the SPDX line, a script's `#!` line, and documentation a
-  tool reads: Python docstrings, .NET XML comments and Julia docstrings.
+  tool reads: Python docstrings, .NET XML comments, Java's Javadoc and
+  Julia docstrings.
 
 ## Where a feature has to reach
 

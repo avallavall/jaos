@@ -193,7 +193,7 @@ static bool baseline_write(const char *path, bool noref, bool mip)
         fprintf(f, "#\n"
                    "# This set has no published optimum, so the `objective`\n"
                    "# column is 0 throughout and means NOT VERIFIED, never\n"
-                   "# wrong. Run with `-e noref`; see TODO.md section 4.\n");
+                   "# wrong. Run with `-e noref`.\n");
 
     fprintf(f, "#\n"
                "# name status solved shape objective checker det iters work "

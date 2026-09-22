@@ -13,6 +13,13 @@ minimum of three runs, geometric mean of per-instance ratios.
 | `-march=native` | 1.0072x | inside the noise, and not portable |
 | **PGO** | **1.1122x** | `make pgo` |
 
+`make test` also runs `make docs-check`, which checks the docs against the
+code (the tool's flags and usage, the constants, the cited measurement
+directories and the API entries), and `make version-check`, which checks
+that every file carrying the version agrees with `include/jaos.h`. The
+test targets are described in [CONTRIBUTING.md](../CONTRIBUTING.md), and
+the gates in [bench/README.md](../bench/README.md).
+
 ## The language bindings
 
 Each binding loads `build/release/libjaos.so` (`make shared`) and has a
@@ -23,6 +30,7 @@ check target of its own. What each needs on the machine:
 | `make python-test` | Python 3.9 or later, the standard library only |
 | `make julia-test` | Julia 1.9 or later; `Pkg.instantiate` fetches MathOptInterface |
 | `make dotnet-test` | the .NET 8 SDK |
+| `make java` | a JDK 22 or later; it writes `build/java/jaos.jar` and loads no library |
 | `make java-test` | a JDK 22 or later, for the foreign-function API |
 | `make r-test` | R with its headers, and the C compiler R was built with |
 
@@ -38,8 +46,9 @@ The library's objects are compiled with `-fvisibility=hidden` and
 `libjaos.dll` export the header's functions and nothing else, and the
 internal `jm_*` calls stay inside. `tests/exports.sh`, run by `make test`,
 compares the library's dynamic symbols with the header's declarations and
-fails on any difference. A static link is not affected: the tests and the
-bench tools still reach the internal calls through `libjaos.a`.
+fails on any difference. A static link is not affected. The unit tests
+reach the internal calls through the objects in `build/dev/`, and the
+bench tools through `libjaos.a`.
 
 The shared library's soname is `libjaos.so.MAJOR` (`libjaos.so.0` today),
 in the Makefile and in CMake alike. `make install` puts it as
@@ -51,17 +60,31 @@ it, which is the layout `cmake --install` writes too.
 `pip install .` builds the library from source with `make shared`, and so
 does `pip install` of the sdist, whose `MANIFEST.in` ships `src/`,
 `include/` and the Makefile. `make sdist-test` builds both the sdist and
-a wheel, installs each into a clean venv and imports it.
+a wheel, installs each into a clean venv and imports it. When `CC` is
+not set and `gcc-14` is not on the path, `setup.py` runs
+`make shared CC=gcc` instead.
 
-CI builds two wheels on every push to `main`, kept as artifacts of the
-run. `wheel` builds a manylinux x86_64 wheel with cibuildwheel and imports
-it. `wheel-windows` cross-builds `libjaos.dll` with mingw-w64, and
+CI builds two wheels on every push to `main` and on every pull request,
+kept as artifacts of the run. `wheel` builds a manylinux x86_64 wheel
+with cibuildwheel and imports it. `wheel-windows` cross-builds `libjaos.dll` with mingw-w64, and
 `setup.py` packages that prebuilt library when `JAOS_WHEEL_LIBRARY` names
 it and tags the wheel `win_amd64` from `JAOS_WHEEL_PLAT`; the DLL imports
 `KERNEL32.dll` and `msvcrt.dll` only. `wheel-windows-test` installs it on
 a Windows runner and solves a model with `python -m jaos`. Both wheels are
 tagged `py3-none`, because the package loads the library through `ctypes`
 and fits any Python 3.
+
+CI's `linux` job runs on Ubuntu 24.04 with GCC 14, CMake, mingw-w64 and
+wine. It fetches the Netlib standard and infeasible sets and runs
+`make test`, `make sanitize`, `make python-test` and `make sdist-test`.
+`tests/cli.sh` reads `bench/instances/afiro.mps` and
+`bench/instances-infeas/bgdbg1.mps`, so `make test` fails without those
+two sets. Run the same two fetches before `make test`:
+
+```
+bench/fetch.sh
+bench/fetch.sh -m bench/netlib-infeas.manifest -b https://netlib.org/lp/infeas -p emps bench/instances-infeas
+```
 
 ## Profile-guided optimisation
 
@@ -70,9 +93,14 @@ compiles the library instrumented, solves the standard set with it, and
 compiles again from the recorded profile. Use it for anything you ship or
 measure. It is not the default for two reasons. It takes minutes instead of
 a second. It also needs the fetched instances, and a library that cannot
-build before downloading 139 models cannot be packaged. `make pgo
+build before downloading 94 models cannot be packaged. `make pgo
 PGO_LOAD="25fv47 maros-r7 pilot"` profiles on a subset when you want a
 faster turnaround.
+
+`make pgo` rebuilds `libjaos.a` only. `libjaos.so` is linked from the
+objects in `build/pic/`, which `make pgo` does not rebuild, so the shared
+library carries no profile. The Python wheels and the bindings load that
+library, so they carry no profile either.
 
 ## `-march=native`
 
@@ -94,6 +122,11 @@ objects keeps its symbols where only the linker plugin can read them, and
 links the archive correctly, and still gets the LTO gain, because the
 objects stay in GIMPLE form.
 
+`make` compiles with `gcc-14` and archives with `gcc-ar-14`. `make CC=gcc`
+picks another GCC, and `AR` follows it: the Makefile replaces `gcc` with
+`gcc-ar` in the compiler's name. A compiler whose name does not hold
+`gcc`, such as `clang`, needs `AR` set as well, or the archive step fails.
+
 ## `EXTRA_CFLAGS`
 
 `EXTRA_CFLAGS` is empty in every shipping build. It exists for one job:
@@ -113,8 +146,10 @@ with `make clean` between them, and it is the only honest way to run them.
 and the tool, and `JAOS_BUILD_TESTS` (on when JAOS is the top-level project)
 adds the unit suite and `tests/cli.sh` to `ctest`. The suite is compiled
 from its own copy of the objects at `-Og` with `NDEBUG` undefined, exactly as
-the Makefile does, because `jaos_internal.h` lays out structures differently
-under `NDEBUG` and a test has to agree with the library it links.
+the Makefile does, so the library's assertions run under the suite.
+`tests/cli.sh` joins `ctest` only when the tool is built and the host is
+not Windows. CMake 3.21 or later is needed. With no `CMAKE_BUILD_TYPE`, a
+single-configuration generator builds Release.
 
 `cmake --install` puts the header, `libjaos.a`, `libjaos.so` and its links, `jaos`,
 `jaos.pc` and `lib/cmake/jaos/` under the prefix. A consumer then writes
@@ -137,12 +172,14 @@ writes the same bytes as a Linux one, LF line ends included.
 
 The build is checked by cross-compiling from Linux: `cmake/mingw-w64.cmake`
 is the toolchain file, and `tests/windows.sh` (part of `make test`, skipped
-when `x86_64-w64-mingw32-gcc` is absent) configures with it, builds
+when `cmake` or `x86_64-w64-mingw32-gcc` is absent) configures with it, builds
 `libjaos.a`, `libjaos.dll` and `jaos.exe`. When wine is installed it also
-runs `jaos.exe` on five of the test models, an LP, a MIP, a gzip-compressed
-MPS, an LP-format file and an unbounded model, and on a gzip write, and
-requires every answer and every byte of output to equal the Linux build's.
-Install both with `apt install gcc-mingw-w64-x86-64 wine64`.
+runs `jaos.exe` on five of the test models (an LP, a MIP, a gzip-compressed
+MPS, an LP-format file and an unbounded model) and on the concurrent solve
+on one and three threads. It requires each output, apart from its `time`
+line, to equal the Linux build's. It also writes a gzip file under wine,
+whose decompressed bytes must equal those of the Linux build's file.
+Install the three with `apt install cmake gcc-mingw-w64-x86-64 wine64`.
 
 **Inside WSL the same script runs the tool natively on the Windows host**,
 through WSL's interop: seven models including two QPs, the concurrent
@@ -155,7 +192,7 @@ The first native run found what wine had hidden: the Microsoft C library's
 every MPS read went through it (`bench/measurements/02-251/`).
 
 ```
-cmake -S . -B build/win -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DJAOS_BUILD_TESTS=OFF
+cmake -S . -B build/win -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake -DJAOS_BUILD_TESTS=OFF -DJAOS_LTO=OFF
 cmake --build build/win
 ```
 
@@ -164,10 +201,16 @@ MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
 Microsoft's C runtime: CMake gives it `/clang:-std=c23`,
 `/clang:-ffp-contract=off` and `/WX`, and CI's `windows-clang-cl` job
 builds the archive, the DLL and the tool on `windows-latest` and solves an
-LP and a MIP with it. `-DJAOS_BUILD_TESTS=OFF` is needed there, because
-`tests/test_fuzz.c` uses POSIX calls. The Python binding looks for `jaos.dll` or
-`libjaos.dll` on Windows, beside itself or under `build/cmake`, and for
-`libjaos.dylib` on macOS; `JAOS_LIBRARY` overrides both.
+LP and a MIP with it. The job configures from a `vcvars64` shell with
+`-G Ninja` and passes `-DJAOS_LTO=OFF`. `-DJAOS_BUILD_TESTS=OFF` is needed
+there, because `tests/test_fuzz.c` uses POSIX calls.
+
+The Python binding takes `JAOS_LIBRARY`, a full path, first. Next it looks
+beside itself. Then it looks under the current directory: in `build/cmake`,
+`build/cmake/Release` and `build/release` on Windows, for `jaos.dll` or
+`libjaos.dll`; in `build/release` and `build/cmake` on macOS, for
+`libjaos.dylib` or `libjaos.so`; in `build/release` and `build/cmake` on
+Linux, for `libjaos.so`. Last it asks the system loader for `jaos`.
 
 ## macOS
 

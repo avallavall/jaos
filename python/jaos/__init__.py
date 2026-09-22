@@ -16,12 +16,14 @@ Finding the library, in order:
 
 1. the ``JAOS_LIBRARY`` environment variable, a full path;
 2. the library beside this file;
-3. ``build/release/libjaos.so`` under the current directory, or the CMake
-   build's ``jaos.dll`` under ``build/cmake`` on Windows;
+3. the library under the current directory's build directories:
+   ``build/release`` then ``build/cmake`` on Linux and macOS, and
+   ``build/cmake``, ``build/cmake/Release`` then ``build/release`` on
+   Windows;
 4. the system loader's search path.
 
-The file name is ``libjaos.so`` on Linux, ``libjaos.dylib`` on macOS and
-``jaos.dll`` or ``libjaos.dll`` on Windows.
+The file name is ``libjaos.so`` on Linux, ``libjaos.dylib`` then
+``libjaos.so`` on macOS, and ``jaos.dll`` then ``libjaos.dll`` on Windows.
 
 Build it with ``make shared``.
 

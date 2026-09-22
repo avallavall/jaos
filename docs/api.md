@@ -26,6 +26,8 @@ Most calls return a `jaos_status`:
 | `JAOS_ERR_IO` | A file could not be opened, read or written. |
 | `JAOS_ERR_NUMERICAL` | A computation could not reach a result. The entries say when. |
 
+The header numbers these values 0 to 4, in the order of the table.
+
 A call that answers a question returns the answer itself: a count, a flag,
 a number or a string. For a null model such a call returns what it returns
 for a new, empty model. Every function carries `JAOS_NODISCARD` except
@@ -151,9 +153,6 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_dive_heuristic` | `mip_dive_heuristic` | integer | 50 |
 | `jaos_set_mip_dive_heuristic_depth` | `mip_dive_heuristic_depth` | integer | 0 |
 | `jaos_set_mip_rins` | `mip_rins` | integer | 0 |
-| `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
-| `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
-| `jaos_set_mip_restart` | `mip_restart` | boolean | off |
 | `jaos_set_mip_feaspump` | `mip_feaspump` | integer | 20 |
 | `jaos_set_mip_pump_general` | `mip_pump_general` | boolean | false |
 | `jaos_set_mip_pump_obj` | `mip_pump_obj` | number | 0.5 |
@@ -174,6 +173,9 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_clique_rounds` | `mip_clique_rounds` | integer | 4 |
 | `jaos_set_mip_zero_half_rounds` | `mip_zero_half_rounds` | integer | 0 |
 | `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 0 |
+| `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
+| `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
+| `jaos_set_mip_restart` | `mip_restart` | boolean | false |
 | `jaos_set_threads` | `threads` | integer | 1 |
 
 The calls that take data have no option name. These are the model's own
@@ -193,15 +195,23 @@ the clock, so its value changes from run to run.
 
 ### Threads
 
-`jaos_set_threads` changes two things:
+`jaos_set_threads` changes four things:
 
 - The concurrent solve, `JAOS_ALGORITHM_CONCURRENT`, runs its three methods
   at once from its second round on. It does so only when the thread count is
-  above 1 and no work limit is set. Its first round runs the methods one
-  after another.
-- Both branch and bounds solve the relaxations of one round on up to that
-  many threads, each on its own copy of the model.
-  `jaos_set_mip_tree_batch` sets the size of a round.
+  above 1 and no work limit is set. When a work limit is set, it runs the
+  three methods one after another in every round. Its first round always
+  runs them one after another. Each method runs on one thread, so the
+  concurrent solve's barrier computes its Cholesky factor on one thread.
+- The barrier computes its Cholesky factor in blocks of rows. It spreads a
+  block over up to that many threads, at most 64, when the block holds
+  enough work.
+- The conic branch and bound solves the relaxations of one round on up to
+  that many threads, each on its own copy of the model.
+- The linear branch and bound does the same.
+
+`jaos_set_mip_tree_batch` sets the size of a round in both trees. At its
+default of 1, a round holds one node.
 
 In each case the answer and `jaos_work_units` are the same at any thread
 count. Only `jaos_solve_time` changes. Everything else runs on the thread
@@ -209,10 +219,12 @@ that called `jaos_solve`.
 
 The library holds no global state, so different models can be solved in
 different threads at the same time. Calls on one model are not
-synchronised, so two threads must not use the same model at once. When the
-concurrent solve runs its methods at once, the progress callback runs on
-their threads, and two of them can call it at the same time. The log,
-incumbent and node callbacks run on the thread that called `jaos_solve`.
+synchronised, so two threads must not use the same model at once. The
+progress callback runs on the threads of the concurrent solve when it runs
+its methods at once. It also runs on the threads of the linear branch and
+bound when that tree solves a round on more than one thread. In both cases
+two threads can call it at the same time. The log, incumbent and node
+callbacks run on the thread that called `jaos_solve`.
 
 ### Values that overflow
 
@@ -221,10 +233,9 @@ hold, when a product or a sum grows past the largest double. Every optimum
 passes one test before the solve publishes it. When the objective, a column
 value, a reduced cost, a row activity or a row dual is not finite, the solve
 ends `JAOS_SOLVE_NUMERICAL_ERROR`. `jaos_model_error` then names the value
-and its index. The checker refuses a point whose row activity it cannot
-evaluate. When the terms of a row overflow and their sum is not a number,
-the checker counts an infinite violation of the row's finite bounds, so
-`primal_feasible` reads false.
+and its index. When the terms of a row overflow and their sum is not a
+number, the checker counts an infinite violation of the row's finite
+bounds, so `primal_feasible` reads false. The call still returns `JAOS_OK`.
 
 ### Log lines
 
@@ -242,7 +253,8 @@ answer.
 `const char *jaos_version(void)`\
 Returns `JAOS_VERSION_STRING`, the version the library was built as. The
 macros `JAOS_VERSION_MAJOR`, `JAOS_VERSION_MINOR` and `JAOS_VERSION_PATCH`
-hold its three numbers.
+hold its three numbers as integer constants, and `JAOS_VERSION_STRING`
+joins them with dots. In release 0.4.0 they are 0, 4 and 0.
 
 **`jaos_status_str`**\
 `const char *jaos_status_str(jaos_status s)`\
@@ -356,8 +368,8 @@ Sets both bounds of row `row`. The rules of `jaos_set_col_bounds` apply.
 
 **`jaos_objective_sense`**\
 `jaos_status jaos_objective_sense(const jaos_model *m, jaos_obj_sense *sense)`\
-Stores `JAOS_MINIMIZE` or `JAOS_MAXIMIZE` in `*sense`. It fails when `sense`
-is null.
+Stores `JAOS_MINIMIZE` (0) or `JAOS_MAXIMIZE` (1) in `*sense`. It fails
+when `sense` is null.
 
 **`jaos_objective_offset`**\
 `jaos_status jaos_objective_offset(const jaos_model *m, double *offset)`\
@@ -527,11 +539,12 @@ the cone is deleted.
 **`jaos_add_cone`**\
 `jaos_status jaos_add_cone(jaos_model *m, jaos_cone_type type, int64_t n, const int64_t *cols)`\
 Adds a cone over the `n` columns in `cols` and clears the last answer.
-`cols[0]` is `x0`, and for a rotated cone `cols[1]` is `x1`. The call fails
-when `cols` is null or `type` is neither `JAOS_CONE_QUADRATIC` nor
-`JAOS_CONE_ROTATED`. It also fails when `n` is below 1 for a quadratic cone
-or below 2 for a rotated one, or when a member is not a column or appears
-twice.
+`type` is `JAOS_CONE_QUADRATIC` (1) or `JAOS_CONE_ROTATED` (2). The enum
+starts at 1, so 0 is not a cone type. `cols[0]` is `x0`, and for a rotated
+cone `cols[1]` is `x1`. The call fails when `cols` is null or `type` is
+neither `JAOS_CONE_QUADRATIC` nor `JAOS_CONE_ROTATED`. It also fails when
+`n` is below 1 for a quadratic cone or below 2 for a rotated one, or when a
+member is not a column or appears twice.
 
 **`jaos_num_cones`**\
 `int64_t jaos_num_cones(const jaos_model *m)`\
@@ -575,7 +588,7 @@ Fills the arrays with the stored entries of the quadratic part of row
 `row`, each with `rows[k] >= cols[k]`. The entries are ordered by column and
 then by row. The arrays must hold `jaos_row_quadratic_nz(m, row)` entries,
 and they may be null when the row has none. The call fails when `row` is out
-of range.
+of range, or when the row has entries and an array is null.
 
 ## Indicator rows and reading an SOS set
 
@@ -792,22 +805,32 @@ when `decay` is NaN or at least 1.
 **`jaos_presolve_result`**\
 `jaos_status jaos_presolve_result(const jaos_model *m, jaos_presolve_report *out)`\
 Fills `out` with what presolve did in the last solve of a continuous model
-without cones or quadratic rows. The report gives the size of the model the
-solver ran on, the rounds, and the count of each kind of reduction.
-`aggregated_col` counts the implied free columns substituted out of an
-equation, each taking the equation with it. A branch and bound or a conic
-solve leaves the report as it was. Before any solve, every field is 0. The
-call fails when `m` or `out` is null.
+without cones or quadratic rows. `num_row`, `num_col` and `num_nz` give the
+size of the model the solver ran on, and `rounds` counts the presolve
+rounds. Each other field counts one kind of reduction: `fixed_col`,
+`empty_row`, `empty_col`, `singleton_row`, `singleton_col`,
+`free_col_singleton`, `forcing_row`, `redundant_row`, `implied_free_col`,
+`tightened_bound`, `duplicate_row`, `duplicate_col`, `dominated_col` and
+`aggregated_col`. `aggregated_col` counts the implied free columns
+substituted out of an equation, each taking the equation with it. A branch
+and bound or a conic solve leaves the report as it was. Before any solve,
+every field is 0. The call fails when `m` or `out` is null.
 
 **`jaos_model_statistics`**\
 `jaos_status jaos_model_statistics(const jaos_model *m, jaos_model_stats *out)`\
-Fills `out` with counts that describe the model. The fields `equality_row`,
-`ranged_row`, `one_sided_row` and `free_row` sum to the rows. The fields
-`fixed_col`, `ranged_col`, `one_sided_col` and `free_col` sum to the
-columns. A binary column is an integer column whose bounds, rounded inward,
-are 0 and 1. `min_abs` and `max_abs` range over the matrix entries, and
-`obj_min_abs` and `obj_max_abs` over the nonzero costs. The call fails when
-`m` or `out` is null, or when memory runs out.
+Fills `out` with counts that describe the model. `num_row`, `num_col` and
+`num_nz` give its size. The fields `equality_row`, `ranged_row`,
+`one_sided_row` and `free_row` sum to the rows. The fields `fixed_col`,
+`ranged_col`, `one_sided_col` and `free_col` sum to the columns.
+`integer_col` and `binary_col` count the integer and the binary columns. A
+binary column is an integer column whose bounds, rounded inward, are 0 and
+1. `empty_row` and `empty_col` count the rows and columns with no entry, and
+`obj_nz` counts the nonzero costs. `min_abs` and `max_abs` range over the
+matrix entries, and `obj_min_abs` and `obj_max_abs` over the nonzero costs.
+`semicontinuous_col`, `sos_set`, `indicator_row` and `cone_set` count those
+structures. `quadratic_col` counts the columns with a nonzero diagonal entry
+in `Q`, and `quadratic_row` counts the rows with a quadratic part. The call
+fails when `m` or `out` is null, or when memory runs out.
 
 **`jaos_model_has_integer`**\
 `bool jaos_model_has_integer(const jaos_model *m)`\
@@ -828,7 +851,8 @@ Gives the branch and bound a starting point of `jaos_num_col(m)` values. The
 tree judges it at the root like any heuristic point. The point becomes the
 first incumbent only when it is integral, satisfies every bound and row, and
 is better than the cutoff. A null `col_value` removes the start, and the
-call fails when a value is not finite.
+call fails when a value is not finite. A call that fails also removes the
+stored start.
 
 **`jaos_set_mip_cutoff`**\
 `jaos_status jaos_set_mip_cutoff(jaos_model *m, double cutoff)`\
@@ -944,15 +968,16 @@ a better bound and a worse incumbent. The linear tree (since 2026-09-22)
 solves each node of a round from the node's own basis on a copy of the
 tree's model. It then takes the nodes in order and solves each again from
 its copy's final basis, so the cuts and conflicts one node finds reach the
-nodes after it. A round holds at most 64 nodes. The call fails when `nodes`
-is below 1.
+nodes after it. The linear tree takes one node per round on a model with a
+quadratic objective, and once the work or time limit is spent. A round
+holds at most 64 nodes. The call fails when `nodes` is below 1.
 
 **`jaos_set_mip_branching`**\
 `jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)`\
-Sets the branching rule. `JAOS_BRANCH_PSEUDOCOST`, the default, scores each
-column by the objective gain that a unit move in each direction has cost so
-far. `JAOS_BRANCH_MOST_FRACTIONAL` takes the column farthest from an
-integer. Any other value fails.
+Sets the branching rule. `JAOS_BRANCH_PSEUDOCOST` (0), the default, scores
+each column by the objective gain that a unit move in each direction has
+cost so far. `JAOS_BRANCH_MOST_FRACTIONAL` (1) takes the column farthest
+from an integer. Any other value fails.
 
 **`jaos_set_mip_reliability`**\
 `jaos_status jaos_set_mip_reliability(jaos_model *m, int64_t branches)`\
@@ -975,10 +1000,10 @@ depth 0. A negative value, the default, allows every depth.
 
 **`jaos_set_mip_dive_child`**\
 `jaos_status jaos_set_mip_dive_child(jaos_model *m, jaos_dive_child rule)`\
-Chooses which child a dive solves first. `JAOS_DIVE_NEARER`, the default,
-takes the side the fraction is closer to. `JAOS_DIVE_UP` and
-`JAOS_DIVE_DOWN` fix the side. `JAOS_DIVE_PSEUDOCOST` takes the side with
-the smaller expected loss in the objective. Any other value fails.
+Chooses which child a dive solves first. `JAOS_DIVE_NEARER` (0), the
+default, takes the side the fraction is closer to. `JAOS_DIVE_UP` (1) and
+`JAOS_DIVE_DOWN` (2) fix the side. `JAOS_DIVE_PSEUDOCOST` (3) takes the side
+with the smaller expected loss in the objective. Any other value fails.
 
 ## MIP results and the solution pool
 
@@ -986,10 +1011,11 @@ the smaller expected loss in the objective. Any other value fails.
 `jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)`\
 Fills `out` with the counts of the last branch and bound: `nodes`,
 `lp_solves`, `cuts`, `heuristic_points`, `first_incumbent_node`,
-`fixed_cols`, `tightened` and the two symmetry counts. It also gives
-`has_incumbent`, the incumbent's objective, and `bound`, the best objective
-that an open node could still reach. At `JAOS_SOLVE_OPTIMAL` the bound
-equals the incumbent's objective. The call fails when `m` or `out` is null.
+`fixed_cols`, `tightened`, `symmetry_generators` and `symmetry_orbits`. It
+also gives `has_incumbent`, and `incumbent`, the incumbent's objective or 0
+when `has_incumbent` is false. `bound` is the best objective that an open
+node could still reach. At `JAOS_SOLVE_OPTIMAL` the bound equals the
+incumbent's objective. The call fails when `m` or `out` is null.
 
 **`jaos_mip_incumbent`**\
 `jaos_status jaos_mip_incumbent(const jaos_model *m, double *col_value, double *objective)`\
@@ -1130,9 +1156,16 @@ gives the rules of each format.
 Every writer checks the model before it writes. It fails without leaving a
 file when the format cannot express the model, and the message names the row
 or column at fault. A writer that writes names refuses two rows or two
-columns with one name, and the objective counts as a row. A path that ends
-in `.gz` gives a gzip file. Numbers are written with the fewest of 15, 16 or
-17 significant digits that read back as the same double.
+columns with one name, and the objective counts as a row. Numbers are
+written with the fewest of 15, 16 or 17 significant digits that read back
+as the same double.
+
+A path that ends in `.gz` gives a gzip file from every writer but
+`jaos_write_proof`. The writers that compress are the six model writers,
+`jaos_write_solution`, `jaos_write_sol_ampl`, `jaos_write_mps_basis`,
+`jaos_write_point`, `jaos_write_point_values`, `jaos_write_duals` and
+`jaos_write_dual_values`. `jaos_write_proof` writes plain text whatever the
+path's name.
 
 Every writer takes a non-const model, for two reasons. It records a
 failure's message on the model, where `jaos_model_error` reads it, and
@@ -1155,10 +1188,22 @@ objective and in constraints.
 
 **`jaos_read_nl`**\
 `jaos_status jaos_read_nl(jaos_model *m, const char *path)`\
-Reads the linear part of AMPL's text `.nl` format. It takes the names from
-the `.col` and `.row` files beside the file when both are there and
-complete. The `x` segment becomes the MIP start of a model with integer
-columns. A binary `.nl` file and a nonlinear body are refused.
+Reads AMPL's text `.nl` format. It reads a body of degree two or less:
+sums, differences, products, division by a nonzero constant, powers 1 and
+2, unary minus and sumlist. The body's constant moves into the row's bounds
+or the objective's constant. Its quadratic part becomes the objective's `Q`
+or the row's quadratic part. In the objective, its linear part is added to
+the `G` coefficients. In a row, its linear terms become entries beside the
+`J` coefficients, and two entries on one column are refused. So the call
+refuses a row whose body gives a column a linear term when the `J` segment
+also gives that column a nonzero coefficient. It also refuses a row whose
+body gives one column two linear terms. The message is then "the .nl model
+failed validation", with no line. The column names come from the `.col`
+file beside the file and the row names from the `.row` file, each when it
+is there and complete. The `x` segment becomes the MIP start of a model
+with integer columns. The call refuses a binary `.nl` file, any other
+operator, a product of degree three or more, and integer variables in
+nonlinear terms.
 
 **`jaos_write_mps`**\
 `jaos_status jaos_write_mps(jaos_model *m, const char *path)`\
@@ -1167,7 +1212,7 @@ structure a model holds. It refuses a row whose lower bound is above its
 upper one or whose two bounds are the same infinity. It refuses a ranged row
 that no RANGES entry rebuilds exactly, and a column bound at an infinity of
 the wrong sign. It also refuses a semi-continuous column with no finite
-upper bound, and a row or objective named `MARKER`.
+upper bound, and a row or objective named `'MARKER'`, quotes included.
 
 **`jaos_write_lp`**\
 `jaos_status jaos_write_lp(jaos_model *m, const char *path)`\
@@ -1262,9 +1307,10 @@ no limit. The stop happens at the same point on every machine.
 
 **`jaos_set_threads`**\
 `jaos_status jaos_set_threads(jaos_model *m, int64_t threads)`\
-Sets how many threads the concurrent solve and the conic branch and bound
-may use, as [Threads](#threads) describes. The default is 1. The call fails
-when `threads` is 0 or negative.
+Sets how many threads a solve may use. The concurrent solve, the barrier's
+Cholesky factor and the rounds of both branch and bounds use them, as
+[Threads](#threads) describes. The default is 1. The call fails when
+`threads` is 0 or negative.
 
 **`jaos_threads_of`**\
 `int64_t jaos_threads_of(const jaos_model *m)`\
@@ -1293,14 +1339,16 @@ scaled space. The default is 1e-9, and 0 restores it. The call fails when
 
 **`jaos_set_algorithm`**\
 `jaos_status jaos_set_algorithm(jaos_model *m, jaos_algorithm alg)`\
-Chooses the method for a continuous model: `JAOS_ALGORITHM_DUAL`, the
-default, `JAOS_ALGORITHM_PRIMAL`, `JAOS_ALGORITHM_BARRIER`,
-`JAOS_ALGORITHM_PDLP` or `JAOS_ALGORITHM_CONCURRENT`. The concurrent solve
-runs the dual simplex, the primal simplex and the barrier on three copies
-under growing work budgets. It takes the first answer in that order. The
-branch and bound of a linear model solves its relaxations with the primal
-simplex under `JAOS_ALGORITHM_PRIMAL` and with the dual simplex under any
-other setting. Any value outside the enum fails.
+Chooses the method for a continuous model: `JAOS_ALGORITHM_DUAL` (0), the
+default, `JAOS_ALGORITHM_PRIMAL` (1), `JAOS_ALGORITHM_BARRIER` (2),
+`JAOS_ALGORITHM_PDLP` (3) or `JAOS_ALGORITHM_CONCURRENT` (4). The concurrent
+solve runs the dual simplex, the primal simplex and the barrier on three
+copies under growing work budgets. It takes the first answer in that order.
+It runs the three at once only when the thread count is above 1 and no work
+limit is set, as [Threads](#threads) describes. The branch and bound of a
+linear model solves its relaxations with the primal simplex under
+`JAOS_ALGORITHM_PRIMAL` and with the dual simplex under any other setting.
+Any value outside the enum fails.
 
 **`jaos_algorithm_of`**\
 `jaos_algorithm jaos_algorithm_of(const jaos_model *m)`\
@@ -1334,7 +1382,7 @@ The lines before it stay applied. A file that does not open gives
 
 **`jaos_num_options`**\
 `int64_t jaos_num_options(void)`\
-Returns the number of option names, which is 54.
+Returns the number of option names, which is 57.
 
 **`jaos_option_name`**\
 `const char *jaos_option_name(int64_t k)`\
@@ -1344,9 +1392,23 @@ other `k`.
 
 ## Log and callbacks
 
+The header declares the four callback types:
+
+```c
+typedef void (*jaos_log_fn)(void *user, jaos_log_level level, const char *line);
+typedef jaos_callback_action (*jaos_progress_fn)(const jaos_progress *p, void *user);
+typedef jaos_callback_action (*jaos_incumbent_fn)(const jaos_incumbent *inc, void *user);
+typedef jaos_callback_action (*jaos_node_fn)(jaos_node *ev, void *user);
+```
+
+The log function takes `user` first and returns nothing. The other three
+take `user` last and return a `jaos_callback_action`. The node event is not
+const, so that the callback can set its `branch_col`.
+
 A callback stays on the model until it is replaced, and a null function
 removes it. `jaos_model_copy` copies the callbacks with the options. A
-callback that returns `JAOS_CALLBACK_STOP` ends the solve, which then
+callback that returns `JAOS_CALLBACK_CONTINUE` (0) lets the solve go on. A
+callback that returns `JAOS_CALLBACK_STOP` (1) ends the solve, which then
 reports `JAOS_SOLVE_INTERRUPTED`. Each setter fails when `m` is null.
 
 **`jaos_set_log_callback`**\
@@ -1357,14 +1419,16 @@ Sets the function that receives the solver's log lines. The function gets
 
 **`jaos_set_log_level`**\
 `jaos_status jaos_set_log_level(jaos_model *m, jaos_log_level level)`\
-Sets how much the log says: `JAOS_LOG_OFF`, the default, `JAOS_LOG_SUMMARY`,
-`JAOS_LOG_PROGRESS` or `JAOS_LOG_DETAIL`. Any other value fails.
+Sets how much the log says: `JAOS_LOG_OFF` (0), the default,
+`JAOS_LOG_SUMMARY` (1), `JAOS_LOG_PROGRESS` (2) or `JAOS_LOG_DETAIL` (3).
+Any other value fails.
 
 **`jaos_set_progress_callback`**\
 `jaos_status jaos_set_progress_callback(jaos_model *m, jaos_progress_fn cb, void *user)`\
 Sets a function that the solver calls while it iterates. The `jaos_progress`
-event gives the iteration count, the work units so far, and a measure of
-primal infeasibility that the running method keeps. The simplex and PDLP
+event gives the iteration count in `iterations`, the work units so far in
+`work_units`, and in `primal_infeasibility` a measure of primal
+infeasibility that the running method keeps. The simplex and PDLP
 call it every 64 iterations, and the barrier calls it at every iteration.
 The conic interior point does not call it. In a branch and bound the counts
 run over the whole tree.
@@ -1385,7 +1449,7 @@ and bound, the point, whether the point is integral, and `branch_col`.
 `branch_col` is the column the tree will branch on. The callback may set it
 to another integer column that is fractional at the point, and the tree
 ignores any other value. `jaos_solve` refuses a node callback on a model
-with cones or quadratic rows.
+with cones or quadratic rows and integer structure.
 
 **`jaos_node_add_row`**\
 `jaos_status jaos_node_add_row(jaos_node *ev, int64_t nnz, const int64_t *index, const double *value, double lower, double upper)`\
@@ -1431,6 +1495,15 @@ It returns `JAOS_ERR_OUT_OF_MEMORY` when memory runs out, and
 `JAOS_ERR_NUMERICAL` when a method fails in a way it cannot record as an
 outcome.
 
+In a branch and bound, a node below the root whose relaxation fails is set
+aside with its bound, and the search goes on. When a node was set aside,
+the solve ends `JAOS_SOLVE_OPTIMAL` only when the incumbent is within the
+gap of every bound set aside. A search that would end
+`JAOS_SOLVE_INFEASIBLE`, or `JAOS_SOLVE_OPTIMAL` without that, ends
+`JAOS_SOLVE_NUMERICAL_ERROR` instead, and `jaos_model_error` names the first
+node set aside. `bound` in `jaos_mip_result` then includes the bounds set
+aside.
+
 A simplex solve stopped by a limit or a callback keeps its working state on
 the model. The next `jaos_solve` goes on from where it stopped. An edit,
 `jaos_set_basis`, `jaos_clear_basis`, or a new algorithm or tolerance
@@ -1451,6 +1524,8 @@ Returns the outcome of the last solve:
 | `JAOS_SOLVE_NUMERICAL_ERROR` | The solve reached no answer it could publish. `jaos_model_error` says why. |
 | `JAOS_SOLVE_INTERRUPTED` | A callback returned `JAOS_CALLBACK_STOP`. |
 | `JAOS_SOLVE_NODE_LIMIT` | The node limit stopped a branch and bound. |
+
+The header numbers these values 0 to 8, in the order of the table.
 
 **`jaos_objective`**\
 `jaos_status jaos_objective(const jaos_model *m, double *out)`\
@@ -1475,8 +1550,8 @@ columns rounded to integers.
 ## The basis
 
 A basis gives each column and each row one of four statuses:
-`JAOS_BASIS_BASIC`, `JAOS_BASIS_AT_LOWER`, `JAOS_BASIS_AT_UPPER` or
-`JAOS_BASIS_FREE`. `JAOS_BASIS_FREE` marks a nonbasic variable with no
+`JAOS_BASIS_BASIC` (0), `JAOS_BASIS_AT_LOWER` (1), `JAOS_BASIS_AT_UPPER` (2)
+or `JAOS_BASIS_FREE` (3). `JAOS_BASIS_FREE` marks a nonbasic variable with no
 finite bound. A row's status describes its activity `A_i x`. A valid basis
 has exactly `jaos_num_row(m)` basic entries.
 
@@ -1629,14 +1704,49 @@ jaos_status jaos_check_solution(const jaos_model *m,
 ```
 
 Judges the point `col_value`, and the row duals when `row_dual` is not
-null, and fills `out`. `primal_feasible` is true when every column, row,
-integrality, SOS and cone violation is within `tol`. Each row's violation is
-divided by the larger of 1 and the sum of its terms' magnitudes. The dual
-half runs only when `row_dual` is given and the model has no integer
-structure and no cones, and `checked_duals` says whether it ran.
-`dual_feasible` is true when the dual violations and the objective gap are
-within `tol`. The call fails when `col_value` is null on a model with
-columns, or when an input value is NaN.
+null, and fills `out`. The primal half always runs:
+
+- `max_col_violation` is the largest bound violation of a column.
+- `max_row_violation` is the largest bound violation of a row.
+  `max_row_violation_relative` divides each row's violation by the larger
+  of 1 and the sum of its terms' magnitudes.
+- `max_integrality_violation` covers the integer columns and the SOS sets.
+- `max_cone_violation` is the largest distance of the point from a cone,
+  divided by the larger of 1 and the largest magnitude in that cone.
+- `primal_objective` is the objective at the point, with its constant and
+  its quadratic term.
+- `primal_feasible` is true when the column, relative row, integrality and
+  cone violations are all within `tol`.
+
+The dual half runs only when `row_dual` is given and the model has no
+integer structure and no cones. `checked_duals` says whether it ran. When
+it did not run, its fields stay 0 or false. When it ran:
+
+- `max_dual_violation` is the largest sign violation of a row dual or a
+  reduced cost.
+- `dual_objective` is the dual objective.
+- `objective_gap` is the complementarity gap at the model's bounds, taken
+  as an absolute value and divided by
+  `1 + |primal_objective| + |dual_objective|`.
+- `gap_positive` and `gap_negative` sum the positive terms of the gap and
+  the magnitudes of its negative terms. They also count terms at the bounds
+  that the checker derives from the rows where the model has none.
+- `relative_suboptimality` is `gap_positive / (1 + |primal_objective|)`.
+- `dropped_terms` counts the row duals and reduced costs whose sign points
+  at an infinite bound, so that the dual objective has no term for them.
+  `max_dropped_multiplier` is the largest of them in magnitude.
+  `gap_certified` is true when `dropped_terms` is 0.
+- `certified_suboptimality` looks at each column whose reduced cost points
+  at an infinite bound. It takes the reduced cost's magnitude times the
+  step the column can make that way before a finite row side stops it, and
+  keeps the largest such product.
+- `unquantified_rays` counts those columns that no row stops and whose
+  reduced cost is within `tol`.
+- `dual_feasible` is true when `max_dual_violation` and `objective_gap` are
+  within `tol`.
+
+The call fails when `col_value` is null on a model with columns, or when an
+input value is NaN.
 
 **`jaos_check_conic_solution`**
 
@@ -1687,9 +1797,12 @@ direction.
 
 **`jaos_check_ray`**\
 `jaos_status jaos_check_ray(const jaos_model *m, const double *col_ray, double tol, jaos_ray_report *out)`\
-Judges an unbounded direction `d`. It reports the objective's rate `c'd`,
-how far `d` leaves a finite column bound, a finite row side or a cone, and
-the curvature `d'Qd`. `certified` is true when the rate improves the
+Judges an unbounded direction `d`. It reports the objective's rate `c'd` in
+`rate`. `max_col_escape` says how far `d` leaves a finite column bound or a
+cone. `max_row_escape` says how far `d` leaves a finite row side. For a
+quadratic row with matrix `Q_i`, it also takes the largest entry of
+`Q_i d` that is not zero within the tolerance. `curvature` is the curvature
+`d'Qd` of the objective. `certified` is true when the rate improves the
 objective beyond the tolerance, no bound, row or cone is left, and the
 curvature is zero within the tolerance. The call fails when an entry of
 `col_ray` is not finite.
@@ -1701,37 +1814,45 @@ curvature is zero within the tolerance. The call fails when an entry of
 Finds an irreducible infeasible subsystem after a solve that ended
 `JAOS_SOLVE_INFEASIBLE`. The subsystem is a set of row and column bound
 sides that is infeasible on its own and feasible without any one of them.
-The optional arrays receive `JAOS_IIS_NONE`, `JAOS_IIS_LOWER`,
-`JAOS_IIS_UPPER` or `JAOS_IIS_BOTH` for each row and column. `out` receives
-the member count, the candidates, the solves, the work units and whether the
-search started from the solve's Farkas ray. Integer marks, SOS sets,
+The optional arrays receive `JAOS_IIS_NONE` (0), `JAOS_IIS_LOWER` (1),
+`JAOS_IIS_UPPER` (2) or `JAOS_IIS_BOTH` (3) for each row and column.
+`JAOS_IIS_BOTH` is `JAOS_IIS_LOWER | JAOS_IIS_UPPER`, and the library tests
+the two bits apart. `out` receives the member count in `members`, the
+candidates in `candidates`, the solves in `solves`, the work units in
+`work_units`, and in `from_certificate` whether the search started from the
+solve's Farkas ray. Integer marks, semi-continuous marks, SOS sets,
 indicator rows and the quadratic objective are left out, so the subsystem
 explains the linear relaxation. The call fails on a model with cones or
-quadratic rows, and returns `JAOS_ERR_NUMERICAL` when the relaxation turns
-out feasible.
+quadratic rows. It returns `JAOS_ERR_NUMERICAL` when the relaxation turns
+out feasible, or when a re-solve stops at a limit. The work and time limits
+apply to each re-solve.
 
 **`jaos_iis_model`**\
 `jaos_status jaos_iis_model(const jaos_model *m, const jaos_iis_side *row_side, const jaos_iis_side *col_side, jaos_model **out)`\
 Builds a new model from the sides that `jaos_iis` marked. Each member side
 keeps its value, every other side becomes infinite, and every cost becomes
-0. The new model has no integer marks, SOS sets, indicator rows or quadratic
-objective. Rows with no member side are removed, and so are columns with no
-entries and no member bound. Names stay and indices change. The caller frees
-`*out`, and the call fails when a pointer is null or a side is not one of
-the four values.
+0. The new model has no integer or semi-continuous marks, SOS sets,
+indicator rows or quadratic objective. Rows with no member side are
+removed, and so are columns with no entries and no member bound. Names stay
+and indices change. The caller frees `*out`, and the call fails when a
+pointer is null or a side is not one of the four values.
 
 **`jaos_feasrelax`**\
 `jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope, double *row_move, double *col_move, jaos_relax_report *out)`\
 Finds the smallest total move of bounds that makes the model feasible.
-`scope` lets the row bounds, the column bounds or both move. The optional
-arrays `row_move` and `col_move` receive each move. A negative move lowers a
-lower bound, and a positive move raises an upper bound. Adding every move to
-its bound gives a feasible model. `out` receives the total, the counts of
-rows and columns moved, the largest move and where it is, the work units and
-the status of the solve. The call solves an elastic copy and does not change
-the model. It fails on a model with cones or quadratic rows or with an
-unknown `scope`, and returns `JAOS_ERR_NUMERICAL` when the copy's solve does
-not end optimal.
+`scope` is `JAOS_RELAX_ROWS` (1), `JAOS_RELAX_COLS` (2) or `JAOS_RELAX_BOTH`
+(3), which lets the row bounds, the column bounds or both move. The enum
+starts at 1, so 0 is not a scope. The optional arrays `row_move` and
+`col_move` receive each move. A negative move lowers a lower bound, and a
+positive move raises an upper bound. Adding every move to its bound gives a
+feasible model. `out` receives the total in `total`, the counts of rows and
+columns moved in `rows_moved` and `cols_moved`, and the largest move in
+`largest`. `at_row` or `at_col` says where the largest move is, and the
+other one is -1. Both are -1 when nothing moved. `out` also receives the
+work units in `work_units` and the status of the solve in `status`. The
+call solves an elastic copy and does not change the model. It fails on a
+model with cones or quadratic rows or with an unknown `scope`, and returns
+`JAOS_ERR_NUMERICAL` when the copy's solve does not end optimal.
 
 ## Ranging
 
@@ -1771,11 +1892,19 @@ quadratic rows and integer structure.
 `jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)`\
 Proves or refutes that the basis behind the last optimum is optimal, in
 exact arithmetic and with no tolerance. `out->status` is
-`JAOS_PROOF_OPTIMAL`, `JAOS_PROOF_BROKEN` or `JAOS_PROOF_REFUSED`. A broken
-proof names its stage, which is rank, primal or dual, and the row or column
-that breaks it. `JAOS_PROOF_REFUSED` means the numbers do not fit the
-budget. The call fails unless the last solve ended optimal with a basis, and
-it returns `JAOS_ERR_NUMERICAL` when it cannot judge.
+`JAOS_PROOF_OPTIMAL` (0), `JAOS_PROOF_BROKEN` (1) or `JAOS_PROOF_REFUSED`
+(2). `JAOS_PROOF_REFUSED` means the numbers do not fit the budget.
+`out->stage` is `JAOS_PROOF_STAGE_NONE` (0) unless the proof broke. A broken
+proof names its stage, `JAOS_PROOF_STAGE_RANK` (1), `JAOS_PROOF_STAGE_PRIMAL`
+(2) or `JAOS_PROOF_STAGE_DUAL` (3). At the primal or the dual stage, `at_row`
+or `at_col` names the row or column that breaks it, and the other one is
+-1. `violation` is then how far that basic value lies outside its bounds,
+or the magnitude of the reduced cost or row dual whose sign is wrong.
+`blocks` and `largest_block` give the number and the largest size of the
+diagonal blocks the basis splits into. `terms` counts the exact products
+the proof took, and `bytes_held` is the size in bytes of the largest dense
+block it held. The call fails unless the last solve ended optimal with a
+basis, and it returns `JAOS_ERR_NUMERICAL` when it cannot judge.
 
 **`jaos_verify_basis`**\
 `jaos_status jaos_verify_basis(jaos_model *m, const jaos_basis_status *col_status, const jaos_basis_status *row_status, jaos_verify_report *out)`\
@@ -1806,7 +1935,10 @@ the budget while the values did.
 Derives the exact Farkas multipliers of an infeasible answer from the basis
 the solve stopped on. `out->derived` is true when it succeeds. The call
 returns `JAOS_OK` with `derived` false when `bound_bits` exceeds
-`capacity_bits`. It fails unless the last solve ended infeasible with a ray
+`capacity_bits`. `blocks`, `largest_block`, `terms` and `bytes_held` mean
+what they mean in `jaos_verify_report`. `at_row` is the row at the basis
+position where the published ray is largest, or -1 when a column holds that
+position. The call fails unless the last solve ended infeasible with a ray
 and a basis. It returns `JAOS_ERR_NUMERICAL` when the basis cannot give the
 ray, for example when the basis is singular.
 
@@ -1819,8 +1951,9 @@ or no exact certificate is held.
 **`jaos_exact_unbounded_ray`**\
 `jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)`\
 Derives the exact direction of an unbounded answer from the basis the solve
-stopped on. It reports as `jaos_exact_certificate` does. The call fails
-unless the last solve ended unbounded with a direction and a basis.
+stopped on. It reports as `jaos_exact_certificate` does, and leaves
+`at_row` at -1. The call fails unless the last solve ended unbounded with a
+direction and a basis.
 
 **`jaos_exact_col_direction`**\
 `jaos_status jaos_exact_col_direction(const jaos_model *m, int64_t col, const char **out)`\
@@ -1846,9 +1979,12 @@ never compresses the file.
 `jaos_status jaos_check_proof(jaos_model *m, const char *path, jaos_proof_report *out)`\
 Reads a proof file and judges it from the model alone, in exact arithmetic.
 For an optimum it checks primal feasibility, dual feasibility and the
-objective the file claims, and `out->certified` is true when all three hold.
-For a certificate it checks the ray. `bad_row` and `bad_col` name the first
-row and column that break a check, and `kind` says what the file proves. The
-call refuses a model with a quadratic objective, cones, quadratic rows or
-integer structure. It returns `JAOS_ERR_NUMERICAL` when the arithmetic
-outgrows its budget.
+objective the file claims. `primal`, `dual` and `objective` say which of the
+three held, and `out->certified` is true when all three hold. For a
+certificate it checks the ray. `bad_row` and `bad_col` name the first row
+and column that break a check, or -1. `kind` says what the file proves:
+`JAOS_PROOF_FILE_OPTIMAL` (0), `JAOS_PROOF_FILE_INFEASIBLE` (1) or
+`JAOS_PROOF_FILE_UNBOUNDED` (2). `terms` counts the exact products the check
+took. The call refuses a model with a quadratic objective, cones, quadratic
+rows or integer structure. It returns `JAOS_ERR_NUMERICAL` when the
+arithmetic outgrows its budget.

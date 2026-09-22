@@ -56,12 +56,14 @@ F6. **A replay of `jaos options` turns off MIQP propagation.** The tree runs
 `--params` file of that output sets 0. Fix: an unset option reads back the
 value the solve will use, or the default becomes a sentinel.
 
-F7. **The `.nl` reader refuses a common Pyomo row.** In a row, a column
-that the body gives a linear term and that the `J` segment also gives a
-coefficient makes two entries, and `jaos_load_lp` refuses the model ("the
-.nl model failed validation", no line). Pyomo writes `(x+1)**2 + 3*x <= 5`
-that way. Fix: sum duplicate entries in `nl_build`. Verify: a test with that
-row, and a body that names one column linearly twice.
+F7. **The `.nl` reader refuses a quadratic row with a linear part.** In a
+row, `form_put` and `form_mul` (`src/nl.c`) never merge like terms, so
+`(x+1)^2 <= 5` gives `x` two linear entries, and a column that the body and
+the `J` segment both give a coefficient gets two too. `jaos_load_lp`
+refuses the model ("the .nl model failed validation", no line). The
+objective is not affected, because its costs are summed. Fix: sum duplicate
+(row, column) entries in `nl_build`. Verify: a test with `(x+1)^2 <= 5`, one
+with a `J` term on the same column, and one naming a column twice.
 
 F8. **Writer round trips that break.** The LP writer writes a name that
 starts with `/`, which the LP reader refuses; it writes a row whose lower
@@ -79,6 +81,34 @@ both, then re-read `make cblib` and 02-253's 3000 models to the bit.
 F10. **`make pgo` profiles `libjaos.a` only.** `libjaos.so`, the tool and
 the wheels are built without the profile. Either profile them too or say
 so where `make pgo` is offered.
+
+F12. **Bench bookkeeping.** `bench/run.c` names the baselines' last column
+`dropped`, but the value it writes and reads there is the relative
+suboptimality bound. `make plato` runs `plato-nug`, whose nug20 and nug30
+do not finish, so `make plato` does not finish either.
+
+F13. **Finish the constants docs** (the 2026-09-22 audit stopped here for
+the token budget). `docs/tolerances.md`: `NAME_LEN` is 256
+(`JAOS_NAME_MAX + 1`), the buffer for every name the writer copies; the
+relaxation has five numbers and its two caps can end the search with no
+answer; `RELAX_BOX_ROUNDS` lets `M` grow 15 times (the widest box is 32768
+times the first); the conic tree has three numbers; the branch and bound's
+heading counts 58 numbers of `src/mip.c` and 2 of `src/symmetry.c`, and
+`MIP_PUMP_ALWAYS` and `MIP_RCFIX` are off; the three cut rows cite 02-298;
+`MIP_BATCH_MAX` cites 02-290; `JM_EXACT_LIMBS` lives in
+`src/jaos_internal.h`, a `jm_bigint` is 528 bytes and the block ceiling is
+1007 rows; `src/verify.c` has two constants; `CONIC_CERT_CALLS` bounds only
+the coordinate climb; `PRESOLVE_ROUND_ULPS` has four live sites;
+`BARRIER_MAX_ITER`'s 57 is stale (pilot at 47 now); the `CR_MAX_ITER`,
+`CR_TOL`, `GEO_TOL`, `BIG` and `SPLIT` rows. `docs/work-units.md`: the
+crossover's push, the barrier's QP push, augmented system and dense-column
+correction, the conic Newton finish (`(CONIC_REFINE + 2) * u` a step) and
+the unbilled `mul_h`, the rounds of nodes, the IIS and the relaxation, the
+LDL kernels and the threaded factor, the aggregator's conditions, and the
+time limit read every iteration outside the simplex and PDLP. `docs/scaling.md`:
+the Curtis-Reid stop rule (`CR_MAX_ITER`, `CR_TOL`), `GEO_TOL`, the conic
+interior point's own Ruiz scaling, and that only the unit tests choose a
+scaling mode. Verify: `tools/docs-check.sh`.
 
 F11. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
 tag. Move the version to `0.5.0-dev` on `main` (every version string,

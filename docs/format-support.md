@@ -46,15 +46,21 @@ declare no counts, so their readers have no such limit.
 
 ## Compressed output
 
-**Every writer here compresses when the path ends in `.gz`**, and
-that is the whole rule: `jaos_write_mps`, `jaos_write_lp`, `jaos_write_nl`,
-`jaos_write_qplib`, `jaos_write_osil`, `jaos_write_cbf`,
-`jaos_write_solution` and `jaos_write_mps_basis` share one open and one
-close, so all of them take it (the `.col` and `.row` files beside a `.nl.gz`
-stay plain, under the name without `.gz`). `jaos convert in.mps out.lp.gz` follows, and so
-do `solve --solution`, `solve --write-basis` and `relax --apply`. The name
-says compression and says nothing about the format, so `out.lp.gz` is an LP
-file and `out.mps.gz` an MPS one.
+**Every writer here but `jaos_write_proof` compresses when the path ends
+in `.gz`.** The six model writers (`jaos_write_mps`, `jaos_write_lp`,
+`jaos_write_nl`, `jaos_write_qplib`, `jaos_write_osil`, `jaos_write_cbf`),
+`jaos_write_solution`, `jaos_write_mps_basis`, `jaos_write_point` and
+`jaos_write_point_values`, `jaos_write_duals` and `jaos_write_dual_values`,
+and `jaos_write_sol_ampl` share one open and one close, so all of them take
+it. The `.col` and `.row` files beside a `.nl.gz` stay plain, under the name
+without `.gz`. `jaos convert in.mps out.lp.gz` follows, and so do
+`solve --solution`, `--write-basis`, `--write-point`, `--write-duals` and
+`relax --apply`. `solve --pool-out` names its files `PREFIX-k.pt`, so they
+are never compressed. `jaos_write_proof` writes plain text whatever the
+name, so `solve --proof` and `verify --proof` never compress, and
+`jaos_check_proof` reads plain text only. The name says compression and
+says nothing about the format, so `out.lp.gz` is an LP file and
+`out.mps.gz` an MPS one.
 
 The encoder is `src/deflate.c`, written here for the reason `src/inflate.c`
 is. It emits one final DEFLATE block coded with the fixed Huffman tables of
@@ -69,7 +75,10 @@ The gzip header carries **no clock**: `MTIME` is zero and the OS byte is
 which is the rule every other output here keeps.
 
 A compressed write builds the whole file in memory and touches the path
-once, at the end, so a refused write never opens it at all.
+once, at the end, so a refused write never opens it at all. The encoder
+takes at most 2^31 - 1 bytes, so a file of 2 GiB or more before
+compression cannot be written compressed. The call then fails with "out of
+memory compressing".
 
 ## MPS
 
@@ -129,13 +138,15 @@ header is a line whose first character is non-blank, `*` opens a comment.
   the same and integer. The writer prints `LO` then `SC` or `SI` for such a
   column, and refuses one with no finite upper bound, which the card cannot
   express.
-- **SOS section**: after BOUNDS. A header line `S1 SOS name` or `S2 SOS
+- **SOS section**: anywhere after COLUMNS. The writer prints it after
+  BOUNDS and the quadratic and cone sections. A header line `S1 SOS name` or `S2 SOS
   name` (the `SOS` word and the name optional) opens a set; each following
   line `column weight` (or `column:weight`) adds a member. Type 1 lets one
   member be nonzero, type 2 two members adjacent in weight order. Weights
   within a set must be distinct. The writer prints every set the same way,
   named `SOS1`, `SOS2`, ...
-- **INDICATORS section**: after SOS. One line `IF row column value` per
+- **INDICATORS section**: anywhere after COLUMNS. The writer prints it
+  last, after SOS. One line `IF row column value` per
   indicator: the row holds only while the integer column equals the value,
   0 or 1, and is free otherwise. The writer prints the same lines.
 - **QUADOBJ and QMATRIX sections**: after COLUMNS. One line
@@ -212,11 +223,15 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   label, so a row may be called `end`.
 - **Comments**: `\` to end of line.
 - **Names**: start with a letter, `_` or one of the CPLEX symbols
-  `! " # $ % & ( ) / , ; ? @ \` ' { } | ~`; continue with those, digits or
-  `.`. A name may not start with a digit or a `.`, which is a number, and
-  may not hold an operator, `:`, `[`, `]`, `*` or `^`. Anything else is
+  `` ! " # $ % & ( ) , ; ? @ ` ' { } | ~ ``; continue with those, `/`,
+  digits or `.`. A name may not start with a digit or a `.`, which is a
+  number, or with `/`, which the scanner reads as a division. It may not
+  hold an operator, `:`, `[`, `]`, `*` or `^`. Anything else is
   rejected loudly (so `3*x` reports the `*`). The symbols were letters and
   `_` only until D284 widened the rule to what other solvers' files carry.
+  The writer's own test of a name lets one start with `/`, so
+  `jaos_write_lp` writes a column called `/x` as it is, and `jaos_read_lp`
+  refuses that file at "unexpected character '/'".
 - **Labels are kept**: a constraint's label is the row's name, the
   objective's label is the objective's, and every variable's name is its
   column's. A constraint with no label is called by its position,
@@ -325,26 +340,38 @@ header lines 3 and 5 decide nothing: JuMP declares a constant objective
 nonlinear there, and every body is judged where it is read. The `x`
 segment, the starting values, is the MIP start of a model with integer
 columns, a column it does not name starting at 0. `d`, `k` and `S`
-segments are read and dropped. The names come from the `.col` and
-`.row` files beside the file, when both are there and complete; the
-objective's name is the line after the rows in `.row`, and a file with
-no objective has a `.row` of the rows alone. A body is read in prefix form over `n` constants, `v` columns, `o0`
+segments are read and dropped. The column names come from the `.col`
+file beside the file and the row names from the `.row` file, each when it
+is there and complete. A missing or short one leaves that side with
+positional names. The objective's name is the line after the rows in
+`.row`, and a file with no objective has a `.row` of the rows alone. A
+body is read in prefix form over `n` constants, `v` columns, `o0`
 plus, `o1` minus, `o2` times, `o3` divide, `o5` power and `o16` unary
 minus, and `o54`, the sum of a counted list. Its constant moves into the
-row's bounds or becomes the objective's; its linear part joins the `J`
-or `G` coefficients of the same row or objective; its quadratic part
+row's bounds or becomes the objective's. In the objective, its linear
+part is added to the `G` coefficients. In a row, its linear terms are
+kept beside the `J` coefficients and are not summed with them. So a row
+is refused when the body gives a column a linear term and `J` also gives
+that column a nonzero coefficient, or when the body gives one column two
+linear terms (`o0 v0 v0`). The reader does not merge like terms when it
+multiplies out a product, so `(x+1)^2 <= 5` gives `x` two linear terms
+and is refused this way. The message is "the .nl model failed
+validation", with no line. The body's quadratic part
 becomes the row's `Q` or the objective's, where a body term `b x_i x_i`
 is `Q_ii = 2b` and `a x_i x_j` is `Q_ij = a`, since a model's objective
 is `c'x + ½ x'Qx` and a row's quadratic part is read the same way. A
-pair the body gives twice is summed rather than refused. Pyomo writes a
-quadratic objective this way. Refused by line:
+quadratic pair the body gives twice is summed rather than refused. Pyomo
+writes a quadratic objective this way. Refused by line:
 a binary `.nl` (starts with `b`; write it with the text option), a body
-that divides by anything but a nonzero constant, takes a power other
-than one or two, uses any other operator (named by its number), or
-whose products reach degree three, network counts in the header,
-integer columns in nonlinear terms (header line 7), user functions,
-defined variables (`V`), logical constraints (`L`) and complementarity
-bounds (code 5).
+that starts with anything but `n`, `v` or `o` (such as a function call
+`f` or a string `h`), a body that divides by anything but a nonzero
+constant, takes a power other than one or two, uses any other operator
+(named by its number), or whose products reach degree three, the network
+constraint counts of header line 4, integer columns in nonlinear terms
+(header line 7), user functions, common expressions counted on header
+line 10, defined variables (`V`), logical constraints (`L`),
+complementarity bounds (code 5), an unknown segment letter, and a file
+with columns and no `b` segment, or with rows and no `r` segment.
 
 `jaos_write_nl`, and the tool for an output name ending in `.nl` or
 `.nl.gz`, writes the same text form: the ten header lines, a `C` row
@@ -359,11 +386,13 @@ bounds 0 and 1), then general integer, and header line 7 carries the
 two counts: a model whose integer columns are not already last reads
 back with its columns in that order, names carried, and everything else
 the same. SOS sets, semi-continuous columns and indicator rows have no
-place in the linear part of the format and are refused by name; write
-MPS for those. A quadratic objective is refused the same way, and so
-are quadratic rows and cones. The format carries those only as
-nonlinear bodies, which JAOS does not write and its own reader refuses;
-write MPS, LP, QPLIB or OSiL instead.
+place in the linear part of the format and are refused; the message
+names the column or the row, or gives the count of SOS sets. Write MPS
+for those. A quadratic objective, quadratic rows and cones are refused
+as well. The format carries a quadratic part only as a nonlinear body.
+JAOS's reader takes such a body up to degree two since 2026-09-22, and
+its writer does not write one. Write MPS, LP, QPLIB or OSiL for a
+quadratic model, and MPS for cones.
 
 The reader keeps the option values of the first line (`g3 1 1 0` holds
 three: 1, 1 and 0) for the `.sol` file AMPL expects back, which
@@ -419,8 +448,13 @@ holds, and every name. A name that holds `#` or `!`, or starts with
 reader, this one included, would cut it as a comment and read the file
 back with a different name or none; rename it or write MPS. The
 objective has no name in this format, so a model read back carries the
-default one. A type whose third letter is `N` gives every
-column free bounds and no bound sections, which is what `(N)one`
+default one. The first line that is not a comment, before the type, is
+the problem's name. The reader keeps it as the model's name, and the
+writer prints the model's name there. The writer refuses a model name
+that the comment rule would cut, as it does a column name. A constraint
+`Q` pair of two different variables given twice in one constraint is
+refused, with no line. An objective `Q` pair given twice is summed. A
+type whose third letter is `N` gives every column free bounds and no bound sections, which is what `(N)one`
 constraints mean in the taxonomy of §2.2.1. SOS sets,
 semi-continuous columns, indicator rows and cones have no place in it
 and are refused by name. The writer prints the type letter `Q` for a
@@ -447,7 +481,7 @@ The reader takes both matrix layouts: `<start>` over the columns with a
 `<rowIdx>` block, which is what JAOS writes, and `<start>` over the rows
 with a `<colIdx>` block. An `<el>` carries the format's `mult` and
 `incr` attributes. Variable types are `C`, `B`, `I`, `S` and `D`; a `B`
-column reads as an integer column with an upper bound of 1. A bound of
+column reads as an integer column whose upper bound defaults to 1. A bound of
 `INF`, `-INF` or a magnitude of 1e30 or more is an infinite bound. The
 rule is the bounds' alone: a cost, a matrix entry or the objective's
 constant of that size is read as the number it is. Before 2026-09-21 it
@@ -465,12 +499,16 @@ term of that row's quadratic part (since 2026-09-19; before, it was
 refused). Refused by line: an `<el>` whose `mult` asks for more values
 or indices than the file declares (since 2026-09-21), a
 `<nonlinearExpressions>` or `<quadraticConstraints>` block, a `qTerm`
-whose `idx` is below -1, a second `<obj>`, an SOS block, a named `<var>` or
+whose `idx` is below -1, a second `<obj>`, a second
+`<linearConstraintCoefficients>` block, a matrix with both a `<rowIdx>`
+and a `<colIdx>` block, an SOS block, a variable type other than `C`,
+`B`, `I`, `S` or `D`, a named `<var>` or
 `<con>` repeated by `mult` (an unnamed one repeated by `mult` reads as
 that many copies, which is how `p0033MULT.osil` and `br17.osil` of the
 COIN-OR OS samples write their columns), a `<con>` with a non-zero
-`constant`, a count that disagrees with what the file carries, and a
-file that ends inside a tag.
+`constant`, and a file that ends inside a tag. Refused with no line: a
+file with no `<osil>` element, and a count that disagrees with what the
+file carries.
 
 ## CBF
 
@@ -522,7 +560,10 @@ SOS sets, semi-continuous columns and indicator rows are refused by name.
 **So a model goes out and back as an equivalent model**, with the same
 columns, cones and optimum, and not as the same one: the names are lost,
 a bound other than the four above comes back as a row, and a ranged row
-as two.
+as two. A bound at an infinity of the wrong sign, such as a lower bound
+of `+inf`, is the exception. The CBF writer writes it as no bound, where
+the MPS and LP writers refuse it, so the file describes a different
+model.
 
 **Read on CBLIB 2014** (`make cblib`, `bench/measurements/02-254/`): the
 29 continuous instances of the library under 70 MB all read, the largest
@@ -586,14 +627,16 @@ the column, and no file is left behind.
 
 ### What MPS cannot express
 
-Three shapes, all legitimate models, all refused by name:
+Four shapes, all legitimate models, all refused by name:
 
 - a row whose lower bound is above its upper one (`jaos_set_row_bounds`
   accepts it and the solve reports infeasible; every RANGES form yields an
   interval with its lower bound first);
 - a bound at an infinity of the wrong sign, such as a lower bound of `+inf`;
 - a ranged row that neither RANGES form reconstructs exactly, which is the
-  check described above rather than a limit of the format's grammar.
+  check described above rather than a limit of the format's grammar;
+- a semi-continuous column with no finite upper bound, which the `SC` card
+  cannot express.
 
 The third one never fires on real data. Measured over both shapes a model
 actually has — a width drawn beside its own bound, and decimal eighths —
@@ -614,10 +657,18 @@ name a column that appears in no row at all.
 
 ### What the LP dialect cannot express
 
-Nothing beyond the two refusals above, since 2026-09-19. **A free row**
-was the one more until then, refused by name with a pointer to MPS. It is
-written as `>= -inf` now, which HiGHS reads as a free row too, and the
-reader takes it back. **A ranged row** is written as two rows, `A: ... >= l`
+The LP writer refuses a model with cones, a row with a quadratic part and
+two finite bounds, a row with no coefficients in a model with no columns,
+and a bound at an infinity of the wrong sign. Two shapes pass that check
+and break the rule that JAOS reads back what it writes. A row whose
+lower bound is above its upper bound is written as two rows, and it reads
+back as two rows, because the `\ range` join needs `l < u`. A row with a
+finite lower bound and an upper bound of `-inf` is written as
+`A_hi: ... <= -inf`, and the reader refuses that file. MPS refuses both.
+
+**A free row** was refused by name with a pointer to MPS until
+2026-09-19. It is written as `>= -inf` now, which HiGHS reads as a free
+row too, and the reader takes it back. **A ranged row** is written as two rows, `A: ... >= l`
 and `A_hi: ... <= u`, with a `\ range A A_hi` comment at the top that
 joins them back into one row when JAOS reads the file. HiGHS writes a
 ranged row as two rows as well. Until 2026-09-19 the writer printed
@@ -641,10 +692,11 @@ objective, where every column appears whatever its cost.
 **All 139 gate instances round-trip through the LP writer, under the
 model's own names and under positional ones alike: none is refused and
 none differs** (`bench/measurements/02-274/`, 2026-09-21). The earlier
-readings are kept where they were taken: 104 written and 35 refused under
-the names at D265 (`02-172`), 34 of them for a name the scanner could not
-read back and 1 for `greenbea`'s free row, which is written as `>= -inf`
-since 2026-09-19.
+readings are kept where they were taken: 104 written and 35 refused at
+D265 (`02-172`), 34 for an empty row and 1 for `greenbea`'s free row. At
+D284 the same 35 were 34 names the scanner could not read back and the
+free row (`02-219`). The free row is written as `>= -inf` since
+2026-09-19.
 
 Expressions are wrapped at 72 characters, which the reader does not care
 about and a person reading the file does.
@@ -674,7 +726,7 @@ end
 ```
 
 `<status>` is one of `basic`, `lower`, `upper`, `free`, which are the four
-`jaos_basis_status` values. Names are the model's, the same ones the two
+`jaos_basis_status` values. Names are the model's, the same ones the
 model writers print, so a solution file and a model file written from
 the same model refer to the same rows and columns.
 
@@ -750,6 +802,22 @@ anything: to warm-start from a file, read the statuses and hand them to
 `jaos_check_certificate` or `jaos_check_ray`, which is what `jaos check`
 does.
 
+The reader lives beside the writer in `src/write.c` rather than in a file of
+its own, because it is the exact inverse of it (the same names, the same
+four status words, the same `format 1` line), and split across two files
+they drift.
+
+**A value no file can carry is refused, and this is the one refusal that is
+about the answer rather than about the model.** The model writers get
+their finite values from the model's own setters, which reject a non-finite
+cost or bound. A solved answer has no such guarantee: the objective and a
+row's activity are sums and can overflow on a model whose bounds reach
+1e300. Since 2026-09-21 such a solve ends `numerical_error` rather than
+`optimal`, so no optimum carries an infinity or a NaN. The writer keeps its
+own test as well: printing such a value would put a word in the file whose
+spelling belongs to the host libc, so the call fails and names the row or
+the column instead.
+
 ### The proof file
 
 **A third file, and it is not the solution file with another status**
@@ -808,10 +876,13 @@ end
 
 Records may come in any order and are found by name, unlike the solution
 file's, which are taken in index order. Every column and every row of the
-model must appear exactly once; a name the model does not have, a name
-twice, a missing one, a count that is not the model's, a sense that is not
-the model's, a `proof` word other than `optimal`, a zero denominator and a
-value with anything after it are each refused with the line number.
+model must appear exactly once (the rows alone for `proof infeasible`, the
+columns alone for `proof unbounded`). A name the model does not have, a
+name twice, a sense that is not the model's, a `proof` word other than
+`optimal`, `infeasible` or `unbounded`, a zero denominator and a value
+with anything after it are each refused with the line number. A count
+that is not the model's and a missing record are refused with the file
+name.
 
 What the checker does with it is in `SPECS.md` and D325: primal
 feasibility, dual feasibility and complementary slackness, all exact, and
@@ -821,22 +892,6 @@ past `JM_EXACT_LIMBS` ends the check as `JAOS_ERR_NUMERICAL`, which says
 
 The proof's reader and writer live together in `src/proof.c`, for the same
 reason the solution file's two halves live together.
-
-The reader lives beside the writer in `src/write.c` rather than in a file of
-its own, because it is the exact inverse of it — the same names, the same
-four status words, the same `format 1` line — and split across two files
-they drift.
-
-**A value no file can carry is refused, and this is the one refusal that is
-about the answer rather than about the model.** The model writers get
-their finite values from the model's own setters, which reject a non-finite
-cost or bound. A solved answer has no such guarantee: the objective and a
-row's activity are sums and can overflow on a model whose bounds reach
-1e300. Since 2026-09-21 such a solve ends `numerical_error` rather than
-`optimal`, so no optimum carries an infinity or a NaN. The writer keeps its
-own test as well: printing such a value would put a word in the file whose
-spelling belongs to the host libc, so the call fails and names the row or
-the column instead.
 
 ### The MPS basis file
 
@@ -883,7 +938,8 @@ name works where the model has none of its own.
 
 ### The point file
 
-`jaos_write_point`, `jaos_read_point` and `jaos_read_duals`. The
+`jaos_write_point`, `jaos_write_point_values`, `jaos_write_duals`,
+`jaos_write_dual_values`, `jaos_read_point` and `jaos_read_duals`. The
 smallest thing that can carry an answer between two programs, and it exists
 so the independent checker can judge **somebody else's**: JAOS's own
 solution file is JAOS's own, and nothing else writes one.
@@ -934,3 +990,10 @@ The writer's availability rule is `jaos_solution`'s and is not restated
 here: an optimum has a point and nothing else does. It refuses two columns
 of a name and a value no file can carry, for the reasons every writer here
 does, and a `.gz` name compresses it.
+
+`jaos_write_point_values` writes the same file from values the caller
+hands in. `jaos_write_duals` writes one `NAME VALUE` line per row with the
+last solve's duals, which is the file `jaos_read_duals` reads, and
+`jaos_write_dual_values` writes it from the caller's values. Each one
+refuses two rows or two columns of one name and a value no file can
+carry, and names the row or the column.
