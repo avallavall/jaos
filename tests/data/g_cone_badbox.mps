@@ -1,4 +1,4 @@
-* The badly scaled box of TODO.md row C5: fifteen bound-only columns of
+* The badly scaled box of SPECS' conic row: fifteen bound-only columns of
 * QPLIB_9002 with a separable Q, two of them near 1e9 against Q entries
 * of 4e-11, and one free column alone in a cone of one member, beside a
 * cone the walk cannot leave out (t >= |u| with u at 1 and t costed), so
