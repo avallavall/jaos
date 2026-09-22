@@ -47,6 +47,7 @@ constexpr double  BARRIER_REG_MAX     = 1e-2;
 constexpr double  BARRIER_STALL_SIGMA  = 0.5;
 constexpr double  BARRIER_STALL_DELTA  = 1e-3;
 constexpr double  BARRIER_NEAR_TOL     = 1e-6;
+constexpr double  BARRIER_MU_DEAD      = 1e-30;
 constexpr double  QP_PUSH_TOL    = 1e-9;
 constexpr double  QP_PUSH_REG    = 1e-6;
 constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
@@ -110,6 +111,7 @@ typedef struct {
     int64_t stalled;
     bool equal_steps, near, pushed, delta_locked;
     double tol_stop;
+    bool early_push, early;
     int64_t iter_cap;
     double delta;
 
@@ -1194,6 +1196,13 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
             return JAOS_OK;
         }
         if (rel_p <= s->tol_stop && rel_d <= s->tol_stop && gap <= s->tol_stop) {
+            *out = JAOS_SOLVE_OPTIMAL;
+            return JAOS_OK;
+        }
+        if (s->early_push && s->quadratic && mu < BARRIER_MU_DEAD &&
+            rel_p <= BARRIER_NEAR_TOL && rel_d <= BARRIER_NEAR_TOL &&
+            gap <= BARRIER_NEAR_TOL) {
+            s->early = true;
             *out = JAOS_SOLVE_OPTIMAL;
             return JAOS_OK;
         }
@@ -2448,8 +2457,24 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
            (long long)m->num_nz, BARRIER_TOL, (long long)s.ndense);
 
     jaos_solve_status outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+    s.early_push = s.quadratic && !m->cfg.barrier_no_crossover;
     st = bx_run(&s, &outcome, false);
     *iters = s.iters;
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.early) {
+        const int64_t at = s.iters;
+        s.early = false;
+        s.early_push = false;
+        st = qp_push(&s);
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "barrier %lld: within %.1e of converged with mu below %.1e; "
+               "the push %s", (long long)at, BARRIER_NEAR_TOL,
+               BARRIER_MU_DEAD,
+               s.pushed ? "settled from there"
+                        : "did not settle, and the walk goes on");
+        if (st == JAOS_OK && !s.pushed)
+            st = bx_run(&s, &outcome, true);
+        *iters = s.iters;
+    }
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
         !m->cfg.barrier_no_crossover && !s.quadratic) {
         st = crash_basis(&s);

@@ -64,18 +64,17 @@ C4 **Convex QP: the Maros-Meszaros set.** SPECS §1, "Convex quadratic (QP)". `m
      dual violation of 2.1e4, the push leaving 931 pinned columns with
      the wrong sign; the conic interior point ends it
      `NUMERICAL_ERROR` (`qp-stall-to-conic`). The 8 largest (10000 to
-     1003001 columns) reach a work limit of 1e11, and QPLIB_9008
-     (1009306 columns) runs out of memory. Their normal equations filled
-     badly, and since 2026-09-20 the barrier reads both factors'
-     operation counts and keeps the cheaper
-     (`bench/measurements/02-272/`), so QPLIB_8785 reaches 59 iterations
-     in the budget where it reached 7, QPLIB_10038 16 where it reached 8
-     and QPLIB_10034 169 where it reached 84. None of them
-     finishes: on the augmented system QPLIB_8785 reaches the library's
-     objective by iteration 39 and its dual residual then shrinks by a
-     quarter per iteration with `mu` at 1e-40, and QPLIB_10034 does not
-     converge in 169 iterations. What is left is the walk itself, not
-     the system it factors.
+     1003001 columns) reached a work limit of 1e11. Their normal
+     equations filled badly, and since 2026-09-20 the barrier reads both
+     factors' operation counts and keeps the cheaper
+     (`bench/measurements/02-272/`). Since 2026-09-22 a walk within 1e-6
+     of converged whose `mu` is gone hands its point to the push
+     (`BARRIER_MU_DEAD`), and QPLIB_8785 ends `OPTIMAL` at 8.5e10 work
+     units (`bench/measurements/02-295/`). What is left: QPLIB_8500,
+     8559, 8567, 8602, 10034 and 10038 still reach the limit, and
+     QPLIB_8547 and 9008 (1003001 and 1009306 columns) run out of
+     memory in 4 GB. The walk is what is left, not the system it
+     factors: QPLIB_10034 does not converge in 169 iterations.
 
 
 C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained, second-order cone". The conic
@@ -173,4 +172,6 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer qua
    whole budget at the root node, and the last three never finish its
    relaxation. Skipping the push at the nodes gives QPLIB_3980 an
    incumbent but costs QPLIB_3547 its optimum and QPLIB_5577 its root
-   bound (`miqp-nodes-without-push`, `bench/measurements/02-293/`).
+   bound (`miqp-nodes-without-push`, `bench/measurements/02-293/`). The
+   push tried on a walk whose `mu` is gone takes QPLIB_3980 to 167 nodes
+   from 86 at the same budget (`bench/measurements/02-295/`).

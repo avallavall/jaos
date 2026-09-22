@@ -473,6 +473,68 @@ static void test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts(vo
     jaos_model_free(m);
 }
 
+static void catch_early(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "with mu below") != nullptr &&
+        strstr(line, "the push settled from there") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_walk_whose_mu_is_gone_is_pushed_before_it_converges(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double inf = jaos_infinity();
+    double cost[10], cl[10], cu[10], rl[8], ru[8], av[24];
+    int64_t as[11], ai[24], nz = 0;
+    for (int64_t j = 0; j < 10; j++) {
+        cost[j] = 0.0;
+        cl[j] = -inf;
+        cu[j] = inf;
+        as[j] = nz;
+        for (int64_t i = j - 2; i <= j; i++)
+            if (i >= 0 && i < 8) {
+                ai[nz] = i;
+                av[nz++] = (double)(j - i + 1);
+            }
+    }
+    as[10] = nz;
+    for (int64_t i = 0; i < 8; i++)
+        rl[i] = ru[i] = 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 10, 8, JAOS_MINIMIZE, 0.0,
+                                                cost, cl, cu, rl, ru, nz, as,
+                                                ai, av));
+    int64_t qr[19], qc[19];
+    double qv[19];
+    for (int64_t j = 0; j < 10; j++) {
+        qr[j] = qc[j] = j;
+        qv[j] = j == 0 || j == 9 ? 2.0 : 4.0;
+    }
+    for (int64_t j = 0; j < 9; j++) {
+        qr[10 + j] = j + 1;
+        qc[10 + j] = j;
+        qv[10 + j] = 2.0;
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 19, qr, qc, qv));
+    int early = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_early,
+                                                         &early));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, early);
+    double obj = 0.0, x[10], y[8];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 0.92717369, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_qp_whose_rows_leave_no_interior_still_solves(void)
 {
     constexpr int64_t N = 6;
@@ -635,6 +697,7 @@ int main(void)
     RUN_TEST(test_the_barrier_verdict_matches_the_dual_bit_for_bit);
     RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
     RUN_TEST(test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts);
+    RUN_TEST(test_a_walk_whose_mu_is_gone_is_pushed_before_it_converges);
     RUN_TEST(test_a_qp_whose_rows_leave_no_interior_still_solves);
     RUN_TEST(test_the_augmented_system_agrees_with_the_normal_equations);
     RUN_TEST(test_the_augmented_system_takes_every_bound_kind);
