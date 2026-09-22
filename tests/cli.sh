@@ -778,14 +778,15 @@ esac
 printf '%s\n' "$err" | grep -q "every cone is left out and no row is quadratic" \
     && pass "by the algorithm it would have taken without cones" \
     || flunk "no such line in the log"
-expect_exit 4 "the badly scaled box beside a live cone ends numerical_error" \
-    "$JAOS" solve "$DATA/g_cone_badbox.mps"
-[ "$(line_of status)" = "status numerical_error" ] \
-    && pass "and says so on stdout" \
-    || flunk "badly scaled box status '$(line_of status)'"
-printf '%s\n' "$err" | grep -q "g_cone_badbox.mps ends numerical_error: the conic interior point" \
-    && pass "and gives the library's reason on stderr" \
-    || flunk "no reason on stderr for numerical_error"
+expect_exit 0 "the badly scaled box beside a live cone solves" \
+    "$JAOS" solve "$DATA/g_cone_badbox.mps" --check --log summary
+case "$(line_of objective)" in
+    "objective 73622258.8"*) pass "and reaches 73622258.83" ;;
+    *) flunk "badly scaled box objective '$(line_of objective)'" ;;
+esac
+printf '%s\n' "$err" | grep -q "15 columns touch no row, no cone and no other column" \
+    && pass "with its box columns set to their own minimisers" \
+    || flunk "no such line in the log"
 expect_exit 0 "check of the cone answer exits 0" \
     "$JAOS" check "$DATA/g_cone.mps" "$tmp/cone.sol"
 [ "$(line_of dual_feasible)" = "dual_feasible yes" ] \

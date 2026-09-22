@@ -1,0 +1,202 @@
+diff --git a/src/conictree.c b/src/conictree.c
+index 94dc73f..384e010 100644
+--- a/src/conictree.c
++++ b/src/conictree.c
+@@ -9,9 +9,10 @@
+ 
+ constexpr double CT_INT_TOL = 1e-6;
+ constexpr double CT_PC_EPS = 1e-6;
++constexpr int64_t CT_ESTIMATE_BOUND_EVERY = 5;
+ 
+ typedef struct {
+-    double key;
++    double key, est;
+     int64_t id, depth, nfix;
+     int64_t *col;
+     double *lo, *hi;
+@@ -82,6 +83,49 @@ static ct_node *ct_pop(ct_heap *h)
+     return top;
+ }
+ 
++static void ct_sift(ct_heap *h, int64_t at)
++{
++    while (at > 0) {
++        const int64_t up = (at - 1) / 2;
++        if (!ct_before(h->v[at], h->v[up]))
++            break;
++        ct_node *t = h->v[at];
++        h->v[at] = h->v[up];
++        h->v[up] = t;
++        at = up;
++    }
++    for (;;) {
++        int64_t best = at;
++        const int64_t l = 2 * at + 1, r = l + 1;
++        if (l < h->n && ct_before(h->v[l], h->v[best]))
++            best = l;
++        if (r < h->n && ct_before(h->v[r], h->v[best]))
++            best = r;
++        if (best == at)
++            break;
++        ct_node *t = h->v[at];
++        h->v[at] = h->v[best];
++        h->v[best] = t;
++        at = best;
++    }
++}
++
++static ct_node *ct_take(ct_heap *h, bool by_est)
++{
++    if (!by_est || h->n == 0)
++        return ct_pop(h);
++    int64_t at = 0;
++    for (int64_t k = 1; k < h->n; k++)
++        if (h->v[k]->est < h->v[at]->est ||
++            (h->v[k]->est == h->v[at]->est && h->v[k]->id < h->v[at]->id))
++            at = k;
++    ct_node *x = h->v[at];
++    h->v[at] = h->v[--h->n];
++    if (at < h->n)
++        ct_sift(h, at);
++    return x;
++}
++
+ static ct_node *ct_child(const ct_node *p, int64_t id, int64_t col, double lo,
+                          double hi, double key)
+ {
+@@ -106,6 +150,7 @@ static ct_node *ct_child(const ct_node *p, int64_t id, int64_t col, double lo,
+     c->hi[k] = hi;
+     c->nfix = k + 1;
+     c->key = key;
++    c->est = key;
+     c->id = id;
+     c->depth = p->depth + 1;
+     c->bcol = -1;
+@@ -199,11 +244,9 @@ typedef struct {
+     int64_t *cnt;
+ } ct_pcost;
+ 
+-static int64_t ct_branch_col(const jaos_model *m, const double *x,
+-                             const ct_pcost *pc)
++static void ct_pc_avg(const ct_pcost *pc, int64_t nc, double avg[2])
+ {
+-    const int64_t nc = m->num_col;
+-    double avg[2] = {1.0, 1.0};
++    avg[0] = avg[1] = 1.0;
+     for (int d = 0; d < 2; d++) {
+         double s = 0.0;
+         int64_t n = 0;
+@@ -215,6 +258,48 @@ static int64_t ct_branch_col(const jaos_model *m, const double *x,
+         if (n > 0 && s > 0.0)
+             avg[d] = s / (double)n;
+     }
++}
++
++static double ct_pc_mean(const ct_pcost *pc, int64_t nc, int64_t j, int d,
++                         const double avg[2])
++{
++    return pc->cnt[d * nc + j] > 0
++               ? pc->sum[d * nc + j] / (double)pc->cnt[d * nc + j]
++               : avg[d];
++}
++
++static void ct_estimate(const jaos_model *m, const double *x,
++                        const ct_pcost *pc, int64_t j, double key,
++                        ct_node *down, ct_node *up)
++{
++    const int64_t nc = m->num_col;
++    double avg[2];
++    ct_pc_avg(pc, nc, avg);
++    double sum = 0.0, own = 0.0;
++    for (int64_t i = 0; i < nc; i++) {
++        if (!m->col_integer[i])
++            continue;
++        const double f = x[i] - floor(x[i]);
++        if (f <= CT_INT_TOL || f >= 1.0 - CT_INT_TOL)
++            continue;
++        const double gd = f * ct_pc_mean(pc, nc, i, 0, avg);
++        const double gu = (1.0 - f) * ct_pc_mean(pc, nc, i, 1, avg);
++        const double g = gd < gu ? gd : gu;
++        sum += g;
++        if (i == j)
++            own = g;
++    }
++    const double rest = key + (sum - own);
++    down->est = rest + (x[j] - floor(x[j])) * ct_pc_mean(pc, nc, j, 0, avg);
++    up->est = rest + (ceil(x[j]) - x[j]) * ct_pc_mean(pc, nc, j, 1, avg);
++}
++
++static int64_t ct_branch_col(const jaos_model *m, const double *x,
++                             const ct_pcost *pc)
++{
++    const int64_t nc = m->num_col;
++    double avg[2];
++    ct_pc_avg(pc, nc, avg);
+     const bool pcost = m->cfg.mip_branching != JAOS_BRANCH_MOST_FRACTIONAL;
+     int64_t best = -1;
+     double score = -1.0;
+@@ -228,10 +313,7 @@ static int64_t ct_branch_col(const jaos_model *m, const double *x,
+         if (pcost) {
+             double est[2];
+             for (int d = 0; d < 2; d++)
+-                est[d] = pc->cnt[d * nc + j] > 0
+-                             ? pc->sum[d * nc + j] /
+-                                   (double)pc->cnt[d * nc + j]
+-                             : avg[d];
++                est[d] = ct_pc_mean(pc, nc, j, d, avg);
+             s = fmax(f * est[0], CT_PC_EPS) *
+                 fmax((1.0 - f) * est[1], CT_PC_EPS);
+         }
+@@ -600,7 +682,9 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+     int64_t sn = 0, scap = 0;
+     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
+     int64_t work = 0, iters = 0, nodes = 0, solves = 0, next_id = 1;
+-    int64_t roughs = 0, splits = 0, parked = 0;
++    int64_t roughs = 0, splits = 0, parked = 0, picks = 0;
++    const bool by_est = (m->cfg.mip_node_select_set ? m->cfg.mip_node_select
++                                                    : 1) == 1;
+     double parked_key = INFINITY, stopped_key = INFINITY;
+     char why[sizeof m->err] = "";
+     ct_best inc = {
+@@ -678,7 +762,9 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+                 }
+             }
+             if (cur == nullptr) {
+-                while ((cur = ct_pop(&heap)) != nullptr) {
++                while ((cur = ct_take(&heap, by_est &&
++                                         picks++ % CT_ESTIMATE_BOUND_EVERY !=
++                                             0)) != nullptr) {
+                     if (!ct_closed(&inc, cur->key, gap))
+                         break;
+                     ct_node_free(cur);
+@@ -688,7 +774,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+                                                    : JAOS_SOLVE_INFEASIBLE;
+                     break;
+                 }
+-                best_bound = cur->key;
++                best_bound = heap.n > 0 && heap.v[0]->key < cur->key
++                                 ? heap.v[0]->key : cur->key;
+             }
+         }
+         if (m->cfg.work_limit > 0 && work >= m->cfg.work_limit) {
+@@ -718,7 +805,10 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+                     c = nullptr;
+                 }
+             }
+-            while (c == nullptr && (c = ct_pop(&heap)) != nullptr)
++            while (c == nullptr &&
++                   (c = ct_take(&heap, by_est &&
++                                picks++ % CT_ESTIMATE_BOUND_EVERY != 0)) !=
++                       nullptr)
+                 if (ct_closed(&inc, c->key, gap)) {
+                     ct_node_free(c);
+                     c = nullptr;
+@@ -944,6 +1034,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+                 up->bdir = 1;
+                 up->bfrac = ceil(x[j]) - x[j];
+             }
++            if (by_est && down != nullptr && up != nullptr)
++                ct_estimate(m, x, &pc, j, key, down, up);
+             const bool down_first = x[j] - floor(x[j]) < 0.5;
+             ct_node *other = down_first ? up : down;
+             bool kept = down != nullptr && up != nullptr;

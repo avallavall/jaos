@@ -94,7 +94,10 @@ C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained
      the 80 at 1e10 against 26, and costs the robust_50 files 2x to 4x
      the work. The cones the walk now leaves out (02-262) and the
      certificates it trims (02-263) took turbine07, turbine54 and
-     turbine07_lowb to `OPTIMAL`. SOS sets, semi-continuous columns and
+     turbine07_lowb to `OPTIMAL`. Taking the best estimate when a plunge
+     ends, as the MIP tree does, solves 28 of the 80 at 1e10 where the
+     best bound solves 30 (`conic-tree-estimate`,
+     `bench/measurements/02-294/`). SOS sets, semi-continuous columns and
      indicator rows beside cones are refused.
    - **a certificate whose free column has to vanish exactly.** The
      checker caps a column by its curvature since 2026-09-20
@@ -144,15 +147,16 @@ C5 **Cones and quadratic rows, the rest.** SPECS §1, "Quadratically constrained
      work limit, 10 `LMC` files reach it, 8 of them with no incumbent,
      and QPLIB_10006 and 10007 are refused for a quadratic row over
      `CONIC_QC_DENSE` (3000) columns.
-   - **a badly scaled box beside a cone that stays**: 15 bound-only
-     columns of QPLIB_9002, values of 1e9 against `Q` entries of 4e-11,
-     end the walk at a certificate the checker refuses ("columns reach
-     inf"). With the box alone the model now leaves the walk, since its
-     one cone is idle and nothing conic is left
-     (`bench/measurements/02-266/`), and the barrier solves it at
-     73622257.83. Beside a cone the walk cannot leave out
-     (`tests/data/g_cone_badbox.mps`) the walk still fails, and that is
-     the walk's own trouble with a box of that scale.
+   - **a badly scaled box in a row beside a cone**: 15 bound-only
+     columns of QPLIB_9002, values of 1e9 against `Q` entries of 4e-11.
+     With the box alone the model leaves the walk
+     (`bench/measurements/02-266/`), and since 2026-09-22 a column that
+     touches no row, no cone and no other column takes its own minimiser
+     before the walk, so `tests/data/g_cone_badbox.mps` solves at
+     73622258.83 (`bench/measurements/02-294/`). With two of the columns
+     in a row the walk sees the box and still ends at a certificate the
+     checker refuses; that is the walk's own trouble with a box of that
+     scale.
 
 C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer quadratic". Of
    QPLIB's 17 convex mixed-integer QPs (`bench/measurements/02-256/`,

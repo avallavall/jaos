@@ -859,10 +859,50 @@ static void test_a_model_whose_cones_all_go_leaves_the_walk(void)
     jaos_model_free(m);
 }
 
+static void catch_alone(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "touch no row, no cone and no other column") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_columns_that_touch_nothing_take_their_own_minimiser(void)
+{
+    int alone = 0;
+    jaos_model *m = badly_scaled_box(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_alone,
+                                                         &alone));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, alone);
+    double obj = 0.0, x[18];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * 73622258.83, 73622258.83, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1736510.0, x[11]);
+    TEST_ASSERT_EQUAL_DOUBLE(1838820000.0, x[13]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+    double y[1] = {0.0}, z[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 1, z + 1));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_check_conic_solution(m, x, y, z, 1e-9, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
 {
     jaos_model *m = badly_scaled_box(true);
-    const double one = 1.0, zero = 0.0;
+    const double one = 1.0, zero = 0.0, inf = jaos_infinity();
+    const int64_t rs[2] = {0, 2}, ri[2] = {11, 13};
+    const double rv[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_rows(m, 1, &zero, &inf, 2, rs, ri, rv));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_add_cols(m, 1, &one, &zero, &one, 0, nullptr, nullptr, nullptr));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -1168,6 +1208,7 @@ int main(void)
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
+    RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);
     RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);
     RUN_TEST(test_a_cone_held_at_its_tip_is_left_out_of_the_walk);
     RUN_TEST(test_a_cone_whose_head_is_free_and_idle_is_left_out);

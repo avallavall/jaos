@@ -1,9 +1,10 @@
-* The badly scaled box of TODO.md row 5: fifteen bound-only columns of
+* The badly scaled box of TODO.md row C5: fifteen bound-only columns of
 * QPLIB_9002 with a separable Q, two of them near 1e9 against Q entries
 * of 4e-11, and one free column alone in a cone of one member, beside a
 * cone the walk cannot leave out (t >= |u| with u at 1 and t costed), so
-* the walk runs. It ends at a certificate the checker refuses, so the
-* solve ends numerical_error with that reason.
+* the walk runs. The fifteen touch no row, no cone and no other column,
+* so each takes the minimiser of its own term and the walk solves the
+* rest. With two of them in a row the walk sees the box and fails.
 NAME          GBADBOX
 ROWS
  N  obj
