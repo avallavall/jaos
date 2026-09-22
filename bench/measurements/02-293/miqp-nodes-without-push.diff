@@ -1,0 +1,43 @@
+diff --git a/src/barrier.c b/src/barrier.c
+index fbca8de..c95b65d 100644
+--- a/src/barrier.c
++++ b/src/barrier.c
+@@ -2298,6 +2298,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+         return st;
+     s.work = *work;
+     s.started = jm_monotonic_seconds();
++    const bool nopush = getenv("JAOS_NOPUSH") != nullptr && (m->cfg.node_solve || target->cfg.node_solve);
+ 
+     jm_log(m, JAOS_LOG_SUMMARY,
+            "barrier: %lld rows, %lld columns, %lld nonzeros, tolerance %.3g, "
+@@ -2327,7 +2328,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+         return st;
+     }
+     if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR && s.handoff &&
+-        s.quadratic && s.near && !m->cfg.barrier_no_crossover) {
++        s.quadratic && s.near && !m->cfg.barrier_no_crossover && !nopush) {
+         st = qp_push(&s);
+         if (st != JAOS_OK) {
+             bx_free(&s);
+@@ -2365,7 +2366,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+         s.iters += first;
+         *iters = s.iters;
+         if (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR &&
+-            s.handoff && s.near && !m->cfg.barrier_no_crossover) {
++            s.handoff && s.near && !m->cfg.barrier_no_crossover && !nopush) {
+             st = qp_push(&s);
+             if (st != JAOS_OK) {
+                 bx_free(&s);
+@@ -2399,10 +2400,10 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+         return JAOS_OK;
+     }
+     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+-        !s.pushed && !m->cfg.barrier_no_crossover)
++        !s.pushed && !m->cfg.barrier_no_crossover && !nopush)
+         st = qp_push(&s);
+     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+-        !s.pushed && !m->cfg.barrier_no_crossover) {
++        !s.pushed && !m->cfg.barrier_no_crossover && !nopush) {
+         const size_t nvb = (size_t)s.nvar * sizeof(double);
+         const size_t nrb = (size_t)s.nrow * sizeof(double);
+         double *kz = jm_alloc_array(s.nvar, sizeof(double));

@@ -106,6 +106,22 @@ static void note_dropped(dual_acc *a, double w)
         a->dropped_max = fabs(w);
 }
 
+static void curved_term(dual_acc *a, double v, double lo, double hi,
+                        double w, double q)
+{
+    double s = -w / q;
+    if (s < lo - v)
+        s = lo - v;
+    if (s > hi - v)
+        s = hi - v;
+    double charge = -(w * s + 0.5 * q * s * s);
+    if (!(charge > 0.0))
+        charge = 0.0;
+    add_product(&a->dual_obj, &a->dual_objc, w, v);
+    jm_obj_add(&a->dual_obj, &a->dual_objc, -charge);
+    jm_obj_add(&a->pos, &a->posc, charge);
+}
+
 static double certified_step(const jaos_model *m, int64_t j, double dir,
                              const double *act)
 {
@@ -267,7 +283,7 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
 }
 
 static double sign_condition(double v, double lo, double hi, double w,
-                             double tol, double scale, dual_acc *a,
+                             double q, double tol, double scale, dual_acc *a,
                              bool lo_implied, bool hi_implied)
 {
     double window = tol * scale;
@@ -275,20 +291,28 @@ static double sign_condition(double v, double lo, double hi, double w,
     bool at_hi = isfinite(hi) && v >= hi - window;
 
     bool negligible = fabs(w) <= tol;
+    const bool curved = q > 0.0 && !(v < lo) && !(v > hi);
 
     if (w > 0.0) {
         if (!isfinite(lo)) {
-            note_dropped(a, w);
+            if (curved)
+                curved_term(a, v, lo, hi, w, q);
+            else
+                note_dropped(a, w);
             return negligible ? 0.0 : w;
         }
-        const double c = w * lo;
-        jm_obj_add(&a->dual_obj, &a->dual_objc, c);
-        const double ce = jm_two_product_residue(w, lo, c);
-        if (ce != 0.0)
-            jm_obj_add(&a->dual_obj, &a->dual_objc, ce);
         double e;
         const double t = bound_term(w, v, lo, &e);
-        split_term(t, e, &a->pos, &a->posc, &a->neg, &a->negc);
+        if (curved) {
+            curved_term(a, v, lo, hi, w, q);
+        } else {
+            const double c = w * lo;
+            jm_obj_add(&a->dual_obj, &a->dual_objc, c);
+            const double ce = jm_two_product_residue(w, lo, c);
+            if (ce != 0.0)
+                jm_obj_add(&a->dual_obj, &a->dual_objc, ce);
+            split_term(t, e, &a->pos, &a->posc, &a->neg, &a->negc);
+        }
         if (!lo_implied)
             split_term(t, e, &a->pos_model, &a->pos_modelc,
                        &a->neg_model, &a->neg_modelc);
@@ -296,17 +320,24 @@ static double sign_condition(double v, double lo, double hi, double w,
     }
     if (w < 0.0) {
         if (!isfinite(hi)) {
-            note_dropped(a, w);
+            if (curved)
+                curved_term(a, v, lo, hi, w, q);
+            else
+                note_dropped(a, w);
             return negligible ? 0.0 : -w;
         }
-        const double c = w * hi;
-        jm_obj_add(&a->dual_obj, &a->dual_objc, c);
-        const double ce = jm_two_product_residue(w, hi, c);
-        if (ce != 0.0)
-            jm_obj_add(&a->dual_obj, &a->dual_objc, ce);
         double e;
         const double t = bound_term(w, v, hi, &e);
-        split_term(t, e, &a->pos, &a->posc, &a->neg, &a->negc);
+        if (curved) {
+            curved_term(a, v, lo, hi, w, q);
+        } else {
+            const double c = w * hi;
+            jm_obj_add(&a->dual_obj, &a->dual_objc, c);
+            const double ce = jm_two_product_residue(w, hi, c);
+            if (ce != 0.0)
+                jm_obj_add(&a->dual_obj, &a->dual_objc, ce);
+            split_term(t, e, &a->pos, &a->posc, &a->neg, &a->negc);
+        }
         if (!hi_implied)
             split_term(t, e, &a->pos_model, &a->pos_modelc,
                        &a->neg_model, &a->neg_modelc);
@@ -598,7 +629,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                 }
             }
             dual_viol = max2(dual_viol,
-                sign_condition(act[i], rl, ru, sigma * row_dual[i],
+                sign_condition(act[i], rl, ru, sigma * row_dual[i], 0.0,
                                tol, max2(1.0, traffic[i]), &a,
                                rl_imp, ru_imp));
         }
@@ -617,6 +648,26 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                 free(qx); free(qxc); free(acts); free(traffics);
                 return JAOS_ERR_OUT_OF_MEMORY;
             }
+        }
+        double *curv = nullptr;
+        if (m->col_quad != nullptr && m->rq_nz == 0 && m->num_cone == 0) {
+            curv = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                   sizeof *curv);
+            if (curv == nullptr) {
+                free(gq_rows);
+                free(gq_rowsc);
+                free(icl); free(icu); free(rlo); free(rloc); free(rup);
+                free(rupc); free(rli); free(rui);
+                free(qx); free(qxc); free(acts); free(traffics);
+                return JAOS_ERR_OUT_OF_MEMORY;
+            }
+            for (int64_t j = 0; j < m->num_col; j++)
+                curv[j] = sigma * m->col_quad[j] > 0.0
+                              ? sigma * m->col_quad[j] : 0.0;
+            for (int64_t j = 0; m->q_start != nullptr && j < m->num_col; j++)
+                for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++)
+                    if (m->q_value[p] != 0.0)
+                        curv[j] = curv[m->q_index[p]] = 0.0;
         }
         for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++) {
             const double y = row_dual[i];
@@ -674,7 +725,8 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                 sign_condition(col_value[j],
                                implied ? icl[j] : m->col_lower[j],
                                implied ? icu[j] : m->col_upper[j],
-                               sigma * d, tol, max2(1.0, fabs(col_value[j])),
+                               sigma * d, curv != nullptr ? curv[j] : 0.0,
+                               tol, max2(1.0, fabs(col_value[j])),
                                &a,
                                implied && !isfinite(m->col_lower[j]),
                                implied && !isfinite(m->col_upper[j])));
@@ -697,6 +749,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
         }
         free(gq_rows);
         free(gq_rowsc);
+        free(curv);
         for (int64_t k = 0; k < m->num_cone; k++) {
             dual_viol = max2(dual_viol,
                              cone_distance(m, k, cone_dual, false, sigma));

@@ -1,0 +1,13 @@
+diff --git a/src/barrier.c b/src/barrier.c
+index fbca8de..15e04ec 100644
+--- a/src/barrier.c
++++ b/src/barrier.c
+@@ -2439,6 +2439,8 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
+                        "%.1e stands",
+                        BARRIER_TOL, BARRIER_TOL_QP,
+                        (long long)(s.iters - first_iters), BARRIER_TOL);
++                if (getenv("JAOS_QG") != nullptr)
++                    outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+             }
+         }
+         free(kz); free(kw); free(kv); free(kl); free(ku); free(ky);

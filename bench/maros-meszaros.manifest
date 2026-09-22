@@ -8,6 +8,12 @@
 # BPMPD reached at its default settings, to eight digits; rows and
 # columns are its M and N.
 #
+# Three references are not the table's. On hues-mod, huestis and liswet8
+# Clp 1.17.11's barrier, HiGHS 1.15.1 (liswet8) and JAOS agree on
+# 3.4824464e7, 3.4824464e11 and 714.47006, where the table has 3.4824690e7,
+# 3.4824690e11 and 7144.7006. Those rows name bench/measurements/02-293/
+# as their source.
+#
 #   make maros-meszaros
 #
 # name sha256 rows cols reference source objconst
@@ -59,8 +65,8 @@ hs51         9e24eae6fbf333a5b65ad48cd063bdd008f14bd88ef3cbf0b0020aa3c2ec358b 3 
 hs52         21c9b0824e656f38525bfac21ef79e9921ee9023aaaf068655db2d4031e3bcfa 3 5 5.3266476e+00 maros-meszaros 0.0
 hs53         f372dd01d5aab793c4607c66ae6df1c542c79413b4aacf18cf1d965e4a0eaffe 3 5 4.0930233e+00 maros-meszaros 0.0
 hs76         be8118827777762d9cd831420ae25fae8df206f28c6838d029a6eaf697cfd9c5 3 4 -4.6818182e+00 maros-meszaros 0.0
-hues-mod     6f074e8543bcd54b56ff72b32bbf77623db801b4389a85c500764ced5772a1f4 2 10000 3.4824690e+07 maros-meszaros 0.0
-huestis      749b613dddb528e1172e78ca15c14d9501be13a29833e4bd1b282da7d7b6374e 2 10000 3.4824690e+11 maros-meszaros 0.0
+hues-mod     6f074e8543bcd54b56ff72b32bbf77623db801b4389a85c500764ced5772a1f4 2 10000 3.4824464e+07 02-293 0.0
+huestis      749b613dddb528e1172e78ca15c14d9501be13a29833e4bd1b282da7d7b6374e 2 10000 3.4824464e+11 02-293 0.0
 ksip         463a6018a9b1471d95e1327a1d9e929e339176bb71bb2999b172467ba864e6d0 1001 20 5.7579794e-01 maros-meszaros 0.0
 laser        acbfd14b99703e7481efab85cabde799684f2edacddfe0311695823158e915e5 1000 1002 2.4096014e+06 maros-meszaros 0.0
 liswet1      7e0fa68734f3d35aae9b2040fdd614736f3924ff8e65664ffcc2f7ee9952e8cb 10000 10002 3.6122402e+01 maros-meszaros 0.0
@@ -73,7 +79,7 @@ liswet4      c2ce909046960e2eb7fdb57762bc49c40a4ed0902b3eb63672fcfb33aee74f48 10
 liswet5      a58e10f441b4ea67cfa6d1d1b529d5e6ca863aaeb52015b52f940b423e223198 10000 10002 2.5034253e+01 maros-meszaros 0.0
 liswet6      6576d67562b495ef160d250fc8062569acc86c757612a4947506ec2b8062d75f 10000 10002 2.4995748e+01 maros-meszaros 0.0
 liswet7      0817bc25770c5d9a4365d502e746d9121ff84f51e8ae1039dbe4b201d68f925b 10000 10002 4.9884089e+02 maros-meszaros 0.0
-liswet8      531fe4079e429e34c18118a046aa322c0b3583bcb8d545d4294a55051c0dd861 10000 10002 7.1447006e+03 maros-meszaros 0.0
+liswet8      531fe4079e429e34c18118a046aa322c0b3583bcb8d545d4294a55051c0dd861 10000 10002 7.1447006e+02 02-293 0.0
 liswet9      1b8cbc543ca47de045d202d547b64a5075e4d8228826434136375ea32737241f 10000 10002 1.9632513e+03 maros-meszaros 0.0
 lotschd      507299c37e19b2dfae33559f64c02b905891207029f28fc0c915545d631ef4f3 7 12 2.3984159e+03 maros-meszaros 0.0
 mosarqp1     b1404a129645a7cbe327f8fae830e4539033b975751531fc054a1969e4f0df4c 700 2500 -9.5287544e+02 maros-meszaros 0.0

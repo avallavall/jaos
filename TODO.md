@@ -27,8 +27,11 @@ C4 **Convex QP: the Maros-Meszaros set.** SPECS §1, "Convex quadratic (QP)". `m
    longer freeing took two more on 2026-09-19, the augmented restart took
    boyd2, and the conic interior point after a failed barrier took dtoc3,
    ksip and ubh1 (`bench/measurements/02-258/`; the barrier alone still
-   stops on the three). What it leaves, 132 of 138 clean, 137 `OPTIMAL`
-   and 136 taken by the checker:
+   stops on the three). On 2026-09-22 the push's polish took liswet2,
+   the checker's curvature took aug2dcqp and aug2dqp, and hues-mod,
+   huestis and liswet8 read references that Clp and JAOS agree on
+   (`bench/measurements/02-293/`). What it leaves, 135 of 138 clean,
+   137 `OPTIMAL` and 136 taken by the checker:
 
    - **one the checker refuses with the objective right**: qgrow22. Its
      first push step came out NaN, and since 2026-09-19 the push takes
@@ -42,28 +45,32 @@ C4 **Convex QP: the Maros-Meszaros set.** SPECS §1, "Convex quadratic (QP)". `m
      the push does not settle; qsierra and qgrow22 cannot reach it.
      qisrael, qpilotno and boyd1 were the same list until the push
      learned to release a pin in a row it left unsatisfied and the
-     checker's row test went relative to the row's traffic.
+     checker's row test went relative to the row's traffic. Handing
+     qgrow22 to the conic interior point when the push does not settle
+     leaves its duals off by 7.95 (`qp-stall-to-conic`).
    - **values is refused as not convex**, and it is not: its `Q` has 60
      eigenvalues below zero, down to -1.27e-5 against a largest of 10.77,
      the six-digit rounding of a covariance. BPMPD's 1.3966211 is a
      stationary point. Nothing to fix unless the contract changes to take
      a `Q` within its data's precision of semi-definite.
-   - **hues-mod and liswet2** end at the checker's optimum, certified, but
-     6e-6 and 1e-6 away from BPMPD's value.
-   - **aug2dcqp, aug2dqp, aug3dqp** pass the checker but not the runner's
-     suboptimality ceiling: `Σ d_j (x_j - l_j)` over columns of 1e6 with
-     reduced costs of 1e-9.
+   - **aug3dqp** passes the checker but not the runner's suboptimality
+     ceiling, at 1.03e-3: 114 columns with no quadratic term sit inside
+     their bounds with reduced costs of -4e-13 to -8e-13, and the checker
+     charges them against the upper bounds of 2.8e10 to 8.6e10 that the
+     rows imply. They have no curvature of their own to be charged by.
    - **QPLIB's convex QPs** (`bench/measurements/02-256/`): 10 of 19 end
      `OPTIMAL` within 5.7e-7 of the library's values. QPLIB_9002 ends
      `OPTIMAL` on the barrier's own test with its rows 8.9e-7 off and a
      dual violation of 2.1e4, the push leaving 931 pinned columns with
-     the wrong sign. The 8 largest (10000 to 1003001 columns) reach a
-     work limit of 1e11, and QPLIB_9008 (1009306 columns) runs out of
-     memory. Their normal equations filled badly, and since 2026-09-20
-     the barrier reads both factors' operation counts and keeps the
-     cheaper (`bench/measurements/02-272/`), so QPLIB_8785 reaches 59
-     iterations in the budget where it reached 7, QPLIB_10038 16 where
-     it reached 8 and QPLIB_10034 169 where it reached 84. None of them
+     the wrong sign; the conic interior point ends it
+     `NUMERICAL_ERROR` (`qp-stall-to-conic`). The 8 largest (10000 to
+     1003001 columns) reach a work limit of 1e11, and QPLIB_9008
+     (1009306 columns) runs out of memory. Their normal equations filled
+     badly, and since 2026-09-20 the barrier reads both factors'
+     operation counts and keeps the cheaper
+     (`bench/measurements/02-272/`), so QPLIB_8785 reaches 59 iterations
+     in the budget where it reached 7, QPLIB_10038 16 where it reached 8
+     and QPLIB_10034 169 where it reached 84. None of them
      finishes: on the augmented system QPLIB_8785 reaches the library's
      objective by iteration 39 and its dual residual then shrinks by a
      quarter per iteration with `mu` at 1e-40, and QPLIB_10034 does not
@@ -160,4 +167,6 @@ C6 **Mixed-integer quadratic, the QPLIB reading.** SPECS §1, "Mixed-integer qua
    (02-259) and do not reach those, so the difference is in the search.
    QPLIB_5577, 5924, 5527 and 5543 (6014 to 25700 columns) spend the
    whole budget at the root node, and the last three never finish its
-   relaxation.
+   relaxation. Skipping the push at the nodes gives QPLIB_3980 an
+   incumbent but costs QPLIB_3547 its optimum and QPLIB_5577 its root
+   bound (`miqp-nodes-without-push`, `bench/measurements/02-293/`).

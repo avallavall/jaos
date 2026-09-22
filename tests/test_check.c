@@ -286,6 +286,59 @@ static void test_an_implied_bound_makes_the_dropped_term_finite(void)
     jaos_model_free(m);
 }
 
+static jaos_model *make_curved(bool coupled)
+{
+    const double c[] = {-1.0, 0.0};
+    const double cl[] = {-INFINITY, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY}, ru[] = {10.0};
+    const int64_t s[] = {0, 1, 2}, ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    const int64_t qr[] = {0, 1, 1}, qc[] = {0, 1, 0};
+    const double qv[] = {1.0, 1.0, 0.5};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_quadratic(m, coupled ? 3 : 1, qr, qc, qv));
+    return m;
+}
+
+static void test_a_curved_column_is_charged_by_its_curvature(void)
+{
+    jaos_model *m = make_curved(false);
+    const double y[] = {0.0};
+    jaos_check_report r;
+
+    const double above[] = {1.0 + 1e-7, 0.0};
+    const double wa = above[0] - 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, above, y, 1e-6, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE(r.dual_feasible);
+    TEST_ASSERT_TRUE(r.gap_certified);
+    TEST_ASSERT_EQUAL_INT64(0, r.dropped_terms);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-28, 0.5 * wa * wa, r.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-28, 0.0, r.gap_negative);
+
+    const double below[] = {1.0 - 1e-7, 0.0};
+    const double wb = below[0] - 1.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, below, y, 1e-6, &r));
+    TEST_ASSERT_TRUE(r.gap_certified);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-28, 0.5 * wb * wb, r.gap_positive);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, -0.5, r.dual_objective);
+    jaos_model_free(m);
+
+    m = make_curved(true);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, above, y, 1e-6, &r));
+    TEST_ASSERT_FALSE(r.gap_certified);
+    TEST_ASSERT_EQUAL_INT64(1, r.dropped_terms);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, below, y, 1e-6, &r));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-15, -wb * (10.0 - below[0]),
+                              r.gap_positive);
+    jaos_model_free(m);
+}
+
 static void test_an_unbounded_ray_is_counted_unless_its_rate_is_real(void)
 {
     const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
@@ -1288,6 +1341,7 @@ int main(void)
     RUN_TEST(test_a_tiny_multiplier_on_a_large_bound_still_counts);
     RUN_TEST(test_a_waived_sign_condition_is_still_caught_by_the_gap);
     RUN_TEST(test_an_implied_bound_makes_the_dropped_term_finite);
+    RUN_TEST(test_a_curved_column_is_charged_by_its_curvature);
     RUN_TEST(test_an_unbounded_ray_is_counted_unless_its_rate_is_real);
     RUN_TEST(test_an_exempt_multiplier_still_moves_the_dual_objective);
     RUN_TEST(test_a_dropped_term_has_no_magnitude_exemption);
