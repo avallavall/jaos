@@ -17,8 +17,10 @@ Python reaches), H (performance), I (the rest of SPECS).
 F1. **The warm re-solve of `pilot` loops.** Solve `pilot`, set column 3's
 upper bound to 1018, solve again: 952801 iterations, then the iteration
 guard, under Bland's rule, 3619 pivots declined on factorization
-disagreement. A cold solve of the same model takes 5824. Introduced between
-a7c55c1 and 8cdb23e (bisect in progress on 2026-09-22). Found by re-taking
+disagreement. A cold solve of the same model takes 5824. Introduced by 8296fb8 (the dual
+perturbs its costs after a plateau of the model's size), found by `git
+bisect` on 2026-09-22. Before it, the same warm re-solve took 22033
+iterations, which is itself 3.8 times the cold solve. Found by re-taking
 `make warm`, which had not run since 2026-09-10. Verify: `make warm` reads 0
 errors, and a unit test solves this model warm.
 
