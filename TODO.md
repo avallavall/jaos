@@ -27,12 +27,19 @@ errors, and a unit test solves this model warm.
 F2. **`dfl001` ends `NUMERICAL_ERROR` from a cold start after one bound
 change.** Set column 0's upper bound to 0: the settled point has a reduced
 cost 1.5e-9 past its bound. The warm re-solve of the same model ends
-optimal. Verify: `make warm` reads 0 disagreements.
+optimal. It was fine at 6e925a7 (2026-09-10). Find the commit with `git
+bisect start HEAD 6e925a7` in a clone outside the repository's folder, each
+step solving `dfl001`, setting that bound and solving again after
+`jaos_clear_basis` (the steps of `bench/warm.c`). Verify: `make warm` reads
+0 disagreements.
 
 F3. **The primal simplex ends `NUMERICAL_ERROR` on `pilot87`.** Its phase 1
 infeasibility rises to 3.17 times its best on an ill-conditioned basis. First
 seen in cb74ff5's `bench/results/primal.txt`; the 2026-09-09 reading had
-none. Verify: `make primal` reads 0 disagreements.
+none. A bisect from 6e925a7 with `./build/bench/primal -j 1 pilot87` found
+it fine up to 6493362 at least; it was still running when this row was
+written (clone in WSL at `~/jaos-bisect`, delete it after). Verify: `make
+primal` reads 0 disagreements.
 
 F4. **Some warm starts cost far more than they did.** Against the
 2026-09-10 reading, warm work rose 87x on `stocfor3`, 12x on `stocfor2`, 4x
@@ -84,12 +91,12 @@ F10. **`make pgo` profiles `libjaos.a` only.** `libjaos.so`, the tool and
 the wheels are built without the profile. Either profile them too or say
 so where `make pgo` is offered.
 
-F12. **Bench bookkeeping.** `bench/run.c` names the baselines' last column
+F11. **Bench bookkeeping.** `bench/run.c` names the baselines' last column
 `dropped`, but the value it writes and reads there is the relative
 suboptimality bound. `make plato` runs `plato-nug`, whose nug20 and nug30
 do not finish, so `make plato` does not finish either.
 
-F13. **Finish the constants docs** (the 2026-09-22 audit stopped here for
+F12. **Finish the constants docs** (the 2026-09-22 audit stopped here for
 the token budget). `docs/tolerances.md`: `NAME_LEN` is 256
 (`JAOS_NAME_MAX + 1`), the buffer for every name the writer copies; the
 relaxation has five numbers and its two caps can end the search with no
@@ -112,7 +119,44 @@ the Curtis-Reid stop rule (`CR_MAX_ITER`, `CR_TOL`), `GEO_TOL`, the conic
 interior point's own Ruiz scaling, and that only the unit tests choose a
 scaling mode. Verify: `tools/docs-check.sh`.
 
-F11. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
+F13. **Small items the audit left open.** Each needs a check or a
+decision, then a doc line.
+- The comparison harness: `bench/compare/jaos_time.c` sets no tolerance, so
+  JAOS runs its dual tolerance of 1e-9 against the competitors' 1e-7; set
+  it or say it. `run-mip.sh` writes no WSL tag, no dirty-tree mark and no
+  SCIP or pyscipopt version in its header, as `run-compare.sh` does.
+- `docs/feature-matrix.md`: "30 of the 110 gate bases" (02-275) predates
+  the aggregator; re-count with `bench/measurements/02-275/verify-count.sh`.
+  Three SPECS rows have no matrix row yet: the exact proof of the final
+  basis, indicator constraints in MPS and LP, and the other formats.
+- Numbers with no source in the tree: README's "`make pgo` is worth about
+  1.1x", `bench/compare/README.md`'s "repeats to about 1.4%", and the flag
+  ratios and 0.987x/1.004x readings in `docs/build.md`. Link a measurement
+  or drop them.
+- "links nothing but libc and libm" (README, SPECS): the library links
+  `-pthread`, which is inside libc from glibc 2.34 on. Say which platforms
+  the sentence covers.
+- "The checker shares no code with the solver" (SPECS, `docs/api.md`):
+  `src/check.c` calls `jm_obj_add`, `jm_two_product_residue`, `jm_round`
+  and `jm_model_has_integer`. Reword to "no algorithm", or copy the
+  helpers.
+- `docs/cli.md`: can `jaos_solve` return `JAOS_OK` with the status still
+  `not_run`? If so, list `not_run` among the statuses (exit 4).
+- `docs/build.md`: the DLL's imports (`KERNEL32.dll` and `msvcrt.dll`
+  only) and "clang-cl 20" are not asserted by CI; read them from the last
+  CI logs.
+- D101 in `bench/refusals.txt` refuses duplicate rows and columns and
+  dominated columns, while the retired decision log calls it "deferred";
+  and D97's reopen condition ("a crossover exists at postsolve") may be met
+  since the crossover landed. Decide both.
+- The PLATO baselines' header says `make netlib-baseline`; the targets are
+  `plato-pds-baseline` and `plato-fome-baseline`. Fix it when F11 or H8
+  re-takes them.
+- `bench/compare/results/`: T0 to T3 and the older P0 files are records
+  from before presolve (2026-08-11 to 2026-08-17); mark them in
+  `bench/compare/README.md` or delete them.
+
+F14. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
 tag. Move the version to `0.5.0-dev` on `main` (every version string,
 `tools/version-check.sh`) so a report names what it ran.
 
