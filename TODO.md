@@ -43,9 +43,13 @@ read every basic variable's bounds on every iteration, 17% of
 `stocfor3`'s instructions; it now reads a violation cached per row and
 updated where the pivot and the bound flips move `xb` (`stocfor3`
 0.888x, `80bau3b` 0.938x, `d2q06c` 0.998x, `pilot87` 1.003x in
-instructions, every file the same). The next items in that profile are
-the dense FTRAN path (14%, two thirds of the entering columns) and
-`keep_spike`'s full copy (4%). Half of `stocfor3`'s gap is presolve:
+instructions, every file the same). The next item in that profile is the
+dense FTRAN path (14%). The entering column is not what takes it: its
+FTRAN averages 3.3% dense and runs hyper-sparse 90% of the time. The
+steepest-edge `tau` does: 17% dense on average, split between 7365 solves
+at 10% or more and 4705 under 1%, and `rho`'s own count does not tell
+them apart (with `rho` under 1% dense, 47% of the `tau` still reach 10%).
+Half of `stocfor3`'s gap is presolve:
 HiGHS takes it from 16675 rows to 8259 (its aggregator 5508, doubleton
 equations 2054, free column substitution 769) and needs 6404 iterations,
 where JAOS's presolve leaves 13305 rows and the dual needs 12977. JAOS
@@ -72,11 +76,15 @@ save on the set (0.958x work, three instances past 2x), so D293 holds.
 Next: a cheaper probe (a dual simplex probe stopped after a few
 iterations, its bound read from the dual objective), and a propagation
 that tightens as much as SCIP's; each measured against D293's and D324's
-reopen conditions. Every node LP also runs the LP presolve again, and on
-some models that is most of the node's work: skipping it on warm nodes
-reads 0.710x over MIPLIB 3 but blows up `enigma` and `bell5`
-(`warm-node-no-presolve` in `bench/refusals.txt`), so a rule for when a
-node's presolve pays is a third lever.
+reopen conditions. Every node LP also runs the LP presolve again. Its own
+cost is small (1.6% of `l152lav`'s instructions); what it costs is the
+parent's basis, which its mapping cuts short. Keeping its reductions
+only where they remove at least 1/10 of the nonzeros reads 0.831x over
+MIPLIB 3 (`bell5` 0.088x) but `misc07` 3.22x, and 0.993x in gap sum on
+the 2017 set (`node-presolve-keep` in `bench/refusals.txt`,
+`bench/measurements/02-303/`). `misc07` passes 2x under every node change
+measured, so a node LP that keeps the parent's basis through presolve,
+rather than a rule that drops presolve, is the next form of this lever.
 
 H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
 seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).

@@ -1,0 +1,2 @@
+plain  LPs 4808 iterations 56947 work 122755218 weight restarts 22080
+detect LPs 4179 iterations 696146 work 11396328484 weight restarts 458937
