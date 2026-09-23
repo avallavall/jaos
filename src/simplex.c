@@ -188,6 +188,9 @@ typedef struct {
 
     bool costs_perturbed;
     int64_t n_perturb;
+    bool early_perturb_off;
+    bool early_perturbed;
+    bool early_stalled;
 
     bool primal_run;
     bool no_loans;
@@ -246,7 +249,8 @@ enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
 typedef struct {
     sx s;
     jm_presolve p;
-    bool reduced, allow_warm, allow_loan_free, warm, quad_probe;
+    bool reduced, allow_warm, allow_loan_free, allow_early_perturb, warm,
+        quad_probe;
     int64_t barrier_iters;
     double elapsed;
     jm_config cfg;
@@ -631,6 +635,10 @@ static bool build_warm_basis(sx *s)
                "by promoting logicals");
     }
     if (nbasic != s->nrow) {
+        jm_log(s->m, JAOS_LOG_DETAIL,
+               "the mapped starting basis holds %lld basic variables for "
+               "%lld rows, so the solve starts from the slack basis",
+               (long long)nbasic, (long long)s->nrow);
         free(want_arr);
         return false;
     }
@@ -1067,13 +1075,18 @@ static int64_t price_row(sx *s, bool *below, double *violation)
 {
 
     if (!s->bland && DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
-        shifts_costs(s) && !s->m->cfg.node_solve &&
+        !s->early_perturb_off && shifts_costs(s) && !s->m->cfg.node_solve &&
         s->iters - s->last_gain >
-            PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1))
+            PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1)) {
         perturb_costs(s);
+        s->early_perturbed = true;
+    }
     if (!s->bland &&
         s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
-        if (DUAL_PERTURB > 0.0 && !s->costs_perturbed && shifts_costs(s)) {
+        if (s->early_perturbed) {
+            s->early_stalled = true;
+        } else if (DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
+                   shifts_costs(s)) {
             perturb_costs(s);
         } else {
         s->bland = true;
@@ -3774,6 +3787,13 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             s->held_valid = false;
         } else {
             r = price_row(s, &below, &violation);
+            if (s->early_stalled) {
+                jm_set_err(s->m, "no progress for %lld iterations after the "
+                           "early cost perturbation at a plateau of the "
+                           "model's size",
+                           (long long)(s->iters - s->last_gain));
+                return JAOS_ERR_NUMERICAL;
+            }
 
             if (s->iters % LOG_EVERY == 0)
                 jm_log(s->m, JAOS_LOG_PROGRESS,
@@ -4260,8 +4280,31 @@ out:
     return st;
 }
 
-jaos_status jm_dual_simplex(jaos_model *m)
+static jaos_status restart_without_early_perturb(sx *s, jaos_model *m,
+                                                 jaos_model *target)
 {
+    jm_log(m, JAOS_LOG_SUMMARY,
+           "%s; restarting from the same start without it after %lld "
+           "iterations", target->err, (long long)s->iters);
+    const jm_work carried = s->work;
+    const double t0 = s->started;
+    sx_free(s);
+    const jaos_status st = sx_init(s, target);
+    if (st != JAOS_OK)
+        return st;
+    s->work = carried;
+    s->started = t0;
+    target->err[0] = '\0';
+    m->err[0] = '\0';
+    return JAOS_OK;
+}
+
+static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+                                     int64_t *units, int64_t *iters)
+{
+    *aggregated = false;
+    *units = 0;
+    *iters = 0;
     jm_presolve p;
     jm_presolve_init(&p);
     p.orig = m;
@@ -4274,6 +4317,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
     bool quad_probe = false;
     bool allow_warm = true;
     bool allow_loan_free = true;
+    bool allow_early_perturb = true;
     bool warm = false;
     bool resumed = false;
     bool at_settle = false;
@@ -4291,6 +4335,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
             s.m = target;
             allow_warm = pk->allow_warm;
             allow_loan_free = pk->allow_loan_free;
+            allow_early_perturb = pk->allow_early_perturb;
             warm = pk->warm;
             quad_probe = pk->quad_probe;
             barrier_iters = pk->barrier_iters;
@@ -4353,7 +4398,8 @@ jaos_status jm_dual_simplex(jaos_model *m)
         }
         if ((p.outcome == JM_PRESOLVE_REDUCED ||
              (p.outcome == JM_PRESOLVE_NONE && !quadratic)) &&
-            !m->cfg.node_solve && m->start_col_status == nullptr &&
+            !m->cfg.node_solve && !m->cfg.no_aggregate &&
+            m->start_col_status == nullptr &&
             !jm_model_has_integer(m) && !jm_model_has_conic(m) &&
             m->rq_nz == 0) {
             pst = jm_aggregate(&p,
@@ -4363,6 +4409,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
                 jm_presolve_free(&p);
                 return pst;
             }
+            *aggregated = p.counts.aggregated_col > 0;
         }
 
         m->presolve_counts = p.counts;
@@ -4477,6 +4524,7 @@ jaos_status jm_dual_simplex(jaos_model *m)
         if (resumed) {
             resumed = false;
         } else {
+            s.early_perturb_off = !allow_early_perturb;
             warm = allow_warm && build_warm_basis(&s);
             if (!warm)
                 build_initial_basis(&s);
@@ -4491,6 +4539,16 @@ jaos_status jm_dual_simplex(jaos_model *m)
         } else {
             st = s.primal_run ? run_primal(&s, &outcome)
                               : run(&s, &outcome);
+        }
+
+        if (st == JAOS_ERR_NUMERICAL && s.early_stalled) {
+            st = restart_without_early_perturb(&s, m, target);
+            if (st != JAOS_OK) {
+                jm_presolve_free(&p);
+                return st;
+            }
+            allow_early_perturb = false;
+            continue;
         }
 
         if (st == JAOS_ERR_NUMERICAL && warm) {
@@ -4520,6 +4578,15 @@ jaos_status jm_dual_simplex(jaos_model *m)
         settle_shifts(&s);
         jaos_solve_status stopped = JAOS_SOLVE_NOT_RUN;
         st = reenter_after_settling(&s, &stopped);
+        if (st == JAOS_ERR_NUMERICAL && s.early_stalled) {
+            st = restart_without_early_perturb(&s, m, target);
+            if (st != JAOS_OK) {
+                jm_presolve_free(&p);
+                return st;
+            }
+            allow_early_perturb = false;
+            continue;
+        }
         if (st != JAOS_OK)
             break;
         if (stopped != JAOS_SOLVE_NOT_RUN) {
@@ -4704,18 +4771,66 @@ jaos_status jm_dual_simplex(jaos_model *m)
             pk->reduced = target == &p.reduced;
             pk->allow_warm = allow_warm;
             pk->allow_loan_free = allow_loan_free;
+            pk->allow_early_perturb = allow_early_perturb;
             pk->warm = warm;
             pk->quad_probe = quad_probe;
             pk->barrier_iters = barrier_iters;
             pk->elapsed = elapsed_seconds(&s);
             pk->cfg = m->cfg;
             m->parked = pk;
+            *units = s.work.units;
+            *iters = s.iters;
             return st;
         }
     }
 
+    *units = s.work.units;
+    *iters = s.iters;
     sx_free(&s);
     jm_presolve_free(&p);
+    return st;
+}
+
+jaos_status jm_dual_simplex(jaos_model *m)
+{
+    bool aggregated = false;
+    int64_t units = 0, iters = 0;
+    const double t0 = jm_monotonic_seconds();
+    jaos_status st = dual_simplex_once(m, &aggregated, &units, &iters);
+    const bool failed = st == JAOS_ERR_NUMERICAL ||
+                        (st == JAOS_OK &&
+                         m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR);
+    if (!failed || !aggregated || m->parked != nullptr)
+        return st;
+
+    const jm_config saved = m->cfg;
+    if (saved.work_limit > 0) {
+        if (units >= saved.work_limit)
+            return st;
+        m->cfg.work_limit = saved.work_limit - units;
+    }
+    if (saved.time_limit > 0.0) {
+        const double left = saved.time_limit - (jm_monotonic_seconds() - t0);
+        if (!(left > 0.0))
+            return st;
+        m->cfg.time_limit = left;
+    }
+    jm_log(m, JAOS_LOG_SUMMARY,
+           "the aggregated model ended with a numerical error (%s); solving "
+           "again without the aggregator after %lld iterations and %lld work "
+           "units", m->err, (long long)iters, (long long)units);
+    m->err[0] = '\0';
+    m->cfg.no_aggregate = true;
+    bool again = false;
+    int64_t units2 = 0, iters2 = 0;
+    st = dual_simplex_once(m, &again, &units2, &iters2);
+    m->cfg = saved;
+    if (m->parked != nullptr) {
+        jm_parked *pk = m->parked;
+        pk->cfg = saved;
+    }
+    m->solve_work += units;
+    m->solve_iters += iters;
     return st;
 }
 

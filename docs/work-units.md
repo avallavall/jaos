@@ -99,7 +99,15 @@ publishes a basis stores it as the next start, so a second solve of the
 same model does not aggregate. On a model it runs on, a model
 where nothing is substituted still pays one pass over its nonzeros, and a
 pass per candidate column over each equality row of two to `AGG_ROW_MAX`
-entries.
+entries. A solve that substituted something and then ends with a numerical
+error is solved once more without the aggregator, under what is left of
+the work and time limits, and the failed attempt's work and iterations are
+added to the answer's.
+
+**Restarts inside the dual simplex** carry their work. A warm start that
+reaches no answer restarts cold, and a solve whose early cost perturbation
+is followed by a full stall restarts from the same start without it; in
+both, the work of the abandoned attempt stays on the counter.
 
 **Factorization** (`jm_lu_factor`): `JM_WORK_FACTOR` once on entry, plus
 `JM_WORK_ELIMINATED` per nonzero the elimination produces.

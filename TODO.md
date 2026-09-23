@@ -14,30 +14,6 @@ Python reaches), H (performance), I (the rest of SPECS).
 
 ## Milestone F: defects
 
-F1. **The warm re-solve of `pilot` loops.** Solve `pilot`, set column 3's
-upper bound to 1018, solve again: 952801 iterations, then the iteration
-guard, under Bland's rule, 3619 pivots declined on factorization
-disagreement. A cold solve of the same model takes 5824. Introduced by 8296fb8 (the dual
-perturbs its costs after a plateau of the model's size), found by `git
-bisect` on 2026-09-22. Before it, the same warm re-solve took 22033
-iterations, which is itself 3.8 times the cold solve. Found by re-taking
-`make warm`, which had not run since 2026-09-10. Verify: `make warm` reads 0
-errors, and a unit test solves this model warm.
-
-F2. **`dfl001` ends `NUMERICAL_ERROR` from a cold start after one bound
-change.** Set column 0's upper bound to 0: the settled point has a reduced
-cost 1.5e-9 past its bound. The warm re-solve of the same model ends
-optimal. Introduced by 2e04b47, the aggregator, which runs on a cold solve
-only: its parent solves the same model cold to the optimum. Verify: `make
-warm` reads 0 disagreements.
-
-F3. **The primal simplex ends `NUMERICAL_ERROR` on `pilot87`.** Its phase 1
-infeasibility rises to 3.17 times its best on an ill-conditioned basis. First
-seen in cb74ff5's `bench/results/primal.txt`; the 2026-09-09 reading had
-none. Introduced by 8296fb8, the same commit as F1, found by `git bisect`
-with `./build/bench/primal -j 1 pilot87`. Verify: `make primal` reads 0
-disagreements.
-
 F4. **Some warm starts cost far more than they did.** Against the
 2026-09-10 reading, warm work rose 87x on `stocfor3`, 12x on `stocfor2`, 4x
 on `wood1p` and `gfrd-pnc`, 2x on `scorpion`, `sc205` and `sierra`. Over
@@ -45,7 +21,14 @@ all 90 the warm solves got 0.93x cheaper and the cold ones 0.79x (the
 aggregator runs on a cold solve only), so 20 of 90 now take more iterations
 warm than cold, where none did. `warm-kennington` went from 0.0082x to
 0.0154x of the cold work. Find what the warm path lost (the Devex handoff and
-the plateau perturbation of 2026-09-21 are the first suspects). Verify: no
+the plateau perturbation of 2026-09-21 are the first suspects). One cause is
+found: a basis published by a solve that aggregated maps onto the next
+solve's presolved model short of basic variables (`pilot`: 1386 for 1392
+rows), past `WARM_REPAIR_MAX_SHORT` (4), so the warm solve starts from the
+slack basis, and without the aggregator, since a model with a starting
+basis is not aggregated; `pilot` is now the worst warm ratio at 31.4x. The
+postsolve of an aggregated column, or the mapping of a published basis
+through the next presolve, should give back a full basis. Verify: no
 instance of `make warm` takes more work warm than cold without a reason
 written down.
 

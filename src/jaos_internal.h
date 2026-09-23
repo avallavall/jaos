@@ -35,6 +35,7 @@ typedef struct {
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
+    bool no_aggregate;
 
     double mip_gap;
 

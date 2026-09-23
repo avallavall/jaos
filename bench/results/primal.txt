@@ -51,7 +51,7 @@ pilot        overrun   dual=5636/936582057 split=p1:18580/p2:3666/dual:0 over 10
 pilot-ja     ok        dual=1488/45781989 primal=1989/156976738 split=p1:1150/p2:839/dual:0 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813441 checker=dual:ok/primal:ok 
 pilot-we     ok        dual=2754/78683805 primal=1643/77093495 split=p1:788/p2:855/dual:0 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/primal:ok 
 pilot4       ok        dual=832/20080862 primal=848/30012796 split=p1:466/p2:382/dual:0 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838889 checker=dual:ok/primal:ok 
-pilot87      DISAGREE  dual=9490/3312348432 primal=11666/3082894809 split=p1:11666/p2:0/dual:0 verdict=optimal/numerical error obj=301.71034733311052/0 checker=dual:ok/primal:n/a different verdicts: the primal phase 1's total infeasibility stands at 6.85381e+13 at iteration 11666, 3.17134 times its own best of 2.16117e+13, on a freshly computed point; the basis it is pivoting on is too ill-conditioned for another pivot to repair the start
+pilot87      ok        dual=9490/3312348432 primal=65002/27707881591 split=p1:50437/p2:2899/dual:11666 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/primal:ok 
 pilotnov     ok        dual=2675/94411386 primal=1223/73528194 split=p1:1021/p2:202/dual:0 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/primal:ok 
 recipe       ok        dual=42/24988 primal=36/69015 split=p1:28/p2:8/dual:0 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
 sc105        ok        dual=69/72645 primal=64/197059 split=p1:1/p2:63/dual:0 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/primal:ok 
@@ -95,13 +95,13 @@ wood1p       ok        dual=573/44132682 primal=621/124132139 split=p1:415/p2:20
 woodw        ok        dual=1186/39832765 primal=1346/64721495 split=p1:604/p2:742/dual:0 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/primal:ok 
 
 -- primal against dual --
-measured 87, skipped 0, unreached 0, unbounded? 0, overrun 6, disagreed 1, rejected 0, errors 0
-iterations by method: phase 1 111085 (41.7%), phase 2 155261 (58.3%), dual re-entry 5 (0.0%)
-  that is a sum over the set (D46): dfl001 carries 41.4% of it and pilot 8.4%. Median per-instance phase-1 share 65.8% over 94 instance(s).
+measured 88, skipped 0, unreached 0, unbounded? 0, overrun 6, disagreed 0, rejected 0, errors 0
+iterations by method: phase 1 149856 (46.9%), phase 2 158160 (49.5%), dual re-entry 11671 (3.7%)
+  that is a sum over the set (D46): dfl001 carries 34.5% of it and pilot87 20.3%. Median per-instance phase-1 share 65.8% over 94 instance(s).
   6 of 94 did not finish inside 10x the dual's work; they are listed in TODO.md, each with what makes it slow.
-iterations (primal+1)/(dual+1), geometric mean: 1.1744
-work units primal/dual, geometric mean:         2.5796
+iterations (primal+1)/(dual+1), geometric mean: 1.1981
+work units primal/dual, geometric mean:         2.6143
 work ratio, best  grow7 at 0.2394
 work ratio, worst maros-r7 at 9.1364
-took more iterations primal than dual:          60 of 87
-bit-identical cost on both sides:               0 of 87
+took more iterations primal than dual:          61 of 88
+bit-identical cost on both sides:               0 of 88
