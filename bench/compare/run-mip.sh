@@ -25,6 +25,8 @@ make -s cli > /dev/null || { echo "build failed" >&2; exit 2; }
 jaos=build/cli/jaos
 highs=$(ls "$here"/solvers/highs-* 2>/dev/null | head -1)
 case "$ext" in mps|mps.gz) ;; *) highs="" ;; esac
+scip_script="$here/scip_solve.py"
+case "$ext" in cbf|cbf.gz) scip_script="$here/scip_cbf.py" ;; esac
 scip_py=${SCIP_PYTHON:-}
 under_wsl=$(grep -qi microsoft /proc/version && echo " UNDER-WSL-DEVELOPMENT-NUMBER" || echo "")
 tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head -1)
@@ -61,7 +63,7 @@ awk '!/^#/ && NF >= 5 {print $1, $5}' "$manifest" | while read -r name ref; do
             "$ht" "$ref" >> "$out"
     fi
     if [ -n "$scip_py" ]; then
-        s=$("$scip_py" "$here/scip_solve.py" "$mps" "$limit" 2>/dev/null)
+        s=$("$scip_py" "$scip_script" "$mps" "$limit" 2>/dev/null)
         printf '%s\tscip\t%s\t%s\n' "$name" "$s" "$ref" >> "$out"
     fi
 done

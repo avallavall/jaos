@@ -103,7 +103,49 @@ order) is kept as `results/mip-*-2026-09-21.txt`: 23 solved, 1.43x and
 The rivals ran about 10% faster in the new reading, which raises the 2017
 ratios while JAOS stays at the limit on all 30. JAOS leaves `bell5` and
 `l152lav` at the limit on MIPLIB 3; `bell5` has grown from 190741 nodes to
-327119 since the node order changed (`bench/measurements/02-300/`). A first run left HiGHS on its own
+327119 since the node order changed (`bench/measurements/02-300/`).
+
+## The QP and conic readings
+
+`run-qp.sh` solves the 138 Maros-Meszaros QPs with JAOS (its barrier),
+HiGHS 1.15.1 (its QP solver, `highs-qp.opt`: one thread, tolerances 1e-7)
+and Clp 1.17.11 (`-barrier`), 20 s each. The conic reading is `run-mip.sh
+-x cbf.gz` over the 29 continuous CBLIB instances with JAOS and SCIP; SCIP
+has no CBF reader in this build, so `scip_cbf.py` reads the file and hands
+SCIP each cone as a quadratic constraint. Both are summarised by
+`summarise_mip.py` with the MIP reading's rule: solved means optimal (or
+at the gap limit) with the objective within `1e-6 * max(|ref|, 1)` of the
+reference, and the times are shifted geometric means with a 1 s shift, so
+instances that take well under a second weigh little.
+
+2026-09-23, tree f7b65c9, `results/qp-maros-meszaros.txt`, on an otherwise
+idle machine:
+
+| set | JAOS | HiGHS | Clp | JAOS / HiGHS | JAOS / Clp |
+|---|---|---|---|---|---|
+| Maros-Meszaros, 138 QPs | 133 solved, 0.23 s | 96, 2.04 s | 119, 0.69 s | 0.40x | 0.72x |
+
+JAOS stops at the limit on `cont-300` and the three `cvxqp*_l`, and it
+refuses `values`, whose Q is not positive semi-definite. HiGHS stops at the
+limit on 21, ends with a solve error on 9, and ends "Optimal" at an
+objective off the reference on 5 (`dpklo1` at 0.7125 against 0.3701,
+`qbore3d` at 3102.14 against 3100.20), where JAOS and Clp agree with the
+reference.
+
+2026-09-23, tree f7b65c9, `results/conic-cblib.txt`:
+
+| set | JAOS | SCIP | JAOS / SCIP |
+|---|---|---|---|
+| CBLIB continuous, 29 instances | 27 solved, 1.54 s | 2, 18.13 s | 0.13x |
+
+JAOS stops at the limit on `nql180` and `qssp180`. SCIP is a
+mixed-integer nonlinear solver: it takes a cone as a general nonlinear
+constraint, not through a conic interior point, so this reading sets
+JAOS against a different kind of method, and a conic interior-point solver
+would be the fair rival. SCIP reaches the limit on 25, ends on
+`chainsing-1000-1` at 30.17980 against the reference 30.18016 (outside the
+1e-6 rule), prints nothing on `chainsing-1000-2`, and on
+`sched_100_100_scaled` reports 65.9 s under a 20 s limit. A first run left HiGHS on its own
 thread count and a gap of 1e-4 and SCIP at a gap of 0;
 `bench/measurements/02-284/` keeps that run as `mip-*-unequal.txt`.
 

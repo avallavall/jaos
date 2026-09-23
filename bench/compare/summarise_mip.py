@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Summarise a MIP comparison record written by run-mip.sh.
+"""Summarise a comparison record written by run-mip.sh or run-qp.sh.
 
 Per solver: how many instances it solved to the reference objective
 (within 1e-6 of max(|ref|, 1)) inside the time limit, and the shifted
@@ -48,7 +48,7 @@ for solver, got in rows.items():
     sgm[solver] = math.exp(sum(logs) / len(logs)) - 1.0
     print(f"{solver:6s} solved {solved:3d} of {len(names)}, "
           f"shifted geometric mean {sgm[solver]:.2f} s")
-for rival in ("highs", "scip"):
+for rival in sorted(s for s in sgm if s != "jaos"):
     if "jaos" in sgm and rival in sgm and sgm[rival] > 0:
         print(f"jaos / {rival}: {(sgm['jaos'] + 1.0) / (sgm[rival] + 1.0):.2f}x "
               f"(shifted means)")

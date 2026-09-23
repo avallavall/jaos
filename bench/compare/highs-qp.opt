@@ -1,0 +1,10 @@
+# HiGHS on the Maros-Meszaros QPs, beside JAOS's barrier: one thread,
+# its own QP solver, the tolerances of the LP rungs.
+
+parallel = off
+threads = 1
+primal_feasibility_tolerance = 1e-7
+dual_feasibility_tolerance = 1e-7
+output_flag = true
+log_to_console = true
+log_file = /dev/null

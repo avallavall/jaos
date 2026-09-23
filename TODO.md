@@ -27,7 +27,10 @@ JAOS against HiGHS went from 1.77x to 1.65x, and JAOS's own time fell to
 20 s where HiGHS and SCIP solve 24, at 1.34x HiGHS's shifted mean time and
 1.40x SCIP's (1.43x and 1.48x on 2026-09-21, when it solved 23; `bell5`
 has grown from 190741 nodes to 327119 since the best-estimate node order),
-and 0 of the 2017 set where HiGHS and SCIP solve 8 each.
+and 0 of the 2017 set where HiGHS and SCIP solve 8 each. On QP
+(`qp-maros-meszaros.txt`) it solves 133 of 138 at 0.40x HiGHS's shifted
+mean and 0.72x Clp's, and on continuous CBLIB (`conic-cblib.txt`) 27 of
+29 at 0.13x SCIP's, which solves 2 (`bench/compare/README.md`).
 
 H1. **The simplex's time per iteration, second pass.** `stocfor3` still
 takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
@@ -52,10 +55,6 @@ Next: a cheaper probe (a dual simplex probe stopped after a few
 iterations, its bound read from the dual objective), and a propagation
 that tightens as much as SCIP's; each measured against D293's and D324's
 reopen conditions.
-
-H4. **Time JAOS on QP and conic models against other solvers.** No reading
-exists. A QP rung (Maros-Meszaros against HiGHS and Clp) and a conic rung
-(CBLIB against SCIP).
 
 H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
 seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).
