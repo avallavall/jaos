@@ -101,7 +101,11 @@ seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).
 Seven primal remedies are refused; read `bench/refusals.txt` first.
 
 H6. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
-1e11 work units and QPLIB_9008 runs out of memory; 13 of 17 convex MIQPs
+1e11 work units and QPLIB_9008 runs out of memory (read 2026-09-24: the
+barrier's normal matrix has 989604 rows from 9.6 million nonzeros; the
+minimum degree ordering and symbolic factor take 41.6e9 work units and
+3 minutes without an iteration, then an allocation beyond 3.7 GB fails at
+a 6 GB cap while the process holds 2.3 GB); 13 of 17 convex MIQPs
 do not finish; 37 of CBLIB's 80 mixed-integer instances stop at the work
 limit.
 
