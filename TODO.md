@@ -15,23 +15,26 @@ G ended on 2026-09-23.
 
 ## Milestone H: performance
 
-Where JAOS stands (`bench/compare/results/P0.txt`, 2026-09-22): on LP it
-takes 2.03x HiGHS's time and 1.93x Clp's, and 0.66x SoPlex's; the iteration
-counts are close (1.14x HiGHS), so the gap is time per iteration (1.78x). On
-MIP (tree 3086162) it solves 23 of MIPLIB 3 in 20 s where HiGHS and SCIP
-solve 24, and 0 of the 2017 set where HiGHS solves 8 and SCIP 7.
+Where JAOS stands (`bench/compare/results/P0.txt`, 2026-09-23, after
+e180c91): on LP it takes 2.11x HiGHS's time and 1.71x Clp's over the
+instances above the 0.05 s floor; the iteration counts are close (1.15x
+HiGHS), so the gap is time per iteration (1.83x). HiGHS itself ran 17.5%
+faster than in the reading of 2026-09-22 (`P0-2026-09-22.txt`), which drops
+three instances under the floor; on the 19 instances both readings share,
+JAOS against HiGHS went from 1.77x to 1.65x, and JAOS's own time fell to
+0.78 with every iteration count the same. On MIP (tree 3086162) it solves
+23 of MIPLIB 3 in 20 s where HiGHS and SCIP solve 24, and 0 of the 2017 set
+where HiGHS solves 8 and SCIP 7.
 
-H1. **The simplex's time per iteration.** A callgrind profile of `stocfor3`
-(18.3x HiGHS) put 10.6% of the instructions in `memset`, 10.7% in
-`malloc`, `free` and `realloc`, 6.2% in `memcpy` and 21% in refactoring the
-basis. Since 2026-09-23 the LU keeps its column vectors between refactors,
-the update and the pricing row clear only what they wrote, and the update
-reuses the entering column's partial FTRAN: 46.7e9 to 32.4e9 instructions,
-every answer and work unit the same. The refactor interval was read again
-(`bench/measurements/02-299/`) and stays at 64. Left: `make compare
-COMPARE_ARGS='-t P0'` taken on a quiet machine. The two
-dense copies in `pivot` stay: the U solve leaves -0.0 outside the column's
-pattern, so clearing by pattern would change signs of zero.
+H1. **The simplex's time per iteration, second pass.** `stocfor3` still
+takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
+instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
+15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
+`raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
+solve stops leaving -0.0 outside the column's pattern, since clearing by
+pattern would change signs of zero. Verify with `tools/icount.sh` and
+`make compare COMPARE_ARGS='-t P0'` on a quiet machine; the gates
+byte-identical or re-based.
 
 H2. **MIP against HiGHS and SCIP.** `bell5` takes 190741 nodes and 18 s
 where SCIP takes 357 nodes and 0.18 s; `bell3a` 10 s against 0.3 s to 0.9
