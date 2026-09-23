@@ -1838,7 +1838,7 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
             if (le) {
                 if (inf_max > 0)
                     continue;
-                const double without = umax - (a > 0.0 ? a : 0.0);
+                const double without = a > 0.0 ? umax - a : umax + a;
                 const double d = ru - without;
                 if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(ru))))
                     continue;
@@ -1857,7 +1857,7 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
             } else {
                 if (inf_min > 0)
                     continue;
-                const double without = umin - (a < 0.0 ? a : 0.0);
+                const double without = a < 0.0 ? umin - a : umin + a;
                 const double d = without - rl;
                 if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(rl))))
                     continue;

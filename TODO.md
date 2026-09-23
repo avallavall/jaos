@@ -73,29 +73,28 @@ COMPARE_ARGS='-t P0'` on a quiet machine; the gates byte-identical or
 re-based.
 
 H2. **MIP: the tree has too many nodes.** The attribution of 2026-09-23
-(`bench/measurements/02-300/`, the log line "branch and bound work")
-puts 77% to 98% of the work in node relaxations on 22 of MIPLIB 3's 24
-instances and 84% to 100% on 29 of the 2017 set's 30, so the tree loses on
-node count: `bell5` takes 327119 nodes where SCIP takes 357. On `bell5` and
-`bell3a` SCIP's small trees come from strong branching and bound
-propagation, not from presolve or cuts. JAOS's strong branching cuts
-`bell5` to 8287 nodes at reliability 2, but its probes cost more than they
-save on the set (0.958x work, three instances past 2x), so D293 holds.
-Next: a cheaper probe (a dual simplex probe stopped after a few
-iterations, its bound read from the dual objective), and a propagation
-that tightens as much as SCIP's; each measured against D293's and D324's
-reopen conditions. Every node LP also runs the LP presolve again. Its own
-cost is small (1.6% of `l152lav`'s instructions); what it costs is the
-parent's basis, which its mapping cuts short. Keeping its reductions
-only where they remove at least 1/10 of the nonzeros reads 0.831x over
-MIPLIB 3 (`bell5` 0.088x) but `misc07` 3.22x, and 0.993x in gap sum on
-the 2017 set (`node-presolve-keep` in `bench/refusals.txt`,
-`bench/measurements/02-303/`). What landed instead keeps the parent's
-basis through presolve: a fixed column the start basis holds basic stays
-in the node's reduced model (0.631x over MIPLIB 3, no instance past 2x,
-`bench/measurements/02-304/`). On `l152lav` 113 of 374 node LPs still
-arrive short after that, from other reductions; the singleton rows and
-forcing rows that fire after a fixing are the next place to look.
+(`bench/measurements/02-300/`) puts most of the work in node
+relaxations. Since d6245e0 a node keeps its parent's basis through
+presolve (a fixed column the start basis holds basic stays in the reduced
+model): MIPLIB 3 0.631x in work, `bell5` 14767 nodes instead of 327119,
+the 2017 set 0.948x in gap sum (`bench/measurements/02-304/`). The root's
+coefficient tightening then read a pulling column's slack at 1, as
+Savelsbergh's rule does: 0.928x on MIPLIB 3
+(`bench/measurements/02-307/`). Strong branching (D293, 02-305) and
+node propagation (D324, 02-306) were read again on that tree and still
+cost more than they save; a probe that learns from a stopped child is
+still D293's reopen condition. Behind HiGHS and SCIP on MIPLIB 3:
+`l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
+from forcing rows that fix basic columns (keeping those rows is refused
+as `node-forcing-keep`), and `bell3a` at 8.8 s against 0.24 s. On the
+2017 set HiGHS and SCIP close three fixed-charge networks at the root
+with one node (`sp150x300d` 0.05 s, `p200x1188c` 0.43 s,
+`exp-1-500-5-5` 2.3 s) where JAOS stops at 1e10 work units with bounds
+of 67.9 against 69, 7395 against 15078 and 46851 against 65887. The
+bounds the flow rows imply do not reach their `x - u y <= 0` rows (one
+pass finds none on `p200x1188c` and `exp-1-500-5-5`), and flow covers or
+MIR over aggregated rows lift them only part of the way (10302 and
+60879), so the gap is in the cuts.
 
 H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
 seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).

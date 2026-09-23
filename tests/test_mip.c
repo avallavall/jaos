@@ -324,6 +324,34 @@ static void test_propagation_that_fixes_an_indicator_column_wakes_its_row(void)
     }
 }
 
+static void test_coefficient_tightening_shrinks_a_variable_upper_bound(void)
+{
+    constexpr int64_t N = 2;
+    constexpr int64_t M = 1;
+    const double cost[N] = {-1.0, 2.0};
+    const double cl[N] = {0.0, 0.0}, cu[N] = {3.0, 1.0};
+    const double rl[M] = {-INFINITY}, ru[M] = {0.0};
+    const int64_t as[N + 1] = {0, 1, 2};
+    const int64_t ai[2] = {0, 0};
+    const double av[2] = {1.0, -10.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(0, rep.cuts);
+    jaos_model_free(m);
+}
+
 static void test_coefficient_tightening_leaves_an_indicator_row_alone(void)
 {
     constexpr int64_t N = 5;
@@ -4566,6 +4594,7 @@ int main(void)
     RUN_TEST(test_an_indicator_column_wider_than_a_binary_still_branches);
     RUN_TEST(test_has_integer_is_the_one_rule_the_tree_reads);
     RUN_TEST(test_propagation_that_fixes_an_indicator_column_wakes_its_row);
+    RUN_TEST(test_coefficient_tightening_shrinks_a_variable_upper_bound);
     RUN_TEST(test_coefficient_tightening_leaves_an_indicator_row_alone);
     RUN_TEST(test_a_quadratic_node_without_an_interior_still_solves);
     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
