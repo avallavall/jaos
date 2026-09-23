@@ -89,21 +89,25 @@ solved counts, the shifted geometric mean of the seconds (a shift of 1 s,
 an unsolved instance counted at the limit), and the ratio of the shifted
 means.
 
-2026-09-23, tree 12180a6, `results/mip-miplib.txt` and
+2026-09-23 (evening), tree d6245e0, `results/mip-miplib.txt` and
 `results/mip-miplib2017.txt`, on an otherwise idle machine:
 
 | set | JAOS | HiGHS | SCIP | JAOS / HiGHS | JAOS / SCIP |
 |---|---|---|---|---|---|
-| MIPLIB 3, 24 instances | 22 solved, 1.18 s | 24, 0.62 s | 24, 0.56 s | 1.34x | 1.40x |
-| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.63 s | 8, 12.33 s | 1.44x | 1.58x |
+| MIPLIB 3, 24 instances | 23 solved, 0.93 s | 24, 0.66 s | 24, 0.59 s | 1.17x | 1.22x |
+| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.69 s | 8, 12.28 s | 1.43x | 1.58x |
 
-The reading of 2026-09-21 (tree 3086162, before the best-estimate node
-order) is kept as `results/mip-*-2026-09-21.txt`: 23 solved, 1.43x and
-1.48x on MIPLIB 3; 1.37x and 1.51x on the 2017 set, where SCIP solved 7.
-The rivals ran about 10% faster in the new reading, which raises the 2017
-ratios while JAOS stays at the limit on all 30. JAOS leaves `bell5` and
-`l152lav` at the limit on MIPLIB 3; `bell5` has grown from 190741 nodes to
-327119 since the node order changed (`bench/measurements/02-300/`).
+Since d6245e0 a node keeps the fixed column its starting basis holds
+basic, so its LP starts from the parent's basis whole
+(`bench/measurements/02-304/`). On MIPLIB 3 that took JAOS from 22 solved
+at 1.18 s (tree 12180a6, that morning: 1.34x and 1.40x) to 23 at 0.93 s:
+`bell5` now solves in 1.1 s at 14767 nodes. `l152lav` stays at the limit,
+where the rivals need 1.7 s, and `bell3a` takes 8.8 s against 0.24 s and
+0.74 s. On the 2017 set JAOS stays at the limit on all 30; the change shows
+there in the gap at the limit (`bench/results/miplib2017.txt`), not in
+the seconds. The reading of 2026-09-21 (tree 3086162) is kept as
+`results/mip-*-2026-09-21.txt`: 23 solved, 1.43x and 1.48x on MIPLIB 3;
+1.37x and 1.51x on the 2017 set.
 
 ## The QP and conic readings
 
