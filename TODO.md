@@ -22,11 +22,15 @@ MIP (tree 3086162) it solves 23 of MIPLIB 3 in 20 s where HiGHS and SCIP
 solve 24, and 0 of the 2017 set where HiGHS solves 8 and SCIP 7.
 
 H1. **The simplex's time per iteration.** A callgrind profile of `stocfor3`
-(18.3x HiGHS) puts 10.6% of the instructions in `memset`, 10.7% in
+(18.3x HiGHS) put 10.6% of the instructions in `memset`, 10.7% in
 `malloc`, `free` and `realloc`, 6.2% in `memcpy` and 21% in refactoring the
-basis. Remove the per-iteration allocations and the dense clears, then read
-the refactor frequency. Verify with `tools/icount.sh` and `make compare
-COMPARE_ARGS='-t P0'`; the gates byte-identical or re-based.
+basis. Since 2026-09-23 the LU keeps its column vectors between refactors,
+the update and the pricing row clear only what they wrote, and the update
+reuses the entering column's partial FTRAN: 46.7e9 to 32.4e9 instructions,
+every answer and work unit the same. Left: the refactor frequency, and
+`make compare COMPARE_ARGS='-t P0'` taken on a quiet machine. The two
+dense copies in `pivot` stay: the U solve leaves -0.0 outside the column's
+pattern, so clearing by pattern would change signs of zero.
 
 H2. **MIP against HiGHS and SCIP.** `bell5` takes 190741 nodes and 18 s
 where SCIP takes 357 nodes and 0.18 s; `bell3a` 10 s against 0.3 s to 0.9

@@ -686,6 +686,11 @@ typedef struct {
 
     double *tmp;
     double *spike;
+    double *zrow;
+    bool spike_kept;
+    int64_t spike_work;
+    int64_t *spike_pat;
+    int64_t nspike;
 
     int64_t *mark;
     int64_t stamp;
@@ -697,6 +702,8 @@ typedef struct {
 
     int64_t *lrow_start;
     int64_t *lrow_index;
+
+    struct jm_lu_keep *keep;
 } jm_lu;
 
 constexpr double LU_PIVOT_TOL = 0.1;
@@ -714,10 +721,16 @@ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w);
 void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
                         int64_t *pat, int64_t *npat);
 
+void jm_lu_ftran_keep(jm_lu *lu, double *x, jm_work *w,
+                      int64_t *pat, int64_t *npat);
+
 void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
                         int64_t *pat, int64_t *npat);
 
 JAOS_NODISCARD jaos_status jm_lu_update(jm_lu *lu, int64_t col_out,
+    const double *new_col, double min_pivot_ratio, jm_work *w);
+
+JAOS_NODISCARD jaos_status jm_lu_update_kept(jm_lu *lu, int64_t col_out,
     const double *new_col, double min_pivot_ratio, jm_work *w);
 
 typedef struct {

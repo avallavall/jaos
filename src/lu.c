@@ -60,6 +60,11 @@ typedef struct {
     int64_t n, cap;
 } pat;
 
+struct jm_lu_keep {
+    jm_svec *col;
+    pat *row;
+};
+
 typedef struct {
     int64_t dim;
 
@@ -100,14 +105,6 @@ static bool pat_push(pat *p, int64_t j)
 
 static void elim_free(elim *e)
 {
-    if (e->col)
-        for (int64_t j = 0; j < e->dim; j++)
-            jm_svec_free(&e->col[j]);
-    if (e->row)
-        for (int64_t i = 0; i < e->dim; i++)
-            free(e->row[i].idx);
-    free(e->col);
-    free(e->row);
     free(e->col_cnt);
     free(e->row_cnt);
     free(e->col_done);
@@ -277,6 +274,8 @@ void jm_lu_free(jm_lu *lu)
     free(lu->inv_col);
     free(lu->tmp);
     free(lu->spike);
+    free(lu->spike_pat);
+    free(lu->zrow);
     free(lu->mark);
     free(lu->dfs_node);
     free(lu->dfs_next);
@@ -284,7 +283,48 @@ void jm_lu_free(jm_lu *lu)
     free(lu->bits);
     free(lu->lrow_start);
     free(lu->lrow_index);
+    if (lu->keep) {
+        if (lu->keep->col)
+            for (int64_t j = 0; j < lu->dim; j++)
+                jm_svec_free(&lu->keep->col[j]);
+        if (lu->keep->row)
+            for (int64_t i = 0; i < lu->dim; i++)
+                free(lu->keep->row[i].idx);
+        free(lu->keep->col);
+        free(lu->keep->row);
+        free(lu->keep);
+    }
     memset(lu, 0, sizeof *lu);
+}
+
+static void lu_reset(jm_lu *lu, int64_t dim)
+{
+    if (lu->dim != dim || lu->urow == nullptr || lu->keep == nullptr) {
+        jm_lu_free(lu);
+        return;
+    }
+    jm_svec *urow = lu->urow, *ucol = lu->ucol, ft = lu->ft;
+    int64_t *ft_source = lu->ft_source, ft_source_cap = lu->ft_source_cap;
+    struct jm_lu_keep *keep = lu->keep;
+    lu->urow = nullptr;
+    lu->ucol = nullptr;
+    lu->ft = (jm_svec){0};
+    lu->ft_source = nullptr;
+    lu->keep = nullptr;
+    jm_lu_free(lu);
+    for (int64_t s = 0; s < dim; s++) {
+        urow[s].n = 0;
+        ucol[s].n = 0;
+        keep->col[s].n = 0;
+        keep->row[s].n = 0;
+    }
+    ft.n = 0;
+    lu->urow = urow;
+    lu->ucol = ucol;
+    lu->ft = ft;
+    lu->ft_source = ft_source;
+    lu->ft_source_cap = ft_source_cap;
+    lu->keep = keep;
 }
 
 static void svec_release(jm_svec *v, int64_t **idx, double **val)
@@ -324,7 +364,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
     const double density0 = lu->ftran_density[0];
     const double density1 = lu->ftran_density[1];
-    jm_lu_free(lu);
+    lu_reset(lu, dim);
     lu->dim = dim;
     lu->ftran_density[0] = density0;
     lu->ftran_density[1] = density1;
@@ -343,8 +383,14 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
     lu->l_start  = jm_alloc_array(dim + 1, sizeof(int64_t));
     lu->u_diag   = jm_alloc_array(dim, sizeof(double));
-    lu->urow     = jm_calloc_array(dim, sizeof(jm_svec));
-    lu->ucol     = jm_calloc_array(dim, sizeof(jm_svec));
+    if (lu->urow == nullptr) {
+        lu->urow = jm_calloc_array(dim, sizeof(jm_svec));
+        lu->ucol = jm_calloc_array(dim, sizeof(jm_svec));
+    }
+    if (lu->keep == nullptr && (lu->keep = calloc(1, sizeof *lu->keep))) {
+        lu->keep->col = jm_calloc_array(dim, sizeof(jm_svec));
+        lu->keep->row = jm_calloc_array(dim, sizeof(pat));
+    }
     lu->slot_at  = jm_alloc_array(dim, sizeof(int64_t));
     lu->pos_of   = jm_alloc_array(dim, sizeof(int64_t));
     lu->perm_row = jm_alloc_array(dim, sizeof(int64_t));
@@ -352,6 +398,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->inv_col  = jm_alloc_array(dim, sizeof(int64_t));
     lu->tmp      = jm_alloc_array(dim, sizeof(double));
     lu->spike    = jm_alloc_array(dim, sizeof(double));
+    lu->zrow     = jm_calloc_array(dim, sizeof(double));
+    lu->spike_pat = jm_alloc_array(dim, sizeof(int64_t));
 
     lu->mark     = jm_calloc_array(dim, sizeof(int64_t));
     lu->stamp    = 0;
@@ -360,8 +408,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->pattern  = jm_alloc_array(dim, sizeof(int64_t));
     lu->bits     = jm_calloc_array((dim + 63) / 64 + 1, sizeof(uint64_t));
 
-    e.col       = jm_calloc_array(dim, sizeof(jm_svec));
-    e.row       = jm_calloc_array(dim, sizeof(pat));
+    e.col       = lu->keep ? lu->keep->col : nullptr;
+    e.row       = lu->keep ? lu->keep->row : nullptr;
     e.col_cnt   = jm_calloc_array(dim, sizeof(int64_t));
     e.row_cnt   = jm_calloc_array(dim, sizeof(int64_t));
     e.col_done  = jm_calloc_array(dim, sizeof(bool));
@@ -380,7 +428,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
-        !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike ||
+        !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike || !lu->zrow || !lu->spike_pat ||
         !lu->mark || !lu->dfs_node || !lu->dfs_next || !lu->pattern ||
         !lu->bits ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
@@ -742,12 +790,29 @@ static int64_t ftran_scatter_all(const jm_lu *lu, const double *y,
     return k;
 }
 
-void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
-                        int64_t *pat, int64_t *npat)
+static void keep_spike(jm_lu *lu, const double *y, int64_t units,
+                       const int64_t *pat, int64_t npat)
+{
+    memcpy(lu->spike, y, (size_t)lu->dim * sizeof *y);
+    lu->spike_work = units;
+    lu->spike_kept = true;
+    lu->nspike = -1;
+    if (pat != nullptr) {
+        memcpy(lu->spike_pat, pat, (size_t)npat * sizeof *pat);
+        int64_t words = 0;
+        lu->nspike = jm_pattern_order(npat, lu->spike_pat, lu->bits, lu->dim,
+                                      &words);
+    }
+}
+
+static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
+                      int64_t *npat, bool keep)
 {
     const int64_t n = lu->dim;
     double *y = lu->tmp;
 
+    if (keep)
+        lu->spike_kept = false;
     if (npat != nullptr)
         *npat = 0;
     if (lu->rank != n || n == 0)
@@ -756,9 +821,13 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
     const int cls = pat != nullptr;
     const bool hyper = lu->ftran_density[cls] * FTRAN_HYPER_DEN < 1.0;
     int64_t nz = 0;
+    jm_work pw = {0};
 
     if (!hyper) {
-        ftran_prefix(lu, x, y, w);
+        ftran_prefix(lu, x, y, &pw);
+        jm_work_add(w, pw.units);
+        if (keep)
+            keep_spike(lu, y, pw.units, nullptr, -1);
         ftran_u_dense(lu, y, w);
         nz = ftran_scatter_all(lu, y, x, pat, npat);
     } else {
@@ -784,8 +853,8 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
                 continue;
             for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
                 y[lu->l_index[p]] -= lu->l_value[p] * ys;
-            jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) *
-                           JM_WORK_NONZERO);
+            jm_work_add(&pw, (lu->l_start[s + 1] - lu->l_start[s]) *
+                             JM_WORK_NONZERO);
         }
 
         for (int64_t k = 0; k < lu->ft.n; k++) {
@@ -796,7 +865,10 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
                 lu->pattern[nl++] = t;
             }
         }
-        jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
+        jm_work_add(&pw, lu->ft.n * JM_WORK_NONZERO);
+        jm_work_add(w, pw.units);
+        if (keep)
+            keep_spike(lu, y, pw.units, lu->pattern, nl);
 
         if (nl * FTRAN_HYPER_DEN >= n) {
             ftran_u_dense(lu, y, w);
@@ -838,6 +910,18 @@ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
     lu->ftran_density[cls] = FTRAN_DENSITY_KEEP * lu->ftran_density[cls] +
                              (1.0 - FTRAN_DENSITY_KEEP) *
                                  ((double)nz / (double)n);
+}
+
+void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+                        int64_t *pat, int64_t *npat)
+{
+    ftran_any(lu, x, w, pat, npat, false);
+}
+
+void jm_lu_ftran_keep(jm_lu *lu, double *x, jm_work *w,
+                      int64_t *pat, int64_t *npat)
+{
+    ftran_any(lu, x, w, pat, npat, true);
 }
 
 static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
@@ -1012,8 +1096,8 @@ static bool ft_push(jm_lu *lu, int64_t target, int64_t source, double factor)
     return true;
 }
 
-jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
-                         double min_pivot_ratio, jm_work *w)
+static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
+                             bool kept, double min_pivot_ratio, jm_work *w)
 {
     if (lu == nullptr || new_col == nullptr)
         return JAOS_ERR_INVALID_INPUT;
@@ -1027,15 +1111,36 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     const int64_t n = lu->dim;
     const int64_t s_out = lu->inv_col[col_out];
     double *sp = lu->spike;
-    double *row = lu->tmp;
+    double *row = lu->zrow;
 
     jm_work_add(w, JM_WORK_UPDATE);
 
-    ftran_prefix(lu, new_col, sp, w);
+    const bool by_pattern = kept && lu->spike_kept && lu->nspike >= 0;
+    if (kept && lu->spike_kept) {
+        jm_work_add(w, lu->spike_work);
+#ifndef NDEBUG
 
+        ftran_prefix(lu, new_col, lu->tmp, nullptr);
+        for (int64_t s = 0; s < n; s++)
+            assert(memcmp(&lu->tmp[s], &sp[s], sizeof *sp) == 0);
+        if (by_pattern) {
+            int64_t all = 0, in_pattern = 0;
+            for (int64_t s = 0; s < n; s++)
+                all += sp[s] != 0.0;
+            for (int64_t k = 0; k < lu->nspike; k++)
+                in_pattern += sp[lu->spike_pat[k]] != 0.0;
+            assert(all == in_pattern);
+        }
+#endif
+    } else {
+        ftran_prefix(lu, new_col, sp, w);
+    }
+    lu->spike_kept = false;
+
+    const int64_t nvisit = by_pattern ? lu->nspike : n;
     double mx = 0.0;
-    for (int64_t s = 0; s < n; s++) {
-        double a = fabs(sp[s]);
+    for (int64_t k = 0; k < nvisit; k++) {
+        double a = fabs(sp[by_pattern ? lu->spike_pat[k] : k]);
         if (a > mx)
             mx = a;
     }
@@ -1043,8 +1148,6 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
 
     const int64_t p = lu->pos_of[s_out];
 
-    for (int64_t s = 0; s < n; s++)
-        row[s] = 0.0;
     for (int64_t k = 0; k < lu->urow[s_out].n; k++)
         row[lu->urow[s_out].idx[k]] = lu->urow[s_out].val[k];
     row[s_out] = sp[s_out];
@@ -1056,7 +1159,8 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     lu->urow[s_out].n = 0;
     lu->ucol[s_out].n = 0;
 
-    for (int64_t s = 0; s < n; s++) {
+    for (int64_t k = 0; k < nvisit; k++) {
+        const int64_t s = by_pattern ? lu->spike_pat[k] : k;
         if (s == s_out || fabs(sp[s]) <= drop)
             continue;
         if (!jm_svec_push(&lu->ucol[s_out], s, sp[s]) ||
@@ -1099,6 +1203,11 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
 
     double newdiag = row[s_out];
     row[s_out] = 0.0;
+#ifndef NDEBUG
+
+    for (int64_t s = 0; s < n; s++)
+        assert(row[s] == 0.0);
+#endif
     if (fabs(newdiag) <= TINY || fabs(newdiag) < min_pivot_ratio * mx) {
 
         lu->rank = -1;
@@ -1108,4 +1217,17 @@ jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     lu->u_diag[s_out] = newdiag;
     lu->n_updates++;
     return JAOS_OK;
+}
+
+jaos_status jm_lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
+                         double min_pivot_ratio, jm_work *w)
+{
+    return lu_update(lu, col_out, new_col, false, min_pivot_ratio, w);
+}
+
+jaos_status jm_lu_update_kept(jm_lu *lu, int64_t col_out,
+                              const double *new_col, double min_pivot_ratio,
+                              jm_work *w)
+{
+    return lu_update(lu, col_out, new_col, true, min_pivot_ratio, w);
 }

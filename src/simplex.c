@@ -136,6 +136,8 @@ typedef struct {
 
     int64_t *rpat;
     int64_t nrpat;
+    bool rho_by_pattern;
+    int64_t raw_var;
     uint64_t *rmark;
 
     int64_t *cpat;
@@ -384,6 +386,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->ncpat  = -1;
     s->anpat  = -1;
     s->nrpat  = -1;
+    s->raw_var = -1;
     s->duals_dirty = true;
     s->cand   = jm_alloc_array(s->nvar, sizeof(int64_t));
     s->rnum   = jm_alloc_array(s->nvar, sizeof(double));
@@ -502,6 +505,26 @@ static void var_column(const sx *s, int64_t v, double *out)
     } else {
         out[v - s->ncol] = -1.0;
     }
+}
+
+static void raw_column(sx *s, int64_t v)
+{
+    const jaos_model *m = s->m;
+    const int64_t prev = s->raw_var;
+    if (prev < 0)
+        memset(s->raw, 0, (size_t)s->nrow * sizeof *s->raw);
+    else if (prev < s->ncol)
+        for (int64_t k = m->a_start[prev]; k < m->a_start[prev + 1]; k++)
+            s->raw[m->a_index[k]] = 0.0;
+    else
+        s->raw[prev - s->ncol] = 0.0;
+    if (v < s->ncol) {
+        for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+            s->raw[m->a_index[k]] = s->av[k];
+    } else {
+        s->raw[v - s->ncol] = -1.0;
+    }
+    s->raw_var = v;
 }
 
 static double price_entry(sx *s, const double *w, int64_t v)
@@ -794,8 +817,10 @@ static void compute_primal(sx *s, bool refine)
         if (isfinite(rhs[i]) && isfinite(comp[i]))
             rhs[i] += comp[i];
 
-    if (refine)
+    if (refine) {
         memcpy(s->raw, rhs, (size_t)s->nrow * sizeof *s->raw);
+        s->raw_var = -1;
+    }
 
     jm_lu_ftran(&s->lu, rhs, &s->work);
     memcpy(s->xb, rhs, (size_t)s->nrow * sizeof *rhs);
@@ -1678,11 +1703,16 @@ static void exact_weights(sx *s)
         s->dse[i] = w > DSE_MIN ? w : DSE_MIN;
     }
     s->nrpat = -1;
+    s->rho_by_pattern = false;
 }
 
 static void build_pricing_row(sx *s, int64_t r)
 {
-    memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
+    if (s->rho_by_pattern)
+        for (int64_t k = 0; k < s->nrpat; k++)
+            s->rho[s->rpat[k]] = 0.0;
+    else
+        memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
     s->rho[r] = 1.0;
 
     int64_t nr = 0, words = 0;
@@ -1690,8 +1720,10 @@ static void build_pricing_row(sx *s, int64_t r)
     if (nr * SPARSE_RHO_DEN <= s->nrow) {
         s->nrpat = jm_pattern_order(nr, s->rpat, s->rmark, s->nrow, &words);
         jm_work_add(&s->work, (nr + words + s->nrpat) * JM_WORK_NONZERO);
+        s->rho_by_pattern = true;
     } else {
         s->nrpat = -1;
+        s->rho_by_pattern = false;
     }
 
     price_all(s);
@@ -1948,11 +1980,11 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     double bound = below ? s->lo[leaving] : s->up[leaving];
     double alpha_q = s->alpha[q];
 
-    var_column(s, q, s->raw);
+    raw_column(s, q);
     memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
     {
         int64_t nc = 0;
-        jm_lu_ftran_sparse(&s->lu, s->col, &s->work, s->cpat, &nc);
+        jm_lu_ftran_keep(&s->lu, s->col, &s->work, s->cpat, &nc);
         s->ncpat = nc * SPARSE_COL_DEN <= s->nrow ? nc : -1;
     }
 
@@ -2065,8 +2097,8 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
         s->needs_refactor = true;
         return JAOS_OK;
     }
-    jaos_status ust = jm_lu_update(&s->lu, r, s->raw, LU_UPDATE_TOL,
-                                   &s->work);
+    jaos_status ust = jm_lu_update_kept(&s->lu, r, s->raw, LU_UPDATE_TOL,
+                                        &s->work);
     if (ust == JAOS_ERR_NUMERICAL || ust == JAOS_ERR_OUT_OF_MEMORY) {
         s->needs_refactor = true;
         return JAOS_OK;
@@ -3933,6 +3965,7 @@ static void polish_unscaled(sx *s)
     const jaos_model *m = s->m;
     const double *rho = m->row_scale, *gamma = m->col_scale;
     double *r = s->raw, *comp = s->resc;
+    s->raw_var = -1;
 
     for (int64_t round = 0; round < POLISH_ROUNDS; round++) {
         memset(comp, 0, (size_t)s->nrow * sizeof *comp);
