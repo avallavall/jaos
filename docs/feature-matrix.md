@@ -582,8 +582,10 @@ Three rows carry most of the meaning.
 After `jaos_verify` proves a basis, every column's value, every row's dual
 and the objective are on the model as exact rationals, and `jaos verify
 --values` prints them. It is ◐ because it is an exact answer for the bases
-the proof reaches (30 of the 110 gate bases at the 128-limb budget,
-`bench/measurements/02-275/`) and not an exact solver: the simplex still finds the basis in floating
+the proof reaches (31 of the 110 gate bases at the 128-limb budget,
+re-counted on 2026-09-23 with `bench/measurements/02-275/verify-count.sh`,
+where 02-275 read 30: `pds-06` proves now, since the aggregator of
+2026-09-21 changed its basis) and not an exact solver: the simplex still finds the basis in floating
 point, and where the proof is refused there are no values. SoPlex and SCIP
 solve over the rationals; JAOS proves and reports what a floating-point
 basis is, exactly. The row joins two `SPECS.md` rows: "Exact rational

@@ -32,10 +32,6 @@ through the next presolve, should give back a full basis. Verify: no
 instance of `make warm` takes more work warm than cold without a reason
 written down.
 
-F12. **Re-count "30 of the 110 gate bases"** in `docs/feature-matrix.md`
-(02-275, taken before the aggregator) with
-`bench/measurements/02-275/verify-count.sh OUT`, and update the matrix.
-
 ## Milestone G: the bindings reach what Python reaches
 
 Read on 2026-09-22 over the 200 C calls: Python reaches 199, .NET and Java
