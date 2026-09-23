@@ -1595,6 +1595,36 @@ static void test_a_range_row_that_shifted_into_an_equality_is_declined(void)
 }
 #endif
 
+#if !defined(JAOS_NO_PRESOLVE)
+static void test_a_node_keeps_a_fixed_column_its_start_basis_holds_basic(void)
+{
+    const double c[]  = {0.0, 1.0, 1.0};
+    const double cl[] = {1.0, 0.0, 0.0}, cu[] = {1.0, 10.0, 10.0};
+    const double rl[] = {2.0, -INFINITY}, ru[] = {INFINITY, 3.0};
+    const int64_t s[]  = {0, 2, 4, 6};
+    const int64_t ix[] = {0, 1,   0, 1,   0, 1};
+    const double v[]   = {1.0, 1.0, 1.0, 1.0, 1.0, -1.0};
+    const jaos_basis_status cs[] = {JAOS_BASIS_BASIC, JAOS_BASIS_AT_LOWER,
+                                    JAOS_BASIS_BASIC};
+    const jaos_basis_status rs[] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_AT_UPPER};
+    for (int node = 0; node < 2; node++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         6, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+        m->cfg.node_solve = node == 1;
+        jm_presolve p;
+        jm_presolve_init(&p);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+        TEST_ASSERT_EQUAL_INT64(node == 1 ? 0 : 1, p.counts.fixed_col);
+        jm_presolve_free(&p);
+        jaos_model_free(m);
+    }
+}
+#endif
+
 static void test_an_implied_bound_at_exact_equality_is_declined(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3283,6 +3313,7 @@ int main(void)
 #if !defined(JAOS_NO_PRESOLVE)
     RUN_TEST(test_the_implied_free_counter_reads_its_three_models);
     RUN_TEST(test_a_range_row_that_shifted_into_an_equality_is_declined);
+    RUN_TEST(test_a_node_keeps_a_fixed_column_its_start_basis_holds_basic);
 #endif
 
     RUN_TEST(test_empty_row_reports_infeasible);

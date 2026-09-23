@@ -4,28 +4,28 @@
 # and accepted. A quiet update here is a regression nobody
 # will ever be told about.
 #
-# name status solved shape objective checker det iters work dropped nodes
+# name status solved shape objective checker det iters work rsub nodes
 air03        optimal      1 1 1 1 1 443 53685903 -1 1
-bell3a       optimal      1 1 1 1 1 440167 2217751161 -1 85637
-bell5        optimal      1 1 1 1 1 517975 5327074571 -1 327119
-blend2       optimal      1 1 1 1 1 276269 1203607437 -1 5881
-dcmulti      optimal      1 1 1 1 1 32147 168666420 -1 432
-egout        optimal      1 1 1 1 1 2141 10293866 -1 497
-enigma       optimal      1 1 1 1 1 40723 90760040 -1 3601
-flugpl       optimal      1 1 1 1 1 1877 14219961 -1 1937
-gen          optimal      1 1 1 1 1 500 3094822 -1 5
-gt2          optimal      1 1 1 1 1 6902 22377298 -1 521
-khb05250     optimal      1 1 1 1 1 4057 36483640 -1 97
-l152lav      optimal      1 1 1 1 1 3480995 76499713031 -1 4644
-lseu         optimal      1 1 1 1 1 45558 152056464 -1 6401
-misc03       optimal      1 1 1 1 1 26876 116886354 -1 630
-misc06       optimal      1 1 1 1 1 42820 392720670 -1 78
-misc07       optimal      1 1 1 1 1 250621 1699916207 -1 5029
-mod008       optimal      1 1 1 1 1 30592 183742392 -1 2777
+bell3a       optimal      1 1 1 1 1 415191 1529295169 -1 65901
+bell5        optimal      1 1 1 1 1 30806 203509700 -1 14767
+blend2       optimal      1 1 1 1 1 91302 520840892 -1 5606
+dcmulti      optimal      1 1 1 1 1 54412 270862086 -1 481
+egout        optimal      1 1 1 1 1 3913 12108408 -1 589
+enigma       optimal      1 1 1 1 1 28058 66334240 -1 3401
+flugpl       optimal      1 1 1 1 1 1826 14484759 -1 1937
+gen          optimal      1 1 1 1 1 548 3419711 -1 5
+gt2          optimal      1 1 1 1 1 6298 19366398 -1 581
+khb05250     optimal      1 1 1 1 1 2510 27866268 -1 93
+l152lav      optimal      1 1 1 1 1 977536 22171993112 -1 1742
+lseu         optimal      1 1 1 1 1 39828 132979199 -1 7147
+misc03       optimal      1 1 1 1 1 6299 38124966 -1 207
+misc06       optimal      1 1 1 1 1 1620 28126177 -1 90
+misc07       optimal      1 1 1 1 1 333832 2412873315 -1 8793
+mod008       optimal      1 1 1 1 1 15115 98301243 -1 2835
 mod010       optimal      1 1 1 1 1 822 18490702 -1 1
-p0033        optimal      1 1 1 1 1 1133 4792423 -1 285
-p0201        optimal      1 1 1 1 1 23688 146582684 -1 547
-p0282        optimal      1 1 1 1 1 46979 224410767 -1 3012
-rgn          optimal      1 1 1 1 1 3664 30992475 -1 247
-stein27      optimal      1 1 1 1 1 11160 38318104 -1 2853
-stein45      optimal      1 1 1 1 1 886666 2528586160 -1 101026
+p0033        optimal      1 1 1 1 1 1082 3766462 -1 289
+p0201        optimal      1 1 1 1 1 14506 92130639 -1 354
+p0282        optimal      1 1 1 1 1 43330 174755984 -1 3248
+rgn          optimal      1 1 1 1 1 2130 7509159 -1 221
+stein27      optimal      1 1 1 1 1 25351 41470534 -1 3143
+stein45      optimal      1 1 1 1 1 2813466 3806835396 -1 105320

@@ -82,9 +82,12 @@ parent's basis, which its mapping cuts short. Keeping its reductions
 only where they remove at least 1/10 of the nonzeros reads 0.831x over
 MIPLIB 3 (`bell5` 0.088x) but `misc07` 3.22x, and 0.993x in gap sum on
 the 2017 set (`node-presolve-keep` in `bench/refusals.txt`,
-`bench/measurements/02-303/`). `misc07` passes 2x under every node change
-measured, so a node LP that keeps the parent's basis through presolve,
-rather than a rule that drops presolve, is the next form of this lever.
+`bench/measurements/02-303/`). What landed instead keeps the parent's
+basis through presolve: a fixed column the start basis holds basic stays
+in the node's reduced model (0.631x over MIPLIB 3, no instance past 2x,
+`bench/measurements/02-304/`). On `l152lav` 113 of 374 node LPs still
+arrive short after that, from other reductions; the singleton rows and
+forcing rows that fire after a fixing are the next place to look.
 
 H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
 seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).

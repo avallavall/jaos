@@ -486,7 +486,10 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
             if (col_dead[j])
                 continue;
 
-            if (cur_cl[j] == cur_cu[j]) {
+            if (cur_cl[j] == cur_cu[j] &&
+                !(m->cfg.node_solve && m->start_col_status != nullptr &&
+                  m->start_row_status != nullptr &&
+                  m->start_col_status[j] == JAOS_BASIS_BASIC)) {
                 const double v = cur_cl[j];
                 p->reduced.obj_offset += cur_cost[j] * v;
                 jm_work_add(w, (m->a_start[j + 1] - m->a_start[j]) *
