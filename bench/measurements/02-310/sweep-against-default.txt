@@ -1,0 +1,348 @@
+== mip_cover_rounds=2
+l152lav        0.902    optimal->optimal    nodes 1742->1711 
+lseu           0.962    optimal->optimal    nodes 6315->6131 
+mod008         0.993    optimal->optimal    nodes 2835->2835 
+gen            0.996    optimal->optimal    nodes 3->3 
+stein27        0.999    optimal->optimal    nodes 3143->3143 
+misc07         1.000    optimal->optimal    nodes 8793->8793 
+rgn            1.000    optimal->optimal    nodes 221->221 
+gt2            1.000    optimal->optimal    nodes 581->581 
+air03          1.000    optimal->optimal    nodes 1->1 
+bell3a         1.000    optimal->optimal    nodes 65901->65901 
+bell5          1.000    optimal->optimal    nodes 14767->14767 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+egout          1.000    optimal->optimal    nodes 589->589 
+flugpl         1.000    optimal->optimal    nodes 1937->1937 
+khb05250       1.000    optimal->optimal    nodes 93->93 
+misc06         1.000    optimal->optimal    nodes 90->90 
+stein45        1.000    optimal->optimal    nodes 105320->105320 
+dcmulti        1.003    optimal->optimal    nodes 481->481 
+enigma         1.006    optimal->optimal    nodes 3401->3743 
+p0282          1.036    optimal->optimal    nodes 3355->3971 
+p0201          1.073    optimal->optimal    nodes 390->424 
+p0033          1.337    optimal->optimal    nodes 33->59 
+misc03         2.734    optimal->optimal    nodes 207->747 
+mod010        12.488    optimal->optimal    nodes 1->3 
+geomean over 24 optimal in both: 1.1707; past 2x: 2
+
+== mip_cover_rounds=8
+enigma         0.789    optimal->optimal    nodes 3401->2614 
+p0282          0.899    optimal->optimal    nodes 3355->2684 
+p0033          0.984    optimal->optimal    nodes 33->33 
+lseu           0.991    optimal->optimal    nodes 6315->6315 
+dcmulti        0.999    optimal->optimal    nodes 481->481 
+l152lav        0.999    optimal->optimal    nodes 1742->1742 
+air03          1.000    optimal->optimal    nodes 1->1 
+bell3a         1.000    optimal->optimal    nodes 65901->65901 
+bell5          1.000    optimal->optimal    nodes 14767->14767 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+egout          1.000    optimal->optimal    nodes 589->589 
+flugpl         1.000    optimal->optimal    nodes 1937->1937 
+khb05250       1.000    optimal->optimal    nodes 93->93 
+misc06         1.000    optimal->optimal    nodes 90->90 
+mod010         1.000    optimal->optimal    nodes 1->1 
+stein45        1.000    optimal->optimal    nodes 105320->105320 
+gt2            1.000    optimal->optimal    nodes 581->581 
+rgn            1.000    optimal->optimal    nodes 221->221 
+misc07         1.000    optimal->optimal    nodes 8793->8793 
+stein27        1.002    optimal->optimal    nodes 3143->3143 
+gen            1.043    optimal->optimal    nodes 3->3 
+p0201          1.088    optimal->optimal    nodes 390->390 
+misc03         1.131    optimal->optimal    nodes 207->207 
+mod008         1.830    optimal->optimal    nodes 2835->5743 
+geomean over 24 optimal in both: 1.0205; past 2x: 0
+
+== mip_cut_depth=0
+p0282          0.586    optimal->optimal    nodes 3355->2195 
+mod008         0.600    optimal->optimal    nodes 2835->1617 
+lseu           0.630    optimal->optimal    nodes 6315->4148 
+dcmulti        0.651    optimal->optimal    nodes 481->447 
+misc07         0.829    optimal->optimal    nodes 8793->7667 
+p0201          0.906    optimal->optimal    nodes 390->609 
+rgn            0.907    optimal->optimal    nodes 221->207 
+misc06         0.958    optimal->optimal    nodes 90->109 
+stein45        0.958    optimal->optimal    nodes 105320->103525 
+stein27        0.999    optimal->optimal    nodes 3143->3142 
+air03          1.000    optimal->optimal    nodes 1->1 
+mod010         1.000    optimal->optimal    nodes 1->1 
+khb05250       1.037    optimal->optimal    nodes 93->205 
+bell3a         1.045    optimal->optimal    nodes 65901->66477 
+gen            1.047    optimal->optimal    nodes 3->5 
+egout          1.053    optimal->optimal    nodes 589->726 
+l152lav        1.119    optimal->optimal    nodes 1742->2739 
+gt2            1.177    optimal->optimal    nodes 581->1012 
+blend2         1.253    optimal->optimal    nodes 5606->7157 
+p0033          1.635    optimal->optimal    nodes 33->129 
+enigma         1.867    optimal->optimal    nodes 3401->6559 
+misc03         2.011    optimal->optimal    nodes 207->591 
+flugpl         2.125    optimal->optimal    nodes 1937->5191 
+geomean over 23 optimal in both: 1.0373; past 2x: 2
+
+== mip_cut_depth=1
+p0282          0.760    optimal->optimal    nodes 3355->2329 
+dcmulti        0.803    optimal->optimal    nodes 481->619 
+p0201          0.815    optimal->optimal    nodes 390->369 
+l152lav        0.826    optimal->optimal    nodes 1742->1914 
+egout          0.835    optimal->optimal    nodes 589->592 
+misc03         0.853    optimal->optimal    nodes 207->215 
+misc06         0.876    optimal->optimal    nodes 90->90 
+lseu           0.885    optimal->optimal    nodes 6315->6257 
+mod008         0.887    optimal->optimal    nodes 2835->2421 
+rgn            0.897    optimal->optimal    nodes 221->201 
+stein27        0.975    optimal->optimal    nodes 3143->3079 
+blend2         0.987    optimal->optimal    nodes 5606->5678 
+stein45        0.995    optimal->optimal    nodes 105320->107822 
+air03          1.000    optimal->optimal    nodes 1->1 
+gen            1.000    optimal->optimal    nodes 3->3 
+mod010         1.000    optimal->optimal    nodes 1->1 
+khb05250       1.002    optimal->optimal    nodes 93->165 
+p0033          1.149    optimal->optimal    nodes 33->69 
+flugpl         1.198    optimal->optimal    nodes 1937->2875 
+enigma         1.322    optimal->optimal    nodes 3401->4563 
+misc07         1.419    optimal->optimal    nodes 8793->11814 
+gt2            1.456    optimal->optimal    nodes 581->707 
+bell3a         1.853    optimal->optimal    nodes 65901->111685 
+bell5        123.232    optimal->optimal    nodes 14767->1804477 
+geomean over 24 optimal in both: 1.2317; past 2x: 1
+
+== mip_cut_depth=10
+flugpl         0.093    optimal->optimal    nodes 1937->49 
+enigma         0.337    optimal->optimal    nodes 3401->296 
+lseu           0.764    optimal->optimal    nodes 6315->3629 
+rgn            0.849    optimal->optimal    nodes 221->79 
+dcmulti        0.913    optimal->optimal    nodes 481->360 
+stein45        0.989    optimal->optimal    nodes 105320->95175 
+air03          1.000    optimal->optimal    nodes 1->1 
+gen            1.000    optimal->optimal    nodes 3->3 
+mod010         1.000    optimal->optimal    nodes 1->1 
+misc06         1.005    optimal->optimal    nodes 90->62 
+egout          1.023    optimal->optimal    nodes 589->336 
+bell3a         1.034    optimal->optimal    nodes 65901->66239 
+p0033          1.040    optimal->optimal    nodes 33->25 
+stein27        1.153    optimal->optimal    nodes 3143->2617 
+p0201          1.301    optimal->optimal    nodes 390->181 
+khb05250       1.353    optimal->optimal    nodes 93->65 
+misc03         1.447    optimal->optimal    nodes 207->165 
+p0282          1.540    optimal->optimal    nodes 3355->3014 
+l152lav        1.547    optimal->optimal    nodes 1742->2882 
+blend2         1.553    optimal->optimal    nodes 5606->5952 
+mod008         1.739    optimal->optimal    nodes 2835->5533 
+misc07         2.005    optimal->optimal    nodes 8793->15621 
+gt2            3.142    optimal->optimal    nodes 581->599 
+bell5         58.799    optimal->optimal    nodes 14767->880863 
+geomean over 24 optimal in both: 1.2295; past 2x: 3
+
+== mip_cut_depth=2
+enigma         0.536    optimal->optimal    nodes 3401->1869 
+egout          0.696    optimal->optimal    nodes 589->480 
+gt2            0.803    optimal->optimal    nodes 581->483 
+lseu           0.834    optimal->optimal    nodes 6315->5442 
+misc06         0.844    optimal->optimal    nodes 90->78 
+p0282          0.846    optimal->optimal    nodes 3355->2620 
+l152lav        0.878    optimal->optimal    nodes 1742->2193 
+rgn            0.938    optimal->optimal    nodes 221->193 
+dcmulti        0.949    optimal->optimal    nodes 481->539 
+stein45        0.978    optimal->optimal    nodes 105320->104156 
+air03          1.000    optimal->optimal    nodes 1->1 
+gen            1.000    optimal->optimal    nodes 3->3 
+mod010         1.000    optimal->optimal    nodes 1->1 
+p0201          1.012    optimal->optimal    nodes 390->438 
+stein27        1.022    optimal->optimal    nodes 3143->3222 
+mod008         1.039    optimal->optimal    nodes 2835->3129 
+misc03         1.046    optimal->optimal    nodes 207->217 
+khb05250       1.057    optimal->optimal    nodes 93->123 
+misc07         1.068    optimal->optimal    nodes 8793->9970 
+blend2         1.174    optimal->optimal    nodes 5606->6096 
+p0033          1.217    optimal->optimal    nodes 33->67 
+bell3a         1.811    optimal->optimal    nodes 65901->110859 
+flugpl         1.882    optimal->optimal    nodes 1937->3833 
+bell5         39.312    optimal->optimal    nodes 14767->612053 
+geomean over 24 optimal in both: 1.1570; past 2x: 1
+
+== mip_cut_depth=6
+flugpl         0.101    optimal->optimal    nodes 1937->75 
+egout          0.739    optimal->optimal    nodes 589->292 
+enigma         0.770    optimal->optimal    nodes 3401->2271 
+rgn            0.920    optimal->optimal    nodes 221->127 
+lseu           0.964    optimal->optimal    nodes 6315->5771 
+dcmulti        0.974    optimal->optimal    nodes 481->480 
+misc06         0.977    optimal->optimal    nodes 90->64 
+air03          1.000    optimal->optimal    nodes 1->1 
+gen            1.000    optimal->optimal    nodes 3->3 
+mod010         1.000    optimal->optimal    nodes 1->1 
+stein45        1.007    optimal->optimal    nodes 105320->102836 
+p0033          1.040    optimal->optimal    nodes 33->25 
+stein27        1.057    optimal->optimal    nodes 3143->3151 
+bell3a         1.058    optimal->optimal    nodes 65901->67833 
+blend2         1.250    optimal->optimal    nodes 5606->6149 
+p0282          1.252    optimal->optimal    nodes 3355->3004 
+p0201          1.271    optimal->optimal    nodes 390->249 
+misc03         1.324    optimal->optimal    nodes 207->251 
+misc07         1.326    optimal->optimal    nodes 8793->11887 
+khb05250       1.354    optimal->optimal    nodes 93->69 
+l152lav        1.356    optimal->optimal    nodes 1742->2231 
+mod008         1.793    optimal->optimal    nodes 2835->6181 
+gt2            1.886    optimal->optimal    nodes 581->637 
+bell5         14.701    optimal->optimal    nodes 14767->218379 
+geomean over 24 optimal in both: 1.1282; past 2x: 1
+
+== mip_cut_rounds=2
+misc07         0.542    optimal->optimal    nodes 8793->5272 
+p0033          0.683    optimal->optimal    nodes 33->11 
+lseu           0.850    optimal->optimal    nodes 6315->5533 
+dcmulti        0.870    optimal->optimal    nodes 481->622 
+egout          0.871    optimal->optimal    nodes 589->327 
+l152lav        0.908    optimal->optimal    nodes 1742->1929 
+p0282          0.910    optimal->optimal    nodes 3355->2555 
+misc06         0.927    optimal->optimal    nodes 90->61 
+stein27        0.974    optimal->optimal    nodes 3143->2979 
+stein45        0.994    optimal->optimal    nodes 105320->104469 
+air03          1.000    optimal->optimal    nodes 1->1 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+bell3a         1.017    optimal->optimal    nodes 65901->63341 
+flugpl         1.037    optimal->optimal    nodes 1937->2473 
+khb05250       1.110    optimal->optimal    nodes 93->81 
+mod010         1.139    optimal->optimal    nodes 1->1 
+p0201          1.212    optimal->optimal    nodes 390->302 
+gt2            1.275    optimal->optimal    nodes 581->557 
+rgn            1.297    optimal->optimal    nodes 221->165 
+gen            1.399    optimal->optimal    nodes 3->5 
+mod008         1.424    optimal->optimal    nodes 2835->4665 
+enigma         1.637    optimal->optimal    nodes 3401->6089 
+misc03         2.525    optimal->optimal    nodes 207->615 
+geomean over 23 optimal in both: 1.0608; past 2x: 1
+
+== mip_cut_rounds=3
+gen            0.788    optimal->optimal    nodes 3->1 
+l152lav        0.832    optimal->optimal    nodes 1742->1780 
+dcmulti        0.888    optimal->optimal    nodes 481->415 
+egout          0.902    optimal->optimal    nodes 589->370 
+khb05250       0.925    optimal->optimal    nodes 93->61 
+p0282          0.986    optimal->optimal    nodes 3355->2411 
+air03          1.000    optimal->optimal    nodes 1->1 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+stein45        1.015    optimal->optimal    nodes 105320->103446 
+misc07         1.031    optimal->optimal    nodes 8793->9551 
+bell3a         1.039    optimal->optimal    nodes 65901->64581 
+flugpl         1.059    optimal->optimal    nodes 1937->2399 
+misc06         1.118    optimal->optimal    nodes 90->64 
+lseu           1.139    optimal->optimal    nodes 6315->7833 
+mod010         1.198    optimal->optimal    nodes 1->1 
+stein27        1.434    optimal->optimal    nodes 3143->4305 
+rgn            1.449    optimal->optimal    nodes 221->175 
+gt2            1.488    optimal->optimal    nodes 581->680 
+p0201          1.601    optimal->optimal    nodes 390->271 
+misc03         1.745    optimal->optimal    nodes 207->329 
+p0033          2.094    optimal->optimal    nodes 33->117 
+enigma         2.828    optimal->optimal    nodes 3401->7417 
+mod008         2.833    optimal->optimal    nodes 2835->10767 
+geomean over 23 optimal in both: 1.2323; past 2x: 3
+
+== mip_mir_rounds=10
+mod008         0.645    optimal->optimal    nodes 2835->1595 
+p0282          0.705    optimal->optimal    nodes 3355->1684 
+air03          1.000    optimal->optimal    nodes 1->1 
+bell3a         1.000    optimal->optimal    nodes 65901->65901 
+bell5          1.000    optimal->optimal    nodes 14767->14767 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+dcmulti        1.000    optimal->optimal    nodes 481->481 
+egout          1.000    optimal->optimal    nodes 589->589 
+enigma         1.000    optimal->optimal    nodes 3401->3401 
+flugpl         1.000    optimal->optimal    nodes 1937->1937 
+khb05250       1.000    optimal->optimal    nodes 93->93 
+l152lav        1.000    optimal->optimal    nodes 1742->1742 
+misc03         1.000    optimal->optimal    nodes 207->207 
+misc06         1.000    optimal->optimal    nodes 90->90 
+misc07         1.000    optimal->optimal    nodes 8793->8793 
+mod010         1.000    optimal->optimal    nodes 1->1 
+stein27        1.000    optimal->optimal    nodes 3143->3143 
+stein45        1.000    optimal->optimal    nodes 105320->105320 
+rgn            1.054    optimal->optimal    nodes 221->221 
+p0201          1.067    optimal->optimal    nodes 390->390 
+lseu           1.083    optimal->optimal    nodes 6315->7353 
+gen            1.133    optimal->optimal    nodes 3->3 
+p0033          2.211    optimal->optimal    nodes 33->113 
+gt2            2.245    optimal->optimal    nodes 581->1191 
+geomean over 24 optimal in both: 1.0485; past 2x: 2
+
+== mip_mir_rounds=3
+rgn            0.547    optimal->optimal    nodes 221->39 
+p0282          0.826    optimal->optimal    nodes 3355->4755 
+gt2            0.897    optimal->optimal    nodes 581->407 
+gen            0.918    optimal->optimal    nodes 3->3 
+misc03         0.999    optimal->optimal    nodes 207->207 
+stein27        1.000    optimal->optimal    nodes 3143->3143 
+dcmulti        1.000    optimal->optimal    nodes 481->481 
+enigma         1.000    optimal->optimal    nodes 3401->3401 
+misc07         1.000    optimal->optimal    nodes 8793->8793 
+l152lav        1.000    optimal->optimal    nodes 1742->1742 
+air03          1.000    optimal->optimal    nodes 1->1 
+bell3a         1.000    optimal->optimal    nodes 65901->65901 
+bell5          1.000    optimal->optimal    nodes 14767->14767 
+blend2         1.000    optimal->optimal    nodes 5606->5606 
+egout          1.000    optimal->optimal    nodes 589->589 
+flugpl         1.000    optimal->optimal    nodes 1937->1937 
+khb05250       1.000    optimal->optimal    nodes 93->93 
+misc06         1.000    optimal->optimal    nodes 90->90 
+mod010         1.000    optimal->optimal    nodes 1->1 
+stein45        1.000    optimal->optimal    nodes 105320->105320 
+p0201          1.115    optimal->optimal    nodes 390->390 
+lseu           1.126    optimal->optimal    nodes 6315->7721 
+mod008         2.990    optimal->optimal    nodes 2835->11603 
+p0033          4.282    optimal->optimal    nodes 33->257 
+geomean over 24 optimal in both: 1.0773; past 2x: 2
+
+== mip_node_cut_cap=2
+dcmulti        0.645    optimal->optimal    nodes 481->540 
+rgn            0.729    optimal->optimal    nodes 221->131 
+l152lav        0.788    optimal->optimal    nodes 1742->1747 
+p0282          0.829    optimal->optimal    nodes 3355->2523 
+khb05250       0.880    optimal->optimal    nodes 93->115 
+egout          0.880    optimal->optimal    nodes 589->513 
+blend2         0.968    optimal->optimal    nodes 5606->5492 
+bell3a         0.995    optimal->optimal    nodes 65901->65705 
+air03          1.000    optimal->optimal    nodes 1->1 
+mod010         1.000    optimal->optimal    nodes 1->1 
+stein27        1.002    optimal->optimal    nodes 3143->3132 
+stein45        1.008    optimal->optimal    nodes 105320->107761 
+gt2            1.025    optimal->optimal    nodes 581->531 
+misc06         1.042    optimal->optimal    nodes 90->101 
+lseu           1.057    optimal->optimal    nodes 6315->6825 
+p0201          1.068    optimal->optimal    nodes 390->423 
+enigma         1.104    optimal->optimal    nodes 3401->3763 
+p0033          1.121    optimal->optimal    nodes 33->49 
+gen            1.332    optimal->optimal    nodes 3->5 
+mod008         1.402    optimal->optimal    nodes 2835->4479 
+misc03         1.523    optimal->optimal    nodes 207->473 
+misc07         1.897    optimal->optimal    nodes 8793->12731 
+flugpl         2.065    optimal->optimal    nodes 1937->4009 
+bell5         77.050    optimal->optimal    nodes 14767->1158723 
+geomean over 24 optimal in both: 1.2676; past 2x: 2
+
+== mip_node_cut_cap=8
+stein27        0.841    optimal->optimal    nodes 3143->2640 
+l152lav        0.842    optimal->optimal    nodes 1742->1709 
+p0282          0.860    optimal->optimal    nodes 3355->2439 
+rgn            0.875    optimal->optimal    nodes 221->157 
+lseu           0.891    optimal->optimal    nodes 6315->5699 
+stein45        0.959    optimal->optimal    nodes 105320->100388 
+khb05250       0.978    optimal->optimal    nodes 93->77 
+egout          0.991    optimal->optimal    nodes 589->443 
+bell3a         1.000    optimal->optimal    nodes 65901->65901 
+air03          1.000    optimal->optimal    nodes 1->1 
+misc06         1.000    optimal->optimal    nodes 90->90 
+mod010         1.000    optimal->optimal    nodes 1->1 
+gen            1.004    optimal->optimal    nodes 3->3 
+blend2         1.009    optimal->optimal    nodes 5606->5618 
+p0201          1.135    optimal->optimal    nodes 390->352 
+dcmulti        1.189    optimal->optimal    nodes 481->659 
+p0033          1.264    optimal->optimal    nodes 33->55 
+misc03         1.280    optimal->optimal    nodes 207->261 
+mod008         1.342    optimal->optimal    nodes 2835->4383 
+gt2            1.356    optimal->optimal    nodes 581->886 
+enigma         1.496    optimal->optimal    nodes 3401->4978 
+misc07         1.863    optimal->optimal    nodes 8793->15078 
+flugpl         2.126    optimal->optimal    nodes 1937->3570 
+bell5        242.818    optimal->optimal    nodes 14767->3391895 
+geomean over 24 optimal in both: 1.3866; past 2x: 2
+
