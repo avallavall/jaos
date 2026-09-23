@@ -1,0 +1,64 @@
+== 4-8
+d2q06c       REGRESSED    work: 638194700 -> 2049431632 (3.2x), iters 8846 -> 26038
+dfl001       REGRESSED    work: 2432237195 -> 5116872064 (2.1x), iters 20409 -> 41249
+forplan      REGRESSED    suboptimality bound: 4.09e-10 -> 8.34e-10 (2.0x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 9.14e-15 (2.2x relative to its own objective)
+tuff         REGRESSED    suboptimality bound: 1.41e-14 -> 1.38e-12 (97.8x relative to its own objective)
+baseline: 5 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+pds-06       REGRESSED    suboptimality bound: 5.27e-17 -> 2.75e-16 (5.2x relative to its own objective)
+baseline: 1 regressed, 0 improved, 0 new
+== 5-8
+forplan      REGRESSED    suboptimality bound: 4.09e-10 -> 8.34e-10 (2.0x relative to its own objective)
+nesm         REGRESSED    suboptimality bound: 1.16e-15 -> 2.53e-15 (2.2x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 9.14e-15 (2.2x relative to its own objective)
+tuff         REGRESSED    suboptimality bound: 1.41e-14 -> 4.73e-14 (3.3x relative to its own objective)
+baseline: 4 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+== 8-8
+cycle        REGRESSED    work: 13858374 -> 52705126 (3.8x), iters 917 -> 1937
+forplan      REGRESSED    suboptimality bound: 4.09e-10 -> 8.34e-10 (2.0x relative to its own objective)
+nesm         REGRESSED    suboptimality bound: 1.16e-15 -> 2.53e-15 (2.2x relative to its own objective)
+perold       REGRESSED    suboptimality bound: 1.99e-15 -> 2.91e-14 (14.6x relative to its own objective)
+pilot        REGRESSED    suboptimality bound: 9.23e-14 -> 2.23e-13 (2.4x relative to its own objective)
+pilot-ja     REGRESSED    suboptimality bound: 3.5e-15 -> 7.38e-15 (2.1x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 9.14e-15 (2.2x relative to its own objective)
+tuff         REGRESSED    suboptimality bound: 1.41e-14 -> 3.4e-13 (24.1x relative to its own objective)
+baseline: 8 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+== 3-16
+cycle        REGRESSED    work: 13858374 -> 34794710 (2.5x), iters 917 -> 1465
+d2q06c       REGRESSED    suboptimality bound: 2.43e-14 -> 6.23e-14 (2.6x relative to its own objective)
+greenbeb     REGRESSED    suboptimality bound: 3.53e-15 -> 8.16e-15 (2.3x relative to its own objective)
+perold       REGRESSED    suboptimality bound: 1.99e-15 -> 2.1e-14 (10.6x relative to its own objective)
+pilot-ja     REGRESSED    suboptimality bound: 3.5e-15 -> 1.55e-14 (4.4x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 1.21e-14 (2.9x relative to its own objective)
+scagr25      REGRESSED    suboptimality bound: 1.98e-15 -> 5.31e-15 (2.7x relative to its own objective)
+baseline: 7 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+== 4-16
+brandy       REGRESSED    suboptimality bound: 1.72e-15 -> 4.53e-15 (2.6x relative to its own objective)
+d2q06c       REGRESSED    suboptimality bound: 2.43e-14 -> 4.74e-13 (19.5x relative to its own objective)
+forplan      REGRESSED    suboptimality bound: 4.09e-10 -> 8.34e-10 (2.0x relative to its own objective)
+maros        REGRESSED    suboptimality bound: 1.55e-14 -> 3.39e-14 (2.2x relative to its own objective)
+perold       REGRESSED    suboptimality bound: 1.99e-15 -> 6.23e-15 (3.1x relative to its own objective)
+pilot        REGRESSED    work: 936582057 -> 7081730718 (7.6x), iters 5636 -> 23951
+pilot-ja     REGRESSED    suboptimality bound: 3.5e-15 -> 1.55e-14 (4.4x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 1.19e-14 (2.9x relative to its own objective)
+scagr25      REGRESSED    suboptimality bound: 1.98e-15 -> 6.14e-15 (3.1x relative to its own objective)
+baseline: 9 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+pds-06       REGRESSED    suboptimality bound: 5.27e-17 -> 2.75e-16 (5.2x relative to its own objective)
+baseline: 1 regressed, 0 improved, 0 new
+== 3-32
+perold       REGRESSED    suboptimality bound: 1.99e-15 -> 6.85e-15 (3.4x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 1.08e-14 (2.6x relative to its own objective)
+pilotnov     REGRESSED    work: 94411386 -> 398146815 (4.2x), iters 2675 -> 9276
+pilotnov     REGRESSED    suboptimality bound: 9.97e-16 -> 2.39e-15 (2.4x relative to its own objective)
+scagr25      REGRESSED    suboptimality bound: 1.98e-15 -> 1.45e-14 (7.3x relative to its own objective)
+baseline: 5 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
