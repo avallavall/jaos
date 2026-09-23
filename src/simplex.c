@@ -101,6 +101,10 @@ typedef struct {
 
     double *dse;
 
+    double *pviol;
+    bool *punder;
+    bool pviol_ok;
+
     double *devex;
     uint64_t *devref;
     bool devex_on;
@@ -278,6 +282,7 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
+    free(s->pviol); free(s->punder);
     free(s->devex); free(s->devref); free(s->pse_tau); free(s->dref);
     free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
     free(s->y); free(s->rho);
@@ -363,6 +368,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->xb     = jm_calloc_array(s->nrow, sizeof(double));
     s->d      = jm_calloc_array(s->nvar, sizeof(double));
     s->dse    = jm_alloc_array(s->nrow, sizeof(double));
+    s->pviol  = jm_alloc_array(s->nrow, sizeof(double));
+    s->punder = jm_alloc_array(s->nrow, sizeof(bool));
     s->devex  = jm_alloc_array(s->nvar, sizeof(double));
     s->devref = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
     s->devex_on = false;
@@ -403,7 +410,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
         !s->shift ||
         !s->status || !s->basis ||
-        !s->where || !s->xb || !s->d || !s->dse || !s->devex || !s->devref ||
+        !s->where || !s->xb || !s->d || !s->dse || !s->pviol || !s->punder ||
+        !s->devex || !s->devref ||
         !s->pse_tau || !s->dref ||
         !s->col || !s->raw || !s->rhsc || !s->resc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
@@ -544,6 +552,7 @@ static double price_entry(sx *s, const double *w, int64_t v)
 
 static void build_initial_basis(sx *s)
 {
+    s->pviol_ok = false;
     for (int64_t i = 0; i < s->nrow; i++) {
         int64_t v = s->ncol + i;
         s->basis[i] = v;
@@ -605,6 +614,7 @@ static void build_initial_basis(sx *s)
 
 static bool build_warm_basis(sx *s)
 {
+    s->pviol_ok = false;
     const jaos_model *m = s->m;
     if (m->start_col_status == nullptr || m->start_row_status == nullptr)
         return false;
@@ -778,8 +788,25 @@ static void subtract_basis_times(sx *s, double *r, const double *z)
     jm_work_add(&s->work, nz * JM_WORK_NONZERO);
 }
 
+static void pviol_set(sx *s, int64_t i)
+{
+    const int64_t v = s->basis[i];
+    const double viol_lo = isfinite(s->lo[v]) ? s->lo[v] - s->xb[i] : 0.0;
+    const double viol_up = isfinite(s->up[v]) ? s->xb[i] - s->up[v] : 0.0;
+    const bool under = viol_lo >= viol_up;
+    s->pviol[i] = under ? viol_lo : viol_up;
+    s->punder[i] = under;
+}
+
+static void pviol_touch(sx *s, int64_t i)
+{
+    if (s->pviol_ok)
+        pviol_set(s, i);
+}
+
 static void compute_primal(sx *s, bool refine)
 {
+    s->pviol_ok = false;
     double *rhs = s->col;
     double *comp = s->rhsc;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
@@ -990,6 +1017,7 @@ static bool repair_singular_basis(sx *s)
         s->status[entering] = JM_BASIC;
         jm_nonbasic_remove(s->nbmark, entering);
         s->where[entering] = p;
+        s->pviol_ok = false;
         i++;
     }
 
@@ -1127,19 +1155,31 @@ static int64_t price_row(sx *s, bool *below, double *violation)
     double best_score = 0.0;
     double total = 0.0;
 
+    if (!s->pviol_ok) {
+        for (int64_t i = 0; i < s->nrow; i++)
+            pviol_set(s, i);
+        s->pviol_ok = true;
+    }
+#ifndef NDEBUG
     for (int64_t i = 0; i < s->nrow; i++) {
-        int64_t v = s->basis[i];
-        double viol_lo = isfinite(s->lo[v]) ? s->lo[v] - s->xb[i] : 0.0;
-        double viol_up = isfinite(s->up[v]) ? s->xb[i] - s->up[v] : 0.0;
+        const double kept = s->pviol[i];
+        const bool kept_under = s->punder[i];
+        pviol_set(s, i);
+        assert(memcmp(&kept, &s->pviol[i], sizeof kept) == 0 &&
+               kept_under == s->punder[i]);
+    }
+#endif
 
-        bool under = viol_lo >= viol_up;
-        double viol = under ? viol_lo : viol_up;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double viol = s->pviol[i];
         if (viol <= s->primal_tol)
             continue;
 
+        const bool under = s->punder[i];
         total += viol;
 
         if (s->bland) {
+            const int64_t v = s->basis[i];
             if (best < 0 || v < s->basis[best]) {
                 best = i;
                 *below = under;
@@ -1325,12 +1365,17 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
     int64_t nc = 0;
     jm_lu_ftran_sparse(&s->lu, rhs, &s->work, s->cpat, &nc);
     if (nc * SPARSE_COL_DEN <= s->nrow) {
-        for (int64_t k = 0; k < nc; k++)
-            s->xb[s->cpat[k]] -= rhs[s->cpat[k]];
+        for (int64_t k = 0; k < nc; k++) {
+            const int64_t i = s->cpat[k];
+            s->xb[i] -= rhs[i];
+            pviol_touch(s, i);
+        }
         jm_work_add(&s->work, nc * JM_WORK_NONZERO);
     } else {
-        for (int64_t i = 0; i < s->nrow; i++)
+        for (int64_t i = 0; i < s->nrow; i++) {
             s->xb[i] -= rhs[i];
+            pviol_touch(s, i);
+        }
         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
     }
 
@@ -2084,6 +2129,16 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     s->status[q] = JM_BASIC;
     jm_nonbasic_remove(s->nbmark, q);
     s->where[q] = r;
+    if (s->pviol_ok) {
+        if (sparse_col) {
+            for (int64_t k = 0; k < s->ncpat; k++)
+                pviol_set(s, s->cpat[k]);
+        } else {
+            for (int64_t i = 0; i < s->nrow; i++)
+                pviol_set(s, i);
+        }
+        pviol_set(s, r);
+    }
 
     if (s->devex_on && s->devex_stale && !s->pse_on)
         primal_weights_reset(s);
@@ -2150,6 +2205,7 @@ static void repair_dual_infeasibility(sx *s)
 
         for (int64_t i = 0; i < s->nrow; i++)
             s->xb[i] -= s->col[i];
+        s->pviol_ok = false;
         s->status[v] = s->status[v] == JM_AT_LOWER ? JM_AT_UPPER
                                                    : JM_AT_LOWER;
     }
@@ -2317,6 +2373,7 @@ static jaos_status take_best_if_better(sx *s, bool *ok)
     memcpy(s->lo, s->bst_lo, (size_t)s->nvar * sizeof *s->lo);
     memcpy(s->up, s->bst_up, (size_t)s->nvar * sizeof *s->up);
     memcpy(s->fake, s->bst_fake, (size_t)s->nvar * sizeof *s->fake);
+    s->pviol_ok = false;
 
     for (int64_t v = 0; v < s->nvar; v++)
         s->where[v] = -1;
@@ -2338,6 +2395,7 @@ static jaos_status restore_settled(sx *s, bool *ok)
     memcpy(s->lo, s->sav_lo, (size_t)s->nvar * sizeof *s->lo);
     memcpy(s->up, s->sav_up, (size_t)s->nvar * sizeof *s->up);
     memcpy(s->fake, s->sav_fake, (size_t)s->nvar * sizeof *s->fake);
+    s->pviol_ok = false;
 
     for (int64_t v = 0; v < s->nvar; v++)
         s->where[v] = -1;
@@ -2499,8 +2557,10 @@ static void snap_if_past(sx *s, int64_t r, bool below)
 {
     const int64_t v = s->basis[r];
     const double bound = below ? real_lower(s, v) : real_upper(s, v);
-    if (below ? s->xb[r] < bound : s->xb[r] > bound)
+    if (below ? s->xb[r] < bound : s->xb[r] > bound) {
         s->xb[r] = bound;
+        pviol_touch(s, r);
+    }
 }
 
 static double primal_dir(const sx *s, int64_t q)
@@ -2920,6 +2980,7 @@ static void primal_move_to(sx *s, int64_t q, double delta, jm_var_status to)
     for (int64_t i = 0; i < s->nrow; i++)
         s->xb[i] -= delta * s->col[i];
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    s->pviol_ok = false;
 
     s->status[q] = to;
 }
@@ -2969,6 +3030,7 @@ static jaos_status retire_one_loan(sx *s, int64_t j, bool *off)
     else
         s->up[j] = HUGE_VAL;
     s->fake[j] = NOT_FAKE;
+    s->pviol_ok = false;
     set_verified(s, false);
     *off = true;
     return JAOS_OK;
@@ -4006,6 +4068,7 @@ static void polish_unscaled(sx *s)
         for (int64_t i = 0; i < s->nrow; i++)
             s->xb[i] -= r[i];
         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+        s->pviol_ok = false;
     }
 }
 

@@ -38,7 +38,14 @@ instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
 15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
 `raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
 solve stops leaving -0.0 outside the column's pattern, since clearing by
-pattern would change signs of zero. Half of `stocfor3`'s gap is presolve:
+pattern would change signs of zero. The dual's choice of leaving row
+read every basic variable's bounds on every iteration, 17% of
+`stocfor3`'s instructions; it now reads a violation cached per row and
+updated where the pivot and the bound flips move `xb` (`stocfor3`
+0.888x, `80bau3b` 0.938x, `d2q06c` 0.998x, `pilot87` 1.003x in
+instructions, every file the same). The next items in that profile are
+the dense FTRAN path (14%, two thirds of the entering columns) and
+`keep_spike`'s full copy (4%). Half of `stocfor3`'s gap is presolve:
 HiGHS takes it from 16675 rows to 8259 (its aggregator 5508, doubleton
 equations 2054, free column substitution 769) and needs 6404 iterations,
 where JAOS's presolve leaves 13305 rows and the dual needs 12977. JAOS
