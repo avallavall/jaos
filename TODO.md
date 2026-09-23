@@ -66,14 +66,6 @@ reading the diff. That also fixes their headers, which name
 `make netlib-baseline`. `plato-nug` has no baseline and runs only when
 named, since two of its three instances do not finish.
 
-H9. **Aggregate a warm-started solve.** A model with a starting basis is
-not aggregated, so a warm re-solve runs on a larger model than a cold one,
-and 17 of the 92 warm readings cost more than their cold solve for that
-reason (bench/results/warm.txt, 2026-09-23). The starting basis has to be
-mapped forward through the aggregator: an aggregated pair drops a column
-and its equality row, and the count of basic members only stays balanced
-when exactly one of the two was basic.
-
 ## Milestone I: the rest of SPECS
 
 I1. Presolve: duplicate rows and columns, dominated columns, bound

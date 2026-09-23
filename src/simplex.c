@@ -4432,7 +4432,6 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         if ((p.outcome == JM_PRESOLVE_REDUCED ||
              (p.outcome == JM_PRESOLVE_NONE && !quadratic)) &&
             !m->cfg.node_solve && !m->cfg.no_aggregate &&
-            m->start_col_status == nullptr &&
             !jm_model_has_integer(m) && !jm_model_has_conic(m) &&
             m->rq_nz == 0) {
             pst = jm_aggregate(&p,

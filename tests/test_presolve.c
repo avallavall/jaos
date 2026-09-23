@@ -872,7 +872,9 @@ static void test_a_row_two_singleton_columns_free_publishes_no_free_status(void)
 
         jaos_presolve_report pr;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &pr));
+#ifndef JAOS_NO_PRESOLVE
         TEST_ASSERT_EQUAL_INT64(t == 0 ? 2 : 3, pr.singleton_col);
+#endif
 
         double x[3], y[1], act[1];
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, act, y, nullptr));
@@ -1376,7 +1378,7 @@ static void test_a_short_mapped_basis_is_repaired_and_warm_survives(void)
 
 #if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && \
     !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL) && !defined(JAOS_NO_PRESOLVE)
-static int g_warm_repairs;
+static int g_warm_repairs, g_warm_from_basis;
 
 static void count_warm_repair(void *user, jaos_log_level level,
                               const char *line)
@@ -1385,9 +1387,11 @@ static void count_warm_repair(void *user, jaos_log_level level,
     (void)level;
     if (strstr(line, "arrived short and was repaired") != nullptr)
         g_warm_repairs++;
+    if (strstr(line, "starting from the basis on the model") != nullptr)
+        g_warm_from_basis++;
 }
 
-static int repair_fires_at(int k)
+static int warm_repairs(int k, bool fix_singles)
 {
     const int64_t nrow = 2 * k, ncol = 3 * k, nnz = 5 * k;
     double *c = calloc((size_t)ncol, sizeof *c);
@@ -1446,7 +1450,19 @@ static int repair_fires_at(int k)
     TEST_ASSERT_EQUAL_INT64(nrow, nb);
     TEST_ASSERT_EQUAL_INT64(k, singles);
 
+    if (fix_singles) {
+        double *x = calloc((size_t)ncol, sizeof *x);
+        TEST_ASSERT_NOT_NULL(x);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x, nullptr, nullptr, nullptr));
+        for (int64_t b = 0; b < k; b++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_col_bounds(m, 3 * b, x[3 * b], x[3 * b]));
+        free(x);
+    }
+
     g_warm_repairs = 0;
+    g_warm_from_basis = 0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_DETAIL));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_set_log_callback(m, count_warm_repair, nullptr));
@@ -1470,11 +1486,26 @@ static void test_the_warm_repair_stops_at_its_cap(void)
     TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
 #else
 
-    TEST_ASSERT_TRUE(repair_fires_at(1));
-    TEST_ASSERT_TRUE(repair_fires_at(8));
+    TEST_ASSERT_TRUE(warm_repairs(1, true));
+    TEST_ASSERT_TRUE(warm_repairs(8, true));
 
-    TEST_ASSERT_FALSE(repair_fires_at(9));
-    TEST_ASSERT_FALSE(repair_fires_at(10));
+    TEST_ASSERT_FALSE(warm_repairs(9, true));
+    TEST_ASSERT_FALSE(warm_repairs(10, true));
+#endif
+}
+
+static void test_a_basic_singleton_column_hands_its_basic_to_its_row(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("the mapping under test does not exist without presolve");
+#else
+
+    TEST_ASSERT_FALSE(warm_repairs(3, false));
+    TEST_ASSERT_EQUAL_INT(1, g_warm_from_basis);
+    TEST_ASSERT_FALSE(warm_repairs(12, false));
+    TEST_ASSERT_EQUAL_INT(1, g_warm_from_basis);
 #endif
 }
 
@@ -3236,6 +3267,7 @@ int main(void)
     RUN_TEST(test_the_basis_count_promise_breaks_on_a_declined_column);
     RUN_TEST(test_a_short_mapped_basis_is_repaired_and_warm_survives);
     RUN_TEST(test_the_warm_repair_stops_at_its_cap);
+    RUN_TEST(test_a_basic_singleton_column_hands_its_basic_to_its_row);
     RUN_TEST(test_a_long_mapped_basis_falls_back_cold);
     RUN_TEST(test_singleton_col_open_below_publishes_a_finite_point);
     RUN_TEST(test_two_singleton_cols_on_one_row);

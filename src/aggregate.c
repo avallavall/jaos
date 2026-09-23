@@ -378,6 +378,18 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
                               : p->outcome == JM_PRESOLVE_NONE);
     const jaos_model *m = src;
     const int64_t nr = m->num_row, nc = m->num_col;
+    const jaos_basis_status *scs = m->start_col_status;
+    const jaos_basis_status *srs = m->start_row_status;
+    const bool warm = scs != nullptr && srs != nullptr;
+    if (warm) {
+        int64_t basic = 0;
+        for (int64_t j = 0; j < nc; j++)
+            basic += scs[j] == JAOS_BASIS_BASIC;
+        for (int64_t i = 0; i < nr; i++)
+            basic += srs[i] == JAOS_BASIS_BASIC;
+        if (basic != nr)
+            return JAOS_OK;
+    }
 
     ag_mat a;
     double *cost = jm_alloc_array(nc, sizeof *cost);
@@ -426,6 +438,9 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
             int64_t best = -1, best_mark = INT64_MAX;
             for (int64_t f = a.rhead[i]; f >= 0; f = a.rnext[f]) {
                 const int64_t j = a.col[f];
+                if (warm && (scs[j] != JAOS_BASIS_BASIC ||
+                             srs[i] == JAOS_BASIS_BASIC))
+                    continue;
                 if (fabs(a.val[f]) < AGG_PIVOT_REL * rowmax)
                     continue;
                 const int64_t mark = (a.clen[j] - 1) * (deg - 1);
@@ -568,14 +583,21 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
     r.a_start = jm_alloc_array(rcol + 1, sizeof(int64_t));
     r.a_index = jm_alloc_array(rnz, sizeof(int64_t));
     r.a_value = jm_alloc_array(rnz, sizeof(double));
+    if (warm) {
+        r.start_col_status = jm_alloc_array(rcol, sizeof *r.start_col_status);
+        r.start_row_status = jm_alloc_array(rrow, sizeof *r.start_row_status);
+    }
     if ((nc > 0 && !p->agg_col_map) || (nr > 0 && !p->agg_row_map) ||
         (rcol > 0 && (!p->agg_orig_col || !r.col_cost || !r.col_lower ||
                       !r.col_upper)) ||
         (rrow > 0 && (!p->agg_orig_row || !r.row_lower || !r.row_upper)) ||
-        !r.a_start || (rnz > 0 && (!r.a_index || !r.a_value))) {
+        !r.a_start || (rnz > 0 && (!r.a_index || !r.a_value)) ||
+        (warm && ((rcol > 0 && !r.start_col_status) ||
+                  (rrow > 0 && !r.start_row_status)))) {
         free(r.col_cost); free(r.col_lower); free(r.col_upper);
         free(r.row_lower); free(r.row_upper);
         free(r.a_start); free(r.a_index); free(r.a_value);
+        free(r.start_col_status); free(r.start_row_status);
         ret = JAOS_ERR_OUT_OF_MEMORY;
         goto cleanup;
     }
@@ -588,6 +610,8 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
         }
         p->agg_col_map[j] = rj;
         p->agg_orig_col[rj] = j;
+        if (warm)
+            r.start_col_status[rj] = scs[j];
         rj++;
     }
     int64_t ri = 0;
@@ -600,6 +624,8 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
         p->agg_orig_row[ri] = i;
         r.row_lower[ri] = rl[i];
         r.row_upper[ri] = ru[i];
+        if (warm)
+            r.start_row_status[ri] = srs[i];
         ri++;
     }
 
@@ -643,6 +669,7 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
         free(r.col_cost); free(r.col_lower); free(r.col_upper);
         free(r.row_lower); free(r.row_upper);
         free(r.a_start); free(r.a_index); free(r.a_value);
+        free(r.start_col_status); free(r.start_row_status);
         ret = JAOS_ERR_OUT_OF_MEMORY;
         goto cleanup;
     }

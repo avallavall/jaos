@@ -1051,6 +1051,40 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                     p->reduced.start_col_status[rjj] = JAOS_BASIS_AT_UPPER;
             }
         }
+
+        int64_t short_by = rrow;
+        for (int64_t k = 0; k < rcol; k++)
+            short_by -= p->reduced.start_col_status[k] == JAOS_BASIS_BASIC;
+        for (int64_t k = 0; k < rrow; k++)
+            short_by -= p->reduced.start_row_status[k] == JAOS_BASIS_BASIC;
+        int64_t *moved = short_by > 0
+                             ? jm_alloc_array(short_by, sizeof *moved)
+                             : nullptr;
+        jaos_basis_status *was = short_by > 0
+                                     ? jm_alloc_array(short_by, sizeof *was)
+                                     : nullptr;
+        int64_t nmoved = 0;
+        for (int64_t r = 0; r < p->arena_len && moved && was &&
+                            nmoved < short_by; r++) {
+            const jm_presolve_rec *rec = &p->arena[r];
+            if (rec->tag != JM_PS_SINGLETON_COL)
+                continue;
+            const int64_t rii = p->row_map[rec->index];
+            if (rii >= 0 &&
+                m->start_col_status[rec->index2] == JAOS_BASIS_BASIC &&
+                p->reduced.start_row_status[rii] != JAOS_BASIS_BASIC) {
+                moved[nmoved] = rii;
+                was[nmoved++] = p->reduced.start_row_status[rii];
+                p->reduced.start_row_status[rii] = JAOS_BASIS_BASIC;
+            }
+        }
+        if (nmoved < short_by)
+            while (nmoved > 0) {
+                nmoved--;
+                p->reduced.start_row_status[moved[nmoved]] = was[nmoved];
+            }
+        free(moved);
+        free(was);
     }
 
     p->outcome = (rcol == 0) ? JM_PRESOLVE_SOLVED : JM_PRESOLVE_REDUCED;
