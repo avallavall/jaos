@@ -563,17 +563,19 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
                 assert(keep <= k);
                 int64_t i = cv->idx[k];
-                if (e.row_done[i])
+                assert(i == pi || !e.row_done[i]);
+                if (i == pi)
                     continue;
                 double v = cv->val[k];
+                assert(fabs(v) > e.drop || isnan(v));
                 if (e.mult_set[i]) {
                     v -= e.mult_of[i] * urow;
                     e.hit[i] = true;
                     found++;
-                }
-                if (fabs(v) <= e.drop) {
-                    e.row_cnt[i]--;
-                    continue;
+                    if (fabs(v) <= e.drop) {
+                        e.row_cnt[i]--;
+                        continue;
+                    }
                 }
                 cv->idx[keep] = i;
                 cv->val[keep] = v;

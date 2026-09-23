@@ -38,9 +38,17 @@ instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
 15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
 `raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
 solve stops leaving -0.0 outside the column's pattern, since clearing by
-pattern would change signs of zero. Verify with `tools/icount.sh` and
-`make compare COMPARE_ARGS='-t P0'` on a quiet machine; the gates
-byte-identical or re-based.
+pattern would change signs of zero. Half of `stocfor3`'s gap is presolve:
+HiGHS takes it from 16675 rows to 8259 (its aggregator 5508, doubleton
+equations 2054, free column substitution 769) and needs 6404 iterations,
+where JAOS's presolve leaves 13305 rows and the dual needs 12977. The
+doubleton substitution moves the removed column's bounds onto the other
+one, which is D97's bound transfer, refused until a cleanup solve after
+postsolve exists (I1, `docs/research/dual-postsolve-imposed-bound.md`).
+On `fit2p` the factor took 79% of the instructions; f43d9e1 halved that
+without changing a bit. Verify with `tools/icount.sh` and `make compare
+COMPARE_ARGS='-t P0'` on a quiet machine; the gates byte-identical or
+re-based.
 
 H2. **MIP: the tree has too many nodes.** The attribution of 2026-09-23
 (`bench/measurements/02-300/`, the log line "branch and bound work")
