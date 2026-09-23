@@ -74,7 +74,7 @@ constexpr int64_t SETTLE_ROUNDS = 32;
 constexpr int64_t POLISH_ROUNDS = 4;
 constexpr int64_t SETTLE_ROUNDS_PRIMAL = 256;
 
-constexpr int64_t WARM_REPAIR_MAX_SHORT = 4;
+constexpr int64_t WARM_REPAIR_MAX_SHORT = 8;
 
 typedef enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } jm_fake;
 

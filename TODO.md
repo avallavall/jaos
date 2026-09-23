@@ -10,32 +10,14 @@ reading behind it is in the commit that wrote the row, named here by hash.
 Milestones A to E ended on 2026-09-21 and 2026-09-22 (A with the tag
 `v0.4.0`). This file was filled on 2026-09-22 by an audit of every document
 against the code. Work it in order: F (defects), G (the bindings reach what
-Python reaches), H (performance), I (the rest of SPECS).
-
-## Milestone F: defects
-
-F4. **Some warm starts cost far more than they did.** Against the
-2026-09-10 reading, warm work rose 87x on `stocfor3`, 12x on `stocfor2`, 4x
-on `wood1p` and `gfrd-pnc`, 2x on `scorpion`, `sc205` and `sierra`. Over
-all 90 the warm solves got 0.93x cheaper and the cold ones 0.79x (the
-aggregator runs on a cold solve only), so 20 of 90 now take more iterations
-warm than cold, where none did. `warm-kennington` went from 0.0082x to
-0.0154x of the cold work. Find what the warm path lost (the Devex handoff and
-the plateau perturbation of 2026-09-21 are the first suspects). One cause is
-found: a basis published by a solve that aggregated maps onto the next
-solve's presolved model short of basic variables (`pilot`: 1386 for 1392
-rows), past `WARM_REPAIR_MAX_SHORT` (4), so the warm solve starts from the
-slack basis, and without the aggregator, since a model with a starting
-basis is not aggregated; `pilot` is now the worst warm ratio at 31.4x. The
-postsolve of an aggregated column, or the mapping of a published basis
-through the next presolve, should give back a full basis. Verify: no
-instance of `make warm` takes more work warm than cold without a reason
-written down.
+Python reaches), H (performance), I (the rest of SPECS). Milestone F, the
+defects, ended on 2026-09-23.
 
 ## Milestone G: the bindings reach what Python reaches
 
-Read on 2026-09-22 over the 200 C calls: Python reaches 199, .NET and Java
-46 each, R 32, Julia 46, and each reaches 54 to 59 more only by option name.
+Read on 2026-09-22 over the 200 C calls, and counted again after G1 on
+2026-09-23: Python reaches 199, .NET and Java 48 each, R 35, Julia 46,
+and each reaches 54 to 58 more only by option name.
 
 G2. **.NET to parity**, about 97 C calls, in this order: settings and a warm
 re-solve in `Problem` (bound, cost, sense, constant); SOS, indicators and
@@ -44,8 +26,8 @@ the solution pool; the progress, incumbent and node callbacks; the NL,
 QPLIB, CBF, OSiL and AMPL `.sol` writers; the IIS and the feasibility
 relaxation; the basis and the solution, basis, point and duals files; the
 checkers; ranging; exact verification and proof files; model editing and
-getters; names; statistics and the presolve report; the option list and
-option files.
+getters; names; statistics and the presolve report; option files
+(`jaos_read_options`).
 
 G3. **Java to parity**, the same list, plus `Expr` adding another `Expr`
 and `value(Expr)`.
@@ -118,6 +100,14 @@ on 2026-08-17, with `make plato-pds-baseline plato-fome-baseline` after
 reading the diff. That also fixes their headers, which name
 `make netlib-baseline`. `plato-nug` has no baseline and runs only when
 named, since two of its three instances do not finish.
+
+H9. **Aggregate a warm-started solve.** A model with a starting basis is
+not aggregated, so a warm re-solve runs on a larger model than a cold one,
+and 17 of the 92 warm readings cost more than their cold solve for that
+reason (bench/results/warm.txt, 2026-09-23). The starting basis has to be
+mapped forward through the aggregator: an aggregated pair drops a column
+and its equality row, and the count of basic members only stays balanced
+when exactly one of the two was basic.
 
 ## Milestone I: the rest of SPECS
 

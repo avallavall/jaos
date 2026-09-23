@@ -1471,10 +1471,10 @@ static void test_the_warm_repair_stops_at_its_cap(void)
 #else
 
     TEST_ASSERT_TRUE(repair_fires_at(1));
-    TEST_ASSERT_TRUE(repair_fires_at(4));
+    TEST_ASSERT_TRUE(repair_fires_at(8));
 
-    TEST_ASSERT_FALSE(repair_fires_at(5));
-    TEST_ASSERT_FALSE(repair_fires_at(6));
+    TEST_ASSERT_FALSE(repair_fires_at(9));
+    TEST_ASSERT_FALSE(repair_fires_at(10));
 #endif
 }
 
