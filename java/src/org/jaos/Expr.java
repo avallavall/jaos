@@ -28,4 +28,24 @@ public final class Expr {
         constant += c;
         return this;
     }
+
+    /** Adds {@code coef} times every term and the constant of {@code e}. */
+    public Expr add(double coef, Expr e) {
+        int n = e.cols.size();
+        for (int k = 0; k < n; k++) {
+            cols.add(e.cols.get(k));
+            coefs.add(coef * e.coefs.get(k));
+        }
+        constant += coef * e.constant;
+        return this;
+    }
+
+    /** Adds every term and the constant of {@code e}. */
+    public Expr add(Expr e) {
+        return add(1.0, e);
+    }
+
+    Expr copy() {
+        return new Expr().add(this);
+    }
 }

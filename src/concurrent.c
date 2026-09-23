@@ -28,6 +28,7 @@ typedef struct {
     jm_thread th;
     int index;
     atomic_int *answered;
+    atomic_bool *stopped;
     jaos_progress_fn user_cb;
     void *user_arg;
 } jm_arm;
@@ -38,7 +39,11 @@ static jaos_callback_action arm_progress(const jaos_progress *p, void *user)
 {
     jm_arm *a = user;
     if (a->user_cb != nullptr &&
-        a->user_cb(p, a->user_arg) == JAOS_CALLBACK_STOP)
+        a->user_cb(p, a->user_arg) == JAOS_CALLBACK_STOP) {
+        atomic_store_explicit(a->stopped, true, memory_order_relaxed);
+        return JAOS_CALLBACK_STOP;
+    }
+    if (atomic_load_explicit(a->stopped, memory_order_relaxed))
         return JAOS_CALLBACK_STOP;
     if (atomic_load_explicit(a->answered, memory_order_relaxed) < a->index)
         return JAOS_CALLBACK_STOP;
@@ -147,6 +152,8 @@ jaos_status jm_solve_concurrent(jaos_model *m)
     const bool parallel = jaos_threads_of(m) > 1 && cap <= 0;
     atomic_int answered;
     atomic_init(&answered, CONCURRENT_ARMS);
+    atomic_bool stopped;
+    atomic_init(&stopped, false);
 
     for (int k = 0; k < CONCURRENT_ARMS; k++) {
         st = jaos_model_copy(m, &arm[k].m);
@@ -167,6 +174,7 @@ jaos_status jm_solve_concurrent(jaos_model *m)
             arm[k].user_cb = m->cfg.progress_cb;
             arm[k].user_arg = m->cfg.progress_user;
             arm[k].answered = &answered;
+            arm[k].stopped = &stopped;
             arm[k].m->cfg.progress_cb = arm_progress;
             arm[k].m->cfg.progress_user = &arm[k];
         }
@@ -187,16 +195,21 @@ jaos_status jm_solve_concurrent(jaos_model *m)
         if (parallel && round > 0) {
             atomic_store_explicit(&answered, CONCURRENT_ARMS,
                                   memory_order_relaxed);
+            int first = -1;
             for (int k = 0; k < CONCURRENT_ARMS; k++) {
                 if (!arm[k].live)
                     continue;
                 arm[k].m->cfg.work_limit = slice;
                 arm[k].st = JAOS_OK;
-                if (!jm_thread_start(&arm[k].th, run_arm, &arm[k]))
+                arm[k].user_cb = first < 0 ? m->cfg.progress_cb : nullptr;
+                if (first < 0)
+                    first = k;
+                else if (!jm_thread_start(&arm[k].th, run_arm, &arm[k]))
                     run_arm(&arm[k]);
             }
+            run_arm(&arm[first]);
             for (int k = 0; k < CONCURRENT_ARMS; k++)
-                if (arm[k].live)
+                if (arm[k].live && k != first)
                     jm_thread_join(&arm[k].th);
             for (int k = 0; k < CONCURRENT_ARMS && winner < 0; k++) {
                 if (!arm[k].live)

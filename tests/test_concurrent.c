@@ -366,8 +366,11 @@ static void test_a_work_limit_with_threads_still_stops_and_resumes(void)
     jaos_model_free(m);
 }
 
+static thread_local int this_thread;
+
 typedef struct {
-    int64_t calls;
+    const int *caller;
+    int64_t calls, elsewhere;
 } counter;
 
 static jaos_callback_action count_progress(const jaos_progress *p, void *user)
@@ -375,12 +378,14 @@ static jaos_callback_action count_progress(const jaos_progress *p, void *user)
     (void)p;
     counter *c = user;
     c->calls++;
+    if (&this_thread != c->caller)
+        c->elsewhere++;
     return JAOS_CALLBACK_CONTINUE;
 }
 
 static void test_the_callers_progress_callback_still_runs_with_threads(void)
 {
-    counter c = {0};
+    counter c = { .caller = &this_thread };
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "tests/data/solve1.mps"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -391,6 +396,7 @@ static void test_the_callers_progress_callback_still_runs_with_threads(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_TRUE(c.calls > 0);
+    TEST_ASSERT_EQUAL_INT64(0, c.elsewhere);
     jaos_model_free(m);
 }
 

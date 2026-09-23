@@ -2965,6 +2965,44 @@ static void test_a_round_of_nodes_is_the_same_on_any_thread_count(void)
     }
 }
 
+static thread_local int this_thread;
+
+typedef struct {
+    const int *caller;
+    int64_t calls, elsewhere;
+} thread_watch;
+
+static jaos_callback_action watch_thread(const jaos_progress *p, void *user)
+{
+    (void)p;
+    thread_watch *w = user;
+    w->calls++;
+    if (&this_thread != w->caller)
+        w->elsewhere++;
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_a_round_calls_progress_only_on_the_calling_thread(void)
+{
+    int64_t calls[2] = {0, 0}, work[2] = {0, 0};
+    for (int t = 0; t < 2; t++) {
+        thread_watch w = { .caller = &this_thread };
+        jaos_model *m = two_knapsacks();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, 4));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, t == 0 ? 1 : 3));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_progress_callback(m, watch_thread, &w));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT64(0, w.elsewhere);
+        calls[t] = w.calls;
+        work[t] = jaos_work_units(m);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+    TEST_ASSERT_TRUE(calls[1] > 0 && calls[1] < calls[0]);
+}
+
 static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
 {
     const double frac[3] = { 0.0, 0.01, 1.0 };
@@ -4501,6 +4539,7 @@ int main(void)
     RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_node_whose_relaxation_fails_is_set_aside);
     RUN_TEST(test_a_round_of_nodes_is_the_same_on_any_thread_count);
+    RUN_TEST(test_a_round_calls_progress_only_on_the_calling_thread);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
     RUN_TEST(test_propagation_proves_a_row_infeasible);

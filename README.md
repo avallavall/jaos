@@ -141,7 +141,10 @@ p.solve()
 calls through `ccall`, and `JAOS.Optimizer`, a MathOptInterface optimizer,
 so JuMP uses it directly. It passes MathOptInterface's own conformance
 suite, with four tests left out because JAOS refuses what they ask (a
-non-convex quadratic row, and an IIS that keeps integrality). `make shared` builds the library; `Pkg.develop(path="julia/JAOS")`
+non-convex quadratic row, and an IIS that keeps integrality). A change
+after a solve goes to the loaded model, so JuMP re-solves warm, and lazy
+constraints and user cuts run in the tree. The `JAOS.` functions reach
+every C call. `make shared` builds the library; `Pkg.develop(path="julia/JAOS")`
 adds the package.
 
 ```julia
@@ -156,14 +159,13 @@ optimize!(model)
 
 **.NET, Java and R.** `dotnet/Jaos` (.NET 8, P/Invoke), `java/src`
 (Java 22 or later, the foreign-function API, no glue code) and `R/jaos`
-(an R package over `.Call`) reach a part of the C API. All three read
-every format, write MPS, LP and the solution file, build a model, set
-options by name, solve, and read back values, duals, cone duals,
-certificates, rays, the MIP report and the incumbent. .NET and Java also
-deliver the log to a function of the caller's, and R prints it to the
-console. The .NET and Java
-packages add a small modelling layer (`Problem`, `Var`, `Expr`); R has
-`jaos_solve_lp` over a dense matrix.
+(an R package over `.Call`) reach every C call Python reaches. .NET and
+Java call all 200 directly. R calls 142 of them and reaches the other 58,
+the option setters and getters, through the option names. The callbacks,
+the checkers, the exact proofs, the IIS and the files are all there. The
+.NET and Java packages add a modelling layer (`Problem`, `Var`, `Expr`)
+that re-solves warm after a bound, cost or sense changes; R has
+`jaos_solve_lp` over a dense or sparse matrix.
 
 ```csharp
 using var p = new Problem();

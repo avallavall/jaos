@@ -835,6 +835,9 @@ static jaos_status bb_round_solve(const jaos_model *lp, const jaos_model *m,
         bb_lane lane[MIP_BATCH_MAX];
         jm_thread th[MIP_BATCH_MAX];
         bool started[MIP_BATCH_MAX] = {};
+        for (int64_t k = 0; k < n; k++)
+            if (k % lanes != 0)
+                crew[k].lp->cfg.progress_cb = nullptr;
         for (int64_t k = 0; k < lanes; k++)
             lane[k] = (bb_lane){ crew, n, lanes, k };
         for (int64_t k = 1; k < lanes; k++)

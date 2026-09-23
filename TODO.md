@@ -10,43 +10,8 @@ reading behind it is in the commit that wrote the row, named here by hash.
 Milestones A to E ended on 2026-09-21 and 2026-09-22 (A with the tag
 `v0.4.0`). This file was filled on 2026-09-22 by an audit of every document
 against the code. Work it in order: F (defects), G (the bindings reach what
-Python reaches), H (performance), I (the rest of SPECS). Milestone F, the
-defects, ended on 2026-09-23.
-
-## Milestone G: the bindings reach what Python reaches
-
-Read on 2026-09-22 over the 200 C calls, and counted again after G1 on
-2026-09-23: Python reaches 199, .NET and Java 48 each, R 35, Julia 46,
-and each reaches 54 to 58 more only by option name.
-
-G2. **.NET to parity**, about 97 C calls, in this order: settings and a warm
-re-solve in `Problem` (bound, cost, sense, constant); SOS, indicators and
-semi-continuous columns with their getters; quadratic rows in `Problem`;
-the solution pool; the progress, incumbent and node callbacks; the NL,
-QPLIB, CBF, OSiL and AMPL `.sol` writers; the IIS and the feasibility
-relaxation; the basis and the solution, basis, point and duals files; the
-checkers; ranging; exact verification and proof files; model editing and
-getters; names; statistics and the presolve report; option files
-(`jaos_read_options`).
-
-G3. **Java to parity**, the same list, plus `Expr` adding another `Expr`
-and `value(Expr)`.
-
-G4. **R to parity**, about 107 C calls: the log, sparse input to
-`jaos_solve_lp`, the MIP start and the incumbent, model edits and a warm
-re-solve, SOS, indicators, semi-continuous columns, rotated cones and
-quadratic rows in `jaos_solve_lp`, the pool, the counters, then G2's list.
-
-G5. **Julia to parity**: an incremental MOI interface (bounds, costs, sense)
-so JuMP re-solves warm; MOI callbacks (lazy constraints, user cuts,
-heuristic) on the node callback; `ResultCount` above 1 from the pool; names
-passed to C; the solution, basis, point and duals files; `iis_model`,
-`feasrelax`, ranging, the checkers and the exact proofs as `JAOS.`
-functions.
-
-Verify for G: each binding has a test that calls every C function it
-declares, and `make dotnet-test java-test r-test julia-test python-test`
-pass.
+Python reaches), H (performance), I (the rest of SPECS). Milestones F and
+G ended on 2026-09-23.
 
 ## Milestone H: performance
 

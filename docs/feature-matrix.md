@@ -814,17 +814,23 @@ cones reach it too. `make julia-test` runs MathOptInterface's own
 conformance suite on it: 4717 checks pass, and 4 tests are left out
 because JAOS refuses what they ask by design (three solve a non-convex
 quadratic row, and one needs an IIS that keeps integrality, while
-`jaos_iis` explains the linear relaxation). The package is not in
-Julia's General registry, and it finds the library the way the Python
-package does.
+`jaos_iis` explains the linear relaxation). Since 2026-09-23 a loaded
+model takes bound, row, cost, sense and start changes in place, so JuMP
+re-solves warm; lazy constraints and user cuts run on the node callback;
+`ResultCount` reads the solution pool; and the `JAOS.` functions reach
+every C call the Python package reaches. The package is not in Julia's
+General registry, and it finds the library the way the Python package
+does.
 
 **The Java, .NET row reads ● and the MATLAB, R row ◐ since
 2026-09-19**: `dotnet/Jaos` (.NET 8, P/Invoke), `java/src/org/jaos`
 (Java 22 and later, the foreign-function API, so no C glue) and `R/jaos`
-(an R package over `.Call`) each reach the calls that read, build, solve
-and read back a model, and each has its checks (`make dotnet-test`,
-`make java-test`, `make r-test`). MATLAB is not there: a MEX file needs
-a MATLAB licence to build and test.
+(an R package over `.Call`) each have their checks (`make dotnet-test`,
+`make java-test`, `make r-test`). Since 2026-09-23 all three reach every
+C call the Python package reaches: .NET and Java call all 200, and R
+calls 142 and reaches the other 58, the typed option setters and
+getters, by name.
+MATLAB is not there: a MEX file needs a MATLAB licence to build and test.
 
 **The install row.** `make install` puts the header, both library forms,
 the tool and a generated `jaos.pc` under `PREFIX`, with `DESTDIR`

@@ -219,12 +219,18 @@ that called `jaos_solve`.
 
 The library holds no global state, so different models can be solved in
 different threads at the same time. Calls on one model are not
-synchronised, so two threads must not use the same model at once. The
-progress callback runs on the threads of the concurrent solve when it runs
-its methods at once. It also runs on the threads of the linear branch and
-bound when that tree solves a round on more than one thread. In both cases
-two threads can call it at the same time. The log, incumbent and node
-callbacks run on the thread that called `jaos_solve`.
+synchronised, so two threads must not use the same model at once. Every
+callback runs on the thread that called `jaos_solve`, one call at a time,
+so a language runtime that cannot take calls from threads it did not
+start (Julia, R) needs no guard. The worker threads never call it. When
+the concurrent solve runs its methods at once, the calling thread runs the
+first method that is still live and calls the progress callback from it,
+and a stop there stops the other methods too. When the linear branch and
+bound solves a round on more than one thread, the calling thread solves
+every node whose place in the round is a multiple of the thread count,
+and only those nodes call the progress callback. So a solve on more
+threads makes fewer progress calls, and its answer and work units stay
+the same.
 
 ### Values that overflow
 

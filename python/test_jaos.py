@@ -2074,6 +2074,25 @@ class TestBranchAndBound(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 1.0, places=12)
 
+    def test_an_options_file_sets_what_it_names(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=4, name="x")
+        p.add(x >= 1)
+        p.minimize(x)
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "jaos.opt")
+            with open(f, "w") as fh:
+                fh.write("# two settings\nalgorithm primal\nmip_cut_rounds 3\n")
+            p.read_options(f)
+            self.assertEqual(p.get_option("algorithm"), "primal")
+            self.assertEqual(p.get_option("mip_cut_rounds"), "3")
+            with open(f, "w") as fh:
+                fh.write("no_such_option 1\n")
+            with self.assertRaises(jaos.JaosError):
+                p.read_options(f)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 1.0, places=12)
+
     def test_the_algorithm_is_a_caller_option(self):
         p = jaos.Problem()
         x = p.add_var(lb=0, ub=5, name="x")
