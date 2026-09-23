@@ -20,6 +20,8 @@
 \alias{jaos_certificate}
 \alias{jaos_unbounded_ray}
 \alias{jaos_mip_result}
+\alias{jaos_mip_incumbent}
+\alias{jaos_set_log}
 \alias{jaos_solve_lp}
 \title{The JAOS Solver: Linear, Mixed-Integer, Quadratic and Conic Programs}
 \description{
@@ -50,6 +52,8 @@ jaos_cone_dual(model, k)
 jaos_certificate(model)
 jaos_unbounded_ray(model)
 jaos_mip_result(model)
+jaos_mip_incumbent(model)
+jaos_set_log(model, level = "summary")
 jaos_solve_lp(obj, A, row_lower, row_upper,
               col_lower = rep(0, length(obj)),
               col_upper = rep(Inf, length(obj)),
@@ -86,6 +90,9 @@ jaos_solve_lp(obj, A, row_lower, row_upper,
 \item{value}{the option's value; a logical becomes \code{"true"} or
   \code{"false"}.}
 \item{k}{a 1-based cone index.}
+\item{level}{how much of the solver's log \code{jaos_set_log} prints to the
+  console's error stream: \code{"off"}, \code{"summary"},
+  \code{"progress"} or \code{"detail"}.}
 \item{obj}{the objective's coefficient for each column.}
 \item{A}{the constraint matrix, dense.}
 \item{integer}{1-based indices of the integer columns.}
@@ -111,7 +118,10 @@ one cone, one entry per member. \code{jaos_certificate} is the Farkas
 multipliers of an infeasible model and \code{jaos_unbounded_ray} the
 improving direction of an unbounded one; each is \code{NULL} when the
 solve did not end that way. \code{jaos_mip_result} is the
-branch-and-bound report.
+branch-and-bound report, and \code{jaos_mip_incumbent} the best integer
+point the tree holds, as a list of \code{x} and \code{objective}, or
+\code{NULL} when it holds none; it is there after a limit stops the tree.
+\code{jaos_set_log} prints the solver's log lines during a solve.
 
 \code{jaos_solve_lp} does all of it in one call from a dense matrix:
 minimise (or maximise) \eqn{obj'x + \frac{1}{2} x' Q x}{obj'x + 1/2 x'Qx}
@@ -124,8 +134,10 @@ A call the library refuses is an R error carrying the library's message.
 \value{
 \code{jaos_solve_lp} returns a list with the \code{status} and the
 \code{model}, and for an optimal solve also the \code{objective}, the
-values \code{x}, the \code{row_dual} and the \code{reduced_cost}. The
-readers return a model; the setters return their model invisibly.
+values \code{x}, the \code{row_dual} and the \code{reduced_cost}. When a
+limit stops a tree that holds an integer point, the list carries that
+point's \code{objective} and \code{x}. The readers return a model; the
+setters return their model invisibly.
 }
 \examples{
 r <- jaos_solve_lp(c(1, 2), matrix(c(1, 1), 1), 1, Inf,

@@ -87,6 +87,15 @@ using (var p = new Problem())
     var r = p.Model.MipResult();
     Check(r.HasIncumbent && Near(r.Bound, 16.0, 1e-4),
           "and the tree's report agrees");
+
+    var lines = new List<string>();
+    p.Model.SetOption("mip_gap", "0.25");
+    p.Model.SetLog(LogLevel.Summary, lines.Add);
+    p.AddLe(x[0] + x[1], 1);
+    p.Solve();
+    Check(p.Model.GetOption("mip_gap") == "0.25" && lines.Count > 0,
+          "a solve after an edit keeps the options and the log set on its model");
+    Check(Model.OptionNames().Contains("mip_gap"), "the option list names mip_gap");
 }
 
 using (var p = new Problem())

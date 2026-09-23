@@ -47,6 +47,23 @@ check(near(r$x, c(1, 1, 0, 1, 0)), "with the first, second and fourth items")
 mr <- jaos_mip_result(r$model)
 check(mr$has_incumbent && near(mr$bound, 16, 1e-4), "and the tree's report agrees")
 
+a1 <- c(23, 71, 45, 88, 12, 57, 39, 64, 91, 18, 76, 33)
+a2 <- c(54, 17, 82, 29, 66, 41, 95, 13, 58, 87, 24, 70)
+b <- c(floor(sum(a1) / 2), floor(sum(a2) / 2))
+r <- jaos_solve_lp(obj = c(rep(0, 12), rep(1, 4)),
+                   A = rbind(c(a1, 1, -1, 0, 0), c(a2, 0, 0, 1, -1)),
+                   row_lower = b, row_upper = b,
+                   col_upper = c(rep(1, 12), rep(Inf, 4)), integer = 1:12,
+                   options = list(mip_node_limit = 2))
+check(r$status == "node limit reached" && near(r$objective, 3) &&
+      length(r$x) == 16,
+      "a tree stopped by its node limit still returns its point")
+
+m <- jaos_read(file.path(data, "g1.lp"))
+jaos_set_log(m, "summary")
+out <- capture.output(jaos_solve(m), type = "message")
+check(length(out) > 0, paste("the log prints during a solve,", length(out), "lines"))
+
 r <- jaos_solve_lp(obj = c(-1, -1), A = matrix(c(1, 1), 1), row_lower = -Inf,
                    row_upper = 0.5, Q = diag(2, 2))
 check(r$status == "optimal", "a QP solves optimal")

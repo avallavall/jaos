@@ -24,6 +24,9 @@ public final class Model implements AutoCloseable {
     private final MemorySegment h;
     private final Cleaner.Cleanable cleanable;
     private MemorySegment logStub = MemorySegment.NULL;
+    private Consumer<String> logSink;
+    private LogLevel logLevel = LogLevel.OFF;
+    private double[] mipStart;
 
     public Model() {
         try (Arena a = Arena.ofConfined()) {
@@ -204,6 +207,25 @@ public final class Model implements AutoCloseable {
         try (Arena a = Arena.ofConfined()) {
             check(call(Native.SET_MIP_START, h, doubles(a, x)));
         }
+        mipStart = x.clone();
+    }
+
+    /** The name of every option {@link #setOption} takes. */
+    public static String[] optionNames() {
+        long n = (long) call(Native.NUM_OPTIONS);
+        String[] names = new String[(int) n];
+        for (int k = 0; k < n; k++)
+            names[k] = Native.string((MemorySegment) call(Native.OPTION_NAME, (long) k));
+        return names;
+    }
+
+    void copySettingsTo(Model other) {
+        for (String name : optionNames())
+            other.setOption(name, getOption(name));
+        if (logSink != null)
+            other.setLog(logLevel, logSink);
+        if (mipStart != null)
+            other.setMipStart(java.util.Arrays.copyOf(mipStart, (int) other.numCol()));
     }
 
     private static void logLine(Consumer<String> sink, MemorySegment user,
@@ -213,6 +235,8 @@ public final class Model implements AutoCloseable {
 
     /** Sends the solver's log to {@code sink} at {@code level}; null or OFF stops it. */
     public void setLog(LogLevel level, Consumer<String> sink) {
+        logLevel = level;
+        logSink = sink == null || level == LogLevel.OFF ? null : sink;
         if (sink == null || level == LogLevel.OFF) {
             check(call(Native.SET_LOG_CALLBACK, h, MemorySegment.NULL, MemorySegment.NULL));
             logStub = MemorySegment.NULL;
@@ -304,14 +328,14 @@ public final class Model implements AutoCloseable {
         }
     }
 
-    /** The incumbent's values of a tree that stopped with one. */
-    public double[] mipIncumbent() {
+    /** The incumbent's values and objective of a tree that stopped with one. */
+    public Incumbent mipIncumbent() {
         int nc = (int) numCol();
         try (Arena a = Arena.ofConfined()) {
             MemorySegment x = a.allocate(JAVA_DOUBLE, Math.max(nc, 1));
             MemorySegment v = a.allocate(JAVA_DOUBLE);
             check(call(Native.MIP_INCUMBENT, h, x, v));
-            return prefix(x, nc);
+            return new Incumbent(prefix(x, nc), v.get(JAVA_DOUBLE, 0));
         }
     }
 

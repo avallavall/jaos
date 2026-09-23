@@ -159,8 +159,9 @@ optimize!(model)
 (an R package over `.Call`) reach a part of the C API. All three read
 every format, write MPS, LP and the solution file, build a model, set
 options by name, solve, and read back values, duals, cone duals,
-certificates, rays and the MIP report. .NET and Java also deliver the log
-to a function of the caller's; R has no log callback. The .NET and Java
+certificates, rays, the MIP report and the incumbent. .NET and Java also
+deliver the log to a function of the caller's, and R prints it to the
+console. The .NET and Java
 packages add a small modelling layer (`Problem`, `Var`, `Expr`); R has
 `jaos_solve_lp` over a dense matrix.
 

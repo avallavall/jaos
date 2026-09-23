@@ -16,6 +16,11 @@ function test_the_ccall_layer_solves_a_file()
     @test x ≈ [0.0, -1.0, 8.0]
     @test length(act) == length(y) == 3
     @test startswith(JAOS.version(), "0.")
+    lines = String[]
+    JAOS.set_log(m, 1; sink = line -> push!(lines, line))
+    JAOS.solve(m)
+    @test !isempty(lines)
+    JAOS.set_log(m, 0)
     err = try
         JAOS.read_file(m, joinpath(DATA, "no_such_file.lp"))
         nothing

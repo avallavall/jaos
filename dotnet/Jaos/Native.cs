@@ -121,6 +121,8 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_set_work_limit(ModelHandle m, long units);
     [DllImport(Lib)] internal static extern int jaos_set_threads(ModelHandle m, long threads);
     [DllImport(Lib)] internal static extern int jaos_set_mip_start(ModelHandle m, double[] x);
+    [DllImport(Lib)] internal static extern long jaos_num_options();
+    [DllImport(Lib)] internal static extern IntPtr jaos_option_name(long k);
     [DllImport(Lib)] internal static extern int jaos_set_log_callback(ModelHandle m, LogFn? cb, IntPtr user);
     [DllImport(Lib)] internal static extern int jaos_set_log_level(ModelHandle m, int level);
 

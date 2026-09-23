@@ -277,7 +277,44 @@ static SEXP r_mip_result(SEXP p)
     return out;
 }
 
+static void r_log_line(void *user, jaos_log_level level, const char *line)
+{
+    (void)user;
+    (void)level;
+    REprintf("%s\n", line);
+}
+
+static SEXP r_set_log(SEXP p, SEXP level)
+{
+    jaos_model *m = model_of(p);
+    const int lv = asInteger(level);
+    check(m, jaos_set_log_callback(m, lv > 0 ? r_log_line : NULL, NULL));
+    check(m, jaos_set_log_level(m, (jaos_log_level)lv));
+    return R_NilValue;
+}
+
+static SEXP r_mip_incumbent(SEXP p)
+{
+    jaos_model *m = model_of(p);
+    const int64_t nc = jaos_num_col(m);
+    double *x = (double *)R_alloc(nc + 1, sizeof *x);
+    double obj = 0.0;
+    if (jaos_mip_incumbent(m, x, &obj) != JAOS_OK)
+        return R_NilValue;
+    SEXP out = PROTECT(allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(out, 0, numeric(x, nc));
+    SET_VECTOR_ELT(out, 1, ScalarReal(obj));
+    SEXP names = PROTECT(allocVector(STRSXP, 2));
+    SET_STRING_ELT(names, 0, mkChar("x"));
+    SET_STRING_ELT(names, 1, mkChar("objective"));
+    setAttrib(out, R_NamesSymbol, names);
+    UNPROTECT(2);
+    return out;
+}
+
 static const R_CallMethodDef calls[] = {
+    {"r_set_log", (DL_FUNC)&r_set_log, 2},
+    {"r_mip_incumbent", (DL_FUNC)&r_mip_incumbent, 1},
     {"r_version", (DL_FUNC)&r_version, 0},
     {"r_new", (DL_FUNC)&r_new, 0},
     {"r_read", (DL_FUNC)&r_read, 3},

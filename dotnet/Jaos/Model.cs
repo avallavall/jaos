@@ -79,6 +79,9 @@ public sealed class Model : IDisposable
 {
     private readonly ModelHandle h;
     private Native.LogFn? logFn;
+    private Action<string>? logSink;
+    private LogLevel logLevel;
+    private double[]? mipStart;
 
     static Model() => Native.Ensure();
 
@@ -207,8 +210,35 @@ public sealed class Model : IDisposable
         Check(Native.jaos_set_work_limit(h, units));
     public void SetThreads(long threads) =>
         Check(Native.jaos_set_threads(h, threads));
-    public void SetMipStart(double[] x) =>
+    public void SetMipStart(double[] x)
+    {
         Check(Native.jaos_set_mip_start(h, x));
+        mipStart = (double[])x.Clone();
+    }
+
+    /// <summary>The name of every option <see cref="SetOption"/> takes.</summary>
+    public static string[] OptionNames()
+    {
+        long n = Native.jaos_num_options();
+        var names = new string[n];
+        for (long k = 0; k < n; k++)
+            names[k] = Marshal.PtrToStringUTF8(Native.jaos_option_name(k)) ?? "";
+        return names;
+    }
+
+    internal void CopySettingsTo(Model other)
+    {
+        foreach (var name in OptionNames())
+            other.SetOption(name, GetOption(name));
+        if (logSink != null)
+            other.SetLog(logLevel, logSink);
+        if (mipStart != null)
+        {
+            var x = new double[other.NumCol];
+            Array.Copy(mipStart, x, Math.Min(mipStart.Length, x.Length));
+            other.SetMipStart(x);
+        }
+    }
 
     /// <summary>
     /// Sends the solver's log to <paramref name="sink"/> at
@@ -220,13 +250,16 @@ public sealed class Model : IDisposable
         {
             Check(Native.jaos_set_log_callback(h, null, IntPtr.Zero));
             logFn = null;
+            logSink = null;
         }
         else
         {
             logFn = (user, lvl, line) =>
                 sink(Marshal.PtrToStringUTF8(line) ?? "");
             Check(Native.jaos_set_log_callback(h, logFn, IntPtr.Zero));
+            logSink = sink;
         }
+        logLevel = level;
         Check(Native.jaos_set_log_level(h, (int)level));
     }
 

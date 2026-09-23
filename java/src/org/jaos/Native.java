@@ -58,6 +58,8 @@ final class Native {
         FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT, ADDRESS);
 
     static final MethodHandle VERSION = fn("jaos_version", ADDRESS);
+    static final MethodHandle NUM_OPTIONS = fn("jaos_num_options", JAVA_LONG);
+    static final MethodHandle OPTION_NAME = fn("jaos_option_name", ADDRESS, JAVA_LONG);
     static final MethodHandle MODEL_NEW = fn("jaos_model_new", JAVA_INT, ADDRESS);
     static final MethodHandle MODEL_FREE = fn("jaos_model_free", null, ADDRESS);
     static final MethodHandle MODEL_ERROR = fn("jaos_model_error", ADDRESS, ADDRESS);

@@ -64,6 +64,14 @@ jaos_unbounded_ray <- function(model) .Call(r_unbounded_ray, model)
 
 jaos_mip_result <- function(model) .Call(r_mip_result, model)
 
+jaos_mip_incumbent <- function(model) .Call(r_mip_incumbent, model)
+
+jaos_set_log <- function(model, level = "summary") {
+    levels <- c(off = 0L, summary = 1L, progress = 2L, detail = 3L)
+    stopifnot(level %in% names(levels))
+    invisible(.Call(r_set_log, model, levels[[level]]))
+}
+
 jaos_solve_lp <- function(obj, A, row_lower, row_upper,
                           col_lower = rep(0, length(obj)),
                           col_upper = rep(Inf, length(obj)),
@@ -106,6 +114,12 @@ jaos_solve_lp <- function(obj, A, row_lower, row_upper,
         out$x <- s$x
         out$row_dual <- s$row_dual
         out$reduced_cost <- s$reduced_cost
+    } else {
+        inc <- jaos_mip_incumbent(m)
+        if (!is.null(inc)) {
+            out$objective <- inc$objective
+            out$x <- inc$x
+        }
     }
     out
 }

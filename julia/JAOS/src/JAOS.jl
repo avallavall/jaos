@@ -49,11 +49,12 @@ version() = unsafe_string(ccall((:jaos_version, libjaos), Cstring, ()))
 """A `jaos_model`, freed when Julia collects it."""
 mutable struct Model
     ptr::Ptr{Cvoid}
+    log_sink::Any
     function Model()
         r = Ref{Ptr{Cvoid}}(C_NULL)
         st = ccall((:jaos_model_new, libjaos), Cint, (Ref{Ptr{Cvoid}},), r)
         st == 0 || throw(JaosError(st, "jaos_model_new failed"))
-        m = new(r[])
+        m = new(r[], println)
         finalizer(_free, m)
         return m
     end
@@ -343,16 +344,22 @@ function unbounded_ray(m::Model)
 end
 
 function _log_line(user::Ptr{Cvoid}, level::Cint, line::Cstring)
-    println(unsafe_string(line))
+    m = unsafe_pointer_to_objref(user)::Model
+    m.log_sink(unsafe_string(line))
     return
 end
 
-"""Prints the solver's log at `level` (0 off, 1 summary, 2 progress, 3 detail)."""
-function set_log(m::Model, level::Integer)
+"""
+Sends the solver's log at `level` (0 off, 1 summary, 2 progress, 3 detail)
+to `sink`, a function of one line; `println` by default.
+"""
+function set_log(m::Model, level::Integer; sink = println)
+    m.log_sink = sink
     cb = @cfunction(_log_line, Cvoid, (Ptr{Cvoid}, Cint, Cstring))
     _check(m, ccall((:jaos_set_log_callback, libjaos), Cint,
                     (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), m,
-                    level > 0 ? cb : C_NULL, C_NULL))
+                    level > 0 ? cb : C_NULL,
+                    level > 0 ? pointer_from_objref(m) : C_NULL))
     return _check(m, ccall((:jaos_set_log_level, libjaos), Cint,
                            (Ptr{Cvoid}, Cint), m, level))
 end

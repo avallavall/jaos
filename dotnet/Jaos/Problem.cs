@@ -160,6 +160,7 @@ public sealed class Problem : IDisposable
         }
         foreach (var (t, cols) in cones)
             m.AddCone(t, cols);
+        Model.CopySettingsTo(m);
         Model.Dispose();
         Model = m;
         solution = null;

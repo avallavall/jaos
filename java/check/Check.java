@@ -85,6 +85,18 @@ public final class Check {
             MipReport r = p.model().mipResult();
             check(r.hasIncumbent() && Math.abs(r.bound() - 16.0) <= 1e-4,
                   "and the tree's report agrees");
+            check(near(p.model().mipIncumbent().objective(), 16.0),
+                  "and the incumbent carries its objective");
+
+            List<String> lines = new ArrayList<>();
+            p.model().setOption("mip_gap", "0.25");
+            p.model().setLog(LogLevel.SUMMARY, lines::add);
+            p.addLe(new Expr().add(1, x[0]).add(1, x[1]), 1);
+            p.solve();
+            check(p.model().getOption("mip_gap").equals("0.25") && !lines.isEmpty(),
+                  "a solve after an edit keeps the options and the log set on its model");
+            check(java.util.Arrays.asList(Model.optionNames()).contains("mip_gap"),
+                  "the option list names mip_gap");
         }
 
         try (Problem p = new Problem()) {

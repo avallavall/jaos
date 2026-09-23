@@ -37,14 +37,6 @@ written down.
 Read on 2026-09-22 over the 200 C calls: Python reaches 199, .NET and Java
 46 each, R 32, Julia 46, and each reaches 54 to 59 more only by option name.
 
-G1. **Binding defects.** .NET and Java `Problem.Solve` build a new model and
-drop every option, limit, log sink and MIP start set on `p.Model`; `Problem`
-has no setter of its own, so a `Problem` user cannot set a time limit, a
-gap or threads. Java's `mipIncumbent` drops the objective. R has no log
-callback. R's `jaos_solve_lp` returns values only at an optimum. Julia's log
-goes to stdout with no user sink. Verify: a check per defect in
-`make dotnet-test`, `java-test`, `r-test`, `julia-test`.
-
 G2. **.NET to parity**, about 97 C calls, in this order: settings and a warm
 re-solve in `Problem` (bound, cost, sense, constant); SOS, indicators and
 semi-continuous columns with their getters; quadratic rows in `Problem`;

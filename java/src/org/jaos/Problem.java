@@ -130,6 +130,7 @@ public final class Problem implements AutoCloseable {
         }
         for (Cone c : cones)
             m.addCone(c.type(), c.cols());
+        model.copySettingsTo(m);
         model.close();
         model = m;
         solution = null;
