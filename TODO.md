@@ -91,12 +91,6 @@ H7. **Parallel.** A parallel simplex; the rest of the barrier (forming the
 normal matrix, the solves) on threads; a round of nodes cheap enough to be
 the default.
 
-H8. **Re-take the PLATO readings** (`plato-pds`, `plato-fome`), last taken
-on 2026-08-17, with `make plato-pds-baseline plato-fome-baseline` after
-reading the diff. That also fixes their headers, which name
-`make netlib-baseline`. `plato-nug` has no baseline and runs only when
-named, since two of its three instances do not finish.
-
 ## Milestone I: the rest of SPECS
 
 I1. Presolve: duplicate rows and columns, dominated columns, bound
