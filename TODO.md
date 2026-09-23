@@ -27,8 +27,9 @@ H1. **The simplex's time per iteration.** A callgrind profile of `stocfor3`
 basis. Since 2026-09-23 the LU keeps its column vectors between refactors,
 the update and the pricing row clear only what they wrote, and the update
 reuses the entering column's partial FTRAN: 46.7e9 to 32.4e9 instructions,
-every answer and work unit the same. Left: the refactor frequency, and
-`make compare COMPARE_ARGS='-t P0'` taken on a quiet machine. The two
+every answer and work unit the same. The refactor interval was read again
+(`bench/measurements/02-299/`) and stays at 64. Left: `make compare
+COMPARE_ARGS='-t P0'` taken on a quiet machine. The two
 dense copies in `pivot` stay: the U solve leaves -0.0 outside the column's
 pattern, so clearing by pattern would change signs of zero.
 

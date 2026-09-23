@@ -1,0 +1,8 @@
+80bau3b      REGRESSED    suboptimality bound: 1.07e-14 -> 2.41e-14 (2.2x relative to its own objective)
+d2q06c       REGRESSED    suboptimality bound: 2.43e-14 -> 4.68e-13 (19.2x relative to its own objective)
+pilot-ja     REGRESSED    suboptimality bound: 3.5e-15 -> 1.19e-14 (3.4x relative to its own objective)
+pilot4       REGRESSED    suboptimality bound: 4.13e-15 -> 1.32e-14 (3.2x relative to its own objective)
+wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 2.2e-09 (222333.0x relative to its own objective)
+baseline: 5 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
+baseline: 0 regressed, 0 improved, 0 new
