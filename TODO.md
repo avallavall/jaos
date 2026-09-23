@@ -44,11 +44,6 @@ passed to C; the solution, basis, point and duals files; `iis_model`,
 `feasrelax`, ranging, the checkers and the exact proofs as `JAOS.`
 functions.
 
-G6. **Python `Problem` takes a product of two variables** (`x * y`) in the
-objective and in rows. Today only `Model.set_quadratic` and
-`Model.set_row_quadratic` reach it, and the other bindings' modelling layers
-already take it.
-
 Verify for G: each binding has a test that calls every C function it
 declares, and `make dotnet-test java-test r-test julia-test python-test`
 pass.

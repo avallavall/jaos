@@ -150,7 +150,7 @@ from .problem import (
     Problem,
     Var,
     _NOT_LINEAR,
-    _NOT_SEPARABLE,
+    _NOT_QUADRATIC,
     _as_expr,
     _merge_problem,
     quicksum,

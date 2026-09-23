@@ -87,7 +87,7 @@ def quicksum(terms):
     """One expression from an iterable of variables, expressions and
     numbers, built in a single pass. `sum()` also works, but it builds one
     intermediate expression per term, which is quadratic in their count."""
-    t, c, p = {}, 0.0, None
+    t, c, p, q = {}, 0.0, None, {}
     for o in terms:
         e = _as_expr(o)
         if e is None:
@@ -95,8 +95,33 @@ def quicksum(terms):
         p = _merge_problem(p, e._p)
         for v, k in e._t.items():
             t[v] = t.get(v, 0.0) + k
+        for pair, k in e._q.items():
+            q[pair] = q.get(pair, 0.0) + k
         c += e._c
-    return LinExpr(t, c, p)
+    return LinExpr(t, c, p, q)
+
+def _pair(a, b):
+    """The key of the quadratic term a*b: the two variables in index
+    order, so x*y and y*x are one term."""
+    return (a, b) if a._i <= b._i else (b, a)
+
+def _product(a, b):
+    """The product of two expressions with no quadratic part, expanded
+    into a quadratic, linear and constant part."""
+    if a._q or b._q:
+        raise TypeError(_NOT_QUADRATIC)
+    p = _merge_problem(a._p, b._p)
+    q = {}
+    for u, ku in a._t.items():
+        for v, kv in b._t.items():
+            key = _pair(u, v)
+            q[key] = q.get(key, 0.0) + ku * kv
+    t = {}
+    for v, k in b._t.items():
+        t[v] = t.get(v, 0.0) + a._c * k
+    for u, k in a._t.items():
+        t[u] = t.get(u, 0.0) + b._c * k
+    return LinExpr(t, a._c * b._c, p, q)
 
 def _as_expr(o):
     """The LinExpr view of an operand, or None when there is none."""
@@ -118,10 +143,9 @@ def _merge_problem(a, b):
 _NOT_LINEAR = ("JAOS solves linear programs; a product or quotient "
                "involving two variables is not linear")
 
-_NOT_SEPARABLE = ("an expression here takes a square, x * x or x ** 2, and "
-                  "not a product of two different variables; use "
-                  "Problem.add_cone, or Model.set_quadratic and "
-                  "Model.set_row_quadratic, for those")
+_NOT_QUADRATIC = ("an expression here is at most quadratic: a product of "
+                  "two linear expressions, or a square; a product with a "
+                  "quadratic expression, or a power other than 2, is not")
 
 class Var:
     """One variable of a Problem. Made by add_var, never directly.
@@ -181,17 +205,11 @@ class Var:
         return (-_as_expr(self)) + o
 
     def __mul__(self, o):
-        if isinstance(o, Var):
-            if o is not self:
-                raise TypeError(_NOT_SEPARABLE)
-            return LinExpr({}, 0.0, self._p, {self: 1.0})
         return _as_expr(self) * o
     __rmul__ = __mul__
 
     def __pow__(self, n):
-        if n != 2:
-            raise TypeError(_NOT_SEPARABLE)
-        return LinExpr({}, 0.0, self._p, {self: 1.0})
+        return _as_expr(self) ** n
 
     def __truediv__(self, o):
         return _as_expr(self) / o
@@ -259,12 +277,8 @@ class LinExpr:
         return e + (self * -1.0)
 
     def __mul__(self, o):
-        if isinstance(o, Var) and not self._q and len(self._t) == 1 \
-                and self._c == 0.0 and o in self._t:
-            return LinExpr({}, 0.0, self._p, {o: self._t[o]})
         if isinstance(o, (Var, LinExpr)):
-            raise TypeError(_NOT_SEPARABLE if isinstance(o, Var)
-                            else _NOT_LINEAR)
+            return _product(self, _as_expr(o))
         if not isinstance(o, (int, float)):
             return NotImplemented
         k = float(o)
@@ -272,6 +286,11 @@ class LinExpr:
                        self._c * k, self._p,
                        {v: c * k for v, c in self._q.items()})
     __rmul__ = __mul__
+
+    def __pow__(self, n):
+        if n != 2:
+            raise TypeError(_NOT_QUADRATIC)
+        return _product(self, self)
 
     def __truediv__(self, o):
         if isinstance(o, (Var, LinExpr)):
@@ -317,20 +336,24 @@ class LinExpr:
             return self._c
         col = self._p._solution().col_value
         return (self._c + sum(c * col[v._i] for v, c in self._t.items())
-                + sum(c * col[v._i] ** 2 for v, c in self._q.items()))
+                + sum(c * col[a._i] * col[b._i]
+                      for (a, b), c in self._q.items()))
 
     def __repr__(self):
         parts = [f"{c:g}*{v.name}" for v, c in self._t.items()]
-        parts += [f"{c:g}*{v.name}**2" for v, c in self._q.items()]
+        parts += [f"{c:g}*{a.name}**2" if a is b
+                  else f"{c:g}*{a.name}*{b.name}"
+                  for (a, b), c in self._q.items()]
         if self._c or not parts:
             parts.append(f"{self._c:g}")
         return " + ".join(parts)
 
 class Constraint:
     """One constraint. Made by comparing expressions; a row of the
-    problem once Problem.add has taken it. Squares in it make it a
-    quadratic row, which takes one finite side and solves by the conic
-    interior point: x**2 + y**2 <= 1.
+    problem once Problem.add has taken it. Quadratic terms in it, squares
+    or products of two variables, make it a quadratic row, which takes one
+    finite side and solves by the conic interior point:
+    x**2 + y**2 <= 1, or (x + y)**2 <= 4.
 
     Its bounds stay writable afterwards: setting `lb` or `ub` on an added
     constraint is how a right-hand side is moved between solves, and only
@@ -465,6 +488,7 @@ class Problem:
         self._dirty_var_bounds = set()
         self._dirty_costs = set()
         self._dirty_quad = set()
+        self._dirty_qpairs = False
         self._dirty_objective = False
         self._dirty_row_bounds = set()
 
@@ -556,7 +580,8 @@ class Problem:
             raise ValueError(
                 "this objective's variables belong to a different Problem")
         new = {v: float(c) for v, c in e._t.items()}
-        newq = {v: 2.0 * float(c) for v, c in e._q.items() if c != 0.0}
+        newq = {(a, b): (2.0 if a is b else 1.0) * float(c)
+                for (a, b), c in e._q.items() if c != 0.0}
         self._sol = None
         if self._loaded and not self._structural:
 
@@ -565,9 +590,11 @@ class Problem:
             for v in set(self._obj) | set(new):
                 if self._obj.get(v, 0.0) != new.get(v, 0.0):
                     self._dirty_costs.add(v._i)
-            for v in set(self._objq) | set(newq):
-                if self._objq.get(v, 0.0) != newq.get(v, 0.0):
-                    self._dirty_quad.add(v._i)
+            for key in set(self._objq) | set(newq):
+                if self._objq.get(key, 0.0) != newq.get(key, 0.0):
+                    self._dirty_quad.add(key[0]._i)
+                    if key[0] is not key[1]:
+                        self._dirty_qpairs = True
         self._obj = new
         self._objq = newq
         self._obj_c = float(e._c)
@@ -674,9 +701,7 @@ class Problem:
                 self._m.set_col_integer(v._i, True)
             if getattr(v, "semicontinuous", False):
                 self._m.set_col_semicontinuous(v._i, True)
-        for v, q in self._objq.items():
-            self._m.set_col_quadratic(v._i, q)
-        self._dirty_quad.clear()
+        self._load_objective_q()
         for t, vs, ws in self._sos:
             self._m.add_sos(t, [v._i for v in vs], ws)
         for c, z, v in self._ind:
@@ -685,7 +710,8 @@ class Problem:
             self._m.set_row_name(c._i, c.name)
             if c._q:
                 self._m.set_row_quadratic(
-                    c._i, [(v._i, v._i, 2.0 * k) for v, k in c._q.items()])
+                    c._i, [(a._i, b._i, (2.0 if a is b else 1.0) * k)
+                           for (a, b), k in c._q.items()])
         for c in self._cones:
             self._m.add_cone(
                 ConeType.ROTATED if c.rotated else ConeType.QUADRATIC,
@@ -696,6 +722,20 @@ class Problem:
         self._dirty_objective = False
         self._structural = False
         self._loaded = True
+
+    def _load_objective_q(self):
+        """Puts the objective's quadratic part on the model: column by
+        column while it holds only squares, as one Q once it holds a
+        product of two variables."""
+        if any(a is not b for a, b in self._objq):
+            self._m.set_quadratic([(a._i, b._i, q)
+                                   for (a, b), q in self._objq.items()])
+        else:
+            self._m.set_quadratic([])
+            for (v, _), q in self._objq.items():
+                self._m.set_col_quadratic(v._i, q)
+        self._dirty_quad.clear()
+        self._dirty_qpairs = False
 
     def _load_changes(self):
         """Puts everything the problem has changed onto the model. Every
@@ -710,9 +750,13 @@ class Problem:
                 self._dirty_objective = False
             for i in self._dirty_costs:
                 self._m.set_col_cost(i, self._obj.get(self._vars[i], 0.0))
-            for i in self._dirty_quad:
-                self._m.set_col_quadratic(i, self._objq.get(self._vars[i], 0.0))
-            self._dirty_quad.clear()
+            if self._dirty_qpairs:
+                self._load_objective_q()
+            else:
+                for i in self._dirty_quad:
+                    v = self._vars[i]
+                    self._m.set_col_quadratic(i, self._objq.get((v, v), 0.0))
+                self._dirty_quad.clear()
             for i in self._dirty_var_bounds:
                 v = self._vars[i]
                 self._m.set_col_bounds(i, v._lb, v._ub)

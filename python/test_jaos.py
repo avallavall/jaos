@@ -256,10 +256,6 @@ class TestReadingFiles(unittest.TestCase):
         self.assertAlmostEqual(p.objective_value, 4.0, places=6)
         self.assertAlmostEqual(x.value, 1.0, places=5)
         self.assertEqual(p._m.col_quadratic(0), 2.0)
-        with self.assertRaises(TypeError):
-            p.minimize(x * y)
-        with self.assertRaises(TypeError):
-            p.add(x * y <= 4)
         q = jaos.Problem()
         a = q.add_var(lb=0, ub=5, name="a", integer=True)
         b = q.add_var(lb=0, ub=5, name="b", integer=True)
@@ -1376,13 +1372,44 @@ class TestExpressions(unittest.TestCase):
         self.assertEqual(a._t, b._t)
         self.assertEqual(a._t[self.x], 2.0)
 
-    def test_a_product_of_variables_is_refused(self):
+    def test_a_product_of_variables_is_a_quadratic_term(self):
+        e = self.x * self.y
+        self.assertEqual(list(e._q.values()), [1.0])
+        self.assertEqual(e._q, (self.y * self.x)._q)
+        f = (self.x + 1) * (self.y + 2)
+        self.assertEqual(f._c, 2.0)
+        self.assertEqual(f._t[self.x], 2.0)
+        self.assertEqual(f._t[self.y], 1.0)
+        self.assertEqual(len(jaos.quicksum([e, self.x * self.x])._q), 2)
         with self.assertRaises(TypeError):
-            self.x * self.y
+            self.x * self.y * self.x
         with self.assertRaises(TypeError):
-            (self.x + 1) * (self.y + 1)
+            self.x ** 3
         with self.assertRaises(TypeError):
             1 / self.x
+
+    def test_a_problem_solves_with_products_of_two_variables(self):
+        p = jaos.Problem()
+        x = p.add_var(lb=0, ub=10, name="x")
+        y = p.add_var(lb=0, ub=10, name="y")
+        p.minimize(x * x + y * y + x * y - 3 * x - 3 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, -3.0, places=6)
+        self.assertAlmostEqual(x.value, 1.0, places=5)
+        self.assertAlmostEqual(y.value, 1.0, places=5)
+        self.assertEqual(p._m.quadratic_nz(), 3)
+        p.minimize(x * x + y * y - 3 * x - 3 * y)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, -4.5, places=6)
+        self.assertEqual(p._m.quadratic_nz(), 2)
+        r = jaos.Problem()
+        u = r.add_var(lb=0, ub=10, name="u")
+        v = r.add_var(lb=0, ub=10, name="v")
+        r.add((u + v) ** 2 <= 4)
+        r.minimize(-u - 2 * v)
+        self.assertIs(r.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(r.objective_value, -4.0, places=5)
+        self.assertEqual(r._m.row_quadratic_nz(0), 3)
 
     def test_not_equal_is_refused(self):
         with self.assertRaises(TypeError):
