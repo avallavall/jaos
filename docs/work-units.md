@@ -102,7 +102,9 @@ pass per candidate column over each equality row of two to `AGG_ROW_MAX`
 entries. A solve that substituted something and then ends with a numerical
 error is solved once more without the aggregator, under what is left of
 the work and time limits, and the failed attempt's work and iterations are
-added to the answer's.
+added to the answer's. When the failed attempt ends with a complete basis,
+postsolve maps it to the model and the second solve starts from it; the
+caller's own start comes back if the second solve publishes no basis.
 
 **Restarts inside the dual simplex** carry their work. A warm start that
 reaches no answer restarts cold, and a solve whose early cost perturbation

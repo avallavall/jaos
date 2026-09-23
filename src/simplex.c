@@ -4057,7 +4057,9 @@ static jaos_status publish(sx *s, jaos_solve_status status, jm_presolve *p)
             status == JAOS_SOLVE_TIME_LIMIT ||
             status == JAOS_SOLVE_INTERRUPTED ||
             status == JAOS_SOLVE_INFEASIBLE ||
-            status == JAOS_SOLVE_UNBOUNDED) {
+            status == JAOS_SOLVE_UNBOUNDED ||
+            (status == JAOS_SOLVE_NUMERICAL_ERROR && p->aggregated &&
+             m == &p->reduced)) {
             for (int64_t j = 0; j < m->num_col; j++)
                 m->sol_col_status[j] = published_status(s->status[j]);
             for (int64_t i = 0; i < m->num_row; i++)
@@ -4847,15 +4849,39 @@ jaos_status jm_dual_simplex(jaos_model *m)
             return st;
         m->cfg.time_limit = left;
     }
+    jaos_basis_status *start_col = m->start_col_status;
+    jaos_basis_status *start_row = m->start_row_status;
+    bool handed = st == JAOS_OK && jm_model_basis_count_ok(m);
+    if (handed) {
+        m->start_col_status = nullptr;
+        m->start_row_status = nullptr;
+        if (jm_model_remember_basis(m) != JAOS_OK) {
+            m->start_col_status = start_col;
+            m->start_row_status = start_row;
+            handed = false;
+        }
+    }
     jm_log(m, JAOS_LOG_SUMMARY,
            "the aggregated model ended with a numerical error (%s); solving "
            "again without the aggregator after %lld iterations and %lld work "
-           "units", m->err, (long long)iters, (long long)units);
+           "units, from %s", m->err, (long long)iters, (long long)units,
+           handed ? "its last basis" : "the start it had");
     m->err[0] = '\0';
     m->cfg.no_aggregate = true;
     bool again = false;
     int64_t units2 = 0, iters2 = 0;
     st = dual_simplex_once(m, &again, &units2, &iters2);
+    if (handed) {
+        if (st == JAOS_OK && m->sol_basis_ok) {
+            free(start_col);
+            free(start_row);
+        } else {
+            free(m->start_col_status);
+            free(m->start_row_status);
+            m->start_col_status = start_col;
+            m->start_row_status = start_row;
+        }
+    }
     m->cfg = saved;
     if (m->parked != nullptr) {
         jm_parked *pk = m->parked;

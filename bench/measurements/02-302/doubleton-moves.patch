@@ -1,0 +1,419 @@
+diff --git a/src/aggregate.c b/src/aggregate.c
+index 3fd3cd1..08c1b34 100644
+--- a/src/aggregate.c
++++ b/src/aggregate.c
+@@ -229,10 +229,32 @@ static bool ag_push_entry(jm_presolve *p, int64_t index, double value)
+     return true;
+ }
+ 
+-static bool ag_implied_free(const ag_mat *a, int64_t e, double b,
+-                            const double *cl, const double *cu, jm_work *w)
++static double ag_moved_end(double b, double aj, double ak, double x)
+ {
+-    const int64_t i = a->row[e], j = a->col[e];
++    if (isinf(x))
++        return -copysign(1.0, aj) * copysign(1.0, x) * copysign(1.0, ak) > 0.0
++                   ? HUGE_VAL : -HUGE_VAL;
++    return (b - aj * x) / ak;
++}
++
++static void ag_moved_bounds(double b, double aj, double ak, double lj,
++                            double uj, double *lo, double *hi)
++{
++    const double v1 = ag_moved_end(b, aj, ak, lj);
++    const double v2 = ag_moved_end(b, aj, ak, uj);
++    *lo = fmin(v1, v2);
++    *hi = fmax(v1, v2);
++    if (isfinite(*lo))
++        *lo = nextafter(nextafter(*lo, -HUGE_VAL), -HUGE_VAL);
++    if (isfinite(*hi))
++        *hi = nextafter(nextafter(*hi, HUGE_VAL), HUGE_VAL);
++}
++
++static void ag_implied(const ag_mat *a, int64_t e, double rlo, double rup,
++                       const double *cl, const double *cu, jm_work *w,
++                       double *ilo_out, double *iup_out, double *margin_out)
++{
++    const int64_t i = a->row[e];
+     const double aij = a->val[e];
+     ag_acc lo = {0.0, 0.0}, hi = {0.0, 0.0}, tr = {0.0, 0.0};
+     int64_t lo_inf = 0, hi_inf = 0;
+@@ -259,8 +281,10 @@ static bool ag_implied_free(const ag_mat *a, int64_t e, double b,
+     }
+     const double minact = lo_inf > 0 ? -HUGE_VAL : ag_acc_value(&lo);
+     const double maxact = hi_inf > 0 ? HUGE_VAL : ag_acc_value(&hi);
+-    const double loside = isfinite(maxact) ? b - maxact : -HUGE_VAL;
+-    const double upside = isfinite(minact) ? b - minact : HUGE_VAL;
++    const double loside = isfinite(maxact) && isfinite(rlo) ? rlo - maxact
++                                                            : -HUGE_VAL;
++    const double upside = isfinite(minact) && isfinite(rup) ? rup - minact
++                                                            : HUGE_VAL;
+     double ilo, iup;
+     if (aij > 0.0) {
+         ilo = loside / aij;
+@@ -269,19 +293,48 @@ static bool ag_implied_free(const ag_mat *a, int64_t e, double b,
+         ilo = upside / aij;
+         iup = loside / aij;
+     }
+-    double scale = fabs(b);
++    double scale = 0.0;
++    if (isfinite(rlo))
++        scale = fabs(rlo);
++    if (isfinite(rup) && fabs(rup) > scale)
++        scale = fabs(rup);
+     const double traffic = ag_acc_value(&tr);
+     if (isfinite(traffic) && traffic > scale)
+         scale = traffic;
+     if (scale < 1.0)
+         scale = 1.0;
+-    const double margin =
+-        AGG_IMPLIED_FREE_ULPS * DBL_EPSILON * scale / fabs(aij);
++    *ilo_out = ilo;
++    *iup_out = iup;
++    *margin_out = AGG_IMPLIED_FREE_ULPS * DBL_EPSILON * scale / fabs(aij);
++}
++
++static bool ag_implied_free(const ag_mat *a, int64_t e, double b,
++                            const double *cl, const double *cu, jm_work *w)
++{
++    const int64_t j = a->col[e];
++    double ilo, iup, margin;
++    ag_implied(a, e, b, b, cl, cu, w, &ilo, &iup, &margin);
+     const bool lo_ok = !isfinite(cl[j]) || ilo >= cl[j] + margin;
+     const bool up_ok = !isfinite(cu[j]) || iup <= cu[j] - margin;
+     return lo_ok && up_ok;
+ }
+ 
++static bool ag_implied_free_any(const ag_mat *a, int64_t j, const double *rl,
++                                const double *ru, const double *cl,
++                                const double *cu, jm_work *w)
++{
++    bool lo_ok = !isfinite(cl[j]), up_ok = !isfinite(cu[j]);
++    for (int64_t g = a->chead[j]; g >= 0 && !(lo_ok && up_ok);
++         g = a->cnext[g]) {
++        const int64_t r = a->row[g];
++        double ilo, iup, margin;
++        ag_implied(a, g, rl[r], ru[r], cl, cu, w, &ilo, &iup, &margin);
++        lo_ok = lo_ok || ilo >= cl[j] + margin;
++        up_ok = up_ok || iup <= cu[j] - margin;
++    }
++    return lo_ok && up_ok;
++}
++
+ static void ag_shift(ag_acc *acc, double *cur, double t)
+ {
+     ag_acc_add(acc, -t);
+@@ -365,11 +418,12 @@ static bool ag_identity(jm_presolve *p, const jaos_model *m)
+ }
+ 
+ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+-                                        jm_work *w)
++                                        bool move_bounds, jm_work *w)
+ {
+ #if defined(JAOS_AGG_OFF)
+     (void)p;
+     (void)src;
++    (void)move_bounds;
+     (void)w;
+     return JAOS_OK;
+ #else
+@@ -399,18 +453,24 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+     ag_acc *ru_acc = jm_calloc_array(nr, sizeof *ru_acc);
+     bool *row_dead = jm_calloc_array(nr, sizeof *row_dead);
+     bool *col_dead = jm_calloc_array(nc, sizeof *col_dead);
++    double *clo = jm_alloc_array(nc, sizeof *clo);
++    double *cup = jm_alloc_array(nc, sizeof *cup);
+     jaos_status ret = JAOS_OK;
+     ag_acc offset = {0.0, 0.0};
+ 
+-    if (!ag_mat_build(m, &a) || (nc > 0 && (!cost || !col_dead)) ||
++    if (!ag_mat_build(m, &a) ||
++        (nc > 0 && (!cost || !col_dead || !clo || !cup)) ||
+         (nr > 0 && (!rl || !ru || !rl_acc || !ru_acc || !row_dead))) {
+         ret = JAOS_ERR_OUT_OF_MEMORY;
+         goto cleanup;
+     }
+     jm_work_add(w, m->num_nz * JM_WORK_NONZERO);
+ 
+-    for (int64_t j = 0; j < nc; j++)
++    for (int64_t j = 0; j < nc; j++) {
+         cost[j] = m->col_cost[j];
++        clo[j] = m->col_lower[j];
++        cup[j] = m->col_upper[j];
++    }
+     for (int64_t i = 0; i < nr; i++) {
+         rl[i] = m->row_lower[i];
+         ru[i] = m->row_upper[i];
+@@ -446,12 +506,36 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+                 const int64_t mark = (a.clen[j] - 1) * (deg - 1);
+                 if (mark > AGG_FILL_MAX || mark >= best_mark)
+                     continue;
+-                if (!ag_implied_free(&a, f, b, m->col_lower, m->col_upper,
+-                                     w))
++                if (!ag_implied_free(&a, f, b, clo, cup, w) &&
++                    !ag_implied_free_any(&a, j, rl, ru, clo, cup, w))
+                     continue;
+                 best = f;
+                 best_mark = mark;
+             }
++            int64_t other = -1;
++            double moved_lo = -HUGE_VAL, moved_hi = HUGE_VAL, other_coef = 0.0;
++            if (best < 0 && deg == 2 && move_bounds && !warm) {
++                for (int64_t f = a.rhead[i]; f >= 0; f = a.rnext[f]) {
++                    const int64_t j = a.col[f];
++                    const int64_t g = f == a.rhead[i] ? a.rnext[f]
++                                                      : a.rhead[i];
++                    const int64_t k = a.col[g];
++                    if (fabs(a.val[f]) < AGG_PIVOT_REL * rowmax ||
++                        a.clen[j] - 1 >= best_mark)
++                        continue;
++                    double lo = 0.0, hi = 0.0;
++                    ag_moved_bounds(b, a.val[f], a.val[g], clo[j], cup[j],
++                                    &lo, &hi);
++                    if (fmax(clo[k], lo) > fmin(cup[k], hi))
++                        continue;
++                    best = f;
++                    best_mark = a.clen[j] - 1;
++                    other = k;
++                    other_coef = a.val[g];
++                    moved_lo = lo;
++                    moved_hi = hi;
++                }
++            }
+             if (best < 0)
+                 continue;
+ 
+@@ -459,8 +543,30 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+             const double aij = a.val[best];
+             jm_agg_rec rec = {
+                 .row = i, .col = j, .coef = aij, .rhs = b, .cost = cost[j],
+-                .row_at = p->agg_plen,
++                .row_at = p->agg_plen, .other = other,
+             };
++            if (other >= 0) {
++                rec.other_coef = other_coef;
++                rec.other_cost = cost[other];
++                rec.other_lo = clo[other];
++                rec.other_hi = cup[other];
++                rec.moved_lo = moved_lo;
++                rec.moved_hi = moved_hi;
++                rec.other_at = p->agg_plen;
++                for (int64_t g = a.chead[other]; g >= 0; g = a.cnext[g]) {
++                    if (a.row[g] == i)
++                        continue;
++                    if (!ag_push_entry(p, a.row[g], a.val[g])) {
++                        ret = JAOS_ERR_OUT_OF_MEMORY;
++                        goto cleanup;
++                    }
++                }
++                rec.other_n = p->agg_plen - rec.other_at;
++                rec.row_at = p->agg_plen;
++                clo[other] = fmax(clo[other], moved_lo);
++                cup[other] = fmin(cup[other], moved_hi);
++                p->agg_moved++;
++            }
+             for (int64_t f = a.rhead[i]; f >= 0; f = a.rnext[f]) {
+                 if (f == best)
+                     continue;
+@@ -633,8 +739,8 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+     for (int64_t k = 0; k < rcol; k++) {
+         const int64_t j = p->agg_orig_col[k];
+         r.col_cost[k] = cost[j];
+-        r.col_lower[k] = m->col_lower[j];
+-        r.col_upper[k] = m->col_upper[j];
++        r.col_lower[k] = clo[j];
++        r.col_upper[k] = cup[j];
+         r.a_start[k + 1] = r.a_start[k] + a.clen[j];
+     }
+     assert(r.a_start[rcol] == rnz);
+@@ -680,7 +786,7 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+ cleanup:
+     ag_mat_free(&a);
+     free(cost); free(rl); free(ru); free(rl_acc); free(ru_acc);
+-    free(row_dead); free(col_dead);
++    free(row_dead); free(col_dead); free(clo); free(cup);
+     return ret;
+ #endif
+ }
+@@ -700,6 +806,33 @@ static double ag_row_rest(const jm_presolve *p, const jm_agg_rec *rec,
+     return ag_acc_value(&s);
+ }
+ 
++static double ag_other_rest(const jm_presolve *p, const jm_agg_rec *rec,
++                            const double *y)
++{
++    ag_acc s = {rec->other_cost, 0.0};
++    for (int64_t k = rec->other_at; k < rec->other_at + rec->other_n; k++) {
++        const double t = -p->agg_pval[k] * y[p->agg_pidx[k]];
++        ag_acc_add(&s, t);
++        const double e = jm_two_product_residue(-p->agg_pval[k],
++                                                y[p->agg_pidx[k]], t);
++        if (e != 0.0)
++            ag_acc_add(&s, e);
++    }
++    return ag_acc_value(&s);
++}
++
++static int ag_moved_side(const jm_agg_rec *rec, const jaos_model *mid)
++{
++    if (rec->other < 0)
++        return 0;
++    const jaos_basis_status s = mid->sol_col_status[rec->other];
++    if (s == JAOS_BASIS_AT_LOWER && rec->moved_lo > rec->other_lo)
++        return -1;
++    if (s == JAOS_BASIS_AT_UPPER && rec->moved_hi < rec->other_hi)
++        return 1;
++    return 0;
++}
++
+ static double ag_col_rest(const jm_presolve *p, const jm_agg_rec *rec,
+                           double c, const double *y)
+ {
+@@ -803,13 +936,29 @@ JAOS_NODISCARD jaos_status jm_aggregate_expand(jm_presolve *p)
+         const jm_agg_rec *rec = &p->agg[t];
+         const double xv = ag_row_rest(p, rec, rec->rhs, mid->sol_col) /
+                           rec->coef;
+-        const double yv = ag_col_rest(p, rec, rec->cost, mid->sol_dual) /
+-                          rec->coef;
+         mid->sol_col[rec->col] = ag_published(xv);
+-        mid->sol_redcost[rec->col] = 0.0;
+-        mid->sol_dual[rec->row] = ag_published(yv);
+-        mid->sol_col_status[rec->col] = JAOS_BASIS_BASIC;
+         mid->sol_row_status[rec->row] = JAOS_BASIS_AT_LOWER;
++        const int side = ag_moved_side(rec, mid);
++        if (side == 0) {
++            const double yv = ag_col_rest(p, rec, rec->cost, mid->sol_dual) /
++                              rec->coef;
++            mid->sol_redcost[rec->col] = 0.0;
++            mid->sol_dual[rec->row] = ag_published(yv);
++            mid->sol_col_status[rec->col] = JAOS_BASIS_BASIC;
++            continue;
++        }
++        const double yv = ag_other_rest(p, rec, mid->sol_dual) /
++                          rec->other_coef;
++        mid->sol_dual[rec->row] = ag_published(yv);
++        const double dj = ag_col_rest(p, rec, rec->cost, mid->sol_dual) -
++                          rec->coef * yv;
++        mid->sol_redcost[rec->col] = ag_published(dj);
++        mid->sol_redcost[rec->other] = 0.0;
++        mid->sol_col_status[rec->other] = JAOS_BASIS_BASIC;
++        const bool same = (rec->coef > 0.0) == (rec->other_coef > 0.0);
++        mid->sol_col_status[rec->col] = (side < 0) == same
++                                            ? JAOS_BASIS_AT_UPPER
++                                            : JAOS_BASIS_AT_LOWER;
+     }
+ 
+     ag_acc *act = jm_calloc_array(nr, sizeof *act);
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 54b1662..b336880 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -549,6 +549,9 @@ typedef struct {
+     double coef, rhs, cost;
+     int64_t row_at, row_n;
+     int64_t col_at, col_n;
++    int64_t other;
++    double other_coef, other_cost, other_lo, other_hi, moved_lo, moved_hi;
++    int64_t other_at, other_n;
+ } jm_agg_rec;
+ 
+ typedef struct {
+@@ -568,6 +571,7 @@ typedef struct {
+     jaos_model stage1;
+     jm_agg_rec *agg;
+     int64_t agg_len, agg_cap;
++    int64_t agg_moved;
+     int64_t *agg_pidx;
+     double *agg_pval;
+     int64_t agg_plen, agg_pcap;
+@@ -584,7 +588,7 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p);
+ 
+ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
+-                                        jm_work *w);
++                                        bool move_bounds, jm_work *w);
+ 
+ JAOS_NODISCARD jaos_status jm_aggregate_expand(jm_presolve *p);
+ 
+diff --git a/src/simplex.c b/src/simplex.c
+index d4ba2c6..2af0b53 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4333,9 +4333,11 @@ static jaos_status restart_without_early_perturb(sx *s, jaos_model *m,
+ }
+ 
+ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+-                                     int64_t *units, int64_t *iters)
++                                     bool *moved, int64_t *units,
++                                     int64_t *iters)
+ {
+     *aggregated = false;
++    *moved = false;
+     *units = 0;
+     *iters = 0;
+     jm_presolve p;
+@@ -4436,12 +4438,13 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+             m->rq_nz == 0) {
+             pst = jm_aggregate(&p,
+                                p.outcome == JM_PRESOLVE_REDUCED ? &p.reduced : m,
+-                               &pre_work);
++                               !m->cfg.barrier && !m->cfg.pdlp, &pre_work);
+             if (pst != JAOS_OK) {
+                 jm_presolve_free(&p);
+                 return pst;
+             }
+             *aggregated = p.counts.aggregated_col > 0;
++            *moved = p.agg_moved > 0;
+         }
+ 
+         m->presolve_counts = p.counts;
+@@ -4825,14 +4828,16 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+ 
+ jaos_status jm_dual_simplex(jaos_model *m)
+ {
+-    bool aggregated = false;
++    bool aggregated = false, moved = false;
+     int64_t units = 0, iters = 0;
+     const double t0 = jm_monotonic_seconds();
+-    jaos_status st = dual_simplex_once(m, &aggregated, &units, &iters);
++    jaos_status st = dual_simplex_once(m, &aggregated, &moved, &units, &iters);
+     const bool failed = st == JAOS_ERR_NUMERICAL ||
+                         (st == JAOS_OK &&
+                          m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR);
+-    if (!failed || !aggregated || m->parked != nullptr)
++    const bool uncertified = moved && st == JAOS_OK &&
++                             m->solve_status == JAOS_SOLVE_INFEASIBLE;
++    if (!(failed || uncertified) || !aggregated || m->parked != nullptr)
+         return st;
+ 
+     const jm_config saved = m->cfg;
+@@ -4847,15 +4852,23 @@ jaos_status jm_dual_simplex(jaos_model *m)
+             return st;
+         m->cfg.time_limit = left;
+     }
+-    jm_log(m, JAOS_LOG_SUMMARY,
+-           "the aggregated model ended with a numerical error (%s); solving "
+-           "again without the aggregator after %lld iterations and %lld work "
+-           "units", m->err, (long long)iters, (long long)units);
++    if (failed)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "the aggregated model ended with a numerical error (%s); "
++               "solving again without the aggregator after %lld iterations "
++               "and %lld work units", m->err, (long long)iters,
++               (long long)units);
++    else
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "the aggregated model, with bounds moved across doubleton "
++               "rows, is infeasible; solving again without the aggregator "
++               "for a certificate after %lld iterations and %lld work units",
++               (long long)iters, (long long)units);
+     m->err[0] = '\0';
+     m->cfg.no_aggregate = true;
+-    bool again = false;
++    bool again = false, moved_again = false;
+     int64_t units2 = 0, iters2 = 0;
+-    st = dual_simplex_once(m, &again, &units2, &iters2);
++    st = dual_simplex_once(m, &again, &moved_again, &units2, &iters2);
+     m->cfg = saved;
+     if (m->parked != nullptr) {
+         jm_parked *pk = m->parked;

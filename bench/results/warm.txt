@@ -22,7 +22,7 @@ d2q06c       ok        branch=x2<=133344 warm=1/902059 cold=5993/438673474 verdi
 d6cube       ok        branch=x93<=2 warm=1/389492 cold=539/35325838 verdict=optimal obj=315.49166666666667/315.49166666666667 before=315.49166666666667 moved=NO checker=warm:ok/cold:ok 
 degen2       ok        branch=x4<=0 warm=2/100409 cold=565/5170847 verdict=optimal obj=-1435.1616666666666/-1435.1616666666666 before=-1435.1780000000001 moved=yes checker=warm:ok/cold:ok 
 degen3       ok        branch=x21<=0 warm=30/2562881 cold=2284/79510838 verdict=optimal obj=-987.27333333333331/-987.27333333333331 before=-987.29399999999998 moved=yes checker=warm:ok/cold:ok 
-dfl001       ok        branch=x0<=0 warm=22353/2935386596 cold=41708/5190544267 verdict=optimal obj=11266409.146716693/11266409.146716693 before=11266396.046671389 moved=yes checker=warm:ok/cold:ok 
+dfl001       ok        branch=x0<=0 warm=22353/2935386596 cold=19355/2263263362 verdict=optimal obj=11266409.146716693/11266409.146716697 before=11266396.046671389 moved=yes checker=warm:ok/cold:ok 
 e226         ok        branch=x0<=0 warm=7/81852 cold=259/1487126 verdict=optimal obj=-9.544284157369697/-9.544284157369697 before=-11.638929066370549 moved=yes checker=warm:ok/cold:ok 
 etamacro     ok        branch=x1>=5 warm=1/40825 cold=675/4306679 verdict=optimal obj=-755.71522915549303/-755.71522915549303 before=-755.7152333749134 moved=yes checker=warm:ok/cold:ok 
 fffff800     ok        branch=x3<=91 warm=6/90833 cold=695/5642623 verdict=optimal obj=555679.56481749623/555679.56481749623 before=555679.56481749623 moved=NO checker=warm:ok/cold:ok 
@@ -96,10 +96,10 @@ woodw        ok        branch=x11<=0 warm=1047/33273895 cold=1047/33297058 verdi
 
 -- warm against cold --
 measured 92, skipped 2, disagreed 0, rejected 0, errors 0
-iterations (warm+1)/(cold+1), geometric mean: 0.0129
-work units warm/cold, geometric mean:         0.0548
+iterations (warm+1)/(cold+1), geometric mean: 0.0130
+work units warm/cold, geometric mean:         0.0553
 work ratio, best  truss at 0.0002
 work ratio, worst wood1p at 2.8018
 reached the optimum in no iterations at all:  5 of 92
-took more iterations warm than cold:          1 of 92
+took more iterations warm than cold:          2 of 92
 the branch moved the optimum:                 80 of 92
