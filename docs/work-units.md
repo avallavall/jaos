@@ -48,8 +48,9 @@ promise a run far cheaper than the one it buys.
 The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`, `src/aggregate.c`,
 `src/simplex.c`, `src/barrier.c`, `src/pdlp.c`, `src/conic.c`, and one
 pass in `src/ranging.c`. The searches built on them, the branch and bound,
-the conic tree and the concurrent solve, add up what their solves billed
-and charge their own passes on top. Each has its paragraph below.
+the conic tree, the concurrent solve, the IIS and the feasibility
+relaxation, add up what their solves billed and charge their own passes on
+top. Each has its paragraph below.
 
 **Presolve changed what a figure means.** A work figure read before
 presolve existed and one read after are not comparable on a model presolve
@@ -92,7 +93,10 @@ nonzero of the model it copies into its row and column lists, per entry it
 reads while it tests a row's candidates, per entry it looks up or changes
 while it substitutes a column, and once more per nonzero of the reduced
 model it builds. It bills onto the same `jm_work` as presolve. It runs on
-every continuous model the dual simplex solves outside a tree, so a model
+every continuous model solved cold by the dual simplex outside a tree: not
+on a model with a starting basis, cones or quadratic rows. A solve that
+publishes a basis stores it as the next start, so a second solve of the
+same model does not aggregate. On a model it runs on, a model
 where nothing is substituted still pays one pass over its nonzeros, and a
 pass per candidate column over each equality row of two to `AGG_ROW_MAX`
 entries.
@@ -234,45 +238,79 @@ factorisation and dominates on anything but a tree.
 in each direction, the diagonal included, plus the two permutations at one
 per row. The test suite pins one three-row system exactly.
 
+*The quasi-definite LDL* serves the barrier's augmented system and the whole
+conic interior point. Its factorisation (`jm_ldlt_numeric`) charges
+`JM_WORK_FACTOR` once, plus the entries gathered and the multiply-adds, as
+the Cholesky does. Its solve (`jm_ldlt_solve`) charges `2 * nnz + 3 * n`:
+one more per row than the Cholesky solve, for the divide by the diagonal.
+
+*On threads*, the numeric factorisation works in blocks (`CHOL_BLOCK`) on
+`--threads` lanes. Each lane counts what it gathered and eliminated, and
+the counts are summed, so the charge is the one-thread charge at any thread
+count.
+
 **The barrier** (`src/barrier.c`) is billed on top of the Cholesky by the
 same rule. Forming the normal matrix `A Θ A^T` charges `JM_WORK_NONZERO`
 per multiply-add, which is the sum over the columns of the square of their
-length, plus one per entry of the pattern read out; that term is the
-barrier's largest charge on anything with a dense column, and it is why
-`fit1p`, `fit2p` and `seba` overrun the dual's work before their first
-iteration. Every product with `A` or `A^T` charges one per nonzero plus one
-per row. Every sweep over the variables, the residuals, the scaling, the
+length, plus one per entry of the pattern read out. A column with more
+than `BARRIER_DENSE_FACTOR` times the average count is left out of that
+matrix, and the Sherman-Morrison-Woodbury correction that puts it back
+charges `k * nr + k * dnz + k^3 / 6 + k^2` per factorisation and
+`k * nr + dnz + k^2` per solve, for `k` dense columns holding `dnz`
+entries. Every product with `A` or `A^T` charges one per nonzero plus one
+per row, and a product with a quadratic objective's `Q` two per entry.
+The augmented system, when the barrier takes it, is factored and solved by
+the LDL above. Every sweep over the variables, the residuals, the scaling, the
 two directions, the step lengths, the neighbourhood check and the update,
 charges one per variable. Nothing is charged per iteration beyond what the
 iteration touches, for the reason the simplex has no per-iteration
 constant either.
 
+*The QP push* (`qp_push`) finishes a quadratic model's point. Each round
+factors and solves its own system at the LDL's rates and charges one per
+entry it sweeps. Its sign test charges `2 * nvar`. Its polish by conjugate
+gradients charges `6 * nr` a step, plus a product pair with the rows and a
+solve with their factor a step, for up to `QP_PUSH_CG` steps. The early
+hand-off at `BARRIER_MU_DEAD` and the walk that goes on after a push that
+does not settle bill onto the same counter as the walk.
+
 *The crossover* charges the sort of the basis guess at one per variable
 per pass of a comparison sort, `nvar * (2 + floor(log2 nvar))`, then the
 LU factorisation of the guess at the factorisation's own rate, and two per
 row for each repair pass that swaps an unpivoted position for a logical.
-The dual simplex that finishes from the guess is billed as any warm-started
-solve is, on the same counter, so `jaos_work_units` reads the whole
-journey from the starting point to the vertex.
+Since 2026-09-22 the push then moves every nonbasic column onto a bound:
+`nnz + nvar` to start, then for each column it moves, its entries, an FTRAN
+at the LU's rate, `2 * nr` twice, and an LU update at the update's rate or
+a refactorisation. The primal simplex finishes from the pushed basis, and
+it is billed as any warm-started solve is, on the same counter, so
+`jaos_work_units` reads the whole journey from the starting point to the
+vertex.
 
 **PDLP** (`src/pdlp.c`) bills by the same rule. Every product with `A` or
 `A^T` charges one per nonzero plus one per entry of the vector it writes;
 each Ruiz round of the preconditioning is one such pass. Every sweep over
 the iterates (the step, the running averages, the restart test, the KKT
 error, and the ray test every `PDLP_CHECK_EVERY` iterations) charges one
-per entry it reads. The crossover that finishes it is the barrier's,
-billed as above.
+per entry it reads. What finishes it is the barrier's crash basis, billed
+as above, and the dual simplex from it; PDLP does not run the push.
 
 **The conic interior point** (`src/conic.c`) bills its passes the same
-way: each product with the matrix or with a cone's block one per nonzero
-plus one per entry written, each sweep over the iterate one per entry
-(twelve per variable and row for the step's bookkeeping), each pass of
-iterative refinement one per entry of the system, and the Newton finish one
-pass over its system per step. Its factorisations go through
-`src/chol.c` and are billed there. An infeasibility certificate the
-checker refuses is searched again before it is given up, at most
-`CONIC_CERT_CALLS` checker calls, and each call charges one pass over the
-model, `nnz + cols + rows + 1`.
+way: each product with the matrix one per nonzero plus one per entry
+written, each sweep over the iterate one per entry (twelve per variable and
+row for the step's bookkeeping), and each pass of iterative refinement one
+per entry of the system. The product with a cone's scaling block
+(`mul_h`) bills nothing; a known defect. The Newton finish charges
+`(CONIC_REFINE + 2) * u` a step, where `u` is the entries of its system,
+whatever number of refinement passes ran, and it runs up to
+`CONIC_NEWTON_ROUNDS` times. The ray polish charges `(it + 2) * (2 * at +
+n + nrow)` for its conjugate gradients. The ray probe is a full LP solve,
+and the sub-solves on a reduced model are full solves; the work of each is
+added. Its factorisations go through `src/chol.c` and are billed there. An
+infeasibility certificate the checker refuses is searched again before it
+is given up. The coordinate climb makes at most `CONIC_CERT_CALLS` checker
+calls, but the tilt ladder before it is not capped and adds up to 130 calls
+per outer round, for two rounds (a known defect). Each call charges one
+pass over the model, `nnz + cols + rows + 1`.
 
 **Ranging** (`src/ranging.c`) refactors the published basis and bills the
 factorisation and its solves at the LU's rates, plus one unit per entry of
@@ -283,10 +321,19 @@ node's relaxation is solved on the tree's copy of the model and billed as
 any solve, and the tree adds that bill to its total. Every other pass it
 makes (a cut separator, a heuristic, probing, the clique table, orbital
 fixing, propagation) adds one unit per entry of the model it reads, and a
-round of Gomory cuts adds the tableau rows it reads. Symmetry detection
-(`src/symmetry.c`) searches under a cap and bills what it spent of it.
-`jaos_work_units` after a MIP solve is that total, and the work limit is a
-limit on it.
+round of Gomory cuts adds the tableau rows it reads. Four passes read the
+model more than once and bill that: a MIR round `(nnz + nc + nr) *
+(MIP_MIR_DELTAS + 1)`, a clique round `nm * nm` per clique of `nm`
+members, a stalled pump round `MIP_PUMP_FLIPS * nc`, and orbital fixing
+`ngen * nfix + kept * nc`. Symmetry detection (`src/symmetry.c`) searches
+under a cap and bills what it spent of it. Under `--tree-batch N` above 1,
+each node of a round is solved on its own copy of the tree's LP with
+`(work_limit - work) / n` of the budget, and its work is added; the tree
+then solves each node again from the round's basis, and that solve is
+billed too. So the work at N above 1 differs from the work at 1 (1.37x on
+MIPLIB 3 at rounds of 4, `bench/measurements/02-290/`), but not with the
+thread count. `jaos_work_units` after a MIP solve is that total, and the
+work limit is a limit on it.
 
 **The conic tree** (`src/conictree.c`) adds up the work of every conic
 solve it runs: the nodes, the rounding and the dive. Each solve gets the
@@ -294,7 +341,18 @@ budget that is left, and under `--tree-batch N` a round's nodes share it.
 
 **The concurrent solve** (`src/concurrent.c`) bills the sum over its three
 arms, in the rounds the one-thread schedule runs them, so the total is the
-same at any thread count.
+same at any thread count. A simplex arm stopped by its slice parks its
+state and resumes from it in the next round, and a resumed solve reports
+its whole walk. `settle_arm` adds that whole walk every round, so an arm
+that runs two rounds is billed for its first round twice, and the next
+round's budget caps the arm's whole walk. This double count is a known
+defect.
+
+**The IIS** (`src/iis.c`) adds the work of every re-solve it runs, and each
+re-solve gets the whole work and time limit. **The feasibility relaxation**
+(`src/relax.c`) adds the work of every solve of its elastic copy, and caps
+every box round after the first at `RELAX_ROUND_WORK` times the first
+round's work.
 
 ## What is outside the budget
 
@@ -352,8 +410,10 @@ What it matches instead is the walk over `rho` itself, which reads every row
 whether it skips it or not. On the Kennington set that single charge is 27%
 of everything billed.
 
-**The clock is never involved.** A time limit is read at most once every 64
-iterations and can only stop a solve; it can never choose a pivot.
+**The clock is never involved.** A time limit is read once every 64
+iterations in the simplex and PDLP, once per iteration in the barrier and
+the conic interior point, and once per node in both trees. It can only stop
+a solve; it can never choose a pivot.
 That separation is why the two budgets are separate calls with separate
 meanings, and why only one of them is reproducible.
 

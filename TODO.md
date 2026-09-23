@@ -27,19 +27,16 @@ errors, and a unit test solves this model warm.
 F2. **`dfl001` ends `NUMERICAL_ERROR` from a cold start after one bound
 change.** Set column 0's upper bound to 0: the settled point has a reduced
 cost 1.5e-9 past its bound. The warm re-solve of the same model ends
-optimal. It was fine at 6e925a7 (2026-09-10). Find the commit with `git
-bisect start HEAD 6e925a7` in a clone outside the repository's folder, each
-step solving `dfl001`, setting that bound and solving again after
-`jaos_clear_basis` (the steps of `bench/warm.c`). Verify: `make warm` reads
-0 disagreements.
+optimal. Introduced by 2e04b47, the aggregator, which runs on a cold solve
+only: its parent solves the same model cold to the optimum. Verify: `make
+warm` reads 0 disagreements.
 
 F3. **The primal simplex ends `NUMERICAL_ERROR` on `pilot87`.** Its phase 1
 infeasibility rises to 3.17 times its best on an ill-conditioned basis. First
 seen in cb74ff5's `bench/results/primal.txt`; the 2026-09-09 reading had
-none. A bisect from 6e925a7 with `./build/bench/primal -j 1 pilot87` found
-it fine up to 6493362 at least; it was still running when this row was
-written (clone in WSL at `~/jaos-bisect`, delete it after). Verify: `make
-primal` reads 0 disagreements.
+none. Introduced by 8296fb8, the same commit as F1, found by `git bisect`
+with `./build/bench/primal -j 1 pilot87`. Verify: `make primal` reads 0
+disagreements.
 
 F4. **Some warm starts cost far more than they did.** Against the
 2026-09-10 reading, warm work rose 87x on `stocfor3`, 12x on `stocfor2`, 4x
@@ -96,30 +93,7 @@ F11. **Bench bookkeeping.** `bench/run.c` names the baselines' last column
 suboptimality bound. `make plato` runs `plato-nug`, whose nug20 and nug30
 do not finish, so `make plato` does not finish either.
 
-F12. **Finish the constants docs** (the 2026-09-22 audit stopped here for
-the token budget). `docs/tolerances.md`: `NAME_LEN` is 256
-(`JAOS_NAME_MAX + 1`), the buffer for every name the writer copies; the
-relaxation has five numbers and its two caps can end the search with no
-answer; `RELAX_BOX_ROUNDS` lets `M` grow 15 times (the widest box is 32768
-times the first); the conic tree has three numbers; the branch and bound's
-heading counts 58 numbers of `src/mip.c` and 2 of `src/symmetry.c`, and
-`MIP_PUMP_ALWAYS` and `MIP_RCFIX` are off; the three cut rows cite 02-298;
-`MIP_BATCH_MAX` cites 02-290; `JM_EXACT_LIMBS` lives in
-`src/jaos_internal.h`, a `jm_bigint` is 528 bytes and the block ceiling is
-1007 rows; `src/verify.c` has two constants; `CONIC_CERT_CALLS` bounds only
-the coordinate climb; `PRESOLVE_ROUND_ULPS` has four live sites;
-`BARRIER_MAX_ITER`'s 57 is stale (pilot at 47 now); the `CR_MAX_ITER`,
-`CR_TOL`, `GEO_TOL`, `BIG` and `SPLIT` rows. `docs/work-units.md`: the
-crossover's push, the barrier's QP push, augmented system and dense-column
-correction, the conic Newton finish (`(CONIC_REFINE + 2) * u` a step) and
-the unbilled `mul_h`, the rounds of nodes, the IIS and the relaxation, the
-LDL kernels and the threaded factor, the aggregator's conditions, and the
-time limit read every iteration outside the simplex and PDLP. `docs/scaling.md`:
-the Curtis-Reid stop rule (`CR_MAX_ITER`, `CR_TOL`), `GEO_TOL`, the conic
-interior point's own Ruiz scaling, and that only the unit tests choose a
-scaling mode. Verify: `tools/docs-check.sh`.
-
-F13. **Small items the audit left open.** Each needs a check or a
+F12. **Small items the audit left open.** Each needs a check or a
 decision, then a doc line.
 - The comparison harness: `bench/compare/jaos_time.c` sets no tolerance, so
   JAOS runs its dual tolerance of 1e-9 against the competitors' 1e-7; set
@@ -156,7 +130,7 @@ decision, then a doc line.
   from before presolve (2026-08-11 to 2026-08-17); mark them in
   `bench/compare/README.md` or delete them.
 
-F14. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
+F13. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
 tag. Move the version to `0.5.0-dev` on `main` (every version string,
 `tools/version-check.sh`) so a report names what it ran.
 

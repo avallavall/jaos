@@ -18,8 +18,9 @@ the whole solve on it; the checker keeps working in original space.
 
 ## What the solver does with them
 
-A solve that finds no scaling on the model computes one — Curtis-Reid — and
-a caller who has already chosen a mode keeps it. From there the working copy
+A solve that finds no scaling on the model computes Curtis-Reid. No option
+or API call chooses another mode; only the unit tests call the internal
+`jm_model_scale` with one. From there the working copy
 is the scaled problem throughout: matrix values, column bounds divided by
 their factor, row bounds multiplied by theirs, costs multiplied by the column
 factor. It is a change of variable, `x_j = gamma_j * xhat_j`, not an
@@ -55,8 +56,11 @@ sum over nonzeros of (log2|a_ij| - r_i - c_j)^2
 ```
 
 The normal equations form a symmetric positive semi-definite system in
-`[r; c]`, solved by Jacobi-preconditioned conjugate gradients. Each
-iteration is one fixed-order pass over the CSC copy, so results are
+`[r; c]`, solved by Jacobi-preconditioned conjugate gradients. They run at
+most `CR_MAX_ITER` (30) iterations and stop sooner when `r'z` falls to
+`CR_TOL^2` times its start (`CR_TOL` is 1e-8), or when `p'q` is not
+positive (`src/scale.c`). Each iteration is one fixed-order pass over the
+CSC copy, so results are
 bit-identical across runs — verified by a test that recomputes and
 compares raw bytes.
 
@@ -71,8 +75,10 @@ until `log2` is displaced by roughly 4x10^8 ulps, and the closest of
 The system is singular: adding `k` to every `r_i` while subtracting it from
 every `c_j` changes nothing. It is also consistent, so CG from a zero start
 behaves; and the quantity that matters, the scaled magnitude, is invariant
-under that freedom anyway. Tests therefore assert scaled magnitudes, never
-individual factors.
+under that freedom anyway. Tests therefore assert scaled magnitudes. They
+assert a factor only where the free shift cannot move it: an empty row or
+column, the clamp at `2^-20`, and a repeated run that must give the same
+bytes.
 
 When the matrix *is* an exact power-of-two scaling of a uniform matrix, the
 least-squares residual reaches zero and every scaled magnitude comes out at
@@ -86,13 +92,17 @@ Gaussian Elimination", IMA J. Applied Mathematics 10(1):118–124, 1972.
 ## Geometric-mean equilibration (internal)
 
 Alternating passes setting each factor to `1/sqrt(min * max)` over the row
-or column, stopping when the spread stops improving. It responds
+or column. The passes stop when the row spread, in log2 units, improves by
+less than `GEO_TOL` (1e-3), when the spread is 0, or after `GEO_MAX_PASS`
+(20) passes. It responds
 differently to a handful of extreme outliers, which Curtis-Reid averages
 over.
 
-Every solve uses Curtis-Reid: the dual and the primal simplex, the
-barrier, PDLP and ranging all call `jm_model_scale` with
-`JM_SCALE_CURTIS_REID`. The geometric pass is `JM_SCALE_GEOMETRIC` in
+Every LP and QP solve uses Curtis-Reid: the dual and the primal simplex,
+the barrier, PDLP and ranging all call `jm_model_scale` with
+`JM_SCALE_CURTIS_REID`. The conic interior point does not: it scales its
+own copy by Ruiz equilibration (`CONIC_RUIZ`, `docs/tolerances.md`), and
+so does every node of the conic tree. The geometric pass is `JM_SCALE_GEOMETRIC` in
 `src/scale.c`, reached only by `tests/test_scale.c`. No option or API call
 selects it. Put in the simplex's place it loses as a default
 (`bench/measurements/02-279/`, `scale-geometric` in `bench/refusals.txt`):
