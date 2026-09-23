@@ -21,6 +21,8 @@ constexpr int CONCURRENT_ARMS = 3;
 typedef struct {
     jaos_model *m;
     int64_t work;
+    int64_t last;
+    bool resumed;
     bool live;
     jaos_status st;
     jm_thread th;
@@ -46,6 +48,7 @@ static jaos_callback_action arm_progress(const jaos_progress *p, void *user)
 static void run_arm(void *p)
 {
     jm_arm *a = p;
+    a->resumed = a->m->parked != nullptr;
     a->st = jaos_solve(a->m);
     if (a->answered == nullptr || !arm_decided(jaos_status_of(a->m)))
         return;
@@ -114,7 +117,10 @@ static jaos_status take_answer(jaos_model *m, jaos_model *w, int64_t work,
 
 static int settle_arm(jaos_model *m, jm_arm *a, int k, int64_t *spent)
 {
-    const int64_t used = jaos_work_units(a->m);
+    const int64_t total = jaos_work_units(a->m);
+    const int64_t used = a->resumed && total >= a->last ? total - a->last
+                                                        : total;
+    a->last = total;
     a->work += used;
     *spent += used;
     if (a->st != JAOS_OK) {
@@ -209,8 +215,10 @@ jaos_status jm_solve_concurrent(jaos_model *m)
                         spent_out = true;
                         break;
                     }
-                    if (give > left)
-                        give = left;
+                    const int64_t base =
+                        arm[k].m->parked != nullptr ? arm[k].last : 0;
+                    if (give > base + left)
+                        give = base + left;
                 }
                 arm[k].m->cfg.work_limit = give;
                 run_arm(&arm[k]);

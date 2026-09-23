@@ -267,7 +267,7 @@ static bool at_reserved(const lp *p)
 
 bool jm_lp_name_ok(const char *s)
 {
-    if (s == nullptr || !name_start(s[0]))
+    if (s == nullptr || !name_start(s[0]) || s[0] == '/')
         return false;
     size_t n = 0;
     for (const char *p = s; *p; p++, n++)

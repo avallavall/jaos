@@ -3394,6 +3394,17 @@ static void test_reduced_cost_fixing_keeps_the_optimum(void)
     TEST_ASSERT_FALSE(m->cfg.mip_rcfix_set);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, -1));
     TEST_ASSERT_FALSE(m->cfg.mip_propagate_set);
+    char opt[64];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_get_option(m, "mip_propagate", opt, 64));
+    TEST_ASSERT_EQUAL_STRING("-1", opt);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_propagate", opt));
+    TEST_ASSERT_FALSE(m->cfg.mip_propagate_set);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, 3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_get_option(m, "mip_propagate", opt, 64));
+    TEST_ASSERT_EQUAL_STRING("3", opt);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, -1));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate_depth(m, -1));
     TEST_ASSERT_FALSE(m->cfg.mip_propagate_depth_set);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_pump_always(m, -1));

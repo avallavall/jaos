@@ -23,10 +23,19 @@ make -s cli > /dev/null || { echo "build failed" >&2; exit 2; }
 jaos=build/cli/jaos
 highs=$(ls "$here"/solvers/highs-* 2>/dev/null | head -1)
 scip_py=${SCIP_PYTHON:-}
+under_wsl=$(grep -qi microsoft /proc/version && echo " UNDER-WSL-DEVELOPMENT-NUMBER" || echo "")
+tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head -1)
+highs_version=$([ -n "$highs" ] && "$highs" --version 2>/dev/null | head -1)
+scip_version=""
+if [ -n "$scip_py" ]; then
+    scip_version=$("$scip_py" -c 'import pyscipopt; m = pyscipopt.Model(); print("SCIP", m.version(), "pyscipopt", pyscipopt.__version__)' 2>/dev/null)
+    scip_version=${scip_version:-SCIP version unknown}
+fi
 {
     echo "# JAOS against HiGHS and SCIP on $(basename "$manifest"), ${limit} s each, one thread, relative gap 1e-6"
-    echo "# machine: $(uname -sm) $(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //')"
-    echo "# tree: $(git rev-parse --short HEAD 2>/dev/null)"
+    echo "# machine: $(uname -sm) $(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //')$under_wsl"
+    echo "# tree: $(git rev-parse --short HEAD 2>/dev/null)${tree_dirty:+ WITH UNCOMMITTED CHANGES}"
+    echo "# solvers: ${highs_version:-HiGHS not run}; ${scip_version:-SCIP not run}"
     echo "# instance solver status objective nodes seconds reference"
 } > "$out"
 awk '!/^#/ && NF >= 5 {print $1, $5}' "$manifest" | while read -r name ref; do

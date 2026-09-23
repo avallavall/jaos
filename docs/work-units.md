@@ -307,7 +307,8 @@ way: each product with the matrix one per nonzero plus one per entry
 written, each sweep over the iterate one per entry (twelve per variable and
 row for the step's bookkeeping), and each pass of iterative refinement one
 per entry of the system. The product with a cone's scaling block
-(`mul_h`) bills nothing; a known defect. The Newton finish charges
+(`mul_h`) inside that refinement charges two per row of the cone block,
+one read and one written (unbilled until 2026-09-23). The Newton finish charges
 `(CONIC_REFINE + 2) * u` a step, where `u` is the entries of its system,
 whatever number of refinement passes ran, and it runs up to
 `CONIC_NEWTON_ROUNDS` times. The ray polish charges `(it + 2) * (2 * at +
@@ -316,9 +317,9 @@ and the sub-solves on a reduced model are full solves; the work of each is
 added. Its factorisations go through `src/chol.c` and are billed there. An
 infeasibility certificate the checker refuses is searched again before it
 is given up. The coordinate climb makes at most `CONIC_CERT_CALLS` checker
-calls, but the tilt ladder before it is not capped and adds up to 130 calls
-per outer round, for two rounds (a known defect). Each call charges one
-pass over the model, `nnz + cols + rows + 1`.
+calls. The tilt ladder before it is bounded on its own, at most 130 calls
+per outer round for two rounds, and its calls are charged the same way:
+one pass over the model each, `nnz + cols + rows + 1`.
 
 **Ranging** (`src/ranging.c`) refactors the published basis and bills the
 factorisation and its solves at the LU's rates, plus one unit per entry of
@@ -351,10 +352,11 @@ budget that is left, and under `--tree-batch N` a round's nodes share it.
 arms, in the rounds the one-thread schedule runs them, so the total is the
 same at any thread count. A simplex arm stopped by its slice parks its
 state and resumes from it in the next round, and a resumed solve reports
-its whole walk. `settle_arm` adds that whole walk every round, so an arm
-that runs two rounds is billed for its first round twice, and the next
-round's budget caps the arm's whole walk. This double count is a known
-defect.
+its whole walk. `settle_arm` bills a resumed arm only what it added since
+the last round, and the next round's budget caps the arm's whole walk.
+Under a work limit, a resumed arm may add at most what is left of it.
+Until 2026-09-23 the whole walk was added every round, so an arm that ran
+two rounds was billed for its first round twice.
 
 **The IIS** (`src/iis.c`) adds the work of every re-solve it runs, and each
 re-solve gets the whole work and time limit. **The feasibility relaxation**

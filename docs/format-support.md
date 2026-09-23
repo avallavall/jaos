@@ -229,9 +229,10 @@ CPLEX-style core dialect, token-stream parsed: expressions wrap lines freely.
   hold an operator, `:`, `[`, `]`, `*` or `^`. Anything else is
   rejected loudly (so `3*x` reports the `*`). The symbols were letters and
   `_` only until D284 widened the rule to what other solvers' files carry.
-  The writer's own test of a name lets one start with `/`, so
-  `jaos_write_lp` writes a column called `/x` as it is, and `jaos_read_lp`
-  refuses that file at "unexpected character '/'".
+  The writer applies the same rule, so a column called `/x` is written
+  under its spelled name `c<j+1>` with the original in the comment map.
+  Until 2026-09-23 the writer let a name start with `/` and wrote it as it
+  was, and `jaos_read_lp` refused that file at "unexpected character '/'".
 - **Labels are kept**: a constraint's label is the row's name, the
   objective's label is the objective's, and every variable's name is its
   column's. A constraint with no label is called by its position,
@@ -350,13 +351,11 @@ plus, `o1` minus, `o2` times, `o3` divide, `o5` power and `o16` unary
 minus, and `o54`, the sum of a counted list. Its constant moves into the
 row's bounds or becomes the objective's. In the objective, its linear
 part is added to the `G` coefficients. In a row, its linear terms are
-kept beside the `J` coefficients and are not summed with them. So a row
-is refused when the body gives a column a linear term and `J` also gives
-that column a nonzero coefficient, or when the body gives one column two
-linear terms (`o0 v0 v0`). The reader does not merge like terms when it
-multiplies out a product, so `(x+1)^2 <= 5` gives `x` two linear terms
-and is refused this way. The message is "the .nl model failed
-validation", with no line. The body's quadratic part
+added to the `J` coefficients of the same column, in the order the file
+gives them, so `(x+1)^2 + 3*x <= 5` reads as `x^2 + 5x <= 4`. A sum that
+comes out exactly 0 leaves no entry; a zero the `J` segment writes alone
+stays one. Until 2026-09-23 such a row was refused ("the .nl model failed
+validation"). The body's quadratic part
 becomes the row's `Q` or the objective's, where a body term `b x_i x_i`
 is `Q_ii = 2b` and `a x_i x_j` is `Q_ij = a`, since a model's objective
 is `c'x + ½ x'Qx` and a row's quadratic part is read the same way. A
@@ -561,9 +560,8 @@ SOS sets, semi-continuous columns and indicator rows are refused by name.
 columns, cones and optimum, and not as the same one: the names are lost,
 a bound other than the four above comes back as a row, and a ranged row
 as two. A bound at an infinity of the wrong sign, such as a lower bound
-of `+inf`, is the exception. The CBF writer writes it as no bound, where
-the MPS and LP writers refuse it, so the file describes a different
-model.
+of `+inf`, is refused by name, as the MPS and LP writers refuse it (until
+2026-09-23 the CBF writer wrote it as no bound).
 
 **Read on CBLIB 2014** (`make cblib`, `bench/measurements/02-254/`): the
 29 continuous instances of the library under 70 MB all read, the largest
@@ -659,12 +657,12 @@ name a column that appears in no row at all.
 
 The LP writer refuses a model with cones, a row with a quadratic part and
 two finite bounds, a row with no coefficients in a model with no columns,
-and a bound at an infinity of the wrong sign. Two shapes pass that check
-and break the rule that JAOS reads back what it writes. A row whose
-lower bound is above its upper bound is written as two rows, and it reads
-back as two rows, because the `\ range` join needs `l < u`. A row with a
-finite lower bound and an upper bound of `-inf` is written as
-`A_hi: ... <= -inf`, and the reader refuses that file. MPS refuses both.
+a bound at an infinity of the wrong sign on a row or a column, and a row
+whose lower bound is above its upper bound. Until 2026-09-23 the last two
+passed for a row with a finite lower bound and an upper bound of `-inf`,
+written as `A_hi: ... <= -inf`, which the reader refuses, and for an
+inverted row, written as two rows that read back as two, because the
+`\ range` join needs `l < u`.
 
 **A free row** was refused by name with a pointer to MPS until
 2026-09-19. It is written as `>= -inf` now, which HiGHS reads as a free

@@ -936,10 +936,16 @@ jaos_status jaos_write_lp(jaos_model *m, const char *path)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a quadratic part and two bounds, which the "
                     "LP writer would split in two rows; write MPS instead", rn);
-        else if (!free_row && !isfinite(rl == -INFINITY ? ru : rl))
+        else if (rl == INFINITY || ru == -INFINITY ||
+                 (!free_row && !isfinite(rl == -INFINITY ? ru : rl)))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has a bound at an infinity LP format cannot "
                     "express", rn);
+        else if (rl > ru)
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' has its lower bound above its upper bound, "
+                    "which LP format would write as two rows; write MPS "
+                    "instead", rn);
         else if (m->ar_start[i] == m->ar_start[i + 1] && m->num_col == 0)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' has no coefficients and the model has no "
@@ -1515,6 +1521,20 @@ jaos_status jaos_write_cbf(jaos_model *m, const char *path)
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "row '%s' is an indicator constraint, which CBF cannot "
                     "express; write MPS instead", nm);
+        }
+    for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++)
+        if (m->col_lower[j] == INFINITY || m->col_upper[j] == -INFINITY) {
+            col_name(m, nm, j);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "column '%s' has a bound at an infinity CBF cannot "
+                    "express", nm);
+        }
+    for (int64_t i = 0; w->st == JAOS_OK && i < nr; i++)
+        if (m->row_lower[i] == INFINITY || m->row_upper[i] == -INFINITY) {
+            row_name(m, nm, i);
+            wr_fail(w, JAOS_ERR_INVALID_INPUT,
+                    "row '%s' has a bound at an infinity CBF cannot "
+                    "express", nm);
         }
     if (w->st != JAOS_OK)
         return w->st;

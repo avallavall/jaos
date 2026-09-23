@@ -5,7 +5,8 @@
 Report a vulnerability privately, through the repository's GitHub page:
 the Security tab, "Report a vulnerability". Do not open a public issue for
 it. Include the input that shows it and the version `jaos --version`
-prints.
+prints. The version names the last tagged release, so for a build from the
+repository include its commit too (`git rev-parse --short HEAD`).
 
 ## What is exposed
 

@@ -13,6 +13,10 @@ minimum of three runs, geometric mean of per-instance ratios.
 | `-march=native` | 1.0072x | inside the noise, and not portable |
 | **PGO** | **1.1122x** | `make pgo` |
 
+The table was measured on 2026-08-10, and its numbers are in the message
+of commit 2646d3f. No measurement folder holds them, and they have not
+been re-taken since.
+
 `make test` also runs `make docs-check`, which checks the docs against the
 code (the tool's flags and usage, the constants, the cited measurement
 directories and the API entries), and `make version-check`, which checks
@@ -69,7 +73,8 @@ kept as artifacts of the run. `wheel` builds a manylinux x86_64 wheel
 with cibuildwheel and imports it. `wheel-windows` cross-builds `libjaos.dll` with mingw-w64, and
 `setup.py` packages that prebuilt library when `JAOS_WHEEL_LIBRARY` names
 it and tags the wheel `win_amd64` from `JAOS_WHEEL_PLAT`; the DLL imports
-`KERNEL32.dll` and `msvcrt.dll` only. `wheel-windows-test` installs it on
+`KERNEL32.dll` and `msvcrt.dll` only (CI prints the imports and does not
+assert them; run 35808226181 of 2026-09-23 printed those two). `wheel-windows-test` installs it on
 a Windows runner and solves a model with `python -m jaos`. Both wheels are
 tagged `py3-none`, because the package loads the library through `ctypes`
 and fits any Python 3.
@@ -197,7 +202,8 @@ cmake --build build/win
 ```
 
 MSVC cannot build JAOS: the sources are C23 with `constexpr` objects and
-`nullptr`, which its C front end does not accept. clang-cl 20 can, with
+`nullptr`, which its C front end does not accept. clang-cl 20 can (CI does
+not pin the version; run 35808226181 of 2026-09-23 printed 20.1.8), with
 Microsoft's C runtime: CMake gives it `/clang:-std=c23`,
 `/clang:-ffp-contract=off` and `/WX`, and CI's `windows-clang-cl` job
 builds the archive, the DLL and the tool on `windows-latest` and solves an
@@ -229,6 +235,7 @@ Profiling the shipping build found four of one milestone's changelog
 entries. `-DNDEBUG` is what removes the assertions.
 
 Removing the deterministic work counter and the wall-clock check was also
-measured: 0.987x and 1.004x, both inside the noise. Both stay, because they
+measured: 0.987x and 1.004x, both inside the noise (commit 3022d2e,
+2026-08-09, not re-taken). Both stay, because they
 implement the public `jaos_work_units`, `jaos_set_work_limit` and
 `jaos_set_time_limit`.

@@ -326,7 +326,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_CONFLICTS: b = eff(c->mip_conflicts_set, c->mip_conflicts ? 1.0 : 0.0, JM_DEF_CONFLICTS) != 0.0; break;
     case O_SYMMETRY: b = eff(c->mip_symmetry_set, c->mip_symmetry ? 1.0 : 0.0, JM_DEF_SYMMETRY) != 0.0; break;
     case O_ORBITAL: b = eff(c->mip_orbital_set, c->mip_orbital ? 1.0 : 0.0, JM_DEF_ORBITAL) != 0.0; break;
-    case O_PROPAGATE: i = (int64_t)eff(c->mip_propagate_set, (double)c->mip_propagate, JM_DEF_PROPAGATE); break;
+    case O_PROPAGATE: i = c->mip_propagate_set ? c->mip_propagate : -1; break;
     case O_PROPAGATE_DEPTH: i = (int64_t)eff(c->mip_propagate_depth_set, (double)c->mip_propagate_depth, JM_DEF_PROPAGATE_DEPTH); break;
     case O_HEURISTICS: b = !c->mip_no_heuristics; break;
     case O_POOL_SIZE: i = c->mip_pool_size > 0 ? c->mip_pool_size : 1; break;

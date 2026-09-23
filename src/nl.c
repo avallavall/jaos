@@ -790,8 +790,49 @@ static jaos_status nl_build(nl *p, const char *path)
         ai[pos] = p->ei[k];
         av[pos] = p->ev[k];
     }
+    int64_t nent = 0;
+    int64_t *seen = jm_alloc_array(nr > 0 ? nr : 1, sizeof *seen);
+    bool *summed = jm_calloc_array(p->nent > 0 ? p->nent : 1, sizeof *summed);
+    if (seen == nullptr || summed == nullptr) {
+        free(seen);
+        free(summed);
+        jm_set_err(m, "out of memory");
+        goto out;
+    }
+    for (int64_t i = 0; i < nr; i++)
+        seen[i] = -1;
+    for (int64_t j = 0; j < nc; j++) {
+        const int64_t lo = as[j], hi = as[j + 1], start = nent;
+        as[j] = start;
+        for (int64_t k = lo; k < hi; k++) {
+            const int64_t i = ai[k];
+            if (seen[i] >= start) {
+                av[seen[i]] += av[k];
+                summed[seen[i]] = true;
+                continue;
+            }
+            seen[i] = nent;
+            ai[nent] = i;
+            av[nent] = av[k];
+            summed[nent] = false;
+            nent++;
+        }
+        int64_t w = start;
+        for (int64_t k = start; k < nent; k++) {
+            if (summed[k] && av[k] == 0.0)
+                continue;
+            ai[w] = ai[k];
+            av[w] = av[k];
+            w++;
+        }
+        nent = w;
+    }
+    if (nc > 0)
+        as[nc] = nent;
+    free(seen);
+    free(summed);
     st = jaos_load_lp(m, nc, nr, p->sense, p->offset, p->cost, p->cl, p->cu,
-                      p->rl, p->ru, p->nent, nc > 0 ? as : nullptr, ai, av);
+                      p->rl, p->ru, nent, nc > 0 ? as : nullptr, ai, av);
     if (st == JAOS_OK)
         st = nl_quadratics(p);
     if (st != JAOS_OK) {

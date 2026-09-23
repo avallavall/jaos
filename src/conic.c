@@ -556,6 +556,7 @@ static void kkt_solve(ck *c, const double *rhs_x, const double *rhs_z,
         }
         mul_a(c, sol, c->t3);
         mul_h(c, sol + n, c->t1);
+        jm_work_add(&c->work, 2 * m * JM_WORK_NONZERO);
         for (int64_t i = 0; i < m; i++) {
             res[n + i] = rhs_z[i] - c->t3[i] + c->t1[i];
             if (fabs(res[n + i]) > worst)

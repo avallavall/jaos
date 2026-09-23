@@ -197,7 +197,7 @@ static bool baseline_write(const char *path, bool noref, bool mip)
 
     fprintf(f, "#\n"
                "# name status solved shape objective checker det iters work "
-               "dropped%s\n", mip ? " nodes" : "");
+               "rsub%s\n", mip ? " nodes" : "");
     for (int i = 0; i < g_ngot; i++) {
         const outcome *o = &g_got[i];
 

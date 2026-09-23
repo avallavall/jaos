@@ -139,6 +139,28 @@ static void test_a_quadratic_body_reads_as_q(void)
     jaos_model_free(m);
 }
 
+static void test_a_row_sums_the_terms_it_gives_one_column(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_nl(m, "tests/data/t_quadrow.nl"));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_row_quadratic_nz(m, 0));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_nz(m));
+    double a = 0.0, lo = 0.0, hi = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 0, 0, &a));
+    TEST_ASSERT_EQUAL_DOUBLE(5.0, a);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 0, &lo, &hi));
+    TEST_ASSERT_EQUAL_DOUBLE(4.0, hi);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 1, 0, &a));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, a);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, (-5.0 - sqrt(41.0)) / 2.0, obj);
+    jaos_model_free(m);
+}
+
 static void test_what_the_nl_reader_refuses_is_named_by_line(void)
 {
     const struct { const char *file, *word; } bad[] = {
@@ -568,6 +590,7 @@ int main(void)
     RUN_TEST(test_a_linear_nl_reads_with_its_names_bounds_and_integers);
     RUN_TEST(test_a_binary_nl_without_name_files_gets_positional_names);
     RUN_TEST(test_a_quadratic_body_reads_as_q);
+    RUN_TEST(test_a_row_sums_the_terms_it_gives_one_column);
     RUN_TEST(test_what_the_nl_reader_refuses_is_named_by_line);
     RUN_TEST(test_an_nl_without_an_objective_keeps_its_row_names);
     RUN_TEST(test_a_written_nl_reads_back_as_the_same_model);

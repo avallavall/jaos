@@ -375,7 +375,7 @@ netlib-infeas-baseline: $(B)/bench/run
 		-w bench/netlib-infeas.baseline \
 		-o bench/results/netlib-infeas.txt
 
-plato: plato-pds plato-fome plato-nug
+plato: plato-pds plato-fome
 
 plato-pds: $(B)/bench/run
 	@bench/fetch.sh -m bench/plato-pds.manifest \

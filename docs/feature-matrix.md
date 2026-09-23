@@ -11,7 +11,9 @@ carries every `SPECS.md` row the field compares on, and a JAOS cell at ◐ or
 ○ is a row `SPECS.md` does not mark done. The rows about JAOS's own tooling
 (copying a model, names, model and presolve statistics, whether the model
 is a MIP, the `diff` and `show` commands) have no counterpart in the other
-columns, so they stay out.
+columns, so they stay out. The `SPECS.md` row "Exact rational proof of the
+final basis" is compared through two rows of section 6, "Exact rational LP
+solutions" and "Machine-checkable certificate of the result".
 
 **How to read it**
 
@@ -135,10 +137,10 @@ the winner is the same on every machine, which the threaded version in the
 other columns cannot promise. `--threads N` above 1 starts the three at
 once and stops every arm behind one that has answered, and the answer and
 the work units do not move. `bench/results/concurrent.txt`, re-taken on
-2026-09-22: 94 of 94 agree inside 10x the dual's work, none disagrees, and
-the work geometric mean is 1.0735x the dual. No instance costs less than
-the dual alone: the best is `25fv47` at 1.0000x and the worst `greenbeb` at
-3.3472x. The primal won `grow22` in the 2026-09-10 reading; the dual now
+2026-09-23 after the billing fix: 94 of 94 agree inside 10x the dual's
+work, none disagrees, and the work geometric mean is 1.0556x the dual. No
+instance costs less than the dual alone: the best is `25fv47` at 1.0000x
+and the worst `greenbeb` at 2.5649x. The primal won `grow22` in the 2026-09-10 reading; the dual now
 takes 2014 iterations there and answers first.
 
 **The barrier reads ◐ since 2026-09-08.** `--algorithm barrier` and
@@ -680,7 +682,24 @@ it is what JAOS lacks against SoPlex and SCIP here.
 | Write a solution file | ● | ● | ● | ● | ● | ● | ● |
 | Point and duals files | ● | ● | ◐ | ◐ | ● | ● | ○ |
 | Read other solvers' solution files | ● | ● | ○ | ○ | ● | ○ | ○ |
+| Read and write `.nl`, OSiL, QPLIB and CBF | ● | ○ | ○ | ○ | ◐ | ○ | ? |
+| Indicator constraints in MPS and LP files | ● | ○ | — | — | ● | ● | ○ |
 | Reject unsupported constructs with a line number | ● | ? | ? | ● | ? | ● | ? |
+
+**Other formats.** JAOS reads and writes the text `.nl`, OSiL, QPLIB and
+CBF. SCIP documents readers for `.nl` (`reader_nl`) and OSiL
+(`reader_osil`); the reader documentation searched shows no QPLIB reader
+and did not show a CBF one, hence ◐ (scipopt.org, "File Readers",
+`reader_nl.cpp`). HiGHS reads MPS, LP and its own EMS; SoPlex reads MPS
+and LP; Clp reads MPS; Gurobi reads MPS, LP and its own formats. None of
+the four reads these files. Hexaly: not checked against the vendor's
+documentation; its own model files are HXM and HXB.
+
+**Indicators in files.** SCIP's MPS reader documents indicators on linear
+constraints, and its LP reader takes the CPLEX extensions; Gurobi's MPS
+and LP formats carry indicator constraints. HiGHS has no indicator
+constraint. SoPlex and Clp have no integer columns, hence —. Hexaly reads
+no MPS or LP file.
 
 **Compressed output.** Every JAOS writer compresses when the path ends in
 `.gz`, over an encoder written in this repository for the reason the

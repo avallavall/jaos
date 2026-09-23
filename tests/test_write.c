@@ -348,6 +348,47 @@ static void test_lp_reads_two_halves_that_differ_as_two_rows(void)
     remove(TMP_LP);
 }
 
+static void test_the_writers_refuse_bounds_they_cannot_read_back(void)
+{
+    write_text(TMP_LP,
+               "Minimize\n obj: x + y\nSubject To\n a: x + y >= 1\nEnd\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, TMP_LP));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 2.0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "lower bound above"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_row_bounds(m, 0, 1.0, -INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_lp(m, TMP_LP));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "infinity"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_cbf(m, "build/tw_tmp.cbf"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "infinity"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 1.0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_col_bounds(m, 0, INFINITY, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_cbf(m, "build/tw_tmp.cbf"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "infinity"));
+    jaos_model_free(m);
+}
+
+static void test_an_lp_name_starting_with_a_slash_is_written_by_index(void)
+{
+    write_text(TMP_LP,
+               "Minimize\n obj: x + y\nSubject To\n a: x + y >= 1\nEnd\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(m, TMP_LP));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 0, "/x"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_lp(m, TMP_LP));
+    jaos_model *back = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_lp(back, TMP_LP));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_col(back));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_num_row(back));
+    jaos_model_free(back);
+    jaos_model_free(m);
+}
+
 static void test_lp_reads_an_infinite_right_hand_side_as_a_free_row(void)
 {
     write_text(TMP_LP,
@@ -2457,6 +2498,8 @@ int main(void)
     RUN_TEST(test_lp_writes_a_ranged_row_as_two_rows_other_readers_take);
     RUN_TEST(test_lp_reads_two_halves_that_differ_as_two_rows);
     RUN_TEST(test_lp_reads_an_infinite_right_hand_side_as_a_free_row);
+    RUN_TEST(test_the_writers_refuse_bounds_they_cannot_read_back);
+    RUN_TEST(test_an_lp_name_starting_with_a_slash_is_written_by_index);
     RUN_TEST(test_lp_keeps_column_order_when_a_cost_is_zero);
     RUN_TEST(test_lp_takes_a_column_that_appears_in_no_row);
     RUN_TEST(test_each_lp_guard_fires_on_its_own);

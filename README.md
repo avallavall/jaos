@@ -4,14 +4,15 @@ JAOS solves linear and mixed-integer linear programs. It also solves convex
 quadratic programs, and second-order cone and convex quadratically
 constrained programs, with integer columns or without; `SPECS.md` marks
 those classes partial and says what each still lacks. It is written from
-scratch in C23, links nothing but libc and libm, builds to one static
+scratch in C23, links nothing but libc and libm (and `-pthread`, which
+glibc 2.34 and later keep inside libc), builds to one static
 library with GCC on Linux, and is licensed under Apache 2.0.
 
 Two properties hold on every commit. The answer is bit-identical on every
 machine and every run: no clock decides anything, no iteration order depends
 on an address, and floating-point contraction is off. And an answer counts
-only when an independent checker, which shares no code with the solver,
-accepts it against the model as the caller loaded it.
+only when an independent checker, which shares no algorithm with the
+solver, accepts it against the model as the caller loaded it.
 
 ## Status
 
@@ -231,7 +232,10 @@ That installs the same files plus a package config, so a consumer writes
 `jaos::shared` or runs `jaos::cli`.
 
 `make` builds with `-O3 -flto -g -DNDEBUG`. `make pgo` is worth about 1.1x on
-top and needs the fetched instances. [`docs/build.md`](docs/build.md).
+top (1.1122x in the table of [`docs/build.md`](docs/build.md)) and needs
+the fetched instances. It profiles `libjaos.a`, and the tool gets the
+profile when `make cli` links it again; `libjaos.so`, the Python wheels
+and the other bindings carry no profile.
 
 ## Results
 

@@ -94,10 +94,11 @@ primal simplex, presolve or the crossover changes.
   (`MIPLIB2017_WORK`, 1e10 by default, the runner's `-L`). A line that
   stops at the limit carries the incumbent, the bound and the reference.
   No baseline.
-- `make plato-pds`, `make plato-fome` and `make plato-nug` (`make plato`
-  runs all three): the PLATO sets, for presolve measurements. plato-pds and
-  plato-fome compare against their baselines. plato-nug has none, and only
-  nug08-3rd of its three instances finishes (e78ca26). The PLATO readings
+- `make plato-pds`, `make plato-fome` and `make plato-nug`: the PLATO
+  sets, for presolve measurements. `make plato` runs the first two.
+  plato-pds and plato-fome compare against their baselines. plato-nug has
+  none, and only nug08-3rd of its three instances finishes (e78ca26), so it
+  runs only when named. The PLATO readings
   and baselines date from 2026-08 and have not been re-taken since. Their
   baseline headers name `make netlib-baseline`; the targets that rewrite
   them are `make plato-pds-baseline` and `make plato-fome-baseline`.

@@ -32,90 +32,9 @@ through the next presolve, should give back a full basis. Verify: no
 instance of `make warm` takes more work warm than cold without a reason
 written down.
 
-F5. **The concurrent solve may bill a resumed arm twice.** `settle_arm`
-adds `jaos_work_units` of each arm every round (`src/concurrent.c`), and a
-simplex arm that resumes from its parked state reports its whole walk. Solve
-an LP whose dual needs more than `CONCURRENT_SLICE` with `--algorithm
-concurrent` and compare the work with the arms' own totals. Fix the billing
-if it double counts, then re-take `make concurrent`.
-
-F6. **A replay of `jaos options` turns off MIQP propagation.** The tree runs
-`MIP_QUAD_PROPAGATE` (4) passes on a MIP with a quadratic objective, while
-`jaos_get_option(m, "mip_propagate")` and `jaos options` print 0; a
-`--params` file of that output sets 0. Fix: an unset option reads back the
-value the solve will use, or the default becomes a sentinel.
-
-F7. **The `.nl` reader refuses a quadratic row with a linear part.** In a
-row, `form_put` and `form_mul` (`src/nl.c`) never merge like terms, so
-`(x+1)^2 <= 5` gives `x` two linear entries, and a column that the body and
-the `J` segment both give a coefficient gets two too. `jaos_load_lp`
-refuses the model ("the .nl model failed validation", no line). The
-objective is not affected, because its costs are summed. Fix: sum duplicate
-(row, column) entries in `nl_build`. Verify: a test with `(x+1)^2 <= 5`, one
-with a `J` term on the same column, and one naming a column twice.
-
-F8. **Writer round trips that break.** The LP writer writes a name that
-starts with `/`, which the LP reader refuses; it writes a row whose lower
-bound is above its upper bound as two rows; it writes a finite lower bound
-with an upper bound of `-inf` as `<= -inf`, which the reader refuses. The
-CBF writer writes a bound at an infinity of the wrong sign as no bound.
-Fix: `jm_lp_name_ok` refuses a leading `/`; both writers refuse those
-bounds by name, as the MPS writer does. Verify: a round-trip test per case.
-
-F9. **The conic certificate search passes its cap.** `CONIC_CERT_CALLS`
-bounds the coordinate climb only; the tilt ladder adds up to 130 checker
-calls per outer round. The cone-block product `mul_h` bills no work. Fix
-both, then re-read `make cblib` and 02-253's 3000 models to the bit.
-
-F10. **`make pgo` profiles `libjaos.a` only.** `libjaos.so`, the tool and
-the wheels are built without the profile. Either profile them too or say
-so where `make pgo` is offered.
-
-F11. **Bench bookkeeping.** `bench/run.c` names the baselines' last column
-`dropped`, but the value it writes and reads there is the relative
-suboptimality bound. `make plato` runs `plato-nug`, whose nug20 and nug30
-do not finish, so `make plato` does not finish either.
-
-F12. **Small items the audit left open.** Each needs a check or a
-decision, then a doc line.
-- The comparison harness: `bench/compare/jaos_time.c` sets no tolerance, so
-  JAOS runs its dual tolerance of 1e-9 against the competitors' 1e-7; set
-  it or say it. `run-mip.sh` writes no WSL tag, no dirty-tree mark and no
-  SCIP or pyscipopt version in its header, as `run-compare.sh` does.
-- `docs/feature-matrix.md`: "30 of the 110 gate bases" (02-275) predates
-  the aggregator; re-count with `bench/measurements/02-275/verify-count.sh`.
-  Three SPECS rows have no matrix row yet: the exact proof of the final
-  basis, indicator constraints in MPS and LP, and the other formats.
-- Numbers with no source in the tree: README's "`make pgo` is worth about
-  1.1x", `bench/compare/README.md`'s "repeats to about 1.4%", and the flag
-  ratios and 0.987x/1.004x readings in `docs/build.md`. Link a measurement
-  or drop them.
-- "links nothing but libc and libm" (README, SPECS): the library links
-  `-pthread`, which is inside libc from glibc 2.34 on. Say which platforms
-  the sentence covers.
-- "The checker shares no code with the solver" (SPECS, `docs/api.md`):
-  `src/check.c` calls `jm_obj_add`, `jm_two_product_residue`, `jm_round`
-  and `jm_model_has_integer`. Reword to "no algorithm", or copy the
-  helpers.
-- `docs/cli.md`: can `jaos_solve` return `JAOS_OK` with the status still
-  `not_run`? If so, list `not_run` among the statuses (exit 4).
-- `docs/build.md`: the DLL's imports (`KERNEL32.dll` and `msvcrt.dll`
-  only) and "clang-cl 20" are not asserted by CI; read them from the last
-  CI logs.
-- D101 in `bench/refusals.txt` refuses duplicate rows and columns and
-  dominated columns, while the retired decision log calls it "deferred";
-  and D97's reopen condition ("a crossover exists at postsolve") may be met
-  since the crossover landed. Decide both.
-- The PLATO baselines' header says `make netlib-baseline`; the targets are
-  `plato-pds-baseline` and `plato-fome-baseline`. Fix it when F11 or H8
-  re-takes them.
-- `bench/compare/results/`: T0 to T3 and the older P0 files are records
-  from before presolve (2026-08-11 to 2026-08-17); mark them in
-  `bench/compare/README.md` or delete them.
-
-F13. **`jaos --version` on `main` says 0.4.0.** HEAD is 30 commits past the
-tag. Move the version to `0.5.0-dev` on `main` (every version string,
-`tools/version-check.sh`) so a report names what it ran.
+F12. **Re-count "30 of the 110 gate bases"** in `docs/feature-matrix.md`
+(02-275, taken before the aggregator) with
+`bench/measurements/02-275/verify-count.sh OUT`, and update the matrix.
 
 ## Milestone G: the bindings reach what Python reaches
 
@@ -207,7 +126,10 @@ normal matrix, the solves) on threads; a round of nodes cheap enough to be
 the default.
 
 H8. **Re-take the PLATO readings** (`plato-pds`, `plato-fome`), last taken
-on 2026-08-17, and fix or drop `plato-nug`, which has no baseline.
+on 2026-08-17, with `make plato-pds-baseline plato-fome-baseline` after
+reading the diff. That also fixes their headers, which name
+`make netlib-baseline`. `plato-nug` has no baseline and runs only when
+named, since two of its three instances do not finish.
 
 ## Milestone I: the rest of SPECS
 

@@ -165,7 +165,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_conflicts` | `mip_conflicts` | boolean | true |
 | `jaos_set_mip_symmetry` | `mip_symmetry` | boolean | false |
 | `jaos_set_mip_orbital` | `mip_orbital` | boolean | true |
-| `jaos_set_mip_propagate` | `mip_propagate` | integer | 0; the tree uses 4 on a quadratic objective while it is unset |
+| `jaos_set_mip_propagate` | `mip_propagate` | integer | -1, the tree's own choice: 4 on a quadratic objective, 0 otherwise |
 | `jaos_set_mip_propagate_depth` | `mip_propagate_depth` | integer | -1, every node |
 | `jaos_set_mip_heuristics` | `mip_heuristics` | boolean | true |
 | `jaos_set_mip_pool_size` | `mip_pool_size` | integer | 1 |
@@ -928,7 +928,10 @@ columns at 0.
 Sets the passes of bound propagation at each node before its relaxation is
 solved. A pass reads the rows over the node's bounds and closes the node
 when a row admits no point. It also tightens the integer bounds that the
-rows imply. The default is 0, and 4 on a model with a quadratic objective.
+rows imply. A negative value, and the default, leave the choice to the
+tree: 4 passes on a model with a quadratic objective, 0 otherwise.
+`jaos_get_option` reads this unset value back as -1, so a replayed option
+file keeps the tree's choice.
 
 **`jaos_set_mip_propagate_depth`**\
 `jaos_status jaos_set_mip_propagate_depth(jaos_model *m, int64_t depth)`\
@@ -1193,12 +1196,9 @@ sums, differences, products, division by a nonzero constant, powers 1 and
 2, unary minus and sumlist. The body's constant moves into the row's bounds
 or the objective's constant. Its quadratic part becomes the objective's `Q`
 or the row's quadratic part. In the objective, its linear part is added to
-the `G` coefficients. In a row, its linear terms become entries beside the
-`J` coefficients, and two entries on one column are refused. So the call
-refuses a row whose body gives a column a linear term when the `J` segment
-also gives that column a nonzero coefficient. It also refuses a row whose
-body gives one column two linear terms. The message is then "the .nl model
-failed validation", with no line. The column names come from the `.col`
+the `G` coefficients. In a row, its linear terms are added to the `J`
+coefficients of the same column, so `(x+1)^2 + 3*x <= 5` reads as
+`x^2 + 5x <= 4`; a sum that comes out exactly 0 leaves no entry. The column names come from the `.col`
 file beside the file and the row names from the `.row` file, each when it
 is there and complete. The `x` segment becomes the MIP start of a model
 with integer columns. The call refuses a binary `.nl` file, any other
@@ -1219,8 +1219,9 @@ upper bound, and a row or objective named `'MARKER'`, quotes included.
 Writes the model as a CPLEX-style LP file. A name that the LP reader could
 not read back as one token is written under a spelled name, and a comment at
 the top of the file maps it. The writer refuses cones, a quadratic row with
-two finite bounds, a bound at an infinity of the wrong sign, and an empty
-row in a model with no columns.
+two finite bounds, a bound at an infinity of the wrong sign, a row whose
+lower bound is above its upper bound, and an empty row in a model with no
+columns.
 
 **`jaos_write_nl`**\
 `jaos_status jaos_write_nl(jaos_model *m, const char *path)`\
@@ -1255,7 +1256,8 @@ Writes CBF version 3, which carries no names. A column bound other than 0
 or an infinity becomes a row, and a ranged row becomes two rows. The file
 therefore reads back as an equivalent model with the same optimum. The
 writer refuses a quadratic objective, quadratic rows, SOS sets,
-semi-continuous columns and indicator rows.
+semi-continuous columns, indicator rows, and a bound at an infinity of the
+wrong sign.
 
 **`jaos_read_osil`**\
 `jaos_status jaos_read_osil(jaos_model *m, const char *path)`\
@@ -1690,7 +1692,10 @@ JAOS reports and that changes between runs.
 
 ## Checking answers and certificates
 
-The checker shares no code with the solver. It judges a point, duals or a
+The checker shares no algorithm with the solver. It calls only the
+library's arithmetic helpers (the compensated sum, the exact product's
+residue, the rounding) and the rule that says whether a model is a MIP.
+It judges a point, duals or a
 certificate from the model as loaded, in the model's own units, so it can
 judge an answer from any solver. `tol` must be finite and not negative, and
 a call fails with `JAOS_ERR_INVALID_INPUT` otherwise.

@@ -115,4 +115,4 @@ thread count and a gap of 1e-4 and SCIP at a gap of 0;
   marks a run under WSL, which is a development number, and a tree with
   uncommitted changes. `run-mip.sh` writes neither mark.
 - The harness repeats to about 1.4% on this host, measured from JAOS's own
-  cross-rung ratio.
+  cross-rung ratio (commit 54737cc, 2026-08-10; not re-taken).
