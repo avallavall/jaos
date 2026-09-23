@@ -1,0 +1,188 @@
+diff --git a/src/mip.c b/src/mip.c
+index b9954f1..2029c62 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -103,6 +103,11 @@ constexpr bool MIP_PUMP_ALWAYS = false;
+ 
+ constexpr bool MIP_RCFIX = false;
+ constexpr bool MIP_TIGHTEN = true;
++
++#ifndef JAOS_MIP_MIR_VUB_VALUE
++#define JAOS_MIP_MIR_VUB_VALUE 0
++#endif
++constexpr bool MIP_MIR_VUB = JAOS_MIP_MIR_VUB_VALUE != 0;
+ constexpr bool MIP_PROBING = false;
+ constexpr int64_t MIP_PROBING_ROUNDS = 2;
+ constexpr double MIP_PROBING_CAP = 1.0;
+@@ -2546,17 +2551,95 @@ static bool shift_to_upper(double lo, double hi, double xj)
+     return hi - xj < xj - lo;
+ }
+ 
++typedef struct {
++    int64_t *y;
++    double *u;
++    double *w;
++    double *sub;
++} mir_vub;
++
++static void mir_vub_free(mir_vub *v)
++{
++    free(v->y); free(v->u); free(v->w); free(v->sub);
++    memset(v, 0, sizeof *v);
++}
++
++static bool mir_vub_build(const jaos_model *m, const jaos_model *lp,
++                          const double *ilo, const double *ihi, mir_vub *v,
++                          int64_t *work)
++{
++    const int64_t nc = m->num_col, nr = m->num_row;
++    v->y = jm_alloc_array(nc > 0 ? nc : 1, sizeof *v->y);
++    v->u = jm_alloc_array(nc > 0 ? nc : 1, sizeof *v->u);
++    v->w = jm_alloc_array(nc > 0 ? nc : 1, sizeof *v->w);
++    v->sub = jm_alloc_array(nc > 0 ? nc : 1, sizeof *v->sub);
++    if (v->y == nullptr || v->u == nullptr || v->w == nullptr ||
++        v->sub == nullptr) {
++        mir_vub_free(v);
++        return false;
++    }
++    for (int64_t j = 0; j < nc; j++) {
++        v->y[j] = -1;
++        v->u[j] = INFINITY;
++    }
++    *work += m->num_nz + nc;
++    for (int64_t i = 0; i < nr; i++) {
++        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
++        if (p1 - p0 != 2)
++            continue;
++        double sign;
++        if (lp->row_upper[i] == 0.0 && lp->row_lower[i] == -INFINITY)
++            sign = 1.0;
++        else if (lp->row_lower[i] == 0.0 && lp->row_upper[i] == INFINITY)
++            sign = -1.0;
++        else
++            continue;
++        for (int t = 0; t < 2; t++) {
++            const int64_t j = lp->ar_index[p0 + t], y = lp->ar_index[p1 - 1 - t];
++            const double a = sign * lp->ar_value[p0 + t];
++            const double c = sign * lp->ar_value[p1 - 1 - t];
++            if (!(a > 0.0) || !(c < 0.0) || j == y || m->col_integer[j])
++                continue;
++            if (!m->col_integer[y] || ilo[y] != 0.0 || ihi[y] != 1.0)
++                continue;
++            if (ilo[j] != 0.0)
++                continue;
++            const double u = -c / a;
++            if (u < v->u[j]) {
++                v->u[j] = u;
++                v->y[j] = y;
++            }
++        }
++    }
++    return true;
++}
++
+ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                     const double *ilo, const double *ihi, const double *a_in,
+                     double b_in, double mag_in, int64_t terms_in,
+                     const double *cmag, cutbuf *cb, double *cut, double *best,
+-                    double *delta)
++                    double *delta, mir_vub *vb)
+ {
+     const int64_t nc = m->num_col;
+     if (cmag != nullptr)
+         for (int64_t j = 0; j < nc; j++)
+             if (DBL_EPSILON * cmag[j] * (double)terms_in > MIP_MIR_ROUND)
+                 return 0;
++    if (vb != nullptr) {
++        memcpy(vb->w, a_in, (size_t)nc * sizeof *vb->w);
++        memset(vb->sub, 0, (size_t)nc * sizeof *vb->sub);
++        for (int64_t j = 0; j < nc; j++) {
++            const int64_t y = vb->y[j];
++            if (a_in[j] == 0.0 || y < 0)
++                continue;
++            if (!(vb->u[j] * x[y] - x[j] < x[j]))
++                continue;
++            vb->w[y] += a_in[j] * vb->u[j];
++            vb->sub[j] = -a_in[j];
++            vb->w[j] = 0.0;
++        }
++        a_in = vb->w;
++    }
+     {
+         {
+             double b = b_in, mag = fabs(b_in) + mag_in;
+@@ -2626,6 +2709,15 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                         rhs += c * ilo[j];
+                     }
+                 }
++                if (vb != nullptr)
++                    for (int64_t j = 0; j < nc; j++) {
++                        const double a = vb->sub[j] / d;
++                        if (!(a < 0.0))
++                            continue;
++                        const double c = a / (1.0 - f0);
++                        cut[vb->y[j]] += c * vb->u[j];
++                        cut[j] -= c;
++                    }
+                 double act = 0.0, nrm = 0.0;
+                 for (int64_t k = 0; k < nc; k++) {
+                     act += cut[k] * x[k];
+@@ -2665,6 +2757,9 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
+                 (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
+     *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
++    mir_vub vb = {0};
++    if (MIP_MIR_VUB && !mir_vub_build(m, lp, ilo, ihi, &vb, work))
++        return -1;
+     for (int64_t i = 0; i < nr; i++) {
+         for (int side = 0; side < 2; side++) {
+             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+@@ -2675,12 +2770,16 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+             for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+                 agg[lp->ar_index[k]] += sg * lp->ar_value[k];
+             const int pushed = mir_side(m, lp, x, ilo, ihi, agg, sg * bound,
+-                                        0.0, 0, nullptr, cb, cut, best, delta);
+-            if (pushed < 0)
++                                        0.0, 0, nullptr, cb, cut, best, delta,
++                                        MIP_MIR_VUB ? &vb : nullptr);
++            if (pushed < 0) {
++                mir_vub_free(&vb);
+                 return -1;
++            }
+             added += pushed;
+         }
+     }
++    mir_vub_free(&vb);
+     return added;
+ }
+ 
+@@ -2697,6 +2796,9 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+         return -1;
+     if (steps > nr)
+         steps = nr;
++    mir_vub vb = {0};
++    if (MIP_MIR_VUB && !mir_vub_build(m, lp, ilo, ihi, &vb, work))
++        return -1;
+     for (int64_t i = 0; i < nr; i++) {
+         for (int side = 0; side < 2; side++) {
+             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+@@ -2775,13 +2877,17 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+                 terms++;
+                 used[rrow] = true;
+                 const int pushed = mir_side(m, lp, x, ilo, ihi, agg, b, mag,
+-                                            terms, cmag, cb, cut, best, delta);
+-                if (pushed < 0)
++                                            terms, cmag, cb, cut, best, delta,
++                                            MIP_MIR_VUB ? &vb : nullptr);
++                if (pushed < 0) {
++                    mir_vub_free(&vb);
+                     return -1;
++                }
+                 added += pushed;
+             }
+         }
+     }
++    mir_vub_free(&vb);
+     return added;
+ }
+ 
