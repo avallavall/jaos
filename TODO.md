@@ -54,7 +54,11 @@ save on the set (0.958x work, three instances past 2x), so D293 holds.
 Next: a cheaper probe (a dual simplex probe stopped after a few
 iterations, its bound read from the dual objective), and a propagation
 that tightens as much as SCIP's; each measured against D293's and D324's
-reopen conditions.
+reopen conditions. Every node LP also runs the LP presolve again, and on
+some models that is most of the node's work: skipping it on warm nodes
+reads 0.710x over MIPLIB 3 but blows up `enigma` and `bell5`
+(`warm-node-no-presolve` in `bench/refusals.txt`), so a rule for when a
+node's presolve pays is a third lever.
 
 H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
 seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).

@@ -74,3 +74,18 @@ node count falls without the probes eating the gain. JAOS's bound
 propagation at a node (D324) adds little on these two instances (`bell3a`
 at reliability 4: 60617 nodes without it, 60517 with it), so SCIP's
 propagation does more than JAOS's.
+
+## Presolve at every node
+
+Every node LP of the tree runs the LP presolve again. A build with no
+presolve at all (`-DJAOS_NO_PRESOLVE`) needs the same 434 nodes on `dcmulti`
+for 0.34x the work, so there presolve is most of each node's cost; on
+`stein45` the same node count costs 1.53x, so there it pays. With presolve
+kept at the root and skipped on every node LP that starts from a basis
+(`warm-node-presolve.txt`), MIPLIB 3 reads 0.710x in work over 23
+instances (`l152lav` 0.030x, `misc06` 0.068x), but `enigma` 50.6x, `misc07`
+3.35x, and `bell5` held 6.5 GB of open nodes when it was stopped: the node
+LP's value is the same, the vertex it returns is not, and the branching
+follows the vertex. Refused as `warm-node-no-presolve` in
+`bench/refusals.txt`, with the gain written there for a rule that decides
+when presolve pays at a node.

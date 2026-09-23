@@ -90,6 +90,7 @@ typedef struct {
 
     int64_t *seen;
     double *rowval;
+    int64_t *rowpos;
 
     double drop;
 } elim;
@@ -120,6 +121,7 @@ static void elim_free(elim *e)
     free(e->piv_mult);
     free(e->seen);
     free(e->rowval);
+    free(e->rowpos);
     memset(e, 0, sizeof *e);
 }
 
@@ -235,9 +237,11 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
 
         const jm_svec *cv = &e->col[j];
         double aij = 0.0;
+        int64_t at = -1;
         for (int64_t q = 0; q < cv->n; q++)
             if (cv->idx[q] == pi) {
                 aij = cv->val[q];
+                at = q;
                 break;
             }
         if (aij == 0.0)
@@ -245,6 +249,7 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
 
         e->row[pi].idx[keep] = j;
         e->rowval[keep] = aij;
+        e->rowpos[keep] = at;
         keep++;
     }
     e->row[pi].n = keep;
@@ -425,6 +430,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
     e.rowval    = jm_alloc_array(dim, sizeof(double));
+    e.rowpos    = jm_alloc_array(dim, sizeof(int64_t));
 
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
@@ -434,7 +440,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.mult_of || !e.mult_set || !e.hit || !e.piv_row || !e.piv_mult ||
-        !e.seen || !e.rowval) {
+        !e.seen || !e.rowval || !e.rowpos) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
@@ -535,16 +541,20 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             }
 
             if (e.piv_n == 0) {
-                int64_t keep = 0;
-                for (int64_t k = 0; k < cv->n; k++) {
-                    if (e.row_done[cv->idx[k]])
-                        continue;
-                    cv->idx[keep] = cv->idx[k];
-                    cv->val[keep] = cv->val[k];
-                    keep++;
-                }
-                cv->n = keep;
-                bucket_move(&e, j, keep);
+                const int64_t q = e.rowpos[rk];
+                assert(q >= 0 && q < cv->n && cv->idx[q] == pi);
+                const int64_t tail = cv->n - q - 1;
+                memmove(&cv->idx[q], &cv->idx[q + 1],
+                        (size_t)tail * sizeof *cv->idx);
+                memmove(&cv->val[q], &cv->val[q + 1],
+                        (size_t)tail * sizeof *cv->val);
+                cv->n--;
+#ifndef NDEBUG
+
+                for (int64_t k = 0; k < cv->n; k++)
+                    assert(!e.row_done[cv->idx[k]]);
+#endif
+                bucket_move(&e, j, cv->n);
                 continue;
             }
 
