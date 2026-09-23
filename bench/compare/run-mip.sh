@@ -8,12 +8,14 @@ manifest=bench/miplib.manifest
 dir=bench/instances-miplib
 limit=20
 out=""
+ext=mps
 while [ $# -gt 0 ]; do
     case "$1" in
         -m) manifest=$2; shift 2 ;;
         -d) dir=$2; shift 2 ;;
         -t) limit=$2; shift 2 ;;
         -o) out=$2; shift 2 ;;
+        -x) ext=$2; shift 2 ;;
         *)  echo "unknown option $1" >&2; exit 2 ;;
     esac
 done
@@ -22,6 +24,7 @@ mkdir -p "$(dirname "$out")"
 make -s cli > /dev/null || { echo "build failed" >&2; exit 2; }
 jaos=build/cli/jaos
 highs=$(ls "$here"/solvers/highs-* 2>/dev/null | head -1)
+case "$ext" in mps|mps.gz) ;; *) highs="" ;; esac
 scip_py=${SCIP_PYTHON:-}
 under_wsl=$(grep -qi microsoft /proc/version && echo " UNDER-WSL-DEVELOPMENT-NUMBER" || echo "")
 tree_dirty=$(git status --porcelain src include bench/compare 2>/dev/null | head -1)
@@ -39,12 +42,14 @@ fi
     echo "# instance solver status objective nodes seconds reference"
 } > "$out"
 awk '!/^#/ && NF >= 5 {print $1, $5}' "$manifest" | while read -r name ref; do
-    mps="$dir/$name.mps"
+    mps="$dir/$name.$ext"
     [ -f "$mps" ] || { echo "missing $mps" >&2; continue; }
     o=$("$jaos" solve "$mps" --time-limit "$limit" 2>/dev/null)
     get() { echo "$o" | awk -v k="$1" '$1 == k {print $2}'; }
+    value=$(get incumbent)
+    [ -n "$value" ] || value=$(get objective)
     printf '%s\tjaos\t%s\t%s\t%s\t%s\t%s\n' "$name" "$(get status)" \
-        "$(get incumbent)" "$(get nodes)" "$(get time)" "$ref" >> "$out"
+        "$value" "$(get nodes)" "$(get time)" "$ref" >> "$out"
     if [ -n "$highs" ]; then
         h=$("$highs" --options_file "$here/highs-mip.opt" --time_limit "$limit" \
             --model_file "$mps" 2>&1)

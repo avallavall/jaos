@@ -22,9 +22,12 @@ HiGHS), so the gap is time per iteration (1.83x). HiGHS itself ran 17.5%
 faster than in the reading of 2026-09-22 (`P0-2026-09-22.txt`), which drops
 three instances under the floor; on the 19 instances both readings share,
 JAOS against HiGHS went from 1.77x to 1.65x, and JAOS's own time fell to
-0.78 with every iteration count the same. On MIP (tree 3086162) it solves
-23 of MIPLIB 3 in 20 s where HiGHS and SCIP solve 24, and 0 of the 2017 set
-where HiGHS solves 8 and SCIP 7.
+0.78 with every iteration count the same. On MIP (`mip-miplib.txt` and
+`mip-miplib2017.txt`, 2026-09-23, tree 12180a6) it solves 22 of MIPLIB 3 in
+20 s where HiGHS and SCIP solve 24, at 1.34x HiGHS's shifted mean time and
+1.40x SCIP's (1.43x and 1.48x on 2026-09-21, when it solved 23; `bell5`
+has grown from 190741 nodes to 327119 since the best-estimate node order),
+and 0 of the 2017 set where HiGHS and SCIP solve 8 each.
 
 H1. **The simplex's time per iteration, second pass.** `stocfor3` still
 takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
@@ -49,10 +52,6 @@ Next: a cheaper probe (a dual simplex probe stopped after a few
 iterations, its bound read from the dual objective), and a propagation
 that tightens as much as SCIP's; each measured against D293's and D324's
 reopen conditions.
-
-H3. **Re-take the MIP comparison** (`bench/compare/run-mip.sh` on both sets,
-with `SCIP_PYTHON`): the files are from tree 3086162, before the
-best-estimate node order.
 
 H4. **Time JAOS on QP and conic models against other solvers.** No reading
 exists. A QP rung (Maros-Meszaros against HiGHS and Clp) and a conic rung

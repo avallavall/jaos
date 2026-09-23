@@ -31,7 +31,9 @@ SCIP_PYTHON=/path/to/python bash bench/compare/run-mip.sh \
 ```
 
 `SCIP_PYTHON` names a Python that has `pyscipopt`; without it SCIP is left
-out.
+out. `-x EXT` reads `NAME.EXT` instead of `NAME.mps`; for anything but
+`mps` or `mps.gz` HiGHS is left out, since it reads neither CBF nor the
+other formats.
 
 ## The rungs
 
@@ -87,18 +89,21 @@ solved counts, the shifted geometric mean of the seconds (a shift of 1 s,
 an unsolved instance counted at the limit), and the ratio of the shifted
 means.
 
-2026-09-21, tree 3086162, `results/mip-miplib.txt` and
-`results/mip-miplib2017.txt`:
+2026-09-23, tree 12180a6, `results/mip-miplib.txt` and
+`results/mip-miplib2017.txt`, on an otherwise idle machine:
 
 | set | JAOS | HiGHS | SCIP | JAOS / HiGHS | JAOS / SCIP |
 |---|---|---|---|---|---|
-| MIPLIB 3, 24 instances | 23 solved, 1.43 s | 24, 0.70 s | 24, 0.64 s | 1.43x | 1.48x |
-| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 14.38 s | 7, 12.87 s | 1.37x | 1.51x |
+| MIPLIB 3, 24 instances | 22 solved, 1.18 s | 24, 0.62 s | 24, 0.56 s | 1.34x | 1.40x |
+| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.63 s | 8, 12.33 s | 1.44x | 1.58x |
 
-These numbers were taken at tree 3086162, before the current MIP defaults
-(the best-estimate node order, ae25a70), and a re-take is due.
-JAOS leaves l152lav at the limit on MIPLIB 3. On the 2017 set it finishes
-none of the eight the rivals finish. A first run left HiGHS on its own
+The reading of 2026-09-21 (tree 3086162, before the best-estimate node
+order) is kept as `results/mip-*-2026-09-21.txt`: 23 solved, 1.43x and
+1.48x on MIPLIB 3; 1.37x and 1.51x on the 2017 set, where SCIP solved 7.
+The rivals ran about 10% faster in the new reading, which raises the 2017
+ratios while JAOS stays at the limit on all 30. JAOS leaves `bell5` and
+`l152lav` at the limit on MIPLIB 3; `bell5` has grown from 190741 nodes to
+327119 since the node order changed (`bench/measurements/02-300/`). A first run left HiGHS on its own
 thread count and a gap of 1e-4 and SCIP at a gap of 0;
 `bench/measurements/02-284/` keeps that run as `mip-*-unequal.txt`.
 
