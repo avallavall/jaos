@@ -36,11 +36,19 @@ pattern would change signs of zero. Verify with `tools/icount.sh` and
 `make compare COMPARE_ARGS='-t P0'` on a quiet machine; the gates
 byte-identical or re-based.
 
-H2. **MIP against HiGHS and SCIP.** `bell5` takes 190741 nodes and 18 s
-where SCIP takes 357 nodes and 0.18 s; `bell3a` 10 s against 0.3 s to 0.9
-s; `l152lav` does not finish in 20 s. Take a fresh attribution of the tree
-(node LP, cuts, heuristics, branching) on MIPLIB 3 and the 2017 set before
-choosing a remedy; the refused ideas are in `bench/refusals.txt`.
+H2. **MIP: the tree has too many nodes.** The attribution of 2026-09-23
+(`bench/measurements/02-300/`, the log line "branch and bound work")
+puts 77% to 98% of the work in node relaxations on 22 of MIPLIB 3's 24
+instances and 84% to 100% on 29 of the 2017 set's 30, so the tree loses on
+node count: `bell5` takes 327119 nodes where SCIP takes 357. On `bell5` and
+`bell3a` SCIP's small trees come from strong branching and bound
+propagation, not from presolve or cuts. JAOS's strong branching cuts
+`bell5` to 8287 nodes at reliability 2, but its probes cost more than they
+save on the set (0.958x work, three instances past 2x), so D293 holds.
+Next: a cheaper probe (a dual simplex probe stopped after a few
+iterations, its bound read from the dual objective), and a propagation
+that tightens as much as SCIP's; each measured against D293's and D324's
+reopen conditions.
 
 H3. **Re-take the MIP comparison** (`bench/compare/run-mip.sh` on both sets,
 with `SCIP_PYTHON`): the files are from tree 3086162, before the

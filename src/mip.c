@@ -3914,6 +3914,21 @@ static jaos_status unbounded_or_infeasible(jaos_model *m, int64_t *work,
     return st;
 }
 
+enum { PH_OTHER, PH_LP, PH_CUTS, PH_HEUR, PH_PROP, PH_BRANCH, PH_COUNT };
+
+typedef struct {
+    int64_t at;
+    int phase;
+    int64_t sum[PH_COUNT];
+} bb_phases;
+
+static void phase_to(bb_phases *p, int64_t work, int next)
+{
+    p->sum[p->phase] += work - p->at;
+    p->at = work;
+    p->phase = next;
+}
+
 static void root_certificate(jaos_model *m, const jaos_model *lp)
 {
     if (!lp->farkas_ok || lp->sol_farkas == nullptr ||
@@ -4121,6 +4136,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t tightened = 0;
 
     int64_t work = 0, iters = 0;
+    bb_phases ph = {0};
     double best_bound = -INFINITY;
     int64_t parked = 0;
     double parked_key = INFINITY;
@@ -4252,6 +4268,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     }
 
     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
+        phase_to(&ph, work, PH_OTHER);
 
         if (nodes > 0) {
             node_free(cur);
@@ -4300,11 +4317,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         }
                         round[round_n++] = p;
                     }
+                    phase_to(&ph, work, PH_LP);
                     if (round_n > 1 &&
                         bb_round_solve(lp, m, ilo, ihi, round, round_n, &pool,
                                        nfixed, &in_copy, &work, &iters,
                                        &solves) != JAOS_OK)
                         goto done;
+                    phase_to(&ph, work, PH_OTHER);
                     cur = round_n > 0 ? round[round_at++] : nullptr;
                     if (cur == nullptr)
                         break;
@@ -4357,6 +4376,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
         nodes++;
 
+        phase_to(&ph, work, PH_PROP);
         if (nodes > 1 && orbital_on && sym.ngen > 0) {
             if (ouf == nullptr) {
                 ouf = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ouf);
@@ -4432,12 +4452,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         jaos_status st = apply_indicators(lp, m);
         if (st != JAOS_OK)
             goto done;
+        phase_to(&ph, work, PH_LP);
         budget(lp, m, work);
         st = jaos_solve(lp);
         solves++;
         const int64_t node_work = jaos_work_units(lp);
         work += node_work;
         iters += jaos_iterations(lp);
+        phase_to(&ph, work, PH_OTHER);
         if (nodes > 1 &&
             (st == JAOS_ERR_NUMERICAL ||
              (st == JAOS_OK &&
@@ -4466,6 +4488,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             if (nodes == 1)
                 root_certificate(m, lp);
             if (conflicts_on && nodes > 1) {
+                phase_to(&ph, work, PH_PROP);
                 if (cacol == nullptr) {
                     cacol = jm_alloc_array(nc > 0 ? 3 * nc : 1, sizeof *cacol);
                     clast = jm_alloc_array(nc > 0 ? nc : 1, sizeof *clast);
@@ -4515,6 +4538,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         double key = sigma * obj;
 
         if (nodes == 1 && probing) {
+            phase_to(&ph, work, PH_PROP);
             if (pbuf == nullptr) {
                 pbuf = jm_alloc_array(nc > 0 ? 4 * nc : 1, sizeof *pbuf);
                 porder = jm_alloc_array(nc > 0 ? nc : 1, sizeof *porder);
@@ -4545,11 +4569,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 break;
             }
             if (pr.fixed + pr.implied > 0) {
+                phase_to(&ph, work, PH_LP);
                 budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
                 iters += jaos_iterations(lp);
+                phase_to(&ph, work, PH_PROP);
                 if (st != JAOS_OK) {
                     if (st == JAOS_ERR_NUMERICAL) {
                         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -4576,6 +4602,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
 
         if (nodes == 1 && (clique_rounds > 0 || clique_fix_on)) {
+            phase_to(&ph, work, PH_PROP);
             if (items == nullptr)
                 items = jm_alloc_array(nc > 0 ? nc : 1, sizeof *items);
             if (items == nullptr)
@@ -4600,6 +4627,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
+        phase_to(&ph, work, PH_OTHER);
         const double branch_key = key;
         if (nodes > 1)
             pseudocost_learn(cur, key, nc, pc_sum, pc_n);
@@ -4646,6 +4674,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             const double key_first = key;
             bool stop = false;
             for (int64_t r = 0; r < root_rounds && !stop; r++) {
+                phase_to(&ph, work, PH_CUTS);
                 cb.n = cb.nnz = 0;
                 int64_t got = 0;
                 if (r < rounds) {
@@ -4720,11 +4749,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 }
                 cuts += got;
                 const double key_before = key;
+                phase_to(&ph, work, PH_LP);
                 budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
                 iters += jaos_iterations(lp);
+                phase_to(&ph, work, PH_CUTS);
                 if (st != JAOS_OK) {
                     if (st == JAOS_ERR_NUMERICAL) {
                         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -4773,6 +4804,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                    (long long)flow_covers, (long long)mirs);
         }
 
+        phase_to(&ph, work, PH_HEUR);
         if (nodes == 1 && m->mip_start != nullptr) {
             double hobj = 0.0;
             work += m->num_nz + nc + nr;
@@ -5034,6 +5066,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
+        phase_to(&ph, work, PH_CUTS);
         if (nodes > 1 && branch >= 0 && cur->depth <= cut_depth &&
             !cur->no_cuts) {
             const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
@@ -5088,11 +5121,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 cuts += got;
                 local_cuts += got;
                 const double key_before = key;
+                phase_to(&ph, work, PH_LP);
                 budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
                 iters += jaos_iterations(lp);
+                phase_to(&ph, work, PH_CUTS);
                 if (st != JAOS_OK) {
                     if (st == JAOS_ERR_NUMERICAL) {
                         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -5121,6 +5156,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
+        phase_to(&ph, work, PH_OTHER);
         if (m->cfg.node_cb != nullptr) {
             int leave = 0;
             for (int64_t round = 0; round < MIP_STEER_ROUNDS; round++) {
@@ -5155,11 +5191,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 }
                 if (branch < 0)
                     sw.rejected++;
+                phase_to(&ph, work, PH_LP);
                 budget(lp, m, work);
                 st = jaos_solve(lp);
                 solves++;
                 work += jaos_work_units(lp);
                 iters += jaos_iterations(lp);
+                phase_to(&ph, work, PH_OTHER);
                 if (st != JAOS_OK) {
                     if (st == JAOS_ERR_NUMERICAL) {
                         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -5195,6 +5233,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 best_bound = key;
         }
 
+        phase_to(&ph, work, PH_HEUR);
         if (heur && branch >= 0 && !budget_gone(m, work)) {
             double hobj = 0.0;
 
@@ -5232,6 +5271,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
+        phase_to(&ph, work, PH_OTHER);
         if (nodes == 1 && rcfix && inc.have && branch >= 0 &&
             inc.key >= key) {
             if (rcd == nullptr) {
@@ -5373,6 +5413,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
 
         if (branch >= 0 && reliability > 0 &&
             (probe_depth < 0 || depth_here <= probe_depth)) {
+            phase_to(&ph, work, PH_BRANCH);
             jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
                                                         sizeof *prs);
             if (grown == nullptr)
@@ -5399,6 +5440,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
             branch = select_branch(m, x, rule, pc_sum, pc_n);
         }
+        phase_to(&ph, work, PH_OTHER);
 
         assert(lp->num_row == nfixed + act_n && act_n == in_copy.n);
         int64_t nr_child = nrl;
@@ -5644,6 +5686,18 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     }
     if (outcome == JAOS_SOLVE_OPTIMAL)
         m->mip_bound = inc.obj;
+    phase_to(&ph, work, PH_OTHER);
+    if (work > 0)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "branch and bound work: node relaxations %.1f%%, cuts %.1f%%, "
+               "heuristics %.1f%%, propagation, probing and conflicts "
+               "%.1f%%, strong branching %.1f%%, the rest %.1f%%",
+               100.0 * (double)ph.sum[PH_LP] / (double)work,
+               100.0 * (double)ph.sum[PH_CUTS] / (double)work,
+               100.0 * (double)ph.sum[PH_HEUR] / (double)work,
+               100.0 * (double)ph.sum[PH_PROP] / (double)work,
+               100.0 * (double)ph.sum[PH_BRANCH] / (double)work,
+               100.0 * (double)ph.sum[PH_OTHER] / (double)work);
     jm_log(m, JAOS_LOG_SUMMARY,
            "branch and bound: %s after %lld nodes, %lld solves, %lld cuts "
            "(%lld below the root), %lld points by rounding, %lld of them "
