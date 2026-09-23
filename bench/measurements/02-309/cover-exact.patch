@@ -1,0 +1,157 @@
+diff --git a/src/mip.c b/src/mip.c
+index b9954f1..550faef 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -103,6 +103,15 @@ constexpr bool MIP_PUMP_ALWAYS = false;
+ 
+ constexpr bool MIP_RCFIX = false;
+ constexpr bool MIP_TIGHTEN = true;
++
++#ifndef JAOS_MIP_COVER_EXACT_VALUE
++#define JAOS_MIP_COVER_EXACT_VALUE 0
++#endif
++constexpr bool MIP_COVER_EXACT = JAOS_MIP_COVER_EXACT_VALUE != 0;
++#ifndef JAOS_MIP_COVER_EXACT_MAX_VALUE
++#define JAOS_MIP_COVER_EXACT_MAX_VALUE 64
++#endif
++constexpr int64_t MIP_COVER_EXACT_MAX = JAOS_MIP_COVER_EXACT_MAX_VALUE;
+ constexpr bool MIP_PROBING = false;
+ constexpr int64_t MIP_PROBING_ROUNDS = 2;
+ constexpr double MIP_PROBING_CAP = 1.0;
+@@ -1505,6 +1514,98 @@ static int kitem_weight_cmp(const void *pa, const void *pb)
+     return p->col < q->col ? -1 : p->col > q->col;
+ }
+ 
++static int kitem_x_cmp(const void *pa, const void *pb)
++{
++    const kitem *p = pa, *q = pb;
++    if (p->xv > q->xv) return -1;
++    if (p->xv < q->xv) return 1;
++    return p->col < q->col ? -1 : p->col > q->col;
++}
++
++static int kitem_x_up_cmp(const void *pa, const void *pb)
++{
++    return kitem_x_cmp(pb, pa);
++}
++
++static int64_t cover_exact(kitem *items, int64_t n, int64_t c, double b,
++                           double tol, double *alpha, int64_t *work)
++{
++    qsort(items, (size_t)c, sizeof *items, kitem_x_up_cmp);
++    double weight = 0.0;
++    for (int64_t k = 0; k < c; k++)
++        weight += items[k].a;
++    const double over = b + tol * (1.0 + fabs(b));
++    kitem *dropped = jm_alloc_array(c > 0 ? c : 1, sizeof *dropped);
++    if (dropped == nullptr)
++        return -1;
++    int64_t kept = 0, nd = 0;
++    for (int64_t k = 0; k < c; k++) {
++        if (weight - items[k].a > over) {
++            weight -= items[k].a;
++            dropped[nd++] = items[k];
++        } else {
++            items[kept++] = items[k];
++        }
++    }
++    for (int64_t k = 0; k < nd; k++)
++        items[kept + k] = dropped[k];
++    free(dropped);
++    c = kept;
++    qsort(items + c, (size_t)(n - c), sizeof *items, kitem_x_cmp);
++
++    const int64_t cap = (c - 1) * (n - c) + c + 1;
++    double *wmin = jm_alloc_array(cap + 1, sizeof *wmin);
++    double *ca = jm_alloc_array(c > 0 ? c : 1, sizeof *ca);
++    if (wmin == nullptr || ca == nullptr) {
++        free(wmin);
++        free(ca);
++        return -1;
++    }
++    for (int64_t k = 0; k < c; k++)
++        ca[k] = items[k].a;
++    for (int64_t k = 1; k < c; k++)
++        for (int64_t q = k; q > 0 && ca[q - 1] > ca[q]; q--) {
++            const double t = ca[q];
++            ca[q] = ca[q - 1];
++            ca[q - 1] = t;
++        }
++    int64_t top = c;
++    wmin[0] = 0.0;
++    for (int64_t p = 1; p <= c; p++)
++        wmin[p] = wmin[p - 1] + ca[p - 1];
++    for (int64_t k = 0; k < c; k++)
++        alpha[k] = 1.0;
++    const double fit = tol * (1.0 + fabs(b));
++    for (int64_t k = c; k < n; k++) {
++        const double room = b - items[k].a + fit;
++        int64_t best = -1;
++        for (int64_t p = top; p >= 0; p--)
++            if (wmin[p] <= room) {
++                best = p;
++                break;
++            }
++        int64_t h = best < 0 ? c - 1 : (c - 1) - best;
++        if (h < 0)
++            h = 0;
++        alpha[k] = (double)h;
++        *work += top + 1;
++        if (h == 0)
++            continue;
++        const int64_t ntop = top + h < cap ? top + h : cap;
++        for (int64_t p = top + 1; p <= ntop; p++)
++            wmin[p] = INFINITY;
++        for (int64_t p = ntop; p >= h; p--) {
++            const double via = wmin[p - h] + items[k].a;
++            if (via < wmin[p])
++                wmin[p] = via;
++        }
++        top = ntop;
++    }
++    free(wmin);
++    free(ca);
++    return c;
++}
++
+ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
+                            const double *x, const double *ilo,
+                            const double *ihi, cutbuf *cb, kitem *items,
+@@ -1559,6 +1660,37 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
+                 weight += items[c++].a;
+             if (!(weight > over))
+                 continue;
++            if (MIP_COVER_EXACT && n <= MIP_COVER_EXACT_MAX) {
++                double *alpha = jm_alloc_array(n, sizeof *alpha);
++                if (alpha == nullptr)
++                    return -1;
++                const int64_t cc = cover_exact(items, n, c, b, tol, alpha,
++                                               work);
++                if (cc < 0) {
++                    free(alpha);
++                    return -1;
++                }
++                double act = 0.0, nrm = 0.0, shift = 0.0;
++                memset(cut, 0, (size_t)nc * sizeof *cut);
++                for (int64_t k = 0; k < n; k++) {
++                    const double al = alpha[k];
++                    if (al == 0.0)
++                        continue;
++                    act += al * items[k].xv;
++                    cut[items[k].col] = items[k].compl ? al : -al;
++                    if (items[k].compl)
++                        shift += al;
++                    nrm += al * al;
++                }
++                free(alpha);
++                if (!(act > (double)(cc - 1)))
++                    continue;
++                if (!cutbuf_push(cb, cut, nc, shift - (double)(cc - 1),
++                                 (act - (double)(cc - 1)) / sqrt(nrm)))
++                    return -1;
++                added++;
++                continue;
++            }
+             double amax = 0.0;
+             for (int64_t k = 0; k < c; k++)
+                 if (items[k].a > amax)
