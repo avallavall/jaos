@@ -27,23 +27,20 @@ SCIP's (`bench/compare/README.md`).
 
 ## Tier 1: answers the checker refuses
 
-J1. **QPLIB_9002 ends `OPTIMAL` with a dual violation of 2.1e4.** A
-convex QP with no reference value; the barrier's own test passes with its
-rows 8.9e-7 off, relative (`bench/measurements/02-256/`,
-`bench/measurements/02-295/`). An `OPTIMAL` whose duals the checker
-refuses must not be published: either the push settles the duals or the
-answer ends `NUMERICAL_ERROR`. Verify on the QPLIB reading of 02-295, with
-`make maros-meszaros` unchanged.
-
-J2. **QP answers the checker refuses.** QPLIB_8785 ends `OPTIMAL` and is
-refused at 1e-7 on a gap of 1.3e-7. Maros-Meszaros `qgrow22` is refused on
-the dual side (2.98e-6): the push leaves 28 pinned variables with a
-reduced cost of the wrong sign after 3 freeings, the worst 3.2e4, and the
-barrier's point stands. `aug3dqp` sits over the runner's suboptimality
-ceiling (1.03e-3 against 1e-6): its 114 columns with no quadratic term
-carry reduced costs of -4e-13 against upper bounds of 8.6e10 that the rows
-imply. Verify with `make maros-meszaros` (136 checker ok today; `values`
-is refused as not convex by design).
+J2. **QP models with no accepted optimum.** Since 02-315 a QP optimum
+the checker refuses is not published, so QPLIB_9002 and Maros-Meszaros
+`qgrow22` end `NUMERICAL_ERROR` where they ended `OPTIMAL` with duals off
+by 2.1e4 and 3e-6. Both need a point the checker takes. On `qgrow22` the
+push leaves 28 pinned variables with a reduced cost of the wrong sign
+after 3 freeings, the worst 3.2e4; on QPLIB_9002 931, the worst 8.7e9.
+Moving the columns the barrier marks as sitting at a bound onto that
+bound does not make either pass. QPLIB_8785 ends `OPTIMAL` with rows off
+by 3e-15 and duals by 0, and its objective gap of 1.31e-7 fails the
+checker at 1e-7 and passes at 1e-6. `aug3dqp` sits over the runner's
+suboptimality ceiling (1.03e-3 against 1e-6): its 114 columns with no
+quadratic term carry reduced costs of -4e-13 against upper bounds of
+8.6e10 that the rows imply. Verify with `make maros-meszaros` (136 solved
+and checked today; `values` is refused as not convex by design).
 
 J3. **Conic answers the checker refuses.** The duals of 8 of QPLIB's 10
 continuous QCQP optima miss by 8.5e-7 to 3.6e-5 while the primal side is

@@ -2050,6 +2050,21 @@ jaos_status jm_conic_after_barrier(jaos_model *m)
     m->cfg.node_solve = node;
     m->cfg.time_limit = limit;
     m->solve_time += spent;
+    jaos_check_report ck = {};
+    if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_OPTIMAL &&
+        m->sol_col != nullptr &&
+        (jaos_check_solution(m, m->sol_col, m->sol_dual,
+                             jm_primal_tolerance(m), &ck) != JAOS_OK ||
+         !ck.primal_feasible || !ck.dual_feasible)) {
+        m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+        m->conic_rough = false;
+        jm_set_err(m, "neither the barrier nor the conic interior point "
+                      "reached an optimum the checker passes; the conic "
+                      "point has columns off by %.3g, rows by %.3g, %.3g of "
+                      "their traffic, duals by %.3g",
+                   ck.max_col_violation, ck.max_row_violation,
+                   ck.max_row_violation_relative, ck.max_dual_violation);
+    }
     return st;
 }
 

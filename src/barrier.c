@@ -2614,6 +2614,21 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);
 
+    jaos_check_report ck = {};
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+        !s.pushed && !m->cfg.barrier_no_crossover && m->sol_col != nullptr &&
+        (jaos_check_solution(m, m->sol_col, m->sol_dual,
+                             jm_primal_tolerance(m), &ck) != JAOS_OK ||
+         !ck.primal_feasible || !ck.dual_feasible)) {
+        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+        m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+        jm_set_err(m, "the barrier stopped near an optimum that the checker "
+                      "does not pass (columns off by %.3g, rows by %.3g, "
+                      "%.3g of their traffic, duals by %.3g)",
+                   ck.max_col_violation, ck.max_row_violation,
+                   ck.max_row_violation_relative, ck.max_dual_violation);
+    }
+
     if (target != m && target->err[0] != '\0' &&
         (st != JAOS_OK || outcome == JAOS_SOLVE_NUMERICAL_ERROR))
         memcpy(m->err, target->err, sizeof m->err);
