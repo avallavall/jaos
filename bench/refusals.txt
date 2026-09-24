@@ -30,7 +30,7 @@ D210 | bench/measurements/02-125/unbounded-census.sh | any instance reaches `imp
 # another (D214, bench/measurements/02-129/). The refusal is spent and its
 # script would now be re-testing the landed code against itself.
 D244 | bench/measurements/02-156/run-edge-sweep.sh | the forced primal's "settled point is not dual feasible" family is fixed, so a pricing rule can be compared on a set where agreement is not already broken; start the retry from "never reset", the row that reduced both iterations and work
-D101 | bench/measurements/02-312/run-families-new.sh | a set where 02-07's counter reports 5% or more of live rows or columns removable; netlib is the control and the bar is argued in 02-154 (D242). MET for duplicate rows on 2026-09-24: MIPLIB 2017's LP relaxations hold 7.57% of their live rows as multiples of other rows (bench/measurements/02-312/); duplicate and dominated columns stay under the bar in every set
+D101 | bench/measurements/02-312/run-families-new.sh | duplicate and dominated columns: a set where 02-07's counter reports 5% or more of live columns removable; netlib is the control and the bar is argued in 02-154 (D242). Duplicate rows passed the bar on MIPLIB 2017's LP relaxations on 2026-09-24 (7.57%, bench/measurements/02-312/) and were built and refused the same day, so they now answer to presolve-duplicate-rows
 D107 | MANUAL | a model population where bench/measurements/02-13/run-sign-count.sh reports a non-trivial sign-ok share
 D109 | MANUAL | a model population where bench/measurements/02-16/run-floorless.sh reports a moved instance line
 D108 | MANUAL | an instance crosses the gate's 2.0x work bar from the implied-free family's firings, or a mechanism predicts trajectory direction from the firing site

@@ -157,12 +157,20 @@ rm -rf "$WORK"
 # would have done exactly that: today's netlib reads 0.913%. The other end
 # is `d6cube` alone at about 12% of one model, which D101 called worth
 # noticing. 5% is between them, about five times what D101 dismissed.
-worst=$(awk '/removable rows|removable columns/ {
+#
+# Since 2026-09-24 D101 covers the columns only. The rows passed the bar
+# on MIPLIB 2017 and were built and refused as `presolve-duplicate-rows`
+# (02-314), so their share is printed and not judged here.
+rworst=$(awk '/removable rows/ {
+                  if (match($0, /\(([0-9.]+)%/, m) && m[1] + 0 > w) w = m[1] + 0
+              } END { printf "%.3f", w }' "$OUT")
+worst=$(awk '/removable columns/ {
                  if (match($0, /\(([0-9.]+)%/, m) && m[1] + 0 > w) w = m[1] + 0
              } END { printf "%.3f", w }' "$OUT")
 {
 echo
-echo "largest share in any set: ${worst}% of live rows or columns"
+echo "largest row share in any set: ${rworst}% of live rows (see presolve-duplicate-rows)"
+echo "largest column share in any set: ${worst}% of live columns"
 if awk -v w="$worst" 'BEGIN { exit !(w >= 5.0) }'; then
     echo "VERDICT: REOPENED. D101's condition is met on this population."
 else

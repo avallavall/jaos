@@ -1,4 +1,4 @@
-tree: 1a826dc
+tree: c77642a
 counter: bench/measurements/02-07/diag_families.inc, unchanged
 
 --- netlib: 94 instances, 94 reported
@@ -28,7 +28,8 @@ counter: bench/measurements/02-07/diag_families.inc, unchanged
     removable columns 4  (0.023%, on 2 instances)
     dual-fixing candidates: 2  (0.012% of live columns)
 
-largest share in any set: 7.570% of live rows or columns
-VERDICT: REOPENED. D101's condition is met on this population.
+largest row share in any set: 7.570% of live rows (see presolve-duplicate-rows)
+largest column share in any set: 0.913% of live columns
+VERDICT: D101 still holds. No set reaches the 5% bar.
 largest dual-fixing share in any set: 0.669% of live columns
 VERDICT: D246 still holds. No set reaches the 5% bar.

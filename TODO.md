@@ -54,14 +54,6 @@ reading of 02-256.
 
 ## Tier 2: the bench tooling and the records
 
-J5. **`make refusals` reads D101 as reopened for good.** Its script
-(`bench/measurements/02-312/run-families-new.sh`) exits 1 because MIPLIB
-2017's relaxations hold 7.57% duplicate rows, but duplicate rows were
-built and refused the same day (`presolve-duplicate-rows`, 02-314). The
-script's verdict should read the columns only, or D101's line should be
-split into a rows part that points at the new refusal and a columns part
-that still holds. Verify: `make refusals` exits 0.
-
 J6. **The standing numbers are a day old, and one reading was never
 taken.** P0 predates 764fe58's LU change and the MIP comparison predates
 f1deb64. Re-take `make compare COMPARE_ARGS='-t P0'` and
