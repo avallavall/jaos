@@ -60,7 +60,11 @@ reading of 02-256.
 J6. **One reading was never taken.** `make plato-nug` has never written
 `bench/results/plato-nug.txt`: in 02-94 `nug08-3rd` took 2.9e11 work
 units and 511 s, and `nug20` and `nug30` were stopped after 68 minutes.
-Take it, or record in its README why nug20 and nug30 cannot run.
+On 2026-09-24 (tree 20f2edb, J=3) they were still solving after 2 h 15
+min, nug30 at 4.9 GB, and were stopped; the runner writes its file only
+when every instance ends, so nug08-3rd's line was lost with them. Run the
+three one at a time, nug08-3rd first, or record in the set's README why
+nug20 and nug30 cannot run.
 
 ## Tier 3: the largest performance gaps
 
@@ -86,9 +90,10 @@ covers are on at 5 rounds since 2026-09-24 and lift the root bounds of
 steps lifts `exp-1-500-5-5`'s to 59627, and with both on `sp150x300d`
 solves (4.7e9 work units), but aggregation costs 1.588x on MIPLIB 3
 (`bell5`'s tree 14767 to 2112667 nodes, `gen` 19.6x from its per-step
-scan of every column; `bench/measurements/02-317/`). Next: an aggregation
-that scans only the rows and columns it touches, then a reading of why
-`bell5` grows. MIR with variable upper bounds (`mir-vub`) and exact cover
+scan of every column; `bench/measurements/02-317/`). Since 2026-09-24
+the MIR rounds touch only the columns of the rows they aggregate, with
+the same cuts (MIPLIB 3 writes the same files). Next: a reading of why
+`bell5`'s tree grows under aggregation. MIR with variable upper bounds (`mir-vub`) and exact cover
 lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
 `l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
 from forcing rows that fix basic columns (keeping those rows is refused as

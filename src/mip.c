@@ -1313,18 +1313,22 @@ static bool cutbuf_push(cutbuf *cb, const double *cut, int64_t nc, double lo,
 }
 
 static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
-                      double rhs, const double *x)
+                      double rhs, const double *x, const int64_t *nz,
+                      int64_t nnz_in)
 {
-    const int64_t nc = lp->num_col;
+    const int64_t nc = lp->num_col, n = nz != nullptr ? nnz_in : nc;
     double amax = 0.0;
-    for (int64_t k = 0; k < nc; k++)
+    for (int64_t t = 0; t < n; t++) {
+        const int64_t k = nz != nullptr ? nz[t] : t;
         if (fabs(cut[k]) > amax)
             amax = fabs(cut[k]);
+    }
     if (amax == 0.0)
         return 0;
     double amin = INFINITY;
     int64_t nnz = 0;
-    for (int64_t k = 0; k < nc; k++) {
+    for (int64_t t = 0; t < n; t++) {
+        const int64_t k = nz != nullptr ? nz[t] : t;
         const double c = cut[k];
         if (c == 0.0)
             continue;
@@ -1345,7 +1349,8 @@ static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
         return 0;
     double act = 0.0, nrm = 0.0, reach = 0.0, span = fabs(rhs);
     bool capped = true;
-    for (int64_t k = 0; k < nc; k++) {
+    for (int64_t t = 0; t < n; t++) {
+        const int64_t k = nz != nullptr ? nz[t] : t;
         act += cut[k] * x[k];
         nrm += cut[k] * cut[k];
         if (cut[k] == 0.0)
@@ -1457,7 +1462,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
         }
         if (!ok)
             continue;
-        const int pushed = cut_finish(lp, cb, cut, rhs, x);
+        const int pushed = cut_finish(lp, cb, cut, rhs, x, nullptr, 0);
         if (pushed < 0) {
             added = -1;
             break;
@@ -2550,12 +2555,11 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
                     const double *ilo, const double *ihi, const double *a_in,
                     double b_in, double mag_in, int64_t terms_in,
                     const double *cmag, cutbuf *cb, double *cut, double *best,
-                    double *delta)
+                    double *delta, const int64_t *nz, int64_t nnz)
 {
-    const int64_t nc = m->num_col;
     if (cmag != nullptr)
-        for (int64_t j = 0; j < nc; j++)
-            if (DBL_EPSILON * cmag[j] * (double)terms_in > MIP_MIR_ROUND)
+        for (int64_t t = 0; t < nnz; t++)
+            if (DBL_EPSILON * cmag[nz[t]] * (double)terms_in > MIP_MIR_ROUND)
                 return 0;
     {
         {
@@ -2564,7 +2568,8 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
             bool ok = true;
             int64_t nd = 1;
             delta[0] = 1.0;
-            for (int64_t j = 0; j < nc; j++) {
+            for (int64_t t = 0; t < nnz; t++) {
+                const int64_t j = nz[t];
                 const double a = a_in[j];
                 if (a == 0.0)
                     continue;
@@ -2601,9 +2606,11 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
                 if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
                     continue;
 
-                memset(cut, 0, (size_t)nc * sizeof *cut);
+                for (int64_t t = 0; t < nnz; t++)
+                    cut[nz[t]] = 0.0;
                 double rhs = floor(b0);
-                for (int64_t j = 0; j < nc; j++) {
+                for (int64_t t = 0; t < nnz; t++) {
+                    const int64_t j = nz[t];
                     const double a0 = a_in[j];
                     if (a0 == 0.0)
                         continue;
@@ -2627,7 +2634,8 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
                     }
                 }
                 double act = 0.0, nrm = 0.0;
-                for (int64_t k = 0; k < nc; k++) {
+                for (int64_t t = 0; t < nnz; t++) {
+                    const int64_t k = nz[t];
                     act += cut[k] * x[k];
                     nrm += cut[k] * cut[k];
                 }
@@ -2638,14 +2646,20 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
                     best_eff = eff;
                     best_rhs = rhs;
                     have = true;
-                    memcpy(best, cut, (size_t)nc * sizeof *best);
+                    for (int64_t t = 0; t < nnz; t++)
+                        best[nz[t]] = cut[nz[t]];
                 }
             }
+            for (int64_t t = 0; t < nnz; t++)
+                cut[nz[t]] = 0.0;
             if (!have)
                 return 0;
-            for (int64_t k = 0; k < nc; k++)
-                cut[k] = -best[k];
-            return cut_finish(lp, cb, cut, -best_rhs, x);
+            for (int64_t t = 0; t < nnz; t++)
+                cut[nz[t]] = -best[nz[t]];
+            const int got = cut_finish(lp, cb, cut, -best_rhs, x, nz, nnz);
+            for (int64_t t = 0; t < nnz; t++)
+                cut[nz[t]] = 0.0;
+            return got;
         }
     }
 }
@@ -2665,23 +2679,34 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
                ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
                 (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
     *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
+    memset(agg, 0, (size_t)nc * sizeof *agg);
+    memset(cut, 0, (size_t)nc * sizeof *cut);
     for (int64_t i = 0; i < nr; i++) {
+        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
         for (int side = 0; side < 2; side++) {
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
             const double sg = side == 0 ? 1.0 : -1.0;
-            memset(agg, 0, (size_t)nc * sizeof *agg);
-            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+            for (int64_t k = p0; k < p1; k++)
                 agg[lp->ar_index[k]] += sg * lp->ar_value[k];
             const int pushed = mir_side(m, lp, x, ilo, ihi, agg, sg * bound,
-                                        0.0, 0, nullptr, cb, cut, best, delta);
+                                        0.0, 0, nullptr, cb, cut, best, delta,
+                                        &lp->ar_index[p0], p1 - p0);
+            for (int64_t k = p0; k < p1; k++)
+                agg[lp->ar_index[k]] = 0.0;
             if (pushed < 0)
                 return -1;
             added += pushed;
         }
     }
     return added;
+}
+
+static int mir_col_cmp(const void *pa, const void *pb)
+{
+    const int64_t a = *(const int64_t *)pa, b = *(const int64_t *)pb;
+    return (a > b) - (a < b);
 }
 
 static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
@@ -2697,36 +2722,55 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
         return -1;
     if (steps > nr)
         steps = nr;
+    int64_t *tl = jm_alloc_array(nc > 0 ? nc : 1, sizeof *tl);
+    int64_t *ul = jm_alloc_array(steps + 1, sizeof *ul);
+    bool *intl = jm_calloc_array(nc > 0 ? nc : 1, sizeof *intl);
+    if (tl == nullptr || ul == nullptr || intl == nullptr) {
+        added = -1;
+        goto out;
+    }
+    memset(agg, 0, (size_t)nc * sizeof *agg);
+    memset(cmag, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *cmag);
+    memset(picked, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *picked);
+    memset(used, 0, (size_t)(nr > 0 ? nr : 1) * sizeof *used);
+    memset(cut, 0, (size_t)nc * sizeof *cut);
+    *work += nc + nr;
     for (int64_t i = 0; i < nr; i++) {
         for (int side = 0; side < 2; side++) {
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
             const double sg = side == 0 ? 1.0 : -1.0;
-            memset(agg, 0, (size_t)nc * sizeof *agg);
-            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
-                agg[lp->ar_index[k]] += sg * lp->ar_value[k];
-            memset(used, 0, (size_t)(nr > 0 ? nr : 1) * sizeof *used);
-            memset(picked, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *picked);
-            memset(cmag, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *cmag);
+            int64_t nt = 0, nu = 0;
+            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+                const int64_t j = lp->ar_index[k];
+                agg[j] += sg * lp->ar_value[k];
+                if (!intl[j]) {
+                    intl[j] = true;
+                    tl[nt++] = j;
+                }
+            }
             used[i] = true;
+            ul[nu++] = i;
             double b = sg * bound, mag = 0.0;
             int64_t terms = 0;
             for (int64_t s = 0; s < steps; s++) {
 
-                *work += m->num_nz + nc + nr;
+                *work += nt * (MIP_MIR_DELTAS + 2);
 
                 int64_t pick = -1;
                 double pick_a = 0.0;
-                for (int64_t j = 0; j < nc; j++) {
+                for (int64_t t = 0; t < nt; t++) {
+                    const int64_t j = tl[t];
                     if (agg[j] == 0.0 || m->col_integer[j] || picked[j])
                         continue;
                     const double lo = ilo[j], hi = ihi[j];
                     if ((isfinite(lo) && x[j] - lo <= MIP_INT_TOL) ||
                         (isfinite(hi) && hi - x[j] <= MIP_INT_TOL))
                         continue;
-                    if (fabs(agg[j]) > pick_a) {
-                        pick_a = fabs(agg[j]);
+                    const double aj = fabs(agg[j]);
+                    if (aj > pick_a || (aj == pick_a && j < pick)) {
+                        pick_a = aj;
                         pick = j;
                     }
                 }
@@ -2744,6 +2788,7 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                     if (crj == 0.0)
                         continue;
                     double rmax = 0.0;
+                    *work += lp->ar_start[r + 1] - lp->ar_start[r];
                     for (int64_t q = lp->ar_start[r]; q < lp->ar_start[r + 1]; q++)
                         if (fabs(lp->ar_value[q]) > rmax)
                             rmax = fabs(lp->ar_value[q]);
@@ -2768,20 +2813,42 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                     const int64_t j = lp->ar_index[q];
                     agg[j] -= lambda * lp->ar_value[q];
                     cmag[j] += fabs(lambda * lp->ar_value[q]);
+                    if (!intl[j]) {
+                        intl[j] = true;
+                        tl[nt++] = j;
+                    }
                 }
                 picked[pick] = true;
                 b -= lambda * rbound;
                 mag += fabs(lambda * rbound);
                 terms++;
                 used[rrow] = true;
+                ul[nu++] = rrow;
+                qsort(tl, (size_t)nt, sizeof *tl, mir_col_cmp);
                 const int pushed = mir_side(m, lp, x, ilo, ihi, agg, b, mag,
-                                            terms, cmag, cb, cut, best, delta);
-                if (pushed < 0)
-                    return -1;
+                                            terms, cmag, cb, cut, best, delta,
+                                            tl, nt);
+                if (pushed < 0) {
+                    added = -1;
+                    goto out;
+                }
                 added += pushed;
             }
+            for (int64_t t = 0; t < nt; t++) {
+                const int64_t j = tl[t];
+                agg[j] = 0.0;
+                cmag[j] = 0.0;
+                picked[j] = false;
+                intl[j] = false;
+            }
+            for (int64_t t = 0; t < nu; t++)
+                used[ul[t]] = false;
         }
     }
+out:
+    free(tl);
+    free(ul);
+    free(intl);
     return added;
 }
 

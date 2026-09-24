@@ -42,3 +42,16 @@ step scans every column. `vub-share.txt` (`vub-share.py`) counts the rows
 of the form `x - u y <= 0` with `y` binary: gen has 55%, egout 56%, the
 three networks 46% to 86%, bell5 none, so the share of such rows does not
 separate where aggregation pays from where it costs.
+
+## MIR rounds that touch only their rows' columns
+
+The MIR rounds cleared and scanned an array over every column for every
+row, every aggregation step and every scaling tried. Since the same day
+they walk only the columns of the rows in play, in the same ascending
+order, and clear only what they wrote. With defaults MIPLIB 3 writes the
+same files. `miplib-agg6-sparse.txt` is the aggregation arm again on the
+new code (flow covers now on): every tree has the node count of
+`miplib-agg6.txt` except blend2 and dcmulti, the two models flow covers
+touch, and the arm costs 1.282x the default instead of 1.588x (gen 1.43x
+instead of 19.6x, since aggregation now bills what it reads). bell5 is
+unchanged at 137x: its tree grows from 14767 to 2112667 nodes.
