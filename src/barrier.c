@@ -59,6 +59,7 @@ constexpr int64_t QP_PUSH_ROUNDS = 40;
 constexpr int64_t QP_PUSH_FREEINGS = 3;
 constexpr double  QP_PUSH_EXTRAPOLATE = 1e6;
 constexpr int64_t QP_PUSH_CG = 100;
+constexpr double  QP_PUSH_GAP = 1e-8;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 enum { PUSH_FREE = 0, PUSH_LOWER = 1, PUSH_UPPER = 2 };
@@ -1844,18 +1845,21 @@ static double push_row_residual(bx *s, const double *z,
 
 static int64_t push_signs(bx *s, const double *zn, const double *yn,
                           double *d, double tol_d, double *worst,
-                          int64_t *loose)
+                          int64_t *loose, double *gap)
 {
     const double *gamma = s->m->col_scale, *rho = s->m->row_scale;
     const int8_t *pin = s->pin;
     mul_et(s, yn, s->tmp);
     const double *qz = grad_q(s, zn);
     int64_t wrong = 0;
+    double obj = 0.0, far = 0.0;
     *worst = 0.0;
     *loose = 0;
     for (int64_t j = 0; j < s->nvar; j++) {
         const uint8_t k = s->kind[j];
         const double gq = qz != nullptr ? qz[j] : s->quad[j] * zn[j];
+        if (j < s->ncol)
+            obj += (s->cost[j] + 0.5 * gq) * zn[j];
         d[j] = k == FIXED ? 0.0 : s->cost[j] + gq - s->tmp[j];
         if (k == FIXED)
             continue;
@@ -1866,6 +1870,11 @@ static int64_t push_signs(bx *s, const double *zn, const double *yn,
         if (pin[j] == PUSH_FREE) {
             if (fabs(d[j]) > thr)
                 (*loose)++;
+            const double room = d[j] > 0.0
+                ? ((k & HAS_LO) ? zn[j] - s->lo[j] : 0.0)
+                : ((k & HAS_UP) ? s->up[j] - zn[j] : 0.0);
+            if (room > 0.0)
+                far += fabs(d[j]) * room;
         } else if (pin[j] == PUSH_LOWER && d[j] < -thr) {
             wrong++;
             if (-d[j] > *worst)
@@ -1876,8 +1885,32 @@ static int64_t push_signs(bx *s, const double *zn, const double *yn,
                 *worst = d[j];
         }
     }
+    *gap = far / (1.0 + fabs(obj));
     jm_work_add(&s->work, 2 * s->nvar * JM_WORK_NONZERO);
     return wrong;
+}
+
+static void push_snap(bx *s, double *yn)
+{
+    const jaos_model *m = s->m;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const int64_t j = s->ncol + i;
+        if (s->kind[j] != FIXED && s->pin[j] == PUSH_FREE)
+            yn[i] = 0.0;
+    }
+    for (int64_t j = 0; j < s->ncol; j++) {
+        const int64_t p = m->a_start[j];
+        if (s->kind[j] == FIXED || s->pin[j] != PUSH_FREE ||
+            m->a_start[j + 1] != p + 1 || s->quad[j] != 0.0 ||
+            (s->qnz > 0 && (s->qs[j + 1] > s->qs[j] ||
+                            s->qt_start[j + 1] > s->qt_start[j])))
+            continue;
+        const int64_t i = m->a_index[p], sl = s->ncol + i;
+        if (s->kind[sl] != FIXED && s->pin[sl] == PUSH_FREE)
+            continue;
+        yn[i] = s->cost[j] / s->av[p];
+    }
+    jm_work_add(&s->work, (s->nrow + s->ncol) * JM_WORK_NONZERO);
 }
 
 static jaos_status push_polish(bx *s, double *zn, double *yn, double *d,
@@ -1964,11 +1997,11 @@ static jaos_status push_polish(bx *s, double *zn, double *yn, double *d,
         const double after = push_row_residual(s, zc, row_tol, r);
         for (int64_t i = 0; i < nr; i++)
             y[i] += yn[i];
-        double worst = 0.0;
+        double worst = 0.0, gap = 0.0;
         int64_t loose = 0, wrong = 0;
         const bool closer = inside && isfinite(after) && after < before;
         if (closer)
-            wrong = push_signs(s, zc, y, dc, tol_d, &worst, &loose);
+            wrong = push_signs(s, zc, y, dc, tol_d, &worst, &loose, &gap);
         const bool kept = closer && wrong == 0 && loose == 0;
         if (kept) {
             memcpy(zn, zc, (size_t)nv * sizeof *zn);
@@ -2031,9 +2064,13 @@ static jaos_status qp_push(bx *s)
             continue;
         const double near = QP_PUSH_NEAR * (1.0 + s->norm_b);
         const bool at_lo = (k & HAS_LO) &&
-                           (s->w[j] < s->zl[j] || s->w[j] <= near);
+                           (s->w[j] < s->zl[j] ||
+                            (s->w[j] <= near &&
+                             s->zl[j] >= QP_PUSH_NEAR * s->w[j]));
         const bool at_up = (k & HAS_UP) &&
-                           (s->v[j] < s->zu[j] || s->v[j] <= near);
+                           (s->v[j] < s->zu[j] ||
+                            (s->v[j] <= near &&
+                             s->zu[j] >= QP_PUSH_NEAR * s->v[j]));
         if (at_lo && (!at_up || s->w[j] <= s->v[j]))
             pin[j] = PUSH_LOWER;
         else if (at_up)
@@ -2043,7 +2080,6 @@ static jaos_status qp_push(bx *s)
     }
     const double tol_p = QP_PUSH_TOL * (1.0 + s->norm_b);
     const double tol_d = QP_PUSH_TOL * (1.0 + s->norm_c);
-    const double near_p = QP_PUSH_NEAR * (1.0 + s->norm_b);
     for (int64_t i = 0; i < nr; i++)
         row_tol[i] = 1.0;
     for (int64_t j = 0; j < s->ncol; j++) {
@@ -2064,7 +2100,7 @@ static jaos_status qp_push(bx *s)
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
     int64_t last_wrong = INT64_MAX;
     bool stuck = false;
-    double worst_sign = 0.0;
+    double worst_sign = 0.0, gap = 0.0, last_gap = HUGE_VAL;
     double *zt = s->dw;
     bool settled = false, fresh = true, stagnant = false;
     double push_reg = QP_PUSH_REG;
@@ -2242,12 +2278,14 @@ static jaos_status qp_push(bx *s)
             zn[j] += alpha * dj;
             if (alpha == 1.0 && !extended)
                 continue;
-            if ((k & HAS_LO) && dj < 0.0 && zn[j] <= s->lo[j] + near_p) {
+            if ((k & HAS_LO) && dj < 0.0 &&
+                zn[j] <= s->lo[j] + QP_PUSH_NEAR * (1.0 + fabs(s->lo[j]))) {
                 pin[j] = PUSH_LOWER;
                 zn[j] = s->lo[j];
                 moved++;
             } else if ((k & HAS_UP) && dj > 0.0 &&
-                       zn[j] >= s->up[j] - near_p) {
+                       zn[j] >= s->up[j] -
+                                    QP_PUSH_NEAR * (1.0 + fabs(s->up[j]))) {
                 pin[j] = PUSH_UPPER;
                 zn[j] = s->up[j];
                 moved++;
@@ -2339,12 +2377,19 @@ static jaos_status qp_push(bx *s)
             continue;
         }
         int64_t loose = 0;
-        wrong = push_signs(s, zn, yn, d, tol_d, &worst_sign, &loose);
+        wrong = push_signs(s, zn, yn, d, tol_d, &worst_sign, &loose, &gap);
         jm_log(s->m, JAOS_LOG_DETAIL,
                "  push round %lld: full step, %lld pinned, %lld with the "
-               "wrong sign, %lld free with a reduced cost",
+               "wrong sign, %lld free with a reduced cost, a gap of %.3e of "
+               "the objective on the free ones",
                (long long)round, (long long)pinned, (long long)wrong,
-               (long long)loose);
+               (long long)loose, gap);
+        if (wrong == 0 && loose == 0 && gap > QP_PUSH_GAP &&
+            gap < 0.5 * last_gap && round < QP_PUSH_ROUNDS) {
+            last_gap = gap;
+            stagnant = false;
+            continue;
+        }
         if (wrong == 0 && loose == 0) {
             settled = true;
             if (!s->augmented && s->qnz == 0)
@@ -2374,6 +2419,18 @@ static jaos_status qp_push(bx *s)
         }
         freed++;
         fresh = true;
+    }
+    if (st == JAOS_OK && settled) {
+        memcpy(dy2, yn, (size_t)nr * sizeof *yn);
+        push_snap(s, dy2);
+        double worst = 0.0, snap_gap = 0.0;
+        int64_t loose = 0;
+        const int64_t off = push_signs(s, zn, dy2, dz2, tol_d, &worst, &loose,
+                                       &snap_gap);
+        if (off == 0 && loose == 0) {
+            memcpy(yn, dy2, (size_t)nr * sizeof *yn);
+            memcpy(d, dz2, (size_t)nv * sizeof *d);
+        }
     }
     if (st == JAOS_OK && settled) {
         s->pushed = true;

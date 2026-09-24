@@ -1,0 +1,11 @@
+QPLIB_8495   optimal          obj=42857.49638866834        ref=42857.4963900000002468   check=yes  dual=0          rowrel=2.1070751  work=5036330599
+QPLIB_8515   optimal          obj=319.99998870786902       ref=319.9999887000000172     check=yes  dual=0          rowrel=8.5265128  work=87367827
+QPLIB_8616   optimal          obj=245.06859777120653       ref=245.0685977999999920     check=yes  dual=0          rowrel=1.1352074  work=68680637
+QPLIB_8785   optimal          obj=7867.4911487601667       ref=7867.4911490000004051    check=yes  dual=0          rowrel=3.3861802  work=85370949645
+QPLIB_8790   optimal          obj=-0.00015624210914962734  ref=-0.0001562421091000      check=yes  dual=0          rowrel=0          work=760282980
+QPLIB_8792   optimal          obj=3593.5162939294105       ref=3593.5183550000001560    check=yes  dual=0          rowrel=0          work=1289529959
+QPLIB_8845   optimal          obj=10907992.493998801       ref=10907992.4900000002235174 check=yes  dual=0          rowrel=2.4855149  work=763759994
+QPLIB_8906   optimal          obj=2699111.5134511846       ref=2699111.5129999998025596 check=yes  dual=0          rowrel=3.3770475  work=780721884
+QPLIB_8938   optimal          obj=-35.77945295251066       ref=-35.7794529499999996     check=yes  dual=0          rowrel=1.2911611  work=94714922
+QPLIB_8991   optimal          obj=-0.0016678673779135385   ref=-0.0016678673780000      check=yes  dual=0          rowrel=0          work=131203646
+QPLIB_9002   numerical_error  obj=                         ref=                         check=     dual=           rowrel=           work=3990337636

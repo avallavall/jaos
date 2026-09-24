@@ -26,20 +26,27 @@ SCIP's (`bench/compare/README.md`).
 
 ## Tier 1: answers the checker refuses
 
-J2. **QP models with no accepted optimum.** Since 02-315 a QP optimum
-the checker refuses is not published, so QPLIB_9002 and Maros-Meszaros
-`qgrow22` end `NUMERICAL_ERROR` where they ended `OPTIMAL` with duals off
-by 2.1e4 and 3e-6. Both need a point the checker takes. On `qgrow22` the
-push leaves 28 pinned variables with a reduced cost of the wrong sign
-after 3 freeings, the worst 3.2e4; on QPLIB_9002 931, the worst 8.7e9.
-Moving the columns the barrier marks as sitting at a bound onto that
-bound does not make either pass. QPLIB_8785 ends `OPTIMAL` with rows off
-by 3e-15 and duals by 0, and its objective gap of 1.31e-7 fails the
-checker at 1e-7 and passes at 1e-6. `aug3dqp` sits over the runner's
-suboptimality ceiling (1.03e-3 against 1e-6): its 114 columns with no
-quadratic term carry reduced costs of -4e-13 against upper bounds of
-8.6e10 that the rows imply. Verify with `make maros-meszaros` (136 solved
-and checked today; `values` is refused as not convex by design).
+J2. **QPLIB_9002 has no accepted optimum.** Since 02-315 a QP optimum
+the checker refuses is not published, and QPLIB_9002 ends
+`NUMERICAL_ERROR`. It is a network flow (2890 columns, 1649 equality
+rows of coefficients ±1) with a separable quadratic cost whose
+curvatures run from 9e-12 to 2. The barrier stops making progress at a
+dual residual of about 3e-9, and the push's first full step finds 743 of
+1983 pinned variables with the wrong sign; after 5 freeings 734 are
+left, the worst 1.5e2 (02-318). Two causes were found. First, the push's
+equality-constrained QP does not fix the rows' duals in the directions
+no free column touches, and its regularised step moves them by up to
+345 there. Keeping the barrier's duals in those directions (a solve with
+the rows' residual at zero) took the wrong signs from 760 to 40 under
+`JAOS_NEARMODE=6` of the diff below, but the push still did not settle:
+freeing the 40 at once gave each a step of 1e-8 the wrong way, and they
+were pinned again. Second, the pinned set is
+really wrong: at the push's point the LP `min g'x` with `g = c + Qx` over
+the same rows reaches 2.3e-4 lower than `g'x`, so duals from that LP do
+not rescue it. It needs an active-set iteration that frees one variable
+at a time, or a barrier that converges further. The dual-direction solve
+is in `bench/measurements/02-318/push-modes.diff` (`JAOS_YCLEAN`). Verify
+with the QPLIB reading of 02-318 (`cqp-new.txt`).
 
 J3. **Conic models with no accepted optimum.** Since 02-316 a conic
 optimum the checker refuses is not published, so 8 of QPLIB's continuous

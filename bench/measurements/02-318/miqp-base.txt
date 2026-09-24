@@ -1,0 +1,17 @@
+QPLIB_10050  work_limit      obj=                       inc=-25.697661633058075    bound=-26.232843016261068    nodes=835     work=10000377650
+QPLIB_10056  work_limit      obj=                       inc=-33.856788663747835    bound=-34.169467828798368    nodes=536     work=10000439485
+QPLIB_10069  optimal         obj=0                      inc=0                      bound=0                      nodes=1       work=292250335
+QPLIB_3547   work_limit      obj=                       inc=-0.5600083700145001    bound=-0.7172019849453144    nodes=264     work=10001106539
+QPLIB_3694   work_limit      obj=                       inc=450.52146354857308     bound=96.938058198521034     nodes=7       work=10000960463
+QPLIB_3698   work_limit      obj=                       inc=601.77345381767373     bound=136.01350617123492     nodes=25      work=10000813505
+QPLIB_3708   work_limit      obj=                       inc=-6346.7442342294298    bound=-9544.4566638865344    nodes=2       work=10015485131
+QPLIB_3792   work_limit      obj=                       inc=887.53725422137813     bound=270.1717233759818      nodes=48      work=10000153933
+QPLIB_3861   work_limit      obj=                       inc=608.65414246173168     bound=171.65536460449994     nodes=10      work=10000116070
+QPLIB_3871   work_limit      obj=                       inc=250.89987245497304     bound=106.1183118229869      nodes=153     work=10000031934
+QPLIB_3913   work_limit      obj=                       inc=56.924999998650001     bound=32.908673993700496     nodes=231     work=10002038075
+QPLIB_3980   work_limit      obj=                       inc=                       bound=-2.6155238794168558    nodes=167     work=10000394518
+QPLIB_4270   numerical_error obj=                       inc=                       bound=-inf                   nodes=1       work=3182270646
+QPLIB_5527   numerical_error obj=                       inc=                       bound=-inf                   nodes=1       work=5217797525
+QPLIB_5543   numerical_error obj=                       inc=                       bound=-inf                   nodes=1       work=4209883646
+QPLIB_5577   work_limit      obj=                       inc=                       bound=-inf                   nodes=1       work=11612800624
+QPLIB_5924   work_limit      obj=                       inc=                       bound=76632.786322328553     nodes=1       work=10011582609

@@ -278,9 +278,12 @@ constant either.
 
 *The QP push* (`qp_push`) finishes a quadratic model's point. Each round
 factors and solves its own system at the LDL's rates and charges one per
-entry it sweeps. Its sign test charges `2 * nvar`. Its polish by conjugate
-gradients charges `6 * nr` a step, plus a product pair with the rows and a
-solve with their factor a step, for up to `QP_PUSH_CG` steps. The early
+entry it sweeps. Its sign test charges `2 * nvar`. When it settles, the
+exact duals it sets on inactive rows and single-row columns charge
+`nrow + ncol`, and the sign test that judges them one more `2 * nvar`.
+Its polish by conjugate gradients charges `6 * nr` a step, plus a product
+pair with the rows and a solve with their factor a step, for up to
+`QP_PUSH_CG` steps. The early
 hand-off at `BARRIER_MU_DEAD` and the walk that goes on after a push that
 does not settle bill onto the same counter as the walk.
 

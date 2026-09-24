@@ -535,6 +535,37 @@ static void test_a_walk_whose_mu_is_gone_is_pushed_before_it_converges(void)
     jaos_model_free(m);
 }
 
+static void test_the_push_gives_an_inactive_row_a_dual_of_exactly_zero(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double inf = jaos_infinity();
+    const double cost[3] = {-1.0, -1.0, 0.0};
+    const double cl[3] = {-inf, -inf, 0.0}, cu[3] = {inf, inf, inf};
+    const double rl[2] = {-inf, 3.0}, ru[2] = {10.0, 3.0};
+    const int64_t as[4] = {0, 1, 3, 4}, ai[4] = {0, 0, 1, 1};
+    const double av[4] = {1.0, 1.0, 1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0,
+                                                cost, cl, cu, rl, ru, 4, as,
+                                                ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[3], y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, x[2]);
+    TEST_ASSERT_TRUE(y[0] == 0.0);
+    TEST_ASSERT_TRUE(y[1] == 0.0);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-12, &rep));
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, rep.relative_suboptimality);
+    jaos_model_free(m);
+}
+
 static void test_a_qp_whose_rows_leave_no_interior_still_solves(void)
 {
     constexpr int64_t N = 6;
@@ -698,6 +729,7 @@ int main(void)
     RUN_TEST(test_a_dense_column_leaves_the_normal_matrix_and_the_answer_holds);
     RUN_TEST(test_a_separable_qp_solves_by_the_barrier_and_the_checker_accepts);
     RUN_TEST(test_a_walk_whose_mu_is_gone_is_pushed_before_it_converges);
+    RUN_TEST(test_the_push_gives_an_inactive_row_a_dual_of_exactly_zero);
     RUN_TEST(test_a_qp_whose_rows_leave_no_interior_still_solves);
     RUN_TEST(test_the_augmented_system_agrees_with_the_normal_equations);
     RUN_TEST(test_the_augmented_system_takes_every_bound_kind);

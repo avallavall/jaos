@@ -170,13 +170,14 @@ complementarity is pinned on its bounds and the equality-constrained QP on
 the rest is solved through the same factorisation, so the published point
 sits exactly on the bounds the optimum sits on and the checker takes both
 sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 137
-end `OPTIMAL` and the checker takes 136 (`bench/results/maros-meszaros.txt`).
-On QPLIB's 19 convex QPs (`bench/measurements/02-256/`, `02-295/`) 11 end
-`OPTIMAL` and the checker takes 9 of them at 1e-7. QPLIB_9002 misses on
-its duals. QPLIB_8785 misses by a gap of 1.3e-7 and passes at 1e-6. Seven
-of the eight largest (10000 to 1003001 columns) stop at a work limit of
-1e11, and QPLIB_9008 runs out of memory. The rest of those two sets is
-what keeps the row from ●.
+end `OPTIMAL` and the checker takes all 137; `values` is refused as not
+convex (`bench/results/maros-meszaros.txt`). On QPLIB's 19 convex QPs
+(`bench/measurements/02-256/`, `02-295/`, `02-318/`) 10 end `OPTIMAL` and
+the checker takes all 10 at 1e-7. QPLIB_9002 ends `numerical_error`: its
+push leaves pinned variables with the wrong sign. Seven of the eight
+largest (10000 to 1003001 columns) stop at a work limit of 1e11, and
+QPLIB_9008 runs out of memory. The rest of those two sets is what keeps
+the row from ●.
 **The QCP/SOCP row reads ◐ since 2026-09-19**: second-order cones,
 quadratic and rotated, over columns (`jaos_add_cone`) and convex
 quadratic rows `a'x + ½ x'Qx` with one finite side
