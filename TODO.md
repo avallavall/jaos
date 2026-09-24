@@ -8,72 +8,86 @@ A row says what is wrong, what the fix needs and how to verify it. The
 reading behind it is in the commit that wrote the row, named here by hash.
 
 Milestones A to E ended on 2026-09-21 and 2026-09-22 (A with the tag
-`v0.4.0`). This file was filled on 2026-09-22 by an audit of every document
-against the code. Work it in order: F (defects), G (the bindings reach what
-Python reaches), H (performance), I (the rest of SPECS). Milestones F and
-G ended on 2026-09-23.
+`v0.4.0`), F and G on 2026-09-23. H and I were folded into this file on
+2026-09-24: milestone J holds everything still open, in priority order.
+Work it from the top. Tier 1 is defects that publish an answer the checker
+refuses. Tier 2 is small fixes to the bench tooling and the records.
+Tiers 3 and 4 are the performance gaps, largest first. Tier 5 is the
+features SPECS still lists.
 
-## Milestone H: performance
-
-Where JAOS stands (`bench/compare/results/P0.txt`, 2026-09-23, after
-e180c91): on LP it takes 2.11x HiGHS's time and 1.71x Clp's over the
+Where JAOS stands. LP (`bench/compare/results/P0.txt`, 2026-09-23, after
+e180c91 and before 764fe58): 2.11x HiGHS's time and 1.71x Clp's over the
 instances above the 0.05 s floor; the iteration counts are close (1.15x
-HiGHS), so the gap is time per iteration (1.83x). HiGHS itself ran 17.5%
-faster than in the reading of 2026-09-22 (`P0-2026-09-22.txt`), which drops
-three instances under the floor; on the 19 instances both readings share,
-JAOS against HiGHS went from 1.77x to 1.65x, and JAOS's own time fell to
-0.78 with every iteration count the same. On MIP (`mip-miplib.txt` and
-`mip-miplib2017.txt`, 2026-09-23, tree 12180a6) it solves 22 of MIPLIB 3 in
-20 s where HiGHS and SCIP solve 24, at 1.34x HiGHS's shifted mean time and
-1.40x SCIP's (1.43x and 1.48x on 2026-09-21, when it solved 23; `bell5`
-has grown from 190741 nodes to 327119 since the best-estimate node order),
-and 0 of the 2017 set where HiGHS and SCIP solve 8 each. On QP
-(`qp-maros-meszaros.txt`) it solves 133 of 138 at 0.40x HiGHS's shifted
-mean and 0.72x Clp's, and on continuous CBLIB (`conic-cblib.txt`) 27 of
-29 at 0.13x SCIP's, which solves 2 (`bench/compare/README.md`).
+HiGHS), so the gap is time per iteration (1.83x). MIP (8de9a6c, after
+d6245e0 and before f1deb64): MIPLIB 3 23 of 24 solved in 20 s at 1.17x
+HiGHS's shifted mean time and 1.22x SCIP's; the 2017 set 0 of 30 where
+HiGHS and SCIP solve 8 each. QP: Maros-Meszaros 133 of 138 at 0.40x HiGHS's
+shifted mean and 0.72x Clp's. Conic: continuous CBLIB 27 of 29 at 0.13x
+SCIP's (`bench/compare/README.md`).
 
-H1. **The simplex's time per iteration, second pass.** `stocfor3` still
-takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
-instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
-15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
-`raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
-solve stops leaving -0.0 outside the column's pattern, since clearing by
-pattern would change signs of zero. The dual's choice of leaving row
-read every basic variable's bounds on every iteration, 17% of
-`stocfor3`'s instructions; it now reads a violation cached per row and
-updated where the pivot and the bound flips move `xb` (`stocfor3`
-0.888x, `80bau3b` 0.938x, `d2q06c` 0.998x, `pilot87` 1.003x in
-instructions, every file the same). The next item in that profile is the
-dense FTRAN path (14%). The entering column is not what takes it: its
-FTRAN averages 3.3% dense and runs hyper-sparse 90% of the time. The
-steepest-edge `tau` does: 17% dense on average, split between 7365 solves
-at 10% or more and 4705 under 1%, and `rho`'s own count does not tell
-them apart (with `rho` under 1% dense, 47% of the `tau` still reach 10%).
-`fit2p` (4.6x HiGHS's time at 0.95x its iterations) spent 55% of its
-instructions refactoring, searching and shifting its few 3000-entry
-columns once per pivot. Since 2026-09-24 a column singleton step leaves
-the dead entry in place and each row entry remembers its position in its
-column, which keeps every column's order and every pivot
-(`fit2p` 0.447x in instructions, `fit1p` 0.794x, ten instances 0.903x,
-`bench/measurements/02-313/`). On `d2q06c` and `dfl001`
-the largest item is `price_all` (16% and 13%), which also prices the
-basic columns; HiGHS keeps a row-wise copy of the nonbasic columns only.
-Half of `stocfor3`'s gap is presolve:
-HiGHS takes it from 16675 rows to 8259 (its aggregator 5508, doubleton
-equations 2054, free column substitution 769) and needs 6404 iterations,
-where JAOS's presolve leaves 13305 rows and the dual needs 12977. JAOS
-already aggregates every doubleton equation of `stocfor3`. Two ways to
-reach more were built and refused on 2026-09-23
-(`bench/measurements/02-302/`): D97's bound transfer leaves `stocfor3`
-as it is and breaks the duals of `standata`; a column counted implied
-free by any of its rows takes `stocfor3` to 12089 rows and 0.865x work,
-but reads 1.003x over the set.
-On `fit2p` the factor took 79% of the instructions; f43d9e1 halved that
-without changing a bit. Verify with `tools/icount.sh` and `make compare
-COMPARE_ARGS='-t P0'` on a quiet machine; the gates byte-identical or
-re-based.
+## Tier 1: answers the checker refuses
 
-H2. **MIP: the tree has too many nodes.** The attribution of 2026-09-23
+J1. **QPLIB_9002 ends `OPTIMAL` with a dual violation of 2.1e4.** A
+convex QP with no reference value; the barrier's own test passes with its
+rows 8.9e-7 off, relative (`bench/measurements/02-256/`,
+`bench/measurements/02-295/`). An `OPTIMAL` whose duals the checker
+refuses must not be published: either the push settles the duals or the
+answer ends `NUMERICAL_ERROR`. Verify on the QPLIB reading of 02-295, with
+`make maros-meszaros` unchanged.
+
+J2. **QP answers the checker refuses.** QPLIB_8785 ends `OPTIMAL` and is
+refused at 1e-7 on a gap of 1.3e-7. Maros-Meszaros `qgrow22` is refused on
+the dual side (2.98e-6): the push leaves 28 pinned variables with a
+reduced cost of the wrong sign after 3 freeings, the worst 3.2e4, and the
+barrier's point stands. `aug3dqp` sits over the runner's suboptimality
+ceiling (1.03e-3 against 1e-6): its 114 columns with no quadratic term
+carry reduced costs of -4e-13 against upper bounds of 8.6e10 that the rows
+imply. Verify with `make maros-meszaros` (136 checker ok today; `values`
+is refused as not convex by design).
+
+J3. **Conic answers the checker refuses.** The duals of 8 of QPLIB's 10
+continuous QCQP optima miss by 8.5e-7 to 3.6e-5 while the primal side is
+feasible to 2e-13. QPLIB_2676 and QPLIB_2468 end `NUMERICAL_ERROR`: the
+walk stops without progress and the checker refuses its point.
+`tests/data/g_cone_badbox.mps` with two of its columns in a row ends at a
+certificate the checker refuses. An infeasibility whose free column with
+no curvature needs its coefficient to vanish exactly has no certificate
+one multiplier at a time can hold. Verify with `make cblib` and the QCQP
+reading of 02-256.
+
+## Tier 2: the bench tooling and the records
+
+J4. **The gates stop on rounding noise, and a clean gate leaves a diff.**
+On 2026-09-24 `make netlib netlib-infeas` stopped after netlib because the
+baseline flagged two suboptimality bounds, 1.1e-16 and 5.4e-13, as
+regressions, so the infeasible set never ran. The comparison needs a floor
+under which a suboptimality bound is noise (a constant in
+`docs/tolerances.md` with the reading that sets it), and a flagged target
+must not skip the targets after it. Separately, the `*-baseline` targets
+write "baseline: NOT COMPARED" at the foot of `maros-meszaros.txt` and
+`miplib.txt` and the gate targets write "-- against baseline --", so every
+clean gate shows a diff in those files. Both targets should write the same
+footer. Verify: a gate on an unchanged tree leaves `git status` clean.
+
+J5. **`make refusals` reads D101 as reopened for good.** Its script
+(`bench/measurements/02-312/run-families-new.sh`) exits 1 because MIPLIB
+2017's relaxations hold 7.57% duplicate rows, but duplicate rows were
+built and refused the same day (`presolve-duplicate-rows`, 02-314). The
+script's verdict should read the columns only, or D101's line should be
+split into a rows part that points at the new refusal and a columns part
+that still holds. Verify: `make refusals` exits 0.
+
+J6. **The standing numbers are a day old, and one reading was never
+taken.** P0 predates 764fe58's LU change and the MIP comparison predates
+f1deb64. Re-take `make compare COMPARE_ARGS='-t P0'` and
+`bench/compare/run-mip.sh` on both sets on a quiet machine, then update
+`bench/compare/README.md` and the paragraph above. `make plato-nug` has
+never written `bench/results/plato-nug.txt`: take it, or record in its
+README why nug20 and nug30 cannot run.
+
+## Tier 3: the largest performance gaps
+
+J7. **MIP: MIPLIB 2017, 0 of 30.** The attribution of 2026-09-23
 (`bench/measurements/02-300/`) puts most of the work in node
 relaxations. Since d6245e0 a node keeps its parent's basis through
 presolve (a fixed column the start basis holds basic stays in the reduced
@@ -84,79 +98,110 @@ Savelsbergh's rule does: 0.928x on MIPLIB 3
 (`bench/measurements/02-307/`). Strong branching (D293, 02-305) and
 node propagation (D324, 02-306) were read again on that tree and still
 cost more than they save; a probe that learns from a stopped child is
-still D293's reopen condition. Behind HiGHS and SCIP on MIPLIB 3:
+still D293's reopen condition. First, the cuts: HiGHS and SCIP close three
+fixed-charge networks at the root with one node (`sp150x300d` 0.05 s,
+`p200x1188c` 0.43 s, `exp-1-500-5-5` 2.3 s) where JAOS stops at 1e10 work
+units with bounds of 67.9 against 69, 7395 against 15078 and 46851 against
+65887. The bounds the flow rows imply do not reach their `x - u y <= 0`
+rows (one pass finds none on `p200x1188c` and `exp-1-500-5-5`), and flow
+covers or MIR over aggregated rows lift them only part of the way (10302
+and 60879). MIR with variable upper bounds (`mir-vub`) and exact cover
+lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
 `l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
-from forcing rows that fix basic columns (keeping those rows is refused
-as `node-forcing-keep`), and `bell3a` at 8.8 s against 0.24 s. On the
-2017 set HiGHS and SCIP close three fixed-charge networks at the root
-with one node (`sp150x300d` 0.05 s, `p200x1188c` 0.43 s,
-`exp-1-500-5-5` 2.3 s) where JAOS stops at 1e10 work units with bounds
-of 67.9 against 69, 7395 against 15078 and 46851 against 65887. The
-bounds the flow rows imply do not reach their `x - u y <= 0` rows (one
-pass finds none on `p200x1188c` and `exp-1-500-5-5`), and flow covers or
-MIR over aggregated rows lift them only part of the way (10302 and
-60879), so the gap is in the cuts.
+from forcing rows that fix basic columns (keeping those rows is refused as
+`node-forcing-keep`; the fix needs a dual postsolve for a kept basic
+column), and `bell3a` at 8.8 s against 0.24 s. Verify with `make miplib
+J=2`, the 2017 gap sum (`bench/measurements/02-298/gapsum.py`) and
+`run-mip.sh`.
 
-H5. **The primal's six overruns** (d6cube, dfl001, fit1d, fit2d, pilot,
-seba) and **the crossover's fourteen** (`bench/results/barrier.txt`).
-Seven primal remedies are refused; read `bench/refusals.txt` first.
+J8. **LP: the simplex's time per iteration, and presolve.** `stocfor3`
+still takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
+instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
+15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
+`raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
+solve stops leaving -0.0 outside the column's pattern, since clearing by
+pattern would change signs of zero. The dual's choice of leaving row now
+reads a violation cached per row (2d6f3dc: `stocfor3` 0.888x, `80bau3b`
+0.938x in instructions). The next item in that profile is the dense FTRAN
+path (14%). The entering column is not what takes it: its FTRAN averages
+3.3% dense and runs hyper-sparse 90% of the time. The steepest-edge `tau`
+does: 17% dense on average, split between 7365 solves at 10% or more and
+4705 under 1%, and `rho`'s own count does not tell them apart (with `rho`
+under 1% dense, 47% of the `tau` still reach 10%). On `d2q06c` and
+`dfl001` the largest item is `price_all` (16% and 13%), which also prices
+the basic columns; HiGHS keeps a row-wise copy of the nonbasic columns
+only (pricing column by column is refused, `price-by-column`). Half of
+`stocfor3`'s gap is presolve: HiGHS takes it from 16675 rows to 8259 (its
+aggregator 5508, doubleton equations 2054, free column substitution 769)
+and needs 6404 iterations, where JAOS's presolve leaves 13305 rows and the
+dual needs 12977. JAOS already aggregates every doubleton equation of
+`stocfor3`; D97's bound transfer and a column counted implied free by any
+of its rows were refused (`bench/measurements/02-302/`). The LU's column
+singleton step no longer searches and shifts long columns (764fe58,
+`fit2p` 0.447x, `bench/measurements/02-313/`). Verify with
+`tools/icount.sh` and `make compare COMPARE_ARGS='-t P0'` on a quiet
+machine; the gates byte-identical or re-based.
 
-H6. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
-1e11 work units and QPLIB_9008 runs out of memory (read 2026-09-24: the
+J9. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
+1e11 work units. QPLIB_9008 runs out of memory (read 2026-09-24): the
 barrier's normal matrix has 989604 rows from 9.6 million nonzeros; the
-minimum degree ordering and symbolic factor take 41.6e9 work units and
-3 minutes without an iteration, then an allocation beyond 3.7 GB fails at
-a 6 GB cap while the process holds 2.3 GB); 13 of 17 convex MIQPs
-do not finish; 37 of CBLIB's 80 mixed-integer instances stop at the work
-limit.
+minimum degree ordering and symbolic factor take 41.6e9 work units and 3
+minutes without an iteration, then an allocation beyond 3.7 GB fails at a
+6 GB cap while the process holds 2.3 GB. 13 of 17 convex MIQPs do not
+finish within 1e11 work units. 37 of CBLIB's 80 mixed-integer instances
+stop at the work limit.
 
-H7. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
-the default. The rest of the barrier stays on one thread: forming the
-normal matrix on threads was built bit-identically and gained nothing at
-four threads (`barrier-normal-threads`), and the triangular solves take 1.0%
-to 1.6% of the barrier's instructions (`bench/measurements/02-311/`).
+## Tier 4: the other performance rows
 
-## Milestone I: the rest of SPECS
+J10. **The primal's six overruns and the crossover's fourteen.** The
+primal runs past 10x the dual's work on d6cube, dfl001, fit1d, fit2d,
+pilot and seba (`bench/results/primal.txt`); the crossover overruns 14 of
+the 94 (`bench/results/barrier.txt`) and 6 of the infeasible set. Seven
+primal remedies are refused; read `bench/refusals.txt` first.
 
-I1. Presolve: duplicate rows and columns, dominated columns, bound
-tightening, dual fixing (D101 reopens on a set with 5% removable), and the
-bound-moving substitution (D97). D101 is met for duplicate rows
-(`bench/measurements/02-312/`): MIPLIB 2017's LP relaxations hold 7.57% of
-their live rows as exact multiples of other rows, half the rows of
-`ic97_potential` and `supportcase26`. Duplicate and dominated columns and
-dual fixing stay under 1% in every set. Duplicate rows were then built and
-refused (`presolve-duplicate-rows`, `bench/measurements/02-314/`): MIPLIB 3
-1.122x in work, Kennington 1.017x, the warm reading 1.059x, and no gap
-closes on the 2017 instances that carry them.
+J11. **MIP switches that are off by measurement.** Strong branching (D293
+reopens on a probe that learns from a stopped child), flow cover,
+zero-half and lifted cover cuts, RINS and local branching, restarts (they
+need a MIP presolve that can run again), bound propagation and
+reduced-cost fixing, probing and clique fixing. Each needs a reading that
+lands it on, on the tree J7 leaves.
 
-I2. QP: QPLIB_9002's dual violation of 2.1e4; QPLIB_8785 refused by the
-checker at 1e-7; Maros-Meszaros qgrow22 (dual side) and aug3dqp
-(suboptimality ceiling).
+J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
+the default where a node takes a few pivots (rounds of 4 cost 1.37x the
+work on MIPLIB 3, `bench/measurements/02-290/`). The rest of the barrier
+stays on one thread by measurement (`barrier-normal-threads`,
+`bench/measurements/02-311/`).
 
-I3. Cones and quadratic rows: `tests/data/g_cone_badbox.mps` with two
-columns in a row; the duals of 8 of QPLIB's 10 QCQP optima (8.5e-7 to
-3.6e-5 off); QPLIB_2676 and QPLIB_2468; QPLIB's mixed-integer QCQPs; cuts
-and warm starts in the conic tree; SOS sets, semi-continuous columns and
-indicator rows beside cones; a quadratic row over more than
-`CONIC_QC_DENSE` columns; the certificate that needs a coefficient to
-vanish exactly.
+## Tier 5: the features SPECS still lists
 
-I4. MIP switches that are off by measurement: strong branching, flow cover,
-zero-half and lifted cover cuts, RINS and local branching, restarts, bound
-propagation and reduced-cost fixing, probing and clique fixing. Each needs a
-reading that lands it on (H2's attribution first).
+J13. **Cones and quadratic rows.** Cuts and warm starts in the conic tree;
+SOS sets, semi-continuous columns and indicator rows beside cones; a
+quadratic row over more than `CONIC_QC_DENSE` columns; QPLIB's
+mixed-integer QCQPs, 8 of which end with no incumbent and 2 refused for
+that dense quadratic row.
 
-I6. The feasibility relaxation's proof that the widest box is empty.
+J14. **The barrier, PDLP and the concurrent solve.** A rule for an LP to
+choose the augmented system, which needs an analysis cheaper than the
+symbolic factorisation; a crossover cheaper than a crash. PDLP: a set too
+large to factor where it pays (on Netlib it overruns 70 of 94), and
+feasibility polishing. The concurrent solve: a set where the barrier is
+the arm that wins.
 
-I7. The certified bound on suboptimality alone cannot separate a wrong
-vertex from a right one.
+J15. **Presolve.** Duplicate columns, dominated columns, bound tightening,
+dual fixing, and the substitution of a column the equality does not imply
+free (D97, refused as `agg-doubleton-moves`). Each waits for a set past
+its bar: D101 and D246 ask for 5% of a set's rows or columns, and every set
+reads under 1% (`bench/measurements/02-312/`). Duplicate rows passed that
+bar on MIPLIB 2017 and were built and refused (`presolve-duplicate-rows`,
+`bench/measurements/02-314/`).
 
-I8. The barrier: a rule for an LP to choose the augmented system; a
-crossover cheaper than a crash. PDLP: a set too large to factor where it
-pays; feasibility polishing. The concurrent solve: a set where the barrier
-wins.
+J16. **Links.** GAMS, which needs a link library of its own; `.nl` bodies
+above degree two, refused by line today.
 
-I9. Exact solving with no tolerances (missing).
+J17. **The feasibility relaxation's proof that the widest box is empty.**
+An integer feasibility question over an unbounded space.
 
-I10. Links: GAMS; `.nl` bodies above degree two. MATLAB needs a licence the
-maintainer has to provide.
+J18. **The certified bound on suboptimality alone cannot separate a wrong
+vertex from a right one.**
+
+J19. **Exact solving with no tolerances** (missing).

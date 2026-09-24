@@ -792,7 +792,7 @@ and this page has not measured that.
 | Python | ● | ● | ● | ● | ● | ● | ● |
 | Julia | ● | ● | ● | ● | ● | ● | ◐ |
 | Java, .NET | ● | ◐ | ○ | ○ | ◐ | ● | ● |
-| MATLAB, R | ◐ | ◐ | ○ | ● | ● | ● | ○ |
+| R | ● | ◐ | ○ | ○ | ◐ | ● | ○ |
 | AMPL, GAMS and similar modelling systems | ◐ | ● | ○ | ● | ● | ● | ○ |
 | Python package installable with pip | ● | ● | ● | ● | ● | ● | ● |
 | `make install` with a pkg-config file | ● | ● | ◐ | ● | ◐ | — | — |
@@ -827,15 +827,13 @@ every C call the Python package reaches. The package is not in Julia's
 General registry, and it finds the library the way the Python package
 does.
 
-**The Java, .NET row reads ● and the MATLAB, R row ◐ since
-2026-09-19**: `dotnet/Jaos` (.NET 8, P/Invoke), `java/src/org/jaos`
-(Java 22 and later, the foreign-function API, so no C glue) and `R/jaos`
-(an R package over `.Call`) each have their checks (`make dotnet-test`,
-`make java-test`, `make r-test`). Since 2026-09-23 all three reach every
-C call the Python package reaches: .NET and Java call all 200, and R
-calls 142 and reaches the other 58, the typed option setters and
-getters, by name.
-MATLAB is not there: a MEX file needs a MATLAB licence to build and test.
+**The Java, .NET row and the R row read ● since 2026-09-23**:
+`dotnet/Jaos` (.NET 8, P/Invoke), `java/src/org/jaos` (Java 22 and later,
+the foreign-function API, so no C glue) and `R/jaos` (an R package over
+`.Call`) each have their checks (`make dotnet-test`, `make java-test`,
+`make r-test`), and all three reach every C call the Python package
+reaches: .NET and Java call all 201, and R calls 143 and reaches the
+other 58, the typed option setters and getters, by name.
 
 **The install row.** `make install` puts the header, both library forms,
 the tool and a generated `jaos.pc` under `PREFIX`, with `DESTDIR`
@@ -864,11 +862,13 @@ Julia cell is ◐ for a third-party wrapper that Hexaly does not support,
 and its old R package was archived on CRAN on 2026-04-22.
 
 **HiGHS's and SCIP's partial language cells.** HiGHS has no Java binding;
-.NET is covered by its C# NuGet package `Highs.Native`. Its MATLAB, R cell
-reads ◐ because its team maintains neither: the R package `highs` on CRAN
-is user-developed, MATLAB has used HiGHS inside its own solvers since
-2024a, and HiGHSMEX is a third-party interface. SCIP has no .NET binding;
-Java is covered by JSCIPOpt, which the SCIP team maintains.
+.NET is covered by its C# NuGet package `Highs.Native`. Its R cell reads
+◐ because its team does not maintain the R package `highs` on CRAN, which
+is user-developed. SCIP has no .NET binding; Java is covered by JSCIPOpt,
+which the SCIP team maintains. SCIP's R cell reads ◐ for the same reason
+as HiGHS's: the CRAN package `scip` is written outside the SCIP team.
+Clp's R cell reads ○: its CRAN packages `clpAPI` and `ROI.plugin.clp`
+were archived in 2021 and 2022.
 
 ## 9. Controlling a solve
 
