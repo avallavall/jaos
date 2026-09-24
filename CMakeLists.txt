@@ -84,6 +84,31 @@ else()
   set(JAOS_DEV_FLAGS)
 endif()
 
+set(JAOS_COMMIT "")
+find_package(Git QUIET)
+if(GIT_FOUND)
+  execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --show-toplevel
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  OUTPUT_VARIABLE JAOS_GIT_TOP OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET RESULT_VARIABLE JAOS_GIT_RC)
+  get_filename_component(JAOS_SOURCE_REAL ${CMAKE_CURRENT_SOURCE_DIR} REALPATH)
+  if(JAOS_GIT_RC EQUAL 0 AND JAOS_GIT_TOP)
+    get_filename_component(JAOS_GIT_TOP ${JAOS_GIT_TOP} REALPATH)
+  endif()
+  if(JAOS_GIT_RC EQUAL 0 AND JAOS_GIT_TOP STREQUAL JAOS_SOURCE_REAL)
+    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=12 HEAD
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE JAOS_COMMIT
+                    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  endif()
+endif()
+if(NOT JAOS_COMMIT AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/COMMIT)
+  file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/COMMIT JAOS_COMMIT LIMIT_COUNT 1
+       REGEX "^[0-9a-f]+$")
+endif()
+set_source_files_properties(src/version.c PROPERTIES
+    COMPILE_DEFINITIONS "JAOS_BUILD_COMMIT=\"${JAOS_COMMIT}\"")
+
 set(JAOS_LIBM $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)

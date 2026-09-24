@@ -23,6 +23,7 @@ static const char *const ALG_WORDS[] = {"dual", "primal", "barrier", "pdlp",
 static const char *const LOG_WORDS[] = {"off", "summary", "progress", "detail"};
 static const char *const BRANCH_WORDS[] = {"pseudocost", "most-fractional"};
 static const char *const DIVE_WORDS[] = {"nearer", "up", "down", "pseudocost"};
+static const char *const GAP_WORDS[] = {"shifted", "relative"};
 
 enum opt_id {
     O_WORK_LIMIT, O_TIME_LIMIT, O_PRIMAL_TOL, O_DUAL_TOL, O_ALGORITHM,
@@ -35,6 +36,7 @@ enum opt_id {
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
     O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_LOCAL_BRANCHING, O_NODE_SELECT, O_RESTART, O_THREADS,
+    O_GAP_RULE,
     O_COUNT
 };
 
@@ -96,6 +98,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_NODE_SELECT] = {"mip_node_select", OPT_INT, nullptr, 0},
     [O_RESTART] = {"mip_restart", OPT_BOOL, nullptr, 0},
     [O_THREADS] = {"threads", OPT_INT, nullptr, 0},
+    [O_GAP_RULE] = {"mip_gap_rule", OPT_ENUM, GAP_WORDS, 2},
 };
 
 int64_t jaos_num_options(void)
@@ -257,6 +260,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_NODE_SELECT: return jaos_set_mip_node_select(m, i);
     case O_RESTART: return jaos_set_mip_restart(m, b);
     case O_THREADS: return jaos_set_threads(m, i);
+    case O_GAP_RULE: return jaos_set_mip_gap_rule(m, (jaos_gap_rule)e);
     case O_COUNT: break;
     }
     return JAOS_ERR_INVALID_INPUT;
@@ -287,7 +291,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_DUAL_TOL: x = jm_dual_tolerance(m); break;
     case O_ALGORITHM: e = (int)jaos_algorithm_of(m); break;
     case O_LOG_LEVEL: e = (int)c->log_level; break;
-    case O_MIP_GAP: x = c->mip_gap > 0.0 ? c->mip_gap : jm_mip_default(JM_DEF_GAP); break;
+    case O_MIP_GAP: x = c->mip_gap_set ? c->mip_gap : jm_mip_default(JM_DEF_GAP); break;
     case O_NODE_LIMIT: i = c->mip_node_limit; break;
     case O_TREE_BATCH: i = c->mip_tree_batch > 0 ? c->mip_tree_batch : 1; break;
     case O_BRANCHING: e = c->mip_branching; break;
@@ -338,6 +342,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_NODE_SELECT: i = (int64_t)eff(c->mip_node_select_set, (double)c->mip_node_select, JM_DEF_NODE_SELECT); break;
     case O_RESTART: b = eff(c->mip_restart_set, c->mip_restart ? 1.0 : 0.0, JM_DEF_RESTART) != 0.0; break;
     case O_THREADS: i = jaos_threads_of(m); break;
+    case O_GAP_RULE: e = (int)c->mip_gap_rule; break;
     case O_COUNT: return JAOS_ERR_INVALID_INPUT;
     }
     int n;

@@ -68,6 +68,7 @@ final class Native {
         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS);
 
     static final MethodHandle VERSION = fn("jaos_version", ADDRESS);
+    static final MethodHandle BUILD_COMMIT = fn("jaos_build_commit", ADDRESS);
     static final MethodHandle STATUS_NAME = fn("jaos_status_str", ADDRESS, JAVA_INT);
     static final MethodHandle STATUS_STR = fn("jaos_solve_status_str", ADDRESS, JAVA_INT);
     static final MethodHandle INFINITY = fn("jaos_infinity", JAVA_DOUBLE);
@@ -188,6 +189,7 @@ final class Native {
     static final MethodHandle SET_MIP_START = setter("jaos_set_mip_start", ADDRESS);
     static final MethodHandle SET_MIP_CUTOFF = setter("jaos_set_mip_cutoff", JAVA_DOUBLE);
     static final MethodHandle SET_MIP_GAP = setter("jaos_set_mip_gap", JAVA_DOUBLE);
+    static final MethodHandle SET_MIP_GAP_RULE = setter("jaos_set_mip_gap_rule", JAVA_INT);
     static final MethodHandle SET_MIP_NODE_LIMIT = setter("jaos_set_mip_node_limit", JAVA_LONG);
     static final MethodHandle SET_MIP_BRANCHING = setter("jaos_set_mip_branching", JAVA_INT);
     static final MethodHandle SET_MIP_RELIABILITY = setter("jaos_set_mip_reliability", JAVA_LONG);

@@ -305,9 +305,11 @@ static void test_three_threads_give_the_same_answer_and_the_same_work(void)
 {
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_threads(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_threads(m, -3));
     TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 0));
+    TEST_ASSERT_TRUE(jaos_threads_of(m) >= 1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 1));
     jaos_model_free(m);
 
     static const char *const files[] = {"tests/data/solve1.mps",

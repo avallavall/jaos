@@ -187,6 +187,11 @@ public final class Model implements AutoCloseable {
         return Native.string((MemorySegment) call(Native.VERSION));
     }
 
+    /** The git commit the library was built from, empty when the build had none. */
+    public static String buildCommit() {
+        return Native.string((MemorySegment) call(Native.BUILD_COMMIT));
+    }
+
     public static String statusString(SolveStatus s) {
         return Native.string((MemorySegment) call(Native.STATUS_STR, s.ordinal()));
     }
@@ -763,6 +768,7 @@ public final class Model implements AutoCloseable {
 
     public void setTimeLimit(double seconds) { check(call(Native.SET_TIME_LIMIT, h, seconds)); }
     public void setWorkLimit(long units) { check(call(Native.SET_WORK_LIMIT, h, units)); }
+    /** The thread count; 0 takes every core the machine has. */
     public void setThreads(long threads) { check(call(Native.SET_THREADS, h, threads)); }
     public long threads() { return (long) call(Native.THREADS_OF, h); }
     public void setPrimalTolerance(double tol) { check(call(Native.SET_PRIMAL_TOLERANCE, h, tol)); }
@@ -770,7 +776,11 @@ public final class Model implements AutoCloseable {
     public void setAlgorithm(Algorithm alg) { check(call(Native.SET_ALGORITHM, h, alg.ordinal())); }
     public Algorithm algorithm() { return Algorithm.values()[(int) call(Native.ALGORITHM_OF, h)]; }
 
-    /** The tree's starting point, one value per column; null clears it. */
+    /**
+     * The tree's starting point, one value per column; a NaN leaves its column
+     * open, and a small tree completes the start with the given integer
+     * columns fixed. Null clears it.
+     */
     public void setMipStart(double[] x) {
         try (Arena a = Arena.ofConfined()) {
             check(call(Native.SET_MIP_START, h, x == null ? MemorySegment.NULL
@@ -786,7 +796,9 @@ public final class Model implements AutoCloseable {
 
     /** An objective the tree need not beat; an infinity removes it. */
     public void setMipCutoff(double cutoff) { check(call(Native.SET_MIP_CUTOFF, h, cutoff)); }
+    /** The gap that closes the tree; 0 means zero. */
     public void setMipGap(double gap) { check(call(Native.SET_MIP_GAP, h, gap)); }
+    public void setMipGapRule(GapRule rule) { check(call(Native.SET_MIP_GAP_RULE, h, rule.ordinal())); }
     public void setMipNodeLimit(long nodes) { check(call(Native.SET_MIP_NODE_LIMIT, h, nodes)); }
     public void setMipPoolSize(long size) { check(call(Native.SET_MIP_POOL_SIZE, h, size)); }
     public void setMipTreeBatch(long nodes) { check(call(Native.SET_MIP_TREE_BATCH, h, nodes)); }
@@ -866,9 +878,11 @@ public final class Model implements AutoCloseable {
     private static int progressEvent(Failure failure, Function<Progress, CallbackAction> fn,
                                      MemorySegment p, MemorySegment user) {
         try {
-            MemorySegment s = p.reinterpret(24);
+            MemorySegment s = p.reinterpret(56);
             return action(fn.apply(new Progress(s.get(JAVA_LONG, 0), s.get(JAVA_LONG, 8),
-                                                s.get(JAVA_DOUBLE, 16))));
+                                                s.get(JAVA_DOUBLE, 16), s.get(JAVA_LONG, 24),
+                                                s.get(JAVA_DOUBLE, 32), flag(s, 40),
+                                                s.get(JAVA_DOUBLE, 48))));
         } catch (Throwable t) {
             failure.set(t);
             return CallbackAction.STOP.ordinal();
@@ -1229,14 +1243,14 @@ public final class Model implements AutoCloseable {
 
     public MipReport mipResult() {
         try (Arena a = Arena.ofConfined()) {
-            MemorySegment r = a.allocate(96, 8);
+            MemorySegment r = a.allocate(104, 8);
             check(call(Native.MIP_RESULT, h, r));
             return new MipReport(r.get(JAVA_LONG, 0), r.get(JAVA_LONG, 8), flag(r, 16),
                                  r.get(JAVA_DOUBLE, 24), r.get(JAVA_DOUBLE, 32),
                                  r.get(JAVA_LONG, 40), r.get(JAVA_LONG, 48),
                                  r.get(JAVA_LONG, 56), r.get(JAVA_LONG, 64),
                                  r.get(JAVA_LONG, 72), r.get(JAVA_LONG, 80),
-                                 r.get(JAVA_LONG, 88));
+                                 r.get(JAVA_LONG, 88), flag(r, 96));
         }
     }
 

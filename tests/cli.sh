@@ -38,6 +38,10 @@ expect_exit 0 "--version exits 0" "$JAOS" --version
 [ -n "$want" ] && [ "$out" = "$want" ] \
     && pass "--version prints $want" \
     || flunk "--version printed '$out', jaos.h says '$want'"
+expect_exit 0 "--commit exits 0" "$JAOS" --commit
+printf '%s\n' "$out" | grep -Eq '^([0-9a-f]{12})?$' \
+    && pass "--commit prints the build's commit or nothing" \
+    || flunk "--commit printed '$out'"
 
 expect_exit 0 "--help exits 0" "$JAOS" --help
 printf '%s\n' "$out" | grep -q '^Usage:' \
@@ -191,6 +195,38 @@ expect_exit 0 "a mixed-integer model solves" "$JAOS" solve "$DATA/t4_int.mps"
     || flunk "MIP lines: $(line_of nodes) / $(line_of bound)"
 [ -n "$(line_of cuts)" ] && pass "and a cuts line" \
     || flunk "no cuts line: $(line_of cuts)"
+expect_exit 0 "a MIP writes its optimum as a solution and a point" \
+    "$JAOS" solve "$DATA/t4_int.mps" --solution "$tmp/t4.sol" \
+    --write-point "$tmp/t4.pt"
+expect_exit 0 "--mip-start takes the optimum back" \
+    "$JAOS" solve "$DATA/t4_int.mps" --mip-start "$tmp/t4.sol"
+[ "$(line_of start_accepted)" = "start_accepted 1" ] \
+    && [ "$(line_of objective)" = "objective 3.5" ] \
+    && pass "and says it took it" \
+    || flunk "mip start: $(line_of start_accepted) / $(line_of objective)"
+grep -v '^#' "$tmp/t4.pt" | head -1 > "$tmp/t4-part.pt"
+expect_exit 0 "--partial-start completes one column's start" \
+    "$JAOS" solve "$DATA/t4_int.mps" --partial-start "$tmp/t4-part.pt"
+[ "$(line_of start_accepted)" = "start_accepted 1" ] \
+    && [ "$(line_of objective)" = "objective 3.5" ] \
+    && pass "and says it took it" \
+    || flunk "partial start: $(line_of start_accepted) / $(line_of objective)"
+printf 'no_such_column 1\n' > "$tmp/t4-bad.pt"
+expect_exit 5 "--partial-start refuses a name the model lacks" \
+    "$JAOS" solve "$DATA/t4_int.mps" --partial-start "$tmp/t4-bad.pt"
+printf '%s\n' "$err" | grep -q "no column is named 'no_such_column'" \
+    && pass "and names it" || flunk "partial start error: $err"
+expect_exit 0 "a gap of 0 under the relative rule still solves it" \
+    "$JAOS" solve "$DATA/t4_int.mps" --opt mip_gap=0 \
+    --opt mip_gap_rule=relative
+[ "$(line_of objective)" = "objective 3.5" ] \
+    && [ "$(line_of bound)" = "bound 3.5" ] \
+    && pass "to 3.5 with the bound on it" \
+    || flunk "gap 0: $(line_of objective) / $(line_of bound)"
+"$JAOS" options --opt mip_gap=0 --opt mip_gap_rule=relative \
+    | grep -c '^mip_gap 0$\|^mip_gap_rule relative$' | grep -q '^2$' \
+    && pass "jaos options reads back mip_gap 0 and mip_gap_rule relative" \
+    || flunk "options: $("$JAOS" options --opt mip_gap=0 --opt mip_gap_rule=relative | grep '^mip_gap')"
 expect_exit 0 "no cuts and a dive still solve it" \
     "$JAOS" solve "$DATA/t4_int.mps" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive
 [ "$(line_of objective)" = "objective 3.5" ] && [ "$(line_of cuts)" = "cuts 0" ] \
@@ -412,8 +448,13 @@ expect_exit 0 "--threads 1 is accepted" \
     "$JAOS" solve "$DATA/nl_int.lp" --threads 1
 expect_exit 0 "--threads 3 is accepted" \
     "$JAOS" solve "$DATA/nl_int.lp" --threads 3
-expect_exit 5 "--threads 0 is refused" \
+expect_exit 0 "--threads 0 takes every core" \
     "$JAOS" solve "$DATA/nl_int.lp" --threads 0
+expect_exit 5 "--threads -1 is refused" \
+    "$JAOS" solve "$DATA/nl_int.lp" --threads -1
+"$JAOS" options --opt threads=0 | grep -Eq '^threads [1-9][0-9]*$' \
+    && pass "the threads option 0 reads back as the core count" \
+    || flunk "threads=0 reads back as $("$JAOS" options --opt threads=0 | grep '^threads ')"
 expect_exit 0 "--algorithm concurrent on one thread" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent --threads 1
 conc_one="$(line_of objective) $(line_of work_units)"

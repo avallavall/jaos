@@ -52,4 +52,6 @@ typedef struct {
 bool jm_thread_start(jm_thread *t, void (*fn)(void *), void *arg);
 void jm_thread_join(jm_thread *t);
 
+int64_t jm_cpu_count(void);
+
 #endif

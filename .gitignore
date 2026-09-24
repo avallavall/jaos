@@ -66,3 +66,4 @@ __pycache__/
 # The .NET build writes these beside each project.
 /dotnet/*/bin/
 /dotnet/*/obj/
+/COMMIT

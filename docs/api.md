@@ -127,6 +127,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_algorithm` | `algorithm` | `dual`, `primal`, `barrier`, `pdlp`, `concurrent` | `dual` |
 | `jaos_set_log_level` | `log_level` | `off`, `summary`, `progress`, `detail` | `off` |
 | `jaos_set_mip_gap` | `mip_gap` | number | 1e-6 |
+| `jaos_set_mip_gap_rule` | `mip_gap_rule` | `shifted`, `relative` | `shifted` |
 | `jaos_set_mip_node_limit` | `mip_node_limit` | integer | 0, no limit |
 | `jaos_set_mip_tree_batch` | `mip_tree_batch` | integer | 1 |
 | `jaos_set_mip_branching` | `mip_branching` | `pseudocost`, `most-fractional` | `pseudocost` |
@@ -176,7 +177,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
 | `jaos_set_mip_restart` | `mip_restart` | boolean | false |
-| `jaos_set_threads` | `threads` | integer | 1 |
+| `jaos_set_threads` | `threads` | integer, 0 for every core | 1 |
 
 The calls that take data have no option name. These are the model's own
 setters, `jaos_set_mip_start`, `jaos_set_basis` and the four callback
@@ -212,6 +213,17 @@ the clock, so its value changes from run to run.
 
 `jaos_set_mip_tree_batch` sets the size of a round in both trees. At its
 default of 1, a round holds one node.
+
+A thread count of 0 takes the number of cores the machine reports at the
+time of the call, and `jaos_threads_of` then returns that number. The
+thread count never changes the search. A tree batch tied to it would break
+the rule of [Determinism](#determinism): the same model would get a
+different tree on a machine with more cores. To let threads speed up a
+MIP, set a batch that stays the same on every machine, for example 8, and
+set the threads to what the machine allows. Threads beyond the batch wait.
+Rounds pay where a node takes hundreds of pivots. Where a node takes a few,
+they cost more work than they save, which is why the default stays 1
+(`bench/measurements/02-290/`).
 
 In each case the answer and `jaos_work_units` are the same at any thread
 count. Only `jaos_solve_time` changes. Everything else runs on the thread
@@ -261,6 +273,15 @@ Returns `JAOS_VERSION_STRING`, the version the library was built as. The
 macros `JAOS_VERSION_MAJOR`, `JAOS_VERSION_MINOR` and `JAOS_VERSION_PATCH`
 hold its three numbers as integer constants, and `JAOS_VERSION_STRING`
 joins them with dots. In release 0.4.0 they are 0, 4 and 0.
+
+**`jaos_build_commit`**\
+`const char *jaos_build_commit(void)`\
+Returns the git commit the library was built from, as 12 hex digits. Two
+builds between tags carry the same `jaos_version` and differ here. The
+string is empty when the build ran outside a git checkout and had no
+`COMMIT` file beside it. An sdist carries that file. The commit is the one
+`HEAD` named at build time, so a build with uncommitted changes carries it
+too. CMake reads it when it configures.
 
 **`jaos_status_str`**\
 `const char *jaos_status_str(jaos_status s)`\
@@ -629,15 +650,27 @@ that takes `int on` restores the default for a negative value, turns the
 feature off for 0 and turns it on for a positive value.
 
 The conic branch and bound of `src/conictree.c` solves a MIP with cones or
-quadratic rows. It reads only the gap, the node limit, the tree batch, the
-branching rule, the cutoff, the rounding switch, the count of the dive
-heuristic and the MIP start. Its pool holds the incumbent alone.
+quadratic rows. It reads only the gap and its rule, the node limit, the
+tree batch, the branching rule, the cutoff, the rounding switch, the count
+of the dive heuristic and the MIP start. Its pool holds the incumbent alone.
 
 **`jaos_set_mip_gap`**\
 `jaos_status jaos_set_mip_gap(jaos_model *m, double gap)`\
-Sets the relative gap that ends the search. A node closes when its bound is
-within `gap * (1 + |incumbent|)` of the incumbent. The default is 1e-6, and
-0 restores it. The call fails when `gap` is negative or not finite.
+Sets the gap that ends the search. A node closes when its bound is within
+`gap * (1 + |incumbent|)` of the incumbent, or `gap * |incumbent|` under the
+relative rule of `jaos_set_mip_gap_rule`. The default is 1e-6. A gap of 0
+means zero: a node closes only when its bound does not beat the incumbent.
+Before 2026-09-24, 0 restored the default. The call fails when `gap` is
+negative or not finite.
+
+**`jaos_set_mip_gap_rule`**\
+`jaos_status jaos_set_mip_gap_rule(jaos_model *m, jaos_gap_rule rule)`\
+Sets what the gap is measured against. `JAOS_GAP_SHIFTED` (0), the default,
+measures it against `1 + |incumbent|`, so near an objective of zero it acts
+as an absolute gap. `JAOS_GAP_RELATIVE` (1) measures it against
+`|incumbent|`, which is the rule SCIP and HiGHS apply,
+`|incumbent - bound| / |incumbent|`. Under it an incumbent of 0 closes
+only nodes whose bound does not beat it. Any other value fails.
 
 **`jaos_set_mip_dive`**\
 `jaos_status jaos_set_mip_dive(jaos_model *m, bool on)`\
@@ -858,8 +891,18 @@ Gives the branch and bound a starting point of `jaos_num_col(m)` values. The
 tree judges it at the root like any heuristic point. The point becomes the
 first incumbent only when it is integral, satisfies every bound and row, and
 is better than the cutoff. A null `col_value` removes the start, and the
-call fails when a value is not finite. A call that fails also removes the
+call fails when a value is infinite. A call that fails also removes the
 stored start.
+
+A NaN value means the start gives no value for that column. Such a
+partial start is completed at the root: a copy of the model with every
+given integer column fixed at its rounded value is solved as a branch and
+bound of at most `MIP_START_NODES` nodes, and its best point is judged as
+above. The given values of continuous columns are not used, since the
+completion chooses them. A given value outside its column's bounds leaves
+no start. The completion's work counts toward the solve and its limits.
+`start_accepted` in `jaos_mip_result` says whether the start, or its
+completion, was taken.
 
 **`jaos_set_mip_cutoff`**\
 `jaos_status jaos_set_mip_cutoff(jaos_model *m, double cutoff)`\
@@ -1024,15 +1067,23 @@ Fills `out` with the counts of the last branch and bound: `nodes`,
 `fixed_cols`, `tightened`, `symmetry_generators` and `symmetry_orbits`. It
 also gives `has_incumbent`, and `incumbent`, the incumbent's objective or 0
 when `has_incumbent` is false. `bound` is the best objective that an open
-node could still reach. At `JAOS_SOLVE_OPTIMAL` the bound equals the
-incumbent's objective. The call fails when `m` or `out` is null.
+node could still reach. At `JAOS_SOLVE_OPTIMAL` the bound, the incumbent
+and `jaos_objective` are the same number, bit for bit. A run stopped by a
+limit never reports a bound on the wrong side of its incumbent.
+`start_accepted` is true when the caller's MIP start, or the point that
+completed it, was feasible, passed the node callback and beat the cutoff.
+It then entered the tree as an incumbent, unless the tree already held
+one at least as good. The call fails when `m` or `out` is null.
 
 **`jaos_mip_incumbent`**\
 `jaos_status jaos_mip_incumbent(const jaos_model *m, double *col_value, double *objective)`\
 Copies the best integer point of the last branch and bound and its
 objective. It works for any outcome, so a tree stopped by a limit still
-gives its incumbent. Both outputs are optional. The call fails when the last
-solve found no integer point.
+gives its incumbent. The point's integer columns hold integers, and the
+objective is summed from the point the way `jaos_objective` sums it. At
+`JAOS_SOLVE_OPTIMAL` the point and the objective are the ones
+`jaos_solution` and `jaos_objective` give. Both outputs are optional. The
+call fails when the last solve found no integer point.
 
 **`jaos_set_mip_pool_size`**\
 `jaos_status jaos_set_mip_pool_size(jaos_model *m, int64_t size)`\
@@ -1441,6 +1492,19 @@ infeasibility that the running method keeps. The simplex and PDLP
 call it every 64 iterations, and the barrier calls it at every iteration.
 The conic interior point does not call it. In a branch and bound the counts
 run over the whole tree.
+
+A branch and bound also calls it once for every node whose relaxation it
+solves, and once more when the search ends, unless the callback stopped
+it. The event then carries the tree's state: `nodes` counts the nodes so
+far, `bound` is the best objective an open node could still reach, in the
+model's own sense, and `has_incumbent` and `incumbent` give the best
+objective found. `primal_infeasibility` is 0 in these calls. The calls
+from inside a node's relaxation carry the same three fields as they stood
+at the last node. Outside a branch and bound, and before the root is
+solved, `nodes` is 0, `has_incumbent` is false, `incumbent` is 0 and
+`bound` is minus infinity when minimising and plus infinity when
+maximising. The last call of a search that ended `JAOS_SOLVE_OPTIMAL`
+carries the same bound and incumbent as `jaos_mip_result`.
 
 **`jaos_set_incumbent_callback`**\
 `jaos_status jaos_set_incumbent_callback(jaos_model *m, jaos_incumbent_fn cb, void *user)`\

@@ -159,7 +159,10 @@ J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (rounds of 4 cost 1.37x the
 work on MIPLIB 3, `bench/measurements/02-290/`). The rest of the barrier
 stays on one thread by measurement (`barrier-normal-threads`,
-`bench/measurements/02-311/`).
+`bench/measurements/02-311/`). JAOT asked for it in issue #10: a MIP that speeds
+up with the thread count alone. The batch cannot follow the thread count,
+since the answer must not depend on the machine, so the round has to be
+cheap enough to be on at a fixed size.
 
 ## Tier 5: the features SPECS still lists
 

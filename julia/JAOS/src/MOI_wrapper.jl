@@ -299,7 +299,18 @@ MOI.supports(::Optimizer, ::MOI.RelativeGapTolerance) = true
 MOI.get(o::Optimizer, ::MOI.RelativeGapTolerance) = o.gap
 function MOI.set(o::Optimizer, ::MOI.RelativeGapTolerance, value::Union{Nothing,Real})
     o.gap = value === nothing ? nothing : Float64(value)
-    o.inner === nothing || set_mip_gap(o.inner, something(o.gap, 0.0))
+    o.inner === nothing || _set_gap(o.inner, o.gap)
+    return
+end
+
+function _set_gap(m::Model, gap::Union{Nothing,Float64})
+    if gap === nothing
+        set_mip_gap(m, parse(Float64, get_option(Model(), "mip_gap")))
+        set_mip_gap_rule(m, 0)
+    else
+        set_mip_gap(m, gap)
+        set_mip_gap_rule(m, 1)
+    end
     return
 end
 
@@ -315,7 +326,7 @@ function _apply_options(o::Optimizer, m::Model)
     _log(o, m)
     o.time_limit === nothing || set_time_limit(m, o.time_limit)
     o.threads === nothing || set_threads(m, o.threads)
-    o.gap === nothing || set_mip_gap(m, o.gap)
+    o.gap === nothing || _set_gap(m, o.gap)
     o.node_limit === nothing || set_mip_node_limit(m, o.node_limit)
     for key in sort!(collect(keys(o.raw)))
         set_option(m, key, o.raw[key])

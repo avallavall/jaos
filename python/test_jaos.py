@@ -14,9 +14,13 @@ Run with `make python-test` from the repository root.
 """
 
 import fractions
+import math
 import os
+import signal
+import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,6 +30,28 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def data(name):
     return os.path.join(ROOT, "tests", "data", name)
+
+def market_split(rows, cols, seed=7, offset=0.0):
+    """Cornuejols and Dawande's market split: equal splits of random
+    weights, which a branch and bound finds hard for its size. Returns
+    the problem and its binary variables."""
+    p = jaos.Problem()
+    x = [p.add_var(binary=True, name=f"x{j}") for j in range(cols)]
+    state = seed
+    dev = []
+    for i in range(rows):
+        a = []
+        for j in range(cols):
+            state = (state * 1103515245 + 12345) % (2 ** 31)
+            a.append(state % 100)
+        s = p.add_var(lb=-1e9, name=f"s{i}")
+        t = p.add_var(lb=0.0, name=f"t{i}")
+        p.add(sum(a[j] * x[j] for j in range(cols)) + s == sum(a) // 2)
+        p.add(t >= s)
+        p.add(t >= -s)
+        dev.append(t)
+    p.minimize(sum(dev) + offset)
+    return p, x
 
 class TestLibrary(unittest.TestCase):
     def test_the_version_comes_from_the_library(self):
@@ -38,6 +64,27 @@ class TestLibrary(unittest.TestCase):
 
     def test_the_loaded_path_is_reported(self):
         self.assertTrue(os.path.exists(jaos.library_path()))
+
+    def test_the_build_commit_is_a_hash_or_empty(self):
+        self.assertRegex(jaos.build_commit(), r"^([0-9a-f]{12})?$")
+
+    def test_a_library_that_cannot_load_is_an_import_error(self):
+        probe = ("import sys\n"
+                 "try:\n"
+                 "    import jaos\n"
+                 "except ImportError as e:\n"
+                 "    print(type(e).__name__, e.path)\n"
+                 "    sys.exit(0)\n"
+                 "sys.exit(1)\n")
+        here = os.path.dirname(os.path.abspath(__file__))
+        for path in (os.path.join(here, "no-such-libjaos.so"),
+                     os.path.abspath(__file__)):
+            env = dict(os.environ, JAOS_LIBRARY=path, PYTHONPATH=here)
+            out = subprocess.run([sys.executable, "-c", probe], env=env,
+                                 capture_output=True, text=True, cwd=here)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(out.stdout.split(), ["LibraryNotFound", path])
+        self.assertTrue(issubclass(jaos.LibraryNotFound, ImportError))
 
     def test_the_library_name_follows_the_platform(self):
         names, dirs = jaos._library_names("linux")
@@ -166,8 +213,8 @@ class TestReadingFiles(unittest.TestCase):
     def test_the_thread_count_is_kept_and_changes_no_answer(self):
         p = jaos.Problem()
         p.set_threads(1)
-        with self.assertRaises(jaos.JaosError):
-            p.set_threads(0)
+        p.set_threads(0)
+        self.assertGreaterEqual(p._m.threads, 1)
         with self.assertRaises(jaos.JaosError):
             p.set_threads(-2)
         answers = []
@@ -1335,6 +1382,63 @@ class TestProgressCallback(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertEqual(wa, wb)
 
+    def test_an_exception_in_the_callback_is_raised_by_solve(self):
+        for exc in (ValueError("broken"), KeyboardInterrupt()):
+            calls = []
+
+            def cb(p, exc=exc):
+                calls.append(p)
+                raise exc
+            with jaos.Model() as m:
+                m.read_mps(data("solve1.mps"))
+                m.set_progress_callback(cb)
+                with self.assertRaises(type(exc)):
+                    m.solve()
+                self.assertEqual(len(calls), 1)
+                self.assertIs(m.status, jaos.SolveStatus.INTERRUPTED)
+                m.set_progress_callback(None)
+                self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+
+    def test_a_tree_reports_its_nodes_bound_and_incumbent(self):
+        p, _ = market_split(2, 16)
+        seen = []
+        p.set_progress_callback(seen.append)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        rep = p.mip_report()
+        nodes = [e.nodes for e in seen]
+        self.assertEqual(nodes, sorted(nodes))
+        self.assertEqual(nodes[-1], rep.nodes)
+        self.assertTrue(any(e.incumbent is None for e in seen))
+        last = seen[-1]
+        self.assertEqual(last.incumbent, p.objective_value)
+        self.assertEqual(last.bound, p.objective_value)
+        for e in seen:
+            if e.nodes > 0 and e.incumbent is not None:
+                self.assertLessEqual(e.bound, e.incumbent + 1e-9)
+
+    @unittest.skipUnless(hasattr(signal, "setitimer"), "needs setitimer")
+    def test_a_signal_handlers_exception_stops_the_solve(self):
+        class SoftLimit(Exception):
+            pass
+
+        def handler(signum, frame):
+            raise SoftLimit()
+        if threading.current_thread() is not threading.main_thread():
+            self.skipTest("signals reach the main thread only")
+        old = signal.signal(signal.SIGALRM, handler)
+        try:
+            for watched in (False, True):
+                p, _ = market_split(3, 24)
+                if watched:
+                    p.set_progress_callback(lambda e: None)
+                signal.setitimer(signal.ITIMER_REAL, 0.05)
+                with self.assertRaises(SoftLimit):
+                    p.solve()
+                self.assertIs(p._m.status, jaos.SolveStatus.INTERRUPTED)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, old)
+
     def test_stop_interrupts_and_leaves_nothing_to_read(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))
@@ -1723,6 +1827,65 @@ class TestBranchAndBound(unittest.TestCase):
     """Integer columns through both layers (D288). The knapsack is the one
     tests/test_mip.c solves to 9 against a relaxation of 10.67."""
 
+    def test_the_objective_the_incumbent_and_the_bound_agree(self):
+        for offset in (0.0, 100.0, 100.1):
+            p, _ = market_split(2, 16, offset=offset)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            obj, x = p._m.mip_incumbent()
+            rep = p.mip_report()
+            self.assertEqual(p.objective_value, obj)
+            self.assertEqual(rep.incumbent, obj)
+            self.assertEqual(rep.bound, obj)
+            self.assertEqual(p._m.solution().col_value, x)
+            self.assertEqual(p._m.mip_pool()[0], (obj, x))
+
+    def test_a_gap_of_zero_is_zero_and_the_rule_is_settable(self):
+        p, _ = market_split(2, 16)
+        p.solve()
+        best = p.objective_value
+        p, _ = market_split(2, 16)
+        p.set_mip_gap(0)
+        self.assertEqual(p._m.get_option("mip_gap"), "0")
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertEqual(p.objective_value, best)
+        p.set_mip_gap_rule(jaos.GapRule.RELATIVE)
+        self.assertEqual(p._m.get_option("mip_gap_rule"), "relative")
+        with self.assertRaises(ValueError):
+            p.set_mip_gap_rule(5)
+
+    def test_zero_threads_takes_every_core(self):
+        with jaos.Model() as m:
+            m.set_threads(0)
+            self.assertGreaterEqual(m.threads, 1)
+            with self.assertRaises(jaos.JaosError):
+                m.set_threads(-1)
+
+    def test_a_partial_start_is_completed_and_reported(self):
+        p, x = market_split(2, 16)
+        p.solve()
+        best = p.objective_value
+        full = {v: v.value for v in x}
+        for keep, accepted in ((len(x), True), (len(x) // 2, True), (0, True)):
+            p, x2 = market_split(2, 16)
+            p.set_mip_start({x2[j]: full[x[j]] for j in range(keep)})
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertEqual(p.objective_value, best)
+            self.assertIs(p.mip_report().start_accepted, accepted)
+        p, x2 = market_split(2, 16)
+        p.set_mip_start({x2[0]: 5})
+        p.solve()
+        self.assertFalse(p.mip_report().start_accepted)
+
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            nc = m.num_col
+            m.set_mip_start([None] * nc)
+            m.set_mip_start({0: 1.0})
+            with self.assertRaises(IndexError):
+                m.set_mip_start({nc: 1.0})
+            with self.assertRaises(jaos.JaosError):
+                m.set_mip_start([float("inf")] * nc)
+
     def test_a_run_of_changes_agrees_with_a_fresh_build(self):
         """The cases above move one thing each. This one interleaves the
         two paths, since a change that rebuilds and a change that goes
@@ -1892,12 +2055,9 @@ class TestBranchAndBound(unittest.TestCase):
         def bad(ev):
             ev.add_row([7], [1.0], 0.0, 1.0)
         q._m.set_node_callback(bad)
-        hook = sys.excepthook
-        sys.excepthook = lambda *args: None
-        try:
-            self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
-        finally:
-            sys.excepthook = hook
+        with self.assertRaises(Exception):
+            q.solve()
+        self.assertIs(q._m.status, jaos.SolveStatus.INTERRUPTED)
         q.set_node_callback(lambda ev: jaos.CallbackAction.STOP)
         self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
 

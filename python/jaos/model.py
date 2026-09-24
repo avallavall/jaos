@@ -1,8 +1,10 @@
 import ctypes
 import ctypes.util
 import enum
+import math
 import os
 import sys
+import threading
 from collections import namedtuple
 from fractions import Fraction
 
@@ -19,6 +21,7 @@ from ._native import (
     CostRanging,
     DiveChild,
     ExactRayReport,
+    GapRule,
     IIS,
     IISReport,
     IISSide,
@@ -80,6 +83,33 @@ from ._native import (
     version,
 )
 
+_solving = threading.local()
+
+_prior_unraisablehook = None
+
+def _catch_unraisable(unraisable):
+    """Keeps an exception that ctypes could not hand back from a callback,
+    for the solve running on this thread to raise once it returns. The
+    exception a signal handler raises as a callback starts is one: it
+    comes before the callback's own try."""
+    held = getattr(_solving, "held", None)
+    if (held is not None and unraisable.exc_value is not None
+            and "ctypes callback" in (unraisable.err_msg or "")):
+        if held[0] is None:
+            held[0] = unraisable.exc_value
+        return
+    _prior_unraisablehook(unraisable)
+
+def _watch_unraisable():
+    global _prior_unraisablehook
+    if sys.unraisablehook is not _catch_unraisable:
+        _prior_unraisablehook = sys.unraisablehook
+        sys.unraisablehook = _catch_unraisable
+
+def _hold(held, exc):
+    if held[0] is None:
+        held[0] = exc
+
 class Model:
     """One problem, and the answer to it.
 
@@ -102,6 +132,7 @@ class Model:
         self._log_cb = None
         self._progress_cb = None
         self._incumbent_cb = None
+        self._held = [None]
 
     def close(self):
         """Frees the model. Safe to call twice; the object is unusable
@@ -710,9 +741,20 @@ class Model:
         return (_D * max(len(flat), 1))(*flat)
 
     def set_mip_gap(self, gap):
-        """The relative gap that closes a branch and bound; 0 restores the
-        default of 1e-6."""
+        """The gap that closes a branch and bound, 1e-6 by default. 0 means
+        zero: the search ends only when no open node's bound beats the
+        incumbent. `set_mip_gap_rule` says what the gap is measured
+        against."""
         self._check(_lib.jaos_set_mip_gap(self._handle(), float(gap)))
+
+    def set_mip_gap_rule(self, rule):
+        """A `GapRule`. SHIFTED, the default, closes the search when no open
+        node's bound beats the incumbent by more than
+        gap * (1 + |incumbent|); RELATIVE by more than gap * |incumbent|,
+        SCIP's and HiGHS's |incumbent - bound| / |incumbent|."""
+        self._check(_lib.jaos_set_mip_gap_rule(self._handle(),
+                                               int(GapRule(rule))))
+        return self
 
     def set_mip_dive(self, on=True):
         """Whether a selected node is dived from. Off by default: the dive
@@ -1142,15 +1184,19 @@ class Model:
                 self._handle(), ctypes.cast(None, _INCUMBENT_FN), None))
             return self
 
+        held = self._held
+
         def trampoline(p, _user):
+            if held[0] is not None:
+                return int(CallbackAction.STOP)
             try:
                 c = p.contents
                 vals = [c.col_value[i] for i in range(c.num_col)]
                 r = fn(Incumbent(c.node, c.objective, c.bound, vals,
                                  bool(c.by_rounding)))
                 return int(CallbackAction.CONTINUE if r is None else r)
-            except Exception:
-                sys.excepthook(*sys.exc_info())
+            except BaseException as e:
+                _hold(held, e)
                 return int(CallbackAction.STOP)
 
         self._incumbent_cb = _INCUMBENT_FN(trampoline)
@@ -1174,7 +1220,11 @@ class Model:
                 self._handle(), ctypes.cast(None, _NODE_FN), None))
             return self
 
+        held = self._held
+
         def trampoline(p, _user):
+            if held[0] is not None:
+                return int(CallbackAction.STOP)
             ev = None
             try:
                 ev = NodeEvent(p.contents)
@@ -1182,8 +1232,8 @@ class Model:
                 b = ev.branch_col
                 p.contents.branch_col = -1 if b is None else int(b)
                 return int(CallbackAction.CONTINUE if r is None else r)
-            except Exception:
-                sys.excepthook(*sys.exc_info())
+            except BaseException as e:
+                _hold(held, e)
                 return int(CallbackAction.STOP)
             finally:
                 if ev is not None:
@@ -1231,15 +1281,27 @@ class Model:
     def set_mip_start(self, col_value):
         """Hand the tree an integer point before it runs, or None to clear.
 
-        The library checks it at the root and runs without it when it is
-        not a feasible integer point, so a wrong point is never published
-        as an answer.
+        `col_value` is a sequence by column index or a dict from column
+        index to value. A column the start does not give (a None or NaN
+        entry, a key the dict lacks, or an index past the sequence's end)
+        is left open: at the root a small tree with the given integer
+        columns fixed completes the point. The library checks the point
+        and runs without it when it is not a feasible integer point, so a
+        wrong point is never published as an answer;
+        `mip_report().start_accepted` says whether it was taken.
         """
         if col_value is None:
             self._check(_lib.jaos_set_mip_start(self._handle(), None))
             return self
         nc = self.num_col
-        buf = (_D * max(nc, 1))(*[float(v) for v in col_value[:nc]])
+        vals = [math.nan] * nc
+        items = (col_value.items() if isinstance(col_value, dict)
+                 else enumerate(col_value[:nc]))
+        for j, v in items:
+            if not 0 <= int(j) < nc:
+                raise IndexError(f"column {j} is outside 0..{nc - 1}")
+            vals[int(j)] = math.nan if v is None else float(v)
+        buf = (_D * max(nc, 1))(*vals)
         self._check(_lib.jaos_set_mip_start(self._handle(), buf))
         return self
 
@@ -1367,9 +1429,11 @@ class Model:
                                          ctypes.byref(handle)))
         m = Model.__new__(Model)
         m._m = handle
-        m._log_cb = None
-        m._progress_cb = None
-        m._incumbent_cb = None
+        m._log_cb = self._log_cb
+        m._progress_cb = self._progress_cb
+        m._incumbent_cb = self._incumbent_cb
+        m._node_cb = getattr(self, "_node_cb", None)
+        m._held = self._held
         return m
 
     def col_index(self, name):
@@ -1537,13 +1601,12 @@ class Model:
         return self
 
     def set_threads(self, threads):
-        """The thread count, 1 by default. Only Algorithm.CONCURRENT
-        runs more than one: above 1 it runs the dual, the primal and
-        the barrier at once and stops the ones a winner has already
-        beaten. The answer and the work units are the same at any
-        count; the wall clock is not. Everything else runs one
-        thread whatever this says. Zero or a negative count
-        raises."""
+        """The thread count, 1 by default; 0 takes every core the machine
+        has. Four things use more than one: Algorithm.CONCURRENT, the
+        barrier's Cholesky factor, and the rounds of nodes of both
+        branch and bounds when `set_mip_tree_batch` is above 1. The
+        answer and the work units are the same at any count; the wall
+        clock is not. A negative count raises."""
         self._check(_lib.jaos_set_threads(self._handle(), int(threads)))
         return self
 
@@ -1583,12 +1646,15 @@ class Model:
                                                 int(LogLevel.OFF)))
             return self
 
-        def trampoline(_user, lvl, line):
+        held = self._held
 
+        def trampoline(_user, lvl, line):
+            if held[0] is not None:
+                return
             try:
                 fn(LogLevel(lvl), line.decode("utf-8", "replace"))
-            except Exception:
-                sys.excepthook(*sys.exc_info())
+            except BaseException as e:
+                _hold(held, e)
 
         self._log_cb = _LOG_FN(trampoline)
         self._check(_lib.jaos_set_log_callback(self._handle(), self._log_cb,
@@ -1611,11 +1677,16 @@ class Model:
         so far and the best total primal infeasibility seen so far, which
         is infinite while the dual's phase 1 runs. A MIP calls from every
         relaxation it solves, with the tree's running totals of iterations
-        and work, so the numbers never go back within one solve.
+        and work, so the numbers never go back within one solve. A branch
+        and bound also calls once per node it solves, and once more when
+        it ends. `nodes` counts the nodes so far, `bound` is the best
+        bound in the model's own sense (minus infinity when minimising
+        and nothing is known yet, and always outside a branch and bound),
+        and `incumbent` is the best objective found, or None.
 
-        An exception in `fn` cannot cross the C frame, so it is reported
-        through sys.excepthook and the solve is stopped: a callback that is
-        broken should not silently wave the solve on.
+        An exception in `fn`, KeyboardInterrupt included, stops the solve,
+        and solve() raises it once the C call has returned. So does an
+        exception a signal handler raises while the solve runs.
         """
         if fn is None:
             self._progress_cb = None
@@ -1623,14 +1694,19 @@ class Model:
                 self._handle(), ctypes.cast(None, _PROGRESS_FN), None))
             return self
 
+        held = self._held
+
         def trampoline(p, _user):
+            if held[0] is not None:
+                return int(CallbackAction.STOP)
             try:
                 c = p.contents
                 r = fn(Progress(c.iterations, c.work_units,
-                                c.primal_infeasibility))
+                                c.primal_infeasibility, c.nodes, c.bound,
+                                c.incumbent if c.has_incumbent else None))
                 return int(CallbackAction.CONTINUE if r is None else r)
-            except Exception:
-                sys.excepthook(*sys.exc_info())
+            except BaseException as e:
+                _hold(held, e)
                 return int(CallbackAction.STOP)
 
         self._progress_cb = _PROGRESS_FN(trampoline)
@@ -1643,9 +1719,45 @@ class Model:
 
         A return of OK from the C call means the solve ran, not that it
         found an optimum, so the outcome is what comes back here.
+
+        An exception raised inside a callback, or by a signal handler while
+        the solve runs (Ctrl-C's KeyboardInterrupt, a task queue's soft
+        time limit), stops the solve and is raised here once the C call
+        has returned; the model then holds the INTERRUPTED solve. On the
+        main thread with no progress callback of its own, the model sets
+        one that only stops, so that a signal handler gets to run every 64
+        iterations and at every node.
         """
-        self._check(_lib.jaos_solve(self._handle()))
+        self._run(_lib.jaos_solve, self._handle())
         return self.status
+
+    def _run(self, fn, *args):
+        held = self._held
+        held[0] = None
+        _watch_unraisable()
+        prior = getattr(_solving, "held", None)
+        _solving.held = held
+        guard = None
+        if (self._progress_cb is None and
+                threading.current_thread() is threading.main_thread()):
+            def stop_if_held(_p, _user):
+                return int(CallbackAction.STOP if held[0] is not None
+                           else CallbackAction.CONTINUE)
+            guard = _PROGRESS_FN(stop_if_held)
+            self._guard_cb = guard
+            self._check(_lib.jaos_set_progress_callback(self._handle(),
+                                                        guard, None))
+        try:
+            rc = fn(*args)
+        finally:
+            if guard is not None:
+                _lib.jaos_set_progress_callback(
+                    self._handle(), ctypes.cast(None, _PROGRESS_FN), None)
+            _solving.held = prior
+        exc, held[0] = held[0], None
+        if exc is not None:
+            raise exc
+        self._check(rc)
 
     @property
     def status(self):
@@ -1799,7 +1911,7 @@ class Model:
         rs = (ctypes.c_int * max(nr, 1))()
         cs = (ctypes.c_int * max(nc, 1))()
         rep = _IISReport()
-        self._check(_lib.jaos_iis(self._handle(), rs, cs, ctypes.byref(rep)))
+        self._run(_lib.jaos_iis, self._handle(), rs, cs, ctypes.byref(rep))
         return IIS([IISSide(v) for v in rs[:nr]],
                    [IISSide(v) for v in cs[:nc]],
                    IISReport(*(getattr(rep, f)
@@ -1852,8 +1964,8 @@ class Model:
         rm = (_D * max(nr, 1))()
         cm = (_D * max(nc, 1))()
         rep = _RelaxReport()
-        self._check(_lib.jaos_feasrelax(self._handle(), int(scope), rm, cm,
-                                        ctypes.byref(rep)))
+        self._run(_lib.jaos_feasrelax, self._handle(), int(scope), rm, cm,
+                  ctypes.byref(rep))
         return Relaxation(list(rm[:nr]), list(cm[:nc]),
                           RelaxReport(*(getattr(rep, f)
                                         for f, _ in _RelaxReport._fields_)))

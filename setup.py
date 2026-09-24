@@ -4,6 +4,7 @@ import subprocess
 
 from setuptools import Distribution, setup
 from setuptools.command.build_py import build_py
+from setuptools.command.sdist import sdist
 
 try:
     from setuptools.command.bdist_wheel import bdist_wheel
@@ -43,7 +44,20 @@ class BinaryDistribution(Distribution):
         return True
 
 
-cmdclass = {"build_py": build_with_library}
+class sdist_with_commit(sdist):
+    def make_release_tree(self, base_dir, files):
+        super().make_release_tree(base_dir, files)
+        try:
+            commit = subprocess.run(["bash", "tools/commit.sh"], cwd=HERE,
+                                    capture_output=True, text=True).stdout
+        except OSError:
+            commit = ""
+        if commit:
+            with open(os.path.join(base_dir, "COMMIT"), "w") as f:
+                f.write(commit + "\n")
+
+
+cmdclass = {"build_py": build_with_library, "sdist": sdist_with_commit}
 
 if bdist_wheel is not None:
     class bdist_wheel_any_python(bdist_wheel):

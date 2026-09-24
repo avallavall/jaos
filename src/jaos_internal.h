@@ -38,6 +38,8 @@ typedef struct {
     bool no_aggregate;
 
     double mip_gap;
+    bool mip_gap_set;
+    jaos_gap_rule mip_gap_rule;
 
     bool mip_dive;
     bool mip_cut_rounds_set;
@@ -261,7 +263,9 @@ struct jaos_model {
     double mip_bound;
     double mip_started;
     bool mip_has_incumbent;
+    bool mip_start_taken;
     double mip_inc_obj;
+    int64_t mip_base_nodes, mip_base_work, mip_base_iters;
 
     double *mip_start;
     double *mip_inc_x;
@@ -419,6 +423,12 @@ bool jm_lp_name_ok(const char *s);
 void jm_model_drop_exact(jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_branch_and_bound(jaos_model *m);
+void jm_mip_take_published(jaos_model *m);
+void jm_mip_progress_end(jaos_model *m, int64_t nodes, int64_t work,
+                         int64_t iters);
+bool jm_mip_start_partial(const jaos_model *m);
+JAOS_NODISCARD int jm_mip_start_complete(const jaos_model *m, int64_t work,
+                                         double *xout, int64_t *spent);
 
 JAOS_NODISCARD jaos_status jm_solve_concurrent(jaos_model *m);
 
@@ -432,6 +442,11 @@ JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
                                             jm_symmetry *out, int64_t *work);
 void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
+
+static inline double jm_no_bound(const jaos_model *m)
+{
+    return m->sense == JAOS_MAXIMIZE ? INFINITY : -INFINITY;
+}
 
 static inline double jm_round(double x)
 {
@@ -466,6 +481,7 @@ JAOS_NODISCARD jaos_status jm_model_remember_basis(jaos_model *m);
 
 JAOS_NODISCARD bool jm_model_basis_count_ok(const jaos_model *m);
 
+double jm_model_objective_at(const jaos_model *m, const double *xv);
 void jm_model_publish_objective(jaos_model *m);
 
 static_assert(FLT_EVAL_METHOD == 0,

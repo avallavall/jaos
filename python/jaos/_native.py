@@ -79,6 +79,19 @@ class DiveChild(enum.IntEnum):
     DOWN = 2
     PSEUDOCOST = 3
 
+class GapRule(enum.IntEnum):
+    """How a branch and bound measures its gap; jaos_gap_rule. SHIFTED,
+    the default, closes when no open bound beats the incumbent by more
+    than gap * (1 + |incumbent|). RELATIVE drops the 1, which is the
+    rule SCIP and HiGHS apply: |incumbent - bound| / |incumbent|."""
+    SHIFTED = 0
+    RELATIVE = 1
+
+class LibraryNotFound(ImportError):
+    """libjaos could not be found or loaded. An ImportError, so a caller
+    that probes for installed solvers with `except ImportError` sees
+    JAOS as not installed. The message names the path that was tried."""
+
 class JaosError(Exception):
     """A C call that did not return OK.
 
@@ -104,7 +117,8 @@ BoundRanging = namedtuple("BoundRanging",
                           "lower_lo lower_hi upper_lo upper_hi")
 
 Progress = namedtuple("Progress",
-                      "iterations work_units primal_infeasibility")
+                      "iterations work_units primal_infeasibility nodes "
+                      "bound incumbent")
 
 Incumbent = namedtuple("Incumbent",
                        "node objective bound values by_rounding")
@@ -127,8 +141,8 @@ def _find_library():
     env = os.environ.get("JAOS_LIBRARY")
     if env:
         if not os.path.exists(env):
-            raise OSError(f"JAOS_LIBRARY is set to {env!r}, which does not "
-                          f"exist")
+            raise LibraryNotFound(f"JAOS_LIBRARY is set to {env!r}, which "
+                                  f"does not exist", name="jaos", path=env)
         return env
     names, dirs = _library_names()
     here = os.path.dirname(os.path.abspath(__file__))
@@ -144,14 +158,37 @@ def _find_library():
     found = ctypes.util.find_library("jaos")
     if found:
         return found
-    raise OSError(
+    tried = [os.path.join(here, n) for n in names] + [
+        os.path.join(os.getcwd(), d, n) for d in dirs for n in names]
+    raise LibraryNotFound(
         f"{names[0]} not found. Build it with `make shared` or the CMake "
         "package, then either run from the repository root or set "
-        "JAOS_LIBRARY to its full path.")
+        "JAOS_LIBRARY to its full path. Tried: " + ", ".join(tried),
+        name="jaos", path=tried[0])
 
 _LIB_PATH = _find_library()
 
-_lib = ctypes.CDLL(_LIB_PATH)
+def _load(path):
+    """Loads the library. On Windows the loader's error dialogs are off for
+    this thread while it runs: a file that is not a DLL for this machine
+    would otherwise open a dialog and wait for a click, which under a
+    service no one can give."""
+    if not sys.platform.startswith("win"):
+        return ctypes.CDLL(path)
+    k32 = ctypes.WinDLL("kernel32")
+    old = ctypes.c_uint()
+    quiet = k32.SetThreadErrorMode(0x0001 | 0x8000, ctypes.byref(old))
+    try:
+        return ctypes.CDLL(path)
+    finally:
+        if quiet:
+            k32.SetThreadErrorMode(old.value, None)
+
+try:
+    _lib = _load(_LIB_PATH)
+except OSError as e:
+    raise LibraryNotFound(f"{_LIB_PATH} was found but could not be loaded: "
+                          f"{e}", name="jaos", path=_LIB_PATH) from e
 
 def library_path():
     """The shared library this module actually loaded."""
@@ -173,6 +210,10 @@ class _Progress(ctypes.Structure):
         ("iterations", _I64),
         ("work_units", _I64),
         ("primal_infeasibility", _D),
+        ("nodes", _I64),
+        ("bound", _D),
+        ("has_incumbent", ctypes.c_bool),
+        ("incumbent", _D),
     ]
 
 class _CheckReport(ctypes.Structure):
@@ -290,6 +331,7 @@ class _MipReport(ctypes.Structure):
         ("tightened", _I64),
         ("symmetry_generators", _I64),
         ("symmetry_orbits", _I64),
+        ("start_accepted", ctypes.c_bool),
     ]
 
 MipReport = namedtuple("MipReport", [f for f, _ in _MipReport._fields_])
@@ -525,6 +567,8 @@ def _sig(name, restype, *argtypes):
 
 _sig("jaos_version", _CS)
 
+_sig("jaos_build_commit", _CS)
+
 _sig("jaos_status_str", _CS, ctypes.c_int)
 
 _sig("jaos_solve_status_str", _CS, ctypes.c_int)
@@ -627,6 +671,8 @@ _sig("jaos_row_quadratic", ctypes.c_int, _VP, _I64, _P(_I64), _P(_I64),
 _sig("jaos_cone_dual", ctypes.c_int, _VP, _I64, _P(_D))
 
 _sig("jaos_set_mip_gap", ctypes.c_int, _VP, _D)
+
+_sig("jaos_set_mip_gap_rule", ctypes.c_int, _VP, ctypes.c_int)
 
 _sig("jaos_set_mip_dive", ctypes.c_int, _VP, ctypes.c_bool)
 
@@ -962,6 +1008,12 @@ def version():
     its own.
     """
     return _lib.jaos_version().decode("utf-8")
+
+def build_commit():
+    """The git commit the library was built from, 12 hex digits, or ""
+    when it was built outside a git checkout. Two builds between tags
+    carry the same version() and differ here."""
+    return _lib.jaos_build_commit().decode("utf-8")
 
 def _doubles(seq, name, want=None):
     if seq is None:

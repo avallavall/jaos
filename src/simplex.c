@@ -3370,6 +3370,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
                     .iterations = s->iters,
                     .work_units = s->work.units,
                     .primal_infeasibility = s->infeas_best,
+                    .bound = jm_no_bound(s->m),
                 };
                 if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
                     JAOS_CALLBACK_STOP) {
@@ -3645,6 +3646,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
                 .iterations = s->iters,
                 .work_units = s->work.units,
                 .primal_infeasibility = s->infeas_best,
+                .bound = jm_no_bound(s->m),
             };
             if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
                 JAOS_CALLBACK_STOP) {
@@ -3900,6 +3902,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                     .iterations = s->iters,
                     .work_units = s->work.units,
                     .primal_infeasibility = r < 0 ? 0.0 : s->infeas_best,
+                    .bound = jm_no_bound(s->m),
                 };
                 if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
                     JAOS_CALLBACK_STOP) {

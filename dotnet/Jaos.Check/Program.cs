@@ -92,6 +92,9 @@ void Plain(Model m)
 
 Check(Model.Version.StartsWith("0.", StringComparison.Ordinal),
       $"the library answers with its version {Model.Version}");
+Check(Model.BuildCommit.Length == 0 ||
+      (Model.BuildCommit.Length == 12 && Model.BuildCommit.All(Uri.IsHexDigit)),
+      $"the library names the commit it was built from, '{Model.BuildCommit}'");
 Check(Model.StatusString(Status.Io).Length > 0 && Model.Infinity == inf,
       $"a status reads as '{Model.StatusString(Status.Io)}' and the infinity is IEEE's");
 
@@ -169,6 +172,7 @@ using (var m = new Model())
             bad.Add($"{option}={m.GetOption(option)}");
     }
     m.SetMipGap(0.25); Is("mip_gap", "0.25");
+    m.SetMipGapRule(GapRule.Relative); Is("mip_gap_rule", "relative");
     m.SetMipNodeLimit(7); Is("mip_node_limit", "7");
     m.SetMipTreeBatch(3); Is("mip_tree_batch", "3");
     m.SetMipBranching(Branching.MostFractional); Is("mip_branching", "most-fractional");
@@ -228,8 +232,10 @@ using (var m = new Model())
           "every typed setter lands on its option" +
           (bad.Count > 0 ? ": " + string.Join(", ", bad) : ""));
     Check(Throws<JaosException>(() => m.SetMipPoolSize(0)) &&
-          Throws<JaosException>(() => m.SetThreads(0)),
+          Throws<JaosException>(() => m.SetThreads(-1)),
           "a setter refuses a value out of its range");
+    m.SetThreads(0);
+    Check(m.Threads >= 1, $"a thread count of 0 takes every core, {m.Threads} here");
 }
 
 using (var p = new Problem())
@@ -1107,17 +1113,33 @@ using (var p = new Problem())
     double best = p.Objective;
     p.Model.SetMipStart(new[] { 1.0, 1.0, 0.0 });
     p.Solve();
-    bool started = Near(p.Objective, best);
+    bool started = Near(p.Objective, best) && p.Model.MipResult().StartAccepted;
+    p.Model.SetMipStart(new[] { 1.0, 1.0, double.NaN });
+    p.Solve();
+    bool partial = Near(p.Objective, best) && p.Model.MipResult().StartAccepted;
     p.Model.SetMipStart(new[] { 9.0, 9.0, 9.0 });
     p.Solve();
-    bool refused = Near(p.Objective, best);
+    bool refused = Near(p.Objective, best) && !p.Model.MipResult().StartAccepted;
     p.Model.SetMipStart(null);
     p.Model.SetMipCutoff(best + 1000.0);
     var cut = p.Solve();
     p.Model.SetMipCutoff(inf);
-    Check(started && refused && cut == SolveStatus.Infeasible && p.Solve() == SolveStatus.Optimal &&
+    Check(started && partial && refused && cut == SolveStatus.Infeasible &&
+          p.Solve() == SolveStatus.Optimal &&
           Throws<ArgumentException>(() => p.Model.SetMipStart(new[] { 1.0 })),
-          "a start point, a wrong one and a cutoff keep the answer honest");
+          "a start point, a partial one, a wrong one and a cutoff keep the answer honest");
+    var events = new List<Progress>();
+    p.Model.SetProgressCallback(pr =>
+    {
+        events.Add(pr);
+        return CallbackAction.Continue;
+    });
+    p.Solve();
+    p.Model.SetProgressCallback(null);
+    var last = events.Count > 0 ? events[^1] : null;
+    Check(last != null && events.Any(e => e.Nodes > 0) && last.HasIncumbent &&
+          Near(last.Incumbent, best) && last.Bound >= last.Incumbent - 1e-9,
+          $"a tree's progress calls carry nodes, the bound and the incumbent, {events.Count} calls");
     p.Model.SetMipStart(new[] { 1.0, 1.0, 0.0 });
     p.AddVar(0, 1, true, "d");
     Check(p.Solve() == SolveStatus.Optimal && Near(p.Objective, best),

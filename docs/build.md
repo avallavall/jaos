@@ -79,6 +79,20 @@ a Windows runner and solves a model with `python -m jaos`. Both wheels are
 tagged `py3-none`, because the package loads the library through `ctypes`
 and fits any Python 3.
 
+A tag `vX.Y.Z` runs `.github/workflows/release.yml`. It checks that the
+tag names the version in `include/jaos.h`, builds the same two wheels and
+the sdist, and tests the Windows wheel on a Windows runner. It then
+attaches all three to a GitHub Release for the tag and uploads them to
+PyPI by trusted publishing, so no token is stored in the repository. The
+upload needs one step on pypi.org, done once by the account that owns the
+project: a publisher for the project `jaos`, owner `avallavall`,
+repository `jaos`, workflow `release.yml` and environment `pypi`. The
+workflow can also be run by hand on an existing tag, which is how a tag
+cut before the workflow existed gets its release. The library in each
+wheel reports the tag's commit through `jaos_build_commit`: the Linux job
+writes it to a `COMMIT` file for the build container, which may have no
+git.
+
 CI's `linux` job runs on Ubuntu 24.04 with GCC 14, CMake, mingw-w64 and
 wine. It fetches the Netlib standard and infeasible sets and runs
 `make test`, `make sanitize`, `make python-test` and `make sdist-test`.

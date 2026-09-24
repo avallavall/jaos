@@ -555,6 +555,7 @@ static jaos_status px_run(px *s, jaos_solve_status *out)
                 .iterations = s->iters,
                 .work_units = s->work.units,
                 .primal_infeasibility = s->kkt_restart,
+                .bound = jm_no_bound(m),
             };
             if (m->cfg.progress_cb(&pr, m->cfg.progress_user) ==
                 JAOS_CALLBACK_STOP) {

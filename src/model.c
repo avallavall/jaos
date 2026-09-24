@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 
 #include <assert.h>
 #include <float.h>
@@ -460,6 +461,7 @@ static void model_answer_is_stale(jaos_model *m)
     free(m->mip_pool_obj);   m->mip_pool_obj = nullptr;
     m->mip_pool_n = 0;
     m->mip_has_incumbent = false;
+    m->mip_start_taken = false;
     m->mip_nodes = m->mip_solves = 0;
     m->mip_rcfix_n = m->mip_prop_n = 0;
     m->mip_sym_gen = m->mip_sym_orbits = 0;
@@ -1634,6 +1636,19 @@ jaos_status jaos_set_mip_gap(jaos_model *m, double gap)
         return JAOS_ERR_INVALID_INPUT;
     }
     m->cfg.mip_gap = gap;
+    m->cfg.mip_gap_set = true;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_mip_gap_rule(jaos_model *m, jaos_gap_rule rule)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (rule != JAOS_GAP_SHIFTED && rule != JAOS_GAP_RELATIVE) {
+        jm_set_err(m, "unknown gap rule %d", (int)rule);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    m->cfg.mip_gap_rule = rule;
     return JAOS_OK;
 }
 
@@ -2139,9 +2154,9 @@ jaos_status jaos_set_mip_start(jaos_model *m, const double *col_value)
     if (col_value == nullptr)
         return JAOS_OK;
     for (int64_t j = 0; j < m->num_col; j++)
-        if (isnan(col_value[j]) || isinf(col_value[j])) {
-            jm_set_err(m, "the starting point's value for column %lld is not "
-                          "finite", (long long)j);
+        if (isinf(col_value[j])) {
+            jm_set_err(m, "the starting point's value for column %lld is "
+                          "infinite", (long long)j);
             return JAOS_ERR_INVALID_INPUT;
         }
     m->mip_start = jm_alloc_array(m->num_col > 0 ? m->num_col : 1,
@@ -2229,12 +2244,12 @@ jaos_status jaos_set_threads(jaos_model *m, int64_t threads)
 {
     if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
-    if (threads <= 0) {
-        jm_set_err(m, "the thread count must be positive, not %lld",
+    if (threads < 0) {
+        jm_set_err(m, "the thread count must be 0 or more, not %lld",
                    (long long)threads);
         return JAOS_ERR_INVALID_INPUT;
     }
-    m->cfg.threads = threads;
+    m->cfg.threads = threads == 0 ? jm_cpu_count() : threads;
     return JAOS_OK;
 }
 
@@ -2489,21 +2504,12 @@ double jm_two_product_residue(double a, double b, double p)
     return isfinite(e) ? e : 0.0;
 }
 
-void jm_model_publish_objective(jaos_model *m)
+double jm_model_objective_at(const jaos_model *m, const double *xv)
 {
-
-    assert(m->solve_status == JAOS_SOLVE_OPTIMAL);
-    assert(m->num_col == 0 || m->sol_col != nullptr);
-    assert(m->num_row == 0 || m->sol_row != nullptr);
-    assert(m->num_row == 0 || m->sol_dual != nullptr);
-    assert(m->num_col == 0 || m->sol_redcost != nullptr);
-    assert(m->num_col == 0 || m->sol_col_status != nullptr);
-    assert(m->num_row == 0 || m->sol_row_status != nullptr);
-
     double sum = m->obj_offset, comp = 0.0;
-    if (m->sol_col != nullptr) {
+    if (xv != nullptr) {
         for (int64_t j = 0; j < m->num_col; j++) {
-            const double c = m->col_cost[j], x = m->sol_col[j];
+            const double c = m->col_cost[j], x = xv[j];
             const double t = c * x;
             jm_obj_add(&sum, &comp, t);
             const double e = jm_two_product_residue(c, x, t);
@@ -2523,17 +2529,30 @@ void jm_model_publish_objective(jaos_model *m)
             for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
 
                 const double q = m->q_value[p];
-                const double xi = m->sol_col[m->q_index[p]];
+                const double xi = xv[m->q_index[p]];
                 const double h = q * xi;
-                const double t = h * m->sol_col[j];
+                const double t = h * xv[j];
                 jm_obj_add(&sum, &comp, t);
-                const double e = jm_two_product_residue(h, m->sol_col[j], t);
+                const double e = jm_two_product_residue(h, xv[j], t);
                 if (e != 0.0)
                     jm_obj_add(&sum, &comp, e);
             }
     }
+    return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+}
 
-    m->objective = (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+void jm_model_publish_objective(jaos_model *m)
+{
+
+    assert(m->solve_status == JAOS_SOLVE_OPTIMAL);
+    assert(m->num_col == 0 || m->sol_col != nullptr);
+    assert(m->num_row == 0 || m->sol_row != nullptr);
+    assert(m->num_row == 0 || m->sol_dual != nullptr);
+    assert(m->num_col == 0 || m->sol_redcost != nullptr);
+    assert(m->num_col == 0 || m->sol_col_status != nullptr);
+    assert(m->num_row == 0 || m->sol_row_status != nullptr);
+
+    m->objective = jm_model_objective_at(m, m->sol_col);
     if (!isfinite(m->objective)) {
         m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
         jm_set_err(m, "the point the solve ends on has an objective of %g, "

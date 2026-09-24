@@ -1244,6 +1244,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
                 .iterations = s->iters,
                 .work_units = s->work.units,
                 .primal_infeasibility = pres,
+                .bound = jm_no_bound(m),
             };
             if (m->cfg.progress_cb(&pr, m->cfg.progress_user) ==
                 JAOS_CALLBACK_STOP) {

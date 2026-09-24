@@ -23,7 +23,8 @@ enum {
 static const char U_SYNOPSIS[] =
     "Usage:\n"
     "  jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]\n"
-    "                  [--mip-start SOLUTION] [--cutoff V]\n"
+    "                  [--mip-start SOLUTION] [--partial-start POINT]\n"
+    "                  [--cutoff V]\n"
     "                  [--basis BAS] [--write-basis BAS]\n"
     "                  [--write-point PT] [--write-duals D] [--pool-out PRE]\n"
     "                  [--proof PATH]\n"
@@ -76,6 +77,7 @@ static const char U_SYNOPSIS[] =
     "  jaos ranging FILE [--work-limit N]\n"
     "  jaos STUB -AMPL [NAME=VALUE]...\n"
     "  jaos --version\n"
+    "  jaos --commit\n"
     "  jaos --help [COMMAND]\n"
     "\n";
 
@@ -105,13 +107,17 @@ static const char U_SOLVE_A[] =
     "  --mip-start SOLUTION  hand the tree the integer point in a solution\n"
     "                   file before it runs; refused, and the search goes\n"
     "                   on without it, when the point is not feasible\n"
+    "  --partial-start POINT  hand the tree the columns a file of NAME VALUE\n"
+    "                   lines gives; a small tree over the columns it leaves\n"
+    "                   out completes it, with its integer columns fixed\n"
     "  --cutoff V       drop every node that cannot beat objective V. A\n"
     "                   cutoff tighter than the optimum ends the search\n"
     "                   infeasible, which is the honest answer to the\n"
     "                   question it asks\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
     "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
-    "  --threads N      the thread count. Four things run more than one:\n"
+    "  --threads N      the thread count, 0 for every core the machine\n"
+    "                   has. Four things run more than one:\n"
     "                   `--algorithm concurrent`, the barrier's Cholesky\n"
     "                   factor, and the rounds of nodes of the conic and\n"
     "                   the linear branch and bound under --tree-batch\n"
@@ -681,6 +687,49 @@ static void *zeroed(int64_t count, size_t size)
     return calloc((size_t)(count > 0 ? count : 1), size);
 }
 
+static bool read_partial_start(jaos_model *m, const char *path, double *x)
+{
+    FILE *f = fopen(path, "r");
+    if (f == nullptr) {
+        fprintf(stderr, "jaos: cannot open %s: %s\n", path, strerror(errno));
+        return false;
+    }
+    for (int64_t j = 0; j < jaos_num_col(m); j++)
+        x[j] = NAN;
+    char line[4096];
+    int64_t lno = 0;
+    bool ok = true;
+    while (ok && fgets(line, sizeof line, f) != nullptr) {
+        lno++;
+        char *hash = strchr(line, '#');
+        if (hash != nullptr)
+            *hash = '\0';
+        char name[1024], val[256], extra[2];
+        const int n = sscanf(line, "%1023s %255s %1s", name, val, extra);
+        if (n <= 0)
+            continue;
+        int64_t j = -1;
+        double v = 0.0;
+        if (n != 2) {
+            fprintf(stderr, "jaos: %s:%" PRId64 ": a line is NAME VALUE\n",
+                    path, lno);
+            ok = false;
+        } else if (jaos_col_index(m, name, &j) != JAOS_OK) {
+            fprintf(stderr, "jaos: %s:%" PRId64 ": no column is named '%s'\n",
+                    path, lno, name);
+            ok = false;
+        } else if (!parse_double(val, &v)) {
+            fprintf(stderr, "jaos: %s:%" PRId64 ": '%s' is not a finite "
+                    "number\n", path, lno, val);
+            ok = false;
+        } else {
+            x[j] = v;
+        }
+    }
+    fclose(f);
+    return ok;
+}
+
 static int64_t cone_members(const jaos_model *m)
 {
     int64_t total = 0;
@@ -789,11 +838,13 @@ struct solve_options {
     const char *write_duals;
     bool check;
     const char *mip_start;
+    const char *partial_start;
     bool has_cutoff;
     double cutoff;
     const char *proof;
     int64_t work_limit;
     int64_t threads;
+    bool has_threads;
     double time_limit;
     int64_t cut_rounds;
     int64_t cut_depth;
@@ -1038,6 +1089,8 @@ static int parse_solve_options(int argc, char **argv, int first,
             o->proof = v;
         } else if (strcmp(a, "--mip-start") == 0) {
             o->mip_start = v;
+        } else if (strcmp(a, "--partial-start") == 0) {
+            o->partial_start = v;
         } else if (strcmp(a, "--cutoff") == 0) {
             if (!parse_double(v, &o->cutoff))
                 return usage_error("--cutoff needs an objective, not '%s'", v);
@@ -1055,9 +1108,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         } else if (strcmp(a, "--write-duals") == 0) {
             o->write_duals = v;
         } else if (strcmp(a, "--threads") == 0) {
-            if (!parse_int64(v, &o->threads) || o->threads <= 0)
-                return usage_error("--threads needs a positive integer, "
-                                   "not '%s'", v);
+            if (!parse_int64(v, &o->threads) || o->threads < 0)
+                return usage_error("--threads needs 0 or a positive "
+                                   "integer, not '%s'", v);
+            o->has_threads = true;
         } else if (strcmp(a, "--work-limit") == 0) {
             if (!parse_int64(v, &o->work_limit) || o->work_limit <= 0)
                 return usage_error("--work-limit needs a positive integer, "
@@ -1300,7 +1354,7 @@ static int cmd_solve(int argc, char **argv)
         return EXIT_USAGE;
     }
 
-    if (o.threads != 0 && jaos_set_threads(m, o.threads) != JAOS_OK) {
+    if (o.has_threads && jaos_set_threads(m, o.threads) != JAOS_OK) {
         rc = library_error("set the thread count for", o.file, m);
         goto out;
     }
@@ -1629,6 +1683,21 @@ static int cmd_solve(int argc, char **argv)
             goto out;
         }
     }
+    if (o.partial_start != nullptr) {
+        double *sx = zeroed(jaos_num_col(m), sizeof *sx);
+        if (sx == nullptr || !read_partial_start(m, o.partial_start, sx)) {
+            free(sx);
+            rc = EXIT_USAGE;
+            goto out;
+        }
+        const jaos_status rd = jaos_set_mip_start(m, sx);
+        free(sx);
+        if (rd != JAOS_OK) {
+            rc = library_error("read a starting point from", o.partial_start,
+                               m);
+            goto out;
+        }
+    }
     if (o.has_cutoff && jaos_set_mip_cutoff(m, o.cutoff) != JAOS_OK) {
         rc = library_error("set the cutoff for", o.file, m);
         goto out;
@@ -1677,6 +1746,8 @@ static int cmd_solve(int argc, char **argv)
             printf("bound %.17g\n", mrep.bound);
             if (mrep.has_incumbent)
                 printf("incumbent %.17g\n", mrep.incumbent);
+            if (o.mip_start != nullptr || o.partial_start != nullptr)
+                printf("start_accepted %d\n", mrep.start_accepted ? 1 : 0);
 
             int64_t held = 0;
             if (o.pool_size > 0 && jaos_mip_pool_count(m, &held) == JAOS_OK)
@@ -3323,6 +3394,10 @@ int main(int argc, char **argv)
     const char *cmd = argv[1];
     if (strcmp(cmd, "--version") == 0 || strcmp(cmd, "version") == 0) {
         printf("%s\n", jaos_version());
+        return EXIT_OPTIMAL;
+    }
+    if (strcmp(cmd, "--commit") == 0) {
+        printf("%s\n", jaos_build_commit());
         return EXIT_OPTIMAL;
     }
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0 ||

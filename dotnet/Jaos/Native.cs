@@ -33,6 +33,7 @@ internal struct NativeMipReport
     public long Tightened;
     public long SymmetryGenerators;
     public long SymmetryOrbits;
+    [MarshalAs(UnmanagedType.U1)] public bool StartAccepted;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -74,6 +75,10 @@ internal struct NativeProgress
     public long Iterations;
     public long WorkUnits;
     public double PrimalInfeasibility;
+    public long Nodes;
+    public double Bound;
+    [MarshalAs(UnmanagedType.U1)] public bool HasIncumbent;
+    public double Incumbent;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -263,6 +268,7 @@ internal static class Native
     }
 
     [DllImport(Lib)] internal static extern IntPtr jaos_version();
+    [DllImport(Lib)] internal static extern IntPtr jaos_build_commit();
     [DllImport(Lib)] internal static extern int jaos_model_new(out ModelHandle m);
     [DllImport(Lib)] internal static extern void jaos_model_free(IntPtr m);
     [DllImport(Lib)] internal static extern IntPtr jaos_model_error(ModelHandle m);
@@ -393,6 +399,7 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_set_mip_pool_size(ModelHandle m, long size);
     [DllImport(Lib)] internal static extern int jaos_set_mip_tree_batch(ModelHandle m, long nodes);
     [DllImport(Lib)] internal static extern int jaos_set_mip_gap(ModelHandle m, double gap);
+    [DllImport(Lib)] internal static extern int jaos_set_mip_gap_rule(ModelHandle m, int rule);
     [DllImport(Lib)] internal static extern int jaos_set_mip_node_limit(ModelHandle m, long nodes);
     [DllImport(Lib)] internal static extern int jaos_set_mip_branching(ModelHandle m, int rule);
     [DllImport(Lib)] internal static extern int jaos_set_mip_reliability(ModelHandle m, long branches);

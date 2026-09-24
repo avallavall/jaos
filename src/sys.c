@@ -151,12 +151,19 @@ void jm_thread_join(jm_thread *t)
     t->started = false;
 }
 
+int64_t jm_cpu_count(void)
+{
+    const DWORD n = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    return n > 0 ? (int64_t)n : 1;
+}
+
 #else
 
 #include <locale.h>
 #include <pthread.h>
 #include <strings.h>
 #include <time.h>
+#include <unistd.h>
 
 bool jm_locale_c_enter(jm_locale *l)
 {
@@ -255,6 +262,12 @@ void jm_thread_join(jm_thread *t)
     free(t->handle);
     t->handle = nullptr;
     t->started = false;
+}
+
+int64_t jm_cpu_count(void)
+{
+    const long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int64_t)n : 1;
 }
 
 #endif

@@ -1,4 +1,4 @@
-include LICENSE README.md Makefile
+include LICENSE README.md Makefile tools/commit.sh
 graft src
 graft include
 global-exclude *.o *.a *.so *.dll *.dylib __pycache__ *.pyc

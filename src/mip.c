@@ -83,6 +83,8 @@ constexpr int64_t MIP_ESTIMATE_BOUND_EVERY =
 constexpr int64_t MIP_LOCAL_BRANCHING_NODES =
     JAOS_MIP_LOCAL_BRANCHING_NODES_VALUE;
 
+constexpr int64_t MIP_START_NODES = 1000;
+
 constexpr double MIP_MIR_LAMBDA = 1e6;
 
 constexpr int64_t MIP_DIVE_BACKTRACK = 0;
@@ -2921,6 +2923,103 @@ out:
     return got;
 }
 
+void jm_mip_progress_end(jaos_model *m, int64_t nodes, int64_t work,
+                         int64_t iters)
+{
+    if (m->cfg.progress_cb == nullptr ||
+        m->solve_status == JAOS_SOLVE_INTERRUPTED)
+        return;
+    const jaos_progress ev = {
+        .iterations = m->mip_base_iters + iters,
+        .work_units = m->mip_base_work + work,
+        .nodes = m->mip_base_nodes + nodes,
+        .bound = m->mip_bound,
+        .has_incumbent = m->mip_has_incumbent,
+        .incumbent = m->mip_has_incumbent ? m->mip_inc_obj : 0.0,
+    };
+    (void)m->cfg.progress_cb(&ev, m->cfg.progress_user);
+}
+
+void jm_mip_take_published(jaos_model *m)
+{
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL || !m->mip_has_incumbent ||
+        m->mip_inc_x == nullptr)
+        return;
+    const int64_t nc = m->num_col;
+    bool same = m->mip_pool_n > 0 && m->mip_pool_x != nullptr;
+    for (int64_t j = 0; same && j < nc; j++)
+        if (m->col_integer != nullptr && m->col_integer[j] &&
+            m->mip_pool_x[j] != m->mip_inc_x[j])
+            same = false;
+    if (nc > 0)
+        memcpy(m->mip_inc_x, m->sol_col, (size_t)nc * sizeof *m->mip_inc_x);
+    m->mip_inc_obj = m->objective;
+    m->mip_bound = m->objective;
+    if (same) {
+        if (nc > 0)
+            memcpy(m->mip_pool_x, m->mip_inc_x,
+                   (size_t)nc * sizeof *m->mip_pool_x);
+        m->mip_pool_obj[0] = m->mip_inc_obj;
+    }
+}
+
+bool jm_mip_start_partial(const jaos_model *m)
+{
+    for (int64_t j = 0; m->mip_start != nullptr && j < m->num_col; j++)
+        if (isnan(m->mip_start[j]))
+            return true;
+    return false;
+}
+
+int jm_mip_start_complete(const jaos_model *m, int64_t work, double *xout,
+                          int64_t *spent)
+{
+    const int64_t nc = m->num_col;
+    const double tol = jm_primal_tolerance(m);
+    *spent = 0;
+    jaos_model *sub = nullptr;
+    if (jaos_model_copy(m, &sub) != JAOS_OK)
+        return -1;
+    int got = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        const double s = m->mip_start[j];
+        if (isnan(s) || m->col_integer == nullptr || !m->col_integer[j])
+            continue;
+        double v = jm_round(s);
+        const bool semi = m->col_semi != nullptr && m->col_semi[j];
+        if (!(semi && v == 0.0)) {
+            if (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol)
+                goto out;
+            v = fmin(fmax(v, m->col_lower[j]), m->col_upper[j]);
+        }
+        if (semi)
+            sub->col_semi[j] = false;
+        if (jaos_set_col_bounds(sub, j, v, v) != JAOS_OK)
+            goto out;
+    }
+    free(sub->mip_start);
+    sub->mip_start = nullptr;
+    sub->cfg.log_cb = nullptr;
+    sub->cfg.log_level = JAOS_LOG_OFF;
+    sub->cfg.progress_cb = nullptr;
+    sub->cfg.incumbent_cb = nullptr;
+    sub->cfg.node_cb = nullptr;
+    sub->cfg.mip_node_limit = MIP_START_NODES;
+    budget(sub, m, work);
+    const jaos_status st = jaos_solve(sub);
+    *spent = sub->solve_work;
+    if (st == JAOS_OK && sub->mip_has_incumbent && sub->mip_inc_x != nullptr) {
+        if (nc > 0)
+            memcpy(xout, sub->mip_inc_x, (size_t)nc * sizeof *xout);
+        got = 1;
+    } else if (st == JAOS_ERR_OUT_OF_MEMORY) {
+        got = -1;
+    }
+out:
+    jaos_model_free(sub);
+    return got;
+}
+
 static int dive_for_point(const jaos_model *m, const jaos_model *lp,
                           int64_t solves, const double *agree_a,
                           const double *agree_b, double *out, int64_t *work,
@@ -3729,7 +3828,10 @@ static int steer_point(const jaos_model *m, steer *sw, jaos_model *lp,
 typedef struct {
     jaos_progress_fn cb;
     void *user;
-    const int64_t *work, *iters;
+    const int64_t *work, *iters, *nodes;
+    int64_t base_work, base_iters, base_nodes;
+    const double *bound;
+    const incumbent *inc;
 } progress_relay;
 
 static jaos_callback_action progress_relay_fire(const jaos_progress *p,
@@ -3737,9 +3839,13 @@ static jaos_callback_action progress_relay_fire(const jaos_progress *p,
 {
     const progress_relay *r = user;
     const jaos_progress total = {
-        .iterations = *r->iters + p->iterations,
-        .work_units = *r->work + p->work_units,
+        .iterations = r->base_iters + *r->iters + p->iterations,
+        .work_units = r->base_work + *r->work + p->work_units,
         .primal_infeasibility = p->primal_infeasibility,
+        .nodes = r->base_nodes + *r->nodes,
+        .bound = *r->bound,
+        .has_incumbent = r->inc->have,
+        .incumbent = r->inc->have ? r->inc->obj : 0.0,
     };
     return r->cb(&total, r->user);
 }
@@ -4081,7 +4187,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     const bool quadratic = jm_model_has_quadratic(m);
-    const double gap = m->cfg.mip_gap > 0.0 ? m->cfg.mip_gap : MIP_GAP;
+    const double gap = m->cfg.mip_gap_set ? m->cfg.mip_gap : MIP_GAP;
+    const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
+                                                                      : 1.0;
     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
                                                      : MIP_CUT_ROUNDS;
     const int64_t cover_rounds = m->cfg.mip_cover_rounds_set
@@ -4278,6 +4386,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     m->mip_first_inc = 0;
     m->mip_bound = 0.0;
     m->mip_has_incumbent = false;
+    m->mip_start_taken = false;
 
     m->sol_basis_ok = false;
     m->farkas_ok = false;
@@ -4298,9 +4407,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     free(lp->row_ind_val);
     lp->row_ind_val = nullptr;
     lp->cfg.log_cb = nullptr;
+    double prog_bound = sigma * -INFINITY;
     progress_relay relay = {.cb = m->cfg.progress_cb,
                             .user = m->cfg.progress_user,
-                            .work = &work, .iters = &iters};
+                            .work = &work, .iters = &iters, .nodes = &nodes,
+                            .base_work = m->mip_base_work,
+                            .base_iters = m->mip_base_iters,
+                            .base_nodes = m->mip_base_nodes,
+                            .bound = &prog_bound, .inc = &inc};
     if (m->cfg.progress_cb != nullptr) {
         lp->cfg.progress_cb = progress_relay_fire;
         lp->cfg.progress_user = &relay;
@@ -4446,7 +4560,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                             break;
                         picks++;
                         if (round_n > 0 && wk < INFINITY &&
-                            wk - p->key <= gap * (1.0 + fabs(wk))) {
+                            wk - p->key <= gap * (gap_shift + fabs(wk))) {
                             node_free(p);
                             continue;
                         }
@@ -4468,7 +4582,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 const double bk = inc.have && inc.key < cut_key ? inc.key
                                                                 : cut_key;
                 if (bk < INFINITY &&
-                    bk - cur->key <= gap * (1.0 + fabs(bk))) {
+                    bk - cur->key <= gap * (gap_shift + fabs(bk))) {
                     node_free(cur);
                     cur = nullptr;
                     continue;
@@ -4943,7 +5057,28 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         if (nodes == 1 && m->mip_start != nullptr) {
             double hobj = 0.0;
             work += m->num_nz + nc + nr;
-            if (rounded_point(m, m->mip_start, x2, ra, &hobj)) {
+            bool fits = false;
+            if (jm_mip_start_partial(m)) {
+                double *filled = jm_alloc_array(nc > 0 ? nc : 1,
+                                                sizeof *filled);
+                if (filled == nullptr)
+                    goto done;
+                int64_t spent = 0;
+                const int got = jm_mip_start_complete(m, work, filled, &spent);
+                work += spent;
+                fits = got == 1 && rounded_point(m, filled, x2, ra, &hobj);
+                free(filled);
+                if (got < 0)
+                    goto done;
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: the caller's partial start %s",
+                       got == 1 ? "was completed by a tree over the columns "
+                                  "it leaves open"
+                                : "could not be completed");
+            } else {
+                fits = rounded_point(m, m->mip_start, x2, ra, &hobj);
+            }
+            if (fits) {
                 const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
                                            &nfixed, &nperm, nodes,
                                            depth_here, sigma * key, x2,
@@ -4957,6 +5092,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
                 if (sc == STEER_OK)
                     spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key)
+                    m->mip_start_taken = true;
                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
                         goto done;
@@ -5494,6 +5631,26 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 break;
             }
         }
+        if (m->cfg.progress_cb != nullptr) {
+            const double ok = open_bound(&heap, &kh, dstack, dstack_n);
+            double lb = ok < best_bound ? ok : best_bound;
+            if (inc.have && inc.key < lb)
+                lb = inc.key;
+            prog_bound = sigma * lb;
+            const jaos_progress ev = {
+                .iterations = m->mip_base_iters + iters,
+                .work_units = m->mip_base_work + work,
+                .nodes = m->mip_base_nodes + nodes,
+                .bound = prog_bound,
+                .has_incumbent = inc.have,
+                .incumbent = inc.have ? inc.obj : 0.0,
+            };
+            if (m->cfg.progress_cb(&ev, m->cfg.progress_user) ==
+                JAOS_CALLBACK_STOP) {
+                outcome = JAOS_SOLVE_INTERRUPTED;
+                break;
+            }
+        }
         if (nodes % MIP_LOG_EVERY == 0) {
             const double ok = open_bound(&heap, &kh, dstack, dstack_n);
             jm_log(m, JAOS_LOG_PROGRESS,
@@ -5505,7 +5662,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         {
             const double bk = inc.have && inc.key < cut_key ? inc.key
                                                             : cut_key;
-            if (bk < INFINITY && bk - key <= gap * (1.0 + fabs(bk)))
+            if (bk < INFINITY && bk - key <= gap * (gap_shift + fabs(bk)))
                 continue;
         }
 
@@ -5805,7 +5962,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         const double bk = inc.have && inc.key < cut_key ? inc.key : cut_key;
         if (outcome == JAOS_SOLVE_INFEASIBLE ||
             (outcome == JAOS_SOLVE_OPTIMAL &&
-             !(bk < INFINITY && bk - parked_key <= gap * (1.0 + fabs(bk))))) {
+             !(bk < INFINITY && bk - parked_key <= gap * (gap_shift + fabs(bk))))) {
             outcome = JAOS_SOLVE_NUMERICAL_ERROR;
             jm_set_err(m, "%s", parked_why);
         }
@@ -5830,8 +5987,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             ok = parked_key;
         m->mip_bound = sigma * (ok < best_bound ? ok : best_bound);
     }
-    if (outcome == JAOS_SOLVE_OPTIMAL)
-        m->mip_bound = inc.obj;
     phase_to(&ph, work, PH_OTHER);
     if (work > 0)
         jm_log(m, JAOS_LOG_SUMMARY,
@@ -5874,11 +6029,24 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     m->mip_pool_x = sp.x;
     m->mip_pool_obj = sp.obj;
     sp.x = sp.obj = nullptr;
+    for (int64_t k = 0; k < m->mip_pool_n; k++) {
+        double *px = m->mip_pool_x + k * nc;
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_integer != nullptr && m->col_integer[j])
+                px[j] = jm_round(px[j]);
+        m->mip_pool_obj[k] = jm_model_objective_at(m, px);
+    }
     if (inc.have) {
         m->mip_has_incumbent = true;
-        m->mip_inc_obj = inc.obj;
         m->mip_inc_x = inc.x;
         inc.x = nullptr;
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_integer != nullptr && m->col_integer[j])
+                m->mip_inc_x[j] = jm_round(m->mip_inc_x[j]);
+        m->mip_inc_obj = jm_model_objective_at(m, m->mip_inc_x);
+        if (outcome == JAOS_SOLVE_OPTIMAL ||
+            sigma * m->mip_bound > sigma * m->mip_inc_obj)
+            m->mip_bound = m->mip_inc_obj;
     }
     if (outcome == JAOS_SOLVE_OPTIMAL) {
         if (jm_model_ensure_solution_arrays(m) != JAOS_OK) {
@@ -5891,9 +6059,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             memcpy(m->sol_col, m->mip_inc_x, (size_t)nc * sizeof *m->sol_col);
             memcpy(m->sol_redcost, inc.cd, (size_t)nc * sizeof *m->sol_redcost);
             memcpy(m->sol_col_status, inc.cs, (size_t)nc * sizeof *m->sol_col_status);
-            for (int64_t j = 0; j < nc; j++)
-                if (m->col_integer != nullptr && m->col_integer[j])
-                    m->sol_col[j] = floor(m->sol_col[j] + 0.5);
         }
         if (nr > 0) {
             memcpy(m->sol_row, inc.ra, (size_t)nr * sizeof *m->sol_row);
@@ -5911,8 +6076,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             m->solve_work += extra;
         }
         jm_model_publish_objective(m);
+        jm_mip_take_published(m);
         assert(!m->sol_basis_ok || jm_model_basis_count_ok(m));
     }
+    jm_mip_progress_end(m, nodes, work, iters);
 
 done:
     if (rc != JAOS_OK && m->solve_status != outcome)
@@ -5998,6 +6165,7 @@ jaos_status jaos_mip_result(const jaos_model *m, jaos_mip_report *out)
     out->tightened = m->mip_prop_n;
     out->symmetry_generators = m->mip_sym_gen;
     out->symmetry_orbits = m->mip_sym_orbits;
+    out->start_accepted = m->mip_start_taken;
     return JAOS_OK;
 }
 
@@ -6091,9 +6259,15 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         m->cfg.mip_node_limit = node_limit > rs.nodes ? node_limit - rs.nodes
                                                       : 1;
     double *start0 = m->mip_start;
+    const bool taken = m->mip_start_taken;
     m->mip_start = rs.start;
+    m->mip_base_nodes = rs.nodes;
+    m->mip_base_work = rs.work;
+    m->mip_base_iters = rs.iters;
     st = bb_tree(m, nullptr);
+    m->mip_base_nodes = m->mip_base_work = m->mip_base_iters = 0;
     m->mip_start = start0;
+    m->mip_start_taken = taken;
     m->cfg.work_limit = work_limit;
     m->cfg.time_limit = time_limit;
     m->cfg.mip_node_limit = node_limit;

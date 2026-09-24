@@ -921,6 +921,7 @@ class Problem:
         return self
 
     def set_threads(self, threads):
+        """The thread count; 0 takes every core. Like Model.set_threads."""
         self._m.set_threads(threads)
         return self
 
@@ -937,9 +938,15 @@ class Problem:
         return self
 
     def set_mip_gap(self, gap):
-        """The relative gap that closes a branch and bound; 0 restores the
-        default of 1e-6."""
+        """The gap that closes a branch and bound, 1e-6 by default; 0 means
+        zero. Like Model.set_mip_gap."""
         self._m.set_mip_gap(gap)
+        return self
+
+    def set_mip_gap_rule(self, rule):
+        """A `GapRule`, what the gap is measured against. Like
+        Model.set_mip_gap_rule."""
+        self._m.set_mip_gap_rule(rule)
         return self
 
     def set_mip_dive(self, on=True):
@@ -1327,17 +1334,20 @@ class Problem:
         """Hand the tree a point before it runs (D326).
 
         `point` is a mapping from variable to value, or None to clear. A
-        variable left out is 0. The library checks the point at the root
-        and runs without it when it is not feasible.
+        variable left out, or mapped to None, is left open: at the root a
+        small tree with the given integer variables fixed completes the
+        point. The library checks the point and runs without it when it
+        is not feasible; `mip_report().start_accepted` says whether it
+        was taken.
         """
         if point is None:
             self._m.set_mip_start(None)
             return self
         if self._pending():
             self._build_and_load()
-        vals = [0.0] * len(self._vars)
+        vals = [None] * len(self._vars)
         for v, x in point.items():
-            vals[v._i] = float(x)
+            vals[v._i] = None if x is None else float(x)
         self._m.set_mip_start(vals)
         return self
 
@@ -1399,8 +1409,8 @@ class Problem:
     def mip_report(self):
         """What the last branch and bound did: nodes, lp_solves,
         has_incumbent, incumbent, bound, cuts, heuristic_points,
-        first_incumbent_node, fixed_cols, tightened. Raises while the
-        problem is
+        first_incumbent_node, fixed_cols, tightened, symmetry_generators,
+        symmetry_orbits and start_accepted. Raises while the problem is
         ahead of its last solve."""
         if self._pending():
             raise ValueError("the problem changed since the last solve; "

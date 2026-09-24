@@ -50,6 +50,7 @@ function test_the_ccall_layer_solves_a_file()
     @test x ≈ [0.0, -1.0, 8.0]
     @test length(act) == length(y) == 3
     @test startswith(JAOS.version(), "0.")
+    @test occursin(r"^([0-9a-f]{12})?$", JAOS.build_commit())
     lines = String[]
     JAOS.set_log(m, 1; sink = line -> push!(lines, line))
     JAOS.solve(m)
@@ -295,6 +296,16 @@ function test_the_pool_keeps_the_best_points()
     @test JAOS.has_integer(m) && !JAOS.has_integer(_g1())
     x, v = JAOS.mip_incumbent(m)
     @test v ≈ 23.0 && x == pool[1][1]
+    @test !rep.start_accepted
+    for (start, taken) in (([1.0, 1.0, 0.0, 0.0, 0.0], true),
+                           ([1.0, 1.0, NaN, NaN, NaN], true),
+                           ([9.0, 9.0, 9.0, 9.0, 9.0], false))
+        s = _knapsack()
+        JAOS.set_mip_start(s, start)
+        JAOS.solve(s)
+        @test JAOS.objective(s) ≈ 23.0
+        @test JAOS.mip_report(s).start_accepted == taken
+    end
 end
 
 function test_the_callbacks_see_the_solve_and_can_stop_it()
@@ -315,6 +326,14 @@ function test_the_callbacks_see_the_solve_and_can_stop_it()
     @test JAOS.status(m) == 1
 
     k = _knapsack()
+    events = JAOS.Progress[]
+    JAOS.set_progress_callback(k, p -> (push!(events, p); nothing))
+    JAOS.solve(k)
+    @test any(p -> p.nodes > 0, events)
+    @test events[end].has_incumbent && events[end].incumbent ≈ 23.0
+    @test events[end].bound >= 23.0 - 1e-9
+    @test all(p -> p.nodes == 0 && !p.has_incumbent, seen)
+    JAOS.set_progress_callback(k, nothing)
     incumbents = JAOS.Incumbent[]
     JAOS.set_incumbent_callback(k, inc -> (push!(incumbents, inc); nothing))
     JAOS.solve(k)
@@ -556,7 +575,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.presolve_report(m).num_col <= 3
     @test JAOS.solve_time(m) >= 0.0
     names = JAOS.option_names()
-    @test length(names) == 57
+    @test length(names) == 58
     @test "mip_gap" in names
     mktempdir() do dir
         path = joinpath(dir, "opts.txt")
@@ -577,7 +596,9 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.get_option(m, "mip_dive") == "true"
     @test JAOS.get_option(m, "mip_restart") == "true"
     @test parse(Float64, JAOS.get_option(m, "mip_cutoff")) == 100.0
-    @test_throws JAOS.JaosError JAOS.set_threads(m, 0)
+    @test_throws JAOS.JaosError JAOS.set_threads(m, -1)
+    JAOS.set_threads(m, 0)
+    @test JAOS.threads(m) >= 1
     JAOS.solve(m)
     @test JAOS.objective(m) ≈ -5.0
     @test JAOS.work_units(m) > 0
@@ -616,7 +637,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.get_option(t, "mip_node_limit") == "7"
     @test parse(Float64, JAOS.get_option(t, "time_limit")) == 2.5
     @test isempty(wrong)
-    @test length(JAOS._SETTERS) == 52
+    @test length(JAOS._SETTERS) == 53
 end
 
 function test_moi_conformance()

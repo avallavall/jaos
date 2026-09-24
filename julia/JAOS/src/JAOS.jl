@@ -52,6 +52,9 @@ Base.showerror(io::IO, e::JaosError) =
 
 version() = unsafe_string(ccall((:jaos_version, libjaos), Cstring, ()))
 
+"""The git commit the library was built from, `""` when the build had none."""
+build_commit() = unsafe_string(ccall((:jaos_build_commit, libjaos), Cstring, ()))
+
 """The C name of a call status: 0 "ok" to 4 "numerical error"."""
 status_str(s::Integer) =
     unsafe_string(ccall((:jaos_status_str, libjaos), Cstring, (Cint,), s))
@@ -528,7 +531,8 @@ function row_indicator(m::Model, row::Integer)
 end
 
 """The tree's gap: it stops when no node beats the incumbent by more than
-`gap * (1 + |incumbent|)`; 0 restores the default."""
+`gap * (1 + |incumbent|)`, or `gap * |incumbent|` under `set_mip_gap_rule(m, 1)`;
+0 means zero."""
 set_mip_gap(m::Model, gap::Real) =
     _check(m, ccall((:jaos_set_mip_gap, libjaos), Cint,
                     (Ptr{Cvoid}, Cdouble), m, gap))
@@ -565,6 +569,7 @@ const _SETTERS = (
     (:set_mip_pump_general, Cint), (:set_mip_pump_obj, Cdouble),
     (:set_mip_pump_always, Cint), (:set_mip_heuristics, Bool),
     (:set_mip_pool_size, Int64), (:set_mip_cutoff, Cdouble),
+    (:set_mip_gap_rule, Cint),
 )
 
 for (fn, T) in _SETTERS
@@ -601,10 +606,14 @@ set_time_limit(m::Model, seconds::Real) =
     _check(m, ccall((:jaos_set_time_limit, libjaos), Cint,
                     (Ptr{Cvoid}, Cdouble), m, seconds))
 
+"""The thread count; 0 takes every core the machine has."""
 set_threads(m::Model, n::Integer) =
     _check(m, ccall((:jaos_set_threads, libjaos), Cint,
                     (Ptr{Cvoid}, Int64), m, n))
 
+"""The tree's starting point, one value per column. A `NaN` leaves its column
+open, and a small tree completes the start with the given integer columns
+fixed."""
 set_mip_start(m::Model, x::Vector{Float64}) =
     _check(m, ccall((:jaos_set_mip_start, libjaos), Cint,
                     (Ptr{Cvoid}, Ptr{Cdouble}), m, x))
@@ -685,6 +694,7 @@ struct MipReport
     tightened::Int64
     symmetry_generators::Int64
     symmetry_orbits::Int64
+    start_accepted::Bool
 end
 
 function mip_report(m::Model)
@@ -1263,11 +1273,17 @@ function presolve_report(m::Model)
     return r[]
 end
 
-"""What the progress callback sees: the C `jaos_progress`."""
+"""What the progress callback sees: the C `jaos_progress`. In a branch and
+bound, `nodes`, `bound` and the incumbent are the tree's; elsewhere `nodes`
+is 0 and `bound` is the infinity on the sense's far side."""
 struct Progress
     iterations::Int64
     work_units::Int64
     primal_infeasibility::Cdouble
+    nodes::Int64
+    bound::Cdouble
+    has_incumbent::Bool
+    incumbent::Cdouble
 end
 
 struct _Incumbent

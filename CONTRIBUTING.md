@@ -108,7 +108,8 @@ says what changed, what was measured and what the numbers were.
 ## Reporting a problem
 
 Open an issue on GitHub with the model file (or the smallest one that
-shows the problem), the command, and what `jaos --version` prints. The
-version names the last tagged release, so a build from the repository
-also needs its commit: `git rev-parse --short HEAD`. A security problem
+shows the problem), the command, and what `jaos --version` and
+`jaos --commit` print. The version names the last tagged release, and the
+commit names the build (`jaos.version()` and `jaos.build_commit()` in
+Python). A security problem
 goes through `SECURITY.md` instead.

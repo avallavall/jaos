@@ -38,6 +38,17 @@ public enum Branching
     MostFractional = 1,
 }
 
+/// <summary>
+/// How the MIP gap is measured: <see cref="Shifted"/> stops when no node
+/// beats the incumbent by more than gap * (1 + |incumbent|),
+/// <see cref="Relative"/> by more than gap * |incumbent|.
+/// </summary>
+public enum GapRule
+{
+    Shifted = 0,
+    Relative = 1,
+}
+
 /// <summary>Which child a dive solves first.</summary>
 public enum DiveChild
 {
@@ -93,9 +104,16 @@ public enum ProofKind
 /// <summary>One status per column and one per row.</summary>
 public sealed record Basis(BasisStatus[] ColStatus, BasisStatus[] RowStatus);
 
-/// <summary>What the progress callback sees: the C <c>jaos_progress</c>.</summary>
+/// <summary>
+/// What the progress callback sees: the C <c>jaos_progress</c>. In a branch
+/// and bound, <c>Nodes</c>, <c>Bound</c> and the incumbent are the tree's;
+/// elsewhere <c>Nodes</c> is 0 and <c>Bound</c> is the infinity on the
+/// sense's far side.
+/// </summary>
 public sealed record Progress(long Iterations, long WorkUnits,
-                              double PrimalInfeasibility);
+                              double PrimalInfeasibility, long Nodes,
+                              double Bound, bool HasIncumbent,
+                              double Incumbent);
 
 /// <summary>What the incumbent callback sees: the C <c>jaos_incumbent</c>.</summary>
 public sealed record Incumbent(long Node, double Objective, double Bound,

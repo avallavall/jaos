@@ -230,6 +230,11 @@ static SEXP r_version(void)
     return mkString(jaos_version());
 }
 
+static SEXP r_build_commit(void)
+{
+    return mkString(jaos_build_commit());
+}
+
 static SEXP r_infinity(void)
 {
     return ScalarReal(jaos_infinity());
@@ -1378,7 +1383,7 @@ static SEXP r_mip_result(SEXP p)
     jaos_mip_report s;
     memset(&s, 0, sizeof s);
     check(m, jaos_mip_result(m, &s));
-    record r = record_new(12);
+    record r = record_new(13);
     PUT_REAL(r, s, nodes);
     PUT_REAL(r, s, lp_solves);
     PUT_BOOL(r, s, has_incumbent);
@@ -1391,6 +1396,7 @@ static SEXP r_mip_result(SEXP p)
     PUT_REAL(r, s, tightened);
     PUT_REAL(r, s, symmetry_generators);
     PUT_REAL(r, s, symmetry_orbits);
+    PUT_BOOL(r, s, start_accepted);
     return record_done(&r);
 }
 
@@ -1478,10 +1484,14 @@ static void r_log_line(void *user, jaos_log_level level, const char *line)
 
 static jaos_callback_action r_progress(const jaos_progress *pr, void *user)
 {
-    record r = record_new(3);
+    record r = record_new(7);
     put(&r, "iterations", ScalarReal((double)pr->iterations));
     put(&r, "work_units", ScalarReal((double)pr->work_units));
     put(&r, "primal_infeasibility", ScalarReal(pr->primal_infeasibility));
+    put(&r, "nodes", ScalarReal((double)pr->nodes));
+    put(&r, "bound", ScalarReal(pr->bound));
+    put(&r, "has_incumbent", ScalarLogical(pr->has_incumbent));
+    put(&r, "incumbent", ScalarReal(pr->incumbent));
     SEXP arg = PROTECT(record_done(&r));
     const int stop = call_r(lang2((SEXP)user, arg));
     UNPROTECT(1);
@@ -1604,6 +1614,7 @@ static SEXP r_set_callback(SEXP p, SEXP which, SEXP fn)
 
 static const R_CallMethodDef calls[] = {
     CALL(r_version, 0),
+    CALL(r_build_commit, 0),
     CALL(r_infinity, 0),
     CALL(r_status_str, 1),
     CALL(r_model_error, 1),

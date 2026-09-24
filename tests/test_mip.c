@@ -1474,6 +1474,81 @@ static void test_a_trees_progress_calls_carry_the_running_total(void)
     jaos_model_free(m);
 }
 
+typedef struct {
+    int64_t calls, node_calls, last_nodes;
+    bool nodes_never_went_back, bound_on_the_right_side, bound_never_worse;
+    bool incumbent_never_worse, incumbent_stays;
+    double last_bound, last_inc;
+    bool had_inc;
+} tree_state_watch;
+
+static jaos_callback_action watch_tree_state(const jaos_progress *p,
+                                             void *user)
+{
+    tree_state_watch *w = user;
+    w->calls++;
+    if (p->nodes < w->last_nodes)
+        w->nodes_never_went_back = false;
+    if (p->nodes > 0)
+        w->node_calls++;
+    if (p->has_incumbent &&
+        p->incumbent > p->bound + 1e-9 * (1.0 + fabs(p->bound)))
+        w->bound_on_the_right_side = false;
+    if (p->nodes > 0 &&
+        p->bound > w->last_bound + 1e-9 * (1.0 + fabs(w->last_bound)))
+        w->bound_never_worse = false;
+    if (w->had_inc && !p->has_incumbent)
+        w->incumbent_stays = false;
+    if (w->had_inc && p->has_incumbent && p->incumbent < w->last_inc)
+        w->incumbent_never_worse = false;
+    w->last_nodes = p->nodes;
+    if (p->nodes > 0)
+        w->last_bound = p->bound;
+    if (p->has_incumbent) {
+        w->had_inc = true;
+        w->last_inc = p->incumbent;
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_a_trees_progress_calls_carry_the_bound_and_the_incumbent(void)
+{
+    jaos_model *m = wide_model();
+    tree_state_watch w = {.nodes_never_went_back = true,
+                          .bound_on_the_right_side = true,
+                          .bound_never_worse = true,
+                          .incumbent_never_worse = true,
+                          .incumbent_stays = true,
+                          .last_bound = INFINITY};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_progress_callback(m, watch_tree_state, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(w.node_calls >= rep.nodes / 2);
+    TEST_ASSERT_TRUE(w.last_nodes <= rep.nodes);
+    TEST_ASSERT_TRUE(w.nodes_never_went_back);
+    TEST_ASSERT_TRUE(w.bound_on_the_right_side);
+    TEST_ASSERT_TRUE(w.bound_never_worse);
+    TEST_ASSERT_TRUE(w.incumbent_never_worse);
+    TEST_ASSERT_TRUE(w.incumbent_stays);
+    TEST_ASSERT_TRUE(w.had_inc);
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_TRUE(w.last_inc <= obj + 1e-9);
+
+    jaos_model *plain = wide_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(plain));
+    TEST_ASSERT_EQUAL_INT64(jaos_work_units(plain), jaos_work_units(m));
+    TEST_ASSERT_EQUAL_INT64(jaos_iterations(plain), jaos_iterations(m));
+    jaos_mip_report prep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(plain, &prep));
+    TEST_ASSERT_EQUAL_INT64(prep.nodes, rep.nodes);
+    jaos_model_free(plain);
+    jaos_model_free(m);
+}
+
 static void test_an_infeasible_relaxation_is_the_mips_certificate(void)
 {
     jaos_model *m = nullptr;
@@ -3643,10 +3718,14 @@ static void test_a_starting_point_and_a_cutoff(void)
     }
 
     jaos_model *m = knapsack5();
-    const double nan_pt[5] = { 0.0, 0.0, NAN, 0.0, 0.0 };
+    const double inf_pt[5] = { 0.0, 0.0, INFINITY, 0.0, 0.0 };
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_set_mip_start(m, nan_pt));
+                          jaos_set_mip_start(m, inf_pt));
     TEST_ASSERT_NULL(m->mip_start);
+    const double nan_pt[5] = { 0.0, 0.0, NAN, 0.0, 0.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, nan_pt));
+    TEST_ASSERT_NOT_NULL(m->mip_start);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, nullptr));
     const double ok_pt[5] = { 1.0, 0.0, 0.0, 0.0, 0.0 };
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, ok_pt));
     TEST_ASSERT_NOT_NULL(m->mip_start);
@@ -3666,6 +3745,170 @@ static void test_a_starting_point_and_a_cutoff(void)
     TEST_ASSERT_EQUAL_MEMORY(m->mip_start, c->mip_start, sizeof ok_pt);
     jaos_model_free(c);
     jaos_model_free(m);
+}
+
+static void test_the_report_says_whether_the_start_was_taken(void)
+{
+    const double good[5] = { 1.0, 1.0, 0.0, 0.0, 0.0 };
+    const double bad[5] = { 9.0, 9.0, 9.0, 9.0, 9.0 };
+    const double *starts[3] = { good, bad, nullptr };
+    const bool taken[3] = { true, false, false };
+    for (int k = 0; k < 3; k++) {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, starts[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_EQUAL(taken[k], rep.start_accepted);
+        jaos_model_free(m);
+    }
+
+    jaos_model *m = knapsack5();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, good));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cutoff(m, 30.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_FALSE_MESSAGE(rep.start_accepted,
+        "a start the cutoff already beats is not taken");
+    jaos_model_free(m);
+}
+
+static void test_a_partial_start_is_completed_over_the_columns_it_leaves(void)
+{
+    double best = 0.0;
+    {
+        jaos_model *m = knapsack5();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &best));
+        jaos_model_free(m);
+    }
+
+    {
+        jaos_model *m = knapsack5();
+        const double part[5] = { 1.0, 1.0, NAN, NAN, NAN };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, part));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_TRUE(rep.start_accepted);
+        TEST_ASSERT_EQUAL_INT64(0, rep.first_incumbent_node);
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+        TEST_ASSERT_NOT_NULL(m->mip_start);
+        TEST_ASSERT_TRUE_MESSAGE(isnan(m->mip_start[2]),
+            "the solve leaves the caller's start as it was given");
+        jaos_model_free(m);
+    }
+
+    {
+        jaos_model *m = knapsack5();
+        const double part[5] = { 1.0, 1.0, 1.0, NAN, NAN };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, part));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_FALSE_MESSAGE(rep.start_accepted,
+            "3 + 5 + 2 is past the row's 8, so no completion exists");
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
+        jaos_model_free(m);
+    }
+
+    {
+        jaos_model *m = knapsack5();
+        const double part[5] = { 7.0, NAN, NAN, NAN, NAN };
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, part));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_FALSE_MESSAGE(rep.start_accepted,
+            "a given value outside its column's box is no start");
+        jaos_model_free(m);
+    }
+}
+
+static void test_the_objective_the_incumbent_and_the_bound_agree(void)
+{
+    const double offsets[3] = { 0.0, 100.0, 100.1 };
+    for (int k = 0; k < 3; k++) {
+        jaos_model *m = wide_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_offset(m, offsets[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, inc = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        double x[14];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &inc));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_TRUE(obj == inc);
+        TEST_ASSERT_TRUE(obj == rep.incumbent);
+        TEST_ASSERT_TRUE(obj == rep.bound);
+        double sol[14];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, sol, nullptr, nullptr, nullptr));
+        TEST_ASSERT_EQUAL_MEMORY(sol, x, sizeof x);
+        double px[14], pobj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_pool_solution(m, 0, px, &pobj));
+        TEST_ASSERT_EQUAL_MEMORY(x, px, sizeof x);
+        TEST_ASSERT_TRUE(pobj == obj);
+        jaos_model_free(m);
+    }
+
+    jaos_model *m = wide_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_offset(m, 100.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 3));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    if (rep.has_incumbent)
+        TEST_ASSERT_TRUE_MESSAGE(rep.bound >= rep.incumbent,
+            "a maximising tree stopped early never reports a bound below its "
+            "incumbent");
+    jaos_model_free(m);
+}
+
+static void test_a_gap_of_zero_is_zero_and_each_rule_holds_its_own_gap(void)
+{
+    double best = 0.0;
+    {
+        jaos_model *m = wide_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &best));
+        jaos_model_free(m);
+    }
+    {
+        jaos_model *m = wide_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_gap(m, 0.0));
+        TEST_ASSERT_TRUE(m->cfg.mip_gap_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_EQUAL_DOUBLE(best, obj);
+        jaos_model_free(m);
+    }
+    const double gap = 0.2;
+    for (int r = 0; r < 2; r++) {
+        jaos_model *m = wide_model();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_gap(m, gap));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_mip_gap_rule(m, r == 0 ? JAOS_GAP_SHIFTED
+                                            : JAOS_GAP_RELATIVE));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        const double shift = r == 0 ? 1.0 : 0.0;
+        TEST_ASSERT_TRUE(best - obj <= gap * (shift + fabs(obj)));
+        jaos_model_free(m);
+    }
 }
 
 static void test_a_starting_point_moves_with_the_columns_it_speaks_for(void)
@@ -4608,6 +4851,11 @@ int main(void)
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
+    RUN_TEST(test_a_trees_progress_calls_carry_the_bound_and_the_incumbent);
+    RUN_TEST(test_the_report_says_whether_the_start_was_taken);
+    RUN_TEST(test_a_partial_start_is_completed_over_the_columns_it_leaves);
+    RUN_TEST(test_the_objective_the_incumbent_and_the_bound_agree);
+    RUN_TEST(test_a_gap_of_zero_is_zero_and_each_rule_holds_its_own_gap);
     RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
     RUN_TEST(test_the_node_callback_hands_the_tree_a_solution);
     RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);

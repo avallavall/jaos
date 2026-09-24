@@ -24,6 +24,7 @@ import org.jaos.DiveChild;
 import org.jaos.Entries;
 import org.jaos.ExactRayReport;
 import org.jaos.Expr;
+import org.jaos.GapRule;
 import org.jaos.IncumbentEvent;
 import org.jaos.Iis;
 import org.jaos.IisSide;
@@ -119,6 +120,8 @@ public final class Check {
     private static void original(String data) {
         check(Model.version().startsWith("0."),
               "the library answers with its version " + Model.version());
+        check(Model.buildCommit().isEmpty() || Model.buildCommit().matches("[0-9a-f]{12}"),
+              "the library names the commit it was built from, '" + Model.buildCommit() + "'");
 
         try (Model m = Model.read(Path.of(data, "g1.lp").toString())) {
             m.solve();
@@ -1144,6 +1147,7 @@ public final class Check {
             m.setAlgorithm(Algorithm.BARRIER); reads(m, wrong, "algorithm", "barrier");
             m.setThreads(2); reads(m, wrong, "threads", "2");
             m.setMipGap(0.002); reads(m, wrong, "mip_gap", "0.002");
+            m.setMipGapRule(GapRule.RELATIVE); reads(m, wrong, "mip_gap_rule", "relative");
             m.setMipNodeLimit(77); reads(m, wrong, "mip_node_limit", "77");
             m.setMipTreeBatch(4); reads(m, wrong, "mip_tree_batch", "4");
             m.setMipBranching(Branching.MOST_FRACTIONAL);
@@ -1295,10 +1299,37 @@ public final class Check {
                   "a quadratic row in a problem: x² + y² <= 2 gives -2 with dual -0.5");
         }
 
+        try (Model m = new Model()) {
+            check(throwsA(JaosException.class, () -> m.setThreads(-1)), "a negative thread count throws");
+            m.setThreads(0);
+            check(m.threads() >= 1, "a thread count of 0 takes every core, " + m.threads() + " here");
+        }
+
         Var[] v = new Var[5];
         try (Problem p = knapsack5(v)) {
             p.model().setMipStart(d(1, 1, 0, 0, 0));
-            check(p.solve() == OPTIMAL && near(p.objective(), 23), "a MIP start set before the first solve keeps 23");
+            check(p.solve() == OPTIMAL && near(p.objective(), 23)
+                  && p.model().mipResult().startAccepted(),
+                  "a MIP start set before the first solve keeps 23, and the report says it was taken");
+            p.model().setMipStart(d(1, 1, Double.NaN, Double.NaN, Double.NaN));
+            check(p.solve() == OPTIMAL && near(p.objective(), 23)
+                  && p.model().mipResult().startAccepted(),
+                  "a partial start is completed and taken");
+            p.model().setMipStart(d(9, 9, 9, 9, 9));
+            check(p.solve() == OPTIMAL && !p.model().mipResult().startAccepted(),
+                  "a start that is no integer point is reported as not taken");
+            p.model().setMipStart(d(1, 1, 0, 0, 0));
+            List<Progress> events = new ArrayList<>();
+            p.model().setProgressCallback(pr -> {
+                events.add(pr);
+                return CallbackAction.CONTINUE;
+            });
+            check(p.solve() == OPTIMAL && events.stream().anyMatch(e -> e.nodes() > 0)
+                  && events.get(events.size() - 1).hasIncumbent()
+                  && near(events.get(events.size() - 1).incumbent(), 23)
+                  && events.get(events.size() - 1).bound() >= 23 - 1e-9,
+                  "a tree's progress calls carry nodes, the bound and the incumbent");
+            p.model().setProgressCallback(null);
             p.model().setMipCutoff(1000.0);
             check(p.solve() == SolveStatus.INFEASIBLE, "and a cutoff past the optimum answers infeasible");
         }

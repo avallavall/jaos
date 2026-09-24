@@ -37,6 +37,7 @@ extern "C" {
 #define JAOS_VERSION_STRING "0.4.0"
 
 JAOS_NODISCARD JAOS_API const char *jaos_version(void);
+JAOS_NODISCARD JAOS_API const char *jaos_build_commit(void);
 
 typedef enum jaos_status {
     JAOS_OK = 0,
@@ -197,6 +198,14 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_sos(const jaos_model *m, int64_t k, int
                                     int64_t *n, int64_t *cols, double *weights);
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_gap(jaos_model *m, double gap);
+
+typedef enum jaos_gap_rule {
+    JAOS_GAP_SHIFTED = 0,
+    JAOS_GAP_RELATIVE = 1,
+} jaos_gap_rule;
+
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_gap_rule(jaos_model *m,
+                                                 jaos_gap_rule rule);
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_dive(jaos_model *m, bool on);
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_cut_rounds(jaos_model *m,
@@ -386,6 +395,7 @@ typedef struct jaos_mip_report {
     int64_t tightened;
     int64_t symmetry_generators;
     int64_t symmetry_orbits;
+    bool    start_accepted;
 } jaos_mip_report;
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_mip_result(const jaos_model *m,
@@ -516,6 +526,11 @@ typedef struct jaos_progress {
     int64_t work_units;
 
     double primal_infeasibility;
+
+    int64_t nodes;
+    double  bound;
+    bool    has_incumbent;
+    double  incumbent;
 } jaos_progress;
 
 typedef jaos_callback_action (*jaos_progress_fn)(const jaos_progress *p,

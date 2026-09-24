@@ -98,6 +98,13 @@ $(LIB): $(REL_OBJ)
 
 HDRS := include/jaos.h src/jaos_internal.h
 
+JAOS_COMMIT := $(shell bash tools/commit.sh 2>/dev/null)
+COMMIT_STAMP := $(B)/commit.txt
+$(shell mkdir -p $(B) && { printf '%s\n' '$(JAOS_COMMIT)' | cmp -s - $(COMMIT_STAMP) || printf '%s\n' '$(JAOS_COMMIT)' > $(COMMIT_STAMP); })
+VERSION_OBJ := $(foreach d,release dev asan pic cov,$(B)/$(d)/version.o)
+$(VERSION_OBJ): $(COMMIT_STAMP)
+$(VERSION_OBJ): LIBONLY += -DJAOS_BUILD_COMMIT='"$(JAOS_COMMIT)"'
+
 $(B)/release/%.o: src/%.c $(HDRS) | $(B)/release
 	$(CC) $(RELEASE_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
 

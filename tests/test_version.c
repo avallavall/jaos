@@ -12,6 +12,16 @@ static void test_version_matches_macros(void)
     TEST_ASSERT_EQUAL_STRING(JAOS_VERSION_STRING, jaos_version());
 }
 
+static void test_the_build_commit_is_a_hash_or_empty(void)
+{
+    const char *c = jaos_build_commit();
+    TEST_ASSERT_NOT_NULL(c);
+    const size_t n = strlen(c);
+    TEST_ASSERT_TRUE(n == 0 || n == 12);
+    for (size_t k = 0; k < n; k++)
+        TEST_ASSERT_NOT_NULL(strchr("0123456789abcdef", c[k]));
+}
+
 static void test_status_zero_values_are_the_defaults(void)
 {
 
@@ -39,6 +49,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_version_matches_macros);
+    RUN_TEST(test_the_build_commit_is_a_hash_or_empty);
     RUN_TEST(test_status_zero_values_are_the_defaults);
     RUN_TEST(test_status_strings_never_null_even_out_of_range);
     RUN_TEST(test_valid_statuses_have_distinct_strings);

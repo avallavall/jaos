@@ -1,5 +1,5 @@
 useDynLib(jaos, .registration = TRUE)
-export(jaos_version, jaos_infinity, jaos_status_str, jaos_model_error,
+export(jaos_version, jaos_build_commit, jaos_infinity, jaos_status_str, jaos_model_error,
        jaos_option_names, jaos_model, jaos_copy, jaos_read, jaos_write,
        jaos_load_lp, jaos_dims, jaos_num_nz, jaos_col_cost, jaos_set_col_cost,
        jaos_col_bounds, jaos_set_col_bounds, jaos_row_bounds,

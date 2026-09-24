@@ -1,6 +1,7 @@
 \name{jaos}
 \alias{jaos}
 \alias{jaos_version}
+\alias{jaos_build_commit}
 \alias{jaos_infinity}
 \alias{jaos_status_str}
 \alias{jaos_model_error}
@@ -136,6 +137,7 @@ Every call of the C API has an R function here.
 }
 \usage{
 jaos_version()
+jaos_build_commit()
 jaos_infinity()
 jaos_status_str(code)
 jaos_model_error(model)
@@ -398,7 +400,9 @@ is an R error that carries the library's message, and so is an array of the
 wrong length. The setters return their model invisibly.
 }
 \section{The library}{
-\code{jaos_version} is the library's version. \code{jaos_infinity} is the
+\code{jaos_version} is the library's version. \code{jaos_build_commit} is
+the git commit the library was built from, \code{""} when the build had
+none. \code{jaos_infinity} is the
 library's infinity, which is \code{Inf}. \code{jaos_status_str} names a
 status code. \code{jaos_model_error} is the model's message about its last
 failure. \code{jaos_option_names} lists every option name.
@@ -469,8 +473,11 @@ go to the console's error stream; with \code{fn} each line arrives as
 \code{fn(level, line)}.
 
 \code{jaos_set_progress_callback} calls \code{fn(p)} as a solve runs, with
-\code{p} a list of \code{iterations}, \code{work_units} and
-\code{primal_infeasibility}. \code{jaos_set_incumbent_callback} calls
+\code{p} a list of \code{iterations}, \code{work_units},
+\code{primal_infeasibility}, \code{nodes}, \code{bound},
+\code{has_incumbent} and \code{incumbent}. In a branch and bound the last
+four are the tree's; elsewhere \code{nodes} is 0 and \code{bound} is the
+infinity on the sense's far side. \code{jaos_set_incumbent_callback} calls
 \code{fn(inc)} for each new incumbent of a branch and bound, with
 \code{inc} a list of \code{node}, \code{objective}, \code{bound}, \code{x}
 and \code{by_rounding}. \code{jaos_set_node_callback} calls \code{fn(ev)} at
@@ -509,12 +516,15 @@ Farkas multipliers of an infeasible model and \code{jaos_unbounded_ray} the
 improving direction of an unbounded one; each is \code{NULL} when the solve
 did not end that way.
 
-\code{jaos_mip_result} is the branch-and-bound report, with its twelve
-fields. \code{jaos_mip_incumbent} is the best integer point the tree holds,
+\code{jaos_mip_result} is the branch-and-bound report, with its thirteen
+fields; \code{start_accepted} says whether the start became a point of the
+tree. \code{jaos_mip_incumbent} is the best integer point the tree holds,
 as \code{list(x, objective)}, or \code{NULL}. \code{jaos_mip_pool} is the
 solution pool, best first, as a list of \code{list(objective, x)}; the
 option \code{mip_pool_size} sets its size. \code{jaos_set_mip_start} hands
-the tree a starting point, and \code{NULL} removes it.
+the tree a starting point, and \code{NULL} removes it. A \code{NaN} leaves
+its column open, and a small tree completes the start with the given
+integer columns fixed.
 }
 \section{Files}{
 \code{jaos_write_sol_ampl} writes the \code{.sol} file an AMPL solver hands

@@ -18,6 +18,9 @@ near <- function(a, b, tol = 1e-6) isTRUE(all(abs(a - b) <= tol))
 
 check(startsWith(jaos_version(), "0."),
       paste("the library answers with its version", jaos_version()))
+check(grepl("^([0-9a-f]{12})?$", jaos_build_commit()),
+      paste0("the library names the commit it was built from, '",
+             jaos_build_commit(), "'"))
 
 m <- jaos_read(file.path(data, "g1.lp"))
 jaos_solve(m)
@@ -533,17 +536,25 @@ check(length(pr) == 18 && pr$rounds >= 0 && pr$num_row <= 2 &&
 best <- kn3()
 r <- kn3(start = c(1, 1, 0))
 check(r$status == "optimal" && near(best$objective, 23) &&
-      near(r$objective, best$objective), "a MIP start keeps the optimum")
+      near(r$objective, best$objective) &&
+      jaos_mip_result(r$model)$start_accepted,
+      "a MIP start keeps the optimum, and the report says it was taken")
+r <- kn3(start = c(1, 1, NaN))
+check(r$status == "optimal" && near(r$objective, best$objective) &&
+      jaos_mip_result(r$model)$start_accepted,
+      "a partial start is completed and taken")
 r <- kn3(start = c(9, 9, 9))
-check(r$status == "optimal" && near(r$objective, best$objective),
+check(r$status == "optimal" && near(r$objective, best$objective) &&
+      !jaos_mip_result(r$model)$start_accepted,
       "and a start that is no integer point is passed over")
 check(fails(jaos_set_mip_start(r$model, 1)),
       "a start of the wrong length is an R error")
 mr <- jaos_mip_result(r$model)
-check(length(mr) == 12 && mr$lp_solves >= 1 &&
+check(length(mr) == 13 && mr$lp_solves >= 1 &&
       all(c("cuts", "heuristic_points", "fixed_cols", "tightened",
-            "symmetry_generators", "symmetry_orbits") %in% names(mr)),
-      "the MIP report carries all 12 fields")
+            "symmetry_generators", "symmetry_orbits",
+            "start_accepted") %in% names(mr)),
+      "the MIP report carries all 13 fields")
 off <- list(mip_cut_rounds = 0, mip_cover_rounds = 0, mip_mir_rounds = 0,
             mip_cut_depth = 0)
 r <- jaos_solve_lp(c(10, 13, 7, 9, 5), matrix(c(3, 5, 2, 4, 2), 1), -Inf, 8,
@@ -657,7 +668,9 @@ jaos_set_progress_callback(m, function(p) {
 })
 check(jaos_solve(m) == "optimal" && length(seen) > 0 &&
       identical(names(seen[[1]]),
-                c("iterations", "work_units", "primal_infeasibility")) &&
+                c("iterations", "work_units", "primal_infeasibility",
+                  "nodes", "bound", "has_incumbent", "incumbent")) &&
+      all(vapply(seen, function(p) p$nodes == 0 && !p$has_incumbent, TRUE)) &&
       all(vapply(seen, function(p) p$iterations >= 0, TRUE)),
       paste("the progress callback sees the solve,", length(seen), "calls"))
 u <- solve1()

@@ -81,6 +81,8 @@ cone_vector <- function(model, parts) {
 
 jaos_version <- function() .Call(r_version)
 
+jaos_build_commit <- function() .Call(r_build_commit)
+
 jaos_infinity <- function() .Call(r_infinity)
 
 jaos_status_str <- function(code) .Call(r_status_str, as.integer(code))

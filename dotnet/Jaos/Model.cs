@@ -72,7 +72,8 @@ public sealed record MipReport(long Nodes, long LpSolves, bool HasIncumbent,
                                double Incumbent, double Bound, long Cuts,
                                long HeuristicPoints, long FirstIncumbentNode,
                                long FixedCols, long Tightened,
-                               long SymmetryGenerators, long SymmetryOrbits);
+                               long SymmetryGenerators, long SymmetryOrbits,
+                               bool StartAccepted);
 
 /// <summary>
 /// A <c>jaos_model</c>: every call of the C library that builds, reads,
@@ -114,6 +115,10 @@ public sealed class Model : IDisposable
 
     public static string Version =>
         Marshal.PtrToStringUTF8(Native.jaos_version()) ?? "";
+
+    /// <summary>The git commit the library was built from, empty when the build had none.</summary>
+    public static string BuildCommit =>
+        Marshal.PtrToStringUTF8(Native.jaos_build_commit()) ?? "";
 
     public static string StatusString(SolveStatus s) =>
         Marshal.PtrToStringUTF8(Native.jaos_solve_status_str((int)s)) ?? "";
@@ -616,6 +621,7 @@ public sealed class Model : IDisposable
         Check(Native.jaos_set_time_limit(h, seconds));
     public void SetWorkLimit(long units) =>
         Check(Native.jaos_set_work_limit(h, units));
+    /// <summary>The thread count; 0 takes every core the machine has.</summary>
     public void SetThreads(long threads) =>
         Check(Native.jaos_set_threads(h, threads));
     public long Threads => Native.jaos_threads_of(h);
@@ -627,7 +633,11 @@ public sealed class Model : IDisposable
         Check(Native.jaos_set_algorithm(h, (int)alg));
     public Algorithm Algorithm => (Algorithm)Native.jaos_algorithm_of(h);
 
-    /// <summary>An integer point for the tree to start from, checked at the root; null clears it.</summary>
+    /// <summary>
+    /// An integer point for the tree to start from, checked at the root; a
+    /// NaN leaves its column open, and a small tree completes the start
+    /// with the given integer columns fixed. Null clears it.
+    /// </summary>
     public void SetMipStart(double[]? x)
     {
         if (x == null)
@@ -644,7 +654,9 @@ public sealed class Model : IDisposable
     public void SetMipCutoff(double cutoff) => Check(Native.jaos_set_mip_cutoff(h, cutoff));
     public void SetMipPoolSize(long size) => Check(Native.jaos_set_mip_pool_size(h, size));
     public void SetMipTreeBatch(long nodes) => Check(Native.jaos_set_mip_tree_batch(h, nodes));
+    /// <summary>The gap that closes the tree; 0 means zero.</summary>
     public void SetMipGap(double gap) => Check(Native.jaos_set_mip_gap(h, gap));
+    public void SetMipGapRule(GapRule rule) => Check(Native.jaos_set_mip_gap_rule(h, (int)rule));
     public void SetMipNodeLimit(long nodes) => Check(Native.jaos_set_mip_node_limit(h, nodes));
     public void SetMipBranching(Branching rule) => Check(Native.jaos_set_mip_branching(h, (int)rule));
     public void SetMipReliability(long branches) => Check(Native.jaos_set_mip_reliability(h, branches));
@@ -755,7 +767,9 @@ public sealed class Model : IDisposable
                 {
                     var c = Marshal.PtrToStructure<NativeProgress>(p);
                     return (int)fn(new Progress(c.Iterations, c.WorkUnits,
-                                                c.PrimalInfeasibility));
+                                                c.PrimalInfeasibility, c.Nodes,
+                                                c.Bound, c.HasIncumbent,
+                                                c.Incumbent));
                 }
                 catch (Exception e)
                 {
@@ -909,7 +923,8 @@ public sealed class Model : IDisposable
         return new MipReport(r.Nodes, r.LpSolves, r.HasIncumbent, r.Incumbent,
                              r.Bound, r.Cuts, r.HeuristicPoints,
                              r.FirstIncumbentNode, r.FixedCols, r.Tightened,
-                             r.SymmetryGenerators, r.SymmetryOrbits);
+                             r.SymmetryGenerators, r.SymmetryOrbits,
+                             r.StartAccepted);
     }
 
     /// <summary>The incumbent of a tree that stopped with one.</summary>
