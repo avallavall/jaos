@@ -16,7 +16,7 @@ solver, accepts it against the model as the caller loaded it.
 
 ## Status
 
-The last tagged release is 0.4.0. JAOS answers all 139 Netlib reference
+The last tagged release is 0.5.0. JAOS answers all 139 Netlib reference
 instances correctly and solves 24 MIPLIB 3 instances to their catalogue
 optima. On the Netlib set it is about 2x slower per solve than HiGHS and
 Clp, and faster than SoPlex. `bench/compare/` measures and publishes the

@@ -43,7 +43,7 @@ the note. scipopt.org and soplex.zib.de refused automated requests again
 CHANGELOGs, the FAQ text in their repositories and the Suite papers. The
 timing in `bench/compare/` ran SoPlex 8.0.3 and SCIP 10.0, one release
 behind this line.
-Versions: JAOS 0.4.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
+Versions: JAOS 0.5.0 · HiGHS 1.15.1 · SoPlex 8.1.0 · Clp 1.17.11 ·
 SCIP 10.1.0 · Gurobi 13.0.3 · Hexaly 15.0. SoPlex 8.1.0 and SCIP 10.1.0
 came out on 2026-09-18, and neither release moved a cell.*
 

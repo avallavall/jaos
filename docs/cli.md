@@ -1089,7 +1089,7 @@ name and a value, joined by `=` or white space; the names are those
 `STUB.sol` holds a message, a blank line, `Options` and the option
 values of `STUB.nl`'s first line, the counts of rows, of row duals,
 of columns and of column values, the duals, the values, and a last line
-`objno 0 CODE`. The message is `JAOS 0.4.0: optimal; objective -7` or
+`objno 0 CODE`. The message is `JAOS 0.5.0: optimal; objective -7` or
 the like, or the reason the solve did not run. The duals are there for
 a continuous optimum, in the signs `solve --solution` prints; the
 values are there for an optimum, or for a limit or a callback stop that

@@ -272,7 +272,7 @@ answer.
 Returns `JAOS_VERSION_STRING`, the version the library was built as. The
 macros `JAOS_VERSION_MAJOR`, `JAOS_VERSION_MINOR` and `JAOS_VERSION_PATCH`
 hold its three numbers as integer constants, and `JAOS_VERSION_STRING`
-joins them with dots. In release 0.4.0 they are 0, 4 and 0.
+joins them with dots. In release 0.5.0 they are 0, 5 and 0.
 
 **`jaos_build_commit`**\
 `const char *jaos_build_commit(void)`\

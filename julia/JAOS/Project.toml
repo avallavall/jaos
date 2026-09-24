@@ -1,7 +1,7 @@
 name = "JAOS"
 uuid = "3f6d1b0e-9a42-4c5e-8b7f-2c1d5e9a7b40"
 authors = ["Vall <vall@jaos.dev>"]
-version = "0.4.0"
+version = "0.5.0"
 
 [deps]
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
