@@ -3899,7 +3899,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
                 const jaos_progress p = {
                     .iterations = s->iters,
                     .work_units = s->work.units,
-                    .primal_infeasibility = s->infeas_best,
+                    .primal_infeasibility = r < 0 ? 0.0 : s->infeas_best,
                 };
                 if (s->m->cfg.progress_cb(&p, s->m->cfg.progress_user) ==
                     JAOS_CALLBACK_STOP) {

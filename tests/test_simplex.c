@@ -1646,6 +1646,21 @@ static void test_a_watcher_is_asked_and_changes_nothing(void)
     jaos_model_free(seen);
 }
 
+static void test_a_warm_solve_optimal_at_once_reports_a_finite_infeasibility(void)
+{
+    jaos_model *m = log_model();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    watcher w = fresh_watcher(-1);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_progress_callback(m, watch, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    TEST_ASSERT_TRUE(w.calls > 0);
+    TEST_ASSERT_TRUE(w.infeasibility_is_a_number);
+    jaos_model_free(m);
+}
+
 static void test_a_watcher_can_stop_a_solve_and_it_resumes(void)
 {
     watcher w = fresh_watcher(0);
@@ -3586,6 +3601,7 @@ int main(void)
     RUN_TEST(test_a_level_outside_the_enum_is_refused);
     RUN_TEST(test_watching_a_solve_does_not_change_it);
     RUN_TEST(test_a_watcher_is_asked_and_changes_nothing);
+    RUN_TEST(test_a_warm_solve_optimal_at_once_reports_a_finite_infeasibility);
     RUN_TEST(test_a_watcher_can_stop_a_solve_and_it_resumes);
     RUN_TEST(test_configuration_survives_a_load);
     RUN_TEST(test_solve_time_is_reported_and_retired);
