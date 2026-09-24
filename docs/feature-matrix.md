@@ -448,8 +448,10 @@ same LP at the same time and publishes the first to answer (since
 2026-09-10). The barrier factors its normal equations on N threads (since
 2026-09-22, below). Both trees take rounds of open nodes on N threads under
 `--tree-batch` (section 4). The LP row stays ◐ because the simplex runs on
-one thread, and so does the rest of the barrier (forming the normal matrix,
-the solves). The MIP row stays ◐ because the rounds are off by default: no
+one thread. The rest of the barrier (forming the normal matrix, the solves)
+runs on one thread too, by measurement: forming on threads gained nothing
+and the solves take under 2% of its instructions (`bench/measurements/02-311/`).
+The MIP row stays ◐ because the rounds are off by default: no
 round is cheap enough where a node takes a few pivots (`SPECS.md` §5). A
 race of four setups of the tree was measured and refused (`mip-race` in
 `bench/refusals.txt`).

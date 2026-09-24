@@ -109,9 +109,11 @@ a 6 GB cap while the process holds 2.3 GB); 13 of 17 convex MIQPs
 do not finish; 37 of CBLIB's 80 mixed-integer instances stop at the work
 limit.
 
-H7. **Parallel.** A parallel simplex; the rest of the barrier (forming the
-normal matrix, the solves) on threads; a round of nodes cheap enough to be
-the default.
+H7. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
+the default. The rest of the barrier stays on one thread: forming the
+normal matrix on threads was built bit-identically and gained nothing at
+four threads (`barrier-normal-threads`), and the triangular solves take 1.0%
+to 1.6% of the barrier's instructions (`bench/measurements/02-311/`).
 
 ## Milestone I: the rest of SPECS
 

@@ -1,0 +1,60 @@
+ken-11 status optimal work_units 170899096 wall=0.41 
+pds-06 status optimal work_units 10279077979 wall=5.49 
+osa-14 status optimal work_units 190411004 wall=0.38 
+cre-a status optimal work_units 261858659 wall=0.59 
+ken-11 4,021,241,676 (100.0%)  PROGRAM TOTALS
+ken-11 1,577,375,726 (39.23%)  /mnt/c/Users/vall-/Desktop/projectes/jaos/src/barrier.c:jm_barrier.constprop.0
+ken-11 1,249,241,430 (31.07%)  src/barrier.c:jm_barrier.constprop.0 [/home/vall/h7/jaos-cur]
+ken-11   348,994,033 ( 8.68%)  src/barrier.c:form_normal [/home/vall/h7/jaos-cur]
+ken-11   307,186,186 ( 7.64%)  src/chol.c:form_normal
+ken-11   226,401,898 ( 5.63%)  src/lu.c:jm_barrier.constprop.0
+ken-11   209,834,548 ( 5.22%)  src/barrier.c:build_normal_pattern [/home/vall/h7/jaos-cur]
+ken-11   206,720,758 ( 5.14%)  /mnt/c/Users/vall-/Desktop/projectes/jaos/src/chol.c:jm_chol_symbolic_dense.part.0
+ken-11   202,108,835 ( 5.03%)  src/chol.c:jm_chol_symbolic_dense.part.0 [/home/vall/h7/jaos-cur]
+ken-11   114,339,107 ( 2.84%)  src/barrier.c:newton [/home/vall/h7/jaos-cur]
+ken-11   101,692,147 ( 2.53%)  /usr/include/x86_64-linux-gnu/bits/string_fortified.h:jm_barrier.constprop.0
+ken-11    64,568,346 ( 1.61%)  src/barrier.c:solve_normal [/home/vall/h7/jaos-cur]
+ken-11    64,567,472 ( 1.61%)  /mnt/c/Users/vall-/Desktop/projectes/jaos/src/chol.c:jm_chol_solve
+ken-11    64,567,358 ( 1.61%)  src/chol.c:jm_chol_solve [/home/vall/h7/jaos-cur]
+ken-11    41,805,301 ( 1.04%)  src/barrier.c:normal_lane_run [/home/vall/h7/jaos-cur]
+pds-06 77,188,335,189 (100.0%)  PROGRAM TOTALS
+pds-06 69,539,485,028 (90.09%)  /mnt/c/Users/vall-/Desktop/projectes/jaos/src/barrier.c:jm_barrier.constprop.0
+pds-06 49,388,758,562 (63.98%)  src/barrier.c:jm_barrier.constprop.0 [/home/vall/h7/jaos-cur]
+pds-06 41,453,599,213 (53.70%)  src/barrier.c:form_normal [/home/vall/h7/jaos-cur]
+pds-06 41,318,356,073 (53.53%)  src/chol.c:form_normal
+pds-06 17,523,717,820 (22.70%)  src/lu.c:jm_barrier.constprop.0
+pds-06  2,626,766,443 ( 3.40%)  /usr/include/x86_64-linux-gnu/bits/string_fortified.h:jm_barrier.constprop.0
+pds-06    957,747,552 ( 1.24%)  src/barrier.c:newton [/home/vall/h7/jaos-cur]
+pds-06    775,385,668 ( 1.00%)  src/barrier.c:solve_normal [/home/vall/h7/jaos-cur]
+pds-06    775,383,920 ( 1.00%)  /mnt/c/Users/vall-/Desktop/projectes/jaos/src/chol.c:jm_chol_solve
+pds-06    775,383,692 ( 1.00%)  src/chol.c:jm_chol_solve [/home/vall/h7/jaos-cur]
+
+pds-06, self cost, top 12:
+77,188,335,189 (100.0%)  PROGRAM TOTALS
+40,991,652,023 (53.11%)  src/chol.c:form_normal
+16,546,763,073 (21.44%)  src/lu.c:ftran_any.lto_priv.0 [jaos-cur]
+ 3,886,044,265 ( 5.03%)  src/barrier.c:jm_barrier.constprop.0 [jaos-cur]
+ 3,089,269,285 ( 4.00%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 2,542,146,619 ( 3.29%)  src/lu.c:ftran_reach [jaos-cur]
+ 1,525,655,066 ( 1.98%)  src/lu.c:ftran_prefix.lto_priv.0 [jaos-cur]
+ 1,487,038,759 ( 1.93%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+ 1,036,032,567 ( 1.34%)  src/simplex.c:jm_pattern_order.part.0.constprop.0 [jaos-cur]
+   902,798,548 ( 1.17%)  src/simplex.c:pse_refresh [jaos-cur]
+   777,290,922 ( 1.01%)  src/lu.c:lu_update.part.0.constprop.0 [jaos-cur]
+   775,383,692 ( 1.00%)  src/chol.c:jm_chol_solve [jaos-cur]
+   511,578,279 ( 0.66%)  src/lu.c:ftran_u_dense [jaos-cur]
+
+ken-11, self cost, top 12:
+4,021,241,676 (100.0%)  PROGRAM TOTALS
+366,596,765 ( 9.12%)  src/simplex.c:run_primal [jaos-cur]
+346,723,456 ( 8.62%)  src/lu.c:ftran_any.lto_priv.0 [jaos-cur]
+270,267,666 ( 6.72%)  src/chol.c:form_normal
+234,106,363 ( 5.82%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+193,606,463 ( 4.81%)  src/chol.c:jm_chol_symbolic_dense.part.0 [jaos-cur]
+174,554,177 ( 4.34%)  src/lu.c:jm_lu_btran [jaos-cur]
+171,382,722 ( 4.26%)  src/lu.c:btran_u_pattern [jaos-cur]
+167,738,367 ( 4.17%)  src/lu.c:btran_l_pattern [jaos-cur]
+165,460,083 ( 4.11%)  src/barrier.c:jm_barrier.constprop.0 [jaos-cur]
+144,828,351 ( 3.60%)  src/lu.c:jm_lu_factor.part.0.constprop.0 [jaos-cur]
+134,281,964 ( 3.34%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+132,605,354 ( 3.30%)  src/lu.c:lu_update.part.0.constprop.0 [jaos-cur]

@@ -1,0 +1,201 @@
+diff --git a/src/barrier.c b/src/barrier.c
+index 28d928d..a70f5fe 100644
+--- a/src/barrier.c
++++ b/src/barrier.c
+@@ -19,6 +19,11 @@ constexpr double  BARRIER_AUG_EDGE = 1.0;
+ constexpr double  BARRIER_AUG_TRY = 1e8;
+ constexpr double  BARRIER_START_MIN = 1e-6;
+ constexpr int64_t BARRIER_MAX_ITER = 200;
++constexpr int64_t BARRIER_THREADS_MAX = 64;
++#ifndef JAOS_BARRIER_NORMAL_LANE_MIN_VALUE
++#define JAOS_BARRIER_NORMAL_LANE_MIN_VALUE 100000
++#endif
++constexpr int64_t BARRIER_NORMAL_LANE_MIN = JAOS_BARRIER_NORMAL_LANE_MIN_VALUE;
+ #ifndef JAOS_CROSS_PUSH_VALUE
+ #define JAOS_CROSS_PUSH_VALUE 1
+ #endif
+@@ -89,7 +94,7 @@ typedef struct {
+ 
+     int64_t *n_start, *n_index;
+     double  *n_value;
+-    double  *acc;
++    double  *acc, *lacc;
+     int64_t *mark;
+     jm_chol chol;
+ 
+@@ -139,7 +144,7 @@ static void bx_free(bx *s)
+     free(s->dwa);   free(s->dva);   free(s->dzla);  free(s->dzua);
+     free(s->rhs);   free(s->tmp);   free(s->b);
+     free(s->n_start); free(s->n_index); free(s->n_value);
+-    free(s->acc);   free(s->mark);
++    free(s->acc);   free(s->lacc);  free(s->mark);
+     free(s->dense); free(s->dense_idx);
+     free(s->wmat);  free(s->smat);  free(s->tvec);  free(s->tvec2);
+     free(s->qs); free(s->qi); free(s->qv); free(s->qz);
+@@ -735,32 +740,81 @@ static jaos_status drop_dense(bx *s)
+     return build_normal_pattern(s);
+ }
+ 
+-static jaos_status form_normal(bx *s)
++typedef struct {
++    bx *s;
++    double *acc;
++    int64_t r0, r1, terms;
++} normal_lane;
++
++static void normal_lane_run(void *arg)
+ {
++    normal_lane *l = arg;
++    const bx *s = l->s;
+     const jaos_model *m = s->m;
++    double *acc = l->acc;
+     int64_t terms = 0;
+-    for (int64_t i = 0; i < s->nrow; i++) {
++    for (int64_t i = l->r0; i < l->r1; i++) {
+         for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+             const int64_t j = m->ar_index[p];
+             if (s->kind[j] == FIXED || s->dense[j])
+                 continue;
+             const double t = s->arv[p] * s->theta[j];
+             for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+-                s->acc[m->a_index[q]] += t * s->av[q];
++                acc[m->a_index[q]] += t * s->av[q];
+             terms += m->a_start[j + 1] - m->a_start[j];
+         }
+         if (s->kind[s->ncol + i] != FIXED)
+-            s->acc[i] += s->theta[s->ncol + i];
+-        s->acc[i] += s->pin != nullptr ? s->push_delta : s->delta;
++            acc[i] += s->theta[s->ncol + i];
++        acc[i] += s->pin != nullptr ? s->push_delta : s->delta;
+         if (s->dec != nullptr && s->dec[i])
+-            s->acc[i] = 1.0;
++            acc[i] = 1.0;
+         for (int64_t q = s->n_start[i]; q < s->n_start[i + 1]; q++) {
+             const int64_t k = s->n_index[q];
+-            s->n_value[q] = s->acc[k];
+-            s->acc[k] = 0.0;
++            s->n_value[q] = acc[k];
++            acc[k] = 0.0;
+         }
+     }
+-    jm_work_add(&s->work, (terms + s->n_start[s->nrow]) * JM_WORK_NONZERO);
++    l->terms = terms;
++}
++
++static jaos_status form_normal(bx *s)
++{
++    const int64_t nr = s->nrow, nnz = s->n_start[nr];
++    int64_t lanes = jaos_threads_of(s->m);
++    if (lanes > BARRIER_THREADS_MAX)
++        lanes = BARRIER_THREADS_MAX;
++    if (lanes > nr || nnz < BARRIER_NORMAL_LANE_MIN)
++        lanes = 1;
++    if (lanes > 1 && s->lacc == nullptr) {
++        s->lacc = jm_calloc_array((lanes - 1) * nr, sizeof(double));
++        if (s->lacc == nullptr)
++            lanes = 1;
++    }
++    normal_lane lane[BARRIER_THREADS_MAX];
++    int64_t row = 0;
++    for (int64_t t = 0; t < lanes; t++) {
++        while (row < nr && s->n_start[row] < nnz / lanes * t)
++            row++;
++        lane[t] = (normal_lane){ .s = s, .r0 = row,
++                                 .acc = t == 0 ? s->acc
++                                               : s->lacc + (t - 1) * nr };
++    }
++    for (int64_t t = 0; t < lanes; t++)
++        lane[t].r1 = t + 1 < lanes ? lane[t + 1].r0 : nr;
++    jm_thread th[BARRIER_THREADS_MAX];
++    bool started[BARRIER_THREADS_MAX] = {};
++    for (int64_t t = 1; t < lanes; t++)
++        started[t] = jm_thread_start(&th[t], normal_lane_run, &lane[t]);
++    normal_lane_run(&lane[0]);
++    int64_t terms = lane[0].terms;
++    for (int64_t t = 1; t < lanes; t++) {
++        if (started[t])
++            jm_thread_join(&th[t]);
++        else
++            normal_lane_run(&lane[t]);
++        terms += lane[t].terms;
++    }
++    jm_work_add(&s->work, (terms + nnz) * JM_WORK_NONZERO);
+     s->chol.threads = jaos_threads_of(s->m);
+     jaos_status st = jm_chol_numeric(&s->chol, s->n_value, &s->work);
+     if (st != JAOS_OK || s->ndense == 0)
+diff --git a/tests/test_barrier.c b/tests/test_barrier.c
+index 2273539..ac35b5c 100644
+--- a/tests/test_barrier.c
++++ b/tests/test_barrier.c
+@@ -679,6 +679,64 @@ static void test_the_augmented_system_is_bit_identical_across_runs(void)
+     }
+ }
+ 
++static jaos_model *wide_normal_lp(int64_t threads)
++{
++    enum { R = 400, C = 800 };
++    static int64_t as[C + 1], ai[R * C];
++    static double av[R * C], cost[C], cl[C], cu[C], rl[R], ru[R], ax[R];
++    uint64_t seed = 12345;
++    int64_t nz = 0;
++    memset(ax, 0, sizeof ax);
++    for (int64_t j = 0; j < C; j++) {
++        as[j] = nz;
++        for (int64_t i = 0; i < R; i++) {
++            seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
++            if ((seed >> 33) % 100 >= 8)
++                continue;
++            const double v = (double)((seed >> 40) % 19) - 9.0;
++            if (v == 0.0)
++                continue;
++            ai[nz] = i;
++            av[nz++] = v;
++            ax[i] += 5.0 * v;
++        }
++        seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
++        cost[j] = (double)((seed >> 40) % 21) - 10.0;
++        cl[j] = 0.0;
++        cu[j] = 10.0;
++    }
++    as[C] = nz;
++    for (int64_t i = 0; i < R; i++) {
++        rl[i] = ax[i] - 1.0;
++        ru[i] = ax[i] + 1.0;
++    }
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, C, R, JAOS_MINIMIZE, 0.0,
++                                                cost, cl, cu, rl, ru,
++                                                nz, as, ai, av));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads));
++    return m;
++}
++
++static void test_the_normal_matrix_formed_on_threads_is_bit_identical(void)
++{
++    jaos_model *a = wide_normal_lp(1);
++    jaos_model *b = wide_normal_lp(3);
++    TEST_ASSERT_EQUAL_DOUBLE(solve_with(a, JAOS_ALGORITHM_BARRIER),
++                             solve_with(b, JAOS_ALGORITHM_BARRIER));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(a));
++    TEST_ASSERT_EQUAL_INT64(jaos_work_units(a), jaos_work_units(b));
++    TEST_ASSERT_EQUAL_INT64(jaos_iterations(a), jaos_iterations(b));
++    static double xa[800], xb[800], ya[400], yb[400];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(a, xa, nullptr, ya, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(b, xb, nullptr, yb, nullptr));
++    TEST_ASSERT_EQUAL_MEMORY(xa, xb, sizeof xa);
++    TEST_ASSERT_EQUAL_MEMORY(ya, yb, sizeof ya);
++    jaos_model_free(a);
++    jaos_model_free(b);
++}
++
+ int main(void)
+ {
+     UNITY_BEGIN();
+@@ -703,5 +761,6 @@ int main(void)
+     RUN_TEST(test_the_augmented_system_takes_every_bound_kind);
+     RUN_TEST(test_the_augmented_system_takes_a_fixed_column);
+     RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
++    RUN_TEST(test_the_normal_matrix_formed_on_threads_is_bit_identical);
+     return UNITY_END();
+ }
