@@ -54,20 +54,23 @@ a88e99b).
 
 ## The reading
 
-`results/P0.txt`, 2026-09-22 on tree 7311fa3, geometric mean of
+`results/P0.txt`, 2026-09-24 on tree 6c79039, geometric mean of
 per-instance ratios over the instances above a 0.05 s floor:
 
 | | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 2.03x | 0.66x | 1.93x |
-| iterations | 1.14x | 0.45x | 1.06x |
-| time per iteration | 1.78x | 1.48x | 1.83x |
-| JAOS faster on | 1 of 19 | 15 of 20 | 4 of 16 |
-| worst instance | `stocfor3` 18.3x | `truss` 1.9x | `stocfor3` 15.7x |
+| time per solve | 1.91x | 0.57x | 1.54x |
+| iterations | 1.15x | 0.48x | 1.04x |
+| time per iteration | 1.66x | 1.17x | 1.49x |
+| JAOS faster on | 0 of 16 | 14 of 17 | 4 of 14 |
+| worst instance | `stocfor3` 11.2x | `truss` 1.8x | `stocfor3` 10.0x |
 
 `summarise.py` recomputes the same figures from the record. SoPlex's and
 Clp's objectives on `pilot87` miss the reference, so that instance counts
-against HiGHS only.
+against HiGHS only. Since the reading of 2026-09-23 (`P0-2026-09-23.txt`,
+tree 8ba2754: 2.11x, 1.71x against Clp) the dual caches each row's
+violation (2d6f3dc) and the LU no longer searches and shifts long columns
+(764fe58); `stocfor3` fell from 14.5x HiGHS to 11.2x.
 
 The reading before, `results/P0-2026-09-21.txt` on tree 6ae3966, reads
 3.47x, 1.01x and 2.77x per solve in `summarise.py`. The harness's own
@@ -89,13 +92,18 @@ solved counts, the shifted geometric mean of the seconds (a shift of 1 s,
 an unsolved instance counted at the limit), and the ratio of the shifted
 means.
 
-2026-09-23 (evening), tree d6245e0, `results/mip-miplib.txt` and
+2026-09-24, tree 6c79039, `results/mip-miplib.txt` and
 `results/mip-miplib2017.txt`, on an otherwise idle machine:
 
 | set | JAOS | HiGHS | SCIP | JAOS / HiGHS | JAOS / SCIP |
 |---|---|---|---|---|---|
-| MIPLIB 3, 24 instances | 23 solved, 0.93 s | 24, 0.66 s | 24, 0.59 s | 1.17x | 1.22x |
-| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.69 s | 8, 12.28 s | 1.43x | 1.58x |
+| MIPLIB 3, 24 instances | 23 solved, 0.93 s | 24, 0.64 s | 24, 0.57 s | 1.18x | 1.23x |
+| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.60 s | 8, 12.29 s | 1.44x | 1.58x |
+
+The reading of 2026-09-23 (evening, tree d6245e0, kept as
+`results/mip-*-2026-09-23.txt`) read 1.17x and 1.22x, and 1.43x and 1.58x:
+f1deb64's coefficient tightening (0.928x in work on MIPLIB 3) does not
+show in the seconds.
 
 Since d6245e0 a node keeps the fixed column its starting basis holds
 basic, so its LP starts from the parent's basis whole

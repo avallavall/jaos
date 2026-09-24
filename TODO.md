@@ -15,13 +15,12 @@ refuses. Tier 2 is small fixes to the bench tooling and the records.
 Tiers 3 and 4 are the performance gaps, largest first. Tier 5 is the
 features SPECS still lists.
 
-Where JAOS stands. LP (`bench/compare/results/P0.txt`, 2026-09-23, after
-e180c91 and before 764fe58): 2.11x HiGHS's time and 1.71x Clp's over the
-instances above the 0.05 s floor; the iteration counts are close (1.15x
-HiGHS), so the gap is time per iteration (1.83x). MIP (8de9a6c, after
-d6245e0 and before f1deb64): MIPLIB 3 23 of 24 solved in 20 s at 1.17x
-HiGHS's shifted mean time and 1.22x SCIP's; the 2017 set 0 of 30 where
-HiGHS and SCIP solve 8 each. QP: Maros-Meszaros 133 of 138 at 0.40x HiGHS's
+Where JAOS stands (`bench/compare/README.md`, 2026-09-24, tree 6c79039).
+LP: 1.91x HiGHS's time, 1.54x Clp's and 0.57x SoPlex's over the instances
+above the 0.05 s floor; the iteration counts are close (1.15x HiGHS), so
+the gap is time per iteration (1.66x). MIP: MIPLIB 3 23 of 24 solved in
+20 s at 1.18x HiGHS's shifted mean time and 1.23x SCIP's; the 2017 set 0
+of 30 where HiGHS and SCIP solve 8 each (1.44x and 1.58x). QP: Maros-Meszaros 133 of 138 at 0.40x HiGHS's
 shifted mean and 0.72x Clp's. Conic: continuous CBLIB 27 of 29 at 0.13x
 SCIP's (`bench/compare/README.md`).
 
@@ -58,13 +57,10 @@ reading of 02-256.
 
 ## Tier 2: the bench tooling and the records
 
-J6. **The standing numbers are a day old, and one reading was never
-taken.** P0 predates 764fe58's LU change and the MIP comparison predates
-f1deb64. Re-take `make compare COMPARE_ARGS='-t P0'` and
-`bench/compare/run-mip.sh` on both sets on a quiet machine, then update
-`bench/compare/README.md` and the paragraph above. `make plato-nug` has
-never written `bench/results/plato-nug.txt`: take it, or record in its
-README why nug20 and nug30 cannot run.
+J6. **One reading was never taken.** `make plato-nug` has never written
+`bench/results/plato-nug.txt`: in 02-94 `nug08-3rd` took 2.9e11 work
+units and 511 s, and `nug20` and `nug30` were stopped after 68 minutes.
+Take it, or record in its README why nug20 and nug30 cannot run.
 
 ## Tier 3: the largest performance gaps
 
@@ -96,7 +92,8 @@ J=2`, the 2017 gap sum (`bench/measurements/02-298/gapsum.py`) and
 `run-mip.sh`.
 
 J8. **LP: the simplex's time per iteration, and presolve.** `stocfor3`
-still takes 14.5x HiGHS. After e180c91 its callgrind profile is 32.4e9
+still takes 11.2x HiGHS (14.5x before 2d6f3dc and 764fe58). After
+e180c91 its callgrind profile was 32.4e9
 instructions: the entering column's FTRAN 36%, the pricing row's BTRAN
 15%, refactoring 11%, and the two dense copies in `pivot` (`col` from
 `raw`, `tau` from `rho`) 8.5%. Those copies stay as they are unless the U
