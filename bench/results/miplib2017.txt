@@ -31,5 +31,3 @@ p200x1188c   work limit reached rows=1388 cols=2376 shape=ok iters=784165 work=1
 
 30 instances: 0 solved, 30 shape ok, 0 objective ok, 0 checker ok, 0 deterministic, 30 failed
 gate: NOT MET
-
-baseline: NOT COMPARED (no baseline given)

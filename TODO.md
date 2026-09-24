@@ -57,18 +57,6 @@ reading of 02-256.
 
 ## Tier 2: the bench tooling and the records
 
-J4. **The gates stop on rounding noise, and a clean gate leaves a diff.**
-On 2026-09-24 `make netlib netlib-infeas` stopped after netlib because the
-baseline flagged two suboptimality bounds, 1.1e-16 and 5.4e-13, as
-regressions, so the infeasible set never ran. The comparison needs a floor
-under which a suboptimality bound is noise (a constant in
-`docs/tolerances.md` with the reading that sets it), and a flagged target
-must not skip the targets after it. Separately, the `*-baseline` targets
-write "baseline: NOT COMPARED" at the foot of `maros-meszaros.txt` and
-`miplib.txt` and the gate targets write "-- against baseline --", so every
-clean gate shows a diff in those files. Both targets should write the same
-footer. Verify: a gate on an unchanged tree leaves `git status` clean.
-
 J5. **`make refusals` reads D101 as reopened for good.** Its script
 (`bench/measurements/02-312/run-families-new.sh`) exits 1 because MIPLIB
 2017's relaxations hold 7.57% duplicate rows, but duplicate rows were

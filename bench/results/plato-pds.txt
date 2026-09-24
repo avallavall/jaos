@@ -9,5 +9,3 @@ pds-100      optimal    rows=156243 cols=505360 shape=ok iters=800724 work=21186
 
 8 instances: 8 solved, 8 shape ok, 8 checker ok, 8 deterministic, 0 failed  (no reference optimum: objective unverified)
 gate: PASS
-
-baseline: NOT COMPARED (no baseline given)

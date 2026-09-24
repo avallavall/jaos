@@ -25,5 +25,3 @@ stein45      optimal    rows=331 cols=45 shape=ok iters=2813466 work=3806835396 
 
 24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
 gate: PASS
-
-baseline: NOT COMPARED (no baseline given)

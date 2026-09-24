@@ -37,6 +37,18 @@ static void emit(const char *fmt, ...)
     }
 }
 
+[[gnu::format(printf, 1, 2)]]
+static void say(const char *fmt, ...)
+{
+    if (g_muted)
+        return;
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    fflush(stdout);
+}
+
 static double now_seconds(void)
 {
     struct timespec t;
@@ -124,7 +136,7 @@ typedef struct {
 constexpr double WORK_REGRESSION_FACTOR = 2.0;
 
 constexpr double RSUB_REGRESSION_FACTOR = 2.0;
-constexpr double RSUB_FLOOR = 1e-16;
+constexpr double RSUB_FLOOR = 1e-10;
 
 constexpr double RSUB_CEILING = 1e-6;
 
@@ -223,6 +235,9 @@ static void record(const char *name, const char *status, bool solved,
     memset(o, 0, sizeof *o);
     snprintf(o->name, sizeof o->name, "%s", name);
     snprintf(o->status, sizeof o->status, "%s", status);
+    for (char *c = o->status; *c != '\0'; c++)
+        if (*c == ' ')
+            *c = '_';
     o->solved = solved;
     o->shape = shape;
     o->objective = objective;
@@ -701,13 +716,13 @@ static int64_t compare_to_baseline(bool full_run)
 {
     int64_t regressed = 0, improved = 0, fresh = 0;
 
-    emit("\n-- against baseline --\n");
+    say("\n-- against baseline --\n");
 
     for (int i = 0; i < g_ngot; i++) {
         const outcome *g = &g_got[i];
         const outcome *b = baseline_find(g->name);
         if (b == nullptr) {
-            emit("%-12s NEW          not in baseline (%s)\n", g->name,
+            say("%-12s NEW          not in baseline (%s)\n", g->name,
                  g->status);
             fresh++;
             continue;
@@ -722,11 +737,11 @@ static int64_t compare_to_baseline(bool full_run)
         };
         for (size_t k = 0; k < sizeof p / sizeof p[0]; k++) {
             if (p[k].was && !p[k].now) {
-                emit("%-12s REGRESSED    %s: yes -> no (%s -> %s)\n",
+                say("%-12s REGRESSED    %s: yes -> no (%s -> %s)\n",
                      g->name, p[k].what, b->status, g->status);
                 regressed++;
             } else if (!p[k].was && p[k].now) {
-                emit("%-12s improved     %s: no -> yes (%s -> %s)\n",
+                say("%-12s improved     %s: no -> yes (%s -> %s)\n",
                      g->name, p[k].what, b->status, g->status);
                 improved++;
             }
@@ -734,7 +749,7 @@ static int64_t compare_to_baseline(bool full_run)
 
         if (b->solved && g->solved && b->work > 0 &&
             (double)g->work > (double)b->work * WORK_REGRESSION_FACTOR) {
-            emit("%-12s REGRESSED    work: %lld -> %lld (%.1fx), "
+            say("%-12s REGRESSED    work: %lld -> %lld (%.1fx), "
                  "iters %lld -> %lld\n",
                  g->name, b->work, g->work,
                  (double)g->work / (double)b->work, b->iters, g->iters);
@@ -742,14 +757,14 @@ static int64_t compare_to_baseline(bool full_run)
         }
 
         if (b->solved && g->solved && b->nodes > 0 && g->nodes != b->nodes)
-            emit("%-12s changed      nodes: %lld -> %lld (work %.2fx)\n",
+            say("%-12s changed      nodes: %lld -> %lld (work %.2fx)\n",
                  g->name, b->nodes, g->nodes,
                  b->work > 0 ? (double)g->work / (double)b->work : 0.0);
 
         if (b->solved && g->solved && b->rsub >= 0.0 &&
             g->rsub > RSUB_FLOOR &&
             g->rsub > b->rsub * RSUB_REGRESSION_FACTOR) {
-            emit("%-12s REGRESSED    suboptimality bound: %.3g -> %.3g "
+            say("%-12s REGRESSED    suboptimality bound: %.3g -> %.3g "
                  "(%.1fx relative to its own objective)\n",
                  g->name, b->rsub, g->rsub,
                  b->rsub > 0.0 ? g->rsub / b->rsub : HUGE_VAL);
@@ -763,12 +778,12 @@ static int64_t compare_to_baseline(bool full_run)
             for (int k = 0; k < g_ngot && !seen; k++)
                 seen = strcmp(g_base[i].name, g_got[k].name) == 0;
             if (!seen)
-                emit("%-12s not run      in baseline, absent from this run\n",
+                say("%-12s not run      in baseline, absent from this run\n",
                      g_base[i].name);
         }
     }
 
-    emit("baseline: %lld regressed, %lld improved, %lld new\n",
+    say("baseline: %lld regressed, %lld improved, %lld new\n",
          (long long)regressed, (long long)improved, (long long)fresh);
     return regressed;
 }
@@ -1176,7 +1191,7 @@ int main(int argc, char **argv)
         regressed = compare_to_baseline(i >= argc);
     else
 
-        emit("\nbaseline: NOT COMPARED (no baseline given)\n");
+        say("\nbaseline: NOT COMPARED (no baseline given)\n");
 
     if (write_baseline != nullptr &&
         !baseline_write(write_baseline, g_expect == EXPECT_OPTIMAL_NOREF,

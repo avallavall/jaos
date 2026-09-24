@@ -5,5 +5,3 @@ fome21       optimal    rows=67748 cols=211456 shape=ok iters=67042 work=1180716
 
 4 instances: 4 solved, 4 shape ok, 4 checker ok, 4 deterministic, 0 failed  (no reference optimum: objective unverified)
 gate: PASS
-
-baseline: NOT COMPARED (no baseline given)
