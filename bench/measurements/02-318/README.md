@@ -146,12 +146,25 @@ Two readings, both with `push-modes.diff`:
    refuses the pair (duals off by 0.40 and 0.19). The pinned set is
    really wrong.
 
-What is left: an active-set iteration that frees one variable at a time,
-or a barrier that converges further on this model.
+3. `one-free.diff` (on 85ce2c6) frees only the variable whose sign is
+   most wrong for its threshold, one a round, marks one that a zero step
+   pins again so it is not freed twice, and lets the push run past
+   `QP_PUSH_ROUNDS` (`JAOS_ONEFREE=1 JAOS_ROUNDS=1500`). With the push's
+   own duals the wrong signs wander between 727 and 890 over 43 rounds:
+   those duals are the drifted ones of reading 1. With `JAOS_YCLEAN=4` as
+   well the first full step has 275 wrong signs, and they fall to 251 over
+   5 rounds. At round 6 a row stays 1.2e-6 off and none of its variables
+   is pinned, so the push has nothing to release and stops.
+
+What is left: an active-set iteration that frees one variable at a time
+from duals the rows do fix, and that releases a pin somewhere in the
+rows' connected part when a row it cannot fix stays off; or a barrier
+that converges further on this model.
 
 ## Files
 
 - `push-modes.diff` — the switches read above, on 327f7e5
+- `one-free.diff` — the one-at-a-time freeing of reading 3, on 85ce2c6
 - `maros-meszaros-mode6.txt`, `maros-meszaros-mode7.txt` — the whole set under modes 6 and 7
 - `qpread.sh` — the QPLIB and generated-QP readings, HEAD against the working tree
 - `gen-*.txt`, `cqp-*.txt`, `miqp-*.txt` — its records
