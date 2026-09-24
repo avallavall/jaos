@@ -82,13 +82,18 @@ and fits any Python 3.
 A tag `vX.Y.Z` runs `.github/workflows/release.yml`. It checks that the
 tag names the version in `include/jaos.h`, builds the same two wheels and
 the sdist, and tests the Windows wheel on a Windows runner. It then
-attaches all three to a GitHub Release for the tag and uploads them to
-PyPI by trusted publishing, so no token is stored in the repository. The
-upload needs one step on pypi.org, done once by the account that owns the
-project: a publisher for the project `jaos`, owner `avallavall`,
-repository `jaos`, workflow `release.yml` and environment `pypi`. The
-workflow can also be run by hand on an existing tag, which is how a tag
-cut before the workflow existed gets its release. The library in each
+attaches all three to a GitHub Release for the tag, so a user without a
+compiler can `pip install` the wheel from the release's URL. The workflow
+can also be run by hand on an existing tag, which is how a tag cut before
+the workflow existed gets its release.
+
+The upload to PyPI is off since 2026-09-24: JAOS is not registered there.
+The `pypi` job runs only when the repository variable `PYPI_PUBLISH` is
+`true`. To turn it on, the account that will own the project adds a
+publisher on pypi.org (project `jaos`, owner `avallavall`, repository
+`jaos`, workflow `release.yml`, environment `pypi`), then sets the
+variable. The job uploads by trusted publishing, so no token is stored in
+the repository. The library in each
 wheel reports the tag's commit through `jaos_build_commit`: the Linux job
 writes it to a `COMMIT` file for the build container, which may have no
 git.

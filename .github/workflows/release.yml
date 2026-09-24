@@ -120,6 +120,7 @@ jobs:
 
   pypi:
     needs: [wheel-linux, wheel-windows-test, sdist]
+    if: vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-24.04
     environment:
       name: pypi
