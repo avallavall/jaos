@@ -97,9 +97,9 @@ or rows empties the optimizer, and the next solve loads the model anew.
 
 `MOI.LazyConstraintCallback` runs at every integral point of a branch
 and bound and `MOI.UserCutCallback` at every fractional node; both
-submit rows through `jaos_node_add_row`. The C library has no way to
-take a point during the search, so `MOI.HeuristicCallback` is not
-supported. With `mip_pool_size` above 1, `MOI.ResultCount` counts the
+submit rows through `jaos_node_add_row`. `MOI.HeuristicCallback` is not
+supported: a `MOI.HeuristicSolution` may name only some variables, and
+the tree takes a whole point (`JAOS.node_add_solution`). With `mip_pool_size` above 1, `MOI.ResultCount` counts the
 pool and `MOI.VariablePrimal(k)` reads its entry `k`. Variable,
 constraint and model names reach the C model when it is loaded.
 `MOI.RawSolver` returns that `JAOS.Model`, for every call the `JAOS.`

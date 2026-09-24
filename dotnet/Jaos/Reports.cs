@@ -294,5 +294,17 @@ public sealed class NodeEvent
                upper - e.Constant);
     }
 
+    /// <summary>Hands the tree a point, one value per column: before its next node the tree rounds the integer columns and takes the point as its incumbent when it meets every bound and row and beats the incumbent it has. A later call replaces an earlier one.</summary>
+    public void AddSolution(double[] values)
+    {
+        if (ev == IntPtr.Zero)
+            throw new JaosException(Status.InvalidInput, "this node event is over");
+        int st = Native.jaos_node_add_solution(ev, values.Length, Native.Pad(values));
+        if (st != 0)
+            throw new JaosException((Status)st,
+                "the point is not one the node callback may hand: one " +
+                "value per column, every value finite");
+    }
+
     internal void Close() => ev = IntPtr.Zero;
 }

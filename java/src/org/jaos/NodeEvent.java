@@ -69,4 +69,21 @@ public final class NodeEvent {
                     + "out of range, a non-finite coefficient, or bounds that cross");
         }
     }
+
+    /**
+     * Hands the tree a point, one value per column: before its next node the
+     * tree rounds the integer columns and takes the point as its incumbent
+     * when it meets every bound and row and beats the incumbent it has.
+     */
+    public void addSolution(double[] values) {
+        MemorySegment e = live();
+        try (Arena a = Arena.ofConfined()) {
+            int st = (int) Model.call(Native.NODE_ADD_SOLUTION, e, (long) values.length,
+                                      Model.doubles(a, values));
+            if (st != 0)
+                throw new JaosException(Status.values()[st],
+                    "the point is not one the node callback may hand: one value per "
+                    + "column, every value finite");
+        }
+    }
 }

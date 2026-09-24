@@ -775,6 +775,39 @@ public final class Check {
             check(p.solve() == OPTIMAL && near(p.objective(), 4), "and without it the answer is 4");
         }
 
+        try (Problem h = new Problem()) {
+            double[] w = {4, 6, 3, 4, 5, 2}, v = {10, 13, 7, 8, 11, 5};
+            Expr load = new Expr(), worth = new Expr();
+            for (int k = 0; k < 6; k++) {
+                Var x = h.addVar(0, 1, true);
+                load.add(w[k], x);
+                worth.add(v[k], x);
+            }
+            h.addLe(load, 12);
+            h.maximize(worth);
+            Model hm = h.model();
+            hm.setMipCutRounds(0);
+            hm.setMipCoverRounds(0);
+            hm.setMipMirRounds(0);
+            hm.setMipHeuristics(false);
+            hm.setMipNodeLimit(1);
+            List<Boolean> shortRefused = new ArrayList<>();
+            hm.setNodeCallback(ev -> {
+                ev.addSolution(d(1, 0, 1, 0, 1, 0));
+                try {
+                    ev.addSolution(d(1, 0, 1));
+                } catch (JaosException e) {
+                    shortRefused.add(true);
+                }
+                return CallbackAction.CONTINUE;
+            });
+            h.solve();
+            MipReport rep = hm.mipResult();
+            check(h.status() == SolveStatus.NODE_LIMIT && rep.hasIncumbent()
+                  && near(rep.incumbent(), 28) && !shortRefused.isEmpty(),
+                  "the node callback hands the tree a solution it keeps as the incumbent");
+        }
+
         try (Problem q = new Problem()) {
             Var a = q.addVar(0, 1, true), b = q.addVar(0, 1, true), c = q.addVar(0, 1, true);
             q.addLe(new Expr().add(2, a).add(2, b).add(2, c), 3);

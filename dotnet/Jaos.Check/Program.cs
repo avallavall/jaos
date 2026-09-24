@@ -1332,6 +1332,41 @@ using (var p = new Problem())
     Check(Near(p.Objective, 4.0), "and without it the search reaches 4");
 }
 
+using (var h = new Problem())
+{
+    double[] w = { 4, 6, 3, 4, 5, 2 }, v = { 10, 13, 7, 8, 11, 5 };
+    var xs = new Var[6];
+    for (int k = 0; k < 6; k++)
+        xs[k] = h.AddVar(0, 1, true, $"x{k}");
+    var load = 0.0 * xs[0];
+    var worth = 0.0 * xs[0];
+    for (int k = 0; k < 6; k++)
+    {
+        load = load + w[k] * xs[k];
+        worth = worth + v[k] * xs[k];
+    }
+    h.AddLe(load, 12);
+    h.Maximize(worth);
+    var hm = h.Model;
+    hm.SetMipCutRounds(0);
+    hm.SetMipCoverRounds(0);
+    hm.SetMipMirRounds(0);
+    hm.SetMipHeuristics(false);
+    hm.SetMipNodeLimit(1);
+    bool shortRefused = false;
+    hm.SetNodeCallback(ev =>
+    {
+        ev.AddSolution(new double[] { 1, 0, 1, 0, 1, 0 });
+        shortRefused = Throws<JaosException>(() => ev.AddSolution(new double[] { 1, 0, 1 }));
+        return CallbackAction.Continue;
+    });
+    h.Solve();
+    var rep = hm.MipResult();
+    Check(h.Status == SolveStatus.NodeLimit && rep.HasIncumbent &&
+          Near(rep.Incumbent, 28.0) && shortRefused,
+          "the node callback hands the tree a solution it keeps as the incumbent");
+}
+
 using (var q = new Problem())
 {
     var a = q.AddVar(0, 1, true, "a");

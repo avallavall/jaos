@@ -1,6 +1,6 @@
 # The C API
 
-`include/jaos.h` is the public header of JAOS. It declares 200 functions,
+`include/jaos.h` is the public header of JAOS. It declares 201 functions,
 the enums and structs they use, and the version macros. This page describes
 every function in the order the header declares them. Each statement comes
 from the code in `src/`. `docs/cli.md` shows the same calls behind the
@@ -1470,6 +1470,20 @@ call fails when `ev` or its `internal` field is null, an index is out of
 range, a value is not finite, or a bound is NaN. It also fails when `lower`
 is above `upper`, `lower` is positive infinity, or `upper` is negative
 infinity.
+
+**`jaos_node_add_solution`**\
+`jaos_status jaos_node_add_solution(jaos_node *ev, int64_t num_col, const double *col_value)`\
+Hands the tree a point of the caller's from inside a node callback, one
+value per column. Before its next node, the tree rounds the integer columns
+to the nearest integer and checks the point against every bound, row,
+indicator row and SOS set, as it checks a MIP start. When the point passes
+and beats the incumbent, it becomes the incumbent: the incumbent callback
+sees it, and the point joins the solution pool. A point that fails is
+dropped, and the log says so. A later call in the same callback replaces an
+earlier one. When the tree stops at a limit or is interrupted, a point handed
+at its last node is still judged. The call fails when `ev` or its `internal`
+field is null, `num_col` is not the model's column count, or a value is not
+finite.
 
 ## Solving and reading the answer
 

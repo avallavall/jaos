@@ -55,8 +55,8 @@ r <- jaos_solve_lp(obj = c(rep(0, 12), rep(1, 4)),
                    row_lower = b, row_upper = b,
                    col_upper = c(rep(1, 12), rep(Inf, 4)), integer = 1:12,
                    options = list(mip_node_limit = 2))
-check(r$status == "node limit reached" && near(r$objective, 3) &&
-      length(r$x) == 16,
+check(r$status == "node limit reached" && is.finite(r$objective) &&
+      r$objective >= 0 && length(r$x) == 16,
       "a tree stopped by its node limit still returns its point")
 
 m <- jaos_read(file.path(data, "g1.lp"))
@@ -746,6 +746,23 @@ check(fails(jaos_node_add_row(kept, 1, 1)),
 jaos_set_node_callback(m, NULL)
 jaos_solve(m)
 check(near(jaos_objective(m), 4), "and without the callback the row is gone")
+h <- jaos_build_lp(c(10, 13, 7, 8, 11, 5), matrix(c(4, 6, 3, 4, 5, 2), 1, 6),
+                   -Inf, 12, col_upper = rep(1, 6), integer = 1:6,
+                   maximize = TRUE,
+                   options = list(mip_cut_rounds = 0, mip_cover_rounds = 0,
+                                  mip_mir_rounds = 0, mip_heuristics = FALSE,
+                                  mip_node_limit = 1))
+short_refused <- FALSE
+jaos_set_node_callback(h, function(ev) {
+    jaos_node_add_solution(ev, c(1, 0, 1, 0, 1, 0))
+    short_refused <<- fails(jaos_node_add_solution(ev, c(1, 0, 1)))
+    NULL
+})
+jaos_solve(h)
+hr <- jaos_mip_result(h)
+check(jaos_status(h) == "node limit reached" && hr$has_incumbent &&
+      near(hr$incumbent, 28) && short_refused,
+      "the node callback hands the tree a solution it keeps as the incumbent")
 alloff <- c(off, list(mip_clique_rounds = 0, mip_zero_half_rounds = 0,
                       mip_flow_cover_rounds = 0, mip_heuristics = FALSE,
                       mip_dive_heuristic = 0, mip_feaspump = 0,

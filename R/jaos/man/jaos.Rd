@@ -69,6 +69,7 @@
 \alias{jaos_set_incumbent_callback}
 \alias{jaos_set_node_callback}
 \alias{jaos_node_add_row}
+\alias{jaos_node_add_solution}
 \alias{jaos_solve}
 \alias{jaos_status}
 \alias{jaos_objective}
@@ -209,6 +210,7 @@ jaos_set_progress_callback(model, fn)
 jaos_set_incumbent_callback(model, fn)
 jaos_set_node_callback(model, fn)
 jaos_node_add_row(event, cols, values, lower = -Inf, upper = Inf)
+jaos_node_add_solution(event, values)
 
 jaos_solve(model)
 jaos_status(model)
@@ -316,8 +318,11 @@ jaos_solve_lp(obj, A, row_lower, row_upper,
   of each entry of \code{Q}: one triplet per diagonal entry and one per
   off-diagonal pair, in \eqn{\frac{1}{2} x' Q x}{1/2 x'Qx}.}
 \item{row, col}{one 1-based row index and one 1-based column index.}
-\item{values}{the value of each entry of \code{Q}, or of each coefficient
-  of the row \code{jaos_node_add_row} adds.}
+\item{values}{the value of each entry of \code{Q}, of each coefficient
+  of the row \code{jaos_node_add_row} adds, or of each column in the point
+  \code{jaos_node_add_solution} hands the tree, which the tree rounds and
+  keeps as its incumbent before its next node when the point meets every
+  bound and row and beats the incumbent it has.}
 \item{lower, upper}{bounds: one per index for the bound setters, one per
   new column or row for \code{jaos_add_cols} and \code{jaos_add_rows}, and
   the two sides of the row \code{jaos_node_add_row} adds. One value is

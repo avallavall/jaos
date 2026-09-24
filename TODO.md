@@ -136,8 +136,6 @@ zero-half and lifted cover cuts, RINS and local branching, restarts, bound
 propagation and reduced-cost fixing, probing and clique fixing. Each needs a
 reading that lands it on (H2's attribution first).
 
-I5. A steering callback that hands the tree a solution of the caller's.
-
 I6. The feasibility relaxation's proof that the widest box is empty.
 
 I7. The certified bound on suboptimality alone cannot separate a wrong

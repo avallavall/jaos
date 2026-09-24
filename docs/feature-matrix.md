@@ -874,19 +874,20 @@ Java is covered by JSCIPOpt, which the SCIP team maintains.
 | Set primal and dual tolerances | ● | ● | ● | ● | ● | ● | ○ |
 | Logging with verbosity levels | ● | ● | ● | ● | ● | ● | ● |
 | Progress callback that can stop the solve | ● | ● | ◐ | ● | ● | ● | ● |
-| Callbacks that steer the search | ◐ | ◐ | ○ | ○ | ● | ● | ○ |
+| Callbacks that steer the search | ● | ◐ | ○ | ○ | ● | ● | ○ |
 | Choose the algorithm | ● | ● | ● | ● | ● | ● | — |
 | Sensitivity analysis and ranging | ● | ● | ○ | ● | ○ | ● | ○ |
 | Options as name-value strings and a parameter file | ● | ● | ● | ◐ | ● | ● | ◐ |
 | Thread count | ● | ● | ○ | ○ | ● | ● | ◐ |
 
-**The steering row reached ◐ on 2026-09-08.** One node callback
-(`jaos_set_node_callback`) sees every node's point once solved and cut,
-and every point a heuristic would make an incumbent; it adds rows that
-hold for every solution (user cuts, lazy constraints, the point rejected
-when a row cuts it) and names the column to branch on. What keeps it
-from ●: no callback hands the tree a solution, which is the gap `SPECS.md`
-§9 names. JAOS also has no callback at the presolve or inside the LP.
+**The steering row reached ◐ on 2026-09-08 and ● on 2026-09-24.** One
+node callback (`jaos_set_node_callback`) sees every node's point once
+solved and cut, and every point a heuristic would make an incumbent; it
+adds rows that hold for every solution (user cuts, lazy constraints, the
+point rejected when a row cuts it), names the column to branch on, and
+since 2026-09-24 hands the tree a solution of the caller's
+(`jaos_node_add_solution`). JAOS has no callback at the presolve or inside
+the LP, which SCIP and Gurobi also offer.
 HiGHS's cell reads ◐ for the opposite gap: its user-solution callback
 (`kCallbackMipUserSolution`) hands the tree a solution, and none of its
 callback types adds a user cut or a lazy constraint or picks the branching

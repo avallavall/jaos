@@ -1550,6 +1550,20 @@ static SEXP r_node_add_row(SEXP ptr, SEXP idx, SEXP val, SEXP lower,
     return R_NilValue;
 }
 
+static SEXP r_node_add_solution(SEXP ptr, SEXP val)
+{
+    if (TYPEOF(ptr) != EXTPTRSXP ||
+        R_ExternalPtrTag(ptr) != install("jaos_node") ||
+        R_ExternalPtrAddr(ptr) == NULL)
+        error("this node event is over");
+    const int64_t n = XLENGTH(val);
+    if (jaos_node_add_solution(R_ExternalPtrAddr(ptr), n,
+                               doubles(val)) != JAOS_OK)
+        error("the point is not one the node callback may hand: one value "
+              "per column, every value finite");
+    return R_NilValue;
+}
+
 static SEXP r_set_log(SEXP p, SEXP level, SEXP fn)
 {
     jaos_model *m = model_of(p);
@@ -1678,6 +1692,7 @@ static const R_CallMethodDef calls[] = {
     CALL(r_mip_pool, 1),
     CALL(r_set_mip_start, 2),
     CALL(r_node_add_row, 5),
+    CALL(r_node_add_solution, 2),
     CALL(r_set_log, 3),
     CALL(r_set_callback, 3),
     {NULL, NULL, 0},

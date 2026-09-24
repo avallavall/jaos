@@ -563,6 +563,10 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_node_add_row(jaos_node *ev, int64_t nnz
                                              const double *value,
                                              double lower, double upper);
 
+JAOS_NODISCARD JAOS_API jaos_status jaos_node_add_solution(jaos_node *ev,
+                                                  int64_t num_col,
+                                                  const double *col_value);
+
 JAOS_NODISCARD JAOS_API jaos_status jaos_solve(jaos_model *m);
 
 JAOS_NODISCARD JAOS_API jaos_solve_status jaos_status_of(const jaos_model *m);

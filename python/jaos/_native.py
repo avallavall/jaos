@@ -501,6 +501,22 @@ class NodeEvent:
                             "range, a non-finite coefficient, or bounds "
                             "that cross")
 
+    def add_solution(self, values):
+        """Hands the tree a point, one value per column. Before its next
+        node the tree rounds the integer columns and takes the point as
+        its incumbent when it meets every bound and row and beats the
+        incumbent it has; a later call replaces an earlier one."""
+        if self._c is None:
+            raise JaosError(Status.ERR_INVALID_INPUT,
+                            "this node event is over")
+        n = len(values)
+        buf = (_D * max(n, 1))(*[float(v) for v in values])
+        rc = _lib.jaos_node_add_solution(ctypes.byref(self._c), n, buf)
+        if rc != Status.OK:
+            raise JaosError(Status(rc), "the point is not one the node "
+                            "callback may hand: one value per column, "
+                            "every value finite")
+
 def _sig(name, restype, *argtypes):
     fn = getattr(_lib, name)
     fn.restype = restype
@@ -864,6 +880,7 @@ _sig("jaos_set_incumbent_callback", ctypes.c_int, _VP, _INCUMBENT_FN, _VP)
 _sig("jaos_set_node_callback", ctypes.c_int, _VP, _NODE_FN, _VP)
 
 _sig("jaos_node_add_row", ctypes.c_int, _P(_Node), _I64, _P(_I64), _P(_D), _D, _D)
+_sig("jaos_node_add_solution", ctypes.c_int, _P(_Node), _I64, _P(_D))
 
 _sig("jaos_solve", ctypes.c_int, _VP)
 

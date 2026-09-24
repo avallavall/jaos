@@ -311,6 +311,11 @@ jaos_node_add_row <- function(event, cols, values, lower = -Inf, upper = Inf)
                     get0(".event", envir = event, inherits = FALSE),
                     cols - 1, values, as.numeric(lower), as.numeric(upper)))
 
+jaos_node_add_solution <- function(event, values)
+    invisible(.Call(r_node_add_solution,
+                    get0(".event", envir = event, inherits = FALSE),
+                    as.numeric(values)))
+
 jaos_solve <- function(model) {
     .Call(r_solve, model)
     invisible(jaos_status(model))

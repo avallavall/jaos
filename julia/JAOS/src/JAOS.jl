@@ -1347,6 +1347,26 @@ function node_add_row(ev::NodeEvent, index::AbstractVector{<:Integer},
     return
 end
 
+"""
+    node_add_solution(ev, values)
+
+Hands the tree a point, one value per column, from inside a node callback.
+Before its next node the tree rounds the integer columns and takes the
+point as its incumbent when it meets every bound and row and beats the
+incumbent it has; a later call replaces an earlier one.
+"""
+function node_add_solution(ev::NodeEvent, values::AbstractVector{<:Real})
+    ev.ptr == C_NULL && throw(JaosError(1, "this node event is over"))
+    st = ccall((:jaos_node_add_solution, libjaos), Cint,
+               (Ptr{_Node}, Int64, Ptr{Cdouble}),
+               ev.ptr, length(values),
+               isempty(values) ? [0.0] : Vector{Float64}(values))
+    st == 0 || throw(JaosError(st, "the node callback may not hand this " *
+                               "point: one value per column, every value " *
+                               "finite"))
+    return
+end
+
 _values(p::Ptr{Cdouble}, n::Integer) = n == 0 ? Float64[] : copy(unsafe_wrap(Array, p, n))
 
 function _act(f::F, m::Model) where {F}

@@ -244,6 +244,8 @@ final class Native {
     static final MethodHandle SET_NODE_CALLBACK = fn("jaos_set_node_callback", JAVA_INT, ADDRESS, ADDRESS, ADDRESS);
     static final MethodHandle NODE_ADD_ROW = fn("jaos_node_add_row", JAVA_INT, ADDRESS, JAVA_LONG,
         ADDRESS, ADDRESS, JAVA_DOUBLE, JAVA_DOUBLE);
+    static final MethodHandle NODE_ADD_SOLUTION = fn("jaos_node_add_solution", JAVA_INT, ADDRESS,
+        JAVA_LONG, ADDRESS);
 
     static final MethodHandle SOLVE = fn("jaos_solve", JAVA_INT, ADDRESS);
     static final MethodHandle STATUS_OF = fn("jaos_status_of", JAVA_INT, ADDRESS);

@@ -1901,6 +1901,36 @@ class TestBranchAndBound(unittest.TestCase):
         q.set_node_callback(lambda ev: jaos.CallbackAction.STOP)
         self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
 
+    def test_the_node_callback_hands_the_tree_a_solution(self):
+        p = jaos.Problem()
+        w = [4, 6, 3, 4, 5, 2]
+        v = [10, 13, 7, 8, 11, 5]
+        xs = [p.add_var(binary=True, name=f"x{k}") for k in range(6)]
+        p.add(sum(w[k] * xs[k] for k in range(6)) <= 12)
+        p.maximize(sum(v[k] * xs[k] for k in range(6)))
+        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+        p.set_mip_heuristics(False).set_mip_node_limit(1)
+        good = [1, 0, 1, 0, 1, 0]
+        errors = []
+
+        def hand(ev):
+            ev.hand({xs[k]: good[k] for k in range(6)})
+            try:
+                ev._ev.add_solution([1.0] * 5)
+            except jaos.JaosError:
+                errors.append("short")
+            try:
+                ev.hand({xs[0]: 1.0})
+            except ValueError:
+                errors.append("partial")
+        p.set_node_callback(hand)
+        self.assertIs(p.solve(), jaos.SolveStatus.NODE_LIMIT)
+        rep = p.mip_report()
+        self.assertTrue(rep.has_incumbent)
+        self.assertAlmostEqual(rep.incumbent, 28.0, places=9)
+        self.assertIn("short", errors)
+        self.assertIn("partial", errors)
+
     def test_an_indicator_row_holds_only_while_its_variable_says_so(self):
         p = jaos.Problem()
         x = p.add_var(ub=10, name="x")

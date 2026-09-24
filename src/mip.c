@@ -3365,11 +3365,14 @@ typedef struct {
     int64_t n, nnz;
     int64_t cap_start, cap_idx, cap_val, cap_lo, cap_up;
     int64_t nc;
+    double *sol;
+    int64_t cap_sol;
+    bool has_sol;
 } rowbuf;
 
 typedef struct {
     rowbuf rb;
-    int64_t fired, rows, rejected, steered;
+    int64_t fired, rows, rejected, steered, handed, refused;
 } steer;
 
 enum { STEER_ERR = -1, STEER_OK = 0, STEER_REJECT = 1, STEER_STOP = 2 };
@@ -3408,10 +3411,29 @@ jaos_status jaos_node_add_row(jaos_node *ev, int64_t nnz, const int64_t *index,
     return JAOS_OK;
 }
 
+jaos_status jaos_node_add_solution(jaos_node *ev, int64_t num_col,
+                                   const double *col_value)
+{
+    if (ev == nullptr || ev->internal == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    rowbuf *rb = ev->internal;
+    if (num_col != rb->nc || (num_col > 0 && col_value == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t j = 0; j < num_col; j++)
+        if (!isfinite(col_value[j]))
+            return JAOS_ERR_INVALID_INPUT;
+    if (!JM_GROW(rb->sol, rb->cap_sol, num_col > 0 ? num_col : 1))
+        return JAOS_ERR_OUT_OF_MEMORY;
+    if (num_col > 0)
+        memcpy(rb->sol, col_value, (size_t)num_col * sizeof *rb->sol);
+    rb->has_sol = true;
+    return JAOS_OK;
+}
+
 static void steer_free(steer *sw)
 {
     free(sw->rb.start); free(sw->rb.idx); free(sw->rb.val);
-    free(sw->rb.lo); free(sw->rb.up);
+    free(sw->rb.lo); free(sw->rb.up); free(sw->rb.sol);
     memset(&sw->rb, 0, sizeof sw->rb);
 }
 
@@ -3748,6 +3770,39 @@ static void spool_offer(spool *sp, const double *x, double key, double obj)
         memcpy(sp->x + pos * nc, x, (size_t)nc * sizeof *x);
     if (sp->n < sp->cap)
         sp->n++;
+}
+
+static int steer_take(const jaos_model *m, steer *sw, const jaos_model *lp,
+                      incumbent *inc, spool *sp, double cut_key, double sigma,
+                      int64_t node, double bound, double *x2, double *ra,
+                      int64_t *work)
+{
+    if (!sw->rb.has_sol)
+        return STEER_OK;
+    sw->rb.has_sol = false;
+    double hobj = 0.0;
+    *work += m->num_nz + m->num_col + m->num_row;
+    if (!rounded_point(m, sw->rb.sol, x2, ra, &hobj)) {
+        sw->refused++;
+        jm_log(m, JAOS_LOG_PROGRESS,
+               "node %lld: the point the callback handed is not a feasible "
+               "integer point of this model, and is not taken",
+               (long long)node);
+        return STEER_REJECT;
+    }
+    const double hkey = sigma * hobj;
+    spool_offer(sp, x2, hkey, hobj);
+    if (!(hkey < cut_key && (!inc->have || hkey < inc->key)))
+        return STEER_OK;
+    if (!incumbent_take_point(inc, lp, m, x2, ra, hobj, hkey))
+        return STEER_ERR;
+    sw->handed++;
+    jm_log(m, JAOS_LOG_PROGRESS,
+           "node %lld: incumbent %.17g from the point the callback handed",
+           (long long)node, hobj);
+    if (!incumbent_announce(m, inc, node, bound, true))
+        return STEER_STOP;
+    return STEER_OK;
 }
 
 static const char *dive_child_str(int rule)
@@ -4269,6 +4324,19 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
 
     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
         phase_to(&ph, work, PH_OTHER);
+        if (sw.rb.has_sol) {
+            const double ok = open_bound(&heap, &kh, dstack, dstack_n);
+            const int sc = steer_take(m, &sw, lp, &inc, &sp, cut_key, sigma,
+                                      nodes,
+                                      sigma * (ok < best_bound ? ok : best_bound),
+                                      x2, ra, &work);
+            if (sc == STEER_ERR)
+                goto done;
+            if (sc == STEER_STOP) {
+                outcome = JAOS_SOLVE_INTERRUPTED;
+                break;
+            }
+        }
 
         if (nodes > 0) {
             node_free(cur);
@@ -5646,6 +5714,17 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
     }
 
+    if (sw.rb.has_sol &&
+        (outcome == JAOS_SOLVE_WORK_LIMIT || outcome == JAOS_SOLVE_TIME_LIMIT ||
+         outcome == JAOS_SOLVE_NODE_LIMIT ||
+         outcome == JAOS_SOLVE_INTERRUPTED)) {
+        const double ok = open_bound(&heap, &kh, dstack, dstack_n);
+        if (steer_take(m, &sw, lp, &inc, &sp, cut_key, sigma, nodes,
+                       sigma * (ok < best_bound ? ok : best_bound), x2, ra,
+                       &work) == STEER_ERR)
+            goto done;
+    }
+
     if (rs != nullptr && rs->asked) {
         rs->work = work;
         rs->iters = iters;
@@ -5706,7 +5785,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
            "%lld probes, "
            "%lld of them capped, %lld columns fixed by cliques and %lld "
            "nodes cut by them, the callback fired %lld times, added %lld "
-           "rows, rejected %lld points and chose %lld branches, %lld "
+           "rows, rejected %lld points, chose %lld branches, handed %lld "
+           "incumbents and %lld points refused, %lld "
            "conflicts over %lld binaries, %lld branchings widened to an orbit, "
            "%lld columns fixed by orbits and %lld nodes the relaxation "
            "failed on set aside with their bound",
@@ -5718,7 +5798,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
            (long long)probes, (long long)capped, (long long)clique_fixed,
            (long long)clique_cut_nodes, (long long)sw.fired,
            (long long)sw.rows, (long long)sw.rejected,
-           (long long)sw.steered, (long long)conflicts,
+           (long long)sw.steered, (long long)sw.handed,
+           (long long)sw.refused, (long long)conflicts,
            (long long)conflict_lits, (long long)orbital_branches,
            (long long)orbital_fixed, (long long)parked);
 

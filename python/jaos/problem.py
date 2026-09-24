@@ -1241,9 +1241,10 @@ class Problem:
         """Like Model.set_node_callback, with `event.values` as a dict
         from variable to value, `event.add(constraint)` taking a
         constraint built by comparison (it must hold for every solution
-        of the problem), `event.branch_on(var)` naming the column to
-        branch on, and `event.branch_var` the solver's own choice or
-        None."""
+        of the problem), `event.hand(point)` handing the tree a dict
+        from every variable to its value as a candidate incumbent,
+        `event.branch_on(var)` naming the column to branch on, and
+        `event.branch_var` the solver's own choice or None."""
         if fn is None:
             self._m.set_node_callback(None)
             return self
@@ -1278,6 +1279,15 @@ class Problem:
                         index.append(v._i)
                         value.append(c)
                 self._ev.add_row(index, value, cons._lo, cons._hi)
+
+            def hand(self, point):
+                values = []
+                for v in problem._vars:
+                    if v not in point:
+                        raise ValueError(f"hand() wants a value for every "
+                                         f"variable, {v.name} has none")
+                    values.append(point[v])
+                self._ev.add_solution(values)
 
             def branch_on(self, var):
                 if var is None:

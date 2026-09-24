@@ -1139,6 +1139,85 @@ static void test_a_lazy_row_from_the_node_callback_rejects_the_point(void)
     jaos_model_free(m);
 }
 
+typedef struct {
+    int calls;
+    double give[6];
+    double last[6];
+    jaos_status add_status;
+    bool bad_input_taken;
+} hand_seen;
+
+static jaos_callback_action hand_incumbent(const jaos_incumbent *inc,
+                                           void *user)
+{
+    hand_seen *s = user;
+    memcpy(s->last, inc->col_value, sizeof s->last);
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static jaos_callback_action hand_point(jaos_node *ev, void *user)
+{
+    hand_seen *s = user;
+    s->calls++;
+    if (s->calls == 1) {
+        const double nan6[6] = {NAN, 0.0, 0.0, 0.0, 0.0, 0.0};
+        if (jaos_node_add_solution(ev, 5, s->give) != JAOS_ERR_INVALID_INPUT ||
+            jaos_node_add_solution(nullptr, 6, s->give) !=
+                JAOS_ERR_INVALID_INPUT ||
+            jaos_node_add_solution(ev, 6, nan6) != JAOS_ERR_INVALID_INPUT)
+            s->bad_input_taken = true;
+        s->add_status = jaos_node_add_solution(ev, 6, s->give);
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_the_node_callback_hands_the_tree_a_solution(void)
+{
+    const double c[6] = {-10.0, -13.0, -7.0, -8.0, -11.0, -5.0};
+    const double cl[6] = {0, 0, 0, 0, 0, 0}, cu[6] = {1, 1, 1, 1, 1, 1};
+    const double rl[1] = {-INFINITY}, ru[1] = {12.0};
+    const int64_t as[7] = {0, 1, 2, 3, 4, 5, 6}, ai[6] = {0, 0, 0, 0, 0, 0};
+    const double av[6] = {4.0, 6.0, 3.0, 4.0, 5.0, 2.0};
+    for (int arm = 0; arm < 2; arm++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 6, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         6, as, ai, av));
+        for (int64_t j = 0; j < 6; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+        hand_seen seen = { .add_status = JAOS_ERR_INVALID_INPUT };
+        const double good[6] = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+        const double heavy[6] = {1.0, 1.0, 1.0, 0.0, 0.0, 0.0};
+        memcpy(seen.give, arm == 0 ? good : heavy, sizeof seen.give);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_node_callback(m, hand_point, &seen));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_incumbent_callback(m, hand_incumbent, &seen));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+        TEST_ASSERT_TRUE(seen.calls >= 1);
+        TEST_ASSERT_FALSE(seen.bad_input_taken);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, seen.add_status);
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (arm == 0) {
+            TEST_ASSERT_TRUE(rep.has_incumbent);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, -28.0, rep.incumbent);
+            for (int64_t j = 0; j < 6; j++)
+                TEST_ASSERT_DOUBLE_WITHIN(1e-9, good[j], seen.last[j]);
+        } else {
+            TEST_ASSERT_TRUE(!rep.has_incumbent || rep.incumbent > -29.5);
+        }
+        jaos_model_free(m);
+    }
+}
+
 static jaos_callback_action cover_cut(jaos_node *ev, void *user)
 {
     node_seen *s = user;
@@ -4530,6 +4609,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
     RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
+    RUN_TEST(test_the_node_callback_hands_the_tree_a_solution);
     RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);
     RUN_TEST(test_the_node_callback_chooses_the_branching_column);
     RUN_TEST(test_both_branching_rules_reach_the_same_optimum);

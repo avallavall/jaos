@@ -358,6 +358,33 @@ function test_the_callbacks_see_the_solve_and_can_stop_it()
     JAOS.solve(p)
     @test JAOS.objective(p) ≈ 4.0
 
+    h = _lp([10, 13, 7, 8, 11, 5], zeros(6), ones(6), [-Inf], [12],
+            [0, 1, 2, 3, 4, 5, 6], zeros(Int, 6), [4, 6, 3, 4, 5, 2]; sense = :max)
+    for j in 0:5
+        JAOS.set_col_integer(h, j)
+    end
+    JAOS.set_mip_cut_rounds(h, 0)
+    JAOS.set_mip_cover_rounds(h, 0)
+    JAOS.set_mip_mir_rounds(h, 0)
+    JAOS.set_mip_heuristics(h, false)
+    JAOS.set_mip_node_limit(h, 1)
+    short_refused = Ref(false)
+    JAOS.set_node_callback(h, function (ev)
+        JAOS.node_add_solution(ev, [1.0, 0.0, 1.0, 0.0, 1.0, 0.0])
+        try
+            JAOS.node_add_solution(ev, [1.0, 0.0, 1.0])
+        catch e
+            short_refused[] = e isa JAOS.JaosError
+        end
+        return nothing
+    end)
+    JAOS.solve(h)
+    @test JAOS.status(h) == 8
+    rep = JAOS.mip_report(h)
+    @test rep.has_incumbent
+    @test rep.incumbent ≈ 28.0
+    @test short_refused[]
+
     s = _lp([3, 1, 1], zeros(3), ones(3), [-Inf, -Inf], [3, 3], [0, 2, 3, 4],
             [0, 1, 0, 1], [2, 2, 2, 2]; sense = :max)
     for j in 0:2

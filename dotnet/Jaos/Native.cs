@@ -386,6 +386,7 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_set_incumbent_callback(ModelHandle m, IncumbentFn? cb, IntPtr user);
     [DllImport(Lib)] internal static extern int jaos_set_node_callback(ModelHandle m, NodeFn? cb, IntPtr user);
     [DllImport(Lib)] internal static extern int jaos_node_add_row(IntPtr node, long nnz, long[] index, double[] value, double lower, double upper);
+    [DllImport(Lib)] internal static extern int jaos_node_add_solution(IntPtr node, long numCol, double[] colValue);
 
     [DllImport(Lib)] internal static extern int jaos_set_mip_start(ModelHandle m, double[]? x);
     [DllImport(Lib)] internal static extern int jaos_set_mip_cutoff(ModelHandle m, double cutoff);
