@@ -49,12 +49,13 @@ FTRAN averages 3.3% dense and runs hyper-sparse 90% of the time. The
 steepest-edge `tau` does: 17% dense on average, split between 7365 solves
 at 10% or more and 4705 under 1%, and `rho`'s own count does not tell
 them apart (with `rho` under 1% dense, 47% of the `tau` still reach 10%).
-`fit2p` (4.6x HiGHS's time at 0.95x its iterations) spends 55% of its
-instructions refactoring: `compact_pivot_row` searches each column of the
-pivot row from its start for the pivot row's entry (31%), and the column
-singleton step moves each column's tail to drop that entry (20%), both
-long on the basis's few 3000-entry columns. A fix must keep each column's
-order, since that order decides the pivot ties. On `d2q06c` and `dfl001`
+`fit2p` (4.6x HiGHS's time at 0.95x its iterations) spent 55% of its
+instructions refactoring, searching and shifting its few 3000-entry
+columns once per pivot. Since 2026-09-24 a column singleton step leaves
+the dead entry in place and each row entry remembers its position in its
+column, which keeps every column's order and every pivot
+(`fit2p` 0.447x in instructions, `fit1p` 0.794x, ten instances 0.903x,
+`bench/measurements/02-313/`). On `d2q06c` and `dfl001`
 the largest item is `price_all` (16% and 13%), which also prices the
 basic columns; HiGHS keeps a row-wise copy of the nonbasic columns only.
 Half of `stocfor3`'s gap is presolve:

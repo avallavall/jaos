@@ -755,6 +755,40 @@ static void test_updates_are_bit_identical_across_runs(void)
     }
 }
 
+static void test_long_columns_under_singleton_steps_refactor_alike(void)
+{
+    rng_seed(4242);
+    mat m;
+    m.n = MAXN;
+    memset(m.a, 0, sizeof m.a);
+    for (int64_t i = 0; i < m.n; i++) {
+        for (int64_t j = 0; j < 3; j++)
+            m.a[i][j] = rng_val();
+        if (i >= 3)
+            m.a[i][i] = 2.0 + rng_val();
+    }
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_work w = {0};
+    must_factor(&m, &lu, &w);
+    TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
+    TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
+    int64_t prow[MAXN], pcol[MAXN];
+    double diag[MAXN];
+    memcpy(prow, lu.perm_row, sizeof prow);
+    memcpy(pcol, lu.perm_col, sizeof pcol);
+    memcpy(diag, lu.u_diag, sizeof diag);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+    TEST_ASSERT_EQUAL_MEMORY(prow, lu.perm_row, sizeof prow);
+    TEST_ASSERT_EQUAL_MEMORY(pcol, lu.perm_col, sizeof pcol);
+    TEST_ASSERT_EQUAL_MEMORY(diag, lu.u_diag, sizeof diag);
+    TEST_ASSERT_TRUE(solve_residual(&m, &lu, &w) < 1e-9);
+    jm_lu_free(&lu);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -778,5 +812,6 @@ int main(void)
     RUN_TEST(test_update_with_the_same_column_is_stable);
     RUN_TEST(test_update_rejects_bad_arguments);
     RUN_TEST(test_updates_are_bit_identical_across_runs);
+    RUN_TEST(test_long_columns_under_singleton_steps_refactor_alike);
     return UNITY_END();
 }

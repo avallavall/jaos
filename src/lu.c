@@ -56,7 +56,7 @@ void jm_svec_erase(jm_svec *v, int64_t i)
 }
 
 typedef struct {
-    int64_t *idx;
+    int64_t *idx, *pos;
     int64_t n, cap;
 } pat;
 
@@ -90,16 +90,21 @@ typedef struct {
 
     int64_t *seen;
     double *rowval;
-    int64_t *rowpos;
 
     double drop;
 } elim;
 
-static bool pat_push(pat *p, int64_t j)
+static bool pat_push(pat *p, int64_t j, int64_t at)
 {
-    if (!JM_GROW(p->idx, p->cap, p->n + 1))
-        return false;
+    if (p->n == p->cap) {
+        int64_t cap_idx = p->cap, cap_pos = p->cap;
+        if (!jm_grow((void **)&p->idx, &cap_idx, p->n + 1, sizeof *p->idx) ||
+            !jm_grow((void **)&p->pos, &cap_pos, p->n + 1, sizeof *p->pos))
+            return false;
+        p->cap = cap_idx < cap_pos ? cap_idx : cap_pos;
+    }
     p->idx[p->n] = j;
+    p->pos[p->n] = at;
     p->n++;
     return true;
 }
@@ -121,7 +126,6 @@ static void elim_free(elim *e)
     free(e->piv_mult);
     free(e->seen);
     free(e->rowval);
-    free(e->rowpos);
     memset(e, 0, sizeof *e);
 }
 
@@ -236,20 +240,22 @@ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
         e->seen[j] = stamp;
 
         const jm_svec *cv = &e->col[j];
-        double aij = 0.0;
-        int64_t at = -1;
-        for (int64_t q = 0; q < cv->n; q++)
-            if (cv->idx[q] == pi) {
-                aij = cv->val[q];
-                at = q;
-                break;
-            }
+        int64_t at = e->row[pi].pos[k];
+        if (at < 0 || at >= cv->n || cv->idx[at] != pi) {
+            at = -1;
+            for (int64_t q = 0; q < cv->n; q++)
+                if (cv->idx[q] == pi) {
+                    at = q;
+                    break;
+                }
+        }
+        const double aij = at >= 0 ? cv->val[at] : 0.0;
         if (aij == 0.0)
             continue;
 
         e->row[pi].idx[keep] = j;
+        e->row[pi].pos[keep] = at;
         e->rowval[keep] = aij;
-        e->rowpos[keep] = at;
         keep++;
     }
     e->row[pi].n = keep;
@@ -293,8 +299,10 @@ void jm_lu_free(jm_lu *lu)
             for (int64_t j = 0; j < lu->dim; j++)
                 jm_svec_free(&lu->keep->col[j]);
         if (lu->keep->row)
-            for (int64_t i = 0; i < lu->dim; i++)
+            for (int64_t i = 0; i < lu->dim; i++) {
                 free(lu->keep->row[i].idx);
+                free(lu->keep->row[i].pos);
+            }
         free(lu->keep->col);
         free(lu->keep->row);
         free(lu->keep);
@@ -430,7 +438,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
     e.rowval    = jm_alloc_array(dim, sizeof(double));
-    e.rowpos    = jm_alloc_array(dim, sizeof(int64_t));
 
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
         !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
@@ -440,7 +447,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
         !e.mult_of || !e.mult_set || !e.hit || !e.piv_row || !e.piv_mult ||
-        !e.seen || !e.rowval || !e.rowpos) {
+        !e.seen || !e.rowval) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
@@ -458,7 +465,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             if (fabs(v) <= e.drop)
                 continue;
             int64_t i = index[k];
-            if (!jm_svec_push(&e.col[j], i, v) || !pat_push(&e.row[i], j)) {
+            if (!jm_svec_push(&e.col[j], i, v) ||
+                !pat_push(&e.row[i], j, e.col[j].n - 1)) {
                 st = JAOS_ERR_OUT_OF_MEMORY;
                 goto done;
             }
@@ -541,20 +549,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             }
 
             if (e.piv_n == 0) {
-                const int64_t q = e.rowpos[rk];
-                assert(q >= 0 && q < cv->n && cv->idx[q] == pi);
-                const int64_t tail = cv->n - q - 1;
-                memmove(&cv->idx[q], &cv->idx[q + 1],
-                        (size_t)tail * sizeof *cv->idx);
-                memmove(&cv->val[q], &cv->val[q + 1],
-                        (size_t)tail * sizeof *cv->val);
-                cv->n--;
-#ifndef NDEBUG
-
-                for (int64_t k = 0; k < cv->n; k++)
-                    assert(!e.row_done[cv->idx[k]]);
-#endif
-                bucket_move(&e, j, cv->n);
+                bucket_move(&e, j, e.col_cnt[j]);
                 continue;
             }
 
@@ -563,8 +558,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
                 assert(keep <= k);
                 int64_t i = cv->idx[k];
-                assert(i == pi || !e.row_done[i]);
-                if (i == pi)
+                if (e.row_done[i])
                     continue;
                 double v = cv->val[k];
                 assert(fabs(v) > e.drop || isnan(v));
@@ -596,7 +590,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
                     continue;
                 }
                 double v = -(e.piv_mult[k] * urow);
-                if (!pat_push(&e.row[i], j)) {
+                if (!pat_push(&e.row[i], j, keep)) {
                     st = JAOS_ERR_OUT_OF_MEMORY;
                     goto done;
                 }
