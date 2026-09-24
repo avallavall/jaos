@@ -2050,21 +2050,6 @@ jaos_status jm_conic_after_barrier(jaos_model *m)
     m->cfg.node_solve = node;
     m->cfg.time_limit = limit;
     m->solve_time += spent;
-    jaos_check_report ck = {};
-    if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_OPTIMAL &&
-        m->sol_col != nullptr &&
-        (jaos_check_solution(m, m->sol_col, m->sol_dual,
-                             jm_primal_tolerance(m), &ck) != JAOS_OK ||
-         !ck.primal_feasible || !ck.dual_feasible)) {
-        m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
-        m->conic_rough = false;
-        jm_set_err(m, "neither the barrier nor the conic interior point "
-                      "reached an optimum the checker passes; the conic "
-                      "point has columns off by %.3g, rows by %.3g, %.3g of "
-                      "their traffic, duals by %.3g",
-                   ck.max_col_violation, ck.max_row_violation,
-                   ck.max_row_violation_relative, ck.max_dual_violation);
-    }
     return st;
 }
 
@@ -3369,7 +3354,7 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         free(loose);
         m->solve_work = work.units;
         jaos_check_report ck;
-        if (res.relaxed &&
+        if ((res.relaxed || !m->cfg.node_solve) &&
             (jaos_check_conic_solution(m, m->sol_col, m->sol_dual,
                                        m->num_cone > 0 ? m->sol_cone
                                                        : nullptr,
@@ -3381,8 +3366,8 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             } else {
                 m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
                 m->cone_ok = false;
-                jm_set_err(m, "the conic interior point stopped near an "
-                              "optimum that the checker does not pass "
+                jm_set_err(m, "the conic interior point ended at a point "
+                              "the checker does not pass as an optimum "
                               "(columns off by %.3g, rows by %.3g, %.3g of "
                               "their traffic, cones by %.3g, duals by %.3g)",
                            ck.max_col_violation, ck.max_row_violation,

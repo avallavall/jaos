@@ -42,10 +42,14 @@ quadratic term carry reduced costs of -4e-13 against upper bounds of
 8.6e10 that the rows imply. Verify with `make maros-meszaros` (136 solved
 and checked today; `values` is refused as not convex by design).
 
-J3. **Conic answers the checker refuses.** The duals of 8 of QPLIB's 10
-continuous QCQP optima miss by 8.5e-7 to 3.6e-5 while the primal side is
-feasible to 2e-13. QPLIB_2676 and QPLIB_2468 end `NUMERICAL_ERROR`: the
-walk stops without progress and the checker refuses its point.
+J3. **Conic models with no accepted optimum.** Since 02-316 a conic
+optimum the checker refuses is not published, so 8 of QPLIB's continuous
+QCQPs end `NUMERICAL_ERROR` where they ended `OPTIMAL` with duals off by
+8.5e-7 to 3.6e-5 (primal side feasible to 2e-13). They need duals the
+checker takes: the refused ones sit on ball rows with a nonzero multiplier
+while the row is off its side, and there the Newton finish diverges.
+QPLIB_2676 and QPLIB_2468 end `NUMERICAL_ERROR` too: the walk stops
+without progress and the checker refuses its point.
 `tests/data/g_cone_badbox.mps` with two of its columns in a row ends at a
 certificate the checker refuses. An infeasibility whose free column with
 no curvature needs its coefficient to vanish exactly has no certificate
