@@ -333,11 +333,12 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
   root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns. It
   never fired on the MIPLIB 2017 set, so it is off. A MIP presolve for the
   restart to run again is missing (`SPECS.md` §4).
-- *Cutting planes*: Gomory, knapsack cover, MIR and clique cuts run at the
-  root, and Gomory cuts to depth 3. Flow cover, zero-half and lifted cover
-  cuts exist behind switches and are off. Read again on the 2017 set on
-  2026-09-22, none of the three reached the pay rule
-  (`bench/measurements/02-298/`).
+- *Cutting planes*: Gomory, knapsack cover, MIR, clique and (since
+  2026-09-24) flow cover cuts run at the root, and Gomory cuts to depth 3.
+  Flow covers went on when the tree of d6245e0 read them at 1.000x in work
+  on MIPLIB 3 (`bench/measurements/02-317/`). Zero-half and lifted cover
+  cuts exist behind switches and are off: read again on the 2017 set on
+  2026-09-22, neither reached the pay rule (`bench/measurements/02-298/`).
 - *MIP presolve*: coefficient tightening runs at the root (`--tighten`), and
   the clique table feeds the clique cuts. Probing (`--probing`, 1.109x with
   no column fixed on the MIP set) and fixing by clique conflicts at each

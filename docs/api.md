@@ -172,7 +172,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cutoff` | `mip_cutoff` | number | `inf`, no cutoff |
 | `jaos_set_mip_clique_rounds` | `mip_clique_rounds` | integer | 4 |
 | `jaos_set_mip_zero_half_rounds` | `mip_zero_half_rounds` | integer | 0 |
-| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 0 |
+| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5 |
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
 | `jaos_set_mip_restart` | `mip_restart` | boolean | false |
@@ -684,7 +684,8 @@ Sets the rounds of zero-half cuts at the root. The default is 0, off.
 
 **`jaos_set_mip_flow_cover_rounds`**\
 `jaos_status jaos_set_mip_flow_cover_rounds(jaos_model *m, int64_t rounds)`\
-Sets the rounds of flow cover cuts at the root. The default is 0, off.
+Sets the rounds of flow cover cuts at the root. The default is 5; 0 turns
+them off.
 
 **`jaos_set_mip_cut_stall`**\
 `jaos_status jaos_set_mip_cut_stall(jaos_model *m, double fraction)`\

@@ -1,0 +1,14 @@
+start 2026-09-24 12:45 tree 20f2edb
+2017 default rc=1 13:02
+2017 fc5 rc=1 13:17
+2017 agg6 rc=1 13:31
+2017 both rc=1 13:44
+default    instances 30 incumbents 17 at-ref 8 primal 0.5559 dual 0.3397 gapsum 1.000x
+fc5        instances 30 incumbents 17 at-ref 8 primal 0.5563 dual 0.3292 gapsum 0.989x
+agg6       instances 30 incumbents 17 at-ref 8 primal 0.5450 dual 0.3335 gapsum 0.981x
+both       instances 29 incumbents 16 at-ref 7 primal 0.5645 dual 0.3353 gapsum 0.971x
+miplib3 default rc=0 13:46
+miplib3 fc5 rc=0 13:47
+miplib3 agg6 rc=0 14:01
+miplib3 both rc=0 14:16
+done

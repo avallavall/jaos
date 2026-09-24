@@ -80,9 +80,15 @@ fixed-charge networks at the root with one node (`sp150x300d` 0.05 s,
 `p200x1188c` 0.43 s, `exp-1-500-5-5` 2.3 s) where JAOS stops at 1e10 work
 units with bounds of 67.9 against 69, 7395 against 15078 and 46851 against
 65887. The bounds the flow rows imply do not reach their `x - u y <= 0`
-rows (one pass finds none on `p200x1188c` and `exp-1-500-5-5`), and flow
-covers or MIR over aggregated rows lift them only part of the way (10302
-and 60879). MIR with variable upper bounds (`mir-vub`) and exact cover
+rows (one pass finds none on `p200x1188c` and `exp-1-500-5-5`). Flow
+covers are on at 5 rounds since 2026-09-24 and lift the root bounds of
+`sp150x300d` and `p200x1188c` to 51.0 and 9865; MIR aggregation of 6
+steps lifts `exp-1-500-5-5`'s to 59627, and with both on `sp150x300d`
+solves (4.7e9 work units), but aggregation costs 1.588x on MIPLIB 3
+(`bell5`'s tree 14767 to 2112667 nodes, `gen` 19.6x from its per-step
+scan of every column; `bench/measurements/02-317/`). Next: an aggregation
+that scans only the rows and columns it touches, then a reading of why
+`bell5` grows. MIR with variable upper bounds (`mir-vub`) and exact cover
 lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
 `l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
 from forcing rows that fix basic columns (keeping those rows is refused as
@@ -138,8 +144,8 @@ the 94 (`bench/results/barrier.txt`) and 6 of the infeasible set. Seven
 primal remedies are refused; read `bench/refusals.txt` first.
 
 J11. **MIP switches that are off by measurement.** Strong branching (D293
-reopens on a probe that learns from a stopped child), flow cover,
-zero-half and lifted cover cuts, RINS and local branching, restarts (they
+reopens on a probe that learns from a stopped child), zero-half and
+lifted cover cuts (flow covers went on in 02-317), RINS and local branching, restarts (they
 need a MIP presolve that can run again), bound propagation and
 reduced-cost fixing, probing and clique fixing. Each needs a reading that
 lands it on, on the tree J7 leaves.
