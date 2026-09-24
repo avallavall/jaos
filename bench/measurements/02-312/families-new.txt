@@ -1,0 +1,34 @@
+tree: 1a826dc
+counter: bench/measurements/02-07/diag_families.inc, unchanged
+
+--- netlib: 94 instances, 94 reported
+    live rows 77405, live cols 157499
+    removable rows    151  (0.195%, on 17 instances)
+    removable columns 1438  (0.913%, on 30 instances)
+    dual-fixing candidates: 1054  (0.669% of live columns)
+    02-154 read 151 removable rows and 1438 removable columns here.
+--- kennington: 16 instances, 16 reported
+    live rows 205651, live cols 844890
+    removable rows    298  (0.145%, on 4 instances)
+    removable columns 4  (0.000%, on 1 instances)
+    dual-fixing candidates: 0  (0.000% of live columns)
+--- infeas: 29 instances, 29 reported
+    live rows 12750, live cols 25312
+    removable rows    22  (0.173%, on 3 instances)
+    removable columns 21  (0.083%, on 3 instances)
+    dual-fixing candidates: 31  (0.122% of live columns)
+--- miplib: 24 instances, 24 reported
+    live rows 3837, live cols 21522
+    removable rows    22  (0.573%, on 3 instances)
+    removable columns 43  (0.200%, on 4 instances)
+    dual-fixing candidates: 117  (0.544% of live columns)
+--- miplib2017: 30 instances, 30 reported
+    live rows 13870, live cols 17231
+    removable rows    1050  (7.570%, on 5 instances)
+    removable columns 4  (0.023%, on 2 instances)
+    dual-fixing candidates: 2  (0.012% of live columns)
+
+largest share in any set: 7.570% of live rows or columns
+VERDICT: REOPENED. D101's condition is met on this population.
+largest dual-fixing share in any set: 0.669% of live columns
+VERDICT: D246 still holds. No set reaches the 5% bar.

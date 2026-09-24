@@ -119,7 +119,11 @@ to 1.6% of the barrier's instructions (`bench/measurements/02-311/`).
 
 I1. Presolve: duplicate rows and columns, dominated columns, bound
 tightening, dual fixing (D101 reopens on a set with 5% removable), and the
-bound-moving substitution (D97).
+bound-moving substitution (D97). D101 is met for duplicate rows
+(`bench/measurements/02-312/`): MIPLIB 2017's LP relaxations hold 7.57% of
+their live rows as exact multiples of other rows, half the rows of
+`ic97_potential` and `supportcase26`. Duplicate and dominated columns and
+dual fixing stay under 1% in every set.
 
 I2. QP: QPLIB_9002's dual violation of 2.1e4; QPLIB_8785 refused by the
 checker at 1e-7; Maros-Meszaros qgrow22 (dual side) and aug3dqp
