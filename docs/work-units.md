@@ -316,7 +316,9 @@ per entry of the system. The product with a cone's scaling block
 one read and one written (unbilled until 2026-09-23). The Newton finish charges
 `(CONIC_REFINE + 2) * u` a step, where `u` is the entries of its system,
 whatever number of refinement passes ran, and it runs up to
-`CONIC_NEWTON_ROUNDS` times. The ray polish charges `(it + 2) * (2 * at +
+`CONIC_NEWTON_ROUNDS` times. When the checker refuses its point, the
+settle step runs the same system for a projection and a dual refit, up to
+twice, at the same rate. The ray polish charges `(it + 2) * (2 * at +
 n + nrow)` for its conjugate gradients. The ray probe is a full LP solve,
 and the sub-solves on a reduced model are full solves; the work of each is
 added. Its factorisations go through `src/chol.c` and are billed there. An

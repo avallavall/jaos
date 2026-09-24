@@ -1,0 +1,14 @@
+QPLIB_2456   numerical_error  obj=                       ref=-0.9449662766000000    check=    dual=           rowrel=           gap=           work=1967657163
+QPLIB_2468   numerical_error  obj=                       ref=-0.9364048895000000    check=    dual=           rowrel=           gap=           work=9858177992
+QPLIB_2482   optimal          obj=-0.96819896105871051   ref=-0.9681989608000000    check=yes dual=0          rowrel=7.1913584  gap=4.7699020  work=305639375
+QPLIB_2519   optimal          obj=-0.95110952331634147   ref=-0.9511095024000000    check=yes dual=0          rowrel=1.6443282  gap=4.7428106  work=3361261408
+QPLIB_2626   optimal          obj=-6.3821034979841471    ref=-6.3821034980000002    check=yes dual=0          rowrel=1.1102230  gap=1.9846772  work=1585256703
+QPLIB_2676   optimal          obj=-0.9670769932339085    ref=-0.9670769923000000    check=yes dual=0          rowrel=8.5509893  gap=3.9272499  work=172342671
+QPLIB_2784   optimal          obj=-0.9460285095551747    ref=-0.9460284722000000    check=yes dual=0          rowrel=6.5846591  gap=2.7146059  work=919192789
+QPLIB_2862   optimal          obj=-0.93138318404698084   ref=-0.9313831450000000    check=yes dual=0          rowrel=5.0007742  gap=8.9948454  work=24654794387
+QPLIB_3029   optimal          obj=-6.2953155421013536    ref=-6.2953155420000000    check=yes dual=0          rowrel=1.1102230  gap=8.6345613  work=203077405
+QPLIB_3088   optimal          obj=-0.94602850643980907   ref=-0.9460285027000001    check=yes dual=0          rowrel=4.3564188  gap=1.7854473  work=834205113
+QPLIB_3105   numerical_error  obj=                       ref=-0.9378032911000000    check=    dual=           rowrel=           gap=           work=42254160064
+QPLIB_3185   optimal          obj=-0.93505294866831012   ref=-0.9350528778000000    check=yes dual=0          rowrel=2.6415691  gap=7.0563796  work=5881758073
+QPLIB_3312   work_limit       obj=                       ref=-0.9332596231000000    check=    dual=           rowrel=           gap=           work=100127127578
+done

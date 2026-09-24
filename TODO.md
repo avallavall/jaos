@@ -53,19 +53,26 @@ barrier that converges further. The dual-direction solve is in
 `bench/measurements/02-318/push-modes.diff` (`JAOS_YCLEAN`). Verify with
 the QPLIB reading of 02-318 (`cqp-new.txt`).
 
-J3. **Conic models with no accepted optimum.** Since 02-316 a conic
-optimum the checker refuses is not published, so 8 of QPLIB's continuous
-QCQPs end `NUMERICAL_ERROR` where they ended `OPTIMAL` with duals off by
-8.5e-7 to 3.6e-5 (primal side feasible to 2e-13). They need duals the
-checker takes: the refused ones sit on ball rows with a nonzero multiplier
-while the row is off its side, and there the Newton finish diverges.
-QPLIB_2676 and QPLIB_2468 end `NUMERICAL_ERROR` too: the walk stops
-without progress and the checker refuses its point.
+J3. **Conic models with no accepted optimum.** Since 02-319 a refused
+conic optimum is settled on its active rows (a least move of the columns,
+then a least-squares refit of the duals, with two rules for which rows
+are active), and 9 of QPLIB's 13 continuous QCQPs end `OPTIMAL` taken by
+the checker. QPLIB_2456 and QPLIB_3105 still end `NUMERICAL_ERROR`: their
+walks stall near a gap of 1e-9 with 226 and 1196 ball rows refused, and
+neither rule settles them. On QPLIB_2456 holding every row whose dual is
+over 1e-7 on its side puts 118 rows 2e-5 to 4e-5 off their side, with
+duals of 1.1e-7 to 1.7e-7, into the active set; together they are
+inconsistent and the move is refused (worst violation 1.1e-1), while the
+other rule leaves duals off by 5.6e-7. On QPLIB_3105 the two rules leave
+duals off by 5.8e-7 and rows off by 7.1e-6. A rule that adds only the
+rows the refit cannot do without, one batch at a time, is the next thing
+to try. QPLIB_2468 ends `NUMERICAL_ERROR` too: the walk stops without
+progress and the checker refuses its point.
 `tests/data/g_cone_badbox.mps` with two of its columns in a row ends at a
 certificate the checker refuses. An infeasibility whose free column with
 no curvature needs its coefficient to vanish exactly has no certificate
 one multiplier at a time can hold. Verify with `make cblib` and the QCQP
-reading of 02-256.
+reading of 02-319 (`conread.sh`).
 
 ## Tier 2: the bench tooling and the records
 

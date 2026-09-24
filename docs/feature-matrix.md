@@ -206,8 +206,10 @@ branch and bound of their own (`src/conictree.c`,
 brute force every time, and on CBLIB's 80 mixed-integer instances at
 1e11 work units 43 end `OPTIMAL`, all taken by the checker, and 37 at
 the work limit, each with an incumbent found by the tree's rounding, its
-root dive or its branching. What keeps the row from ●: on QPLIB's convex
-QCQPs 8 of the 10 optima have duals the checker refuses, the
+root dive or its branching. What keeps the row from ●: of QPLIB's 13
+convex continuous QCQPs 9 end `OPTIMAL` taken by the checker, 3 end
+`NUMERICAL_ERROR` and 1 reaches the work limit
+(`bench/measurements/02-319/`), the
 mixed-integer QCQPs reach the work limit, a quadratic row over
 `CONIC_QC_DENSE` columns is refused, and the 37 mixed-integer CBLIB
 instances do not close (`SPECS.md` §1, the quadratically constrained row). **The first-order row reads ◐ since
