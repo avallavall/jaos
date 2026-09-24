@@ -271,9 +271,12 @@ v8.1.0 CHANGELOG, the FAQ, INSTALL.md, the Suite 8.0 to 10.0 papers).
 JAOS's presolve reads ◐: the reduced-model machinery, the postsolve stack
 and seven reduction families have landed, and what is left is counted
 rather than guessed. Duplicate rows, duplicate columns and dominated
-columns are refused at 0.15% of the 139 gate models, and `make refusals`
-re-runs that condition and finds zero removable rows and columns on all 15
-plato instances. The implied free column singleton reaches equality
+columns are refused at 0.15% of the 139 gate models, with zero removable
+rows and columns on all 15 plato instances. MIPLIB 2017's LP relaxations
+hold 7.57% of their rows as duplicates (`bench/measurements/02-312/`);
+duplicate rows built on that were refused, since they cost more work on
+MIPLIB 3, Kennington and warm re-solves than they saved
+(`bench/measurements/02-314/`). The implied free column singleton reaches equality
 rows only, a third of what its counter reads. Since 2026-09-21 the
 aggregator (`src/aggregate.c`) substitutes an implied free column out of an
 equality of up to three entries, which covers most doubleton equalities

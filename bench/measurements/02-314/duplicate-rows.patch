@@ -1,0 +1,409 @@
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 54b1662..f1aab42 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -522,6 +522,7 @@ typedef enum {
+     JM_PS_REDUNDANT_ROW,
+     JM_PS_FORCING_ROW,
+     JM_PS_IMPLIED_FREE_COL,
++    JM_PS_DUPLICATE_ROW,
+ } jm_presolve_tag;
+ 
+ typedef struct {
+diff --git a/src/presolve.c b/src/presolve.c
+index 12157a4..b423d23 100644
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -282,6 +282,152 @@ static bool ps_empty_col_value(double cl, double cu, double cost,
+     return true;
+ }
+ 
++typedef struct {
++    uint64_t key;
++    int64_t row;
++} ps_rowkey;
++
++static int ps_rowkey_cmp(const void *a, const void *b)
++{
++    const ps_rowkey *x = a, *y = b;
++    if (x->key != y->key)
++        return x->key < y->key ? -1 : 1;
++    return (x->row > y->row) - (x->row < y->row);
++}
++
++static uint64_t ps_row_key(const ps_rowwise *rw, const bool *col_dead,
++                           int64_t i)
++{
++    uint64_t h = 1469598103934665603u;
++    double first = 0.0;
++    for (int64_t q = rw->rs[i]; q < rw->rs[i + 1]; q++) {
++        if (col_dead[rw->ridx[q]] || rw->rval[q] == 0.0)
++            continue;
++        if (first == 0.0)
++            first = rw->rval[q];
++        const double ratio = rw->rval[q] / first;
++        uint64_t bits;
++        memcpy(&bits, &ratio, sizeof bits);
++        bits &= ~(uint64_t)0xFFFFFF;
++        h = (h ^ (uint64_t)rw->ridx[q]) * 1099511628211u;
++        h = (h ^ bits) * 1099511628211u;
++    }
++    return h;
++}
++
++static bool ps_rows_parallel(const ps_rowwise *rw, const bool *col_dead,
++                             int64_t i, int64_t k, double *lambda)
++{
++    int64_t a = rw->rs[i], b = rw->rs[k];
++    const int64_t ae = rw->rs[i + 1], be = rw->rs[k + 1];
++    double lam = 0.0;
++    for (;;) {
++        while (a < ae && (col_dead[rw->ridx[a]] || rw->rval[a] == 0.0))
++            a++;
++        while (b < be && (col_dead[rw->ridx[b]] || rw->rval[b] == 0.0))
++            b++;
++        if (a == ae || b == be)
++            break;
++        if (rw->ridx[a] != rw->ridx[b])
++            return false;
++        if (lam == 0.0)
++            lam = rw->rval[b] / rw->rval[a];
++        if (rw->rval[b] != lam * rw->rval[a])
++            return false;
++        a++;
++        b++;
++    }
++    if (a != ae || b != be || lam == 0.0 || !isfinite(lam))
++        return false;
++    *lambda = lam;
++    return true;
++}
++
++static jaos_status ps_duplicate_rows(const jaos_model *m, jm_presolve *p,
++                                     const ps_rowwise *rw, bool *row_dead,
++                                     const bool *row_frozen,
++                                     const bool *col_dead,
++                                     const int64_t *row_deg, int64_t *col_deg,
++                                     double *cur_rl, double *cur_ru,
++                                     ps_acc *cur_rl_acc, ps_acc *cur_ru_acc,
++                                     double *row_traffic, jm_work *w,
++                                     bool *changed)
++{
++    const int64_t nr = m->num_row;
++    if (nr < 2 || m->rq_nz > 0 || m->num_cone > 0)
++        return JAOS_OK;
++    ps_rowkey *keys = jm_alloc_array(nr, sizeof *keys);
++    if (keys == nullptr)
++        return JAOS_ERR_OUT_OF_MEMORY;
++    int64_t nk = 0;
++    for (int64_t i = 0; i < nr; i++) {
++        if (row_dead[i] || row_frozen[i] || row_deg[i] < 2 ||
++            (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0))
++            continue;
++        keys[nk++] = (ps_rowkey){ ps_row_key(rw, col_dead, i), i };
++        jm_work_add(w, (rw->rs[i + 1] - rw->rs[i]) * JM_WORK_NONZERO);
++    }
++    qsort(keys, (size_t)nk, sizeof *keys, ps_rowkey_cmp);
++    jm_work_add(w, nk * JM_WORK_NONZERO);
++
++    jaos_status st = JAOS_OK;
++    for (int64_t a = 0; a < nk; a++) {
++        const int64_t i = keys[a].row;
++        if (row_dead[i])
++            continue;
++        for (int64_t b = a + 1; b < nk && keys[b].key == keys[a].key; b++) {
++            const int64_t k = keys[b].row;
++            if (row_dead[k])
++                continue;
++            jm_work_add(w, (rw->rs[k + 1] - rw->rs[k]) * JM_WORK_NONZERO);
++            double lam;
++            if (!ps_rows_parallel(rw, col_dead, i, k, &lam))
++                continue;
++            double klo, khi;
++            if (lam > 0.0) {
++                klo = isfinite(cur_rl[k]) ? cur_rl[k] / lam : -HUGE_VAL;
++                khi = isfinite(cur_ru[k]) ? cur_ru[k] / lam : HUGE_VAL;
++            } else {
++                klo = isfinite(cur_ru[k]) ? cur_ru[k] / lam : -HUGE_VAL;
++                khi = isfinite(cur_rl[k]) ? cur_rl[k] / lam : HUGE_VAL;
++            }
++            const bool t_lo = klo > cur_rl[i], t_hi = khi < cur_ru[i];
++            if ((t_lo ? klo : cur_rl[i]) > (t_hi ? khi : cur_ru[i]))
++                continue;
++            if (!ps_push(p, (jm_presolve_rec){
++                    .tag = JM_PS_DUPLICATE_ROW, .index = k, .index2 = i,
++                    .coef = lam, .lo = klo, .hi = khi,
++                    .row_lo = cur_rl[i], .row_hi = cur_ru[i],
++                    .row_tightens_lo = t_lo, .row_tightens_hi = t_hi })) {
++                st = JAOS_ERR_OUT_OF_MEMORY;
++                goto out;
++            }
++            if (t_lo) {
++                cur_rl[i] = klo;
++                cur_rl_acc[i] = (ps_acc){ .sum = klo };
++            }
++            if (t_hi) {
++                cur_ru[i] = khi;
++                cur_ru_acc[i] = (ps_acc){ .sum = khi };
++            }
++            if (t_lo || t_hi) {
++                const double kt = row_traffic[k] / fabs(lam);
++                if (kt > row_traffic[i])
++                    row_traffic[i] = kt;
++            }
++            for (int64_t q = rw->rs[k]; q < rw->rs[k + 1]; q++)
++                if (!col_dead[rw->ridx[q]])
++                    col_deg[rw->ridx[q]]--;
++            row_dead[k] = true;
++            p->counts.duplicate_row++;
++            *changed = true;
++        }
++    }
++out:
++    free(keys);
++    return st;
++}
++
+ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+                                            jm_work *w)
+ {
+@@ -814,6 +960,14 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+ 
+         }
+ 
++        if (!changed) {
++            ret = ps_duplicate_rows(m, p, &rw, row_dead, row_frozen, col_dead,
++                                    row_deg, col_deg, cur_rl, cur_ru,
++                                    cur_rl_acc, cur_ru_acc, row_traffic, w,
++                                    &changed);
++            if (ret != JAOS_OK)
++                goto cleanup_scratch;
++        }
+         if (!changed)
+             break;
+         rounds_done++;
+@@ -1055,6 +1209,22 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
+             }
+         }
+ 
++        for (int64_t r = 0; r < p->arena_len; r++) {
++            const jm_presolve_rec *rec = &p->arena[r];
++            if (rec->tag != JM_PS_DUPLICATE_ROW)
++                continue;
++            const int64_t rii = p->row_map[rec->index2];
++            const jaos_basis_status kst = m->start_row_status[rec->index];
++            if (rii < 0 || p->reduced.start_row_status[rii] != JAOS_BASIS_BASIC ||
++                (kst != JAOS_BASIS_AT_LOWER && kst != JAOS_BASIS_AT_UPPER))
++                continue;
++            const bool lo_side = (kst == JAOS_BASIS_AT_LOWER) ==
++                                 (rec->coef > 0.0);
++            if (lo_side ? rec->row_tightens_lo : rec->row_tightens_hi)
++                p->reduced.start_row_status[rii] =
++                    lo_side ? JAOS_BASIS_AT_LOWER : JAOS_BASIS_AT_UPPER;
++        }
++
+         int64_t short_by = rrow;
+         for (int64_t k = 0; k < rcol; k++)
+             short_by -= p->reduced.start_col_status[k] == JAOS_BASIS_BASIC;
+@@ -1393,6 +1563,36 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
+         break;
+     }
+ 
++    case JM_PS_DUPLICATE_ROW: {
++        const int64_t k = ps_restore_index(rec->index, orig->num_row);
++        const int64_t i = rec->index2;
++        assert(k >= 0 && k < orig->num_row && i >= 0 && i < orig->num_row);
++
++        const jaos_basis_status si = orig->sol_row_status[i];
++        const double yi = orig->sol_dual[i];
++        const bool nonbasic = si == JAOS_BASIS_AT_LOWER ||
++                              si == JAOS_BASIS_AT_UPPER;
++        const bool equality =
++            (rec->row_tightens_lo ? rec->lo : rec->row_lo) ==
++            (rec->row_tightens_hi ? rec->hi : rec->row_hi);
++        const bool lo_side = (equality && sigma * yi != 0.0)
++                                 ? sigma * yi > 0.0
++                                 : si == JAOS_BASIS_AT_LOWER;
++        if (nonbasic &&
++            (lo_side ? rec->row_tightens_lo : rec->row_tightens_hi)) {
++            orig->sol_dual[k] = ps_published(yi / rec->coef);
++            orig->sol_row_status[k] = (lo_side == (rec->coef > 0.0))
++                                          ? JAOS_BASIS_AT_LOWER
++                                          : JAOS_BASIS_AT_UPPER;
++            orig->sol_dual[i] = 0.0;
++            orig->sol_row_status[i] = JAOS_BASIS_BASIC;
++        } else {
++            orig->sol_dual[k] = 0.0;
++            orig->sol_row_status[k] = JAOS_BASIS_BASIC;
++        }
++        break;
++    }
++
+     case JM_PS_FORCING_ROW: {
+         const int64_t i = ps_restore_index(rec->index, orig->num_row);
+         assert(i >= 0 && i < orig->num_row);
+@@ -1551,6 +1751,18 @@ JAOS_NODISCARD static bool ps_lift_farkas(const jm_presolve *p, double *y)
+             break;
+         }
+ 
++        case JM_PS_DUPLICATE_ROW: {
++            const int64_t k = ps_restore_index(rec->index, nr);
++            const int64_t i = rec->index2;
++            assert(k >= 0 && k < nr && i >= 0 && i < nr);
++            if ((y[i] > 0.0 && rec->row_tightens_lo) ||
++                (y[i] < 0.0 && rec->row_tightens_hi)) {
++                y[k] = ps_published(y[i] / rec->coef);
++                y[i] = 0.0;
++            }
++            break;
++        }
++
+         default:
+             break;
+         }
+diff --git a/tests/test_presolve.c b/tests/test_presolve.c
+index 7c0ede0..9244c72 100644
+--- a/tests/test_presolve.c
++++ b/tests/test_presolve.c
+@@ -1426,7 +1426,7 @@ static int warm_repairs(int k, bool fix_singles)
+         ix[nz] = r1; va[nz] = 1.0; nz++;
+         st[j0 + 2] = nz;
+         ix[nz] = r0; va[nz] = 1.0; nz++;
+-        ix[nz] = r1; va[nz] = 1.0; nz++;
++        ix[nz] = r1; va[nz] = 2.0; nz++;
+         st[j0 + 3] = nz;
+     }
+ 
+@@ -3258,6 +3258,123 @@ static void test_the_presolve_report_says_what_was_removed(void)
+     jaos_model_free(m);
+ }
+ 
++#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++static jaos_model *make_duplicate_rows(double scale, double k_rl, double k_ru,
++                                       double i_rl, double i_ru)
++{
++    const double c[] = {1.0, 2.0, 3.0};
++    const double cl[] = {0.0, 0.0, 0.0}, cu[] = {10.0, 10.0, 10.0};
++    const double rl[] = {i_rl, k_rl, 0.0}, ru[] = {i_ru, k_ru, INFINITY};
++    const int64_t s[] = {0, 3, 6, 8};
++    const int64_t ix[] = {0, 1, 2, 0, 1, 2, 0, 1};
++    const double v[] = {1.0, scale, 1.0, 1.0, scale, 2.0, 1.0, scale};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     8, s, ix, v));
++    return m;
++}
++
++static void check_duplicate_solution(jaos_model *m, double obj_want,
++                                     const double *y_want,
++                                     const jaos_basis_status *rs_want)
++{
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    double obj = 0.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(TOL, obj_want, obj);
++    double x[3], y[3];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
++    for (int i = 0; i < 3; i++)
++        TEST_ASSERT_DOUBLE_WITHIN(TOL, y_want[i], y[i]);
++    jaos_check_report r;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, TOL, &r));
++    TEST_ASSERT_TRUE(r.primal_feasible);
++    TEST_ASSERT_TRUE(r.dual_feasible);
++    jaos_basis_status cs[3], rs[3];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
++    int64_t basic = 0;
++    for (int64_t j = 0; j < 3; j++)
++        basic += cs[j] == JAOS_BASIS_BASIC;
++    for (int64_t i = 0; i < 3; i++) {
++        basic += rs[i] == JAOS_BASIS_BASIC;
++        TEST_ASSERT_EQUAL_INT(rs_want[i], rs[i]);
++    }
++    TEST_ASSERT_EQUAL_INT64(3, basic);
++#if !defined(JAOS_NO_PRESOLVE)
++    jaos_presolve_report rep;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &rep));
++    TEST_ASSERT_EQUAL_INT64(1, rep.duplicate_row);
++#endif
++}
++#endif
++
++static void test_a_duplicate_row_hands_its_binding_bound_back(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    jaos_model *m = make_duplicate_rows(-2.0, -INFINITY, -4.0, 1.0, INFINITY);
++    const double y_want[3] = {0.0, -0.5, 0.0};
++    const jaos_basis_status rs_want[3] = {
++        JAOS_BASIS_BASIC, JAOS_BASIS_AT_UPPER, JAOS_BASIS_BASIC };
++    check_duplicate_solution(m, 2.0, y_want, rs_want);
++
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
++    jaos_model_free(m);
++#endif
++}
++
++static void test_a_duplicate_row_with_the_looser_bound_goes_basic(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    jaos_model *m = make_duplicate_rows(2.0, 2.0, INFINITY, 3.0, INFINITY);
++    const double y_want[3] = {1.0, 0.0, 0.0};
++    const jaos_basis_status rs_want[3] = {
++        JAOS_BASIS_AT_LOWER, JAOS_BASIS_BASIC, JAOS_BASIS_BASIC };
++    check_duplicate_solution(m, 3.0, y_want, rs_want);
++    jaos_model_free(m);
++#endif
++}
++
++static void test_an_infeasibility_through_a_duplicate_row_is_certified(void)
++{
++#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
++    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
++#else
++    const double c[] = {1.0, 1.0};
++    const double cl[] = {0.0, 0.0}, cu[] = {0.5, 10.0};
++    const double rl[] = {-INFINITY, 4.0, 0.0}, ru[] = {5.0, INFINITY, 0.0};
++    const int64_t s[] = {0, 3, 6};
++    const int64_t ix[] = {0, 1, 2, 0, 1, 2};
++    const double v[] = {1.0, 2.0, 1.0, 1.0, 2.0, -1.0};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 2, 3, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
++                     6, s, ix, v));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
++#if !defined(JAOS_NO_PRESOLVE)
++    jaos_presolve_report rep;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &rep));
++    TEST_ASSERT_EQUAL_INT64(1, rep.duplicate_row);
++#endif
++    double ray[3];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, ray));
++    jaos_certificate_report cr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, ray, TOL, &cr));
++    TEST_ASSERT_TRUE(cr.certified);
++    jaos_model_free(m);
++#endif
++}
++
+ int main(void)
+ {
+     UNITY_BEGIN();
+@@ -3356,5 +3473,8 @@ int main(void)
+     RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
+     RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
+     RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);
++    RUN_TEST(test_a_duplicate_row_hands_its_binding_bound_back);
++    RUN_TEST(test_a_duplicate_row_with_the_looser_bound_goes_basic);
++    RUN_TEST(test_an_infeasibility_through_a_duplicate_row_is_certified);
+     return UNITY_END();
+ }

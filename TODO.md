@@ -124,7 +124,10 @@ bound-moving substitution (D97). D101 is met for duplicate rows
 (`bench/measurements/02-312/`): MIPLIB 2017's LP relaxations hold 7.57% of
 their live rows as exact multiples of other rows, half the rows of
 `ic97_potential` and `supportcase26`. Duplicate and dominated columns and
-dual fixing stay under 1% in every set.
+dual fixing stay under 1% in every set. Duplicate rows were then built and
+refused (`presolve-duplicate-rows`, `bench/measurements/02-314/`): MIPLIB 3
+1.122x in work, Kennington 1.017x, the warm reading 1.059x, and no gap
+closes on the 2017 instances that carry them.
 
 I2. QP: QPLIB_9002's dual violation of 2.1e4; QPLIB_8785 refused by the
 checker at 1e-7; Maros-Meszaros qgrow22 (dual side) and aug3dqp
