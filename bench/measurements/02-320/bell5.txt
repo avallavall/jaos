@@ -1,0 +1,18 @@
+== the root
+default                     : relaxation 8653018.0302832704 after 16 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers and 0 MIR
+--opt mip_mir_aggregate=6   : relaxation 8653263.988764992 after 47 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers and 31 MIR
+== the trees, with and without a cutoff at the optimum
+default                                        : status optimal work_units 203511150 nodes 14767 
+default                      --cutoff 8966407  : status optimal work_units 203504494 nodes 14767 
+--opt mip_mir_aggregate=6                      : status optimal work_units 27907059756 nodes 2112667 
+--opt mip_mir_aggregate=6    --cutoff 8966407  : status optimal work_units 27906906668 nodes 2112667 
+== the first incumbents
+default                     : node 790: incumbent 8967149.2431599908 by rounding
+--opt mip_mir_aggregate=6   : node 23627: incumbent 8966810.9407199584, integral
+== capped at 200000 nodes
+--opt mip_node_mir=off                                      : status optimal work_units 203511150 nodes 14767 bound 8966406.4915200006 
+--opt mip_node_mir=off --opt mip_mir_aggregate=6            : status node_limit work_units 2837218309 nodes 200000 bound 8961509.2619506754 
+--opt mip_mir_aggregate=1                                   : status node_limit work_units 2972113093 nodes 200000 bound 8955090.5314014927 
+--opt mip_mir_aggregate=2                                   : status node_limit work_units 2846523443 nodes 200000 bound 8961659.8240127377 
+--branching most-fractional                                 : status node_limit work_units 3467290857 nodes 200000 bound 8727412.9896021578 
+--branching most-fractional --opt mip_mir_aggregate=6       : status node_limit work_units 3849977677 nodes 200000 bound 8689686.8812519051 

@@ -111,8 +111,14 @@ solves (4.7e9 work units), but aggregation costs 1.588x on MIPLIB 3
 (`bell5`'s tree 14767 to 2112667 nodes, `gen` 19.6x from its per-step
 scan of every column; `bench/measurements/02-317/`). Since 2026-09-24
 the MIR rounds touch only the columns of the rows they aggregate, with
-the same cuts (MIPLIB 3 writes the same files). Next: a reading of why
-`bell5`'s tree grows under aggregation. MIR with variable upper bounds (`mir-vub`) and exact cover
+the same cuts (MIPLIB 3 writes the same files). `bell5`'s growth is its
+tree's sensitivity (`bench/measurements/02-320/`): the aggregated root
+cuts alone, one aggregation step already, lift its root bound by 3e-5
+of itself and send pseudocost branching down a 143x longer path, and a
+cutoff at the optimum changes neither tree. Next: aggregate on a copy of
+the root LP and add those cuts only when they lift the bound past a
+threshold, which leaves `bell5`'s path as it is and would lose
+`sp150x300d`. MIR with variable upper bounds (`mir-vub`) and exact cover
 lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
 `l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
 from forcing rows that fix basic columns (keeping those rows is refused as
