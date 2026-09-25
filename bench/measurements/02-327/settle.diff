@@ -1,0 +1,226 @@
+--- a/src/conic.c
++++ b/src/conic.c
+@@ -1480,7 +1480,7 @@
+ 
+ static jaos_status newton_polish(jaos_model *m, jm_work *work,
+                                  const bool *skip, bool *moved, int mode,
+-                                 bool wide)
++                                 bool wide, const uint8_t *force)
+ {
+     const int64_t n = m->num_col, nr = m->num_row, nk = m->num_cone;
+     const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
+@@ -1508,6 +1508,8 @@
+     double *nz = jm_calloc_array(members > 0 ? members : 1, sizeof *nz);
+     double *nd = jm_calloc_array(n > 0 ? n : 1, sizeof *nd);
+     double *nact = jm_calloc_array(nr > 0 ? nr : 1, sizeof *nact);
++    uint8_t *inrow = jm_calloc_array(nr > 0 ? nr : 1, sizeof *inrow);
++    const bool keep = mode == 2 && getenv("JAOS_KEEPINACT") != nullptr;
+     double *lam = nullptr, *lbest = nullptr, *rhs = nullptr, *sol = nullptr;
+     double *res = nullptr, *kv = nullptr;
+     int64_t *ks = nullptr, *ki = nullptr;
+@@ -1519,7 +1521,7 @@
+         atgt == nullptr || face == nullptr || cv == nullptr ||
+         cg == nullptr || x == nullptr || best == nullptr || fr == nullptr ||
+         frc == nullptr || ny == nullptr || nz == nullptr || nd == nullptr ||
+-        nact == nullptr) {
++        nact == nullptr || inrow == nullptr) {
+         st = JAOS_ERR_OUT_OF_MEMORY;
+         goto done;
+     }
+@@ -1532,11 +1534,16 @@
+             const double v = m->sol_row[i];
+             const double dl = isfinite(lo) ? fabs(v - lo) : HUGE_VAL;
+             const double du = isfinite(hi) ? fabs(v - hi) : HUGE_VAL;
+-            if (mode == 0 || !wide || !(fabs(m->sol_dual[i]) > dtol) ||
+-                (dl == HUGE_VAL && du == HUGE_VAL))
+-                continue;
+-            atgt[na] = dl < du ? lo : hi;
++            if (force != nullptr && force[i] != 0 && mode != 0) {
++                atgt[na] = force[i] == 1 ? lo : hi;
++            } else {
++                if (mode == 0 || !wide || !(fabs(m->sol_dual[i]) > dtol) ||
++                    (dl == HUGE_VAL && du == HUGE_VAL))
++                    continue;
++                atgt[na] = dl < du ? lo : hi;
++            }
+         }
++        inrow[i] = 1;
+         akind[na] = 0;
+         aidx[na++] = i;
+     }
+@@ -1630,6 +1637,21 @@
+                 cm_add_product(&fr[j], &frc[j], sigma * m->q_value[p], x[i]);
+             }
+         }
++        for (int64_t i = 0; keep && i < nr; i++) {
++            if (inrow[i] || m->sol_dual[i] == 0.0)
++                continue;
++            const double li = sigma * m->sol_dual[i];
++            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
++                cm_add_product(&fr[m->ar_index[p]], &frc[m->ar_index[p]], -li,
++                               m->ar_value[p]);
++            for (int64_t p = m->rq_start != nullptr ? m->rq_start[i] : 0;
++                 m->rq_start != nullptr && p < m->rq_start[i + 1]; p++) {
++                const int64_t r = m->rq_i[p], c = m->rq_j[p];
++                cm_add_product(&fr[r], &frc[r], -li * m->rq_v[p], x[c]);
++                if (r != c)
++                    cm_add_product(&fr[c], &frc[c], -li * m->rq_v[p], x[r]);
++            }
++        }
+         ents.n = 0;
+         bool ok = true;
+         for (int64_t j = 0; j < n && ok; j++) {
+@@ -1833,6 +1855,9 @@
+         if (members > 0)
+             memcpy(nz, m->sol_cone, (size_t)members * sizeof *nz);
+     }
++    for (int64_t i = 0; keep && i < nr; i++)
++        if (!inrow[i])
++            ny[i] = m->sol_dual[i];
+     for (int64_t a = 0; a < na && mode != 1; a++) {
+         if (akind[a] == 0) {
+             ny[aidx[a]] = sigma * lam[a] == 0.0 ? 0.0 : sigma * lam[a];
+@@ -1913,7 +1938,7 @@
+     free(ents.e);
+     free(akind); free(aidx); free(yat); free(atgt); free(face);
+     free(cv); free(cg); free(x); free(best); free(fr); free(frc); free(ny);
+-    free(nz); free(nd); free(nact); free(lam); free(lbest); free(rhs);
++    free(nz); free(nd); free(nact); free(inrow); free(lam); free(lbest); free(rhs);
+     free(sol); free(res); free(kv); free(ks); free(ki); free(sign);
+     return st;
+ }
+@@ -1943,19 +1968,113 @@
+     if (members > 0)
+         memcpy(kz, m->sol_cone, (size_t)members * sizeof *kz);
+     jaos_status st = JAOS_OK;
++    uint8_t *force = jm_calloc_array(nr > 0 ? nr : 1, sizeof *force);
++    if (force == nullptr) {
++        free(keep);
++        return JAOS_ERR_OUT_OF_MEMORY;
++    }
++    const bool forcing = getenv("JAOS_FORCE") != nullptr;
++    const char *bs = getenv("JAOS_BATCH");
++    const double frac = bs != nullptr ? atof(bs) : 0.0;
+     for (int wide = 0; wide < 2 && *refused; wide++) {
+-        if (wide) {
++        memset(force, 0, (size_t)(nr > 0 ? nr : 1));
++        if (!wide && frac > 0.0) {
++            double *dv = jm_alloc_array(nr > 0 ? nr : 1, sizeof *dv);
++            int64_t nc2 = 0;
++            for (int64_t i = 0; dv != nullptr && i < nr; i++) {
++                double tgt = 0.0;
++                if (cm_active(kr[i], m->row_lower[i], m->row_upper[i], ky[i],
++                              &tgt))
++                    continue;
++                if (!(fabs(ky[i]) > jm_primal_tolerance(m)))
++                    continue;
++                if (!isfinite(m->row_lower[i]) && !isfinite(m->row_upper[i]))
++                    continue;
++                dv[nc2++] = fabs(ky[i]);
++            }
++            double cut = INFINITY;
++            if (nc2 > 0) {
++                for (int64_t a = 1; a < nc2; a++)
++                    for (int64_t b = a; b > 0 && dv[b - 1] < dv[b]; b--) {
++                        const double t = dv[b];
++                        dv[b] = dv[b - 1];
++                        dv[b - 1] = t;
++                    }
++                int64_t k = (int64_t)ceil(frac * (double)nc2);
++                if (k > nc2)
++                    k = nc2;
++                cut = dv[k - 1];
++            }
++            int64_t forced = 0;
++            for (int64_t i = 0; i < nr; i++) {
++                double tgt = 0.0;
++                if (cm_active(kr[i], m->row_lower[i], m->row_upper[i], ky[i],
++                              &tgt))
++                    continue;
++                if (!(fabs(ky[i]) >= cut) ||
++                    !(fabs(ky[i]) > jm_primal_tolerance(m)))
++                    continue;
++                const double lo = m->row_lower[i], hi = m->row_upper[i];
++                const double dl = isfinite(lo) ? fabs(kr[i] - lo) : HUGE_VAL;
++                const double du = isfinite(hi) ? fabs(kr[i] - hi) : HUGE_VAL;
++                if (dl == HUGE_VAL && du == HUGE_VAL)
++                    continue;
++                force[i] = dl < du ? 1 : 2;
++                forced++;
++            }
++            jm_log(m, JAOS_LOG_DETAIL, "conic: settle batch %.2f of %lld "
++                   "candidates forces %lld rows, duals down to %.3e", frac,
++                   (long long)nc2, (long long)forced, cut);
++            free(dv);
++        }
++        bool moved = false;
++        for (int round = 0;; round++) {
+             memcpy(m->sol_col, kc, (size_t)n * sizeof *kc);
+             memcpy(m->sol_redcost, kd, (size_t)n * sizeof *kd);
+             memcpy(m->sol_row, kr, (size_t)nr * sizeof *kr);
+             memcpy(m->sol_dual, ky, (size_t)nr * sizeof *ky);
+             if (members > 0)
+                 memcpy(m->sol_cone, kz, (size_t)members * sizeof *kz);
++            moved = false;
++            st = newton_polish(m, work, nullptr, &moved, 1, wide, force);
++            if (st != JAOS_OK || !forcing || round == 6)
++                break;
++            int64_t added = 0;
++            double worst = 0.0;
++            for (int64_t i = 0; i < nr; i++) {
++                if (force[i] != 0)
++                    continue;
++                const double lo = m->row_lower[i], hi = m->row_upper[i];
++                const double v = m->sol_row[i];
++                if (v < lo - 1e-9 * (1.0 + fabs(lo))) {
++                    force[i] = 1;
++                    added++;
++                    worst = fmax(worst, lo - v);
++                } else if (v > hi + 1e-9 * (1.0 + fabs(hi))) {
++                    force[i] = 2;
++                    added++;
++                    worst = fmax(worst, v - hi);
++                }
++            }
++            jaos_check_report rp;
++            if (jaos_check_conic_solution(m, m->sol_col, m->sol_dual,
++                                          m->num_cone > 0 ? m->sol_cone
++                                                          : nullptr,
++                                          jm_primal_tolerance(m), &rp) ==
++                JAOS_OK)
++                jm_log(m, JAOS_LOG_DETAIL, "conic: settle check rows %.3e "
++                       "rel %.3e cols %.3e cones %.3e duals %.3e gap %.3e",
++                       rp.max_row_violation, rp.max_row_violation_relative,
++                       rp.max_col_violation, rp.max_cone_violation,
++                       rp.max_dual_violation, rp.objective_gap);
++            jm_log(m, JAOS_LOG_DETAIL, "conic: settle round %d adds %lld "
++                   "violated rows, worst %.3e", round, (long long)added,
++                   worst);
++            if (added == 0)
++                break;
+         }
+-        bool moved = false;
+-        st = newton_polish(m, work, nullptr, &moved, 1, wide);
+         if (st == JAOS_OK)
+-            st = newton_polish(m, work, nullptr, &moved, 2, wide);
++            st = newton_polish(m, work, nullptr, &moved, 2, wide, force);
+         if (st != JAOS_OK)
+             break;
+         *refused = cm_refused(m, ck);
+@@ -1975,6 +2094,7 @@
+             memcpy(m->sol_cone, kz, (size_t)members * sizeof *kz);
+         *refused = cm_refused(m, ck);
+     }
++    free(force);
+     free(keep);
+     return st;
+ }
+@@ -3565,7 +3685,7 @@
+         for (int64_t r = 0; r < CONIC_NEWTON_ROUNDS; r++) {
+             bool moved = false;
+             st = newton_polish(m, &work, r > 0 ? loose : nullptr, &moved, 0,
+-                               false);
++                               false, nullptr);
+             if (st != JAOS_OK) {
+                 free(loose);
+                 goto done;

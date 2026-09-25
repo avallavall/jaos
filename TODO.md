@@ -71,10 +71,19 @@ passes and the refit stalls at a stationarity residual of 3.6e-7; under
 the second the refit reaches 6.7e-10 but the projection is refused
 (worst violation 1.1e-1). Keeping in the refit the inactive rows' duals
 already under the tolerance changes none of the three. The residual comes
-from the rows whose dual is over 1e-7 and whose slack is larger still. A
-rule that adds only the rows the refit cannot do without, one batch at a
-time, is the next thing to try; the columns left off sit in no quadratic
-row on QPLIB_2456, so the batch cannot be read off their rows. An infeasibility whose free
+from the rows whose dual is over 1e-7 and whose slack is larger still.
+On QPLIB_2456 those are 118 rows with duals up to 1.5e-6. Adding them to
+the active set in batches by the size of their dual does not settle it
+(2026-09-25, `conic-settle-batches`, `bench/measurements/02-327/`): the
+12 largest take the refit to
+5.0e-7 and the 30 largest to 3.3e-7, and from 39 the projection is
+refused. Keeping every left-out row's own dual in the refit reaches a
+stationarity residual of 8.9e-10, but the checker counts a dual over 1e-7
+on a row off its side as a violation of that size (1.87e-6), so those
+duals have to be 0. The walk's point is not near enough an optimum for its
+duals to name the active rows. What is left is a finish that moves the
+columns and the duals together while the active set changes, or a walk
+that converges further. An infeasibility whose free
 column with no curvature needs its coefficient to vanish exactly has no
 certificate one multiplier at a time can hold. Verify with `make cblib`
 and the QCQP reading of 02-319 (`conread.sh`).
