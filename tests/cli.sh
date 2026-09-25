@@ -796,6 +796,26 @@ expect_exit 0 "the same model solves one node at a time" \
     || flunk "rounds gave '$batch_obj', one node '$(line_of objective)'"
 expect_exit 5 "a tree batch below 1 is a usage error" \
     "$JAOS" solve "$DATA/g_misocp.mps" --tree-batch 0
+expect_exit 0 "an SOS set that bounds an unbounded relaxation solves" \
+    "$JAOS" solve "$DATA/g_sos_ray.lp" --log summary
+[ "$(line_of status)" = "status optimal" ] && [ "$(line_of objective)" = "objective -1" ] \
+    && pass "to -1" \
+    || flunk "SOS over a ray: '$(line_of status)' '$(line_of objective)'"
+printf '%s\n' "$err" | grep -q "1 nodes with an unbounded relaxation were split on an SOS set" \
+    && pass "and the log names the split" \
+    || flunk "no split of the unbounded node in the log"
+expect_exit 0 "an SOS set beside a cone solves" \
+    "$JAOS" solve "$DATA/g_cone_sos.mps" --check --log summary
+case "$(line_of objective)" in
+    "objective 3"|"objective 3.0000000"*|"objective 2.9999999"*) pass "to 3" ;;
+    *) flunk "SOS beside a cone objective '$(line_of objective)'" ;;
+esac
+[ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and --check takes the answer with its SOS set" \
+    || flunk "SOS beside a cone --check: '$(line_of check_ok)'"
+printf '%s\n' "$err" | grep -q "and 1 SOS sets and 0 indicator rows branched on once those hold" \
+    && pass "and the log names the SOS set the conic tree branches on" \
+    || flunk "no SOS set in the conic tree's log"
 expect_exit 2 "a model whose walk gives no answer ends unbounded" \
     "$JAOS" solve "$DATA/g_ray_stall.mps" --log summary
 printf '%s\n' "$err" | grep -q "the walk ends with no answer; looking for a feasible point first" \

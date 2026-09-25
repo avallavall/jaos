@@ -367,6 +367,13 @@ enum jm_mip_key {
     JM_DEF_RESTART,
 };
 double jm_mip_default(enum jm_mip_key key);
+bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,
+                   int64_t *dcol, double *dlo, double *dhi, int64_t *nd,
+                   int64_t *ucol, double *ulo, double *uhi, int64_t *nu);
+JAOS_NODISCARD jaos_status jm_piece_bounds(jaos_model *f, const jaos_model *m,
+                                           const double *lo, const double *hi,
+                                           const double *ilo,
+                                           const double *ihi);
 
 typedef struct jm_tableau jm_tableau;
 JAOS_NODISCARD jaos_status jm_tableau_build(jaos_model *m, jm_tableau **out);

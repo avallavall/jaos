@@ -715,14 +715,141 @@ static void test_the_root_dive_finds_a_cardinality_point(void)
     jaos_model_free(m);
 }
 
-static void test_an_sos_set_beside_a_cone_is_refused(void)
+static void test_an_sos_set_beside_a_cone_branches_to_the_optimum(void)
 {
-    jaos_model *m = norm_model(JAOS_MINIMIZE);
-    const int64_t sc[2] = {1, 2};
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    const double cl[5] = {-inf, -inf, -inf, 0.0, 0.0};
+    const double cu[5] = {inf, inf, inf, 10.0, 10.0};
+    const double rl[2] = {-3.0, -4.0}, ru[2] = {-3.0, -4.0};
+    const int64_t as[6] = {0, 0, 1, 2, 3, 4}, ai[4] = {0, 1, 0, 1};
+    const double av[4] = {1.0, 1.0, -1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 4, as,
+                     ai, av));
+    const int64_t cols[3] = {0, 1, 2};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cols));
+    const int64_t sc[2] = {3, 4};
     const double sw[2] = {1.0, 2.0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, sc, sw));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "SOS"));
+    assert_integer_answer(m, 3.0);
+    double x[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[3]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 4.0, x[4]);
+    jaos_model_free(m);
+}
+
+static void test_a_semi_continuous_column_beside_a_cone_leaves_its_gap(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[3] = {1.0, 0.0, 0.0};
+    const double cl[3] = {-inf, -inf, 2.0}, cu[3] = {inf, inf, 5.0};
+    const double rl[1] = {-1.3}, ru[1] = {-1.3};
+    const int64_t as[4] = {0, 0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 2, as,
+                     ai, av));
+    const int64_t cols[2] = {0, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 2, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_semicontinuous(m, 2, true));
+    assert_integer_answer(m, 0.7);
+    double x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 2.0, x[2]);
+    jaos_model_free(m);
+}
+
+static void test_an_indicator_row_beside_a_cone_holds_when_it_fires(void)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    const double cost[4] = {1.0, 0.0, 0.0, 1.5};
+    const double cl[4] = {-inf, -inf, 0.0, 0.0}, cu[4] = {inf, inf, 10.0, 1.0};
+    const double rl[2] = {-3.0, -inf}, ru[2] = {-3.0, 1.0};
+    const int64_t as[5] = {0, 0, 1, 3, 3}, ai[3] = {0, 0, 1};
+    const double av[3] = {1.0, -1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 3, as,
+                     ai, av));
+    const int64_t cols[2] = {0, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 2, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 3, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 1, 3, 0));
+    assert_integer_answer(m, 1.5);
+    double x[4];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, x[3]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 3.0, x[2]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(m, 3, 2.5));
+    assert_integer_answer(m, 2.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[3]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 1.0, x[2]);
+    jaos_model_free(m);
+}
+
+static jaos_model *ray_beside_a_cone(bool indicator, double x2_cost)
+{
+    jaos_model *m = fresh();
+    const double inf = jaos_infinity();
+    if (indicator) {
+        const double cost[5] = {-1.0, 0.0, 0.0, 0.0, 0.0};
+        const double cl[5] = {0.0, 0.0, 0.0, -inf, 1.0};
+        const double cu[5] = {inf, inf, 1.0, inf, 1.0};
+        const double rl[3] = {-inf, 1.0, -inf}, ru[3] = {0.0, inf, 5.0};
+        const int64_t as[6] = {0, 1, 3, 4, 4, 4}, ai[4] = {0, 0, 2, 1};
+        const double av[4] = {1.0, -1.0, 1.0, 1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 5, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 4,
+                         as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 2, 2, 1));
+    } else {
+        const double cost[4] = {-1.0, x2_cost, 0.0, 0.0};
+        const double cl[4] = {0.0, 0.0, -inf, 1.0};
+        const double cu[4] = {inf, inf, inf, 1.0};
+        const double rl[1] = {-inf}, ru[1] = {1.0};
+        const int64_t as[5] = {0, 1, 2, 2, 2}, ai[2] = {0, 0};
+        const double av[2] = {1.0, -1.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 4, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 2,
+                         as, ai, av));
+        const int64_t sc[2] = {0, 1};
+        const double sw[2] = {1.0, 2.0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, sc, sw));
+    }
+    const int64_t n = jaos_num_col(m);
+    const int64_t cols[2] = {n - 2, n - 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 2, cols));
+    return m;
+}
+
+static void test_an_unbounded_relaxation_beside_a_cone_splits_its_sets(void)
+{
+    jaos_model *m = ray_beside_a_cone(false, 0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[5];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -1.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+    jaos_model_free(m);
+    m = ray_beside_a_cone(false, -1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_model_free(m);
+    m = ray_beside_a_cone(true, 0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -5.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, x[2]);
     jaos_model_free(m);
 }
 
@@ -1246,7 +1373,10 @@ int main(void)
     RUN_TEST(test_an_integer_point_outside_every_cone_is_infeasible);
     RUN_TEST(test_the_rounded_root_is_an_incumbent_at_node_1);
     RUN_TEST(test_the_root_dive_finds_a_cardinality_point);
-    RUN_TEST(test_an_sos_set_beside_a_cone_is_refused);
+    RUN_TEST(test_an_sos_set_beside_a_cone_branches_to_the_optimum);
+    RUN_TEST(test_a_semi_continuous_column_beside_a_cone_leaves_its_gap);
+    RUN_TEST(test_an_indicator_row_beside_a_cone_holds_when_it_fires);
+    RUN_TEST(test_an_unbounded_relaxation_beside_a_cone_splits_its_sets);
     RUN_TEST(test_a_wide_cone_gives_the_norm);
     RUN_TEST(test_a_wide_rotated_cone_gives_the_sum_of_squares);
     RUN_TEST(test_a_cone_on_the_model_gives_the_norm);

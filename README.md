@@ -85,7 +85,8 @@ Integer columns beside a quadratic objective go to the branch and bound
 below, over barrier relaxations; beside cones or quadratic rows they go to
 a branch and bound of its own, which can take its open nodes in rounds
 solved on several threads with the same answer at any thread count
-(`--tree-batch`).
+(`--tree-batch`). That tree also branches on SOS sets, semi-continuous
+columns and indicator rows.
 
 **Mixed-integer programs.** Branch and bound over the dual simplex, best
 estimate first with the best bound every fifth pick, pseudocost branching.

@@ -2387,7 +2387,7 @@ class TestBranchAndBound(unittest.TestCase):
             p.maximize(5 * a + 4 * b + 3 * c)
             p.set_mip_tighten(0)
             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule)
-            p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
+            p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_rins(0)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
             self.assertAlmostEqual(p.objective_value, 9.0, places=9)
             self.assertEqual((a.value, b.value, c.value), (1.0, 1.0, 0.0))
@@ -3002,7 +3002,7 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertAlmostEqual(p.objective_value, 5.0, places=9)
             nodes.append(p.mip_report().nodes)
         self.assertLess(nodes[1], nodes[0])
-        self.assertEqual(nodes[2], nodes[0])
+        self.assertEqual(nodes[2], nodes[1])
 
     def test_probing_is_a_switch_and_changes_no_answer(self):
         objs = []
@@ -3836,6 +3836,46 @@ class TestCones(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         self.assertAlmostEqual(p.objective_value, 4.0, places=7)
         self.assertEqual(p.mip_report().heuristic_points, 0)
+
+    def test_sos_semi_continuous_and_indicators_beside_a_cone(self):
+        inf = jaos.INFINITY
+        with jaos.Model() as m:
+            m.load(5, 2, [1.0, 0.0, 0.0, 0.0, 0.0],
+                   [-inf, -inf, -inf, 0.0, 0.0], [inf, inf, inf, 10.0, 10.0],
+                   [-3.0, -4.0], [-3.0, -4.0], [0, 0, 1, 2, 3, 4], [0, 1, 0, 1],
+                   [1.0, 1.0, -1.0, -1.0])
+            m.add_cone(jaos.ConeType.QUADRATIC, [0, 1, 2])
+            m.add_sos(1, [3, 4], [1.0, 2.0])
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), 3.0, places=7)
+            s = m.solution()
+            self.assertEqual(s.col_value[3], 0.0)
+            self.assertAlmostEqual(s.col_value[4], 4.0, places=7)
+            self.assertGreater(m.mip_report().nodes, 1)
+        p = jaos.Problem()
+        t = p.add_var(lb=-inf, name="t")
+        u = p.add_var(lb=-inf, name="u")
+        x = p.add_var(lb=2, ub=5, semicontinuous=True, name="x")
+        p.add(u == x - 1.3)
+        p.add_cone([t, u])
+        p.minimize(t)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 0.7, places=7)
+        self.assertAlmostEqual(x.value, 2.0, places=7)
+        self.assertTrue(p.check().primal_feasible)
+        p = jaos.Problem()
+        t = p.add_var(lb=-inf, name="t")
+        u = p.add_var(lb=-inf, name="u")
+        x = p.add_var(lb=0, ub=10, name="x")
+        z = p.add_var(binary=True, name="z")
+        p.add(u == x - 3)
+        p.add_cone([t, u])
+        p.add_indicator(z, 0, x <= 1)
+        p.minimize(t + 1.5 * z)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 1.5, places=7)
+        self.assertEqual(z.value, 1.0)
+        self.assertTrue(p.check().primal_feasible)
 
     def test_cbf_reads_and_writes_cones(self):
         with jaos.Model() as m:

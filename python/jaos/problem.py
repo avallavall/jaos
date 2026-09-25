@@ -1059,7 +1059,8 @@ class Problem:
 
     def set_mip_rins(self, solves):
         """Relaxations a RINS dive may solve at a node with an incumbent
-        (D315); 0 is off and the default, negative restores it."""
+        (D315); 50 by default, 0 on a quadratic objective, 0 is off and
+        negative restores the default."""
         self._m.set_mip_rins(solves)
         return self
 
@@ -1128,8 +1129,8 @@ class Problem:
         return self
 
     def set_mip_clique_fix(self, on):
-        """Fixing by the root's clique table at each node; off by
-        default, negative restores it."""
+        """Fixing by the root's clique table at each node; on by
+        default, negative restores the default."""
         self._m.set_mip_clique_fix(on)
         return self
 

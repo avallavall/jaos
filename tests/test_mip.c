@@ -726,6 +726,68 @@ static void test_an_unbounded_relaxation_with_no_integer_point_is_infeasible(voi
     jaos_model_free(m);
 }
 
+static jaos_model *ray_under_sos(double x2_cost)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double inf = jaos_infinity();
+    const double cost[2] = {-1.0, x2_cost};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {inf, inf};
+    const double rl[1] = {-inf}, ru[1] = {1.0};
+    const int64_t as[3] = {0, 1, 2}, ai[2] = {0, 0};
+    const double av[2] = {1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 2, as,
+                     ai, av));
+    const int64_t sc[2] = {0, 1};
+    const double sw[2] = {1.0, 2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 2, sc, sw));
+    return m;
+}
+
+static jaos_model *ray_under_indicator(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double inf = jaos_infinity();
+    const double cost[3] = {-1.0, 0.0, 0.0};
+    const double cl[3] = {0.0, 0.0, 0.0}, cu[3] = {inf, inf, 1.0};
+    const double rl[3] = {-inf, 1.0, -inf}, ru[3] = {0.0, inf, 5.0};
+    const int64_t as[4] = {0, 1, 3, 4}, ai[4] = {0, 0, 2, 1};
+    const double av[4] = {1.0, -1.0, 1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 3, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 4, as,
+                     ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_indicator(m, 2, 2, 1));
+    return m;
+}
+
+static void test_an_unbounded_relaxation_splits_on_sos_sets_and_indicators(void)
+{
+    jaos_model *m = ray_under_sos(0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -1.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+    jaos_model_free(m);
+    m = ray_under_sos(-1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    jaos_model_free(m);
+    m = ray_under_indicator();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -5.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, x[2]);
+    jaos_model_free(m);
+}
+
 static void test_a_work_limit_stops_the_tree_and_keeps_the_incumbent(void)
 {
     jaos_model *m = knapsack();
@@ -1705,6 +1767,7 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, pass == 0 ? 0 : 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
@@ -4436,6 +4499,7 @@ static void test_a_conflict_row_shortens_an_infeasible_tree(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_fix(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, on));
         TEST_ASSERT_TRUE(m->cfg.mip_conflicts_set);
         TEST_ASSERT_EQUAL_INT(on, m->cfg.mip_conflicts);
@@ -4839,6 +4903,7 @@ int main(void)
     RUN_TEST(test_a_fractional_root_branches_to_the_integer_answer);
     RUN_TEST(test_an_integer_model_with_no_integer_point_is_infeasible);
     RUN_TEST(test_an_unbounded_relaxation_with_no_integer_point_is_infeasible);
+    RUN_TEST(test_an_unbounded_relaxation_splits_on_sos_sets_and_indicators);
     RUN_TEST(test_a_work_limit_stops_the_tree_and_keeps_the_incumbent);
     RUN_TEST(test_a_work_limit_on_a_tree_lands_near_the_limit);
     RUN_TEST(test_the_marks_ride_with_their_columns_and_copy);

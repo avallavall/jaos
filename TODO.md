@@ -178,10 +178,16 @@ primal remedies are refused; read `bench/refusals.txt` first.
 
 J11. **MIP switches that are off by measurement.** Strong branching (D293
 reopens on a probe that learns from a stopped child), zero-half and
-lifted cover cuts (flow covers went on in 02-317), RINS and local branching, restarts (they
-need a MIP presolve that can run again), bound propagation and
-reduced-cost fixing, probing and clique fixing. Each needs a reading that
-lands it on, on the tree J7 leaves.
+lifted cover cuts (flow covers went on in 02-317), local branching,
+restarts (they need a MIP presolve that can run again), bound propagation,
+reduced-cost fixing and probing. Each needs a reading that lands it on, on
+the tree J7 leaves. Clique fixing and RINS went on on 2026-09-25, RINS off
+for a quadratic objective. The same reading took the others one at a time
+on MIPLIB 3 and the 2017 set (`bench/measurements/02-325/`) and none gains
+on both: local branching 0.948x in the 2017 gap sum at 2.023x MIPLIB 3's
+work, lifted covers two first incumbents on the 2017 set at 1.042x,
+propagation 1.033x in the gap sum, zero-half 1.200x on MIPLIB 3,
+reduced-cost fixing no change, and probing takes `bell5` past 4 GB.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (rounds of 4 cost 1.37x the
@@ -195,8 +201,7 @@ cheap enough to be on at a fixed size.
 ## Tier 5: the features SPECS still lists
 
 J13. **Cones and quadratic rows.** Cuts and warm starts in the conic tree;
-SOS sets, semi-continuous columns and indicator rows beside cones; a
-quadratic row over more than `CONIC_QC_DENSE` columns; QPLIB's
+a quadratic row over more than `CONIC_QC_DENSE` columns; QPLIB's
 mixed-integer QCQPs, 8 of which end with no incumbent and 2 refused for
 that dense quadratic row.
 

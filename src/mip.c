@@ -57,7 +57,7 @@ constexpr int64_t MIP_DIVE_HEURISTIC = 50;
 
 constexpr int64_t MIP_DIVE_HEURISTIC_DEPTH = 0;
 
-constexpr int64_t MIP_RINS = 0;
+constexpr int64_t MIP_RINS = 50;
 
 constexpr int64_t MIP_LOCAL_BRANCHING = 0;
 
@@ -109,7 +109,7 @@ constexpr bool MIP_TIGHTEN = true;
 constexpr bool MIP_PROBING = false;
 constexpr int64_t MIP_PROBING_ROUNDS = 2;
 constexpr double MIP_PROBING_CAP = 1.0;
-constexpr bool MIP_CLIQUE_FIX = false;
+constexpr bool MIP_CLIQUE_FIX = true;
 
 constexpr double MIP_RCFIX_SLACK = 1e-6;
 
@@ -4107,7 +4107,90 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
     return moved;
 }
 
-static jaos_status unbounded_or_infeasible(jaos_model *m, int64_t *work,
+bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,
+                   int64_t *dcol, double *dlo, double *dhi, int64_t *nd,
+                   int64_t *ucol, double *ulo, double *uhi, int64_t *nu)
+{
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t b = m->sos_start[k], n = m->sos_start[k + 1] - b;
+        int64_t cnt = 0, first = -1, last = -1;
+        for (int64_t t = 0; t < n; t++) {
+            const int64_t c = m->sos_col[b + t];
+            if (lo[c] == 0.0 && hi[c] == 0.0)
+                continue;
+            if (cnt == 0)
+                first = t;
+            last = t;
+            cnt++;
+        }
+        const bool one = m->sos_type[k] == 1;
+        if (one ? cnt <= 1 : cnt <= 2 && last - first <= 1)
+            continue;
+        int64_t r = (first + last) / 2;
+        if (!one && r < first + 1)
+            r = first + 1;
+        if (r > last - 1)
+            r = last - 1;
+        *nd = *nu = 0;
+        for (int64_t t = 0; t < n; t++) {
+            const int64_t c = m->sos_col[b + t];
+            const double zlo = fmax(0.0, lo[c]), zhi = fmin(0.0, hi[c]);
+            if (t > r) {
+                dcol[*nd] = c;
+                dlo[*nd] = zlo;
+                dhi[*nd] = zhi;
+                (*nd)++;
+            }
+            if (one ? t <= r : t < r) {
+                ucol[*nu] = c;
+                ulo[*nu] = zlo;
+                uhi[*nu] = zhi;
+                (*nu)++;
+            }
+        }
+        return true;
+    }
+    for (int64_t i = 0; m->row_ind_col != nullptr && i < m->num_row; i++) {
+        const int64_t z = m->row_ind_col[i];
+        if (z < 0)
+            continue;
+        const double val = (double)m->row_ind_val[i];
+        if (lo[z] == hi[z] || val < lo[z] || val > hi[z])
+            continue;
+        const double cut = lo[z] < val ? val - 1.0 : val;
+        dcol[0] = ucol[0] = z;
+        dlo[0] = lo[z];
+        dhi[0] = cut;
+        ulo[0] = cut + 1.0;
+        uhi[0] = hi[z];
+        *nd = *nu = 1;
+        return true;
+    }
+    return false;
+}
+
+jaos_status jm_piece_bounds(jaos_model *f, const jaos_model *m,
+                            const double *lo, const double *hi,
+                            const double *ilo, const double *ihi)
+{
+    jaos_status st = JAOS_OK;
+    for (int64_t j = 0; st == JAOS_OK && j < m->num_col; j++) {
+        if (lo[j] == m->col_lower[j] && hi[j] == m->col_upper[j])
+            continue;
+        if (semi_live(m, j)) {
+            if (lo[j] == ilo[j] && hi[j] == ihi[j])
+                continue;
+            st = jaos_set_col_semicontinuous(f, j, false);
+        }
+        if (st == JAOS_OK)
+            st = jaos_set_col_bounds(f, j, lo[j], hi[j]);
+    }
+    return st;
+}
+
+static jaos_status unbounded_or_infeasible(jaos_model *m, const jaos_model *at,
+                                           const double *ilo,
+                                           const double *ihi, int64_t *work,
                                            jaos_solve_status *out)
 {
     jaos_model *f = nullptr;
@@ -4124,6 +4207,8 @@ static jaos_status unbounded_or_infeasible(jaos_model *m, int64_t *work,
     }
     if (st == JAOS_OK)
         st = jaos_set_objective_offset(f, 0.0);
+    if (st == JAOS_OK && at != nullptr)
+        st = jm_piece_bounds(f, m, at->col_lower, at->col_upper, ilo, ihi);
     budget(f, m, *work);
     if (st == JAOS_OK)
         st = jaos_solve(f);
@@ -4136,11 +4221,57 @@ static jaos_status unbounded_or_infeasible(jaos_model *m, int64_t *work,
                           "integer point ends as a numerical error: %s",
                        jaos_model_error(f));
         jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: the relaxation is "
-               "unbounded, and the search for an integer point ends %s",
+               "unbounded, and the search for an integer point%s ends %s",
+               at != nullptr ? " in the node's box, where every SOS set and "
+                               "indicator row is settled," : "",
                jaos_solve_status_str(fs));
     }
     jaos_model_free(f);
     return st;
+}
+
+static bool open_split(const jaos_model *lp, const bnode *cur, int64_t nperm,
+                       const int64_t *act, int64_t act_n, const int64_t *dcol,
+                       const double *dlo, const double *dhi, int64_t nd,
+                       const int64_t *ucol, const double *ulo,
+                       const double *uhi, int64_t nu, int64_t *next_id,
+                       bheap *heap, kheap *kh)
+{
+    const int64_t nc = lp->num_col, nr = lp->num_row;
+    jaos_basis_status *cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cs);
+    jaos_basis_status *rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rs);
+    bool ok = cs != nullptr && rs != nullptr;
+    for (int64_t j = 0; ok && j < nc; j++)
+        cs[j] = isfinite(lp->col_lower[j])   ? JAOS_BASIS_AT_LOWER
+                : isfinite(lp->col_upper[j]) ? JAOS_BASIS_AT_UPPER
+                                             : JAOS_BASIS_FREE;
+    for (int64_t i = 0; ok && i < nr; i++)
+        rs[i] = JAOS_BASIS_BASIC;
+    const double key = cur != nullptr ? cur->key : -INFINITY;
+    for (int side = 0; ok && side < 2; side++) {
+        const int64_t n = side == 0 ? nd : nu;
+        const int64_t *col = side == 0 ? dcol : ucol;
+        const double *lo = side == 0 ? dlo : ulo;
+        const double *hi = side == 0 ? dhi : uhi;
+        bool crossed = false;
+        for (int64_t k = 0; k < n; k++)
+            crossed = crossed || lo[k] > hi[k];
+        if (crossed)
+            continue;
+        bnode *c = node_child(cur, nc, nr, nperm, cs, rs, n, col, lo, hi, key,
+                              (*next_id)++, 0.0, side == 1, act, act_n,
+                              cur != nullptr && cur->no_cuts);
+        ok = c != nullptr;
+        if (ok) {
+            c->est = key;
+            ok = open_push(heap, kh, c);
+            if (!ok)
+                node_free(c);
+        }
+    }
+    free(cs);
+    free(rs);
+    return ok;
 }
 
 enum { PH_OTHER, PH_LP, PH_CUTS, PH_HEUR, PH_PROP, PH_BRANCH, PH_COUNT };
@@ -4224,7 +4355,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         ? m->cfg.mip_dive_heuristic : MIP_DIVE_HEURISTIC;
     const int64_t dive_heur_depth = m->cfg.mip_dive_heuristic_depth_set
         ? m->cfg.mip_dive_heuristic_depth : MIP_DIVE_HEURISTIC_DEPTH;
-    const int64_t rins = m->cfg.mip_rins_set ? m->cfg.mip_rins : MIP_RINS;
+    const int64_t rins = m->cfg.mip_rins_set    ? m->cfg.mip_rins
+                         : jm_model_has_quadratic(m) ? 0
+                                                     : MIP_RINS;
     const int64_t node_select = m->cfg.mip_node_select_set
         ? m->cfg.mip_node_select : MIP_NODE_SELECT;
     const int64_t lb_size = m->cfg.mip_local_branching_set
@@ -4342,7 +4475,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t *cstack = nullptr;
     lpair *pextra = nullptr;
     int64_t npextra = 0, pecap = 0;
-    int64_t clique_fixed = 0, clique_cut_nodes = 0;
+    int64_t clique_fixed = 0, clique_cut_nodes = 0, open_splits = 0;
+    bool pieces = m->num_sos > 0;
+    for (int64_t i = 0; !pieces && m->row_ind_col != nullptr && i < nr; i++)
+        pieces = m->row_ind_col[i] >= 0;
     steer sw = {0};
     int64_t nperm = nr;
     jm_symmetry sym = {0};
@@ -4771,8 +4907,25 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             continue;
         }
         if (ns == JAOS_SOLVE_UNBOUNDED) {
-            if (unbounded_or_infeasible(m, &work, &outcome) != JAOS_OK)
+            int64_t nd = 0, nu = 0;
+            int64_t *const ocol = fcol + nc + 1;
+            double *const olo = flo + nc + 1, *const ohi = fhi + nc + 1;
+            if (pieces &&
+                jm_open_piece(m, lp->col_lower, lp->col_upper, fcol, flo, fhi,
+                              &nd, ocol, olo, ohi, &nu)) {
+                if (!open_split(lp, cur, nfixed, act, act_n, fcol, flo, fhi,
+                                nd, ocol, olo, ohi, nu, &next_id, &heap, &kh))
+                    goto done;
+                open_splits++;
+                continue;
+            }
+            jaos_solve_status got = JAOS_SOLVE_NOT_RUN;
+            if (unbounded_or_infeasible(m, pieces ? lp : nullptr, ilo, ihi,
+                                        &work, &got) != JAOS_OK)
                 goto done;
+            if (pieces && got == JAOS_SOLVE_INFEASIBLE)
+                continue;
+            outcome = got;
             break;
         }
         if (ns != JAOS_SOLVE_OPTIMAL) {
@@ -6081,6 +6234,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
            (long long)sw.refused, (long long)conflicts,
            (long long)conflict_lits, (long long)orbital_branches,
            (long long)orbital_fixed, (long long)parked);
+    if (open_splits > 0)
+        jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld nodes with an "
+               "unbounded relaxation were split on an SOS set or an indicator "
+               "row the node's box leaves open", (long long)open_splits);
 
     m->mip_pool_n = sp.n;
     m->mip_pool_x = sp.x;

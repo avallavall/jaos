@@ -153,7 +153,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_dive_degrade` | `mip_dive_degrade` | number | 0 |
 | `jaos_set_mip_dive_heuristic` | `mip_dive_heuristic` | integer | 50 |
 | `jaos_set_mip_dive_heuristic_depth` | `mip_dive_heuristic_depth` | integer | 0 |
-| `jaos_set_mip_rins` | `mip_rins` | integer | 0 |
+| `jaos_set_mip_rins` | `mip_rins` | integer | 50; a model with a quadratic objective takes 0 unless set |
 | `jaos_set_mip_feaspump` | `mip_feaspump` | integer | 20 |
 | `jaos_set_mip_pump_general` | `mip_pump_general` | boolean | false |
 | `jaos_set_mip_pump_obj` | `mip_pump_obj` | number | 0.5 |
@@ -162,7 +162,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_tighten` | `mip_tighten` | boolean | true |
 | `jaos_set_mip_probing` | `mip_probing` | boolean | false |
 | `jaos_set_mip_probing_cap` | `mip_probing_cap` | number | 1 |
-| `jaos_set_mip_clique_fix` | `mip_clique_fix` | boolean | false |
+| `jaos_set_mip_clique_fix` | `mip_clique_fix` | boolean | true |
 | `jaos_set_mip_conflicts` | `mip_conflicts` | boolean | true |
 | `jaos_set_mip_symmetry` | `mip_symmetry` | boolean | false |
 | `jaos_set_mip_orbital` | `mip_orbital` | boolean | true |
@@ -793,7 +793,9 @@ depth 0. The default is 0, the root only.
 `jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves)`\
 Sets the most solves of RINS. RINS fixes the integer columns on which the
 incumbent and a node's relaxation agree, and dives on the rest. It runs once
-per distinct incumbent. The default is 0, off.
+per distinct incumbent. The default is 50 since 2026-09-25, and 0, off, for
+a model with a quadratic objective, whose dives are barrier solves. 0 turns
+it off.
 
 **`jaos_set_mip_local_branching`**\
 `jaos_status jaos_set_mip_local_branching(jaos_model *m, int64_t size)`\
@@ -951,7 +953,7 @@ call fails when `multiple` is NaN or positive infinity.
 
 **`jaos_set_mip_clique_fix`**\
 `jaos_status jaos_set_mip_clique_fix(jaos_model *m, int on)`\
-Turns clique fixing on or off. It is off by default. At each node, a binary
+Turns clique fixing on or off. It is on by default since 2026-09-25. At each node, a binary
 column fixed to one value fixes every literal that the root's clique table
 puts in conflict with it. A node that holds both sides of a conflict closes
 without a solve.

@@ -206,7 +206,9 @@ branch and bound of their own (`src/conictree.c`,
 brute force every time, and on CBLIB's 80 mixed-integer instances at
 1e11 work units 43 end `OPTIMAL`, all taken by the checker, and 37 at
 the work limit, each with an incumbent found by the tree's rounding, its
-root dive or its branching. What keeps the row from ●: of QPLIB's 13
+root dive or its branching. Since 2026-09-25 SOS sets, semi-continuous
+columns and indicator rows beside cones go to that tree too, which
+branches on them as the MIP tree does. What keeps the row from ●: of QPLIB's 13
 convex continuous QCQPs 9 end `OPTIMAL` taken by the checker, 3 end
 `NUMERICAL_ERROR` and 1 reaches the work limit
 (`bench/measurements/02-319/`), the
@@ -343,17 +345,18 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
   cuts exist behind switches and are off: read again on the 2017 set on
   2026-09-22, neither reached the pay rule (`bench/measurements/02-298/`).
 - *MIP presolve*: coefficient tightening runs at the root (`--tighten`), and
-  the clique table feeds the clique cuts. Probing (`--probing`, 1.109x with
-  no column fixed on the MIP set) and fixing by clique conflicts at each
-  node (`--clique-fix`, 1.026x) are off by measurement.
+  the clique table feeds the clique cuts. Fixing by clique conflicts at
+  each node is on since 2026-09-25 (`--no-clique-fix` turns it off;
+  `l152lav` 0.614x, `bench/measurements/02-325/`). Probing (`--probing`,
+  1.109x with no column fixed on the MIP set) is off by measurement.
 - *Bound propagation and reduced-cost fixing*: both exist and are off by
   measurement, `--propagate N` at 1.093x the work at one pass and `--rcfix`
   at 1.010x. Node propagation is on for a quadratic objective
   (`MIP_QUAD_PROPAGATE`).
 - *Primal heuristics*: rounding, a root dive and the feasibility pump are
-  on. RINS and local branching exist behind `--rins` and
-  `--local-branching` and are off by measurement, so no improvement
-  heuristic runs by default.
+  on, and RINS since 2026-09-25 on a linear objective (`--rins`, 50
+  relaxations a dive). Local branching exists behind `--local-branching`
+  and is off by measurement.
 
 **The other columns in the new rows.** SoPlex and Clp read "—" as in
 section 1. HiGHS: reliability pseudocosts (`mip_pscost_minreliable`),

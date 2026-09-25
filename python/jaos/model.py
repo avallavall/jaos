@@ -879,8 +879,9 @@ class Model:
         """Relaxations a RINS dive may solve at a node (D315).
 
         The columns the incumbent and the node's relaxation agree on are
-        fixed there first. 0, the default, is off; a negative value
-        restores it.
+        fixed there first. The default is 50, and 0 on a model with a
+        quadratic objective; 0 is off, and a negative value restores the
+        default.
         """
         self._check(_lib.jaos_set_mip_rins(self._handle(), int(solves)))
 
@@ -998,8 +999,8 @@ class Model:
         between literals, plus the ones probing found. At each node a
         binary fixed to one setting fixes every literal in conflict with
         it, and a node holding both sides of a conflict is cut with no
-        solve. Off by default (1.026x over the MIP set, enigma 1.853x);
-        a negative value restores it.
+        solve. On by default (MIPLIB 3 0.735x in summed work with RINS,
+        02-325); a negative value restores the default.
         """
         self._check(_lib.jaos_set_mip_clique_fix(self._handle(), int(on)))
 
