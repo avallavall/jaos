@@ -342,7 +342,9 @@ round of Gomory cuts adds the tableau rows it reads. Four passes read the
 model more than once and bill that: a MIR round `(nnz + nc + nr) *
 (MIP_MIR_DELTAS + 1)`, a clique round `nm * nm` per clique of `nm`
 members, a stalled pump round `MIP_PUMP_FLIPS * nc`, and orbital fixing
-`ngen * nfix + kept * nc`. Symmetry detection (`src/symmetry.c`) searches
+`ngen * nfix + kept * nc`. The probe of a root round's aggregated MIR cuts
+bills its copy of the root LP at `nnz + nr + nc` and its solve as any
+solve. Symmetry detection (`src/symmetry.c`) searches
 under a cap and bills what it spent of it. Under `--tree-batch N` above 1,
 each node of a round is solved on its own copy of the tree's LP with
 `(work_limit - work) / n` of the budget, and its work is added; the tree

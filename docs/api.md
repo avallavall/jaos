@@ -145,7 +145,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
 | `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6 |
 | `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | false |
-| `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 0 |
+| `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
 | `jaos_set_mip_dive_child` | `mip_dive_child` | `nearer`, `up`, `down`, `pseudocost` | `nearer` |
 | `jaos_set_mip_dive_backtrack` | `mip_dive_backtrack` | integer | 0 |
@@ -769,8 +769,12 @@ under the same cap. It is off by default.
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\
 Lets an MIR row absorb up to `rows` other rows before it is rounded. Each
-absorbed row substitutes out a continuous column. The default is 0, the
-single-row form.
+absorbed row substitutes out a continuous column. The default is 6 since
+2026-09-25, and 0 is the single-row form. A root round's aggregated cuts
+are tried on a copy of the root LP first and kept only when they lift its
+bound by `MIP_MIR_AGG_GAIN` of itself; after a round that drops them or
+finds none, aggregation stops for the solve. A model with a quadratic
+objective keeps the single-row form.
 
 **`jaos_set_mip_dive_heuristic`**\
 `jaos_status jaos_set_mip_dive_heuristic(jaos_model *m, int64_t solves)`\

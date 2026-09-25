@@ -50,7 +50,8 @@ constexpr int64_t MIP_MIR_DELTAS = 8;
 
 constexpr double MIP_MIR_ROUND = 1e-9;
 
-constexpr int64_t MIP_MIR_AGGREGATE = 0;
+constexpr int64_t MIP_MIR_AGGREGATE = 6;
+constexpr double  MIP_MIR_AGG_GAIN = 1e-2;
 
 constexpr int64_t MIP_DIVE_HEURISTIC = 50;
 
@@ -4300,7 +4301,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     bnode *round[MIP_BATCH_MAX];
     int64_t round_n = 0, round_at = 0;
     incumbent inc = {0};
-    cutbuf cb = {0}, pool = {0};
+    cutbuf cb = {0}, pool = {0}, agb = {0};
+    bool agg_live = mir_aggregate > 0 && !jm_model_has_quadratic(m);
+    int64_t agg_probes = 0, agg_kept = 0;
     int64_t *act = nullptr;
     int64_t act_n = 0, act_cap = 0;
     int64_t nfixed = nr;
@@ -4971,60 +4974,109 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         goto done;
                     mirs += mv;
                     got += mv;
-                    if (mir_aggregate > 0) {
-                        const int64_t av = mir_aggregate_round(
-                            m, lp, x, ilo, ihi, &cb, cut, mbest, mdelta, magg,
-                            mcmag, mused, mpicked, mir_aggregate, &work);
-                        if (av < 0)
-                            goto done;
-                        mirs += av;
-                        got += av;
-                    }
                 }
-                if (got == 0)
+                agb.n = agb.nnz = 0;
+                if (r < mir_rounds && agg_live) {
+                    const int64_t av = mir_aggregate_round(
+                        m, lp, x, ilo, ihi, &agb, cut, mbest, mdelta, magg,
+                        mcmag, mused, mpicked, mir_aggregate, &work);
+                    if (av < 0)
+                        goto done;
+                    if (agb.n == 0)
+                        agg_live = false;
+                }
+                if (got == 0 && agb.n == 0)
                     break;
-                if (cuts_add(lp, &cb) != JAOS_OK)
-                    goto done;
-
-                if (root_cut_drop) {
-                    for (int64_t k = 0; k < cb.n; k++) {
-                        if (!cutbuf_append(&pool, &cb, k) ||
-                            !JM_GROW(act, act_cap, act_n + 1) ||
-                            !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + 1))
-                            goto done;
-                        act[act_n++] = pool.n - 1;
-                        in_copy.v[in_copy.n++] = pool.n - 1;
-                    }
-                }
-                cuts += got;
                 const double key_before = key;
-                phase_to(&ph, work, PH_LP);
-                budget(lp, m, work);
-                st = jaos_solve(lp);
-                solves++;
-                work += jaos_work_units(lp);
-                iters += jaos_iterations(lp);
-                phase_to(&ph, work, PH_CUTS);
-                if (st != JAOS_OK) {
-                    if (st == JAOS_ERR_NUMERICAL) {
-                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
-                        jm_set_err(m, "root cuts, round %lld: %s",
-                                   (long long)(r + 1), jaos_model_error(lp));
+                for (int pass = 0; pass < 2; pass++) {
+                    const cutbuf *add = pass == 0 ? &cb : &agb;
+                    if (add->n == 0)
+                        continue;
+                    if (pass == 1) {
+                        agg_probes++;
+                        jaos_model *pv = nullptr;
+                        if (jaos_model_copy(lp, &pv) != JAOS_OK ||
+                            cuts_add(pv, &agb) != JAOS_OK) {
+                            jaos_model_free(pv);
+                            goto done;
+                        }
+                        work += lp->num_nz + lp->num_row + lp->num_col;
+                        phase_to(&ph, work, PH_LP);
+                        budget(pv, m, work);
+                        const jaos_status pst = jaos_solve(pv);
+                        solves++;
+                        work += jaos_work_units(pv);
+                        iters += jaos_iterations(pv);
+                        phase_to(&ph, work, PH_CUTS);
+                        double pobj = 0.0;
+                        const bool solved =
+                            pst == JAOS_OK &&
+                            jaos_status_of(pv) == JAOS_SOLVE_OPTIMAL &&
+                            jaos_objective(pv, &pobj) == JAOS_OK;
+                        const double gain = solved
+                            ? (sigma * pobj - key) / (1.0 + fabs(key)) : 0.0;
+                        const bool pays = solved && gain > MIP_MIR_AGG_GAIN;
+                        jaos_model_free(pv);
+                        jm_log(m, JAOS_LOG_DETAIL,
+                               "root cuts, round %lld: %lld aggregated MIR "
+                               "cuts lift the bound by %.3e of it on a copy; "
+                               "%s", (long long)(r + 1), (long long)agb.n,
+                               gain, pays ? "kept" : "dropped, and no more "
+                               "aggregation");
+                        if (!pays) {
+                            agg_live = false;
+                            continue;
+                        }
+                        agg_kept += agb.n;
+                        mirs += agb.n;
+                        got += agb.n;
+                    }
+                    if (cuts_add(lp, add) != JAOS_OK)
+                        goto done;
+                    if (root_cut_drop) {
+                        for (int64_t k = 0; k < add->n; k++) {
+                            if (!cutbuf_append(&pool, add, k) ||
+                                !JM_GROW(act, act_cap, act_n + 1) ||
+                                !JM_GROW(in_copy.v, in_copy.cap,
+                                         in_copy.n + 1))
+                                goto done;
+                            act[act_n++] = pool.n - 1;
+                            in_copy.v[in_copy.n++] = pool.n - 1;
+                        }
+                    }
+                    cuts += pass == 0 ? got : add->n;
+                    phase_to(&ph, work, PH_LP);
+                    budget(lp, m, work);
+                    st = jaos_solve(lp);
+                    solves++;
+                    work += jaos_work_units(lp);
+                    iters += jaos_iterations(lp);
+                    phase_to(&ph, work, PH_CUTS);
+                    if (st != JAOS_OK) {
+                        if (st == JAOS_ERR_NUMERICAL) {
+                            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                            jm_set_err(m, "root cuts, round %lld: %s",
+                                       (long long)(r + 1),
+                                       jaos_model_error(lp));
+                            stop = true;
+                            break;
+                        }
+                        goto done;
+                    }
+                    ns = jaos_status_of(lp);
+                    if (ns != JAOS_SOLVE_OPTIMAL) {
+                        outcome = ns;
                         stop = true;
                         break;
                     }
-                    goto done;
+                    if (jaos_objective(lp, &obj) != JAOS_OK ||
+                        jaos_solution(lp, x, nullptr, nullptr, nullptr) !=
+                            JAOS_OK)
+                        goto done;
+                    key = sigma * obj;
                 }
-                ns = jaos_status_of(lp);
-                if (ns != JAOS_SOLVE_OPTIMAL) {
-                    outcome = ns;
-                    stop = true;
+                if (stop || got == 0)
                     break;
-                }
-                if (jaos_objective(lp, &obj) != JAOS_OK ||
-                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
-                    goto done;
-                key = sigma * obj;
                 branch = select_branch(m, x, rule, pc_sum, pc_n);
                 if (branch < 0)
                     break;
@@ -5051,6 +5103,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                    obj, (long long)cuts, (long long)covers,
                    (long long)cliques, (long long)zero_halves,
                    (long long)flow_covers, (long long)mirs);
+            if (mir_aggregate > 0 && !jm_model_has_quadratic(m))
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: MIR aggregation kept %lld cuts after %lld "
+                       "probes on a copy", (long long)agg_kept,
+                       (long long)agg_probes);
         }
 
         phase_to(&ph, work, PH_HEUR);
@@ -6131,6 +6188,7 @@ done:
     free(in_copy.v);
     spool_free(&sp);
     cutbuf_free(&cb);
+    cutbuf_free(&agb);
     cutbuf_free(&pool);
     while (heap.n > 0)
         node_free(heap_pop(&heap));

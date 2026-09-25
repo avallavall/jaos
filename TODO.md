@@ -102,10 +102,15 @@ the same cuts (MIPLIB 3 writes the same files). `bell5`'s growth is its
 tree's sensitivity (`bench/measurements/02-320/`): the aggregated root
 cuts alone, one aggregation step already, lift its root bound by 3e-5
 of itself and send pseudocost branching down a 143x longer path, and a
-cutoff at the optimum changes neither tree. Next: aggregate on a copy of
-the root LP and add those cuts only when they lift the bound past a
-threshold, which leaves `bell5`'s path as it is and would lose
-`sp150x300d`. MIR with variable upper bounds (`mir-vub`) and exact cover
+cutoff at the optimum changes neither tree. Since 2026-09-25 aggregation
+is on at 6 steps, each root round's aggregated cuts tried on a copy of
+the root LP and kept only when they lift the bound by
+`MIP_MIR_AGG_GAIN` (1e-2) of itself (`bench/measurements/02-321/`):
+MIPLIB 3 1.012x, the 2017 gap sum 0.986x, `exp-1-500-5-5`'s bound
+49815 to 61197 of 65887. `sp150x300d` drops the cuts and stays unsolved,
+and `timtab1`'s bound falls from 441250 to 414914. Next on the networks:
+what `sp150x300d` needed from aggregation, since its root bound does not
+move. MIR with variable upper bounds (`mir-vub`) and exact cover
 lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
 `l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
 from forcing rows that fix basic columns (keeping those rows is refused as
