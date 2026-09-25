@@ -917,6 +917,32 @@ static void test_a_failed_leaf_is_set_aside_and_the_tree_goes_on(void)
     jaos_model_free(m);
 }
 
+static void test_a_row_the_boxes_satisfy_leaves_the_walk(void)
+{
+    jaos_model *m = badly_scaled_box(true);
+    const double zero = 0.0, inf = jaos_infinity();
+    const int64_t rs[2] = {0, 2}, ri[2] = {11, 13};
+    const double rv[2] = {1.0, 1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_add_rows(m, 1, &zero, &inf, 2, rs, ri, rv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[18], y[1], z[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6 * 73622258.83, 73622258.83, obj);
+    TEST_ASSERT_EQUAL_INT64(18, jaos_num_col(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, y[0]);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 1, z + 1));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_conic_solution(m, x, y, z, 1e-6, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void)
 {
     const char *path[2] = {"tests/data/g_ray_probe.mps",
@@ -1210,6 +1236,7 @@ int main(void)
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);
     RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);
+    RUN_TEST(test_a_row_the_boxes_satisfy_leaves_the_walk);
     RUN_TEST(test_a_cone_held_at_its_tip_is_left_out_of_the_walk);
     RUN_TEST(test_a_cone_whose_head_is_free_and_idle_is_left_out);
     RUN_TEST(test_the_conic_tree_learns_which_columns_move_the_bound);

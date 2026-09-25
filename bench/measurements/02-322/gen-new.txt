@@ -1,0 +1,39 @@
+== seed 1
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 2.220e-16
+worst row violation 2.220e-16
+worst rotated-form gap 1.938e-10
+work units 152964388
+iterations 11172
+longest 36
+failed models 0
+digest 77438d2b93ecb3e1
+== seed 2
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 1.862e-16
+worst row violation 8.188e-13
+worst rotated-form gap 1.365e-10
+work units 155208756
+iterations 11327
+longest 35
+failed models 0
+digest 20f86061945b890c
+== seed 3
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 1.820e-16
+worst row violation 1.589e-13
+worst rotated-form gap 5.636e-10
+work units 150468026
+iterations 11096
+longest 34
+failed models 0
+digest 71d98d7c05410cb3

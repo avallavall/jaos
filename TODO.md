@@ -67,12 +67,10 @@ other rule leaves duals off by 5.6e-7. On QPLIB_3105 the two rules leave
 duals off by 5.8e-7 and rows off by 7.1e-6. A rule that adds only the
 rows the refit cannot do without, one batch at a time, is the next thing
 to try. QPLIB_2468 ends `NUMERICAL_ERROR` too: the walk stops without
-progress and the checker refuses its point.
-`tests/data/g_cone_badbox.mps` with two of its columns in a row ends at a
-certificate the checker refuses. An infeasibility whose free column with
-no curvature needs its coefficient to vanish exactly has no certificate
-one multiplier at a time can hold. Verify with `make cblib` and the QCQP
-reading of 02-319 (`conread.sh`).
+progress and the checker refuses its point. An infeasibility whose free
+column with no curvature needs its coefficient to vanish exactly has no
+certificate one multiplier at a time can hold. Verify with `make cblib`
+and the QCQP reading of 02-319 (`conread.sh`).
 
 ## Tier 3: the largest performance gaps
 
