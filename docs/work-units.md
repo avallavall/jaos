@@ -428,7 +428,11 @@ because the charge is easy to misread. The row-wise pass charges
 column-wise form it replaced, and here only `nnz(rho)` logicals are written.
 What it matches instead is the walk over `rho` itself, which reads every row
 whether it skips it or not. On the Kennington set that single charge is 27%
-of everything billed.
+of everything billed. Since 2026-09-25 the pass reads the solver's own
+row-wise copy, whose nonbasic entries come first in each row, and
+`touched` counts those entries only. Keeping the copy in step charges the
+nonzeros of each column that enters or leaves the basis, and rebuilding it
+after a new basis charges `nnz + nrow`.
 
 **The clock is never involved.** A time limit is read once every 64
 iterations in the simplex and PDLP, once per iteration in the barrier and

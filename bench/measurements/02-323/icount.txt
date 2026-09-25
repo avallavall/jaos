@@ -1,0 +1,9 @@
+instance              5700138   working-tree     ratio
+greenbeb           8018569950     7581022016   0.94543
+seba                 33057948       33398078   1.01029
+d2q06c            26792971376    25419054503   0.94872
+pilot87          110675134260   106921430610   0.96608
+fit2p             23346059829    23242240624   0.99555
+stocfor3          56882721565    56709976286   0.99696
+dfl001           128229940229   123742775408   0.96501
+geometric mean of per-instance ratios: 0.97515  (below 1 = fewer instructions now)

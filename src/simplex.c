@@ -85,6 +85,8 @@ typedef struct {
     double *av;
 
     double *arv;
+    int64_t *pr_index, *pr_nb, *pr_at, *pr_k;
+    bool pr_ok;
 
     double *lo, *up, *cost;
     double *cost0;
@@ -279,6 +281,7 @@ static inline bool verified_fresh(const sx *s)
 static void sx_free(sx *s)
 {
     free(s->av); free(s->arv);
+    free(s->pr_index); free(s->pr_nb); free(s->pr_at); free(s->pr_k);
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
@@ -357,6 +360,11 @@ static jaos_status sx_init(sx *s, jaos_model *m)
 
     s->av     = jm_alloc_array(m->num_nz, sizeof(double));
     s->arv    = jm_alloc_array(m->num_nz, sizeof(double));
+    s->pr_index = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1,
+                                 sizeof(int64_t));
+    s->pr_at  = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof(int64_t));
+    s->pr_k   = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof(int64_t));
+    s->pr_nb  = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof(int64_t));
     s->lo     = jm_alloc_array(s->nvar, sizeof(double));
     s->up     = jm_alloc_array(s->nvar, sizeof(double));
     s->cost   = jm_calloc_array(s->nvar, sizeof(double));
@@ -407,7 +415,8 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->fake   = jm_calloc_array(s->nvar, sizeof *s->fake);
     s->uray   = jm_calloc_array(s->ncol, sizeof(double));
 
-    if (!s->av || !s->arv || !s->lo || !s->up || !s->cost || !s->cost0 ||
+    if (!s->av || !s->arv || !s->pr_index || !s->pr_at || !s->pr_k ||
+        !s->pr_nb || !s->lo || !s->up || !s->cost || !s->cost0 ||
         !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->pviol || !s->punder ||
@@ -445,8 +454,25 @@ static jaos_status sx_init(sx *s, jaos_model *m)
             s->av[k] = rho[m->a_index[k]] * m->a_value[k] * gamma[j];
 
     for (int64_t i = 0; i < s->nrow; i++)
-        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
             s->arv[p] = rho[i] * m->ar_value[p] * gamma[m->ar_index[p]];
+            s->pr_index[p] = m->ar_index[p];
+        }
+    s->pr_ok = true;
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->pr_nb[i] = m->ar_start[i];
+    for (int64_t j = 0; j < s->ncol && s->pr_ok; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t p = s->pr_nb[m->a_index[k]]++;
+            if (m->ar_index[p] != j) {
+                s->pr_ok = false;
+                break;
+            }
+            s->pr_at[k] = p;
+            s->pr_k[p] = k;
+        }
+    for (int64_t i = 0; i < s->nrow; i++)
+        s->pr_nb[i] = m->ar_start[i + 1] - m->ar_start[i];
 
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
     for (int64_t j = 0; j < s->ncol; j++) {
@@ -550,6 +576,61 @@ static double price_entry(sx *s, const double *w, int64_t v)
     return a;
 }
 
+static void pr_swap(sx *s, int64_t p, int64_t q)
+{
+    if (p == q)
+        return;
+    const int64_t ti = s->pr_index[p], tk = s->pr_k[p];
+    const double tv = s->arv[p];
+    s->pr_index[p] = s->pr_index[q];
+    s->arv[p] = s->arv[q];
+    s->pr_k[p] = s->pr_k[q];
+    s->pr_index[q] = ti;
+    s->arv[q] = tv;
+    s->pr_k[q] = tk;
+    s->pr_at[s->pr_k[p]] = p;
+    s->pr_at[s->pr_k[q]] = q;
+}
+
+static void pr_rebuild(sx *s)
+{
+    if (!s->pr_ok)
+        return;
+    const jaos_model *m = s->m;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        int64_t lo = m->ar_start[i], hi = m->ar_start[i + 1] - 1;
+        while (lo <= hi) {
+            if (s->status[s->pr_index[lo]] != JM_BASIC) {
+                lo++;
+                continue;
+            }
+            pr_swap(s, lo, hi);
+            hi--;
+        }
+        s->pr_nb[i] = lo - m->ar_start[i];
+    }
+    jm_work_add(&s->work, (m->num_nz + s->nrow) * JM_WORK_NONZERO);
+}
+
+static void pr_turn(sx *s, int64_t v, bool basic)
+{
+    if (!s->pr_ok || v >= s->ncol)
+        return;
+    const jaos_model *m = s->m;
+    for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+        const int64_t i = m->a_index[k], p = s->pr_at[k];
+        if (basic) {
+            pr_swap(s, p, m->ar_start[i] + s->pr_nb[i] - 1);
+            s->pr_nb[i]--;
+        } else {
+            pr_swap(s, p, m->ar_start[i] + s->pr_nb[i]);
+            s->pr_nb[i]++;
+        }
+    }
+    jm_work_add(&s->work,
+                (m->a_start[v + 1] - m->a_start[v]) * JM_WORK_NONZERO);
+}
+
 static void build_initial_basis(sx *s)
 {
     s->pviol_ok = false;
@@ -599,6 +680,7 @@ static void build_initial_basis(sx *s)
     }
 
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+    pr_rebuild(s);
 
 #ifndef NDEBUG
 
@@ -700,6 +782,7 @@ static bool build_warm_basis(sx *s)
     free(want_arr);
 
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+    pr_rebuild(s);
 
     for (int64_t i = 0; i < s->nrow; i++)
         s->dse[i] = 1.0;
@@ -1016,6 +1099,8 @@ static bool repair_singular_basis(sx *s)
         s->basis[p] = entering;
         s->status[entering] = JM_BASIC;
         jm_nonbasic_remove(s->nbmark, entering);
+        pr_turn(s, leaving, false);
+        pr_turn(s, entering, true);
         s->where[entering] = p;
         s->pviol_ok = false;
         i++;
@@ -1041,6 +1126,15 @@ static bool nbmark_consistent(const sx *s)
         const bool in_map = (s->nbmark[v >> 6] >> (v & 63)) & 1;
         if (in_map != (s->status[v] != JM_BASIC))
             return false;
+    }
+    for (int64_t i = 0; s->pr_ok && i < s->nrow; i++) {
+        const int64_t b = s->m->ar_start[i], e = s->m->ar_start[i + 1];
+        for (int64_t p = b; p < e; p++) {
+            if ((p < b + s->pr_nb[i]) != (s->status[s->pr_index[p]] != JM_BASIC))
+                return false;
+            if (s->pr_at[s->pr_k[p]] != p)
+                return false;
+        }
     }
     return true;
 }
@@ -1667,12 +1761,17 @@ static void price_all(sx *s)
             s->rpat[nfound++] = i;
 
         int64_t lg = s->ncol + i;
-        if (np < cap)
-            s->apat[np] = lg;
-        np++;
-        s->alpha[lg] = -w;
-        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
-            int64_t c = m->ar_index[p];
+        if (!s->pr_ok || s->status[lg] != JM_BASIC) {
+            if (np < cap)
+                s->apat[np] = lg;
+            np++;
+            s->alpha[lg] = -w;
+        }
+        const int64_t *idx = s->pr_ok ? s->pr_index : m->ar_index;
+        const int64_t end = s->pr_ok ? m->ar_start[i] + s->pr_nb[i]
+                                     : m->ar_start[i + 1];
+        for (int64_t p = m->ar_start[i]; p < end; p++) {
+            int64_t c = idx[p];
             double prev = s->alpha[c];
             if (prev == 0.0) {
                 if (np < cap)
@@ -1681,21 +1780,23 @@ static void price_all(sx *s)
             }
             s->alpha[c] = prev + w * s->arv[p];
         }
-        touched += m->ar_start[i + 1] - m->ar_start[i];
+        touched += end - m->ar_start[i];
     }
     if (!sparse_rows)
         s->nrpat = nfound;
 
-    const bool sparse_zero = np <= cap && np < s->nrow;
-    if (sparse_zero) {
-        for (int64_t k = 0; k < np; k++) {
-            int64_t v = s->apat[k];
-            if (s->status[v] == JM_BASIC)
-                s->alpha[v] = 0.0;
+    if (!s->pr_ok) {
+        const bool sparse_zero = np <= cap && np < s->nrow;
+        if (sparse_zero) {
+            for (int64_t k = 0; k < np; k++) {
+                int64_t v = s->apat[k];
+                if (s->status[v] == JM_BASIC)
+                    s->alpha[v] = 0.0;
+            }
+        } else {
+            for (int64_t i = 0; i < s->nrow; i++)
+                s->alpha[s->basis[i]] = 0.0;
         }
-    } else {
-        for (int64_t i = 0; i < s->nrow; i++)
-            s->alpha[s->basis[i]] = 0.0;
     }
 
     jm_work_add(&s->work, (touched + nvisit) * JM_WORK_NONZERO);
@@ -2128,6 +2229,8 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     s->basis[r] = q;
     s->status[q] = JM_BASIC;
     jm_nonbasic_remove(s->nbmark, q);
+    pr_turn(s, leaving, false);
+    pr_turn(s, q, true);
     s->where[q] = r;
     if (s->pviol_ok) {
         if (sparse_col) {
@@ -2381,6 +2484,7 @@ static jaos_status take_best_if_better(sx *s, bool *ok)
         s->where[s->basis[i]] = i;
 
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+    pr_rebuild(s);
 
     s->needs_refactor = true;
     set_verified(s, false);
@@ -2402,6 +2506,7 @@ static jaos_status restore_settled(sx *s, bool *ok)
     for (int64_t i = 0; i < s->nrow; i++)
         s->where[s->basis[i]] = i;
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+    pr_rebuild(s);
 
     s->needs_refactor = true;
     return refresh(s, ok, true);

@@ -136,7 +136,11 @@ does: 17% dense on average, split between 7365 solves at 10% or more and
 under 1% dense, 47% of the `tau` still reach 10%). On `d2q06c` and
 `dfl001` the largest item is `price_all` (16% and 13%), which also prices
 the basic columns; HiGHS keeps a row-wise copy of the nonbasic columns
-only (pricing column by column is refused, `price-by-column`). Half of
+only (pricing column by column is refused, `price-by-column`). Since
+2026-09-25 `price_all` reads such a copy, the nonbasic entries first in
+each row, with the same answers everywhere: 0.975x instructions over
+seven models, d2q06c 0.949x and dfl001 0.965x, stocfor3 0.997x
+(`bench/measurements/02-323/`). Half of
 `stocfor3`'s gap is presolve: HiGHS takes it from 16675 rows to 8259 (its
 aggregator 5508, doubleton equations 2054, free column substitution 769)
 and needs 6404 iterations, where JAOS's presolve leaves 13305 rows and the

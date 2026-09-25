@@ -1,103 +1,103 @@
 # instance    verdict   dual=iters/work  pdlp=iters/work
-25fv47       ok        dual=2605/66139403 pdlp=3328+2605/403027250 verdict=optimal/optimal obj=5501.8458882867444/5501.8458882867444 checker=dual:ok/pdlp:ok 
-80bau3b      ok        dual=3616/70148386 pdlp=4480+3266/622560259 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/pdlp:ok 
-adlittle     overrun   dual=70/142968 pdlp=846+0/1430134 verdict=optimal/work limit reached obj=225494.96316238036/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-afiro        overrun   dual=16/13013 pdlp=252+0/130158 verdict=optimal/work limit reached obj=-464.75314285714285/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-agg          overrun   dual=147/522716 pdlp=576+0/5235234 verdict=optimal/work limit reached obj=-35991767.286576502/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-agg2         overrun   dual=290/1831288 pdlp=1243+0/18324290 verdict=optimal/work limit reached obj=-20239252.355977111/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-agg3         overrun   dual=418/2802484 pdlp=1902+0/28030876 verdict=optimal/work limit reached obj=10312115.935089221/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-bandm        ok        dual=369/2754907 pdlp=1920+155/15466499 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/pdlp:ok 
-beaconfd     overrun   dual=76/91184 pdlp=194+0/914183 verdict=optimal/work limit reached obj=33592.485807199999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-blend        overrun   dual=88/200475 pdlp=1084+0/2006521 verdict=optimal/work limit reached obj=-30.812149845828223/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-bnl1         overrun   dual=731/6443866 pdlp=3539+0/64453485 verdict=optimal/work limit reached obj=1977.629561522888/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-bnl2         overrun   dual=1113/12350283 pdlp=2629+0/123542458 verdict=optimal/work limit reached obj=1811.2365403585452/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-boeing1      ok        dual=404/2526451 pdlp=2112+110/22271299 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/pdlp:ok 
-boeing2      overrun   dual=118/328081 pdlp=940+0/3283792 verdict=optimal/work limit reached obj=-315.0187280152029/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-bore3d       overrun   dual=75/101405 pdlp=421+0/1014764 verdict=optimal/work limit reached obj=1373.0803942084929/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-brandy       overrun   dual=181/1048853 pdlp=1795+0/10490017 verdict=optimal/work limit reached obj=1518.5098964881283/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-capri        overrun   dual=206/350124 pdlp=571+0/3504934 verdict=optimal/work limit reached obj=2690.0129137681602/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-cycle        overrun   dual=917/13858374 pdlp=2602+0/138632499 verdict=optimal/work limit reached obj=-5.2263930248941017/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-czprob       ok        dual=1154/13403922 pdlp=2048+214/75219793 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/pdlp:ok 
-d2q06c       overrun   dual=8846/638194700 pdlp=5824+5878/6382031809 verdict=optimal/work limit reached obj=122784.21081418944/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-d6cube       overrun   dual=419/25172424 pdlp=1216+0/375758797 verdict=optimal/work limit reached obj=315.49166666666667/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-degen2       overrun   dual=591/5724618 pdlp=2304+0/58242482 verdict=optimal/work limit reached obj=-1435.1780000000001/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-degen3       ok        dual=2303/80494684 pdlp=2176+2303/510249481 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/pdlp:ok 
-dfl001       overrun   dual=20409/2432237195 pdlp=8000+159523/24322903255 verdict=optimal/work limit reached obj=11266396.046671389/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-e226         overrun   dual=265/1569384 pdlp=2123+0/15698461 verdict=optimal/work limit reached obj=-11.638929066370549/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-etamacro     ok        dual=571/3429151 pdlp=2176+760/28027165 verdict=optimal/optimal obj=-755.7152333749134/-755.71523335229574 checker=dual:ok/pdlp:ok 
-fffff800     overrun   dual=690/5601840 pdlp=2790+0/56028078 verdict=optimal/work limit reached obj=555679.56481749623/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-finnis       overrun   dual=263/575799 pdlp=591+0/5765415 verdict=optimal/work limit reached obj=172791.06559561161/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-fit1d        ok        dual=66/1699588 pdlp=192+12/6618829 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/pdlp:ok 
-fit1p        ok        dual=494/13400777 pdlp=640+12/19417885 verdict=optimal/optimal obj=9146.3780924209277/9146.3780924209277 checker=dual:ok/pdlp:ok 
-fit2d        overrun   dual=131/73063702 pdlp=256+2378/730720663 verdict=optimal/work limit reached obj=-68464.293293832074/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-fit2p        ok        dual=4663/657788130 pdlp=256+1224/295484711 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/pdlp:ok 
-forplan      overrun   dual=188/1239595 pdlp=1046+0/12397018 verdict=optimal/work limit reached obj=-664.21896127220464/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ganges       overrun   dual=969/3679797 pdlp=1420+0/36816761 verdict=optimal/work limit reached obj=-109585.7361292782/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-gfrd-pnc     ok        dual=446/2305440 pdlp=1216+355/19622567 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/pdlp:ok 
-greenbea     overrun   dual=3179/129223081 pdlp=16558+0/1292301224 verdict=optimal/work limit reached obj=-72555248.129845992/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-greenbeb     ok        dual=4336/171604141 pdlp=5248+4336/1613483353 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/pdlp:ok 
-grow15       ok        dual=1197/18954780 pdlp=1792+2216/89790468 verdict=optimal/optimal obj=-106870941.29357538/-106870941.29357535 checker=dual:ok/pdlp:ok 
-grow22       ok        dual=2014/45291483 pdlp=2816+3686/185103222 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/pdlp:ok 
-grow7        ok        dual=542/7493007 pdlp=5184+643/51378618 verdict=optimal/optimal obj=-47787811.814711548/-47787811.814711504 checker=dual:ok/pdlp:ok 
-israel       overrun   dual=100/601912 pdlp=880+0/6023012 verdict=optimal/work limit reached obj=-896644.82186304568/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-kb2          overrun   dual=43/65110 pdlp=580+0/651729 verdict=optimal/work limit reached obj=-1749.9001299062056/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-lotfi        overrun   dual=200/838797 pdlp=1861+0/8390760 verdict=optimal/work limit reached obj=-25.264706061880005/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-maros        overrun   dual=1108/12073170 pdlp=5045+0/120738559 verdict=optimal/work limit reached obj=-58063.743701125895/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-maros-r7     overrun   dual=2574/266093754 pdlp=10260+0/2660949326 verdict=optimal/work limit reached obj=1497185.1664796439/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-modszk1      overrun   dual=611/4897234 pdlp=2552+0/48987012 verdict=optimal/work limit reached obj=320.61972906430913/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-nesm         ok        dual=2746/60675391 pdlp=4480+4947/330298678 verdict=optimal/optimal obj=14076036.487562729/14076036.487562731 checker=dual:ok/pdlp:ok 
-perold       ok        dual=1340/31965938 pdlp=9728+619/244366427 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/pdlp:ok 
-pilot        overrun   dual=5636/936582057 pdlp=15424+31583/9368751146 verdict=optimal/work limit reached obj=-557.48972928406818/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-pilot-ja     overrun   dual=1488/45781989 pdlp=12293+0/457823740 verdict=optimal/work limit reached obj=-6113.1364655813431/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-pilot-we     ok        dual=2754/78683805 pdlp=5696+2754/699023182 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/pdlp:ok 
-pilot4       overrun   dual=832/20080862 pdlp=11452+0/200813714 verdict=optimal/work limit reached obj=-2581.1392588838885/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-pilot87      overrun   dual=9490/3312348432 pdlp=3328+56755/33133723620 verdict=optimal/work limit reached obj=301.71034733311052/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-pilotnov     ok        dual=2675/94411386 pdlp=5952+4894/452849527 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/pdlp:ok 
-recipe       overrun   dual=42/24988 pdlp=100+0/251624 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sc105        overrun   dual=69/72645 pdlp=499+0/727576 verdict=optimal/work limit reached obj=-52.202061211707225/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sc205        overrun   dual=159/443540 pdlp=1547+0/4435672 verdict=optimal/work limit reached obj=-52.202061211707225/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sc50a        overrun   dual=34/25256 pdlp=384+0/260126 verdict=optimal/work limit reached obj=-64.575077058564489/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sc50b        ok        dual=31/21783 pdlp=320+0/212657 verdict=optimal/optimal obj=-69.999999999999986/-69.999999999999986 checker=dual:ok/pdlp:ok 
-scagr25      overrun   dual=395/1386553 pdlp=2168+0/13865672 verdict=optimal/work limit reached obj=-14753433.06076852/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scagr7       overrun   dual=117/187077 pdlp=1100+0/1871824 verdict=optimal/work limit reached obj=-2331389.8243309837/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scfxm1       overrun   dual=389/1530096 pdlp=1642+0/15308449 verdict=optimal/work limit reached obj=18416.759028348944/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scfxm2       overrun   dual=873/6621015 pdlp=3552+0/66212561 verdict=optimal/work limit reached obj=36660.261564998815/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scfxm3       ok        dual=1301/10868310 pdlp=2880+159/83788246 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/pdlp:ok 
-scorpion     overrun   dual=183/338833 pdlp=629+0/3388699 verdict=optimal/work limit reached obj=1878.1248227381068/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scrs8        overrun   dual=466/1888201 pdlp=1293+0/18886919 verdict=optimal/work limit reached obj=904.29695380079147/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scsd1        ok        dual=98/501390 pdlp=512+214/5268296 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/pdlp:ok 
-scsd6        overrun   dual=240/1638632 pdlp=1036+0/16399245 verdict=optimal/work limit reached obj=50.500000077144342/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-scsd8        overrun   dual=654/7452981 pdlp=2274+0/74537483 verdict=optimal/work limit reached obj=904.99999992546441/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sctap1       overrun   dual=184/583672 pdlp=782+0/5838860 verdict=optimal/work limit reached obj=1412.25/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sctap2       overrun   dual=291/1187790 pdlp=415+0/11904654 verdict=optimal/work limit reached obj=1724.8071428571429/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sctap3       overrun   dual=369/1566401 pdlp=410+0/15701482 verdict=optimal/work limit reached obj=1424/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-seba         overrun   dual=102/200947 pdlp=132+0/2017305 verdict=optimal/work limit reached obj=15711.6/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-share1b      overrun   dual=169/525449 pdlp=1245+0/5258551 verdict=optimal/work limit reached obj=-76589.318579185667/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-share2b      overrun   dual=97/188901 pdlp=704+0/1889310 verdict=optimal/work limit reached obj=-415.73224074141922/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-shell        overrun   dual=347/1009316 pdlp=712+0/10096473 verdict=optimal/work limit reached obj=1208825346/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship04l      overrun   dual=407/733149 pdlp=320+0/7336797 verdict=optimal/work limit reached obj=1793324.5379703557/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship04s      overrun   dual=333/496220 pdlp=318+0/4974544 verdict=optimal/work limit reached obj=1798714.7004453922/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship08l      overrun   dual=710/2795149 pdlp=743+0/27951789 verdict=optimal/work limit reached obj=1909055.2113891314/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship08s      overrun   dual=461/1041642 pdlp=522+0/10428359 verdict=optimal/work limit reached obj=1920098.2105346196/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship12l      overrun   dual=1014/4527387 pdlp=907+0/45302008 verdict=optimal/work limit reached obj=1470187.9193292649/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-ship12s      overrun   dual=657/1725081 pdlp=707+0/17258034 verdict=optimal/work limit reached obj=1489236.1344061291/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-sierra       overrun   dual=539/1635609 pdlp=481+0/16372050 verdict=optimal/work limit reached obj=15394362.183631929/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-stair        ok        dual=428/8920126 pdlp=4416+1/52694217 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/pdlp:ok 
-standata     overrun   dual=49/96890 pdlp=86+0/969456 verdict=optimal/work limit reached obj=1257.6994999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-standmps     overrun   dual=188/379651 pdlp=281+0/3802281 verdict=optimal/work limit reached obj=1406.0174999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-stocfor1     overrun   dual=78/123060 pdlp=680+0/1232124 verdict=optimal/work limit reached obj=-41131.976219436416/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-stocfor2     overrun   dual=1618/12491253 pdlp=3239+0/124924347 verdict=optimal/work limit reached obj=-39024.408537882038/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-stocfor3     overrun   dual=12977/437174377 pdlp=13952+1782/4371806669 verdict=optimal/work limit reached obj=-39976.783943649592/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-truss        ok        dual=17667/1158326577 pdlp=29568+17667/4807404146 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/pdlp:ok 
-tuff         overrun   dual=177/728144 pdlp=563+0/7291872 verdict=optimal/work limit reached obj=0.29214776509361279/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-vtp-base     overrun   dual=46/42245 pdlp=306+0/423683 verdict=optimal/work limit reached obj=129831.46246136137/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-wood1p       overrun   dual=573/44132682 pdlp=4041+0/441403858 verdict=optimal/work limit reached obj=1.4429024115734093/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-woodw        overrun   dual=1186/39832765 pdlp=5173+0/398351862 verdict=optimal/work limit reached obj=1.3044763330842295/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+25fv47       ok        dual=2605/61555902 pdlp=3328+2605/381114846 verdict=optimal/optimal obj=5501.8458882867444/5501.8458882867444 checker=dual:ok/pdlp:ok 
+80bau3b      ok        dual=3616/67266060 pdlp=4480+3266/615745256 verdict=optimal/optimal obj=987224.19240909023/987224.19240909023 checker=dual:ok/pdlp:ok 
+adlittle     overrun   dual=70/138587 pdlp=821+0/1386983 verdict=optimal/work limit reached obj=225494.96316238036/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+afiro        overrun   dual=16/12929 pdlp=251+0/129654 verdict=optimal/work limit reached obj=-464.75314285714285/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+agg          overrun   dual=147/501145 pdlp=553+0/5018968 verdict=optimal/work limit reached obj=-35991767.286576502/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+agg2         overrun   dual=290/1779098 pdlp=1208+0/17803070 verdict=optimal/work limit reached obj=-20239252.355977111/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+agg3         overrun   dual=418/2697461 pdlp=1831+0/26987873 verdict=optimal/work limit reached obj=10312115.935089221/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+bandm        ok        dual=369/2602600 pdlp=1920+155/15361641 verdict=optimal/optimal obj=-158.62801845012066/-158.62801845012066 checker=dual:ok/pdlp:ok 
+beaconfd     overrun   dual=76/92528 pdlp=197+0/927635 verdict=optimal/work limit reached obj=33592.485807199999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+blend        overrun   dual=88/191474 pdlp=1034+0/1915721 verdict=optimal/work limit reached obj=-30.812149845828223/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+bnl1         overrun   dual=731/6068582 pdlp=3332+0/60694425 verdict=optimal/work limit reached obj=1977.629561522888/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+bnl2         overrun   dual=1113/11534046 pdlp=2454+0/115342558 verdict=optimal/work limit reached obj=1811.2365403585452/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+boeing1      ok        dual=404/2432002 pdlp=2112+110/22240536 verdict=optimal/optimal obj=-335.21356750712664/-335.21356750712664 checker=dual:ok/pdlp:ok 
+boeing2      overrun   dual=118/315341 pdlp=902+0/3153680 verdict=optimal/work limit reached obj=-315.0187280152029/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+bore3d       overrun   dual=75/97239 pdlp=404+0/973552 verdict=optimal/work limit reached obj=1373.0803942084929/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+brandy       overrun   dual=181/992257 pdlp=1699+0/9924392 verdict=optimal/work limit reached obj=1518.5098964881283/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+capri        overrun   dual=206/332986 pdlp=542+0/3331050 verdict=optimal/work limit reached obj=2690.0129137681602/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+cycle        overrun   dual=917/12882226 pdlp=2418+0/128871489 verdict=optimal/work limit reached obj=-5.2263930248941017/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+czprob       ok        dual=1154/13025221 pdlp=2048+214/75098073 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/pdlp:ok 
+d2q06c       overrun   dual=8846/583519565 pdlp=5824+5396/5835354529 verdict=optimal/work limit reached obj=122784.21081418944/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+d6cube       overrun   dual=419/24776601 pdlp=1216+0/368120692 verdict=optimal/work limit reached obj=315.49166666666667/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+degen2       overrun   dual=591/5334102 pdlp=2304+0/56424240 verdict=optimal/work limit reached obj=-1435.1780000000001/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+degen3       ok        dual=2303/73851191 pdlp=2176+2303/479329371 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/pdlp:ok 
+dfl001       overrun   dual=20409/2252737390 pdlp=8000+158444/22527677866 verdict=optimal/work limit reached obj=11266396.046671389/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+e226         overrun   dual=265/1492886 pdlp=2022+0/14932515 verdict=optimal/work limit reached obj=-11.638929066370549/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+etamacro     ok        dual=571/3269352 pdlp=2176+760/27705733 verdict=optimal/optimal obj=-755.7152333749134/-755.71523335229574 checker=dual:ok/pdlp:ok 
+fffff800     overrun   dual=690/5312826 pdlp=2646+0/53146494 verdict=optimal/work limit reached obj=555679.56481749623/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+finnis       overrun   dual=263/553955 pdlp=569+0/5545908 verdict=optimal/work limit reached obj=172791.06559561161/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+fit1d        ok        dual=66/1708181 pdlp=192+12/6631500 verdict=optimal/optimal obj=-9146.3780924209277/-9146.3780924209277 checker=dual:ok/pdlp:ok 
+fit1p        ok        dual=494/13096977 pdlp=640+12/19427078 verdict=optimal/optimal obj=9146.3780924209277/9146.3780924209277 checker=dual:ok/pdlp:ok 
+fit2d        overrun   dual=131/73174510 pdlp=256+2384/731987844 verdict=optimal/work limit reached obj=-68464.293293832074/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+fit2p        ok        dual=4663/654112425 pdlp=256+1224/294669443 verdict=optimal/optimal obj=68464.293293832074/68464.293293832074 checker=dual:ok/pdlp:ok 
+forplan      overrun   dual=188/1202752 pdlp=1016+0/12037462 verdict=optimal/work limit reached obj=-664.21896127220464/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ganges       overrun   dual=969/3620156 pdlp=1397+0/36208084 verdict=optimal/work limit reached obj=-109585.7361292782/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+gfrd-pnc     ok        dual=446/2125281 pdlp=1216+355/19492280 verdict=optimal/optimal obj=6902235.9995488087/6902235.9995488087 checker=dual:ok/pdlp:ok 
+greenbea     overrun   dual=3179/118829835 pdlp=15230+0/1188344623 verdict=optimal/work limit reached obj=-72555248.129845992/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+greenbeb     ok        dual=4336/154616413 pdlp=5248+4336/1486640130 verdict=optimal/optimal obj=-4302260.2612065868/-4302260.2612065868 checker=dual:ok/pdlp:ok 
+grow15       ok        dual=1197/17308582 pdlp=1792+2216/84052130 verdict=optimal/optimal obj=-106870941.29357538/-106870941.29357535 checker=dual:ok/pdlp:ok 
+grow22       ok        dual=2014/41187636 pdlp=2816+3686/171267217 verdict=optimal/optimal obj=-160834336.48256299/-160834336.48256296 checker=dual:ok/pdlp:ok 
+grow7        ok        dual=542/6838801 pdlp=5184+643/50446477 verdict=optimal/optimal obj=-47787811.814711548/-47787811.814711504 checker=dual:ok/pdlp:ok 
+israel       overrun   dual=100/583426 pdlp=852+0/5835020 verdict=optimal/work limit reached obj=-896644.82186304568/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+kb2          overrun   dual=43/62823 pdlp=560+0/628637 verdict=optimal/work limit reached obj=-1749.9001299062056/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+lotfi        overrun   dual=200/809408 pdlp=1795+0/8094468 verdict=optimal/work limit reached obj=-25.264706061880005/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+maros        overrun   dual=1108/11450655 pdlp=4788+0/114517709 verdict=optimal/work limit reached obj=-58063.743701125895/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+maros-r7     overrun   dual=2574/248155186 pdlp=9573+0/2481702634 verdict=optimal/work limit reached obj=1497185.1664796439/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+modszk1      overrun   dual=611/4638822 pdlp=2417+0/46405016 verdict=optimal/work limit reached obj=320.61972906430913/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+nesm         ok        dual=2746/58217113 pdlp=4480+4947/324973448 verdict=optimal/optimal obj=14076036.487562729/14076036.487562731 checker=dual:ok/pdlp:ok 
+perold       ok        dual=1340/29413458 pdlp=9728+619/242705528 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/pdlp:ok 
+pilot        overrun   dual=5636/891033818 pdlp=15424+31239/8913189337 verdict=optimal/work limit reached obj=-557.48972928406818/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+pilot-ja     overrun   dual=1488/42270715 pdlp=11355+0/422712004 verdict=optimal/work limit reached obj=-6113.1364655813431/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+pilot-we     ok        dual=2754/73799729 pdlp=5696+2754/666311695 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/pdlp:ok 
+pilot4       overrun   dual=832/18352099 pdlp=10469+0/183528054 verdict=optimal/work limit reached obj=-2581.1392588838885/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+pilot87      overrun   dual=9490/3166227751 pdlp=3328+56696/31670731061 verdict=optimal/work limit reached obj=301.71034733311052/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+pilotnov     ok        dual=2675/87209787 pdlp=5952+4894/437104969 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188715 checker=dual:ok/pdlp:ok 
+recipe       overrun   dual=42/25273 pdlp=101+0/254050 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sc105        overrun   dual=69/68529 pdlp=470+0/686222 verdict=optimal/work limit reached obj=-52.202061211707225/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sc205        overrun   dual=159/416040 pdlp=1452+0/4162632 verdict=optimal/work limit reached obj=-52.202061211707225/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sc50a        overrun   dual=34/24289 pdlp=373+0/243051 verdict=optimal/work limit reached obj=-64.575077058564489/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sc50b        overrun   dual=31/21166 pdlp=320+0/212196 verdict=optimal/work limit reached obj=-69.999999999999986/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scagr25      overrun   dual=395/1315859 pdlp=2057+0/13162612 verdict=optimal/work limit reached obj=-14753433.06076852/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scagr7       overrun   dual=117/179510 pdlp=1056+0/1796752 verdict=optimal/work limit reached obj=-2331389.8243309837/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scfxm1       overrun   dual=389/1422452 pdlp=1526+0/14227941 verdict=optimal/work limit reached obj=18416.759028348944/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scfxm2       overrun   dual=873/6134429 pdlp=3291+0/61357179 verdict=optimal/work limit reached obj=36660.261564998815/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scfxm3       ok        dual=1301/10068057 pdlp=2880+159/83651777 verdict=optimal/optimal obj=54901.254549751458/54901.254549751458 checker=dual:ok/pdlp:ok 
+scorpion     overrun   dual=183/318493 pdlp=591+0/3188211 verdict=optimal/work limit reached obj=1878.1248227381068/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scrs8        overrun   dual=466/1772342 pdlp=1214+0/17726345 verdict=optimal/work limit reached obj=904.29695380079147/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scsd1        ok        dual=98/492884 pdlp=512+214/5258331 verdict=optimal/optimal obj=8.6666666743333653/8.6666666743333653 checker=dual:ok/pdlp:ok 
+scsd6        overrun   dual=240/1604927 pdlp=1015+0/16056851 verdict=optimal/work limit reached obj=50.500000077144342/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+scsd8        overrun   dual=654/7212054 pdlp=2200+0/72124383 verdict=optimal/work limit reached obj=904.99999992546441/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sctap1       overrun   dual=184/562722 pdlp=755+0/5633652 verdict=optimal/work limit reached obj=1412.25/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sctap2       overrun   dual=291/1171404 pdlp=409+0/11736606 verdict=optimal/work limit reached obj=1724.8071428571429/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sctap3       overrun   dual=369/1548954 pdlp=405+0/15514132 verdict=optimal/work limit reached obj=1424/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+seba         overrun   dual=102/205528 pdlp=135+0/2061333 verdict=optimal/work limit reached obj=15711.6/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+share1b      overrun   dual=169/499197 pdlp=1182+0/4993127 verdict=optimal/work limit reached obj=-76589.318579185667/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+share2b      overrun   dual=97/178766 pdlp=667+0/1789367 verdict=optimal/work limit reached obj=-415.73224074141922/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+shell        overrun   dual=347/957441 pdlp=676+0/9583149 verdict=optimal/work limit reached obj=1208825346/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship04l      overrun   dual=407/729209 pdlp=320+0/7336797 verdict=optimal/work limit reached obj=1793324.5379703557/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship04s      overrun   dual=333/493117 pdlp=316+0/4944104 verdict=optimal/work limit reached obj=1798714.7004453922/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship08l      overrun   dual=710/2734694 pdlp=727+0/27367981 verdict=optimal/work limit reached obj=1909055.2113891314/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship08s      overrun   dual=461/1023514 pdlp=513+0/10253957 verdict=optimal/work limit reached obj=1920098.2105346196/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship12l      overrun   dual=1014/4443057 pdlp=892+0/44470522 verdict=optimal/work limit reached obj=1470187.9193292649/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+ship12s      overrun   dual=657/1698784 pdlp=698+0/17009548 verdict=optimal/work limit reached obj=1489236.1344061291/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+sierra       overrun   dual=539/1615679 pdlp=475+0/16172682 verdict=optimal/work limit reached obj=15394362.183631929/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+stair        ok        dual=428/8116876 pdlp=4416+1/52694738 verdict=optimal/optimal obj=-251.26695119296332/-251.26695119296332 checker=dual:ok/pdlp:ok 
+standata     overrun   dual=49/96428 pdlp=86+0/969456 verdict=optimal/work limit reached obj=1257.6994999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+standmps     overrun   dual=188/370536 pdlp=274+0/3710133 verdict=optimal/work limit reached obj=1406.0174999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+stocfor1     overrun   dual=78/118003 pdlp=651+0/1180736 verdict=optimal/work limit reached obj=-41131.976219436416/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+stocfor2     overrun   dual=1618/11987155 pdlp=3108+0/119882597 verdict=optimal/work limit reached obj=-39024.408537882038/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+stocfor3     overrun   dual=12977/430668173 pdlp=13952+353/4306688415 verdict=optimal/work limit reached obj=-39976.783943649592/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+truss        ok        dual=17667/1116104628 pdlp=29568+17667/4745084993 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/pdlp:ok 
+tuff         overrun   dual=177/705787 pdlp=545+0/7063560 verdict=optimal/work limit reached obj=0.29214776509361279/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+vtp-base     overrun   dual=46/41312 pdlp=299+0/414247 verdict=optimal/work limit reached obj=129831.46246136137/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+wood1p       overrun   dual=573/42858792 pdlp=3925+0/428606204 verdict=optimal/work limit reached obj=1.4429024115734093/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+woodw        overrun   dual=1186/38855518 pdlp=5047+0/388579572 verdict=optimal/work limit reached obj=1.3044763330842295/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 
 -- pdlp against dual --
-agreed 24 (checker accepts 24, interior 0), skipped 0, overrun 70, failed 0, disagreed 0, rejected 0, errors 0
-work units pdlp/dual, geometric mean:        5.5471
-iterations (pdlp+1)/(dual+1), geometric mean: 3.3896
-work ratio, best  fit2p at 0.4492
-work ratio, worst scsd1 at 10.5074
+agreed 23 (checker accepts 23, interior 0), skipped 0, overrun 71, failed 0, disagreed 0, rejected 0, errors 0
+work units pdlp/dual, geometric mean:        5.6104
+iterations (pdlp+1)/(dual+1), geometric mean: 3.2334
+work ratio, best  fit2p at 0.4505
+work ratio, worst scsd1 at 10.6685
 most pdlp iterations: truss at 47235
