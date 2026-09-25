@@ -1,0 +1,99 @@
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 3e37187..5e1c10e 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -714,7 +714,7 @@ typedef struct {
+     int64_t *dfs_next;
+     int64_t *pattern;
+     uint64_t *bits;
+-    double ftran_density[2];
++    double ftran_density[3];
+ 
+     int64_t *lrow_start;
+     int64_t *lrow_index;
+@@ -732,6 +732,7 @@ JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
+     double pivot_tol, jm_work *w);
+ 
+ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w);
++void jm_lu_ftran_alone(jm_lu *lu, double *x, jm_work *w);
+ void jm_lu_btran(jm_lu *lu, double *x, jm_work *w);
+ 
+ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+diff --git a/src/lu.c b/src/lu.c
+index 0c41a96..eeeb953 100644
+--- a/src/lu.c
++++ b/src/lu.c
+@@ -377,10 +377,12 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
+ 
+     const double density0 = lu->ftran_density[0];
+     const double density1 = lu->ftran_density[1];
++    const double density2 = lu->ftran_density[2];
+     lu_reset(lu, dim);
+     lu->dim = dim;
+     lu->ftran_density[0] = density0;
+     lu->ftran_density[1] = density1;
++    lu->ftran_density[2] = density2;
+ 
+     jaos_status st = JAOS_OK;
+     elim e = {0};
+@@ -720,6 +722,14 @@ void jm_lu_ftran(jm_lu *lu, double *x, jm_work *w)
+     jm_lu_ftran_sparse(lu, x, w, nullptr, nullptr);
+ }
+ 
++static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
++                      int64_t *npat, bool keep, int cls);
++
++void jm_lu_ftran_alone(jm_lu *lu, double *x, jm_work *w)
++{
++    ftran_any(lu, x, w, nullptr, nullptr, false, 2);
++}
++
+ static int64_t ftran_reach(jm_lu *lu, int64_t n_in, bool through_u,
+                            jm_work *w)
+ {
+@@ -812,7 +822,7 @@ static void keep_spike(jm_lu *lu, const double *y, int64_t units,
+ }
+ 
+ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
+-                      int64_t *npat, bool keep)
++                      int64_t *npat, bool keep, int cls)
+ {
+     const int64_t n = lu->dim;
+     double *y = lu->tmp;
+@@ -824,7 +834,6 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
+     if (lu->rank != n || n == 0)
+         return;
+ 
+-    const int cls = pat != nullptr;
+     const bool hyper = lu->ftran_density[cls] * FTRAN_HYPER_DEN < 1.0;
+     int64_t nz = 0;
+     jm_work pw = {0};
+@@ -921,13 +930,13 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
+ void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
+                         int64_t *pat, int64_t *npat)
+ {
+-    ftran_any(lu, x, w, pat, npat, false);
++    ftran_any(lu, x, w, pat, npat, false, pat != nullptr);
+ }
+ 
+ void jm_lu_ftran_keep(jm_lu *lu, double *x, jm_work *w,
+                       int64_t *pat, int64_t *npat)
+ {
+-    ftran_any(lu, x, w, pat, npat, true);
++    ftran_any(lu, x, w, pat, npat, true, pat != nullptr);
+ }
+ 
+ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
+diff --git a/src/simplex.c b/src/simplex.c
+index 6de5c2a..c743be4 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -2174,7 +2174,7 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
+         dual_devex_update(s, r);
+     } else {
+         memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
+-        jm_lu_ftran(&s->lu, s->tau, &s->work);
++        jm_lu_ftran_alone(&s->lu, s->tau, &s->work);
+ 
+         double exact = 0.0;
+         if (s->nrpat >= 0) {
