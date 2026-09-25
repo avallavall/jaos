@@ -97,8 +97,14 @@ primal simplex, presolve or the crossover changes.
 - `make plato-pds`, `make plato-fome` and `make plato-nug`: the PLATO
   sets, for presolve measurements. `make plato` runs the first two.
   plato-pds and plato-fome compare against their baselines. plato-nug has
-  none, and only nug08-3rd of its three instances finishes (e78ca26), so it
-  runs only when named. The PLATO readings
+  none and runs only when named. Since 2026-09-25 it stops each solve at
+  `PLATO_NUG_WORK` work units (1e12, the runner's `-L`), so its file is
+  always written: nug08-3rd solves in 3.9e11, and nug20 and nug30 stop at
+  the limit after 132292 and 37376 iterations, in 28 minutes at `J=3` and
+  2.3 GB. Without it they had run past 2 h 15 min and 4.9 GB, and the
+  runner, which writes its file only when every instance ends, wrote
+  nothing. The runner took `-L` and `-O` for MIP sets only until the same
+  day; it now applies both to every set. The PLATO readings
   and baselines date from 2026-08 and have not been re-taken since. Their
   baseline headers name `make netlib-baseline`; the targets that rewrite
   them are `make plato-pds-baseline` and `make plato-fome-baseline`.

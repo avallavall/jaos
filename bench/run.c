@@ -266,6 +266,18 @@ static const char *g_opt_name[32];
 static const char *g_opt_value[32];
 static int g_nopt = 0;
 
+static void apply_settings(jaos_model *m)
+{
+    if (g_work_limit > 0)
+        (void)jaos_set_work_limit(m, g_work_limit);
+    for (int k = 0; k < g_nopt; k++)
+        if (jaos_set_option(m, g_opt_name[k], g_opt_value[k]) != JAOS_OK) {
+            fprintf(stderr, "-O %s=%s: %s\n", g_opt_name[k], g_opt_value[k],
+                    jaos_model_error(m) ? jaos_model_error(m) : "refused");
+            exit(2);
+        }
+}
+
 static const char *g_ext = "mps";
 
 static bool instance_path(char *buf, size_t cap, const char *dir,
@@ -345,6 +357,7 @@ static bool run_one_infeasible(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
+    apply_settings(m);
     const double t0 = now_seconds();
     st = jaos_solve(m);
     const double dt = now_seconds() - t0;
@@ -427,14 +440,7 @@ static bool run_one_mip(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
-    if (g_work_limit > 0)
-        (void)jaos_set_work_limit(m, g_work_limit);
-    for (int k = 0; k < g_nopt; k++)
-        if (jaos_set_option(m, g_opt_name[k], g_opt_value[k]) != JAOS_OK) {
-            fprintf(stderr, "-O %s=%s: %s\n", g_opt_name[k], g_opt_value[k],
-                    jaos_model_error(m) ? jaos_model_error(m) : "refused");
-            exit(2);
-        }
+    apply_settings(m);
     const double t0 = now_seconds();
     st = jaos_solve(m);
     const double dt = now_seconds() - t0;
@@ -590,6 +596,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
     if (shape)
         t->shape_ok++;
 
+    apply_settings(m);
     const double t0 = now_seconds();
     st = jaos_solve(m);
     const double dt = now_seconds() - t0;

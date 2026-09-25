@@ -11,9 +11,9 @@ Milestones A to E ended on 2026-09-21 and 2026-09-22 (A with the tag
 `v0.4.0`), F and G on 2026-09-23. H and I were folded into this file on
 2026-09-24: milestone J holds everything still open, in priority order.
 Work it from the top. Tier 1 is defects that publish an answer the checker
-refuses. Tier 2 is small fixes to the bench tooling and the records.
-Tiers 3 and 4 are the performance gaps, largest first. Tier 5 is the
-features SPECS still lists.
+refuses. Tier 2 was small fixes to the bench tooling and the records, and
+is empty since 2026-09-25. Tiers 3 and 4 are the performance gaps, largest
+first. Tier 5 is the features SPECS still lists.
 
 Where JAOS stands (`bench/compare/README.md`, 2026-09-24, tree 6c79039).
 LP: 1.91x HiGHS's time, 1.54x Clp's and 0.57x SoPlex's over the instances
@@ -73,17 +73,6 @@ certificate the checker refuses. An infeasibility whose free column with
 no curvature needs its coefficient to vanish exactly has no certificate
 one multiplier at a time can hold. Verify with `make cblib` and the QCQP
 reading of 02-319 (`conread.sh`).
-
-## Tier 2: the bench tooling and the records
-
-J6. **One reading was never taken.** `make plato-nug` has never written
-`bench/results/plato-nug.txt`: in 02-94 `nug08-3rd` took 2.9e11 work
-units and 511 s, and `nug20` and `nug30` were stopped after 68 minutes.
-On 2026-09-24 (tree 20f2edb, J=3) they were still solving after 2 h 15
-min, nug30 at 4.9 GB, and were stopped; the runner writes its file only
-when every instance ends, so nug08-3rd's line was lost with them. Run the
-three one at a time, nug08-3rd first, or record in the set's README why
-nug20 and nug30 cannot run.
 
 ## Tier 3: the largest performance gaps
 

@@ -1,0 +1,6 @@
+nug08-3rd    optimal    rows=19728 cols=20448 shape=ok iters=42752 work=391842668406 presolve=19728/20448/139008->19728/20448/139008 obj=214.00000000040001 ref=0[none] objective=none checker=ok (col=1.03e-21 row=1.23e-21 rowrel=1.23e-21 dual=0 gap=7.65e-17 Q=4.2e-09 N=1.48e-19 drop=0 cert=yes sub=1.31e-37 rays=0 rsub=1.95e-11) det=ok digest=c2451dda7e9c5710 basis=23f4bf49463e8f94
+nug20        work limit reached rows=15240 cols=72600 shape=ok iters=132292 work=1000000776166 | 
+nug30        work limit reached rows=52260 cols=379350 shape=ok iters=37376 work=1003266647326 | 
+
+3 instances: 1 solved, 3 shape ok, 1 checker ok, 1 deterministic, 2 failed  (no reference optimum: objective unverified)
+gate: NOT MET

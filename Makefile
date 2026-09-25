@@ -404,13 +404,15 @@ plato-fome: $(B)/bench/run
 		-b bench/plato-fome.baseline \
 		-o bench/results/plato-fome.txt
 
+PLATO_NUG_WORK ?= 1e12
+
 plato-nug: $(B)/bench/run
 	@bench/fetch.sh -m bench/plato-nug.manifest \
 		-b https://plato.asu.edu/ftp/lptestset/nug -p bz2-emps \
 		bench/instances-plato-nug
 	@mkdir -p bench/results
 	./$(B)/bench/run -j $(J) -m bench/plato-nug.manifest -e noref \
-		-d bench/instances-plato-nug \
+		-d bench/instances-plato-nug -L $(PLATO_NUG_WORK) \
 		-o bench/results/plato-nug.txt
 
 plato-pds-baseline: $(B)/bench/run
@@ -439,7 +441,7 @@ plato-nug-baseline: $(B)/bench/run
 		bench/instances-plato-nug
 	@mkdir -p bench/results
 	./$(B)/bench/run -j $(J) -m bench/plato-nug.manifest -e noref \
-		-d bench/instances-plato-nug \
+		-d bench/instances-plato-nug -L $(PLATO_NUG_WORK) \
 		-w bench/plato-nug.baseline \
 		-o bench/results/plato-nug.txt
 
