@@ -64,10 +64,17 @@ over 1e-7 on its side puts 118 rows 2e-5 to 4e-5 off their side, with
 duals of 1.1e-7 to 1.7e-7, into the active set; together they are
 inconsistent and the move is refused (worst violation 1.1e-1), while the
 other rule leaves duals off by 5.6e-7. On QPLIB_3105 the two rules leave
-duals off by 5.8e-7 and rows off by 7.1e-6. A rule that adds only the
-rows the refit cannot do without, one batch at a time, is the next thing
-to try. QPLIB_2468 ends `NUMERICAL_ERROR` too: the walk stops without
-progress and the checker refuses its point. An infeasibility whose free
+duals off by 5.8e-7 and rows off by 7.1e-6. QPLIB_2468 ends
+`NUMERICAL_ERROR` too: the walk stops without progress, and the settle
+reads the same way (2026-09-25): under the first rule the projection
+passes and the refit stalls at a stationarity residual of 3.6e-7; under
+the second the refit reaches 6.7e-10 but the projection is refused
+(worst violation 1.1e-1). Keeping in the refit the inactive rows' duals
+already under the tolerance changes none of the three. The residual comes
+from the rows whose dual is over 1e-7 and whose slack is larger still. A
+rule that adds only the rows the refit cannot do without, one batch at a
+time, is the next thing to try; the columns left off sit in no quadratic
+row on QPLIB_2456, so the batch cannot be read off their rows. An infeasibility whose free
 column with no curvature needs its coefficient to vanish exactly has no
 certificate one multiplier at a time can hold. Verify with `make cblib`
 and the QCQP reading of 02-319 (`conread.sh`).
