@@ -173,7 +173,16 @@ J9. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
 barrier's normal matrix has 989604 rows from 9.6 million nonzeros; the
 minimum degree ordering and symbolic factor take 41.6e9 work units and 3
 minutes without an iteration, then an allocation beyond 3.7 GB fails at a
-6 GB cap while the process holds 2.3 GB. 13 of 17 convex MIQPs do not
+6 GB cap while the process holds 2.3 GB. The symbolic factor it cannot
+allocate holds 7.67e9 nonzeros (123 GB) for 2.8e14 operations, from a
+lower triangle of 37.4 million (read 2026-09-25). The model is a
+time-dependent control problem on a grid of about 99 by 99 points over
+about 100 steps (rows of 19701, 19503 and eight entries of -4900.5), so
+the normal matrix has the connections of a three-dimensional grid. On
+such graphs nested dissection gives far less fill than minimum degree, and
+JAOS has no nested dissection ordering; the other ways are a solve that
+does not factor the whole system, or one that uses the time steps'
+structure. 13 of 17 convex MIQPs do not
 finish within 1e11 work units. 37 of CBLIB's 80 mixed-integer instances
 stop at the work limit.
 
