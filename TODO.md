@@ -179,10 +179,10 @@ lower triangle of 37.4 million (read 2026-09-25). The model is a
 time-dependent control problem on a grid of about 99 by 99 points over
 about 100 steps (rows of 19701, 19503 and eight entries of -4900.5), so
 the normal matrix has the connections of a three-dimensional grid. On
-such graphs nested dissection gives far less fill than minimum degree, and
-JAOS has no nested dissection ordering; the other ways are a solve that
-does not factor the whole system, or one that uses the time steps'
-structure. 13 of 17 convex MIQPs do not
+grid graphs nested dissection gives less fill than minimum degree, and
+JAOS has no nested dissection ordering; how much less on this model is not
+measured. The other ways are a solve that does not factor the whole
+system, or one that uses the time steps' structure. 13 of 17 convex MIQPs do not
 finish within 1e11 work units. 37 of CBLIB's 80 mixed-integer instances
 stop at the work limit.
 
