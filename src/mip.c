@@ -123,6 +123,7 @@ constexpr double MIP_PROP_SLACK = 1e-9;
 constexpr double MIP_TIGHTEN_MIN = 1e-9;
 
 constexpr int64_t MIP_IMPLIED_PASSES = 20;
+constexpr double MIP_PARITY_WORK = 100.0;
 constexpr double MIP_IMPLIED_MOVE = 1e-3;
 
 #ifndef JAOS_MIP_NET_MIN_COLS_VALUE
@@ -2230,6 +2231,169 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
     free(blo);
     free(bhi);
     return tightened;
+}
+
+static bool parity_exact(double v)
+{
+    return isfinite(v) && v == floor(v) && fabs(v) <= 0x1p53;
+}
+
+static bool parity_odd(double v)
+{
+    return fmod(fabs(v), 2.0) == 1.0;
+}
+
+static int parity_fix(const jaos_model *m, jaos_model *lp, double *ilo,
+                      double *ihi, int64_t *fixed, int64_t *rank_out,
+                      int64_t *rows_out, int64_t *work)
+{
+    const int64_t nc = lp->num_col, nr = lp->num_row;
+    *fixed = *rank_out = *rows_out = 0;
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    int64_t *bix = jm_alloc_array(nc > 0 ? nc : 1, sizeof *bix);
+    int64_t *prow = jm_alloc_array(nr > 0 ? nr : 1, sizeof *prow);
+    int64_t *bcol = nullptr;
+    uint64_t *bits = nullptr;
+    unsigned char *rb = nullptr;
+    int rc = -1;
+    if (bix == nullptr || prow == nullptr)
+        goto out;
+    for (int64_t j = 0; j < nc; j++)
+        bix[j] = -1;
+    int64_t np = 0, nb = 0;
+    *work += lp->num_nz + nr;
+    for (int64_t i = 0; i < nr; i++) {
+        const double b = lp->row_lower[i];
+        if (b != lp->row_upper[i] || !parity_exact(b))
+            continue;
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
+            continue;
+        bool ok = true, even = false;
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && ok; k++) {
+            const int64_t j = lp->ar_index[k];
+            const double a = lp->ar_value[k];
+            if (a == 0.0)
+                continue;
+            if (!m->col_integer[j] || semi_live(m, j) || !parity_exact(a))
+                ok = false;
+            else if (!parity_odd(a))
+                even = true;
+            else if (ilo[j] == ihi[j])
+                ok = parity_exact(ilo[j]);
+            else if (ilo[j] != 0.0 || ihi[j] != 1.0)
+                ok = false;
+        }
+        if (ok && even)
+            prow[np++] = i;
+    }
+    rc = 0;
+    for (int64_t t = 0; t < np; t++) {
+        const int64_t i = prow[t];
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+            const int64_t j = lp->ar_index[k];
+            if (lp->ar_value[k] != 0.0 && ilo[j] != ihi[j] &&
+                parity_odd(lp->ar_value[k]) && bix[j] < 0)
+                bix[j] = nb++;
+        }
+    }
+    if (nb == 0)
+        goto out;
+    const int64_t words = (nb + 63) / 64;
+    const int64_t pivots = np < nb ? np : nb;
+    if ((double)np * (double)words * (double)pivots >
+        MIP_PARITY_WORK * (double)(lp->num_nz + nc + nr))
+        goto out;
+    bits = jm_calloc_array(np * words, sizeof *bits);
+    rb = jm_calloc_array(np, sizeof *rb);
+    bcol = jm_alloc_array(nb, sizeof *bcol);
+    if (bits == nullptr || rb == nullptr || bcol == nullptr) {
+        rc = -1;
+        goto out;
+    }
+    for (int64_t j = 0; j < nc; j++)
+        if (bix[j] >= 0)
+            bcol[bix[j]] = j;
+    for (int64_t t = 0; t < np; t++) {
+        const int64_t i = prow[t];
+        unsigned char odd = parity_odd(lp->row_lower[i]) ? 1 : 0;
+        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
+            const int64_t j = lp->ar_index[k];
+            const double a = lp->ar_value[k];
+            if (a == 0.0 || !parity_odd(a))
+                continue;
+            if (ilo[j] == ihi[j]) {
+                if (parity_odd(ilo[j]))
+                    odd ^= 1;
+                continue;
+            }
+            bits[t * words + bix[j] / 64] ^= (uint64_t)1 << (bix[j] % 64);
+        }
+        rb[t] = odd;
+    }
+    int64_t rank = 0;
+    for (int64_t c = 0; c < nb && rank < np; c++) {
+        const int64_t w = c / 64;
+        const uint64_t mask = (uint64_t)1 << (c % 64);
+        int64_t p = -1;
+        for (int64_t r = rank; r < np && p < 0; r++)
+            if (bits[r * words + w] & mask)
+                p = r;
+        *work += np;
+        if (p < 0)
+            continue;
+        if (p != rank) {
+            for (int64_t q = 0; q < words; q++) {
+                const uint64_t s = bits[p * words + q];
+                bits[p * words + q] = bits[rank * words + q];
+                bits[rank * words + q] = s;
+            }
+            const unsigned char s = rb[p];
+            rb[p] = rb[rank];
+            rb[rank] = s;
+        }
+        for (int64_t r = 0; r < np; r++) {
+            if (r == rank || !(bits[r * words + w] & mask))
+                continue;
+            for (int64_t q = 0; q < words; q++)
+                bits[r * words + q] ^= bits[rank * words + q];
+            rb[r] ^= rb[rank];
+            *work += words;
+        }
+        rank++;
+    }
+    for (int64_t r = rank; r < np; r++)
+        if (rb[r]) {
+            rc = 1;
+            goto out;
+        }
+    for (int64_t r = 0; r < rank; r++) {
+        int64_t one = -1, set = 0;
+        for (int64_t q = 0; q < words && set < 2; q++) {
+            const uint64_t v = bits[r * words + q];
+            if (v == 0)
+                continue;
+            set += (v & (v - 1)) == 0 ? 1 : 2;
+            for (int64_t s = 0; s < 64 && one < 0; s++)
+                if (v >> s & 1)
+                    one = q * 64 + s;
+        }
+        *work += words;
+        if (set != 1)
+            continue;
+        const int64_t j = bcol[one];
+        ilo[j] = ihi[j] = rb[r] ? 1.0 : 0.0;
+        (*fixed)++;
+    }
+    *rank_out = rank;
+    *rows_out = np;
+out:
+    free(bix);
+    free(prow);
+    free(bcol);
+    free(bits);
+    free(rb);
+    return rc;
 }
 
 typedef struct {
@@ -5675,6 +5839,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             jm_log(m, JAOS_LOG_SUMMARY,
                    "implied bounds: %lld integer columns tightened",
                    (long long)implied_fixed);
+        int64_t par_fixed = 0, par_rank = 0, par_rows = 0;
+        const int par = parity_fix(m, lp, ilo, ihi, &par_fixed, &par_rank,
+                                   &par_rows, &work);
+        if (par < 0)
+            goto done;
+        if (par == 1) {
+            outcome = JAOS_SOLVE_INFEASIBLE;
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "parity: the equality rows' sums mod 2 contradict each "
+                   "other, so no integer point exists");
+        } else if (par_rows > 0) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "parity: %lld rows hold their binaries' sum mod 2, rank "
+                   "%lld, %lld binaries fixed",
+                   (long long)par_rows, (long long)par_rank,
+                   (long long)par_fixed);
+        }
         for (int64_t j = 0; j < nc; j++)
             if (m->col_integer[j] && ilo[j] > ihi[j])
                 outcome = JAOS_SOLVE_INFEASIBLE;

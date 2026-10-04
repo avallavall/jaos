@@ -1304,6 +1304,116 @@ static void test_a_feasibility_jump_finds_a_point_on_an_equality_row(void)
     jaos_model_free(m);
 }
 
+static jaos_model *lights_out(void)
+{
+    constexpr int64_t N = 3;
+    constexpr int64_t R = N * N;
+    constexpr int64_t C = 2 * R;
+    double c[C], cl[C], cu[C], rl[R], ru[R], av[64];
+    int64_t as[C + 1], ai[64], p = 0;
+    for (int64_t q = 0; q < C; q++) {
+        as[q] = p;
+        cl[q] = 0.0;
+        if (q < R) {
+            c[q] = 1.0;
+            cu[q] = 1.0;
+            const int64_t r = q / N, s = q % N;
+            const int64_t near[5] = {r > 0 ? q - N : -1, s > 0 ? q - 1 : -1, q,
+                                     s < N - 1 ? q + 1 : -1,
+                                     r < N - 1 ? q + N : -1};
+            for (int t = 0; t < 5; t++)
+                if (near[t] >= 0) {
+                    ai[p] = near[t];
+                    av[p++] = 1.0;
+                }
+        } else {
+            c[q] = 0.0;
+            cu[q] = 2.0;
+            ai[p] = q - R;
+            av[p++] = -2.0;
+        }
+    }
+    as[C] = p;
+    for (int64_t i = 0; i < R; i++)
+        rl[i] = ru[i] = 1.0;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, C, R, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, p, as,
+                     ai, av));
+    for (int64_t j = 0; j < C; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_parity_rows_fix_every_press_of_a_lights_out_board(void)
+{
+    jaos_model *m = lights_out();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[18];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    const double press[9] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
+    for (int j = 0; j < 9; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, press[j], x[j]);
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "parity: 9 rows hold their binaries' "
+                                       "sum mod 2, rank 9, 9 binaries fixed"));
+    jaos_model_free(m);
+
+    m = lights_out();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, obj);
+    TEST_ASSERT_NULL(strstr(g_log, "parity:"));
+    jaos_model_free(m);
+}
+
+static void test_parity_rows_that_contradict_end_infeasible(void)
+{
+    const double c[4] = {1, 1, 0, 0}, cl[4] = {0, 0, 0, 0}, cu[4] = {1, 1, 1, 1};
+    const double rl[2] = {1.0, 0.0}, ru[2] = {1.0, 0.0};
+    const int64_t as[5] = {0, 2, 4, 5, 6}, ai[6] = {0, 1, 0, 1, 0, 1};
+    const double av[6] = {1.0, 1.0, 1.0, 1.0, -2.0, -2.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, 6, as,
+                     ai, av));
+    for (int64_t j = 0; j < 4; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "parity: the equality rows' sums mod 2 "
+                                       "contradict each other"));
+    jaos_model_free(m);
+
+    m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, 6, as,
+                     ai, av));
+    for (int64_t j = 0; j < 4; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    jaos_model_free(m);
+}
+
 static jaos_model *parallel_arcs(int64_t arcs)
 {
     jaos_model *m = fresh();
@@ -5169,6 +5279,8 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
+    RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);
+    RUN_TEST(test_parity_rows_that_contradict_end_infeasible);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);

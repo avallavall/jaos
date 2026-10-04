@@ -90,7 +90,7 @@ and the QCQP reading of 02-319 (`conread.sh`).
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 2 of 30 at 1e10 work units.** Since 2026-10-04
+J7. **MIP: MIPLIB 2017, 3 of 30 at 1e10 work units.** Since 2026-10-04
 (`bench/measurements/02-328/`) the tree rounds a bound up to the
 objective's step when every cost sits on one, the root fixes the integer
 columns its rows' implied bounds fix, two heuristics run (lock rounding at
@@ -104,7 +104,10 @@ A second batch the same day (`bench/measurements/02-329/`) runs lock
 rounding before the root's dive and pump, adds a feasibility jump at a root
 with no incumbent, widens the network c-MIR's fraction window and runs both
 aggregation rules in network mode: 24 of the 30 hold an incumbent, the gap
-sum is 18.2, and MIPLIB 3 reads 1.014x of the first batch.
+sum is 18.2, and MIPLIB 3 reads 1.014x of the first batch. A third
+(`bench/measurements/02-331/`) fixes the binaries that equality rows with
+an even coefficient determine mod 2: `enlight_hard` solves at the root,
+the gap sum is 16.8.
 HiGHS and SCIP solve 8 each in 20 s. Left, largest first. First, the
 networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
 10789, where HiGHS's root reaches 11640 and then restarts several times,
@@ -122,7 +125,7 @@ minimum cut. Second, flat roots: `neos-911970` and
 before their bound moves (to 51.6 and 446, HiGHS 52.1 and 451.8), and the
 restart that ran them was refused (mip-deep-restart); a root that keeps
 cutting while cuts are found and the bound is flat, without a restart, is
-the next form. Third, no incumbent: `enlight_hard`, `glass4`, `timtab1`,
+the next form. Third, no incumbent: `glass4`, `timtab1`,
 `ic97_potential`, `csched007` and `csched008`, where the feasibility jump
 fails within its cap. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On

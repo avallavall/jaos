@@ -951,7 +951,13 @@ shrinks by the row's slack each coefficient of a binary column that cannot
 make its one-sided row tight on its own. For a positive coefficient in a
 `<=` row it shrinks the row's bound too. The slack is read over the bounds
 the rows imply for every column, and an integer column the rows fix at one
-value is fixed for the tree. The set of integer points does not change.
+value is fixed for the tree. The same switch covers the parity step. An
+equality row over integer columns with integer coefficients, where at least
+one coefficient is even and every odd one sits on a binary or a fixed
+column, gives the sum of its odd binaries mod 2. Gaussian elimination mod 2
+over those rows fixes each binary the system determines, and a
+contradiction ends the solve `INFEASIBLE`. The set of integer points does
+not change.
 
 **`jaos_set_mip_probing`**\
 `jaos_status jaos_set_mip_probing(jaos_model *m, int on)`\
