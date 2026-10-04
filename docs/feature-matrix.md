@@ -349,10 +349,10 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
   each node is on since 2026-09-25 (`--no-clique-fix` turns it off;
   `l152lav` 0.614x, `bench/measurements/02-325/`). Probing (`--probing`,
   1.109x with no column fixed on the MIP set) is off by measurement.
-- *Bound propagation and reduced-cost fixing*: both exist and are off by
-  measurement, `--propagate N` at 1.093x the work at one pass and `--rcfix`
-  at 1.010x. Node propagation is on for a quadratic objective
-  (`MIP_QUAD_PROPAGATE`).
+- *Bound propagation and reduced-cost fixing*: both exist. Reduced-cost
+  fixing at the root is on since 2026-10-04 (MIPLIB 3 0.944x the work).
+  Node propagation is off by measurement (`--propagate N`, 1.070x on
+  MIPLIB 3), and on for a quadratic objective (`MIP_QUAD_PROPAGATE`).
 - *Primal heuristics*: rounding, a root dive and the feasibility pump are
   on, and RINS since 2026-09-25 on a linear objective (`--rins`, 50
   relaxations a dive). Local branching exists behind `--local-branching`

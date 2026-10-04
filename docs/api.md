@@ -158,7 +158,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_pump_general` | `mip_pump_general` | boolean | false |
 | `jaos_set_mip_pump_obj` | `mip_pump_obj` | number | 0.5 |
 | `jaos_set_mip_pump_always` | `mip_pump_always` | boolean | false |
-| `jaos_set_mip_rcfix` | `mip_rcfix` | boolean | false |
+| `jaos_set_mip_rcfix` | `mip_rcfix` | boolean | true |
 | `jaos_set_mip_tighten` | `mip_tighten` | boolean | true |
 | `jaos_set_mip_probing` | `mip_probing` | boolean | false |
 | `jaos_set_mip_probing_cap` | `mip_probing_cap` | number | 1 |
@@ -941,7 +941,8 @@ off by default.
 
 **`jaos_set_mip_rcfix`**\
 `jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)`\
-Turns reduced-cost fixing at the root on or off. It is off by default. Once
+Turns reduced-cost fixing at the root on or off. It is on by default since
+2026-10-04 (off before). Once
 an incumbent exists, it moves an integer column's far bound to the furthest
 integer the column's reduced cost allows. Every node inherits the new bound,
 and `jaos_mip_result` counts such columns in `fixed_cols`.

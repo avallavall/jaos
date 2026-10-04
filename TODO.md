@@ -203,15 +203,16 @@ primal remedies are refused; read `bench/refusals.txt` first.
 J11. **MIP switches that are off by measurement.** Strong branching (D293
 reopens on a probe that learns from a stopped child), zero-half and
 lifted cover cuts (flow covers went on in 02-317), local branching,
-restarts (they need a MIP presolve that can run again), bound propagation,
-reduced-cost fixing and probing. Each needs a reading that lands it on, on
-the tree J7 leaves. Clique fixing and RINS went on on 2026-09-25, RINS off
-for a quadratic objective. The same reading took the others one at a time
-on MIPLIB 3 and the 2017 set (`bench/measurements/02-325/`) and none gains
-on both: local branching 0.948x in the 2017 gap sum at 2.023x MIPLIB 3's
-work, lifted covers two first incumbents on the 2017 set at 1.042x,
-propagation 1.033x in the gap sum, zero-half 1.200x on MIPLIB 3,
-reduced-cost fixing no change, and probing takes `bell5` past 4 GB.
+restarts (they need a MIP presolve that can run again), bound propagation
+and probing. Each needs a reading that lands it on, on the tree J7 leaves.
+Clique fixing and RINS went on on 2026-09-25, RINS off for a quadratic
+objective, and reduced-cost fixing on 2026-10-04. Read again one at a time
+on the tree of 3dfc0f6 (`bench/measurements/02-335/`), against MIPLIB 3's
+geometric mean of work and the 2017 gap sum: zero-half 1.092x and 0.999x,
+lifted covers 1.043x and 0.984x (`misc03` 2.534x), local branching 1.983x
+and 0.988x with one model fewer solved, propagation 1.070x and 1.047x,
+probing 1.325x in the sum with `bell5` out of memory at 4 GB, and reduced-cost
+fixing 0.944x and 0.999x, which landed it.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (rounds of 4 cost 1.37x the

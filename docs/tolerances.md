@@ -727,9 +727,13 @@ work over the 24 with it, none past 2x, `bench/measurements/02-202/`);
 `bench/measurements/02-298/`); `MIP_NODE_MIR`, off; `MIP_PUMP_GENERAL`,
 off; `MIP_PUMP_ALWAYS`, off, whether the pump runs at the root where
 something already holds an incumbent, D318's guard re-asked for the
-objective pump; `MIP_RCFIX`, off, whether the root pulls in an integer
-column's far bound to the furthest integer its reduced cost still allows
-once an incumbent exists; and `MIP_RESTART`, off, whether the tree starts again from the root
+objective pump; `MIP_RCFIX`, on since 2026-10-04 (off before), whether
+the root pulls in an integer column's far bound to the furthest integer its
+reduced cost still allows once an incumbent exists: on the tree of 3dfc0f6
+it reads MIPLIB 3 0.944x in the geometric mean of work (`mod008` 0.586x,
+`p0282` 0.596x, `gt2` 1.189x the worst) and the 2017 gap sum 0.999x, where
+on the tree of 02-325 it read 1.010x and 1.000x
+(`bench/measurements/02-335/`); and `MIP_RESTART`, off, whether the tree starts again from the root
 once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns
 (`bench/refusals.txt`, mip-restart).
 

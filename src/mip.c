@@ -106,7 +106,7 @@ constexpr double MIP_PUMP_OBJ = 0.5;
 
 constexpr bool MIP_PUMP_ALWAYS = false;
 
-constexpr bool MIP_RCFIX = false;
+constexpr bool MIP_RCFIX = true;
 constexpr bool MIP_TIGHTEN = true;
 constexpr bool MIP_PROBING = false;
 constexpr int64_t MIP_PROBING_ROUNDS = 2;
