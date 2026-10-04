@@ -135,12 +135,15 @@ constexpr double MIP_IMPLIED_MOVE = 1e-3;
 #endif
 constexpr int64_t MIP_NET_MIN_COLS = JAOS_MIP_NET_MIN_COLS_VALUE;
 constexpr double MIP_NET_SHARE = 1.0 / 3.0;
-constexpr int64_t MIP_NET_ROUNDS = 20;
+constexpr int64_t MIP_NET_ROUNDS = 100;
 constexpr double MIP_NET_STALL = 1e-4;
 constexpr int64_t MIP_NET_CUT_CAP = 200;
 constexpr double MIP_NET_PARALLEL = 0.5;
 constexpr double MIP_NET_HEUR_CAP = 0.25;
 constexpr double MIP_NET_F0_HI = 1e-6;
+constexpr int64_t MIP_NET_POOL_CAP = 200;
+constexpr double MIP_NET_POOL_EFF = 1e-4;
+constexpr double MIP_NET_POOL_SLACK = 1e-6;
 
 constexpr int64_t MIP_FJ_WORK = 20000;
 constexpr int64_t MIP_FJ_SAMPLE = 25;
@@ -5743,6 +5746,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t first_inc = 0;
     int64_t rcfixed = 0;
     int64_t tightened = 0;
+    int64_t *rp_del = nullptr, *rp_mark = nullptr, *rp_sel = nullptr;
+    double *rp_nrm = nullptr;
+    cutrank *rp_rk = nullptr;
+    int64_t rp_del_cap = 0, rp_mark_cap = 0, rp_sel_cap = 0, rp_nrm_cap = 0;
+    int64_t rp_rk_cap = 0, rp_nrm_n = 0, rp_dropped = 0, rp_back = 0;
 
     int64_t work = 0, iters = 0;
     bb_phases ph = {0};
@@ -6360,6 +6368,112 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             lp->cfg.cut_resolve = true;
             for (int64_t r = 0; r < root_rounds && !stop; r++) {
                 phase_to(&ph, work, PH_CUTS);
+                if (net && root_cut_drop && r > 0) {
+                    assert(lp->num_row == nfixed + in_copy.n);
+                    int64_t nd = 0, kept = 0;
+                    if (!JM_GROW(rp_del, rp_del_cap, in_copy.n + 1))
+                        goto done;
+                    for (int64_t k = 0; k < in_copy.n; k++) {
+                        const int64_t c = in_copy.v[k];
+                        double a = 0.0;
+                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
+                            a += pool.val[p] * x[pool.idx[p]];
+                        if (lp->sol_row_status[nfixed + k] == JAOS_BASIS_BASIC &&
+                            a - pool.lo[c] >
+                                MIP_NET_POOL_SLACK * (1.0 + fabs(pool.lo[c]))) {
+                            rp_del[nd++] = nfixed + k;
+                            continue;
+                        }
+                        in_copy.v[kept] = in_copy.v[k];
+                        act[kept] = act[k];
+                        kept++;
+                    }
+                    if (nd > 0) {
+                        if (jaos_set_basis(lp, lp->sol_col_status,
+                                           lp->sol_row_status) != JAOS_OK ||
+                            jaos_delete_rows(lp, nd, rp_del) != JAOS_OK)
+                            goto done;
+                        in_copy.n = kept;
+                        act_n = kept;
+                        rp_dropped += nd;
+                        work += lp->num_nz + lp->num_row;
+                    }
+                    if (!JM_GROW(rp_mark, rp_mark_cap, pool.n + 1) ||
+                        !JM_GROW(rp_nrm, rp_nrm_cap, pool.n + 1) ||
+                        !JM_GROW(rp_rk, rp_rk_cap, pool.n + 1) ||
+                        !JM_GROW(rp_sel, rp_sel_cap, pool.n + 1))
+                        goto done;
+                    for (int64_t c = rp_nrm_n; c < pool.n; c++) {
+                        double s = 0.0;
+                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
+                            s += pool.val[p] * pool.val[p];
+                        rp_nrm[c] = sqrt(s);
+                        rp_mark[c] = 0;
+                    }
+                    rp_nrm_n = pool.n;
+                    for (int64_t k = 0; k < in_copy.n; k++)
+                        rp_mark[in_copy.v[k]] = r;
+                    int64_t nk = 0;
+                    for (int64_t c = 0; c < pool.n; c++) {
+                        if (rp_mark[c] == r || !(rp_nrm[c] > 0.0))
+                            continue;
+                        double a = 0.0;
+                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
+                            a += pool.val[p] * x[pool.idx[p]];
+                        const double v = pool.lo[c] - a;
+                        if (v > MIP_NET_POOL_SLACK * (1.0 + fabs(pool.lo[c])) &&
+                            v > MIP_NET_POOL_EFF * rp_nrm[c])
+                            rp_rk[nk++] = (cutrank){v / rp_nrm[c], c};
+                    }
+                    work += pool.nnz + in_copy.n;
+                    if (nk > MIP_NET_POOL_CAP) {
+                        qsort(rp_rk, (size_t)nk, sizeof *rp_rk, cutrank_cmp);
+                        nk = MIP_NET_POOL_CAP;
+                    }
+                    if (nk > 0 || nd > 0) {
+                        for (int64_t k = 0; k < nk; k++)
+                            rp_sel[k] = rp_rk[k].r;
+                        if ((nk > 0 && pool_add(lp, &pool, rp_sel, nk) !=
+                                           JAOS_OK) ||
+                            !JM_GROW(act, act_cap, act_n + nk + 1) ||
+                            !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + nk + 1))
+                            goto done;
+                        for (int64_t k = 0; k < nk; k++) {
+                            act[act_n++] = rp_sel[k];
+                            in_copy.v[in_copy.n++] = rp_sel[k];
+                        }
+                        rp_back += nk;
+                        phase_to(&ph, work, PH_LP);
+                        budget(lp, m, work);
+                        st = jaos_solve(lp);
+                        solves++;
+                        work += jaos_work_units(lp);
+                        iters += jaos_iterations(lp);
+                        phase_to(&ph, work, PH_CUTS);
+                        if (st != JAOS_OK) {
+                            if (st == JAOS_ERR_NUMERICAL) {
+                                outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                                jm_set_err(m, "root cuts, round %lld, the "
+                                           "pool: %s", (long long)(r + 1),
+                                           jaos_model_error(lp));
+                                stop = true;
+                                break;
+                            }
+                            goto done;
+                        }
+                        ns = jaos_status_of(lp);
+                        if (ns != JAOS_SOLVE_OPTIMAL) {
+                            outcome = ns;
+                            stop = true;
+                            break;
+                        }
+                        if (jaos_objective(lp, &obj) != JAOS_OK ||
+                            jaos_solution(lp, x, nullptr, nullptr, nullptr) !=
+                                JAOS_OK)
+                            goto done;
+                        key = sigma * obj;
+                    }
+                }
                 cb.n = cb.nnz = 0;
                 int64_t got = 0;
                 if (row_cap < nc + lp->num_row + 1) {
@@ -6586,6 +6700,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                        "root: MIR aggregation kept %lld cuts after %lld "
                        "probes on a copy", (long long)agg_kept,
                        (long long)agg_probes);
+            if (net && root_cut_drop)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: %lld slack cuts left the relaxation between "
+                       "rounds and %lld came back from the pool, %lld rows "
+                       "at the end", (long long)rp_dropped,
+                       (long long)rp_back, (long long)lp->num_row);
         }
 
         phase_to(&ph, work, PH_HEUR);
@@ -7824,6 +7944,11 @@ done:
     free(mused);
     free(mpicked);
     cmir_free(&cmx);
+    free(rp_del);
+    free(rp_mark);
+    free(rp_sel);
+    free(rp_nrm);
+    free(rp_rk);
     free(crs);
     free(in_copy.v);
     spool_free(&sp);

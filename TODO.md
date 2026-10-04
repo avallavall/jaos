@@ -110,28 +110,27 @@ an even coefficient determine mod 2: `enlight_hard` solves at the root,
 the gap sum is 16.8.
 HiGHS and SCIP solve 8 each in 20 s. Left, largest first. First, the
 networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
-12019 (10789 before 02-341), where HiGHS's root reaches 11640 and then
+13767 (10789 before 02-341), where HiGHS's root reaches 11640 and then
 restarts several times, each restart fixing columns by reduced cost against
 the optimum it already has (JAOS's reduced-cost fixing fixed nothing from
-10930); `beasleyC3` holds 835 against 754 with a bound of 739 (HiGHS's
+10930); `beasleyC3` holds 831 against 754 with a bound of 740 (HiGHS's
 root 733), a node there costing 1e7 work units. Five ideas for these roots were read
 and refused on 2026-10-04 (`bench/measurements/02-330/`): longer
 aggregation walks reach HiGHS's root on `beasleyC3` (733.5) but the root's
 LP solves over 5175 rows cost 5.5e9 work units. A pool that takes slack
 cuts out between root rounds keeps that LP near 2500 rows and the 12-step
 root at 0.94e9 work units, and lifts `beasleyC3`'s bound at the limit to
-741, but its incumbent gets worse and the gap sum does not fall
-(`net-root-pool`, `bench/measurements/02-339/`). Since 2026-10-04 the
-network MIR round and its aggregation read the cuts of earlier rounds as
-rows (`bench/measurements/02-341/`): `p200x1188c`'s root reaches 12005
-(HiGHS 11640) and its bound at the limit 12019 against the optimum 15078,
-`tr12-30` ends at 131361 over 130286 (optimum 130596), `sp150x300d` solves
-at the root, and the gap sum is 15.04. Cuts on node sets were read and
-refused there (`net-node-sets`). What is left on `p200x1188c` is the climb
-SCIP makes over 98 root rounds of about 10 cuts each (12353 by round 41):
-JAOS's root with cut rows reads 12698 at 100 rounds but costs 1.2e9 work
-units, and 13360 with 02-339's pool, while `tr12-30`'s relaxation grows past
-12000 rows under 100 rounds. A MIP presolve that merges the flows through a node
+741, but alone its incumbent gets worse and the gap sum does not fall
+(`bench/measurements/02-339/`). Since 2026-10-04 the network MIR round and
+its aggregation read the cuts of earlier rounds as rows
+(`bench/measurements/02-341/`), and network mode runs up to 100 rounds with
+that pool (`bench/measurements/02-342/`): `p200x1188c`'s root reaches 13137
+(HiGHS 11640) and its bound at the limit 13767 against the optimum 15078,
+`tr12-30` ends at 132496 over 130131 (optimum 130596), `sp150x300d` solves
+at the root, and the gap sum is 14.93. Cuts on node sets were read and
+refused there (`net-node-sets`). On `p200x1188c` a stall of 1e-5 takes the
+root to 13973 for 2.7e9 work units; HiGHS closes it with restarts that fix
+columns by reduced cost against the optimum it holds. A MIP presolve that merges the flows through a node
 (`bench/measurements/02-337/`) takes `beasleyC3` to 797 with a bound of
 724; HiGHS's presolve removes 597 of its 1750 rows where JAOS's removes
 161, so its other reductions come next. Second, flat roots: `neos-911970` and

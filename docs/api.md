@@ -143,7 +143,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_node_cut_stall` | `mip_node_cut_stall` | number | 0 |
 | `jaos_set_mip_root_cut_drop` | `mip_root_cut_drop` | boolean | true |
 | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
-| `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 20 in network mode |
+| `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 100 in network mode |
 | `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | false |
 | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
@@ -174,7 +174,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cutoff` | `mip_cutoff` | number | `inf`, no cutoff |
 | `jaos_set_mip_clique_rounds` | `mip_clique_rounds` | integer | 4 |
 | `jaos_set_mip_zero_half_rounds` | `mip_zero_half_rounds` | integer | 0 |
-| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5; 20 in network mode |
+| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5; 100 in network mode |
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
 | `jaos_set_mip_restart` | `mip_restart` | boolean | false |
@@ -718,7 +718,7 @@ Sets the rounds of zero-half cuts at the root. The default is 0, off.
 
 **`jaos_set_mip_flow_cover_rounds`**\
 `jaos_status jaos_set_mip_flow_cover_rounds(jaos_model *m, int64_t rounds)`\
-Sets the rounds of flow cover cuts at the root. The default is 5, and 20
+Sets the rounds of flow cover cuts at the root. The default is 5, and 100
 in network mode (see `jaos_set_mip_mir_rounds`); 0 turns them off.
 
 **`jaos_set_mip_cut_stall`**\
@@ -753,12 +753,15 @@ rounds go on past 6, up to 20, while each round lifts the root bound by at
 least 1e-4 of (1 + |bound|); a count set here is run as set. In network mode, on a
 linear model where at least 50 continuous columns, and a third or more of
 them, sit under a binary through a two-entry row `a x + c y <= 0` (or `>=`,
-or `=`), the default is 20: each cut then replaces a continuous column by
-its variable bound before the rounding (c-MIR), each base row is tried with
-two bound rules, the base rows and the aggregation's rows include the cuts
-of the rounds before, a round keeps at most 200 cuts by efficacy with none
-more parallel than 0.5 to one kept, and the root's dive and pump take at
-most a quarter of the root's work once an incumbent exists.
+or `=`), the default is 100, and the rounds end after one that lifts the
+bound by less than 1e-4 of (1 + |bound|): each cut then replaces a
+continuous column by its variable bound before the rounding (c-MIR), each
+base row is tried with two bound rules, the base rows and the aggregation's
+rows include the cuts of the rounds before, a round keeps at most 200 cuts
+by efficacy with none more parallel than 0.5 to one kept, a cut that goes
+slack leaves the relaxation for a pool and comes back when the point
+violates it, and the root's dive and pump take at most a quarter of the
+root's work once an incumbent exists.
 
 **`jaos_set_mip_dive_backtrack`**\
 `jaos_status jaos_set_mip_dive_backtrack(jaos_model *m, int64_t times)`\

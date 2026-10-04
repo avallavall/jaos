@@ -1,0 +1,34 @@
+== L20
+beasleyC3      root 737.09562662666553     work 3478505724   node_limit
+p200x1188c     root 11757.475301079627     work 4753903513   node_limit
+exp-1-500-5-5  root 65516.05383056248      work 471045949    node_limit
+tr12-30        root 130156.1789406001      work 263353657    node_limit
+sp150x300d     root 68.52725437415755      work 12509899     optimal
+== L100
+beasleyC3      root 737.33210886541724     work 3610756409   node_limit
+p200x1188c     root                        work 40000114103  work_limit
+exp-1-500-5-5  root 65516.05383056248      work 471045949    node_limit
+tr12-30        root 130156.1789406001      work 263353657    node_limit
+sp150x300d     root 68.52725437415755      work 12509899     optimal
+== P20
+beasleyC3      root 737.04438039125728     work 678123678    node_limit
+p200x1188c     root 11716.461768319057     work 369576759    node_limit
+exp-1-500-5-5  root 65363.282150545216     work 291043748    node_limit
+tr12-30        root 129929.28093411523     work 194589752    node_limit
+sp150x300d     root 68.52725437415755      work 11659099     optimal
+== P100
+beasleyC3      root 737.04438039125728     work 678123678    node_limit
+p200x1188c     root 13137.245252889996     work 997728440    node_limit
+exp-1-500-5-5  root 65363.282150545216     work 291043748    node_limit
+tr12-30        root 129929.28093411523     work 194589752    node_limit
+sp150x300d     root 68.52725437415755      work 11659099     optimal
+== p200x1188c with the pool, network rounds
+50   root 13137.245252889996     work 997728440    1498 rows at the end after 1076 cuts
+100  root 13137.245252889996     work 997728440    1498 rows at the end after 1076 cuts
+200  root 13137.245252889996     work 997728440    1498 rows at the end after 1076 cuts
+400  root 13137.245252889996     work 997728440    1498 rows at the end after 1076 cuts
+== p200x1188c with the pool, 200 rounds, stall
+3e-5  root 13270.49971347708      work 1158488008   1508 rows at the end after 1204 cuts
+1e-5  root 13973.061254619226     work 2684166303   1549 rows at the end after 1774 cuts
+3e-6  root 13973.061254619226     work 2684166303   1549 rows at the end after 1774 cuts
+0     root 13973.089670648342     work 5401215669   2144 rows at the end after 2411 cuts

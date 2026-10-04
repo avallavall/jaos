@@ -27,7 +27,7 @@ binkar10_1   work limit reached rows=1026 cols=2298 shape=ok iters=768077 work=1
 csched008    work limit reached rows=351 cols=1536 shape=ok iters=125859 work=10000013875 nodes=25 cuts=359 heur=0 inc=none bound=170.99999999999969 ref=173 | 
 csched007    work limit reached rows=351 cols=1758 shape=ok iters=444855 work=10000012896 nodes=266 cuts=285 heur=0 inc=none bound=293.75159067084974 ref=350.99999999999551 | 
 beasleyC3    work limit reached rows=1750 cols=2500 shape=ok iters=725015 work=10000037244 nodes=1522 cuts=3012 heur=5 inc=831 bound=740 ref=753.9999999999128 | 
-p200x1188c   work limit reached rows=1388 cols=2376 shape=ok iters=802052 work=10000042461 nodes=6586 cuts=1083 heur=3 inc=15078 bound=13767 ref=15078 | 
+p200x1188c   work limit reached rows=1388 cols=2376 shape=ok iters=659954 work=10000047289 nodes=4208 cuts=541 heur=4 inc=15078 bound=12071 ref=15078 | 
 
 30 instances: 3 solved, 30 shape ok, 3 objective ok, 3 checker ok, 3 deterministic, 27 failed
 gate: NOT MET
