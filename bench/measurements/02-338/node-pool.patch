@@ -1,0 +1,199 @@
+diff --git a/src/mip.c b/src/mip.c
+index c07c512..5324165 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -5740,6 +5740,20 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t first_inc = 0;
+     int64_t rcfixed = 0;
+     int64_t tightened = 0;
++    int64_t pool_glob = 0, pool_cuts = 0, pool_nodes = 0;
++    double *pool_nrm = nullptr;
++    int64_t *pool_mark = nullptr, *pool_sel = nullptr;
++    cutrank *pool_rk = nullptr;
++    const char *pe = getenv("JAOS_POOL_ROUNDS");
++    const int64_t pool_rounds = pe != nullptr ? atoll(pe) : 0;
++    pe = getenv("JAOS_POOL_CAP");
++    const int64_t pool_cap = pe != nullptr ? atoll(pe) : 50;
++    pe = getenv("JAOS_POOL_EFF");
++    const double pool_eff = pe != nullptr ? atof(pe) : 1e-4;
++    pe = getenv("JAOS_POOL_VIOL");
++    const double pool_viol = pe != nullptr ? atof(pe) : 1e-6;
++    pe = getenv("JAOS_POOL_FREQ");
++    const int64_t pool_freq = pe != nullptr && atoll(pe) > 0 ? atoll(pe) : 1;
+ 
+     int64_t work = 0, iters = 0;
+     bb_phases ph = {0};
+@@ -6580,6 +6594,151 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root: MIR aggregation kept %lld cuts after %lld "
+                        "probes on a copy", (long long)agg_kept,
+                        (long long)agg_probes);
++            if (pool_rounds > 0 && root_cut_drop && pool.n > 0 &&
++                !jm_model_has_quadratic(m)) {
++                pool_glob = pool.n;
++                pool_nrm = jm_alloc_array(pool_glob, sizeof *pool_nrm);
++                pool_mark = jm_alloc_array(pool_glob, sizeof *pool_mark);
++                pool_rk = jm_alloc_array(pool_glob, sizeof *pool_rk);
++                pool_sel = jm_alloc_array(pool_glob, sizeof *pool_sel);
++                if (pool_nrm == nullptr || pool_mark == nullptr ||
++                    pool_rk == nullptr || pool_sel == nullptr)
++                    goto done;
++                for (int64_t c = 0; c < pool_glob; c++) {
++                    double s = 0.0;
++                    for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
++                        s += pool.val[p] * pool.val[p];
++                    pool_nrm[c] = sqrt(s);
++                    pool_mark[c] = 0;
++                }
++                work += pool.start[pool_glob];
++                const char *ck = getenv("JAOS_POOL_CHECK");
++                if (ck != nullptr) {
++                    FILE *fp = fopen(ck, "r");
++                    double *xs = calloc((size_t)nc + 1, sizeof *xs);
++                    char ln[512];
++                    int64_t k = 0;
++                    while (fp != nullptr && xs != nullptr && k < nc &&
++                           fgets(ln, sizeof ln, fp) != nullptr) {
++                        char nm[256];
++                        double v;
++                        if (strncmp(ln, "col ", 4) == 0 &&
++                            sscanf(ln, "col %255s %lf", nm, &v) == 2)
++                            xs[k++] = v;
++                    }
++                    if (fp != nullptr)
++                        fclose(fp);
++                    int64_t bad = 0;
++                    for (int64_t c = 0; xs != nullptr && c < pool_glob; c++) {
++                        double a = 0.0;
++                        for (int64_t p = pool.start[c]; p < pool.start[c + 1];
++                             p++)
++                            a += pool.val[p] * xs[pool.idx[p]];
++                        if (pool.lo[c] - a > 1e-6 * (1.0 + fabs(pool.lo[c]))) {
++                            bad++;
++                            jm_log(m, JAOS_LOG_SUMMARY, "check: cut %lld "
++                                   "lo %.17g at the point %.17g", (long long)c,
++                                   pool.lo[c], a);
++                            for (int64_t p = pool.start[c];
++                                 p < pool.start[c + 1]; p++) {
++                                const int64_t j = pool.idx[p];
++                                jm_log(m, JAOS_LOG_SUMMARY, "check:   col %lld "
++                                       "int %d coef %.17g x* %.17g root x "
++                                       "%.17g bounds [%g, %g] orig [%g, %g]",
++                                       (long long)j, (int)m->col_integer[j],
++                                       pool.val[p], xs[j], x[j], ilo[j], ihi[j],
++                                       m->col_lower[j], m->col_upper[j]);
++                            }
++                        }
++                    }
++                    jm_log(m, JAOS_LOG_SUMMARY, "check: %lld columns read, "
++                           "%lld of %lld root cuts cut the point off",
++                           (long long)k, (long long)bad, (long long)pool_glob);
++                    free(xs);
++                }
++            }
++        }
++
++        if (nodes > 1 && branch >= 0 && pool_glob > 0 &&
++            depth_here % pool_freq == 0) {
++            phase_to(&ph, work, PH_CUTS);
++            bool pruned = false, failed = false, added = false;
++            for (int64_t r = 0; r < pool_rounds; r++) {
++                for (int64_t k = 0; k < act_n; k++)
++                    if (act[k] < pool_glob)
++                        pool_mark[act[k]] = nodes;
++                int64_t nk = 0;
++                for (int64_t c = 0; c < pool_glob; c++) {
++                    if (pool_mark[c] == nodes || !(pool_nrm[c] > 0.0))
++                        continue;
++                    double a = 0.0;
++                    for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
++                        a += pool.val[p] * x[pool.idx[p]];
++                    const double v = pool.lo[c] - a;
++                    if (v > pool_viol * (1.0 + fabs(pool.lo[c])) &&
++                        v > pool_eff * pool_nrm[c])
++                        pool_rk[nk++] = (cutrank){v / pool_nrm[c], c};
++                }
++                work += pool.start[pool_glob] + act_n;
++                if (nk == 0)
++                    break;
++                if (nk > pool_cap) {
++                    qsort(pool_rk, (size_t)nk, sizeof *pool_rk, cutrank_cmp);
++                    nk = pool_cap;
++                }
++                for (int64_t k = 0; k < nk; k++)
++                    pool_sel[k] = pool_rk[k].r;
++                if (pool_add(lp, &pool, pool_sel, nk) != JAOS_OK ||
++                    !JM_GROW(act, act_cap, act_n + nk) ||
++                    !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + nk))
++                    goto done;
++                for (int64_t k = 0; k < nk; k++) {
++                    act[act_n++] = pool_sel[k];
++                    in_copy.v[in_copy.n++] = pool_sel[k];
++                }
++                cuts += nk;
++                pool_cuts += nk;
++                added = true;
++                phase_to(&ph, work, PH_LP);
++                budget(lp, m, work);
++                st = jaos_solve(lp);
++                solves++;
++                work += jaos_work_units(lp);
++                iters += jaos_iterations(lp);
++                phase_to(&ph, work, PH_CUTS);
++                if (st != JAOS_OK) {
++                    if (st == JAOS_ERR_NUMERICAL) {
++                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
++                        jm_set_err(m, "node %lld, pool cuts: %s",
++                                   (long long)nodes, jaos_model_error(lp));
++                        failed = true;
++                        break;
++                    }
++                    goto done;
++                }
++                ns = jaos_status_of(lp);
++                if (ns == JAOS_SOLVE_INFEASIBLE) {
++                    pruned = true;
++                    break;
++                }
++                if (ns != JAOS_SOLVE_OPTIMAL) {
++                    outcome = ns;
++                    failed = true;
++                    break;
++                }
++                if (jaos_objective(lp, &obj) != JAOS_OK ||
++                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
++                    goto done;
++                key = sigma * obj;
++                branch = select_branch(m, x, rule, pc_sum, pc_n);
++                if (branch < 0)
++                    break;
++            }
++            pool_nodes += added;
++            if (failed)
++                break;
++            if (pruned)
++                continue;
+         }
+ 
+         phase_to(&ph, work, PH_HEUR);
+@@ -7714,6 +7873,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld nodes with an "
+                "unbounded relaxation were split on an SOS set or an indicator "
+                "row the node's box leaves open", (long long)open_splits);
++    if (pool_cuts > 0)
++        jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld root cuts taken "
++               "back from the pool at %lld nodes", (long long)pool_cuts,
++               (long long)pool_nodes);
+ 
+     m->mip_pool_n = sp.n;
+     m->mip_pool_x = sp.x;
+@@ -7820,6 +7983,10 @@ done:
+     cmir_free(&cmx);
+     free(crs);
+     free(in_copy.v);
++    free(pool_nrm);
++    free(pool_mark);
++    free(pool_sel);
++    free(pool_rk);
+     spool_free(&sp);
+     cutbuf_free(&cb);
+     cutbuf_free(&agb);
