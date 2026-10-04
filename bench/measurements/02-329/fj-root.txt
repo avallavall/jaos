@@ -1,0 +1,13 @@
+neos-2657525-crna FJLOG root 19523619 first 0 51120018 second 1 62902|FJLOG root 2337468 first 0 51120188 second 1 38640|work_units 224185137|incumbent 825.05686100000003|
+graphdraw-domain FJLOG root 1686645 first 1 480861 second 1 0|FJLOG root 2054250 first 1 525745 second 1 0|work_units 9964298|incumbent 28361.999999999993|
+neos-3381206-awhea FJLOG root 260730209 first 1 3731172 second 1 0|FJLOG root 19645477 first 1 7231394 second 1 0|work_units 858887333|incumbent 458|
+neos-3627168-kasai FJLOG root 1897842588 first 1 59979719 second 1 0|FJLOG root 40838988 first 1 1371906 second 1 0|work_units 2537917313|incumbent 1012992.4799999997|
+timtab1 FJLOG root 1798215 first 0 27941698 second 0 27940290|work_units 66913696|
+glass4 FJLOG root 630919 first 0 50660116 second 0 50661084|FJLOG root 389862 first 0 50660082 second 0 50660103|work_units 209112011|
+ic97_potential FJLOG root 11092428 first 0 98240252 second 0 98240469|work_units 261655378|
+csched007 FJLOG root 632063896 first 0 169762971 second 0 169765976|FJLOG root 13750890 first 0 169760068 second 0 169760250|work_units 2388118005|
+csched008 work_units 10000690131|
+enlight_hard FJLOG root 325867 first 0 17201344 second 0 17201773|work_units 36684817|
+p0033 FJLOG root 153298 first 1 2560608 second 1 0|FJLOG root 29440 first 1 1291465 second 1 0|work_units 4312483|incumbent 3095|
+misc03 FJLOG root 968588 first 0 46181543 second 0 46183386|work_units 105600762|
+gt2 FJLOG root 436096 first 1 4041 second 1 0|FJLOG root 76796 first 1 1925 second 1 0|work_units 1651818|incumbent 21166|

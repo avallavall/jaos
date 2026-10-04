@@ -1197,6 +1197,14 @@ static void test_the_rounding_heuristic_takes_the_relaxations_neighbour(void)
     }
 }
 
+static char g_log[4096];
+static void capture_log(void *user, jaos_log_level level, const char *line)
+{
+    (void)level; (void)user;
+    const size_t have = strlen(g_log);
+    snprintf(g_log + have, sizeof g_log - have, "%s\n", line);
+}
+
 static void test_an_infeasible_rounding_is_not_taken(void)
 {
     const double cost[2] = { 1.0, 1.0 }, cl[2] = { 0, 0 };
@@ -1216,22 +1224,16 @@ static void test_an_infeasible_rounding_is_not_taken(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, 0));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
-    jaos_mip_report rep;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
-    TEST_ASSERT_EQUAL_INT64(0, rep.heuristic_points);
+    TEST_ASSERT_NULL(strstr(g_log, "incumbent 2"));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "incumbent 1 by"));
     jaos_model_free(m);
-}
-
-static char g_log[4096];
-static void capture_log(void *user, jaos_log_level level, const char *line)
-{
-    (void)level; (void)user;
-    const size_t have = strlen(g_log);
-    snprintf(g_log + have, sizeof g_log - have, "%s\n", line);
 }
 
 static void test_the_tree_logs_its_start_root_and_end(void)
@@ -1249,6 +1251,56 @@ static void test_the_tree_logs_its_start_root_and_end(void)
     TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 3 integer columns of 3"));
     TEST_ASSERT_NOT_NULL(strstr(g_log, "root: relaxation"));
     TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: optimal after"));
+    jaos_model_free(m);
+}
+
+static jaos_model *exact_pick(void)
+{
+    const double c[5] = {2, 3, 4, 3, 5};
+    const double cl[5] = {0, 0, 0, 0, 0}, cu[5] = {1, 1, 1, 1, 1};
+    const double rl[2] = {13.0, -INFINITY}, ru[2] = {13.0, 3.0};
+    const int64_t as[6] = {0, 2, 4, 6, 8, 10};
+    const int64_t ai[10] = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+    const double av[10] = {3, 1, 5, 1, 7, 1, 4, 1, 6, 1};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 5, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, 10, as,
+                     ai, av));
+    for (int64_t j = 0; j < 5; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+    return m;
+}
+
+static void test_a_feasibility_jump_finds_a_point_on_an_equality_row(void)
+{
+    jaos_model *m = exact_pick();
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.has_incumbent);
+    TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 9.0, rep.incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "root: incumbent 9 by feasibility jump"));
+    jaos_model_free(m);
+
+    m = exact_pick();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_FALSE(rep.has_incumbent);
     jaos_model_free(m);
 }
 
@@ -5116,6 +5168,7 @@ int main(void)
     RUN_TEST(test_the_rounding_heuristic_takes_the_relaxations_neighbour);
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
+    RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);

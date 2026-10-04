@@ -1023,7 +1023,12 @@ rounds each fractional node's relaxation to the nearest integers and offers
 the point as an incumbent. At the root of a linear model, the second rounds
 each integer column the way no row locks it, once from the relaxation and
 once to the column's bound on that side, fixes them and solves the rest.
-The dive heuristic, RINS and the pump have their own setters.
+When the root still has no incumbent after that, the third runs a
+feasibility jump: it moves one column at a time to the value that most
+lowers the weighted violation of its rows, from the relaxation's point and
+then from zero, under half the root's work. It fixes the integer columns of
+the point it finds and solves the rest. The dive heuristic, RINS and the
+pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\
 `jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)`\

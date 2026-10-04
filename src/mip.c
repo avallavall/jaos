@@ -135,6 +135,11 @@ constexpr double MIP_NET_STALL = 1e-4;
 constexpr int64_t MIP_NET_CUT_CAP = 200;
 constexpr double MIP_NET_PARALLEL = 0.5;
 constexpr double MIP_NET_HEUR_CAP = 0.25;
+constexpr double MIP_NET_F0_HI = 1e-6;
+
+constexpr int64_t MIP_FJ_WORK = 20000;
+constexpr int64_t MIP_FJ_SAMPLE = 25;
+constexpr double MIP_FJ_ROOT = 0.5;
 
 constexpr int64_t MIP_SUBMIP_NODES = 500;
 constexpr double MIP_SUBMIP_FIXED = 0.3;
@@ -3094,7 +3099,7 @@ static double cmir_eval(const jaos_model *m, const cmir_ctx *c, int64_t nl,
                         double b, double d)
 {
     const double beta = b / d, f0 = beta - floor(beta);
-    if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
+    if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_NET_F0_HI)
         return -1.0;
     double viol = -floor(beta), nrm = 0.0;
     for (int64_t t = 0; t < nl; t++) {
@@ -3385,7 +3390,7 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                                    double *best, double *delta, double *agg,
                                    double *cmag, bool *used, bool *picked,
                                    int64_t steps, cmir_ctx *cx,
-                                   int64_t *work)
+                                   bool simple, int64_t *work)
 {
     const int64_t nc = m->num_col, nr = m->num_row;
     int64_t added = 0;
@@ -3436,12 +3441,12 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                     if (agg[j] == 0.0 || m->col_integer[j] || picked[j])
                         continue;
                     double lo = ilo[j], hi = ihi[j];
-                    if (cx != nullptr && cx->vlb_y[j] >= 0) {
+                    if (cx != nullptr && !simple && cx->vlb_y[j] >= 0) {
                         const double v = cx->vlb_l[j] * x[cx->vlb_y[j]];
                         if (!isfinite(lo) || v > lo)
                             lo = v;
                     }
-                    if (cx != nullptr && cx->vub_y[j] >= 0) {
+                    if (cx != nullptr && !simple && cx->vub_y[j] >= 0) {
                         const double v = cx->vub_u[j] * x[cx->vub_y[j]];
                         if (!isfinite(hi) || v < hi)
                             hi = v;
@@ -3895,6 +3900,237 @@ static int fixed_for_point(const jaos_model *m, const jaos_model *lp,
         return -1;
     const int rc = fix_and_solve(m, hv, x, out, work, solves_done);
     jaos_model_free(hv);
+    return rc;
+}
+
+typedef struct {
+    double v, slope;
+} fjbreak;
+
+static int fjbreak_cmp(const void *pa, const void *pb)
+{
+    const fjbreak *p = pa, *q = pb;
+    if (p->v != q->v)
+        return p->v < q->v ? -1 : 1;
+    return p->slope < q->slope ? -1 : p->slope > q->slope;
+}
+
+static double fj_viol(double r, double lo, double hi)
+{
+    return r > hi ? r - hi : r < lo ? lo - r : 0.0;
+}
+
+static double fj_cost(const jaos_model *m, const double *r, const double *w,
+                      int64_t j, double from, double to)
+{
+    double f = 0.0;
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        const int64_t i = m->a_index[k];
+        const double nr = r[i] + m->a_value[k] * (to - from);
+        f += w[i] * fj_viol(nr, m->row_lower[i], m->row_upper[i]);
+    }
+    return f;
+}
+
+static double fj_jump(const jaos_model *m, const double *x, const double *r,
+                      const double *w, const double *lo, const double *hi,
+                      int64_t j, fjbreak *bp, double *score, int64_t *ops)
+{
+    const double xj = x[j];
+    int64_t nb = 0;
+    double slope = 0.0;
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        const int64_t i = m->a_index[k];
+        const double a = m->a_value[k];
+        if (a == 0.0)
+            continue;
+        const double rl = m->row_lower[i], ru = m->row_upper[i];
+        if (isfinite(ru)) {
+            const double t = xj + (ru - r[i]) / a;
+            if (a > 0.0)
+                bp[nb++] = (fjbreak){t, w[i] * a};
+            else {
+                slope -= w[i] * -a;
+                bp[nb++] = (fjbreak){t, w[i] * -a};
+            }
+        }
+        if (isfinite(rl)) {
+            const double t = xj + (rl - r[i]) / a;
+            if (a > 0.0) {
+                slope -= w[i] * a;
+                bp[nb++] = (fjbreak){t, w[i] * a};
+            } else {
+                bp[nb++] = (fjbreak){t, w[i] * -a};
+            }
+        }
+    }
+    *ops += 2 * nb + 1;
+    qsort(bp, (size_t)nb, sizeof *bp, fjbreak_cmp);
+    double v = lo[j];
+    if (!isfinite(v))
+        v = nb > 0 ? bp[0].v : xj;
+    for (int64_t t = 0; t < nb && slope < 0.0; t++) {
+        if (bp[t].v <= v)
+            slope += bp[t].slope;
+        else {
+            v = bp[t].v;
+            slope += bp[t].slope;
+        }
+    }
+    if (v < lo[j])
+        v = lo[j];
+    if (v > hi[j])
+        v = hi[j];
+    if (m->col_integer[j]) {
+        const double a = floor(v), b = ceil(v);
+        const double ca = a >= lo[j] ? fj_cost(m, r, w, j, xj, a) : INFINITY;
+        const double cb = b <= hi[j] ? fj_cost(m, r, w, j, xj, b) : INFINITY;
+        v = ca <= cb ? a : b;
+        *ops += 2 * (m->a_start[j + 1] - m->a_start[j]);
+    }
+    if (!isfinite(v) || v == xj) {
+        *score = 0.0;
+        return xj;
+    }
+    *score = fj_cost(m, r, w, j, xj, xj) - fj_cost(m, r, w, j, xj, v);
+    *ops += 2 * (m->a_start[j + 1] - m->a_start[j]);
+    return v;
+}
+
+static int fj_for_point(const jaos_model *m, const jaos_model *lp,
+                        const double *ilo, const double *ihi, const double *xs,
+                        int64_t limit, double *out, int64_t *work,
+                        int64_t *solves_done)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    const double tol = jm_primal_tolerance(m);
+    int64_t maxdeg = 1;
+    for (int64_t j = 0; j < nc; j++)
+        if (m->a_start[j + 1] - m->a_start[j] > maxdeg)
+            maxdeg = m->a_start[j + 1] - m->a_start[j];
+    double *x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *x);
+    double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
+    double *r = jm_calloc_array(nr > 0 ? nr : 1, sizeof *r);
+    double *w = jm_alloc_array(nr > 0 ? nr : 1, sizeof *w);
+    int64_t *vio = jm_alloc_array(nr > 0 ? nr : 1, sizeof *vio);
+    int64_t *pos = jm_alloc_array(nr > 0 ? nr : 1, sizeof *pos);
+    int64_t *seen = jm_calloc_array(nc > 0 ? nc : 1, sizeof *seen);
+    fjbreak *bp = jm_alloc_array(2 * maxdeg + 2, sizeof *bp);
+    int rc = -1;
+    if (x == nullptr || lo == nullptr || hi == nullptr || r == nullptr ||
+        w == nullptr || vio == nullptr || pos == nullptr || seen == nullptr ||
+        bp == nullptr)
+        goto out;
+    rc = 0;
+    if (jm_model_ensure_rowwise((jaos_model *)m) != JAOS_OK)
+        goto out;
+    for (int64_t j = 0; j < nc; j++) {
+        lo[j] = ilo[j];
+        hi[j] = ihi[j];
+        double v = xs != nullptr ? (m->col_integer[j] ? jm_round(xs[j]) : xs[j])
+                                 : 0.0;
+        if (v < lo[j])
+            v = lo[j];
+        if (v > hi[j])
+            v = hi[j];
+        if (!isfinite(v))
+            v = 0.0;
+        x[j] = v;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            r[m->a_index[k]] += m->a_value[k] * v;
+    }
+    int64_t nv = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        w[i] = 1.0;
+        pos[i] = -1;
+        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
+            continue;
+        const double sc = tol * (1.0 + fmax(fabs(m->row_lower[i]) < INFINITY
+                                                 ? fabs(m->row_lower[i]) : 0.0,
+                                             fabs(m->row_upper[i]) < INFINITY
+                                                 ? fabs(m->row_upper[i]) : 0.0));
+        if (fj_viol(r[i], m->row_lower[i], m->row_upper[i]) > sc) {
+            pos[i] = nv;
+            vio[nv++] = i;
+        }
+    }
+    int64_t ops = m->num_nz + nc + nr;
+    int64_t budget_ops = MIP_FJ_WORK * (m->num_nz + nc + nr);
+    if (limit < budget_ops)
+        budget_ops = limit;
+    uint64_t rng = 0x9E3779B97F4A7C15u;
+    int64_t stamp = 0;
+    while (nv > 0 && ops < budget_ops) {
+        stamp++;
+        int64_t bj = -1;
+        double bv = 0.0, bs = 0.0;
+        for (int64_t s = 0; s < MIP_FJ_SAMPLE && s < nv; s++) {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            const int64_t i = vio[(int64_t)(rng % (uint64_t)nv)];
+            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+                const int64_t j = m->ar_index[p];
+                if (seen[j] == stamp || lo[j] == hi[j])
+                    continue;
+                seen[j] = stamp;
+                double sc = 0.0;
+                const double v = fj_jump(m, x, r, w, lo, hi, j, bp, &sc, &ops);
+                if (sc > bs + 1e-12 * (1.0 + bs) ||
+                    (sc > 0.0 && sc == bs && j < bj)) {
+                    bs = sc;
+                    bj = j;
+                    bv = v;
+                }
+            }
+        }
+        if (bj < 0) {
+            for (int64_t t = 0; t < nv; t++)
+                w[vio[t]] += 1.0;
+            ops += nv;
+            continue;
+        }
+        const double d = bv - x[bj];
+        x[bj] = bv;
+        for (int64_t k = m->a_start[bj]; k < m->a_start[bj + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            r[i] += m->a_value[k] * d;
+            if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
+                continue;
+            const double sc = tol * (1.0 + fmax(fabs(m->row_lower[i]) < INFINITY
+                                                     ? fabs(m->row_lower[i]) : 0.0,
+                                                 fabs(m->row_upper[i]) < INFINITY
+                                                     ? fabs(m->row_upper[i]) : 0.0));
+            const bool bad =
+                fj_viol(r[i], m->row_lower[i], m->row_upper[i]) > sc;
+            if (bad && pos[i] < 0) {
+                pos[i] = nv;
+                vio[nv++] = i;
+            } else if (!bad && pos[i] >= 0) {
+                const int64_t last = vio[--nv];
+                vio[pos[i]] = last;
+                pos[last] = pos[i];
+                pos[i] = -1;
+            }
+        }
+        ops += m->a_start[bj + 1] - m->a_start[bj];
+    }
+    *work += ops;
+    if (nv > 0)
+        goto out;
+    {
+        jaos_model *hv = nullptr;
+        if (jaos_model_copy(lp, &hv) != JAOS_OK) {
+            rc = -1;
+            goto out;
+        }
+        rc = fix_and_solve(m, hv, x, out, work, solves_done);
+        jaos_model_free(hv);
+    }
+out:
+    free(x); free(lo); free(hi); free(r); free(w); free(vio); free(pos);
+    free(seen); free(bp);
     return rc;
 }
 
@@ -5999,8 +6235,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 if (r < mir_rounds && agg_live) {
                     const int64_t av = mir_aggregate_round(
                         m, lp, x, ilo, ihi, &agb, cut, mbest, mdelta, magg,
-                        mcmag, mused, mpicked, mir_aggregate, cxp, &work);
+                        mcmag, mused, mpicked, mir_aggregate, cxp, false,
+                        &work);
                     if (av < 0)
+                        goto done;
+                    if (net &&
+                        mir_aggregate_round(m, lp, x, ilo, ihi, &agb, cut,
+                                            mbest, mdelta, magg, mcmag, mused,
+                                            mpicked, mir_aggregate, cxp, true,
+                                            &work) < 0)
                         goto done;
                     if (agb.n == 0)
                         agg_live = false;
@@ -6254,6 +6497,94 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
+        for (int side = 0; side < 2 && nodes == 1 && heur &&
+                           !quadratic && branch >= 0 && !budget_gone(m, work);
+             side++) {
+            const int got = locks_for_point(m, lp, x, side == 1, xr, &work,
+                                            &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by rounding %s and solving "
+                           "the rest", hobj,
+                           side == 1 ? "each column to the side no row locks"
+                                     : "the relaxation away from its locks");
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
+        if (outcome == JAOS_SOLVE_INTERRUPTED)
+            break;
+
+        if (nodes == 1 && heur && !quadratic && !inc.have && branch >= 0 &&
+            !budget_gone(m, work)) {
+            const int64_t fj_limit = (int64_t)(MIP_FJ_ROOT * (double)work);
+            int got = fj_for_point(m, lp, ilo, ihi, x, fj_limit, xr, &work,
+                                   &solves);
+            if (got == 0)
+                got = fj_for_point(m, lp, ilo, ihi, nullptr, fj_limit, xr,
+                                   &work, &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by feasibility jump", hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (dive_heur > 0 && branch >= 0 && !budget_gone(m, work) &&
             (cur == nullptr || cur->depth <= dive_heur_depth)) {
             const int got = dive_for_point(m, lp, dive_heur, nullptr, nullptr,
@@ -6351,51 +6682,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 }
             }
         }
-
-        for (int side = 0; side < 2 && nodes == 1 && heur &&
-                           !quadratic && branch >= 0 && !budget_gone(m, work);
-             side++) {
-            const int got = locks_for_point(m, lp, x, side == 1, xr, &work,
-                                            &solves);
-            if (got < 0)
-                goto done;
-            double hobj = 0.0;
-            if (got == 1)
-                work += m->num_nz + nc + nr;
-            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
-                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
-                                           &nfixed, &nperm, nodes,
-                                           depth_here, sigma * key, x2,
-                                           hobj, &work);
-                if (sc == STEER_ERR)
-                    goto done;
-                if (sc == STEER_STOP) {
-                    outcome = JAOS_SOLVE_INTERRUPTED;
-                    break;
-                }
-                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
-                if (sc == STEER_OK)
-                    spool_offer(&sp, x2, hkey, hobj);
-                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
-                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
-                        goto done;
-                    heur_points++;
-                    if (first_inc == 0)
-                        first_inc = nodes;
-                    jm_log(m, JAOS_LOG_PROGRESS,
-                           "root: incumbent %.17g by rounding %s and solving "
-                           "the rest", hobj,
-                           side == 1 ? "each column to the side no row locks"
-                                     : "the relaxation away from its locks");
-                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
-                        outcome = JAOS_SOLVE_INTERRUPTED;
-                        break;
-                    }
-                }
-            }
-        }
-        if (outcome == JAOS_SOLVE_INTERRUPTED)
-            break;
 
         const bool sub_here =
             heur && !quadratic && rins > 0 && branch >= 0 &&

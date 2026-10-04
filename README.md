@@ -95,9 +95,9 @@ and Gomory cuts to depth 3; on a network model, where many continuous
 columns sit under binaries, the rounding cuts substitute those variable
 bounds first. The root fixes the integer columns its rows' implied bounds
 fix, and a bound rounds up to the objective's step when every cost sits on
-one. A rounding heuristic, lock rounding, a root dive, a feasibility pump
-and a sub-MIP heuristic (RENS at the root, RINS at the root and in the
-tree). A solution pool of distinct integer assignments, a MIP
+one. A rounding heuristic, lock rounding, a feasibility jump, a root dive,
+a feasibility pump and a sub-MIP heuristic (RENS at the root, RINS at the
+root and in the tree). A solution pool of distinct integer assignments, a MIP
 start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.

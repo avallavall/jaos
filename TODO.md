@@ -100,19 +100,25 @@ columns sit under a binary gets 20 rounds of c-MIR with variable bound
 substitution. `sp150x300d` and `exp-1-500-5-5` solve, 20 of the 30 hold an
 incumbent (17 before) and the gap sum falls from 26.0 to 21.5; MIPLIB 3
 reads 0.957x in the geometric mean of work, `bell3a` 1.515x the worst.
+A second batch the same day (`bench/measurements/02-329/`) runs lock
+rounding before the root's dive and pump, adds a feasibility jump at a root
+with no incumbent, widens the network c-MIR's fraction window and runs both
+aggregation rules in network mode: 24 of the 30 hold an incumbent, the gap
+sum is 18.2, and MIPLIB 3 reads 1.014x of the first batch.
 HiGHS and SCIP solve 8 each in 20 s. Left, largest first. First, the
 networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
-10930, where HiGHS's root reaches 11640 and then restarts several times,
+10789, where HiGHS's root reaches 11640 and then restarts several times,
 each restart fixing columns by reduced cost against the optimum it already
 has (JAOS's reduced-cost fixing fixes nothing from 10930);
-`beasleyC3` holds 981 against 754 with a bound of 695 (HiGHS's root 733),
+`beasleyC3` holds 889 against 754 with a bound of 702 (HiGHS's root 733),
 a node there costing 1e7 work units. Second, flat roots: `neos-911970` and
 `neos-3381206-awhea` need 10 to 20 rounds of MIR on simplex tableau rows
 before their bound moves (to 51.6 and 446, HiGHS 52.1 and 451.8), and the
 restart that ran them was refused (mip-deep-restart); a root that keeps
 cutting while cuts are found and the bound is flat, without a restart, is
-the next form. Third, no incumbent: `enlight_hard` and
-`neos-3381206-awhea`. Fourth, `binkar10_1` holds the reference's point and
+the next form. Third, no incumbent: `enlight_hard`, `glass4`, `timtab1`,
+`ic97_potential`, `csched007` and `csched008`, where the feasibility jump
+fails within its cap. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as
