@@ -117,10 +117,13 @@ has (JAOS's reduced-cost fixing fixes nothing from 10930);
 a node there costing 1e7 work units. Five ideas for these roots were read
 and refused on 2026-10-04 (`bench/measurements/02-330/`): longer
 aggregation walks reach HiGHS's root on `beasleyC3` (733.5) but the root's
-LP solves over 5175 rows cost 5.5e9 work units, so a cut pool that keeps
-the root's LP small comes first; on `p200x1188c` nothing read moves the
-root past 9992, and its next form is c-MIR on node sets found by a
-minimum cut. A MIP presolve that merges the flows through a node
+LP solves over 5175 rows cost 5.5e9 work units. A pool that takes slack
+cuts out between root rounds keeps that LP near 2500 rows and the 12-step
+root at 0.94e9 work units, and lifts `beasleyC3`'s bound at the limit to
+741, but its incumbent gets worse and the gap sum does not fall
+(`net-root-pool`, `bench/measurements/02-339/`). On `p200x1188c` nothing
+read moves the root past 9992, and its next form is c-MIR on node sets
+found by a minimum cut. A MIP presolve that merges the flows through a node
 (`bench/measurements/02-337/`) takes `beasleyC3` to 797 with a bound of
 724; HiGHS's presolve removes 597 of its 1750 rows where JAOS's removes
 161, so its other reductions come next. Second, flat roots: `neos-911970` and
@@ -145,9 +148,12 @@ bound at 6716.8, 6718.6 and 6713.6 (read 2026-10-04), where HiGHS's tree
 reaches 6720.9 by node 2460 with cuts separated at its nodes from a pool;
 JAOS cuts below the root only with Gomory cuts to depth 3. Root cuts
 scanned again at every node take the bound to 6720.4 but cost MIPLIB 3 and
-the 2017 gap sum (`node-pool-scan`, `bench/measurements/02-338/`); a MIR
-and a Gomory round at every node reach 6726.6 in 5128 nodes, so cuts
-separated at the nodes, valid for the whole tree, come next. On
+the 2017 gap sum (`node-pool-scan`, `bench/measurements/02-338/`). A MIR
+and a Gomory round at every node reach 6726.6 in 5128 nodes, and on the
+whole 2017 set they raise the gap sum to 16.17 (`bench/measurements/02-340/`):
+the bounds that come from the count of nodes (`pk1`, `mas74`) fall as each
+node costs more. A cut at a node pays only where it saves more nodes than it
+costs, which these readings do not find outside `binkar10_1`. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as
 `node-forcing-keep`) and `bell3a` (82261 nodes), where HiGHS closes in 19

@@ -1,0 +1,30 @@
+== base
+beasleyC3      root 719.61090690467699     work 678798106    
+p200x1188c     root 9979.9570898508318     work 87706290     
+exp-1-500-5-5  root 65182.781307998339     work 237014182    
+tr12-30        root 116339.87216904316     work 85224354     
+sp150x300d     root 67.51562276734731      work 9106710      
+== rp
+beasleyC3      root 722.27941900737574     work 398813577    root: 2524 slack cuts left the relaxation between rounds and 685 came back from the pool, 2141 rows at the end
+p200x1188c     root 9990.3857929956121     work 92922692     root: 187 slack cuts left the relaxation between rounds and 58 came back from the pool, 1443 rows at the end
+exp-1-500-5-5  root 65192.571648924415     work 213360396    root: 1990 slack cuts left the relaxation between rounds and 706 came back from the pool, 930 rows at the end
+tr12-30        root 116339.81857385793     work 80727035     root: 1448 slack cuts left the relaxation between rounds and 87 came back from the pool, 1459 rows at the end
+sp150x300d     root 67.898851619155948     work 8456993      root: 94 slack cuts left the relaxation between rounds and 7 came back from the pool, 478 rows at the end
+== ns12
+beasleyC3      root 739.67767444447429     work 3015280917   
+p200x1188c     root 9992.0020092159175     work 144881959    
+exp-1-500-5-5  root 65736.212395885756     work 353778643    
+tr12-30        root 116538.69056295999     work 89132965     
+sp150x300d     root 68.14402552234894      work 17511479     
+== ns12rp
+beasleyC3      root 742.02448941436614     work 1295542076   root: 4642 slack cuts left the relaxation between rounds and 1868 came back from the pool, 2371 rows at the end
+p200x1188c     root 9988.0682332365395     work 98989210     root: 183 slack cuts left the relaxation between rounds and 60 came back from the pool, 1441 rows at the end
+exp-1-500-5-5  root 65745.113649708888     work 295898130    root: 2128 slack cuts left the relaxation between rounds and 841 came back from the pool, 969 rows at the end
+tr12-30        root 116654.69756021605     work 84270018     root: 1688 slack cuts left the relaxation between rounds and 150 came back from the pool, 1462 rows at the end
+sp150x300d     root 68.14402552234894      work 17512789     root: 83 slack cuts left the relaxation between rounds and 0 came back from the pool, 476 rows at the end
+== ns12rp2
+beasleyC3      root 738.65397845259304     work 941601856    root: 3181 slack cuts left the relaxation between rounds and 1069 came back from the pool, 2596 rows at the end
+p200x1188c     root 9979.3817310875165     work 118857847    root: 142 slack cuts left the relaxation between rounds and 28 came back from the pool, 1461 rows at the end
+exp-1-500-5-5  root 65702.645227242072     work 280586892    root: 1907 slack cuts left the relaxation between rounds and 724 came back from the pool, 1032 rows at the end
+tr12-30        root 116654.69756021605     work 82823759     root: 830 slack cuts left the relaxation between rounds and 155 came back from the pool, 2302 rows at the end
+sp150x300d     root 68.14402552234894      work 17055219     root: 44 slack cuts left the relaxation between rounds and 0 came back from the pool, 515 rows at the end
