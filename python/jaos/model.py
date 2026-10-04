@@ -910,7 +910,8 @@ class Model:
         """Start the tree again from the root when the root incumbent's
         reduced costs fix a fifth of the integer columns.
 
-        Off by default; a negative value restores the default.
+        Off by default, on in network mode; a negative value restores the
+        default.
         """
         self._check(_lib.jaos_set_mip_restart(self._handle(),
                                               -1 if on is None or on < 0

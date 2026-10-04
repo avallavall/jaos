@@ -1078,7 +1078,8 @@ class Problem:
 
     def set_mip_restart(self, on):
         """Restart the tree from the root when the root incumbent's reduced
-        costs fix a fifth of the integer columns; off by default."""
+        costs fix a fifth of the integer columns; off by default, on in
+        network mode."""
         self._m.set_mip_restart(on)
         return self
 

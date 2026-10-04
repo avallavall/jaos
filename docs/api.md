@@ -177,7 +177,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5; 100 in network mode |
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
-| `jaos_set_mip_restart` | `mip_restart` | boolean | false |
+| `jaos_set_mip_restart` | `mip_restart` | boolean | false; true in network mode |
 | `jaos_set_threads` | `threads` | integer, 0 for every core | 1 |
 
 The calls that take data have no option name. These are the model's own
@@ -839,13 +839,16 @@ fails when `rule` is above 1.
 
 **`jaos_set_mip_restart`**\
 `jaos_status jaos_set_mip_restart(jaos_model *m, int on)`\
-Turns the restart on or off. It is off by default. After the root, when an
-incumbent exists, the reduced costs of the root relaxation fix every integer
-column they can against the incumbent's value. When they fix at least
-`MIP_RESTART_FRAC` of the integer columns, the tree stops and starts again
-from the root with those columns fixed and the incumbent as its start; the
-second tree gets the work, time and nodes the first one left, and the model's
-bounds are put back afterwards. A negative value restores the default.
+Turns the restart on or off. It is off by default, and on in network mode
+(see `jaos_set_mip_mir_rounds`). After the root, when an incumbent exists,
+the reduced costs of the root relaxation fix every integer column they can
+against the incumbent's value. When they fix at least `MIP_RESTART_FRAC` of
+the integer columns, the tree stops and starts again from the root with
+those columns fixed and the incumbent as its start; the cuts of the first
+root's relaxation go into the second root's relaxation and the first root's
+other cuts into its pool. The second tree gets the work, time and nodes the
+first one left, and the model's bounds are put back afterwards. A sub-MIP
+never restarts. A negative value restores the default.
 
 **`jaos_set_mip_feaspump`**\
 `jaos_status jaos_set_mip_feaspump(jaos_model *m, int64_t rounds)`\

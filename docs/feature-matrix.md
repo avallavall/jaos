@@ -335,9 +335,10 @@ every slot was never billed (`FTRAN_HYPER_DEN` in `tolerances.md`).
   reliability 1 reads 0.971x the work over the MIP set, with mod010 at
   2.84x and enigma at 2.07x.
 - *MIP restarts*: `--restart` starts the tree again from the root once the
-  root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns. It
-  never fired on the MIPLIB 2017 set, so it is off. A MIP presolve for the
-  restart to run again is missing (`SPECS.md` §4).
+  root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns, with
+  the first root's cuts carried over. It is on in network mode since
+  2026-10-05 and off elsewhere, where it costs MIPLIB 3 1.061x. A MIP
+  presolve that removes what it fixed is missing (`SPECS.md` §4).
 - *Cutting planes*: Gomory, knapsack cover, MIR, clique and (since
   2026-09-24) flow cover cuts run at the root, and Gomory cuts to depth 3.
   Flow covers went on when the tree of d6245e0 read them at 1.000x in work

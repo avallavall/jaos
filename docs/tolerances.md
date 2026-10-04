@@ -738,7 +738,9 @@ it reads MIPLIB 3 0.944x in the geometric mean of work (`mod008` 0.586x,
 on the tree of 02-325 it read 1.010x and 1.000x
 (`bench/measurements/02-335/`); and `MIP_RESTART`, off, whether the tree starts again from the root
 once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns
-(`bench/refusals.txt`, mip-restart).
+(`bench/refusals.txt`, mip-restart); since 2026-10-05 it is on in network
+mode whatever this says, carrying the first root's cuts
+(`bench/measurements/02-345/`).
 
 | constant | value | what it decides |
 |---|---|---|

@@ -3761,6 +3761,8 @@ static int local_branching(const jaos_model *m, const double *xinc,
     sub->cfg.time_limit = 0.0;
     sub->cfg.mip_local_branching_set = true;
     sub->cfg.mip_local_branching = 0;
+    sub->cfg.mip_restart_set = true;
+    sub->cfg.mip_restart = false;
     sub->cfg.mip_node_limit = MIP_LOCAL_BRANCHING_NODES;
     sub->cfg.mip_cutoff_set = true;
     sub->cfg.mip_cutoff = incobj;
@@ -3881,6 +3883,8 @@ static int submip_for_point(const jaos_model *m, const double *ilo,
     sub->cfg.mip_local_branching = 0;
     sub->cfg.mip_rins_set = true;
     sub->cfg.mip_rins = 0;
+    sub->cfg.mip_restart_set = true;
+    sub->cfg.mip_restart = false;
     sub->cfg.mip_node_limit = MIP_SUBMIP_NODES;
     if (isfinite(incobj)) {
         sub->cfg.mip_cutoff_set = true;
@@ -3944,6 +3948,8 @@ int jm_mip_start_complete(const jaos_model *m, int64_t work, double *xout,
     sub->cfg.progress_cb = nullptr;
     sub->cfg.incumbent_cb = nullptr;
     sub->cfg.node_cb = nullptr;
+    sub->cfg.mip_restart_set = true;
+    sub->cfg.mip_restart = false;
     sub->cfg.mip_node_limit = MIP_START_NODES;
     budget(sub, m, work);
     const jaos_status st = jaos_solve(sub);
@@ -5542,6 +5548,8 @@ typedef struct {
     double *lo, *hi, *start;
     int64_t work, iters, nodes, solves;
     double seconds;
+    cutbuf cuts;
+    int64_t cuts_lp;
 } bb_restart;
 
 static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
@@ -6324,6 +6332,73 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             pseudocost_learn(cur, key, nc, pc_sum, pc_n);
         int64_t branch = select_branch(m, x, rule, pc_sum, pc_n);
 
+        if (nodes == 1 && branch >= 0 && rs != nullptr && rs->cuts.n > 0 &&
+            root_cut_drop) {
+            int64_t *sel = jm_alloc_array(rs->cuts.n, sizeof *sel);
+            if (sel == nullptr)
+                goto done;
+            int64_t nsel = 0;
+            for (int64_t r = 0; r < rs->cuts.n; r++) {
+                if (!cutbuf_append(&pool, &rs->cuts, r)) {
+                    free(sel);
+                    goto done;
+                }
+                double a = 0.0;
+                for (int64_t p = rs->cuts.start[r]; p < rs->cuts.start[r + 1];
+                     p++)
+                    a += rs->cuts.val[p] * x[rs->cuts.idx[p]];
+                const double lo = rs->cuts.lo[r];
+                if (r < rs->cuts_lp && lo - a > 1e-6 * (1.0 + fabs(lo)))
+                    sel[nsel++] = pool.n - 1;
+            }
+            work += rs->cuts.nnz + rs->cuts.n;
+            if (nsel > 0) {
+                if (pool_add(lp, &pool, sel, nsel) != JAOS_OK ||
+                    !JM_GROW(act, act_cap, act_n + nsel) ||
+                    !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + nsel)) {
+                    free(sel);
+                    goto done;
+                }
+                for (int64_t k = 0; k < nsel; k++) {
+                    act[act_n++] = sel[k];
+                    in_copy.v[in_copy.n++] = sel[k];
+                }
+                cuts += nsel;
+            }
+            free(sel);
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "root: %lld cuts carried from the root before the restart, "
+                   "%lld of them violated", (long long)rs->cuts.n,
+                   (long long)nsel);
+            if (nsel > 0) {
+                phase_to(&ph, work, PH_LP);
+                budget(lp, m, work);
+                st = jaos_solve(lp);
+                solves++;
+                work += jaos_work_units(lp);
+                iters += jaos_iterations(lp);
+                phase_to(&ph, work, PH_OTHER);
+                if (st != JAOS_OK) {
+                    if (st == JAOS_ERR_NUMERICAL) {
+                        outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                        jm_set_err(m, "root, the carried cuts: %s",
+                                   jaos_model_error(lp));
+                        break;
+                    }
+                    goto done;
+                }
+                ns = jaos_status_of(lp);
+                if (ns != JAOS_SOLVE_OPTIMAL) {
+                    outcome = ns;
+                    break;
+                }
+                if (jaos_objective(lp, &obj) != JAOS_OK ||
+                    jaos_solution(lp, x, nullptr, nullptr, nullptr) != JAOS_OK)
+                    goto done;
+                key = sigma * obj;
+                branch = select_branch(m, x, rule, pc_sum, pc_n);
+            }
+        }
         if (nodes == 1 && branch >= 0 && root_rounds > 0) {
 
             const int64_t need = nc + lp->num_row + 1 +
@@ -7394,6 +7469,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 rs->asked = true;
                 if (nc > 0)
                     memcpy(rs->start, inc.x, (size_t)nc * sizeof *rs->start);
+                for (int64_t k = 0; k < in_copy.n; k++)
+                    if (!cutbuf_append(&rs->cuts, &pool, in_copy.v[k]))
+                        goto done;
+                rs->cuts_lp = rs->cuts.n;
+                if (pool.n > 0) {
+                    bool *inl = jm_calloc_array(pool.n, sizeof *inl);
+                    if (inl == nullptr)
+                        goto done;
+                    for (int64_t k = 0; k < in_copy.n; k++)
+                        inl[in_copy.v[k]] = true;
+                    for (int64_t k = 0; k < pool.n; k++)
+                        if (!inl[k] && !cutbuf_append(&rs->cuts, &pool, k)) {
+                            free(inl);
+                            goto done;
+                        }
+                    free(inl);
+                }
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "root: %lld of %lld integer columns fixed by their "
                        "reduced costs, so the tree starts again from the root",
@@ -8038,8 +8130,9 @@ jaos_status jaos_mip_incumbent(const jaos_model *m, double *col_value,
 
 static jaos_status bb_run(jaos_model *m)
 {
+    const bool net = !jm_model_has_quadratic(m) && network_shape(m);
     const bool restart = m->cfg.mip_restart_set ? m->cfg.mip_restart
-                                                : MIP_RESTART;
+                                                : MIP_RESTART || net;
     if (!restart)
         return bb_tree(m, nullptr);
     const int64_t nc = m->num_col;
@@ -8087,7 +8180,8 @@ static jaos_status bb_run(jaos_model *m)
     m->mip_base_nodes = rs.nodes;
     m->mip_base_work = rs.work;
     m->mip_base_iters = rs.iters;
-    st = bb_tree(m, nullptr);
+    bb_restart again = { .cuts = rs.cuts, .cuts_lp = rs.cuts_lp };
+    st = bb_tree(m, &again);
     m->mip_base_nodes = m->mip_base_work = m->mip_base_iters = 0;
     m->mip_start = start0;
     m->mip_start_taken = taken;
@@ -8107,6 +8201,7 @@ out:
     free(rs.lo);
     free(rs.hi);
     free(rs.start);
+    cutbuf_free(&rs.cuts);
     free(lo0);
     free(hi0);
     return st;

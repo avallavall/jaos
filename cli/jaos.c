@@ -202,7 +202,8 @@ static const char U_SOLVE_D[] =
 static const char U_SOLVE_D2[] =
     "  --restart        start the tree again from the root when the root\n"
     "                   incumbent's reduced costs fix a fifth of the integer\n"
-    "                   columns (default off; --no-restart turns it off)\n"
+    "                   columns (default off, on in network mode;\n"
+    "                   --no-restart turns it off)\n"
     "  --rcfix          fix integer column bounds at the root by their\n"
     "                   reduced costs once an incumbent exists; on by\n"
     "                   default, --no-rcfix turns it off\n"

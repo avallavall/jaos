@@ -1,0 +1,26 @@
+branch and bound: 1188 integer columns of 2376, 1 rounds of cuts, 100 of MIR over 6 aggregated rows, cuts to depth 3, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 0, probe cap 0x, cut stall 0.0001 at the root and 0 below it, root cuts dropped when slack, covers extended
+branch and bound: every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one
+branch and bound: a third or more of the continuous columns sit under a binary, so the root cuts run with variable bound substitution for up to 100 rounds
+root: relaxation 13137.245252889996 after 1076 cuts, 0 of them covers, 0 cliques, 0 zero-half, 27 flow covers and 2257 MIR
+root: MIR aggregation kept 534 cuts after 0 probes on a copy
+root: 1766 slack cuts left the relaxation between rounds and 800 came back from the pool, 1498 rows at the end
+root: 479 of 1188 integer columns fixed by their reduced costs, so the tree starts again from the root
+coefficient tightening: 46 coefficients on 46 rows
+branch and bound: 1188 integer columns of 2376, 1 rounds of cuts, 100 of MIR over 6 aggregated rows, cuts to depth 3, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 0, probe cap 0x, cut stall 0.0001 at the root and 0 below it, root cuts dropped when slack, covers extended
+branch and bound: every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one
+branch and bound: a third or more of the continuous columns sit under a binary, so the root cuts run with variable bound substitution for up to 100 rounds
+root: 1076 cuts carried from the root before the restart, 103 of them violated
+root: relaxation 13138.82644015348 after 154 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers and 109 MIR
+root: MIR aggregation kept 28 cuts after 0 probes on a copy
+root: 40 slack cuts left the relaxation between rounds and 20 came back from the pool, 1522 rows at the end
+root: incumbent 15550 from the caller's starting point
+root: 151 column bounds fixed by their reduced costs
+branch and bound work: node relaxations 97.5%, cuts 0.2%, heuristics 2.2%, propagation, probing and conflicts 0.0%, strong branching 0.0%, the rest 0.1%
+branch and bound: work limit reached after 7012 nodes, 7027 solves, 158 cuts (4 below the root), 1 points by rounding, 0 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pump, 0 probes, 0 of them capped, 0 columns fixed by cliques and 0 nodes cut by them, the callback fired 0 times, added 13 rows, rejected 0 points, chose 0 branches, handed 0 incumbents and 0 points refused, 13 conflicts over 349 binaries, 0 branchings widened to an orbit, 0 columns fixed by orbits and 0 nodes the relaxation failed on set aside with their bound
+rc=3
+status work_limit
+work_units 10000134240
+nodes 7013
+bound 14999
+incumbent 15078
+done

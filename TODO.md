@@ -110,10 +110,9 @@ an even coefficient determine mod 2: `enlight_hard` solves at the root,
 the gap sum is 16.8.
 HiGHS and SCIP solve 8 each in 20 s. Left, largest first. First, the
 networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
-13767 (10789 before 02-341), where HiGHS's root reaches 11640 and then
+14999 (10789 before 02-341), where HiGHS's root reaches 11640 and then
 restarts several times, each restart fixing columns by reduced cost against
-the optimum it already has (JAOS's reduced-cost fixing fixed nothing from
-10930); `beasleyC3` holds 831 against 754 with a bound of 740 (HiGHS's
+the optimum it already has; `beasleyC3` holds 831 against 754 with a bound of 740 (HiGHS's
 root 733), a node there costing 1e7 work units. Five ideas for these roots were read
 and refused on 2026-10-04 (`bench/measurements/02-330/`): longer
 aggregation walks reach HiGHS's root on `beasleyC3` (733.5) but the root's
@@ -128,9 +127,12 @@ that pool (`bench/measurements/02-342/`): `p200x1188c`'s root reaches 13137
 (HiGHS 11640) and its bound at the limit 13767 against the optimum 15078,
 `tr12-30` ends at 132496 over 130131 (optimum 130596), `sp150x300d` solves
 at the root, and the gap sum is 14.93. Cuts on node sets were read and
-refused there (`net-node-sets`). On `p200x1188c` a stall of 1e-5 takes the
-root to 13973 for 2.7e9 work units; HiGHS closes it with restarts that fix
-columns by reduced cost against the optimum it holds. A MIP presolve that merges the flows through a node
+refused there (`net-node-sets`). Since 2026-10-05 network mode restarts the
+tree once the root's reduced costs fix a fifth of the integer columns,
+carrying the first root's cuts (`bench/measurements/02-345/`):
+`p200x1188c`'s bound at the limit goes to 14999 (479 of 1188 binaries
+fixed) and the gap sum to 14.85. HiGHS restarts several times; JAOS
+restarts once. A MIP presolve that merges the flows through a node
 (`bench/measurements/02-337/`) takes `beasleyC3` to 797 with a bound of
 724; HiGHS's presolve removes 597 of its 1750 rows where JAOS's removes
 161, so its other reductions come next. Second, flat roots: `neos-911970` and
@@ -239,8 +241,8 @@ primal remedies are refused; read `bench/refusals.txt` first.
 J11. **MIP switches that are off by measurement.** Strong branching (D293
 reopens on a probe that learns from a stopped child), zero-half and
 lifted cover cuts (flow covers went on in 02-317), local branching,
-restarts (they need a MIP presolve that removes what they fix; since
-2026-10-04 they fire, at 1.018x on MIPLIB 3, `bench/measurements/02-343/`),
+restarts outside network mode (they need a MIP presolve that removes what
+they fix; on every model MIPLIB 3 reads 1.061x, `bench/measurements/02-345/`),
 bound propagation
 and probing. Each needs a reading that lands it on, on the tree J7 leaves.
 Clique fixing and RINS went on on 2026-09-25, RINS off for a quadratic
