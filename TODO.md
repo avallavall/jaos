@@ -233,7 +233,9 @@ primal remedies are refused; read `bench/refusals.txt` first.
 J11. **MIP switches that are off by measurement.** Strong branching (D293
 reopens on a probe that learns from a stopped child), zero-half and
 lifted cover cuts (flow covers went on in 02-317), local branching,
-restarts (they need a MIP presolve that can run again), bound propagation
+restarts (they need a MIP presolve that removes what they fix; since
+2026-10-04 they fire, at 1.018x on MIPLIB 3, `bench/measurements/02-343/`),
+bound propagation
 and probing. Each needs a reading that lands it on, on the tree J7 leaves.
 Clique fixing and RINS went on on 2026-09-25, RINS off for a quadratic
 objective, and reduced-cost fixing on 2026-10-04. Read again one at a time

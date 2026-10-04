@@ -7354,46 +7354,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
 
         phase_to(&ph, work, PH_OTHER);
-        if (nodes == 1 && rcfix && inc.have && branch >= 0 &&
-            inc.key >= key) {
-            if (rcd == nullptr) {
-                rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
-                if (rcd == nullptr)
-                    goto done;
-            }
-            if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) != JAOS_OK)
-                goto done;
-
-            work += nc;
-            const double room = inc.key - key;
-            for (int64_t j = 0; j < nc; j++) {
-                if (!m->col_integer[j])
-                    continue;
-                const double d = sigma * rcd[j];
-                const jaos_basis_status bs = lp->sol_col_status[j];
-                if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 &&
-                    ilo[j] > -INFINITY) {
-                    const double t = floor(room / d + MIP_RCFIX_SLACK);
-                    const double nh = ilo[j] + t;
-                    if (nh < ihi[j]) {
-                        ihi[j] = nh;
-                        rcfixed++;
-                    }
-                } else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
-                           ihi[j] < INFINITY) {
-                    const double t = floor(room / -d + MIP_RCFIX_SLACK);
-                    const double nl = ihi[j] - t;
-                    if (nl > ilo[j]) {
-                        ilo[j] = nl;
-                        rcfixed++;
-                    }
-                }
-            }
-            if (rcfixed > 0)
-                jm_log(m, JAOS_LOG_SUMMARY,
-                       "root: %lld column bounds fixed by their reduced costs",
-                       (long long)rcfixed);
-        }
         if (nodes == 1 && rs != nullptr && rs->want && inc.have &&
             branch >= 0 && inc.key >= key) {
             if (rcd == nullptr) {
@@ -7440,6 +7400,46 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                        (long long)fixed, (long long)nint);
                 break;
             }
+        }
+        if (nodes == 1 && rcfix && inc.have && branch >= 0 &&
+            inc.key >= key) {
+            if (rcd == nullptr) {
+                rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
+                if (rcd == nullptr)
+                    goto done;
+            }
+            if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) != JAOS_OK)
+                goto done;
+
+            work += nc;
+            const double room = inc.key - key;
+            for (int64_t j = 0; j < nc; j++) {
+                if (!m->col_integer[j])
+                    continue;
+                const double d = sigma * rcd[j];
+                const jaos_basis_status bs = lp->sol_col_status[j];
+                if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 &&
+                    ilo[j] > -INFINITY) {
+                    const double t = floor(room / d + MIP_RCFIX_SLACK);
+                    const double nh = ilo[j] + t;
+                    if (nh < ihi[j]) {
+                        ihi[j] = nh;
+                        rcfixed++;
+                    }
+                } else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
+                           ihi[j] < INFINITY) {
+                    const double t = floor(room / -d + MIP_RCFIX_SLACK);
+                    const double nl = ihi[j] - t;
+                    if (nl > ilo[j]) {
+                        ilo[j] = nl;
+                        rcfixed++;
+                    }
+                }
+            }
+            if (rcfixed > 0)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "root: %lld column bounds fixed by their reduced costs",
+                       (long long)rcfixed);
         }
         if (m->cfg.progress_cb != nullptr) {
             const double ok = open_bound(&heap, &kh, dstack, dstack_n);
