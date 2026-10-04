@@ -1,0 +1,10 @@
+cont-100.mps             md  optimal      obj -4.6443978687635452    work 3852972173   CHOLLOG n 9801 a 125437 l 719696 ops 5.101e+07 md
+cont-100.mps             nd  optimal      obj -4.6443978687635461    work 2855433947   CHOLLOG n 9801 a 125437 l 656496 ops 3.853e+07 nd
+cont-200.mps             md  optimal      obj -4.684875920369457     work 53098165519  CHOLLOG n 39601 a 510837 l 4516230 ops 6.844e+08 md
+cont-200.mps             nd  optimal      obj -4.6848759203694597    work 27197083834  CHOLLOG n 39601 a 510837 l 3460302 ops 3.464e+08 nd
+aug3dqp.mps              md  optimal      obj 675.23767127492397     work 35314556     CHOLLOG n 1000 a 6346 l 32640 ops 1.195e+06 md
+aug3dqp.mps              nd  optimal      obj 675.23767127492385     work 28653918     CHOLLOG n 1000 a 6346 l 31519 ops 9.433e+05 nd
+boyd1.mps                md  optimal      obj -61735219.640945196    work 206622313    CHOLLOG n 18 a 246 l 132 ops 385 md
+boyd1.mps                nd  optimal      obj -61735219.640945196    work 206622313    CHOLLOG n 18 a 246 l 132 ops 385 nd
+cont-300.mps             md  work_limit   obj                        work 104505387406 CHOLLOG n 90298 a 1164302 l 11854476 ops 2.45e+09 md
+cont-300.mps             nd  work_limit   obj                        work 103733714051 CHOLLOG n 90298 a 1164302 l 8786666 ops 1.207e+09 nd

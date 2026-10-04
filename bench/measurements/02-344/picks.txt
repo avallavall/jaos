@@ -1,0 +1,462 @@
+aug2d CHOLPICK n 10000 nd 5.364e+06 md inf nd
+aug2d CHOLLOG n 10000 a 49600 l 214640 ops 5.364e+06 nd
+aug2dc CHOLPICK n 10000 nd 5.364e+06 md inf nd
+aug2dc CHOLLOG n 10000 a 49600 l 214640 ops 5.364e+06 nd
+aug2dcqp CHOLPICK n 10000 nd 5.364e+06 md inf nd
+aug2dcqp CHOLLOG n 10000 a 49600 l 214640 ops 5.364e+06 nd
+aug2dqp CHOLPICK n 10000 nd 5.364e+06 md inf nd
+aug2dqp CHOLLOG n 10000 a 49600 l 214640 ops 5.364e+06 nd
+aug3d CHOLPICK n 1000 nd 9.433e+05 md inf nd
+aug3d CHOLLOG n 1000 a 6346 l 31519 ops 9.433e+05 nd
+aug3dc CHOLPICK n 1000 nd 9.433e+05 md inf nd
+aug3dc CHOLLOG n 1000 a 6346 l 31519 ops 9.433e+05 nd
+aug3dcqp CHOLPICK n 1000 nd 9.433e+05 md inf nd
+aug3dcqp CHOLLOG n 1000 a 6346 l 31519 ops 9.433e+05 nd
+aug3dqp CHOLPICK n 1000 nd 9.433e+05 md inf nd
+aug3dqp CHOLLOG n 1000 a 6346 l 31519 ops 9.433e+05 nd
+boyd1 CHOLPICK n 18 nd inf md 385 md
+boyd1 CHOLLOG n 18 a 246 l 132 ops 385 md
+boyd2 CHOLPICK n 186531 nd 9.049e+04 md 9.049e+04 md
+boyd2 CHOLLOG n 186531 a 576021 l 381276 ops 9.049e+04 md
+boyd2 CHOLPICK n 466316 nd 9.463e+14 md 4.012e+05 md
+boyd2 CHOLLOG n 466316 a 1686928 l 1263167 ops 4.012e+05 md
+cont-050 CHOLPICK n 2401 nd 3.797e+06 md inf nd
+cont-050 CHOLLOG n 2401 a 30237 l 112554 ops 3.797e+06 nd
+cont-100 CHOLPICK n 9801 nd 3.853e+07 md inf nd
+cont-100 CHOLLOG n 9801 a 125437 l 656496 ops 3.853e+07 nd
+cont-101 CHOLPICK n 10098 nd 3.922e+07 md inf nd
+cont-101 CHOLLOG n 10098 a 128102 l 667806 ops 3.922e+07 nd
+cont-200 CHOLPICK n 39601 nd 3.464e+08 md inf nd
+cont-200 CHOLLOG n 39601 a 510837 l 3460302 ops 3.464e+08 nd
+cont-200 CHOLPICK n 79998 nd 3.53e+08 md inf nd
+cont-200 CHOLLOG n 79998 a 476008 l 3855556 ops 3.53e+08 nd
+cont-201 CHOLPICK n 40198 nd 3.439e+08 md inf nd
+cont-201 CHOLLOG n 40198 a 516202 l 3443278 ops 3.439e+08 nd
+cont-201 CHOLPICK n 80595 nd 3.553e+08 md inf nd
+cont-201 CHOLLOG n 80595 a 478993 l 3885174 ops 3.553e+08 nd
+cont-300 CHOLPICK n 90298 nd 1.207e+09 md inf nd
+cont-300 CHOLLOG n 90298 a 1164302 l 8786666 ops 1.207e+09 nd
+cont-300 CHOLPICK n 180895 nd 1.228e+09 md inf nd
+cont-300 CHOLLOG n 180895 a 1078493 l 9712389 ops 1.228e+09 nd
+cvxqp1_l CHOLPICK n 10000 nd 1.188e+08 md 3.511e+07 md
+cvxqp1_l CHOLLOG n 10000 a 69968 l 474188 ops 3.511e+07 md
+cvxqp1_l CHOLPICK n 15000 nd 1.219e+10 md 3.128e+09 md
+cvxqp1_l CHOLLOG n 15000 a 104964 l 4357324 ops 3.128e+09 md
+cvxqp1_m CHOLPICK n 1000 nd 1.655e+06 md 5.778e+05 md
+cvxqp1_m CHOLLOG n 1000 a 6968 l 23333 ops 5.778e+05 md
+cvxqp1_m CHOLPICK n 1500 nd 1.94e+07 md 6.62e+06 md
+cvxqp1_m CHOLLOG n 1500 a 10464 l 75695 ops 6.62e+06 md
+cvxqp1_s CHOLPICK n 100 nd inf md 4821 md
+cvxqp1_s CHOLLOG n 100 a 672 l 927 ops 4821 md
+cvxqp1_s CHOLPICK n 150 nd inf md 1.347e+04 md
+cvxqp1_s CHOLLOG n 150 a 1018 l 1689 ops 1.347e+04 md
+cvxqp2_l CHOLPICK n 10000 nd 1.188e+08 md 3.511e+07 md
+cvxqp2_l CHOLLOG n 10000 a 69968 l 474188 ops 3.511e+07 md
+cvxqp2_l CHOLPICK n 12500 nd 6.643e+09 md 1.619e+09 md
+cvxqp2_l CHOLLOG n 12500 a 87466 l 2918594 ops 1.619e+09 md
+cvxqp2_m CHOLPICK n 1000 nd 1.655e+06 md 5.778e+05 md
+cvxqp2_m CHOLLOG n 1000 a 6968 l 23333 ops 5.778e+05 md
+cvxqp2_m CHOLPICK n 1250 nd 8.787e+06 md 3.514e+06 md
+cvxqp2_m CHOLLOG n 1250 a 8716 l 53292 ops 3.514e+06 md
+cvxqp2_s CHOLPICK n 100 nd inf md 4821 md
+cvxqp2_s CHOLLOG n 100 a 672 l 927 ops 4821 md
+cvxqp2_s CHOLPICK n 125 nd inf md 7885 md
+cvxqp2_s CHOLLOG n 125 a 845 l 1294 ops 7885 md
+cvxqp3_l CHOLPICK n 10000 nd 1.188e+08 md 3.511e+07 md
+cvxqp3_l CHOLLOG n 10000 a 69968 l 474188 ops 3.511e+07 md
+cvxqp3_l CHOLPICK n 17500 nd 1.541e+10 md 2.938e+09 md
+cvxqp3_l CHOLLOG n 17500 a 122462 l 4456983 ops 2.938e+09 md
+cvxqp3_m CHOLPICK n 1000 nd 1.655e+06 md 5.778e+05 md
+cvxqp3_m CHOLLOG n 1000 a 6968 l 23333 ops 5.778e+05 md
+cvxqp3_m CHOLPICK n 1750 nd 3.039e+07 md 7.636e+06 md
+cvxqp3_m CHOLLOG n 1750 a 12212 l 84347 ops 7.636e+06 md
+cvxqp3_s CHOLPICK n 100 nd inf md 4821 md
+cvxqp3_s CHOLLOG n 100 a 672 l 927 ops 4821 md
+cvxqp3_s CHOLPICK n 175 nd inf md 1.859e+04 md
+cvxqp3_s CHOLLOG n 175 a 1191 l 2031 ops 1.859e+04 md
+dpklo1 CHOLPICK n 77 nd inf md 7.315e+04 md
+dpklo1 CHOLLOG n 77 a 5929 l 3003 ops 7.315e+04 md
+dtoc3 CHOLPICK n 9998 nd 7.89e+04 md 1.999e+04 md
+dtoc3 CHOLLOG n 9998 a 59978 l 34988 ops 1.999e+04 md
+dtoc3 CHOLPICK n 24999 nd 1.369e+05 md 2.999e+04 md
+dtoc3 CHOLLOG n 24999 a 94989 l 74988 ops 2.999e+04 md
+dtoc3 CHOLPICK n 24999 nd 1.369e+05 md 2.999e+04 md
+dtoc3 CHOLLOG n 24999 a 94989 l 74988 ops 2.999e+04 md
+dual1 CHOLPICK n 85 nd inf md 9.789e+04 md
+dual1 CHOLLOG n 85 a 7031 l 3644 ops 9.789e+04 md
+dual1 CHOLPICK n 86 nd inf md 1.014e+05 md
+dual1 CHOLLOG n 86 a 7202 l 3730 ops 1.014e+05 md
+dual2 CHOLPICK n 96 nd inf md 1.416e+05 md
+dual2 CHOLLOG n 96 a 8920 l 4642 ops 1.416e+05 md
+dual2 CHOLPICK n 97 nd inf md 1.462e+05 md
+dual2 CHOLLOG n 97 a 9113 l 4739 ops 1.462e+05 md
+dual3 CHOLPICK n 111 nd inf md 2.209e+05 md
+dual3 CHOLLOG n 111 a 12105 l 6207 ops 2.209e+05 md
+dual3 CHOLPICK n 112 nd inf md 2.27e+05 md
+dual3 CHOLLOG n 112 a 12328 l 6319 ops 2.27e+05 md
+dual4 CHOLPICK n 75 nd inf md 6.71e+04 md
+dual4 CHOLLOG n 75 a 5523 l 2844 ops 6.71e+04 md
+dual4 CHOLPICK n 76 nd inf md 6.986e+04 md
+dual4 CHOLLOG n 76 a 5674 l 2920 ops 6.986e+04 md
+dualc1 CHOLPICK n 9 nd inf md 84 md
+dualc1 CHOLLOG n 9 a 81 l 45 ops 84 md
+dualc1 CHOLPICK n 438 nd inf md 7824 md
+dualc1 CHOLLOG n 438 a 4808 l 2623 ops 7824 md
+dualc2 CHOLPICK n 7 nd inf md 35 md
+dualc2 CHOLLOG n 7 a 49 l 28 ops 35 md
+dualc2 CHOLPICK n 464 nd inf md 4844 md
+dualc2 CHOLLOG n 464 a 4168 l 2316 ops 4844 md
+dualc5 CHOLPICK n 8 nd inf md 56 md
+dualc5 CHOLLOG n 8 a 64 l 36 ops 56 md
+dualc5 CHOLPICK n 563 nd inf md 7840 md
+dualc5 CHOLLOG n 563 a 5621 l 3092 ops 7840 md
+dualc8 CHOLPICK n 8 nd inf md 56 md
+dualc8 CHOLLOG n 8 a 64 l 36 ops 56 md
+dualc8 CHOLPICK n 1013 nd 2.198e+07 md 1.414e+04 md
+dualc8 CHOLLOG n 1013 a 10121 l 5567 ops 1.414e+04 md
+exdata CHOLPICK n 3000 nd 5.614e+08 md 5.614e+08 md
+exdata CHOLLOG n 3000 a 2251500 l 1127250 ops 5.614e+08 md
+exdata CHOLPICK n 9001 nd 8.432e+09 md 5.625e+08 md
+exdata CHOLLOG n 9001 a 2278501 l 1145251 ops 5.625e+08 md
+genhs28 CHOLPICK n 10 nd inf md 0 md
+genhs28 CHOLLOG n 10 a 28 l 19 ops 0 md
+genhs28 CHOLPICK n 18 nd inf md 16 md
+genhs28 CHOLLOG n 18 a 84 l 51 ops 16 md
+gouldqp2 CHOLPICK n 699 nd inf md 0 md
+gouldqp2 CHOLLOG n 699 a 1395 l 1047 ops 0 md
+gouldqp2 CHOLPICK n 1048 nd 4049 md 1044 md
+gouldqp2 CHOLLOG n 1048 a 3838 l 3139 ops 1044 md
+gouldqp3 CHOLPICK n 699 nd inf md 0 md
+gouldqp3 CHOLLOG n 699 a 2093 l 1396 ops 0 md
+gouldqp3 CHOLPICK n 1048 nd 1.847e+04 md 5208 md
+gouldqp3 CHOLLOG n 1048 a 4536 l 4875 ops 5208 md
+hs118 CHOLPICK n 17 nd inf md 65 md
+hs118 CHOLLOG n 17 a 83 l 69 ops 65 md
+hs21 CHOLPICK n 1 nd inf md 0 md
+hs21 CHOLLOG n 1 a 1 l 1 ops 0 md
+hs268 CHOLPICK n 5 nd inf md 10 md
+hs268 CHOLLOG n 5 a 25 l 15 ops 10 md
+hs268 CHOLPICK n 15 nd inf md 60 md
+hs268 CHOLLOG n 15 a 95 l 55 ops 60 md
+hs35 CHOLPICK n 3 nd inf md 0 md
+hs35 CHOLLOG n 3 a 7 l 5 ops 0 md
+hs35 CHOLPICK n 5 nd inf md 2 md
+hs35 CHOLLOG n 5 a 17 l 11 ops 2 md
+hs35mod CHOLPICK n 3 nd inf md 0 md
+hs35mod CHOLLOG n 3 a 7 l 5 ops 0 md
+hs35mod CHOLPICK n 4 nd inf md 1 md
+hs35mod CHOLLOG n 4 a 12 l 8 ops 1 md
+hs51 CHOLPICK n 5 nd inf md 0 md
+hs51 CHOLLOG n 5 a 9 l 7 ops 0 md
+hs51 CHOLPICK n 8 nd inf md 4 md
+hs51 CHOLLOG n 8 a 26 l 19 ops 4 md
+hs52 CHOLPICK n 5 nd inf md 0 md
+hs52 CHOLLOG n 5 a 9 l 7 ops 0 md
+hs52 CHOLPICK n 8 nd inf md 4 md
+hs52 CHOLLOG n 8 a 26 l 19 ops 4 md
+hs53 CHOLPICK n 5 nd inf md 0 md
+hs53 CHOLLOG n 5 a 9 l 7 ops 0 md
+hs53 CHOLPICK n 8 nd inf md 4 md
+hs53 CHOLLOG n 8 a 26 l 19 ops 4 md
+hs76 CHOLPICK n 4 nd inf md 0 md
+hs76 CHOLLOG n 4 a 8 l 6 ops 0 md
+hs76 CHOLPICK n 10 nd inf md 11 md
+hs76 CHOLLOG n 10 a 40 l 27 ops 11 md
+hues-mod CHOLPICK n 2 nd inf md 0 md
+hues-mod CHOLLOG n 2 a 4 l 3 ops 0 md
+huestis CHOLPICK n 2 nd inf md 0 md
+huestis CHOLLOG n 2 a 4 l 3 ops 0 md
+ksip CHOLPICK n 1001 nd 1.667e+08 md 1.667e+08 md
+ksip CHOLLOG n 1001 a 1002001 l 501501 ops 1.667e+08 md
+ksip CHOLPICK n 2022 nd 1.766e+08 md 1.894e+05 md
+ksip CHOLLOG n 2022 a 43820 l 23111 ops 1.894e+05 md
+ksip CHOLPICK n 1021 nd 1.894e+05 md 1.894e+05 md
+ksip CHOLLOG n 1021 a 40817 l 21109 ops 1.894e+05 md
+ksip CHOLPICK n 22 nd inf md 20 md
+ksip CHOLLOG n 22 a 102 l 63 ops 20 md
+laser CHOLPICK n 1002 nd 1.328e+04 md 2994 md
+laser CHOLLOG n 1002 a 5460 l 4000 ops 2994 md
+laser CHOLPICK n 3002 nd 2.6e+04 md 5998 md
+laser CHOLLOG n 3002 a 15460 l 10002 ops 5998 md
+liswet1 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet1 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet10 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet10 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet11 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet11 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet12 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet12 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet2 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet2 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet3 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet3 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet4 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet4 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet5 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet5 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet6 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet6 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet7 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet7 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet8 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet8 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+liswet9 CHOLPICK n 10000 nd 5.933e+04 md 9998 md
+liswet9 CHOLLOG n 10000 a 49994 l 29997 ops 9998 md
+lotschd CHOLPICK n 7 nd inf md 23 md
+lotschd CHOLLOG n 7 a 43 l 25 ops 23 md
+mosarqp1 CHOLPICK n 2500 nd 120 md 120 md
+mosarqp1 CHOLLOG n 2500 a 2590 l 2545 ops 120 md
+mosarqp1 CHOLPICK n 3900 nd 7.476e+05 md 3.073e+05 md
+mosarqp1 CHOLLOG n 3900 a 12234 l 26772 ops 3.073e+05 md
+mosarqp2 CHOLPICK n 900 nd inf md 120 md
+mosarqp2 CHOLLOG n 900 a 990 l 945 ops 120 md
+mosarqp2 CHOLPICK n 2100 nd 9.873e+05 md 3.588e+05 md
+mosarqp2 CHOLLOG n 2100 a 9250 l 23780 ops 3.588e+05 md
+powell20 CHOLPICK n 10000 nd 9998 md 9998 md
+powell20 CHOLLOG n 10000 a 30000 l 29997 ops 9998 md
+primal1 CHOLPICK n 85 nd inf md 9.877e+04 md
+primal1 CHOLLOG n 85 a 7225 l 3655 ops 9.877e+04 md
+primal2 CHOLPICK n 96 nd inf md 1.429e+05 md
+primal2 CHOLLOG n 96 a 9216 l 4656 ops 1.429e+05 md
+primal3 CHOLPICK n 111 nd inf md 2.218e+05 md
+primal3 CHOLLOG n 111 a 12321 l 6216 ops 2.218e+05 md
+primal4 CHOLPICK n 75 nd inf md 6.752e+04 md
+primal4 CHOLLOG n 75 a 5625 l 2850 ops 6.752e+04 md
+primalc1 CHOLPICK n 9 nd inf md 84 md
+primalc1 CHOLLOG n 9 a 81 l 45 ops 84 md
+primalc2 CHOLPICK n 7 nd inf md 35 md
+primalc2 CHOLLOG n 7 a 49 l 28 ops 35 md
+primalc5 CHOLPICK n 8 nd inf md 56 md
+primalc5 CHOLLOG n 8 a 64 l 36 ops 56 md
+primalc8 CHOLPICK n 8 nd inf md 56 md
+primalc8 CHOLLOG n 8 a 64 l 36 ops 56 md
+q25fv47 CHOLPICK n 1571 nd 6.512e+06 md 6.512e+06 md
+q25fv47 CHOLLOG n 1571 a 119677 l 60624 ops 6.512e+06 md
+q25fv47 CHOLPICK n 2696 nd 1.571e+08 md 9.819e+06 md
+q25fv47 CHOLLOG n 2696 a 142212 l 116310 ops 9.819e+06 md
+qadlittl CHOLPICK n 97 nd inf md 185 md
+qadlittl CHOLLOG n 97 a 237 l 167 ops 185 md
+qadlittl CHOLPICK n 194 nd inf md 1844 md
+qadlittl CHOLLOG n 194 a 1182 l 936 ops 1844 md
+qafiro CHOLPICK n 32 nd inf md 1 md
+qafiro CHOLLOG n 32 a 38 l 35 ops 1 md
+qafiro CHOLPICK n 78 nd inf md 119 md
+qafiro CHOLLOG n 78 a 288 l 236 ops 119 md
+qbandm CHOLPICK n 472 nd inf md 6 md
+qbandm CHOLLOG n 472 a 504 l 488 ops 6 md
+qbandm CHOLPICK n 777 nd inf md 5.161e+04 md
+qbandm CHOLLOG n 777 a 5797 l 6685 ops 5.161e+04 md
+qbeaconf CHOLPICK n 262 nd inf md 0 md
+qbeaconf CHOLLOG n 262 a 280 l 271 ops 0 md
+qbeaconf CHOLPICK n 468 nd inf md 6.552e+04 md
+qbeaconf CHOLLOG n 468 a 7302 l 5752 ops 6.552e+04 md
+qbore3d CHOLPICK n 315 nd inf md 60 md
+qbore3d CHOLLOG n 315 a 415 l 365 ops 60 md
+qbore3d CHOLPICK n 566 nd inf md 2.418e+04 md
+qbore3d CHOLLOG n 566 a 3556 l 3776 ops 2.418e+04 md
+qbrandy CHOLPICK n 249 nd inf md 91 md
+qbrandy CHOLLOG n 249 a 347 l 298 ops 91 md
+qbrandy CHOLPICK n 523 nd inf md 7.455e+04 md
+qbrandy CHOLLOG n 523 a 5025 l 5792 ops 7.455e+04 md
+qcapri CHOLPICK n 353 nd inf md 9986 md
+qcapri CHOLLOG n 353 a 2029 l 1196 ops 9986 md
+qcapri CHOLPICK n 737 nd inf md 6.748e+04 md
+qcapri CHOLLOG n 737 a 6141 l 6567 ops 6.748e+04 md
+qe226 CHOLPICK n 282 nd inf md 1.022e+04 md
+qe226 CHOLLOG n 282 a 2076 l 1327 ops 1.022e+04 md
+qe226 CHOLPICK n 695 nd inf md 1.281e+05 md
+qe226 CHOLLOG n 695 a 8025 l 8707 ops 1.281e+05 md
+qetamacr CHOLPICK n 688 nd inf md 2.835e+04 md
+qetamacr CHOLLOG n 688 a 8826 l 4757 ops 2.835e+04 md
+qetamacr CHOLPICK n 1134 nd 3.17e+06 md 5.589e+05 md
+qetamacr CHOLLOG n 1134 a 10678 l 20403 ops 5.589e+05 md
+qfffff80 CHOLPICK n 854 nd inf md 7520 md
+qfffff80 CHOLLOG n 854 a 4130 l 2492 ops 7520 md
+qfffff80 CHOLPICK n 1552 nd 4.92e+07 md 8.397e+05 md
+qfffff80 CHOLLOG n 1552 a 17630 l 28733 ops 8.397e+05 md
+qforplan CHOLPICK n 421 nd inf md 4928 md
+qforplan CHOLLOG n 421 a 1513 l 967 ops 4928 md
+qforplan CHOLPICK n 650 nd inf md 7.28e+04 md
+qforplan CHOLLOG n 650 a 10668 l 8171 ops 7.28e+04 md
+qgfrdxpn CHOLPICK n 1092 nd 157 md 157 md
+qgfrdxpn CHOLLOG n 1092 a 1308 l 1232 ops 157 md
+qgfrdxpn CHOLPICK n 1776 nd 8.615e+04 md 3350 md
+qgfrdxpn CHOLLOG n 1776 a 6882 l 5819 ops 3350 md
+qgrow15 CHOLPICK n 645 nd inf md 3297 md
+qgrow15 CHOLLOG n 645 a 1569 l 1107 ops 3297 md
+qgrow15 CHOLPICK n 945 nd inf md 1.318e+05 md
+qgrow15 CHOLLOG n 945 a 13109 l 14138 ops 1.318e+05 md
+qgrow22 CHOLPICK n 946 nd inf md 6198 md
+qgrow22 CHOLLOG n 946 a 2520 l 1806 ops 6198 md
+qgrow22 CHOLPICK n 1386 nd 7.244e+05 md 2.024e+05 md
+qgrow22 CHOLLOG n 1386 a 19464 l 21202 ops 2.024e+05 md
+qgrow7 CHOLPICK n 301 nd inf md 2122 md
+qgrow7 CHOLLOG n 301 a 955 l 628 ops 2122 md
+qgrow7 CHOLPICK n 441 nd inf md 5.836e+04 md
+qgrow7 CHOLLOG n 441 a 6319 l 6399 ops 5.836e+04 md
+qisrael CHOLPICK n 142 nd inf md 7132 md
+qisrael CHOLLOG n 142 a 1454 l 798 ops 7132 md
+qisrael CHOLPICK n 490 nd inf md 5.465e+04 md
+qisrael CHOLLOG n 490 a 6688 l 4888 ops 5.465e+04 md
+qpcblend CHOLPICK n 74 nd inf md 6875 md
+qpcblend CHOLLOG n 74 a 1560 l 1014 ops 6875 md
+qpcboei1 CHOLPICK n 351 nd inf md 8.734e+04 md
+qpcboei1 CHOLLOG n 351 a 10505 l 7507 ops 8.734e+04 md
+qpcboei2 CHOLPICK n 166 nd inf md 2.702e+04 md
+qpcboei2 CHOLLOG n 166 a 3918 l 2737 ops 2.702e+04 md
+qpcstair CHOLPICK n 356 nd inf md 4.396e+05 md
+qpcstair CHOLLOG n 356 a 12750 l 15191 ops 4.396e+05 md
+qpilotno CHOLPICK n 2172 nd 1272 md 1272 md
+qpilotno CHOLLOG n 2172 a 2954 l 2571 ops 1272 md
+qpilotno CHOLPICK n 3217 nd 3.195e+07 md 2.524e+06 md
+qpilotno CHOLLOG n 3217 a 28667 l 60596 ops 2.524e+06 md
+qptest CHOLPICK n 2 nd inf md 0 md
+qptest CHOLLOG n 2 a 4 l 3 ops 0 md
+qptest CHOLPICK n 6 nd inf md 2 md
+qptest CHOLLOG n 6 a 20 l 13 ops 2 md
+qrecipe CHOLPICK n 180 nd inf md 20 md
+qrecipe CHOLLOG n 180 a 240 l 210 ops 20 md
+qrecipe CHOLPICK n 269 nd inf md 8693 md
+qrecipe CHOLLOG n 269 a 1633 l 1655 ops 8693 md
+qsc205 CHOLPICK n 203 nd inf md 1 md
+qsc205 CHOLLOG n 203 a 223 l 213 ops 1 md
+qsc205 CHOLPICK n 522 nd inf md 2481 md
+qsc205 CHOLLOG n 522 a 1872 l 2065 ops 2481 md
+qscagr25 CHOLPICK n 500 nd inf md 199 md
+qscagr25 CHOLLOG n 500 a 700 l 601 ops 199 md
+qscagr25 CHOLPICK n 1142 nd 4.355e+04 md 4983 md
+qscagr25 CHOLLOG n 1142 a 4792 l 4235 ops 4983 md
+qscagr7 CHOLPICK n 140 nd inf md 20 md
+qscagr7 CHOLLOG n 140 a 174 l 157 ops 20 md
+qscagr7 CHOLPICK n 314 nd inf md 1096 md
+qscagr7 CHOLLOG n 314 a 1278 l 1103 ops 1096 md
+qscfxm1 CHOLPICK n 457 nd inf md 5733 md
+qscfxm1 CHOLLOG n 457 a 1811 l 1134 ops 5733 md
+qscfxm1 CHOLPICK n 930 nd inf md 6.275e+04 md
+qscfxm1 CHOLLOG n 930 a 7748 l 7924 ops 6.275e+04 md
+qscfxm2 CHOLPICK n 914 nd inf md 1.164e+04 md
+qscfxm2 CHOLLOG n 914 a 3028 l 1971 ops 1.164e+04 md
+qscfxm2 CHOLPICK n 1860 nd 3.069e+06 md 1.315e+05 md
+qscfxm2 CHOLLOG n 1860 a 14912 l 16136 ops 1.315e+05 md
+qscfxm3 CHOLPICK n 1371 nd 1.22e+04 md 1.22e+04 md
+qscfxm3 CHOLLOG n 1371 a 3635 l 2518 ops 1.22e+04 md
+qscfxm3 CHOLPICK n 2790 nd 2.524e+06 md 2.027e+05 md
+qscfxm3 CHOLLOG n 2790 a 21466 l 24429 ops 2.027e+05 md
+qscorpio CHOLPICK n 358 nd inf md 12 md
+qscorpio CHOLLOG n 358 a 394 l 376 ops 12 md
+qscorpio CHOLPICK n 854 nd inf md 7126 md
+qscorpio CHOLLOG n 854 a 3958 l 3733 ops 7126 md
+qscrs8 CHOLPICK n 1169 nd 181 md 181 md
+qscrs8 CHOLLOG n 1169 a 1345 l 1257 ops 181 md
+qscrs8 CHOLPICK n 1765 nd 1.156e+06 md 5.782e+04 md
+qscrs8 CHOLLOG n 1765 a 8517 l 9938 ops 5.782e+04 md
+qscsd1 CHOLPICK n 760 nd inf md 5208 md
+qscsd1 CHOLLOG n 760 a 2142 l 1451 ops 5208 md
+qscsd1 CHOLPICK n 837 nd inf md 2.849e+04 md
+qscsd1 CHOLLOG n 837 a 6995 l 5594 ops 2.849e+04 md
+qscsd6 CHOLPICK n 1350 nd 9940 md 9940 md
+qscsd6 CHOLLOG n 1350 a 3966 l 2666 ops 9940 md
+qscsd6 CHOLPICK n 1497 nd 1.275e+07 md 5.696e+04 md
+qscsd6 CHOLLOG n 1497 a 12745 l 10380 ops 5.696e+04 md
+qscsd8 CHOLPICK n 2750 nd 6.581e+04 md 6.581e+04 md
+qscsd8 CHOLLOG n 2750 a 7490 l 6776 ops 6.581e+04 md
+qscsd8 CHOLPICK n 3147 nd 5.117e+06 md 1.776e+05 md
+qscsd8 CHOLLOG n 3147 a 25055 l 22476 ops 1.776e+05 md
+qsctap1 CHOLPICK n 480 nd inf md 282 md
+qsctap1 CHOLLOG n 480 a 714 l 597 ops 282 md
+qsctap1 CHOLPICK n 960 nd inf md 1.809e+04 md
+qsctap1 CHOLLOG n 960 a 4938 l 5013 ops 1.809e+04 md
+qsctap2 CHOLPICK n 1880 nd 1820 md 1820 md
+qsctap2 CHOLLOG n 1880 a 3152 l 2516 ops 1820 md
+qsctap2 CHOLPICK n 3590 nd 2.32e+07 md 3.03e+05 md
+qsctap2 CHOLLOG n 3590 a 19530 l 24898 ops 3.03e+05 md
+qsctap3 CHOLPICK n 2480 nd 2924 md 2924 md
+qsctap3 CHOLLOG n 2480 a 4202 l 3341 ops 2924 md
+qsctap3 CHOLPICK n 4820 nd 4.407e+07 md 4.433e+05 md
+qsctap3 CHOLLOG n 4820 a 26010 l 33850 ops 4.433e+05 md
+qseba CHOLPICK n 1028 nd 2101 md 2101 md
+qseba CHOLLOG n 1028 a 2128 l 1578 ops 2101 md
+qseba CHOLPICK n 1551 nd 9.602e+06 md 2.092e+04 md
+qseba CHOLLOG n 1551 a 11371 l 6963 ops 2.092e+04 md
+qshare1b CHOLPICK n 225 nd inf md 12 md
+qshare1b CHOLLOG n 225 a 267 l 246 ops 12 md
+qshare1b CHOLPICK n 370 nd inf md 1.116e+04 md
+qshare1b CHOLLOG n 370 a 2770 l 2746 ops 1.116e+04 md
+qshare2b CHOLPICK n 79 nd inf md 120 md
+qshare2b CHOLLOG n 79 a 169 l 124 ops 120 md
+qshare2b CHOLPICK n 258 nd inf md 6054 md
+qshare2b CHOLLOG n 258 a 1902 l 1709 ops 6054 md
+qshell CHOLPICK n 1775 nd 2.759e+06 md 2.759e+06 md
+qshell CHOLLOG n 1775 a 70545 l 36225 ops 2.759e+06 md
+qshell CHOLPICK n 2063 nd 3.109e+07 md 1.903e+05 md
+qshell CHOLLOG n 2063 a 12199 l 14306 ops 1.903e+05 md
+qship04l CHOLPICK n 2118 nd 70 md 70 md
+qship04l CHOLLOG n 2118 a 2202 l 2160 ops 70 md
+qship04l CHOLPICK n 2568 nd 2.006e+07 md 3.365e+04 md
+qship04l CHOLLOG n 2568 a 15412 l 13342 ops 3.365e+04 md
+qship04s CHOLPICK n 1458 nd 70 md 70 md
+qship04s CHOLLOG n 1458 a 1542 l 1500 ops 70 md
+qship04s CHOLPICK n 1908 nd 8.776e+06 md 2.387e+04 md
+qship04s CHOLLOG n 1908 a 10792 l 9318 ops 2.387e+04 md
+qship08l CHOLPICK n 4283 nd 8.46e+05 md 8.332e+05 md
+qship08l CHOLLOG n 4283 a 72333 l 38324 ops 8.332e+05 md
+qship08l CHOLPICK n 5141 nd 7.361e+07 md 1.144e+07 md
+qship08l CHOLLOG n 5141 a 98955 l 152685 ops 1.144e+07 md
+qship08s CHOLPICK n 2387 nd 1.626e+05 md 1.584e+05 md
+qship08s CHOLLOG n 2387 a 24665 l 13542 ops 1.584e+05 md
+qship08s CHOLPICK n 3245 nd 2.44e+07 md 1.064e+06 md
+qship08s CHOLLOG n 3245 a 39911 l 43570 ops 1.064e+06 md
+qship12l CHOLPICK n 5427 nd 1.223e+06 md 1.211e+06 md
+qship12l CHOLLOG n 5427 a 125837 l 65636 ops 1.211e+06 md
+qship12l CHOLPICK n 6684 nd 1.386e+08 md 1.71e+07 md
+qship12l CHOLLOG n 6684 a 159646 l 257521 ops 1.71e+07 md
+qship12s CHOLPICK n 2763 nd 1.812e+05 md 1.786e+05 md
+qship12s CHOLLOG n 2763 a 35485 l 19128 ops 1.786e+05 md
+qship12s CHOLPICK n 4020 nd 5.6e+07 md 8.652e+05 md
+qship12s CHOLLOG n 4020 a 53310 l 52442 ops 8.652e+05 md
+qsierra CHOLPICK n 2036 nd 0 md 0 md
+qsierra CHOLLOG n 2036 a 2158 l 2097 ops 0 md
+qsierra CHOLPICK n 3942 nd 4.935e+07 md 1.373e+05 md
+qsierra CHOLLOG n 3942 a 19956 l 23090 ops 1.373e+05 md
+qstair CHOLPICK n 467 nd inf md 9365 md
+qstair CHOLLOG n 467 a 2371 l 1419 ops 9365 md
+qstair CHOLPICK n 888 nd inf md 2.7e+05 md
+qstair CHOLLOG n 888 a 9920 l 14461 ops 2.7e+05 md
+qstandat CHOLPICK n 1075 nd 2304 md 2304 md
+qstandat CHOLLOG n 1075 a 2407 l 1741 ops 2304 md
+qstandat CHOLPICK n 1617 nd 7.646e+07 md 2.188e+04 md
+qstandat CHOLLOG n 1617 a 9295 l 7685 ops 2.188e+04 md
+s268 CHOLPICK n 5 nd inf md 10 md
+s268 CHOLLOG n 5 a 25 l 15 ops 10 md
+s268 CHOLPICK n 15 nd inf md 60 md
+s268 CHOLLOG n 15 a 95 l 55 ops 60 md
+stadat1 CHOLPICK n 3999 nd 7.096e+04 md 1.798e+04 md
+stadat1 CHOLLOG n 3999 a 31975 l 17987 ops 1.798e+04 md
+stadat2 CHOLPICK n 3999 nd 7.096e+04 md 1.798e+04 md
+stadat2 CHOLLOG n 3999 a 31975 l 17987 ops 1.798e+04 md
+stadat3 CHOLPICK n 7999 nd 1.44e+05 md 3.598e+04 md
+stadat3 CHOLLOG n 7999 a 63975 l 35987 ops 3.598e+04 md
+stcqp1 CHOLPICK n 4097 nd 1.699e+07 md 6.45e+06 md
+stcqp1 CHOLLOG n 4097 a 49109 l 77559 ops 6.45e+06 md
+stcqp1 CHOLPICK n 6149 nd 1.294e+07 md 6.411e+06 md
+stcqp1 CHOLLOG n 6149 a 77837 l 92879 ops 6.411e+06 md
+stcqp2 CHOLPICK n 4097 nd 1.699e+07 md 6.45e+06 md
+stcqp2 CHOLLOG n 4097 a 49109 l 77559 ops 6.45e+06 md
+stcqp2 CHOLPICK n 6149 nd 9.475e+07 md 1.785e+07 md
+stcqp2 CHOLLOG n 6149 a 77837 l 177411 ops 1.785e+07 md
+tame CHOLPICK n 2 nd inf md 0 md
+tame CHOLLOG n 2 a 4 l 3 ops 0 md
+tame CHOLPICK n 3 nd inf md 1 md
+tame CHOLLOG n 3 a 9 l 6 ops 1 md
+ubh1 CHOLPICK n 12000 nd 9.422e+04 md 2.399e+04 md
+ubh1 CHOLLOG n 12000 a 71976 l 41988 ops 2.399e+04 md
+ubh1 CHOLPICK n 42027 nd 2.122e+05 md 5.398e+04 md
+ubh1 CHOLLOG n 42027 a 162063 l 126036 ops 5.398e+04 md
+ubh1 CHOLPICK n 30021 nd 2.286e+05 md 5.398e+04 md
+ubh1 CHOLLOG n 30021 a 126045 l 102024 ops 5.398e+04 md
+values CHOLPICK n 202 nd inf md 3.306e+04 md
+values CHOLLOG n 202 a 7442 l 3822 ops 3.306e+04 md
+yao CHOLPICK n 2000 nd 1.135e+04 md 1998 md
+yao CHOLLOG n 2000 a 9994 l 5997 ops 1998 md
+zecevic2 CHOLPICK n 2 nd inf md 0 md
+zecevic2 CHOLLOG n 2 a 4 l 3 ops 0 md

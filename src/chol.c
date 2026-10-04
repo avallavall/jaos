@@ -332,6 +332,267 @@ static bool md_order(md *g, int64_t *perm, jm_work *w)
     return true;
 }
 
+constexpr int64_t CHOL_ND_LEAF = 200;
+constexpr int64_t CHOL_ND_MIN = 1000;
+constexpr double CHOL_ND_TRY = 100.0;
+
+typedef struct {
+    int64_t off, cnt, pos;
+} nd_part;
+
+static bool nd_leaf(const int64_t *xadj, const int64_t *adj, const int64_t *in,
+                    int64_t stamp, const int64_t *seg, int64_t cnt,
+                    int64_t *loc, int64_t *perm, int64_t *touched, jm_work *w)
+{
+    int64_t nnz = 0;
+    for (int64_t t = 0; t < cnt; t++) {
+        const int64_t v = seg[t];
+        loc[v] = t;
+        nnz += xadj[v + 1] - xadj[v];
+    }
+    int64_t *ls = jm_alloc_array(cnt + 1, sizeof *ls);
+    int64_t *li = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *li);
+    int64_t *lp = jm_alloc_array(cnt, sizeof *lp);
+    bool ok = ls != nullptr && li != nullptr && lp != nullptr;
+    if (ok) {
+        int64_t q = 0;
+        for (int64_t t = 0; t < cnt; t++) {
+            const int64_t v = seg[t];
+            ls[t] = q;
+            for (int64_t p = xadj[v]; p < xadj[v + 1]; p++)
+                if (in[adj[p]] == stamp)
+                    li[q++] = loc[adj[p]];
+        }
+        ls[cnt] = q;
+        *touched += nnz;
+        md g;
+        ok = md_build(&g, cnt, ls, li, cnt) && md_order(&g, lp, w);
+        md_free(&g);
+        for (int64_t t = 0; ok && t < cnt; t++)
+            perm[t] = seg[lp[t]];
+    }
+    free(ls);
+    free(li);
+    free(lp);
+    return ok;
+}
+
+static int64_t nd_bfs(const int64_t *xadj, const int64_t *adj, const int64_t *in,
+                      int64_t stamp, int64_t root, int64_t *level,
+                      int64_t *queue, int64_t *touched)
+{
+    int64_t qh = 0, qt = 0;
+    queue[qt++] = root;
+    level[root] = 0;
+    while (qh < qt) {
+        const int64_t v = queue[qh++];
+        for (int64_t p = xadj[v]; p < xadj[v + 1]; p++) {
+            const int64_t u = adj[p];
+            if (in[u] != stamp || level[u] >= 0)
+                continue;
+            level[u] = level[v] + 1;
+            queue[qt++] = u;
+        }
+        *touched += xadj[v + 1] - xadj[v];
+    }
+    return qt;
+}
+
+static bool nd_order(int64_t n, const int64_t *start, const int64_t *index,
+                     int64_t dense, int64_t *perm, jm_work *w)
+{
+    int64_t *deg = jm_calloc_array(n + 1, sizeof *deg);
+    int64_t *xadj = jm_alloc_array(n + 1, sizeof *xadj);
+    int64_t *mark = jm_alloc_array(n > 0 ? n : 1, sizeof *mark);
+    int64_t *in = jm_alloc_array(n > 0 ? n : 1, sizeof *in);
+    int64_t *level = jm_alloc_array(n > 0 ? n : 1, sizeof *level);
+    int64_t *queue = jm_alloc_array(n > 0 ? n : 1, sizeof *queue);
+    int64_t *seg = jm_alloc_array(n > 0 ? n : 1, sizeof *seg);
+    int64_t *tmp = jm_alloc_array(n > 0 ? n : 1, sizeof *tmp);
+    nd_part *stack = jm_alloc_array(n > 0 ? 2 * n : 1, sizeof *stack);
+    int64_t *adj = nullptr;
+    bool ok = false;
+    int64_t touched = 0;
+    if (deg == nullptr || xadj == nullptr || mark == nullptr || in == nullptr ||
+        level == nullptr || queue == nullptr || seg == nullptr ||
+        tmp == nullptr || stack == nullptr)
+        goto out;
+    for (int64_t j = 0; j < n; j++)
+        for (int64_t p = start[j]; p < start[j + 1]; p++)
+            if (index[p] != j) {
+                deg[j]++;
+                deg[index[p]]++;
+            }
+    xadj[0] = 0;
+    for (int64_t v = 0; v < n; v++)
+        xadj[v + 1] = xadj[v] + deg[v];
+    adj = jm_alloc_array(xadj[n] > 0 ? xadj[n] : 1, sizeof *adj);
+    if (adj == nullptr)
+        goto out;
+    for (int64_t v = 0; v < n; v++)
+        deg[v] = xadj[v];
+    for (int64_t j = 0; j < n; j++)
+        for (int64_t p = start[j]; p < start[j + 1]; p++) {
+            const int64_t i = index[p];
+            if (i == j)
+                continue;
+            adj[deg[j]++] = i;
+            adj[deg[i]++] = j;
+        }
+    for (int64_t v = 0; v < n; v++)
+        mark[v] = -1;
+    {
+        int64_t q = 0;
+        for (int64_t v = 0; v < n; v++) {
+            const int64_t b = xadj[v], e = deg[v];
+            xadj[v] = q;
+            for (int64_t p = b; p < e; p++) {
+                const int64_t u = adj[p];
+                if (mark[u] == v)
+                    continue;
+                mark[u] = v;
+                adj[q++] = u;
+            }
+        }
+        xadj[n] = q;
+    }
+    touched += 2 * start[n] + xadj[n];
+    int64_t live = 0, nlast = 0;
+    for (int64_t v = 0; v < n; v++) {
+        in[v] = 0;
+        level[v] = -1;
+        if (xadj[v + 1] - xadj[v] > dense) {
+            in[v] = -1;
+            nlast++;
+        } else {
+            seg[live++] = v;
+        }
+    }
+    {
+        int64_t at = live;
+        for (int64_t v = 0; v < n; v++)
+            if (in[v] == -1)
+                perm[at++] = v;
+    }
+    int64_t sp = 0, stamp = 0;
+    stack[sp++] = (nd_part){0, live, 0};
+    while (sp > 0) {
+        const nd_part pt = stack[--sp];
+        int64_t *const s = seg + pt.off;
+        const int64_t cnt = pt.cnt;
+        if (cnt == 0)
+            continue;
+        stamp++;
+        for (int64_t t = 0; t < cnt; t++)
+            in[s[t]] = stamp;
+        if (cnt <= CHOL_ND_LEAF) {
+            if (!nd_leaf(xadj, adj, in, stamp, s, cnt, mark, perm + pt.pos,
+                         &touched, w))
+                goto out;
+            continue;
+        }
+        int64_t root = s[0];
+        int64_t reach = 0, height = -1;
+        for (int it = 0; it < 8; it++) {
+            for (int64_t t = 0; t < cnt; t++)
+                level[s[t]] = -1;
+            reach = nd_bfs(xadj, adj, in, stamp, root, level, queue, &touched);
+            const int64_t h = level[queue[reach - 1]];
+            if (h <= height)
+                break;
+            height = h;
+            int64_t best = -1;
+            for (int64_t q = reach - 1; q >= 0 && level[queue[q]] == h; q--) {
+                const int64_t u = queue[q];
+                const int64_t du = xadj[u + 1] - xadj[u];
+                if (best < 0 || du < xadj[best + 1] - xadj[best] ||
+                    (du == xadj[best + 1] - xadj[best] && u < best))
+                    best = u;
+            }
+            root = best;
+        }
+        for (int64_t t = 0; t < cnt; t++)
+            level[s[t]] = -1;
+        reach = nd_bfs(xadj, adj, in, stamp, root, level, queue, &touched);
+        if (reach < cnt) {
+            int64_t a = 0, b = 0;
+            for (int64_t t = 0; t < cnt; t++)
+                if (level[s[t]] >= 0)
+                    s[a++] = s[t];
+                else
+                    tmp[b++] = s[t];
+            memcpy(s + a, tmp, (size_t)b * sizeof *s);
+            stack[sp++] = (nd_part){pt.off + a, b, pt.pos + a};
+            stack[sp++] = (nd_part){pt.off, a, pt.pos};
+            continue;
+        }
+        height = level[queue[reach - 1]];
+        if (height < 2) {
+            if (!nd_leaf(xadj, adj, in, stamp, s, cnt, mark, perm + pt.pos,
+                         &touched, w))
+                goto out;
+            continue;
+        }
+        int64_t j = 0;
+        for (int64_t q = 0; q < reach; q++) {
+            if (2 * (q + 1) >= cnt) {
+                j = level[queue[q]];
+                break;
+            }
+        }
+        if (j < 1)
+            j = 1;
+        if (j > height - 1)
+            j = height - 1;
+        int64_t na = 0, nb = 0, ns = 0;
+        for (int64_t t = 0; t < cnt; t++) {
+            const int64_t v = s[t];
+            const int64_t lv = level[v];
+            int64_t side;
+            if (lv < j) {
+                side = 0;
+            } else if (lv > j) {
+                side = 1;
+            } else {
+                side = 0;
+                for (int64_t p = xadj[v]; p < xadj[v + 1]; p++)
+                    if (in[adj[p]] == stamp && level[adj[p]] == j + 1) {
+                        side = 2;
+                        break;
+                    }
+            }
+            mark[v] = side;
+            na += side == 0;
+            nb += side == 1;
+            ns += side == 2;
+        }
+        touched += cnt;
+        {
+            int64_t a = 0, b = na, c = na + nb;
+            for (int64_t t = 0; t < cnt; t++) {
+                const int64_t v = s[t];
+                if (mark[v] == 0)
+                    tmp[a++] = v;
+                else if (mark[v] == 1)
+                    tmp[b++] = v;
+                else
+                    tmp[c++] = v;
+            }
+            memcpy(s, tmp, (size_t)cnt * sizeof *s);
+        }
+        for (int64_t t = na + nb; t < cnt; t++)
+            perm[pt.pos + t] = s[t];
+        stack[sp++] = (nd_part){pt.off + na, nb, pt.pos + na};
+        stack[sp++] = (nd_part){pt.off, na, pt.pos};
+    }
+    ok = true;
+out:
+    jm_work_add(w, touched * JM_WORK_NONZERO);
+    free(deg); free(xadj); free(mark); free(in); free(level); free(queue);
+    free(seg); free(tmp); free(stack); free(adj);
+    return ok;
+}
+
 void jm_chol_init(jm_chol *c) { memset(c, 0, sizeof *c); }
 
 void jm_chol_free(jm_chol *c)
@@ -379,6 +640,10 @@ int64_t jm_chol_dense_limit(int64_t n)
     return limit > (double)CHOL_DENSE_MIN ? (int64_t)limit : CHOL_DENSE_MIN;
 }
 
+static bool chol_analyse(jm_chol *c, const int64_t *start,
+                         const int64_t *index, double cap, double *ops,
+                         jm_work *w);
+
 jaos_status jm_chol_symbolic(jm_chol *c, int64_t n, const int64_t *start,
                              const int64_t *index, jm_work *w)
 {
@@ -418,19 +683,82 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
         c->mark == nullptr || c->row_work == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
 
+    const int64_t nnz = start[n];
+    c->a_index = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *c->a_index);
+    c->a_src   = jm_alloc_array(nnz > 0 ? nnz : 1, sizeof *c->a_src);
+    if (c->a_index == nullptr || c->a_src == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+
     md g;
     bool ok = md_build(&g, n, start, index, dense) && md_order(&g, c->perm, w);
     md_free(&g);
     if (!ok)
         return JAOS_ERR_OUT_OF_MEMORY;
+    const double trigger = CHOL_ND_TRY * (double)(nnz > 0 ? nnz : 1);
+    double ops_md = 0.0, ops_nd = INFINITY;
+    bool md_kept = true;
+    if (n < CHOL_ND_MIN) {
+        chol_analyse(c, start, index, INFINITY, &ops_md, w);
+    } else if (!chol_analyse(c, start, index, trigger, &ops_md, w)) {
+        const size_t sz = (size_t)n * sizeof *c->perm;
+        int64_t *pmd = jm_alloc_array(n, sizeof *pmd);
+        int64_t *pnd = jm_alloc_array(n, sizeof *pnd);
+        if (pmd == nullptr || pnd == nullptr ||
+            !nd_order(n, start, index, dense, pnd, w)) {
+            free(pmd);
+            free(pnd);
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        memcpy(pmd, c->perm, sz);
+        bool in_place = false;
+        for (double cap = 2.0 * trigger;; cap *= 4.0) {
+            memcpy(c->perm, pmd, sz);
+            if (chol_analyse(c, start, index, cap, &ops_md, w)) {
+                memcpy(c->perm, pnd, sz);
+                const bool nd_done =
+                    chol_analyse(c, start, index, ops_md, &ops_nd, w);
+                md_kept = !nd_done || !(ops_nd < ops_md);
+                in_place = !md_kept;
+                break;
+            }
+            memcpy(c->perm, pnd, sz);
+            if (chol_analyse(c, start, index, cap, &ops_nd, w)) {
+                memcpy(c->perm, pmd, sz);
+                md_kept = chol_analyse(c, start, index, ops_nd, &ops_md, w);
+                in_place = md_kept;
+                break;
+            }
+        }
+        if (!in_place) {
+            memcpy(c->perm, md_kept ? pmd : pnd, sz);
+            chol_analyse(c, start, index, INFINITY,
+                         md_kept ? &ops_md : &ops_nd, w);
+        }
+        free(pmd);
+        free(pnd);
+    }
+    c->l_start[0] = 0;
+    for (int64_t k = 0; k < n; k++)
+        c->l_start[k + 1] = c->l_start[k] + c->fill[k];
+    c->nnz = c->l_start[n];
+    c->l_index = jm_alloc_array(c->nnz, sizeof *c->l_index);
+    c->l_value = jm_alloc_array(c->nnz, sizeof *c->l_value);
+    c->d       = jm_alloc_array(n, sizeof *c->d);
+    if (c->l_index == nullptr || c->l_value == nullptr || c->d == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t k = 0; k < n; k++)
+        c->l_index[c->l_start[k]] = k;
+    c->symbolic = true;
+    return JAOS_OK;
+}
+
+static bool chol_analyse(jm_chol *c, const int64_t *start,
+                         const int64_t *index, double cap, double *ops,
+                         jm_work *w)
+{
+    const int64_t n = c->n;
     for (int64_t k = 0; k < n; k++)
         c->inv[c->perm[k]] = k;
-
-    int64_t nnz = start[n];
-    c->a_index = jm_alloc_array(nnz, sizeof *c->a_index);
-    c->a_src   = jm_alloc_array(nnz, sizeof *c->a_src);
-    if (c->a_index == nullptr || c->a_src == nullptr)
-        return JAOS_ERR_OUT_OF_MEMORY;
     for (int64_t k = 0; k <= n; k++)
         c->a_start[k] = 0;
     for (int64_t j = 0; j < n; j++)
@@ -472,6 +800,8 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
         c->mark[k] = -1;
     }
     int64_t reach = 0;
+    double total = 0.0;
+    bool done = true;
     for (int64_t k = 0; k < n; k++) {
         int64_t top = ereach(c, k);
         reach += n - top;
@@ -479,22 +809,15 @@ jaos_status jm_chol_symbolic_dense(jm_chol *c, int64_t n,
         for (int64_t q = top; q < n; q++)
             row += c->fill[c->s[q]]++ - 1;
         c->row_work[k] = row;
+        total += (double)row;
+        if (total > cap) {
+            done = false;
+            break;
+        }
     }
     jm_work_add(w, (reach + c->a_start[n]) * JM_WORK_NONZERO);
-
-    c->l_start[0] = 0;
-    for (int64_t k = 0; k < n; k++)
-        c->l_start[k + 1] = c->l_start[k] + c->fill[k];
-    c->nnz = c->l_start[n];
-    c->l_index = jm_alloc_array(c->nnz, sizeof *c->l_index);
-    c->l_value = jm_alloc_array(c->nnz, sizeof *c->l_value);
-    c->d       = jm_alloc_array(n, sizeof *c->d);
-    if (c->l_index == nullptr || c->l_value == nullptr || c->d == nullptr)
-        return JAOS_ERR_OUT_OF_MEMORY;
-    for (int64_t k = 0; k < n; k++)
-        c->l_index[c->l_start[k]] = k;
-    c->symbolic = true;
-    return JAOS_OK;
+    *ops = done ? total : INFINITY;
+    return done;
 }
 
 static void chol_pivot(jm_chol *c, int64_t k, double diag, double d)

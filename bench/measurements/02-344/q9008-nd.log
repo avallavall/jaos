@@ -1,0 +1,6 @@
+presolve: skipped, the objective has a quadratic term
+barrier: 989604 rows, 1009306 columns, 9634086 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+CHOLLOG n 989604 a 37371128 l 2795356650 ops 1.747e+13 nd
+abandoned after 0 barrier iterations, 4332293441 work units: out of memory
+jaos: solve of /home/vall/qplib/QPLIB_9008.qplib failed: out of memory: 
+rc=5 seconds 9
