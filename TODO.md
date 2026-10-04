@@ -111,7 +111,13 @@ networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
 each restart fixing columns by reduced cost against the optimum it already
 has (JAOS's reduced-cost fixing fixes nothing from 10930);
 `beasleyC3` holds 889 against 754 with a bound of 702 (HiGHS's root 733),
-a node there costing 1e7 work units. Second, flat roots: `neos-911970` and
+a node there costing 1e7 work units. Five ideas for these roots were read
+and refused on 2026-10-04 (`bench/measurements/02-330/`): longer
+aggregation walks reach HiGHS's root on `beasleyC3` (733.5) but the root's
+LP solves over 5175 rows cost 5.5e9 work units, so a cut pool that keeps
+the root's LP small comes first; on `p200x1188c` nothing read moves the
+root past 9992, and its next form is c-MIR on node sets found by a
+minimum cut. Second, flat roots: `neos-911970` and
 `neos-3381206-awhea` need 10 to 20 rounds of MIR on simplex tableau rows
 before their bound moves (to 51.6 and 446, HiGHS 52.1 and 451.8), and the
 restart that ran them was refused (mip-deep-restart); a root that keeps

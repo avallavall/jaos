@@ -1,0 +1,70 @@
+diff --git a/src/mip.c b/src/mip.c
+index e1d5bca..1c0f137 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -3454,7 +3454,14 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+                     if ((isfinite(lo) && x[j] - lo <= MIP_INT_TOL) ||
+                         (isfinite(hi) && hi - x[j] <= MIP_INT_TOL))
+                         continue;
+-                    const double aj = fabs(agg[j]);
++                    double aj = fabs(agg[j]);
++                    if (getenv("JAOS_AGGDIST") != nullptr) {
++                        double dl = isfinite(lo) ? x[j] - lo : INFINITY;
++                        double du = isfinite(hi) ? hi - x[j] : INFINITY;
++                        aj = fmin(dl, du);
++                        if (!isfinite(aj))
++                            aj = fabs(x[j]);
++                    }
+                     if (aj > pick_a || (aj == pick_a && j < pick)) {
+                         pick_a = aj;
+                         pick = j;
+@@ -6232,17 +6239,21 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     got += mv;
+                 }
+                 agb.n = agb.nnz = 0;
++                const int64_t agg_steps =
++                    net && getenv("JAOS_NETSTEPS") != nullptr
++                        ? atoll(getenv("JAOS_NETSTEPS"))
++                        : mir_aggregate;
+                 if (r < mir_rounds && agg_live) {
+                     const int64_t av = mir_aggregate_round(
+                         m, lp, x, ilo, ihi, &agb, cut, mbest, mdelta, magg,
+-                        mcmag, mused, mpicked, mir_aggregate, cxp, false,
++                        mcmag, mused, mpicked, agg_steps, cxp, false,
+                         &work);
+                     if (av < 0)
+                         goto done;
+                     if (net &&
+                         mir_aggregate_round(m, lp, x, ilo, ihi, &agb, cut,
+                                             mbest, mdelta, magg, mcmag, mused,
+-                                            mpicked, mir_aggregate, cxp, true,
++                                            mpicked, agg_steps, cxp, true,
+                                             &work) < 0)
+                         goto done;
+                     if (agb.n == 0)
+@@ -6250,13 +6261,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 }
+                 if (got == 0 && agb.n == 0)
+                     break;
++                if (net && getenv("JAOS_CUTLOG") != nullptr)
++                    fprintf(stderr, "CUTLOG r %lld before cb %lld agb %lld fc %lld mir %lld\n",
++                            (long long)r, (long long)cb.n, (long long)agb.n,
++                            (long long)flow_covers, (long long)mirs);
+                 if (net) {
++                    const double npar = getenv("JAOS_NETPAR") != nullptr
++                                            ? atof(getenv("JAOS_NETPAR"))
++                                            : MIP_NET_PARALLEL;
+                     if (cutbuf_select(&cb, nc, MIP_NET_CUT_CAP,
+-                                      MIP_NET_PARALLEL, &work) < 0 ||
++                                      npar, &work) < 0 ||
+                         cutbuf_select(&agb, nc, MIP_NET_CUT_CAP,
+-                                      MIP_NET_PARALLEL, &work) < 0)
++                                      npar, &work) < 0)
+                         goto done;
+                     got = cb.n;
++                    if (getenv("JAOS_CUTLOG") != nullptr)
++                        fprintf(stderr, "CUTLOG r %lld after cb %lld agb %lld\n",
++                                (long long)r, (long long)cb.n, (long long)agb.n);
+                 }
+                 const double key_before = key;
+                 for (int pass = 0; pass < 2; pass++) {
