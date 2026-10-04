@@ -138,7 +138,12 @@ fails within its cap. `csched008`'s root costs 3.71e9 work units since
 its re-solves after cuts make their weights exact
 (`bench/measurements/02-334/`), and its bound at the limit is 171 (the
 reference 173), with no point. Fourth, `binkar10_1` holds the reference's point and
-a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
+a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
+reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
+at reliability 4, the best-bound order and propagation at 4 passes end its
+bound at 6716.8, 6718.6 and 6713.6 (read 2026-10-04), where HiGHS's tree
+reaches 6720.9 by node 2460 with cuts separated at its nodes from a pool;
+JAOS cuts below the root only with Gomory cuts to depth 3. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as
 `node-forcing-keep`) and `bell3a` (82261 nodes), where HiGHS closes in 19
