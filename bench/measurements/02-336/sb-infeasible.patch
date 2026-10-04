@@ -1,0 +1,55 @@
+diff --git a/src/mip.c b/src/mip.c
+index 34e410f..2bdf3eb 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1409,7 +1409,8 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
+                                 double *pc_sum, int64_t *pc_n, int64_t *work,
+                                 int64_t *solves, int64_t *probes,
+                                 int64_t *capped, jaos_basis_status *cs,
+-                                jaos_basis_status *rs, int64_t *cand)
++                                jaos_basis_status *rs, int64_t *cand,
++                                int64_t *forced)
+ {
+     const int64_t nc = m->num_col, nr = lp->num_row;
+     int64_t ncand = 0;
+@@ -1485,10 +1486,16 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
+                     pc_n[d * nc + j] += 1;
+                 }
+             }
++            if (st == JAOS_OK && forced != nullptr && *forced < 0 &&
++                getenv("JAOS_SBINF") != nullptr &&
++                jaos_status_of(lp) == JAOS_SOLVE_INFEASIBLE)
++                *forced = j;
+             const jaos_status back = jaos_set_col_bounds(lp, j, lo0, hi0);
+             if (st == JAOS_OK)
+                 st = back;
+         }
++        if (forced != nullptr && *forced >= 0)
++            break;
+     }
+     if (st != JAOS_OK)
+         return st;
+@@ -7399,10 +7406,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 const double c = ceil(probe_cap * (double)node_work);
+                 cap = c < 1.0 ? 1 : (int64_t)c;
+             }
++            int64_t forced = -1;
+             const jaos_status ps = strong_probe(lp, m, x, key, sigma,
+                                                 reliability, cap, pc_sum, pc_n,
+                                                 &work, &solves, &probes,
+-                                                &capped, pcs, prs, cand);
++                                                &capped, pcs, prs, cand,
++                                                &forced);
+             if (ps != JAOS_OK) {
+                 if (ps == JAOS_ERR_NUMERICAL) {
+                     outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+@@ -7412,7 +7421,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 }
+                 goto done;
+             }
+-            branch = select_branch(m, x, rule, pc_sum, pc_n);
++            branch = forced >= 0 ? forced
++                                 : select_branch(m, x, rule, pc_sum, pc_n);
+         }
+         phase_to(&ph, work, PH_OTHER);
+ 

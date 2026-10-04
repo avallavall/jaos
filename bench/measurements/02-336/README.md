@@ -57,3 +57,8 @@ of the tree's work. At reliability 4:
 The budget takes the probes' price down, and `rgn` and `misc03` still end
 with two to three times the nodes they reach without probes (127 to 377
 and more, 240 to 489 and more). Refused with D293.
+
+`sb-infeasible.patch` branches at once on a column one of whose probe
+children is infeasible (`JAOS_SBINF`): 1.127x at reliability 4 and 1.125x
+at 1, `rgn` still at 421 nodes. Infeasible children do not explain the
+larger trees.
