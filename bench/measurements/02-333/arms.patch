@@ -1,0 +1,44 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 6de5c2a..d546865 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -206,6 +206,7 @@ typedef struct {
+     bool dse_guess;
+     int64_t n_guess_restart;
+     bool dse_exact_pending;
++    bool node_long_done;
+     bool dual_devex;
+     bool dual_devex_stale;
+     uint64_t *dref;
+@@ -789,6 +790,7 @@ static bool build_warm_basis(sx *s)
+     s->dse_guess = !m->cfg.node_solve && !s->primal_run;
+     s->n_guess_restart = 0;
+     s->dse_exact_pending = false;
++    s->node_long_done = false;
+     s->dual_devex = false;
+     s->dual_devex_stale = false;
+ 
+@@ -1222,7 +1224,8 @@ static int64_t price_row(sx *s, bool *below, double *violation)
+ {
+ 
+     if (!s->bland && DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
+-        !s->early_perturb_off && shifts_costs(s) && !s->m->cfg.node_solve &&
++        !s->early_perturb_off && shifts_costs(s) &&
++        (!s->m->cfg.node_solve || getenv("JAOS_NODEPERTURB") != nullptr) &&
+         s->iters - s->last_gain >
+             PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1)) {
+         perturb_costs(s);
+@@ -3969,6 +3972,13 @@ static jaos_status run(sx *s, jaos_solve_status *out)
+             }
+         }
+ 
++        if (s->m->cfg.node_solve && !s->node_long_done &&
++            getenv("JAOS_NODELONG") != nullptr &&
++            (double)s->iters >
++                atof(getenv("JAOS_NODELONG")) * (double)(s->nrow + s->ncol + 1)) {
++            s->node_long_done = true;
++            s->dse_exact_pending = true;
++        }
+         if (s->dse_exact_pending) {
+             exact_weights(s);
+             s->dse_exact_pending = false;

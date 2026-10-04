@@ -126,11 +126,16 @@ before their bound moves (to 51.6 and 446, HiGHS 52.1 and 451.8), and the
 restart that ran them was refused (mip-deep-restart). Since 2026-10-04
 the root's MIR rounds go on past 6 while each lifts the bound
 (`bench/measurements/02-332/`): `neos-911970`'s root reaches 43.3 and its
-bound at the limit 45.0. `neos-3381206-awhea`'s bound sits flat for seven
+bound at the limit 45.0, and 52.0 since the node solves perturb on their
+first stall (`bench/measurements/02-333/`). `neos-3381206-awhea`'s bound sits flat for seven
 rounds, so the rule stops it at 416; 20 rounds of Gomory cuts take its root
 to 445.3 for 6.1e9 work units. Third, no incumbent: `glass4`, `timtab1`,
 `ic97_potential`, `csched007` and `csched008`, where the feasibility jump
-fails within its cap. Fourth, `binkar10_1` holds the reference's point and
+fails within its cap. `csched008`'s root alone costs 1.29e10 work units:
+its six cut rounds leave the bound at 171 and each re-solve runs about
+16000 iterations, where the cold relaxation takes 19866; exact
+steepest-edge weights in long node solves fix it and cost MIPLIB 3
+(`node-dse-exact-long`). Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as

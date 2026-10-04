@@ -1222,7 +1222,7 @@ static int64_t price_row(sx *s, bool *below, double *violation)
 {
 
     if (!s->bland && DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
-        !s->early_perturb_off && shifts_costs(s) && !s->m->cfg.node_solve &&
+        !s->early_perturb_off && shifts_costs(s) &&
         s->iters - s->last_gain >
             PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1)) {
         perturb_costs(s);
