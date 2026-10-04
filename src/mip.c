@@ -45,6 +45,8 @@ constexpr bool MIP_ROOT_CUT_DROP = true;
 constexpr bool MIP_COVER_LIFT = false;
 
 constexpr int64_t MIP_MIR_ROUNDS = 6;
+constexpr int64_t MIP_MIR_MORE = 20;
+constexpr double MIP_MIR_MORE_STALL = 1e-4;
 
 constexpr int64_t MIP_MIR_DELTAS = 8;
 
@@ -5552,9 +5554,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         ? m->cfg.mip_cover_rounds : MIP_COVER_ROUNDS;
     const int64_t clique_rounds = m->cfg.mip_clique_rounds_set
         ? m->cfg.mip_clique_rounds : MIP_CLIQUE_ROUNDS;
+    const bool mir_more = !m->cfg.mip_mir_rounds_set && !net;
     const int64_t mir_rounds = m->cfg.mip_mir_rounds_set ? m->cfg.mip_mir_rounds
                                : net ? MIP_NET_ROUNDS
-                                     : MIP_MIR_ROUNDS;
+                                     : MIP_MIR_MORE;
     int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
     if (mir_rounds > root_rounds)
         root_rounds = mir_rounds;
@@ -6543,6 +6546,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
 
                 if (cut_stall > 0.0 &&
                     key - key_before < cut_stall * (1.0 + fabs(key_before)))
+                    break;
+                if (mir_more && r + 1 >= MIP_MIR_ROUNDS &&
+                    key - key_before <
+                        MIP_MIR_MORE_STALL * (1.0 + fabs(key_before)))
                     break;
             }
             if (stop)

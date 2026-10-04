@@ -747,7 +747,9 @@ default, each cover cut is extended by every heavier item.
 **`jaos_set_mip_mir_rounds`**\
 `jaos_status jaos_set_mip_mir_rounds(jaos_model *m, int64_t rounds)`\
 Sets the rounds of mixed-integer rounding (MIR) cuts on the model's rows at
-the root. The default is 6, and 0 turns them off. In network mode, on a
+the root. The default is 6, and 0 turns them off. Without a call, the
+rounds go on past 6, up to 20, while each round lifts the root bound by at
+least 1e-4 of (1 + |bound|); a count set here is run as set. In network mode, on a
 linear model where at least 50 continuous columns, and a third or more of
 them, sit under a binary through a two-entry row `a x + c y <= 0` (or `>=`,
 or `=`), the default is 20: each cut then replaces a continuous column by
