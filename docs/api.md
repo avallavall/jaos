@@ -139,11 +139,11 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cut_drop` | `mip_cut_drop` | boolean | true |
 | `jaos_set_mip_node_cut_cap` | `mip_node_cut_cap` | integer | 4 |
 | `jaos_set_mip_cover_rounds` | `mip_cover_rounds` | integer | 4 |
-| `jaos_set_mip_cut_stall` | `mip_cut_stall` | number | 0 |
+| `jaos_set_mip_cut_stall` | `mip_cut_stall` | number | 0; 1e-4 in network mode |
 | `jaos_set_mip_node_cut_stall` | `mip_node_cut_stall` | number | 0 |
 | `jaos_set_mip_root_cut_drop` | `mip_root_cut_drop` | boolean | true |
 | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
-| `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6 |
+| `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 20 in network mode |
 | `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | false |
 | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
@@ -173,7 +173,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cutoff` | `mip_cutoff` | number | `inf`, no cutoff |
 | `jaos_set_mip_clique_rounds` | `mip_clique_rounds` | integer | 4 |
 | `jaos_set_mip_zero_half_rounds` | `mip_zero_half_rounds` | integer | 0 |
-| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5 |
+| `jaos_set_mip_flow_cover_rounds` | `mip_flow_cover_rounds` | integer | 5; 20 in network mode |
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
 | `jaos_set_mip_restart` | `mip_restart` | boolean | false |
@@ -717,15 +717,15 @@ Sets the rounds of zero-half cuts at the root. The default is 0, off.
 
 **`jaos_set_mip_flow_cover_rounds`**\
 `jaos_status jaos_set_mip_flow_cover_rounds(jaos_model *m, int64_t rounds)`\
-Sets the rounds of flow cover cuts at the root. The default is 5; 0 turns
-them off.
+Sets the rounds of flow cover cuts at the root. The default is 5, and 20
+in network mode (see `jaos_set_mip_mir_rounds`); 0 turns them off.
 
 **`jaos_set_mip_cut_stall`**\
 `jaos_status jaos_set_mip_cut_stall(jaos_model *m, double fraction)`\
 Ends the root's cut rounds after a round that moved the bound by less than
 `fraction * (1 + |bound|)`. The default is 0, which never ends them early,
-and a negative value restores it. The call fails when `fraction` is NaN or
-infinite.
+and 1e-4 in network mode (see `jaos_set_mip_mir_rounds`); a negative value
+restores it. The call fails when `fraction` is NaN or infinite.
 
 **`jaos_set_mip_node_cut_stall`**\
 `jaos_status jaos_set_mip_node_cut_stall(jaos_model *m, double fraction)`\
@@ -747,7 +747,14 @@ default, each cover cut is extended by every heavier item.
 **`jaos_set_mip_mir_rounds`**\
 `jaos_status jaos_set_mip_mir_rounds(jaos_model *m, int64_t rounds)`\
 Sets the rounds of mixed-integer rounding (MIR) cuts on the model's rows at
-the root. The default is 6, and 0 turns them off.
+the root. The default is 6, and 0 turns them off. In network mode, on a
+linear model where at least 50 continuous columns, and a third or more of
+them, sit under a binary through a two-entry row `a x + c y <= 0` (or `>=`,
+or `=`), the default is 20: each cut then replaces a continuous column by
+its variable bound before the rounding (c-MIR), each base row is tried with
+two bound rules, a round keeps at most 200 cuts by efficacy with none more
+parallel than 0.5 to one kept, and the root's dive and pump take at most a
+quarter of the root's work once an incumbent exists.
 
 **`jaos_set_mip_dive_backtrack`**\
 `jaos_status jaos_set_mip_dive_backtrack(jaos_model *m, int64_t times)`\
@@ -773,8 +780,9 @@ absorbed row substitutes out a continuous column. The default is 6 since
 2026-09-25, and 0 is the single-row form. A root round's aggregated cuts
 are tried on a copy of the root LP first and kept only when they lift its
 bound by `MIP_MIR_AGG_GAIN` of itself; after a round that drops them or
-finds none, aggregation stops for the solve. A model with a quadratic
-objective keeps the single-row form.
+finds none, aggregation stops for the solve. In network mode (see
+`jaos_set_mip_mir_rounds`) they are kept without the copy. A model with a
+quadratic objective keeps the single-row form.
 
 **`jaos_set_mip_dive_heuristic`**\
 `jaos_status jaos_set_mip_dive_heuristic(jaos_model *m, int64_t solves)`\
@@ -795,7 +803,13 @@ Sets the most solves of RINS. RINS fixes the integer columns on which the
 incumbent and a node's relaxation agree, and dives on the rest. It runs once
 per distinct incumbent. The default is 50 since 2026-09-25, and 0, off, for
 a model with a quadratic objective, whose dives are barrier solves. 0 turns
-it off.
+it off. While it is on, a linear model also runs a sub-MIP of at most 500
+nodes: at the root without an incumbent over the integer columns its
+relaxation leaves fractional, each boxed to its floor and ceiling (RENS);
+at the root with one, and every 100 nodes below it, over the columns on
+which the incumbent and the relaxation disagree, cut off at the incumbent
+(RINS). The sub-MIPs below the root take at most a tenth of the tree's
+work.
 
 **`jaos_set_mip_local_branching`**\
 `jaos_status jaos_set_mip_local_branching(jaos_model *m, int64_t size)`\
@@ -935,8 +949,9 @@ and `jaos_mip_result` counts such columns in `fixed_cols`.
 Turns coefficient tightening at the root on or off. It is on by default. It
 shrinks by the row's slack each coefficient of a binary column that cannot
 make its one-sided row tight on its own. For a positive coefficient in a
-`<=` row it shrinks the row's bound too. The set of integer points does not
-change.
+`<=` row it shrinks the row's bound too. The slack is read over the bounds
+the rows imply for every column, and an integer column the rows fix at one
+value is fixed for the tree. The set of integer points does not change.
 
 **`jaos_set_mip_probing`**\
 `jaos_status jaos_set_mip_probing(jaos_model *m, int on)`\
@@ -1003,9 +1018,12 @@ NaN or infinite.
 
 **`jaos_set_mip_heuristics`**\
 `jaos_status jaos_set_mip_heuristics(jaos_model *m, bool on)`\
-Turns the rounding heuristic on or off. It is on by default. It rounds each
-fractional node's relaxation to the nearest integers and offers the point as
-an incumbent. The dive heuristic, RINS and the pump have their own setters.
+Turns the rounding heuristics on or off. They are on by default. The first
+rounds each fractional node's relaxation to the nearest integers and offers
+the point as an incumbent. At the root of a linear model, the second rounds
+each integer column the way no row locks it, once from the relaxation and
+once to the column's bound on that side, fixes them and solves the rest.
+The dive heuristic, RINS and the pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\
 `jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)`\

@@ -595,7 +595,7 @@ expect_exit 0 "--pool-out on an LP writes nothing" \
     || flunk "an LP wrote pool files"
 [ -n "$err" ] && pass "and says why on stderr" || flunk "no message on stderr"
 expect_exit 3 "a node limit stops the tree" \
-    "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --node-limit 1
+    "$JAOS" solve "$DATA/nl_step.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --node-limit 1
 [ "$(line_of status)" = "status node_limit" ] && [ "$(line_of nodes)" = "nodes 1" ] \
     && [ "$(line_of first_incumbent)" = "first_incumbent 1" ] \
     && [ -n "$(line_of incumbent)" ] \

@@ -90,50 +90,34 @@ and the QCQP reading of 02-319 (`conread.sh`).
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 0 of 30.** The attribution of 2026-09-23
-(`bench/measurements/02-300/`) puts most of the work in node
-relaxations. Since d6245e0 a node keeps its parent's basis through
-presolve (a fixed column the start basis holds basic stays in the reduced
-model): MIPLIB 3 0.631x in work, `bell5` 14767 nodes instead of 327119,
-the 2017 set 0.948x in gap sum (`bench/measurements/02-304/`). The root's
-coefficient tightening then read a pulling column's slack at 1, as
-Savelsbergh's rule does: 0.928x on MIPLIB 3
-(`bench/measurements/02-307/`). Strong branching (D293, 02-305) and
-node propagation (D324, 02-306) were read again on that tree and still
-cost more than they save; a probe that learns from a stopped child is
-still D293's reopen condition. First, the cuts: HiGHS and SCIP close three
-fixed-charge networks at the root with one node (`sp150x300d` 0.05 s,
-`p200x1188c` 0.43 s, `exp-1-500-5-5` 2.3 s) where JAOS stops at 1e10 work
-units with bounds of 67.9 against 69, 7395 against 15078 and 46851 against
-65887. The bounds the flow rows imply do not reach their `x - u y <= 0`
-rows (one pass finds none on `p200x1188c` and `exp-1-500-5-5`). Flow
-covers are on at 5 rounds since 2026-09-24 and lift the root bounds of
-`sp150x300d` and `p200x1188c` to 51.0 and 9865; MIR aggregation of 6
-steps lifts `exp-1-500-5-5`'s to 59627, and with both on `sp150x300d`
-solves (4.7e9 work units), but aggregation costs 1.588x on MIPLIB 3
-(`bell5`'s tree 14767 to 2112667 nodes, `gen` 19.6x from its per-step
-scan of every column; `bench/measurements/02-317/`). Since 2026-09-24
-the MIR rounds touch only the columns of the rows they aggregate, with
-the same cuts (MIPLIB 3 writes the same files). `bell5`'s growth is its
-tree's sensitivity (`bench/measurements/02-320/`): the aggregated root
-cuts alone, one aggregation step already, lift its root bound by 3e-5
-of itself and send pseudocost branching down a 143x longer path, and a
-cutoff at the optimum changes neither tree. Since 2026-09-25 aggregation
-is on at 6 steps, each root round's aggregated cuts tried on a copy of
-the root LP and kept only when they lift the bound by
-`MIP_MIR_AGG_GAIN` (1e-2) of itself (`bench/measurements/02-321/`):
-MIPLIB 3 1.012x, the 2017 gap sum 0.986x, `exp-1-500-5-5`'s bound
-49815 to 61197 of 65887. `sp150x300d` drops the cuts and stays unsolved,
-and `timtab1`'s bound falls from 441250 to 414914. Next on the networks:
-what `sp150x300d` needed from aggregation, since its root bound does not
-move. MIR with variable upper bounds (`mir-vub`) and exact cover
-lifting (`cover-exact`) were refused on 2026-09-24. Then MIPLIB 3:
-`l152lav` at the 20 s limit, where 113 of 374 node LPs still arrive short
-from forcing rows that fix basic columns (keeping those rows is refused as
-`node-forcing-keep`; the fix needs a dual postsolve for a kept basic
-column), and `bell3a` at 8.8 s against 0.24 s. Verify with `make miplib
-J=2`, the 2017 gap sum (`bench/measurements/02-298/gapsum.py`) and
-`run-mip.sh`.
+J7. **MIP: MIPLIB 2017, 2 of 30 at 1e10 work units.** Since 2026-10-04
+(`bench/measurements/02-328/`) the tree rounds a bound up to the
+objective's step when every cost sits on one, the root fixes the integer
+columns its rows' implied bounds fix, two heuristics run (lock rounding at
+the root, and a sub-MIP: RENS at the root, RINS at the root and every 100
+nodes below it), and a model where a third or more of the continuous
+columns sit under a binary gets 20 rounds of c-MIR with variable bound
+substitution. `sp150x300d` and `exp-1-500-5-5` solve, 20 of the 30 hold an
+incumbent (17 before) and the gap sum falls from 26.0 to 21.5; MIPLIB 3
+reads 0.957x in the geometric mean of work, `bell3a` 1.515x the worst.
+HiGHS and SCIP solve 8 each in 20 s. Left, largest first. First, the
+networks' root bound: `p200x1188c` holds its optimum 15078 and a bound of
+10930, where HiGHS's root reaches 11640 and then restarts several times,
+each restart fixing columns by reduced cost against the optimum it already
+has (JAOS's reduced-cost fixing fixes nothing from 10930);
+`beasleyC3` holds 981 against 754 with a bound of 695 (HiGHS's root 733),
+a node there costing 1e7 work units. Second, flat roots: `neos-911970` and
+`neos-3381206-awhea` need 10 to 20 rounds of MIR on simplex tableau rows
+before their bound moves (to 51.6 and 446, HiGHS 52.1 and 451.8), and the
+restart that ran them was refused (mip-deep-restart); a root that keeps
+cutting while cuts are found and the bound is flat, without a restart, is
+the next form. Third, no incumbent: `enlight_hard` and
+`neos-3381206-awhea`. Fourth, `binkar10_1` holds the reference's point and
+a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
+MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
+that fix basic columns; keeping those rows is refused as
+`node-forcing-keep`) and `bell3a` (82261 nodes). Verify with `make miplib
+J=2`, `make miplib2017` and `bench/measurements/02-328/m17sum.py`.
 
 J8. **LP: the simplex's time per iteration, and presolve.** `stocfor3`
 still takes 11.2x HiGHS (14.5x before 2d6f3dc and 764fe58). After
