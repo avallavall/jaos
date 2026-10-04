@@ -160,6 +160,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_pump_always` | `mip_pump_always` | boolean | false |
 | `jaos_set_mip_rcfix` | `mip_rcfix` | boolean | true |
 | `jaos_set_mip_tighten` | `mip_tighten` | boolean | true |
+| `jaos_set_mip_presolve` | `mip_presolve` | boolean | true |
 | `jaos_set_mip_probing` | `mip_probing` | boolean | false |
 | `jaos_set_mip_probing_cap` | `mip_probing_cap` | number | 1 |
 | `jaos_set_mip_clique_fix` | `mip_clique_fix` | boolean | true |
@@ -961,6 +962,23 @@ column, gives the sum of its odd binaries mod 2. Gaussian elimination mod 2
 over those rows fixes each binary the system determines, and a
 contradiction ends the solve `INFEASIBLE`. The set of integer points does
 not change.
+
+**`jaos_set_mip_presolve`**\
+`jaos_status jaos_set_mip_presolve(jaos_model *m, int on)`\
+Turns the MIP presolve on or off. It is on by default, and a negative value
+restores the default. Before the tree, an equality row whose only entries
+are two continuous columns with opposite coefficients and a right-hand side
+of 0 says the two columns are equal. The presolve drops the row and the
+second column, and gives its entries, cost and bounds to the first, in
+passes until no such row is left (at most `MIP_PRESOLVE_PASSES`). The tree
+then runs on the smaller model. Its answer comes back to every column: a
+dropped column takes the value of the column it was merged into, and an
+optimum is solved again on the whole model with the integer columns fixed,
+for its duals and basis. The presolve does not run on a model with a
+quadratic objective, cones, quadratic rows, SOS sets, indicator rows or
+semi-continuous columns, nor under an incumbent or node callback, which see
+the model's own columns. A sub-MIP inside the tree does not presolve
+again.
 
 **`jaos_set_mip_probing`**\
 `jaos_status jaos_set_mip_probing(jaos_model *m, int on)`\

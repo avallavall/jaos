@@ -426,6 +426,21 @@ expect_exit 0 "--tighten is accepted" \
 "$JAOS" options | grep -q '^mip_tighten ' \
     && pass "jaos options lists mip_tighten" \
     || flunk "jaos options does not list mip_tighten"
+"$JAOS" solve "$DATA/mp_path.lp" --log summary 2>"$tmp/mplog" >"$tmp/mpout"
+grep -q '^MIP presolve: 2 equality rows' "$tmp/mplog" \
+    && awk '/^objective /{f=1; exit !($2 > 4.4999999 && $2 < 4.5000001)} END{if (!f) exit 1}' "$tmp/mpout" \
+    && pass "the MIP presolve substitutes the path's two middle flows" \
+    || flunk "MIP presolve: $(grep -h 'MIP presolve\|^objective' "$tmp/mplog" "$tmp/mpout")"
+"$JAOS" solve "$DATA/mp_path.lp" --no-mip-presolve --log summary 2>"$tmp/mplog" >"$tmp/mpout"
+! grep -q 'MIP presolve' "$tmp/mplog" \
+    && awk '/^objective /{f=1; exit !($2 > 4.4999999 && $2 < 4.5000001)} END{if (!f) exit 1}' "$tmp/mpout" \
+    && pass "--no-mip-presolve solves it whole" \
+    || flunk "no-mip-presolve: $(grep -h 'MIP presolve\|^objective' "$tmp/mplog" "$tmp/mpout")"
+expect_exit 0 "--mip-presolve is accepted" \
+    "$JAOS" solve "$DATA/mp_path.lp" --mip-presolve
+"$JAOS" options | grep -q '^mip_presolve ' \
+    && pass "jaos options lists mip_presolve" \
+    || flunk "jaos options does not list mip_presolve"
 expect_exit 0 "--no-probing still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-probing
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

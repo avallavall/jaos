@@ -2061,6 +2061,25 @@ class TestBranchAndBound(unittest.TestCase):
         q.set_node_callback(lambda ev: jaos.CallbackAction.STOP)
         self.assertIs(q.solve(), jaos.SolveStatus.INTERRUPTED)
 
+    def test_the_mip_presolve_gives_back_every_column(self):
+        for on in (1, 0):
+            p = jaos.Problem()
+            x = [p.add_var(ub=10.0, name=f"x{k}") for k in range(3)]
+            y = [p.add_var(binary=True, name=f"y{k}") for k in range(3)]
+            p.add(x[0] - x[1] == 0)
+            p.add(x[1] - x[2] == 0)
+            p.add(x[2] == 5)
+            for k in range(3):
+                p.add(x[k] - 10 * y[k] <= 0)
+            p.minimize(0.1 * (x[0] + x[1] + x[2]) + y[0] + y[1] + y[2])
+            p.set_mip_presolve(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 4.5, places=9)
+            for k in range(3):
+                self.assertAlmostEqual(x[k].value, 5.0, places=9)
+                self.assertAlmostEqual(y[k].value, 1.0, places=9)
+        p.set_mip_presolve(-1)
+
     def test_the_node_callback_hands_the_tree_a_solution(self):
         p = jaos.Problem()
         w = [4, 6, 3, 4, 5, 2]

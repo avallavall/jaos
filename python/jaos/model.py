@@ -973,6 +973,16 @@ class Model:
         """
         self._check(_lib.jaos_set_mip_tighten(self._handle(), int(on)))
 
+    def set_mip_presolve(self, on):
+        """The MIP presolve before the tree.
+
+        An equality row that holds two continuous columns with opposite
+        coefficients and a right-hand side of 0 says the two are equal; one
+        of them is substituted out with the row, and the answer is mapped
+        back to every column. On by default; a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_presolve(self._handle(), int(on)))
+
     def set_mip_probing(self, on):
         """Probing after the root solve.
 

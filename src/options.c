@@ -34,7 +34,7 @@ enum opt_id {
     O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_MIR_AGGREGATE,
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
-    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
+    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
     O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_LOCAL_BRANCHING, O_NODE_SELECT, O_RESTART, O_THREADS,
     O_GAP_RULE,
     O_COUNT
@@ -80,6 +80,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_PUMP_ALWAYS] = {"mip_pump_always", OPT_BOOL, nullptr, 0},
     [O_RCFIX] = {"mip_rcfix", OPT_BOOL, nullptr, 0},
     [O_TIGHTEN] = {"mip_tighten", OPT_BOOL, nullptr, 0},
+    [O_MIP_PRESOLVE] = {"mip_presolve", OPT_BOOL, nullptr, 0},
     [O_PROBING] = {"mip_probing", OPT_BOOL, nullptr, 0},
     [O_PROBING_CAP] = {"mip_probing_cap", OPT_DOUBLE, nullptr, 0},
     [O_CLIQUE_FIX] = {"mip_clique_fix", OPT_BOOL, nullptr, 0},
@@ -242,6 +243,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_PUMP_ALWAYS: return jaos_set_mip_pump_always(m, b);
     case O_RCFIX: return jaos_set_mip_rcfix(m, b);
     case O_TIGHTEN: return jaos_set_mip_tighten(m, b);
+    case O_MIP_PRESOLVE: return jaos_set_mip_presolve(m, b);
     case O_PROBING: return jaos_set_mip_probing(m, b);
     case O_PROBING_CAP: return jaos_set_mip_probing_cap(m, x);
     case O_CLIQUE_FIX: return jaos_set_mip_clique_fix(m, b);
@@ -324,6 +326,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_PUMP_ALWAYS: b = eff(c->mip_pump_always_set, c->mip_pump_always ? 1.0 : 0.0, JM_DEF_PUMP_ALWAYS) != 0.0; break;
     case O_RCFIX: b = eff(c->mip_rcfix_set, c->mip_rcfix ? 1.0 : 0.0, JM_DEF_RCFIX) != 0.0; break;
     case O_TIGHTEN: b = eff(c->mip_tighten_set, c->mip_tighten ? 1.0 : 0.0, JM_DEF_TIGHTEN) != 0.0; break;
+    case O_MIP_PRESOLVE: b = eff(c->mip_presolve_set, c->mip_presolve ? 1.0 : 0.0, JM_DEF_MIP_PRESOLVE) != 0.0; break;
     case O_PROBING: b = eff(c->mip_probing_set, c->mip_probing ? 1.0 : 0.0, JM_DEF_PROBING) != 0.0; break;
     case O_PROBING_CAP: x = eff(c->mip_probing_cap_set, c->mip_probing_cap, JM_DEF_PROBING_CAP); break;
     case O_CLIQUE_FIX: b = eff(c->mip_clique_fix_set, c->mip_clique_fix ? 1.0 : 0.0, JM_DEF_CLIQUE_FIX) != 0.0; break;

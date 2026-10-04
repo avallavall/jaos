@@ -1118,6 +1118,13 @@ class Problem:
         self._m.set_mip_tighten(on)
         return self
 
+    def set_mip_presolve(self, on):
+        """The MIP presolve that substitutes out one of two continuous
+        columns an equality row makes equal; on by default, negative
+        restores it."""
+        self._m.set_mip_presolve(on)
+        return self
+
     def set_mip_probing(self, on):
         """Probing of the binary columns fractional at the root; off by
         default, negative restores it."""

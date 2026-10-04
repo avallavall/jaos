@@ -731,6 +731,7 @@ _sig("jaos_set_mip_pump_always", ctypes.c_int, _VP, ctypes.c_int)
 _sig("jaos_set_mip_rcfix", ctypes.c_int, _VP, ctypes.c_int)
 
 _sig("jaos_set_mip_tighten", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_presolve", ctypes.c_int, _VP, ctypes.c_int)
 
 _sig("jaos_set_mip_probing", ctypes.c_int, _VP, ctypes.c_int)
 

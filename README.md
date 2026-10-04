@@ -93,7 +93,9 @@ estimate first with the best bound every fifth pick, pseudocost branching.
 Gomory, knapsack cover, mixed-integer rounding and clique cuts at the root,
 and Gomory cuts to depth 3; on a network model, where many continuous
 columns sit under binaries, the rounding cuts substitute those variable
-bounds first. The root fixes the integer columns its rows' implied bounds
+bounds first. Before the tree a presolve merges continuous columns that an
+equality row makes equal, such as the flows in and out of a node that only
+passes flow on. The root fixes the integer columns its rows' implied bounds
 fix and the binaries its parity rows fix by elimination mod 2, and a bound
 rounds up to the objective's step when every cost sits on one. A rounding heuristic, lock rounding, a feasibility jump, a root dive,
 a feasibility pump and a sub-MIP heuristic (RENS at the root, RINS at the

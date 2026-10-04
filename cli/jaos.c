@@ -46,6 +46,7 @@ static const char U_SYNOPSIS[] =
     "                  [--pump-general 0|1] [--pump-obj F]\n"
     "                  [--pump-always | --no-pump-always]\n"
     "                  [--rcfix | --no-rcfix] [--tighten | --no-tighten]\n"
+    "                  [--mip-presolve | --no-mip-presolve]\n"
     "                  [--restart | --no-restart]\n"
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
@@ -203,11 +204,15 @@ static const char U_SOLVE_D2[] =
     "                   incumbent's reduced costs fix a fifth of the integer\n"
     "                   columns (default off; --no-restart turns it off)\n"
     "  --rcfix          fix integer column bounds at the root by their\n"
-    "                   reduced costs once an incumbent exists; off by\n"
-    "                   default, --no-rcfix is the default\n"
+    "                   reduced costs once an incumbent exists; on by\n"
+    "                   default, --no-rcfix turns it off\n"
     "  --tighten        at the root, shrink a binary column's coefficient\n"
     "                   in a one-sided row it can never make tight; on by\n"
     "                   default, --no-tighten turns it off\n"
+    "  --mip-presolve   before the tree, substitute out one continuous\n"
+    "                   column of each equality row that holds two\n"
+    "                   continuous columns with coefficients of one size;\n"
+    "                   on by default, --no-mip-presolve turns it off\n"
     "  --probing        after the root solve, try each binary column that\n"
     "                   is fractional there at 0 and at 1 by propagation:\n"
     "                   a setting some row cannot take fixes the column\n"
@@ -876,6 +881,7 @@ struct solve_options {
     int rcfix;
     int restart;
     int tighten;
+    int mip_presolve;
     int probing;
     bool has_probing_cap;
     double probing_cap;
@@ -931,6 +937,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->rcfix = -1;
     o->restart = -1;
     o->tighten = -1;
+    o->mip_presolve = -1;
     o->probing = -1;
     o->clique_fix = -1;
     o->conflicts = -1;
@@ -1026,6 +1033,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-tighten") == 0) {
             o->tighten = 0;
+            continue;
+        }
+        if (strcmp(a, "--mip-presolve") == 0) {
+            o->mip_presolve = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-mip-presolve") == 0) {
+            o->mip_presolve = 0;
             continue;
         }
         if (strcmp(a, "--probing") == 0) {
@@ -1557,6 +1572,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.tighten >= 0 && jaos_set_mip_tighten(m, o.tighten) != JAOS_OK) {
         rc = library_error("set coefficient tightening for", o.file, m);
+        goto out;
+    }
+    if (o.mip_presolve >= 0 &&
+        jaos_set_mip_presolve(m, o.mip_presolve) != JAOS_OK) {
+        rc = library_error("set the MIP presolve for", o.file, m);
         goto out;
     }
     if (o.probing >= 0 && jaos_set_mip_probing(m, o.probing) != JAOS_OK) {

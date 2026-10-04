@@ -1414,6 +1414,69 @@ static void test_parity_rows_that_contradict_end_infeasible(void)
     jaos_model_free(m);
 }
 
+static jaos_model *pass_through_path(void)
+{
+    const double c[6] = {0.1, 0.1, 0.1, 1.0, 1.0, 1.0};
+    const double cl[6] = {0, 0, 0, 0, 0, 0}, cu[6] = {10, 10, 10, 1, 1, 1};
+    const double rl[6] = {0.0, 0.0, 5.0, -INFINITY, -INFINITY, -INFINITY};
+    const double ru[6] = {0.0, 0.0, 5.0, 0.0, 0.0, 0.0};
+    const int64_t as[7] = {0, 2, 5, 8, 9, 10, 11};
+    const int64_t ai[11] = {0, 3, 0, 1, 4, 1, 2, 5, 3, 4, 5};
+    const double av[11] = {1, 1, -1, 1, 1, -1, 1, 1, -10, -10, -10};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 6, 6, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, 11, as,
+                     ai, av));
+    for (int64_t j = 3; j < 6; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_the_mip_presolve_substitutes_flow_through_a_node(void)
+{
+    const double want[6] = {5, 5, 5, 1, 1, 1};
+    for (int on = 1; on >= 0; on--) {
+        jaos_model *m = pass_through_path();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_presolve(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0, x[6], row[6];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 4.5, obj);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, row, nullptr, nullptr));
+        for (int j = 0; j < 6; j++)
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, want[j], x[j]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, row[0]);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, row[2]);
+        double inc[6], iobj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, inc, &iobj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 4.5, iobj);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 5.0, inc[1]);
+        if (on)
+            TEST_ASSERT_NOT_NULL(strstr(g_log, "MIP presolve: 2 equality rows"));
+        else
+            TEST_ASSERT_NULL(strstr(g_log, "MIP presolve"));
+        jaos_model_free(m);
+    }
+}
+
+static void test_a_mip_start_crosses_the_mip_presolve(void)
+{
+    jaos_model *m = pass_through_path();
+    const double start[6] = {5, 5, 5, 1, 1, 1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_start(m, start));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.start_accepted);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "MIP presolve: 2 equality rows"));
+    jaos_model_free(m);
+}
+
 static jaos_model *parallel_arcs(int64_t arcs)
 {
     jaos_model *m = fresh();
@@ -5281,6 +5344,8 @@ int main(void)
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);
     RUN_TEST(test_parity_rows_that_contradict_end_infeasible);
+    RUN_TEST(test_the_mip_presolve_substitutes_flow_through_a_node);
+    RUN_TEST(test_a_mip_start_crosses_the_mip_presolve);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
