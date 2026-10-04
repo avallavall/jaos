@@ -138,8 +138,13 @@ reference 173), with no point. Fourth, `binkar10_1` holds the reference's point 
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as
-`node-forcing-keep`) and `bell3a` (82261 nodes). Verify with `make miplib
-J=2`, `make miplib2017` and `bench/measurements/02-328/m17sum.py`.
+`node-forcing-keep`) and `bell3a` (82261 nodes), where HiGHS closes in 19
+and 215 nodes. Better root points do not shrink those trees, and strong
+branching does at a price the small trees cannot pay
+(`bench/measurements/02-336/`); the next form is a probe that learns from a
+child stopped by a work cap or proved infeasible (D293's reopen clause).
+Verify with `make miplib J=2`, `make miplib2017` and
+`bench/measurements/02-328/m17sum.py`.
 
 J8. **LP: the simplex's time per iteration, and presolve.** `stocfor3`
 still takes 11.2x HiGHS (14.5x before 2d6f3dc and 764fe58). After

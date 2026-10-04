@@ -1,0 +1,30 @@
+diff --git a/src/mip.c b/src/mip.c
+index 34e410f..5af2bd1 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -6880,18 +6880,22 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+              (inc.have && nodes - sub_last >= MIP_SUBMIP_EVERY &&
+               (double)sub_spent < MIP_SUBMIP_SHARE * (double)work));
+         for (int pass = 0; pass < 2 && sub_here; pass++) {
+-            if (pass == 0 && (inc.have || nodes > 1))
++            if (pass == 0 && (nodes > 1 ||
++                              (inc.have && getenv("JAOS_RENSALWAYS") == nullptr)))
+                 continue;
+             if (pass == 1 && !inc.have)
+                 break;
+             const int64_t sub_limit =
+                 nodes > 1 ? (int64_t)(MIP_SUBMIP_SHARE * (double)work) -
+                                 sub_spent + 1
+-                          : (int64_t)(MIP_SUBMIP_ROOT * (double)work) + 1;
++                          : (int64_t)((getenv("JAOS_SUBROOT") != nullptr
++                                           ? atof(getenv("JAOS_SUBROOT"))
++                                           : MIP_SUBMIP_ROOT) *
++                                      (double)work) + 1;
+             const int64_t sub_before = work;
+             const int got = submip_for_point(
+                 m, ilo, ihi, pass == 1 ? inc.x : nullptr,
+-                pass == 1 ? inc.obj : INFINITY, x, sub_limit, &work, xr);
++                inc.have ? inc.obj : INFINITY, x, sub_limit, &work, xr);
+             sub_spent += work - sub_before;
+             sub_last = nodes;
+             if (got < 0)
