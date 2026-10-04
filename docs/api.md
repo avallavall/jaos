@@ -755,9 +755,10 @@ linear model where at least 50 continuous columns, and a third or more of
 them, sit under a binary through a two-entry row `a x + c y <= 0` (or `>=`,
 or `=`), the default is 20: each cut then replaces a continuous column by
 its variable bound before the rounding (c-MIR), each base row is tried with
-two bound rules, a round keeps at most 200 cuts by efficacy with none more
-parallel than 0.5 to one kept, and the root's dive and pump take at most a
-quarter of the root's work once an incumbent exists.
+two bound rules, the base rows and the aggregation's rows include the cuts
+of the rounds before, a round keeps at most 200 cuts by efficacy with none
+more parallel than 0.5 to one kept, and the root's dive and pump take at
+most a quarter of the root's work once an incumbent exists.
 
 **`jaos_set_mip_dive_backtrack`**\
 `jaos_status jaos_set_mip_dive_backtrack(jaos_model *m, int64_t times)`\

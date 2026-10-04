@@ -1,0 +1,83 @@
+== base
+beasleyC3      root 719.61090690467699     work 678798106    
+p200x1188c     root 9979.9570898508318     work 87706290     
+exp-1-500-5-5  root 65182.781307998339     work 237014182    
+tr12-30        root 116339.87216904316     work 85224354     
+sp150x300d     root 67.51562276734731      work 9106710      
+== ns
+beasleyC3      root 739.22446091425695     work 1300035349   
+p200x1188c     root 9967.8226690068332     work 86133728     
+exp-1-500-5-5  root 65477.349698799888     work 401079380    
+tr12-30        root 116367.49980662967     work 91877788     
+sp150x300d     root 68.52725437415755      work 7652817      
+== ns2
+beasleyC3      root 731.70066322133903     work 2105260791   
+p200x1188c     root 9972.6771278369761     work 92124105     
+exp-1-500-5-5  root 65182.781307998339     work 243140381    
+tr12-30        root 116339.87216904316     work 89740153     
+sp150x300d     root 67.898851619155991     work 9405413      
+== ns4
+beasleyC3      root 724.50278702855292     work 678450421    
+p200x1188c     root 9979.9570898508318     work 117605738    
+exp-1-500-5-5  root 65477.349698799888     work 401079380    
+tr12-30        root 116367.49980662967     work 91877788     
+sp150x300d     root 68.144025522348926     work 9468797      
+== ns3
+beasleyC3      root 743.36540771602915     work 1778574384   
+p200x1188c     root 9967.8226690068332     work 104329734    
+exp-1-500-5-5  root 65477.349698799888     work 416057371    
+tr12-30        root 116367.49980662967     work 100836284    
+sp150x300d     root 68.527254374157536     work 10056910     
+== cr1
+beasleyC3      root 722.12409876249455     work 955799533    
+p200x1188c     root 12005.103002058928     work 353360448    
+exp-1-500-5-5  root 65190.42363144322      work 210284350    
+tr12-30        root 116341.26388603052     work 83681462     
+sp150x300d     root 67.901305216019566     work 9429814      
+== cragg
+beasleyC3      root 737.09562662666553     work 3478505724   
+p200x1188c     root 11757.475301079627     work 4753903513   
+exp-1-500-5-5  root 65516.05383056248      work 471045949    
+tr12-30        root 130156.1789406001      work 263353657    
+sp150x300d     root 68.52725437415755      work 12509899     
+== cragg2
+beasleyC3      root 722.12409876249455     work 955840965    
+p200x1188c     root 12005.103002058928     work 353367818    
+exp-1-500-5-5  root 65119.731479629074     work 228649529    
+tr12-30        root 116339.93188339708     work 81017773     
+sp150x300d     root 67.901305216019566     work 9431038      
+== cragg3
+beasleyC3      root 732.17300962825482     work 1504375528   
+p200x1188c     root 11574.163327382645     work 1772579549   
+exp-1-500-5-5  root 65322.103289479266     work 346894839    
+tr12-30        root 129919.12397462555     work 227502958    
+sp150x300d     root 68.527254374157536     work 10535635     
+== p200x1188c, many rounds
+base       root 9979.9570898508318     work 87706290     
+r100       root 10001.637273272972     work 453816864    
+r100p      root 9983.4472148214954     work 379950857    1565 rows at the end
+r100p20    root 9983.4472148214954     work 379950857    1565 rows at the end
+r100p10    root 9997.3811440817208     work 397906404    1731 rows at the end
+r100p20s   root 9988.609165059348      work 376243964    1479 rows at the end
+r100p50    root 9983.4472148214954     work 379950857    1565 rows at the end
+r200p20    root 9983.4472148214954     work 680146909    1765 rows at the end
+== p200x1188c, cut rows
+cr         root 12005.103002058928     work 353360448    
+cr100      root 12697.562635023425     work 1177216785   
+cr100p     root 13360.065583428875     work 538941531    1615 rows at the end
+== network models, cut rows
+beasleyC3      cr      root 722.12409876249455     work 955799533    node_limit 
+beasleyC3      cr100p  root 723.90398498720333     work 1065120650   node_limit 5867 rows at the end
+exp-1-500-5-5  cr      root 65190.42363144322      work 210284350    node_limit 
+exp-1-500-5-5  cr100p  root 65112.150147730164     work 290462544    node_limit 3241 rows at the end
+tr12-30        cr      root 116341.26388603052     work 83681462     node_limit 
+tr12-30        cr100p  root 116339.87824227333     work 435369094    node_limit 12303 rows at the end
+sp150x300d     cr      root 67.901305216019566     work 9429814      node_limit 
+sp150x300d     cr100p  root 67.901305216019566     work 96766935     node_limit 883 rows at the end
+== flat roots, cut rows on every model
+neos-911970          base  root 45.416742837484193     work 1105135437  
+neos-911970          cr2   root 51.544990156043383     work 1502335639  
+neos-3381206-awhea   base  root 415.24000000000001     work 850311199   
+neos-3381206-awhea   cr2   root 415.24000000000001     work 653461206   
+binkar10_1           base  root 6693.1632777494333     work 146186359   
+binkar10_1           cr2   root 6699.2441726677189     work 95948387    

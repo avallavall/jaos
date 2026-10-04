@@ -93,7 +93,8 @@ estimate first with the best bound every fifth pick, pseudocost branching.
 Gomory, knapsack cover, mixed-integer rounding and clique cuts at the root,
 and Gomory cuts to depth 3; on a network model, where many continuous
 columns sit under binaries, the rounding cuts substitute those variable
-bounds first. Before the tree a presolve merges continuous columns that an
+bounds first and are formed from the earlier rounds' cuts as well as the
+model's rows. Before the tree a presolve merges continuous columns that an
 equality row makes equal, such as the flows in and out of a node that only
 passes flow on. The root fixes the integer columns its rows' implied bounds
 fix and the binaries its parity rows fix by elimination mod 2, and a bound

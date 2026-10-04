@@ -1,0 +1,667 @@
+diff --git a/src/mip.c b/src/mip.c
+index c07c512..082c772 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -3508,7 +3508,10 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                          double *cut, double *best, double *delta,
+                          double *agg, cmir_ctx *cx, int64_t *work)
+ {
+-    const int64_t nc = m->num_col, nr = m->num_row;
++    const int64_t nc = m->num_col;
++    const char *crw = getenv("JAOS_CUTROWS");
++    const int64_t nr = crw != nullptr && (cx != nullptr || atoi(crw) == 2)
++                           ? lp->num_row : m->num_row;
+     int64_t added = 0;
+     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+         return -1;
+@@ -3561,10 +3564,21 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+                                    int64_t steps, cmir_ctx *cx,
+                                    bool simple, int64_t *work)
+ {
+-    const int64_t nc = m->num_col, nr = m->num_row;
++    const int64_t nc = m->num_col;
++    const int64_t nr = cx != nullptr && getenv("JAOS_CUTROWS_AGG") != nullptr
++                           ? lp->num_row : m->num_row;
++    bool *own_used = nullptr;
++    if (nr > m->num_row) {
++        own_used = jm_calloc_array(nr, sizeof *own_used);
++        if (own_used == nullptr)
++            return -1;
++        used = own_used;
++    }
+     int64_t added = 0;
+-    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
++    if (jm_model_ensure_rowwise(lp) != JAOS_OK) {
++        free(own_used);
+         return -1;
++    }
+     if (steps > nr)
+         steps = nr;
+     int64_t *tl = jm_alloc_array(nc > 0 ? nc : 1, sizeof *tl);
+@@ -3580,7 +3594,14 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+     memset(used, 0, (size_t)(nr > 0 ? nr : 1) * sizeof *used);
+     memset(cut, 0, (size_t)nc * sizeof *cut);
+     *work += nc + nr;
+-    for (int64_t i = 0; i < nr; i++) {
++    const char *cra = getenv("JAOS_CUTROWS_AGG");
++    const int cra_mode = cra != nullptr ? atoi(cra) : 0;
++    const int64_t nstart = cra_mode == 2 ? m->num_row : nr;
++    for (int64_t i = 0; i < nstart; i++) {
++        if (cra_mode == 3 && i >= m->num_row &&
++            (lp->sol_row_status == nullptr ||
++             lp->sol_row_status[i] == JAOS_BASIS_BASIC))
++            continue;
+         for (int side = 0; side < 2; side++) {
+             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
+             if (!isfinite(bound))
+@@ -3707,6 +3728,417 @@ out:
+     free(tl);
+     free(ul);
+     free(intl);
++    free(own_used);
++    return added;
++}
++
++typedef struct {
++    bool built;
++    int64_t nn, na;
++    int64_t *row, *nodeof, *at, *ah, *acol, *uf, *next, *last, *size;
++    int64_t *nz;
++    cutrank *ord;
++    double *agg, *cmag;
++    bool *seen;
++} netset;
++
++static void netset_free(netset *g)
++{
++    free(g->row); free(g->nodeof); free(g->at); free(g->ah); free(g->acol);
++    free(g->ord); free(g->uf); free(g->next); free(g->last); free(g->size);
++    free(g->nz); free(g->agg); free(g->cmag); free(g->seen);
++    memset(g, 0, sizeof *g);
++}
++
++static bool netset_build(const jaos_model *m, jaos_model *lp, netset *g,
++                         int64_t *work)
++{
++    const int64_t nc = m->num_col, nr = m->num_row;
++    g->built = true;
++    g->nodeof = jm_alloc_array(nr > 0 ? nr : 1, sizeof *g->nodeof);
++    g->row = jm_alloc_array(nr > 0 ? nr : 1, sizeof *g->row);
++    if (g->nodeof == nullptr || g->row == nullptr)
++        return false;
++    *work += m->num_nz + nc + nr;
++    for (int64_t i = 0; i < nr; i++) {
++        g->nodeof[i] = -1;
++        const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
++        if (p1 - p0 < 2)
++            continue;
++        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
++            continue;
++        bool ok = true;
++        for (int64_t p = p0; p < p1 && ok; p++)
++            ok = !m->col_integer[lp->ar_index[p]];
++        if (!ok)
++            continue;
++        g->nodeof[i] = g->nn;
++        g->row[g->nn++] = i;
++    }
++    if (g->nn < 3)
++        return true;
++    g->at = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->at);
++    g->ah = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->ah);
++    g->acol = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->acol);
++    if (g->at == nullptr || g->ah == nullptr || g->acol == nullptr)
++        return false;
++    for (int64_t j = 0; j < nc; j++) {
++        if (m->col_integer[j])
++            continue;
++        int64_t n1 = -1, n2 = -1, cnt = 0;
++        double a1 = 0.0, a2 = 0.0;
++        for (int64_t p = lp->a_start[j]; p < lp->a_start[j + 1]; p++) {
++            const int64_t i = lp->a_index[p];
++            if (i >= nr || g->nodeof[i] < 0)
++                continue;
++            cnt++;
++            if (cnt == 1) {
++                n1 = g->nodeof[i];
++                a1 = lp->a_value[p];
++            } else {
++                n2 = g->nodeof[i];
++                a2 = lp->a_value[p];
++            }
++        }
++        if (cnt != 2 || a1 != -a2 || n1 == n2)
++            continue;
++        g->at[g->na] = n1;
++        g->ah[g->na] = n2;
++        g->acol[g->na] = j;
++        g->na++;
++    }
++    if (g->na < 2)
++        return true;
++    const int64_t nn = g->nn;
++    g->ord = jm_alloc_array(g->na, sizeof *g->ord);
++    g->uf = jm_alloc_array(nn, sizeof *g->uf);
++    g->next = jm_alloc_array(nn, sizeof *g->next);
++    g->last = jm_alloc_array(nn, sizeof *g->last);
++    g->size = jm_alloc_array(nn, sizeof *g->size);
++    g->nz = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->nz);
++    g->agg = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->agg);
++    g->cmag = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->cmag);
++    g->seen = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->seen);
++    return g->ord != nullptr && g->uf != nullptr && g->next != nullptr &&
++           g->last != nullptr && g->size != nullptr && g->nz != nullptr &&
++           g->agg != nullptr && g->cmag != nullptr && g->seen != nullptr;
++}
++
++static int netset_cut(const jaos_model *m, jaos_model *lp, const double *x,
++                      const double *ilo, const double *ihi, cmir_ctx *cx,
++                      netset *g, const bool *in_s, int64_t size, cutbuf *cb,
++                      int64_t *work)
++{
++    int got = 0;
++    bool *const seen = g->seen;
++    for (int orient = 0; orient < 2; orient++) {
++        const double sg = orient == 0 ? 1.0 : -1.0;
++        bool ok = true;
++        for (int64_t v = 0; v < g->nn && ok; v++)
++            if (in_s[v])
++                ok = isfinite(orient == 0 ? lp->row_upper[g->row[v]]
++                                          : lp->row_lower[g->row[v]]);
++        if (!ok)
++            continue;
++        double b = 0.0, mag = 0.0;
++        int64_t nnz = 0;
++        for (int64_t v = 0; v < g->nn; v++) {
++            if (!in_s[v])
++                continue;
++            const int64_t i = g->row[v];
++            const double bd = orient == 0 ? lp->row_upper[i] : lp->row_lower[i];
++            b += sg * bd;
++            mag += fabs(bd);
++            for (int64_t p = lp->ar_start[i]; p < lp->ar_start[i + 1]; p++) {
++                const int64_t j = lp->ar_index[p];
++                g->agg[j] += sg * lp->ar_value[p];
++                g->cmag[j] += fabs(lp->ar_value[p]);
++                if (!seen[j]) {
++                    seen[j] = true;
++                    g->nz[nnz++] = j;
++                }
++            }
++        }
++        *work += nnz * (MIP_MIR_DELTAS + 2) + g->nn;
++        int64_t kept = 0;
++        for (int64_t q = 0; q < nnz; q++) {
++            const int64_t j = g->nz[q];
++            seen[j] = false;
++            if (g->agg[j] != 0.0)
++                g->nz[kept++] = j;
++            else
++                g->cmag[j] = 0.0;
++        }
++        qsort(g->nz, (size_t)kept, sizeof *g->nz, mir_col_cmp);
++        const int pushed = kept > 0
++            ? cmir_side(m, lp, x, ilo, ihi, cx, g->agg, b, mag, size, g->cmag,
++                        g->nz, kept, cb, work)
++            : 0;
++        for (int64_t q = 0; q < kept; q++) {
++            g->agg[g->nz[q]] = 0.0;
++            g->cmag[g->nz[q]] = 0.0;
++        }
++        if (pushed < 0)
++            return -1;
++        got += pushed;
++    }
++    return got;
++}
++
++static int64_t netset_mincut(const jaos_model *m, jaos_model *lp,
++                             const double *x, const double *ilo,
++                             const double *ihi, cmir_ctx *cx, netset *g,
++                             cutbuf *cb, int64_t *work)
++{
++    const int64_t nn = g->nn, na = g->na, ns = nn + 1, src = nn;
++    int64_t ne = 2 * na + 2 * nn;
++    int64_t *head = jm_alloc_array(ne, sizeof *head);
++    int64_t *nxt = jm_alloc_array(ne, sizeof *nxt);
++    int64_t *first = jm_alloc_array(ns, sizeof *first);
++    double *cap = jm_alloc_array(ne, sizeof *cap);
++    double *flow = jm_alloc_array(ne, sizeof *flow);
++    int64_t *pred = jm_alloc_array(ns, sizeof *pred);
++    int64_t *queue = jm_alloc_array(ns, sizeof *queue);
++    double *dem = jm_calloc_array(nn, sizeof *dem);
++    bool *in_s = jm_alloc_array(nn, sizeof *in_s);
++    int64_t added = -1;
++    if (head == nullptr || nxt == nullptr || first == nullptr ||
++        cap == nullptr || flow == nullptr || pred == nullptr ||
++        queue == nullptr || dem == nullptr || in_s == nullptr)
++        goto out;
++    for (int64_t v = 0; v < ns; v++)
++        first[v] = -1;
++    ne = 0;
++    for (int64_t a = 0; a < na; a++) {
++        const int64_t j = g->acol[a];
++        double into_ah = 0.0;
++        for (int64_t p = lp->a_start[j]; p < lp->a_start[j + 1]; p++)
++            if (lp->a_index[p] == g->row[g->ah[a]])
++                into_ah = lp->a_value[p];
++        const int64_t u = into_ah > 0.0 ? g->at[a] : g->ah[a];
++        const int64_t w = into_ah > 0.0 ? g->ah[a] : g->at[a];
++        const int64_t y = cx->vub_y[j];
++        const double c = y >= 0 ? (x[y] > 0.0 ? x[y] : 0.0) : INFINITY;
++        head[ne] = w; cap[ne] = c; nxt[ne] = first[u]; first[u] = ne; ne++;
++        head[ne] = u; cap[ne] = 0.0; nxt[ne] = first[w]; first[w] = ne; ne++;
++    }
++    for (int64_t v = 0; v < nn; v++) {
++        const int64_t i = g->row[v];
++        const double lo = lp->row_lower[i], up = lp->row_upper[i];
++        dem[v] = isfinite(lo) ? lo : isfinite(up) ? up : 0.0;
++        if (dem[v] < 0.0) {
++            head[ne] = v; cap[ne] = INFINITY; nxt[ne] = first[src];
++            first[src] = ne; ne++;
++            head[ne] = src; cap[ne] = 0.0; nxt[ne] = first[v]; first[v] = ne;
++            ne++;
++        }
++    }
++    *work += ne + ns;
++    added = 0;
++    for (int64_t t = 0; t < nn; t++) {
++        if (!(dem[t] > 0.0))
++            continue;
++        for (int64_t e = 0; e < ne; e++)
++            flow[e] = 0.0;
++        double total = 0.0;
++        for (;;) {
++            for (int64_t v = 0; v < ns; v++)
++                pred[v] = -2;
++            int64_t qh = 0, qt = 0;
++            queue[qt++] = src;
++            pred[src] = -1;
++            while (qh < qt && pred[t] == -2) {
++                const int64_t v = queue[qh++];
++                for (int64_t e = first[v]; e >= 0; e = nxt[e]) {
++                    const int64_t w = head[e];
++                    if (pred[w] != -2 || cap[e] - flow[e] <= 1e-9)
++                        continue;
++                    pred[w] = e;
++                    queue[qt++] = w;
++                }
++            }
++            *work += ne;
++            if (pred[t] == -2)
++                break;
++            double push = INFINITY;
++            for (int64_t v = t; v != src; v = head[pred[v] ^ 1])
++                if (cap[pred[v]] - flow[pred[v]] < push)
++                    push = cap[pred[v]] - flow[pred[v]];
++            if (!isfinite(push) || push <= 0.0) {
++                total = INFINITY;
++                break;
++            }
++            for (int64_t v = t; v != src; v = head[pred[v] ^ 1]) {
++                flow[pred[v]] += push;
++                flow[pred[v] ^ 1] -= push;
++            }
++            total += push;
++            if (total >= 1.0 - 1e-6)
++                break;
++        }
++        if (total >= 1.0 - 1e-6)
++            continue;
++        int64_t size = 0;
++        for (int64_t v = 0; v < nn; v++) {
++            in_s[v] = pred[v] == -2;
++            size += in_s[v];
++        }
++        if (size == 0 || size == nn)
++            continue;
++        const int got = netset_cut(m, lp, x, ilo, ihi, cx, g, in_s, size, cb,
++                                   work);
++        if (got < 0) {
++            added = -1;
++            goto out;
++        }
++        added += got;
++    }
++out:
++    free(head); free(nxt); free(first); free(cap); free(flow); free(pred);
++    free(queue); free(dem); free(in_s);
++    return added;
++}
++
++static int64_t netset_find(int64_t *uf, int64_t v)
++{
++    while (uf[v] != v) {
++        uf[v] = uf[uf[v]];
++        v = uf[v];
++    }
++    return v;
++}
++
++static int64_t netset_round(const jaos_model *m, jaos_model *lp,
++                            const double *x, const double *ilo,
++                            const double *ihi, cmir_ctx *cx, netset *g,
++                            int mode, cutbuf *cb, int64_t *work)
++{
++    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
++        return -1;
++    if (!g->built && !netset_build(m, lp, g, work))
++        return -1;
++    if (g->na < 2 || g->nn < 3)
++        return 0;
++    if (mode == 2)
++        return netset_mincut(m, lp, x, ilo, ihi, cx, g, cb, work);
++    if (mode == 3) {
++        const int64_t a1 = netset_round(m, lp, x, ilo, ihi, cx, g, 1, cb,
++                                        work);
++        if (a1 < 0)
++            return -1;
++        const int64_t a2 = netset_round(m, lp, x, ilo, ihi, cx, g, 4, cb,
++                                        work);
++        return a2 < 0 ? -1 : a1 + a2;
++    }
++    const int64_t nn = g->nn, na = g->na;
++    bool *const seen = g->seen;
++    for (int64_t a = 0; a < na; a++) {
++        const int64_t y = cx->vub_y[g->acol[a]];
++        const double k = y < 0 ? 3.0 : mode == 4 ? -x[y] : x[y];
++        g->ord[a] = (cutrank){k, a};
++    }
++    qsort(g->ord, (size_t)na, sizeof *g->ord, cutrank_cmp);
++    for (int64_t v = 0; v < nn; v++) {
++        g->uf[v] = v;
++        g->next[v] = -1;
++        g->last[v] = v;
++        g->size[v] = 1;
++    }
++    *work += na * 4 + nn;
++    int64_t added = 0;
++    for (int64_t t = 0; t < na; t++) {
++        const int64_t a = g->ord[t].r;
++        int64_t ra = netset_find(g->uf, g->at[a]);
++        int64_t rb = netset_find(g->uf, g->ah[a]);
++        if (ra == rb)
++            continue;
++        if (g->size[ra] < g->size[rb] ||
++            (g->size[ra] == g->size[rb] && rb < ra)) {
++            const int64_t s = ra;
++            ra = rb;
++            rb = s;
++        }
++        g->uf[rb] = ra;
++        g->next[g->last[ra]] = rb;
++        g->last[ra] = g->last[rb];
++        g->size[ra] += g->size[rb];
++        if (g->size[ra] > nn / 2)
++            continue;
++        for (int orient = 0; orient < 2; orient++) {
++            const double sg = orient == 0 ? 1.0 : -1.0;
++            bool ok = true;
++            for (int64_t v = ra; v >= 0 && ok; v = g->next[v]) {
++                const int64_t i = g->row[v];
++                ok = isfinite(orient == 0 ? lp->row_upper[i]
++                                          : lp->row_lower[i]);
++            }
++            if (!ok)
++                continue;
++            double b = 0.0, mag = 0.0;
++            int64_t nnz = 0;
++            for (int64_t v = ra; v >= 0; v = g->next[v]) {
++                const int64_t i = g->row[v];
++                const double bd = orient == 0 ? lp->row_upper[i]
++                                              : lp->row_lower[i];
++                b += sg * bd;
++                mag += fabs(bd);
++                for (int64_t p = lp->ar_start[i]; p < lp->ar_start[i + 1];
++                     p++) {
++                    const int64_t j = lp->ar_index[p];
++                    g->agg[j] += sg * lp->ar_value[p];
++                    g->cmag[j] += fabs(lp->ar_value[p]);
++                    if (!seen[j]) {
++                        seen[j] = true;
++                        g->nz[nnz++] = j;
++                    }
++                }
++            }
++            *work += nnz * (MIP_MIR_DELTAS + 2);
++            int64_t kept = 0;
++            for (int64_t q = 0; q < nnz; q++) {
++                const int64_t j = g->nz[q];
++                seen[j] = false;
++                if (g->agg[j] != 0.0)
++                    g->nz[kept++] = j;
++                else
++                    g->cmag[j] = 0.0;
++            }
++            qsort(g->nz, (size_t)kept, sizeof *g->nz, mir_col_cmp);
++            const int pushed = kept > 0
++                ? cmir_side(m, lp, x, ilo, ihi, cx, g->agg, b, mag,
++                            g->size[ra], g->cmag, g->nz, kept, cb, work)
++                : 0;
++            if (getenv("JAOS_NSDBG") != nullptr) {
++                double ys = 0.0, xs = 0.0;
++                int64_t nin = 0, nout = 0, noth = 0;
++                for (int64_t q = 0; q < kept; q++) {
++                    const int64_t j = g->nz[q];
++                    const int64_t y = cx->vub_y[j];
++                    if (y >= 0 && g->agg[j] < 0.0) {
++                        ys += x[y];
++                        xs += x[j];
++                        nin++;
++                    } else if (y >= 0) {
++                        nout++;
++                    } else {
++                        noth++;
++                    }
++                }
++                fprintf(stderr, "NSDBG size %lld orient %d b %.6g nnz %lld "
++                        "neg-arcs %lld (y sum %.4g, x sum %.6g) pos-arcs %lld "
++                        "other %lld pushed %d\n", (long long)g->size[ra],
++                        orient, b, (long long)kept, (long long)nin, ys, xs,
++                        (long long)nout, (long long)noth, pushed);
++            }
++            for (int64_t q = 0; q < kept; q++) {
++                g->agg[g->nz[q]] = 0.0;
++                g->cmag[g->nz[q]] = 0.0;
++            }
++            if (pushed < 0)
++                return -1;
++            added += pushed;
++        }
++    }
+     return added;
+ }
+ 
+@@ -5740,6 +6172,24 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t first_inc = 0;
+     int64_t rcfixed = 0;
+     int64_t tightened = 0;
++    netset nsg = {0};
++    int64_t netset_cuts = 0;
++    const bool netsets_on = getenv("JAOS_NETSETS") != nullptr;
++    const int netsets_mode = netsets_on ? atoi(getenv("JAOS_NETSETS")) : 0;
++    const char *rpe = getenv("JAOS_ROOTPOOL");
++    const bool root_pool = rpe != nullptr && atoll(rpe) > 0;
++    rpe = getenv("JAOS_ROOTPOOL_CAP");
++    const int64_t rp_cap = rpe != nullptr ? atoll(rpe) : 200;
++    rpe = getenv("JAOS_ROOTPOOL_EFF");
++    const double rp_eff = rpe != nullptr ? atof(rpe) : 1e-4;
++    rpe = getenv("JAOS_ROOTPOOL_SLACK");
++    const double rp_slack = rpe != nullptr ? atof(rpe) : 1e-6;
++    const bool rp_all = getenv("JAOS_ROOTPOOL_ALL") != nullptr;
++    int64_t *rp_del = nullptr, *rp_mark = nullptr, *rp_sel = nullptr;
++    double *rp_nrm = nullptr;
++    cutrank *rp_rk = nullptr;
++    int64_t rp_del_cap = 0, rp_mark_cap = 0, rp_sel_cap = 0, rp_nrm_cap = 0;
++    int64_t rp_rk_cap = 0, rp_nrm_n = 0, rp_dropped = 0, rp_back = 0;
+ 
+     int64_t work = 0, iters = 0;
+     bb_phases ph = {0};
+@@ -6356,6 +6806,111 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             lp->cfg.cut_resolve = true;
+             for (int64_t r = 0; r < root_rounds && !stop; r++) {
+                 phase_to(&ph, work, PH_CUTS);
++                if (root_pool && root_cut_drop && r > 0 && (net || rp_all)) {
++                    assert(lp->num_row == nfixed + in_copy.n);
++                    int64_t nd = 0, kept = 0;
++                    if (!JM_GROW(rp_del, rp_del_cap, in_copy.n + 1))
++                        goto done;
++                    for (int64_t k = 0; k < in_copy.n; k++) {
++                        const int64_t c = in_copy.v[k];
++                        double a = 0.0;
++                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
++                            a += pool.val[p] * x[pool.idx[p]];
++                        if (lp->sol_row_status[nfixed + k] == JAOS_BASIS_BASIC &&
++                            a - pool.lo[c] > rp_slack * (1.0 + fabs(pool.lo[c]))) {
++                            rp_del[nd++] = nfixed + k;
++                            continue;
++                        }
++                        in_copy.v[kept] = in_copy.v[k];
++                        act[kept] = act[k];
++                        kept++;
++                    }
++                    if (nd > 0) {
++                        if (jaos_set_basis(lp, lp->sol_col_status,
++                                           lp->sol_row_status) != JAOS_OK ||
++                            jaos_delete_rows(lp, nd, rp_del) != JAOS_OK)
++                            goto done;
++                        in_copy.n = kept;
++                        act_n = kept;
++                        rp_dropped += nd;
++                        work += lp->num_nz + lp->num_row;
++                    }
++                    if (!JM_GROW(rp_mark, rp_mark_cap, pool.n + 1) ||
++                        !JM_GROW(rp_nrm, rp_nrm_cap, pool.n + 1) ||
++                        !JM_GROW(rp_rk, rp_rk_cap, pool.n + 1) ||
++                        !JM_GROW(rp_sel, rp_sel_cap, pool.n + 1))
++                        goto done;
++                    for (int64_t c = rp_nrm_n; c < pool.n; c++) {
++                        double s = 0.0;
++                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
++                            s += pool.val[p] * pool.val[p];
++                        rp_nrm[c] = sqrt(s);
++                        rp_mark[c] = 0;
++                    }
++                    rp_nrm_n = pool.n;
++                    for (int64_t k = 0; k < in_copy.n; k++)
++                        rp_mark[in_copy.v[k]] = r;
++                    int64_t nk = 0;
++                    for (int64_t c = 0; c < pool.n; c++) {
++                        if (rp_mark[c] == r || !(rp_nrm[c] > 0.0))
++                            continue;
++                        double a = 0.0;
++                        for (int64_t p = pool.start[c]; p < pool.start[c + 1]; p++)
++                            a += pool.val[p] * x[pool.idx[p]];
++                        const double v = pool.lo[c] - a;
++                        if (v > 1e-6 * (1.0 + fabs(pool.lo[c])) &&
++                            v > rp_eff * rp_nrm[c])
++                            rp_rk[nk++] = (cutrank){v / rp_nrm[c], c};
++                    }
++                    work += pool.nnz + in_copy.n;
++                    if (nk > rp_cap) {
++                        qsort(rp_rk, (size_t)nk, sizeof *rp_rk, cutrank_cmp);
++                        nk = rp_cap;
++                    }
++                    if (nk > 0 || nd > 0) {
++                        for (int64_t k = 0; k < nk; k++)
++                            rp_sel[k] = rp_rk[k].r;
++                        if ((nk > 0 && pool_add(lp, &pool, rp_sel, nk) !=
++                                           JAOS_OK) ||
++                            !JM_GROW(act, act_cap, act_n + nk + 1) ||
++                            !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + nk + 1))
++                            goto done;
++                        for (int64_t k = 0; k < nk; k++) {
++                            act[act_n++] = rp_sel[k];
++                            in_copy.v[in_copy.n++] = rp_sel[k];
++                        }
++                        rp_back += nk;
++                        phase_to(&ph, work, PH_LP);
++                        budget(lp, m, work);
++                        st = jaos_solve(lp);
++                        solves++;
++                        work += jaos_work_units(lp);
++                        iters += jaos_iterations(lp);
++                        phase_to(&ph, work, PH_CUTS);
++                        if (st != JAOS_OK) {
++                            if (st == JAOS_ERR_NUMERICAL) {
++                                outcome = JAOS_SOLVE_NUMERICAL_ERROR;
++                                jm_set_err(m, "root cuts, round %lld, the "
++                                           "pool: %s", (long long)(r + 1),
++                                           jaos_model_error(lp));
++                                stop = true;
++                                break;
++                            }
++                            goto done;
++                        }
++                        ns = jaos_status_of(lp);
++                        if (ns != JAOS_SOLVE_OPTIMAL) {
++                            outcome = ns;
++                            stop = true;
++                            break;
++                        }
++                        if (jaos_objective(lp, &obj) != JAOS_OK ||
++                            jaos_solution(lp, x, nullptr, nullptr, nullptr) !=
++                                JAOS_OK)
++                            goto done;
++                        key = sigma * obj;
++                    }
++                }
+                 cb.n = cb.nnz = 0;
+                 int64_t got = 0;
+                 if (row_cap < nc + lp->num_row + 1) {
+@@ -6436,12 +6991,22 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     if (agb.n == 0)
+                         agg_live = false;
+                 }
++                if (r < mir_rounds && net && netsets_on) {
++                    const int64_t sv = netset_round(m, lp, x, ilo, ihi, &cmx,
++                                                    &nsg, netsets_mode, &agb,
++                                                    &work);
++                    if (sv < 0)
++                        goto done;
++                    netset_cuts += sv;
++                }
+                 if (got == 0 && agb.n == 0)
+                     break;
+                 if (net) {
+-                    if (cutbuf_select(&cb, nc, MIP_NET_CUT_CAP,
++                    const int64_t ncap = getenv("JAOS_NETCAP") != nullptr
++                        ? atoll(getenv("JAOS_NETCAP")) : MIP_NET_CUT_CAP;
++                    if (cutbuf_select(&cb, nc, ncap,
+                                       MIP_NET_PARALLEL, &work) < 0 ||
+-                        cutbuf_select(&agb, nc, MIP_NET_CUT_CAP,
++                        cutbuf_select(&agb, nc, ncap,
+                                       MIP_NET_PARALLEL, &work) < 0)
+                         goto done;
+                     got = cb.n;
+@@ -6580,6 +7145,17 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root: MIR aggregation kept %lld cuts after %lld "
+                        "probes on a copy", (long long)agg_kept,
+                        (long long)agg_probes);
++            if (root_pool)
++                jm_log(m, JAOS_LOG_SUMMARY,
++                       "root: %lld slack cuts left the relaxation between "
++                       "rounds and %lld came back from the pool, %lld rows "
++                       "at the end", (long long)rp_dropped,
++                       (long long)rp_back, (long long)lp->num_row);
++            if (netsets_on && net)
++                jm_log(m, JAOS_LOG_SUMMARY,
++                       "root: %lld node rows and %lld arcs, %lld cuts found "
++                       "on node sets before selection", (long long)nsg.nn,
++                       (long long)nsg.na, (long long)netset_cuts);
+         }
+ 
+         phase_to(&ph, work, PH_HEUR);
+@@ -7818,6 +8394,12 @@ done:
+     free(mused);
+     free(mpicked);
+     cmir_free(&cmx);
++    netset_free(&nsg);
++    free(rp_del);
++    free(rp_mark);
++    free(rp_sel);
++    free(rp_nrm);
++    free(rp_rk);
+     free(crs);
+     free(in_copy.v);
+     spool_free(&sp);

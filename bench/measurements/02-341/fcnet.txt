@@ -1,0 +1,6 @@
+== base
+models 10000 with z 2073 with cuts 4536 optimal 6095 infeasible 3905 unsure 0 failed 0 brute solves 6530728 digest 916427b3386c2d56
+== cr2
+models 10000 with z 2073 with cuts 4536 optimal 6095 infeasible 3905 unsure 0 failed 0 brute solves 6530728 digest 916427b3386c2d56
+== agg
+models 10000 with z 2073 with cuts 4536 optimal 6095 infeasible 3905 unsure 0 failed 0 brute solves 6530728 digest 916427b3386c2d56

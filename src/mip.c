@@ -3508,7 +3508,8 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
                          double *cut, double *best, double *delta,
                          double *agg, cmir_ctx *cx, int64_t *work)
 {
-    const int64_t nc = m->num_col, nr = m->num_row;
+    const int64_t nc = m->num_col;
+    const int64_t nr = cx != nullptr ? lp->num_row : m->num_row;
     int64_t added = 0;
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
@@ -3561,7 +3562,8 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                                    int64_t steps, cmir_ctx *cx,
                                    bool simple, int64_t *work)
 {
-    const int64_t nc = m->num_col, nr = m->num_row;
+    const int64_t nc = m->num_col;
+    const int64_t nr = cx != nullptr ? lp->num_row : m->num_row;
     int64_t added = 0;
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
@@ -5729,6 +5731,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     double *magg = nullptr;
     double *mcmag = nullptr;
     bool *mused = nullptr;
+    int64_t mused_cap = 0;
     bool *mpicked = nullptr;
     cmir_ctx cmx = {0};
     int64_t sub_spent = 0, sub_last = 0;
@@ -6341,7 +6344,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             if (mir_rounds > 0 && magg == nullptr)
                 magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
             if (mir_rounds > 0 && mir_aggregate > 0 && mused == nullptr) {
-                mused = jm_alloc_array(nr > 0 ? nr : 1, sizeof *mused);
+                if (!JM_GROW(mused, mused_cap, nr > 0 ? nr : 1))
+                    goto done;
                 mpicked = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mpicked);
                 mcmag = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mcmag);
             }
@@ -6421,6 +6425,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 }
                 agb.n = agb.nnz = 0;
                 if (r < mir_rounds && agg_live) {
+                    if (!JM_GROW(mused, mused_cap, lp->num_row))
+                        goto done;
                     const int64_t av = mir_aggregate_round(
                         m, lp, x, ilo, ihi, &agb, cut, mbest, mdelta, magg,
                         mcmag, mused, mpicked, mir_aggregate, cxp, false,
