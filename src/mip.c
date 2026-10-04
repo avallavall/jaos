@@ -6350,6 +6350,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 goto done;
             const double key_first = key;
             bool stop = false;
+            lp->cfg.cut_resolve = true;
             for (int64_t r = 0; r < root_rounds && !stop; r++) {
                 phase_to(&ph, work, PH_CUTS);
                 cb.n = cb.nnz = 0;
@@ -6552,6 +6553,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         MIP_MIR_MORE_STALL * (1.0 + fabs(key_before)))
                     break;
             }
+            lp->cfg.cut_resolve = false;
             if (stop)
                 break;
 

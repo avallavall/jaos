@@ -29,6 +29,7 @@ constexpr double DSE_DRIFT = 10.0;
 #define JAOS_DSE_GUESS_RESTARTS 64
 #endif
 constexpr int64_t DSE_GUESS_RESTARTS = JAOS_DSE_GUESS_RESTARTS;
+constexpr int64_t DSE_RESOLVE_EXACT = 1;
 
 constexpr double DEVEX_RESET = 3.0;
 
@@ -206,6 +207,7 @@ typedef struct {
     bool dse_guess;
     int64_t n_guess_restart;
     bool dse_exact_pending;
+    bool resolve_exact_done;
     bool dual_devex;
     bool dual_devex_stale;
     uint64_t *dref;
@@ -789,6 +791,7 @@ static bool build_warm_basis(sx *s)
     s->dse_guess = !m->cfg.node_solve && !s->primal_run;
     s->n_guess_restart = 0;
     s->dse_exact_pending = false;
+    s->resolve_exact_done = false;
     s->dual_devex = false;
     s->dual_devex_stale = false;
 
@@ -3969,6 +3972,15 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             }
         }
 
+        if (s->m->cfg.cut_resolve && !s->resolve_exact_done &&
+            s->iters > DSE_RESOLVE_EXACT * (s->nrow + s->ncol + 1)) {
+            s->resolve_exact_done = true;
+            exact_weights(s);
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "iter %lld: a re-solve after root cuts ran past its size "
+                   "in iterations; weights replaced by exact ones",
+                   (long long)s->iters);
+        }
         if (s->dse_exact_pending) {
             exact_weights(s);
             s->dse_exact_pending = false;

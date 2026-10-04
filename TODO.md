@@ -131,11 +131,10 @@ first stall (`bench/measurements/02-333/`). `neos-3381206-awhea`'s bound sits fl
 rounds, so the rule stops it at 416; 20 rounds of Gomory cuts take its root
 to 445.3 for 6.1e9 work units. Third, no incumbent: `glass4`, `timtab1`,
 `ic97_potential`, `csched007` and `csched008`, where the feasibility jump
-fails within its cap. `csched008`'s root alone costs 1.29e10 work units:
-its six cut rounds leave the bound at 171 and each re-solve runs about
-16000 iterations, where the cold relaxation takes 19866; exact
-steepest-edge weights in long node solves fix it and cost MIPLIB 3
-(`node-dse-exact-long`). Fourth, `binkar10_1` holds the reference's point and
+fails within its cap. `csched008`'s root costs 3.71e9 work units since
+its re-solves after cuts make their weights exact
+(`bench/measurements/02-334/`), and its bound at the limit is 171 (the
+reference 173), with no point. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. On
 MIPLIB 3, `l152lav` (113 of 374 node LPs arriving short from forcing rows
 that fix basic columns; keeping those rows is refused as
