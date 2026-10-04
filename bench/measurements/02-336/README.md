@@ -40,3 +40,20 @@ At 4, `l152lav` closes in 69 nodes for 0.81x its work and `bell3a` in
 probe, as D293 read in 02-192. The probes learn only from a child solved to
 optimality: a child stopped by a work cap, or proved infeasible, teaches
 nothing (`strong_probe` in `src/mip.c`).
+
+## A budget for the probes
+
+`sb-budget.patch` lets a node probe only while the probes' work so far stays
+under `JAOS_SBQUOT` times the node relaxations' work plus `JAOS_SBOFS`
+times the model's nonzeros, columns and rows: a limit on the probes' share
+of the tree's work. At reliability 4:
+
+| quotient | allowance | work, geometric | work, sum | past 2x |
+|---|---|---|---|---|
+| 0.5 | 1000 | 1.089x | 0.982x | `rgn` 2.382x, `misc03` 2.149x |
+| 0.5 | 100 | 1.071x | 0.922x | `misc03` 3.650x, `rgn` 2.433x |
+| 0.2 | 100 | 1.022x | 0.959x | `rgn` 2.277x, `misc03` 2.270x, `misc07` 2.173x |
+
+The budget takes the probes' price down, and `rgn` and `misc03` still end
+with two to three times the nodes they reach without probes (127 to 377
+and more, 240 to 489 and more). Refused with D293.

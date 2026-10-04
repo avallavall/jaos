@@ -1,0 +1,21 @@
+diff --git a/src/mip.c b/src/mip.c
+index 34e410f..daff22a 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -7385,7 +7385,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+         const int64_t nrl = lp->num_row;
+ 
+-        if (branch >= 0 && reliability > 0 &&
++        phase_to(&ph, work, ph.phase);
++        const bool sb_room =
++            getenv("JAOS_SBQUOT") == nullptr ||
++            (double)ph.sum[PH_BRANCH] <=
++                atof(getenv("JAOS_SBQUOT")) * (double)ph.sum[PH_LP] +
++                    (getenv("JAOS_SBOFS") != nullptr ? atof(getenv("JAOS_SBOFS"))
++                                                     : 0.0) *
++                        (double)(m->num_nz + nc + nr);
++        if (branch >= 0 && reliability > 0 && sb_room &&
+             (probe_depth < 0 || depth_here <= probe_depth)) {
+             phase_to(&ph, work, PH_BRANCH);
+             jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
