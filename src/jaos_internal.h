@@ -343,6 +343,7 @@ struct jaos_model {
     bool crossover_pushed;
 
     void *parked;
+    void *lu_spare;
 
     char err[256];
 };
@@ -733,12 +734,16 @@ typedef struct {
     int64_t *lrow_index;
 
     struct jm_lu_keep *keep;
+    int64_t keep_dim;
 } jm_lu;
 
 constexpr double LU_PIVOT_TOL = 0.1;
 
 void jm_lu_init(jm_lu *lu);
 void jm_lu_free(jm_lu *lu);
+void *jm_lu_stash(jm_lu *lu);
+void jm_lu_unstash(jm_lu *lu, void *spare);
+void jm_lu_spare_free(void *spare);
 
 JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     const int64_t *start, const int64_t *index, const double *value,

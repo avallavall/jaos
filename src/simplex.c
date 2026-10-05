@@ -4742,6 +4742,10 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             jm_presolve_free(&p);
             return st;
         }
+        if (m->lu_spare != nullptr) {
+            jm_lu_unstash(&s.lu, m->lu_spare);
+            m->lu_spare = nullptr;
+        }
         if (quad_probe) {
             memset(s.cost, 0, (size_t)s.nvar * sizeof *s.cost);
             memcpy(s.cost0, s.cost, (size_t)s.nvar * sizeof *s.cost0);
@@ -5029,6 +5033,8 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
 
     *units = s.work.units;
     *iters = s.iters;
+    if (m->cfg.node_solve && m->lu_spare == nullptr)
+        m->lu_spare = jm_lu_stash(&s.lu);
     sx_free(&s);
     jm_presolve_free(&p);
     return st;

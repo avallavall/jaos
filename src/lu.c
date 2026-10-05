@@ -269,10 +269,10 @@ void jm_lu_init(jm_lu *lu)
 void jm_lu_free(jm_lu *lu)
 {
     if (lu->urow)
-        for (int64_t s = 0; s < lu->dim; s++)
+        for (int64_t s = 0; s < lu->keep_dim; s++)
             jm_svec_free(&lu->urow[s]);
     if (lu->ucol)
-        for (int64_t s = 0; s < lu->dim; s++)
+        for (int64_t s = 0; s < lu->keep_dim; s++)
             jm_svec_free(&lu->ucol[s]);
     free(lu->urow);
     free(lu->ucol);
@@ -296,10 +296,10 @@ void jm_lu_free(jm_lu *lu)
     free(lu->lrow_index);
     if (lu->keep) {
         if (lu->keep->col)
-            for (int64_t j = 0; j < lu->dim; j++)
+            for (int64_t j = 0; j < lu->keep_dim; j++)
                 jm_svec_free(&lu->keep->col[j]);
         if (lu->keep->row)
-            for (int64_t i = 0; i < lu->dim; i++) {
+            for (int64_t i = 0; i < lu->keep_dim; i++) {
                 free(lu->keep->row[i].idx);
                 free(lu->keep->row[i].pos);
             }
@@ -310,22 +310,51 @@ void jm_lu_free(jm_lu *lu)
     memset(lu, 0, sizeof *lu);
 }
 
+static bool grow_zeroed(void **arr, int64_t old, int64_t n, size_t elsize)
+{
+    char *p = jm_realloc_array(*arr, n, elsize);
+    if (p == nullptr)
+        return false;
+    memset(p + (size_t)old * elsize, 0, (size_t)(n - old) * elsize);
+    *arr = p;
+    return true;
+}
+
+static bool keep_fits(jm_lu *lu, int64_t dim)
+{
+    const int64_t old = lu->keep_dim;
+    if (dim <= old)
+        return true;
+    if (!grow_zeroed((void **)&lu->urow, old, dim, sizeof *lu->urow) ||
+        !grow_zeroed((void **)&lu->ucol, old, dim, sizeof *lu->ucol) ||
+        !grow_zeroed((void **)&lu->keep->col, old, dim,
+                     sizeof *lu->keep->col) ||
+        !grow_zeroed((void **)&lu->keep->row, old, dim,
+                     sizeof *lu->keep->row))
+        return false;
+    lu->keep_dim = dim;
+    return true;
+}
+
 static void lu_reset(jm_lu *lu, int64_t dim)
 {
-    if (lu->dim != dim || lu->urow == nullptr || lu->keep == nullptr) {
+    if (lu->urow == nullptr || lu->ucol == nullptr || lu->keep == nullptr ||
+        lu->keep->col == nullptr || lu->keep->row == nullptr ||
+        !keep_fits(lu, dim)) {
         jm_lu_free(lu);
         return;
     }
     jm_svec *urow = lu->urow, *ucol = lu->ucol, ft = lu->ft;
     int64_t *ft_source = lu->ft_source, ft_source_cap = lu->ft_source_cap;
     struct jm_lu_keep *keep = lu->keep;
+    const int64_t keep_dim = lu->keep_dim;
     lu->urow = nullptr;
     lu->ucol = nullptr;
     lu->ft = (jm_svec){0};
     lu->ft_source = nullptr;
     lu->keep = nullptr;
     jm_lu_free(lu);
-    for (int64_t s = 0; s < dim; s++) {
+    for (int64_t s = 0; s < keep_dim; s++) {
         urow[s].n = 0;
         ucol[s].n = 0;
         keep->col[s].n = 0;
@@ -338,6 +367,39 @@ static void lu_reset(jm_lu *lu, int64_t dim)
     lu->ft_source = ft_source;
     lu->ft_source_cap = ft_source_cap;
     lu->keep = keep;
+    lu->keep_dim = keep_dim;
+}
+
+void *jm_lu_stash(jm_lu *lu)
+{
+    jm_lu *spare = malloc(sizeof *spare);
+    if (spare == nullptr) {
+        jm_lu_free(lu);
+        return nullptr;
+    }
+    lu_reset(lu, 0);
+    if (lu->keep == nullptr) {
+        free(spare);
+        return nullptr;
+    }
+    *spare = *lu;
+    memset(lu, 0, sizeof *lu);
+    return spare;
+}
+
+void jm_lu_unstash(jm_lu *lu, void *spare)
+{
+    jm_lu_free(lu);
+    *lu = *(jm_lu *)spare;
+    free(spare);
+}
+
+void jm_lu_spare_free(void *spare)
+{
+    if (spare == nullptr)
+        return;
+    jm_lu_free(spare);
+    free(spare);
 }
 
 static void svec_release(jm_svec *v, int64_t **idx, double **val)
@@ -399,6 +461,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     if (lu->urow == nullptr) {
         lu->urow = jm_calloc_array(dim, sizeof(jm_svec));
         lu->ucol = jm_calloc_array(dim, sizeof(jm_svec));
+        lu->keep_dim = dim;
     }
     if (lu->keep == nullptr && (lu->keep = calloc(1, sizeof *lu->keep))) {
         lu->keep->col = jm_calloc_array(dim, sizeof(jm_svec));

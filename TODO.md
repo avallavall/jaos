@@ -227,8 +227,15 @@ conjugate-gradient iterations each node, unbilled in work units),
 `malloc`, `realloc` and `free` about 25% (some 2400 frees and 500
 reallocs a node, most from the LU's growing sparse vectors), presolve 11%
 and the LU factorization 19%. A node solve builds its simplex, its scale
-and its factors from nothing; keeping them from parent to child is the
-next lever (`bench/measurements/02-353/`). Verify with
+and its factors from nothing (`bench/measurements/02-353/`). Since
+2026-10-05 a node's LU starts with the vector storage the model's
+previous node solve left (`lu_spare`), with the same answers: `bell5`
+0.802x instructions, `flugpl` 0.804x, `lseu` 0.907x, `enigma` 0.926x
+(`bench/measurements/02-354/`). Curtis-Reid stopped earlier changes the
+rounded factors and was refused (`cr-early-stop`), and a node's
+presolved matrix repeats the previous node's in under a tenth of
+`bell5`'s nodes, so the scale's next lever is the root's factors carried
+to the nodes through the presolve's maps. Verify with
 `tools/icount.sh` and `make compare COMPARE_ARGS='-t P0'` on a quiet
 machine; the gates byte-identical or re-based.
 

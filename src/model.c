@@ -31,6 +31,7 @@ jaos_status jaos_model_new(jaos_model **out)
 static void model_release_arrays(jaos_model *m)
 {
     jm_model_drop_parked(m);
+    jm_lu_spare_free(m->lu_spare);
     free(m->col_cost);
     free(m->col_lower);
     free(m->col_upper);
