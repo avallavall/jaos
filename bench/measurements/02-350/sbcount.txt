@@ -1,0 +1,8 @@
+rgn | rel0 optimal 7843503 127  | c1 optimal 13237669 73  | c2 optimal 14647369 71  | c4 optimal 16422670 87 
+misc03 | rel0 optimal 46446205 240  | c1 optimal 81921893 211  | c2 optimal 108005345 263  | c4 optimal 159689230 171 
+mod008 | rel0 optimal 26750761 683  | c1 optimal 52602034 1439  | c2 optimal 59538415 1343  | c4 optimal 68914532 1441 
+enigma | rel0 optimal 35809163 1983  | c1 optimal 128262747 5925  | c2 optimal 87201359 3008  | c4 optimal 81564747 2390 
+gt2 | rel0 optimal 22753442 669  | c1 optimal 3401871 5  | c2 optimal 3401871 5  | c4 optimal 3401871 5 
+p0201 | rel0 optimal 71026934 362  | c1 optimal 114806503 159  | c2 optimal 111039469 53  | c4 optimal 109994556 46 
+blend2 | rel0 optimal 700109331 6869  | c1 optimal 614026380 6010  | c2 optimal 612450350 5383  | c4 optimal 659793125 5504 
+bell5 | rel0 optimal 295719840 20089  | c1 optimal 302122051 20375  | c2 optimal 390470993 26443  | c4 work_limit 3000006628 204196 

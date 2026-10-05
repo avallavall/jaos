@@ -59,7 +59,31 @@ explains the growth on its own: clique fixing, reduced-cost fixing,
 conflicts, the node cuts (`--cut-depth 0`: `rgn` 169 to 391 nodes,
 `mod008` 1555 to 553), or best-bound node selection (`rgn` 135 to 353).
 
-What this leaves for D293: probes whose gains enter the pseudocosts with
-the selection bias removed (for example a probe count that makes a column
-reliable while its gain stays out of the average), or cheaper probes (a
-capped dual simplex that still publishes its bound).
+## Probes that count toward reliability
+
+`sbcount.py` (`JAOS_SBCOUNT`) keeps the gains out of the pseudocosts as
+above, and counts each probe toward its column's reliability in a separate
+counter, so the probing stops. A reliable column with no tree observation
+is scored by the tree's average pseudocost. At a work limit of 3e9 a
+model (`sbcount.txt`, work and nodes):
+
+| model | reliability 0 | counted, 1 | counted, 2 | counted, 4 |
+|---|---|---|---|---|
+| `rgn` | 7.84e6, 127 | 13.2e6, 73 | 14.6e6, 71 | 16.4e6, 87 |
+| `misc03` | 46.4e6, 240 | 81.9e6, 211 | 108e6, 263 | 160e6, 171 |
+| `mod008` | 26.8e6, 683 | 52.6e6, 1439 | 59.5e6, 1343 | 68.9e6, 1441 |
+| `enigma` | 35.8e6, 1983 | 128e6, 5925 | 87.2e6, 3008 | 81.6e6, 2390 |
+| `gt2` | 22.8e6, 669 | 3.40e6, 5 | 3.40e6, 5 | 3.40e6, 5 |
+| `p0201` | 71.0e6, 362 | 115e6, 159 | 111e6, 53 | 110e6, 46 |
+| `blend2` | 700e6, 6869 | 614e6, 6010 | 612e6, 5383 | 660e6, 5504 |
+| `bell5` | 296e6, 20089 | 302e6, 20375 | 390e6, 26443 | 3e9 (limit), 204196 |
+
+The counted form gains on `gt2`, `p0201` and `blend2` and loses on
+`mod008`, `enigma` and `bell5`: a column made reliable by probes alone
+falls back on the average pseudocost, which misleads the choice as the
+probes' own averages did.
+
+What this leaves for D293: a pseudocost for a probed column that the
+tree's observations can be compared with (a probe gain corrected for the
+selection it misses), or cheaper probes (a capped dual simplex that still
+publishes its bound).
