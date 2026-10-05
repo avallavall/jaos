@@ -153,7 +153,10 @@ mode substitutes out the column farthest from its bounds
 (`bench/measurements/02-347/`): `timtab1`'s root goes from 245047 to
 427178 and its bound at the limit from 414399 to 528764 (SCIP's root
 457552, HiGHS's 609536), still with no point; `p200x1188c` solves and the
-gap sum is 14.61. `csched008`'s root costs 3.71e9 work units since
+gap sum is 14.61. The root sub-MIP never runs on `timtab1` (34 of 171
+integer columns integral); run at any share it finds 833156 only past
+10000 nodes, and on the other four its box is infeasible
+(`noinc-rens-any-share`, `bench/measurements/02-348/`). `csched008`'s root costs 3.71e9 work units since
 its re-solves after cuts make their weights exact
 (`bench/measurements/02-334/`), and its bound at the limit is 171 (the
 reference 173), with no point. Fourth, `binkar10_1` holds the reference's point and
