@@ -64,3 +64,21 @@ solved and 25 incumbents as before.
 as its stop point; on its three-row model that now falls before the first
 pivot. The test now takes its stop point from a first stop at a work limit
 of 1, plus one unit, which lands after a pivot.
+
+## Instructions
+
+A factorization is charged a fixed `JM_WORK_FACTOR` (4096 work units) on
+top of its operations, so on a small basis the charge is most of it, and
+the work units overstate the gain on small models. Callgrind's instruction
+count of a full `jaos solve`, the tree of 0908bf3 against 7300529:
+
+| model | instructions | work units | nodes |
+|---|---|---|---|
+| `bell5` | 0.894x | 0.696x | 20089 both |
+| `lseu` | 0.622x | 0.512x | 5670 to 4005 |
+| `enigma` | 0.591x | 0.524x | 1983 to 895 |
+| `flugpl` | 0.997x | 0.630x | 1937 both |
+
+Where the tree keeps its nodes, a node saves about a tenth of its
+instructions (`bell5`, 91 rows); on `flugpl`'s 18-row basis the saving is
+not measurable. The larger moves come with trees that change shape.
