@@ -180,6 +180,11 @@ and 215 nodes. Better root points do not shrink those trees, and strong
 branching does at a price the small trees cannot pay
 (`bench/measurements/02-336/`); the next form is a probe that learns from a
 child stopped by a work cap or proved infeasible (D293's reopen clause).
+A survey of every root against SCIP's cuts
+(`bench/measurements/02-351/`) finds Gomory cuts the family JAOS uses
+least: SCIP's Gomory rounds alone close most of the root gap on `dcmulti`,
+`misc06`, `lseu`, `khb05250`, `p0201` and `misc03`, and a second JAOS
+round reads 1.111x on MIPLIB 3, the small trees paying.
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
