@@ -35,6 +35,7 @@ typedef struct {
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
+    bool node_no_presolve;
     bool cut_resolve;
     bool no_aggregate;
 

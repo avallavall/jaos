@@ -181,6 +181,9 @@ constexpr double MIP_PC_EPS = 1e-6;
 constexpr int64_t MIP_RELIABILITY = 0;
 constexpr int64_t MIP_STRONG_CANDIDATES = 8;
 
+constexpr int64_t MIP_NODE_PRESOLVE_TRIAL = 50;
+constexpr double MIP_NODE_PRESOLVE_ITERS = 20.0;
+
 constexpr double MIP_PROBE_CAP = 0.0;
 
 constexpr int64_t MIP_PROBE_DEPTH = -1;
@@ -5715,6 +5718,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     jaos_status rc = JAOS_ERR_OUT_OF_MEMORY;
     jaos_model *lp = nullptr;
     bheap heap = { .by_est = node_select == 1 };
+    int64_t npre_n = 0, npre_it = 0;
     kheap kh = {0};
     int64_t picks = 0;
     const int64_t batch = m->cfg.mip_tree_batch < 1 ? 1
@@ -6184,6 +6188,21 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         const int64_t node_work = jaos_work_units(lp);
         work += node_work;
         iters += jaos_iterations(lp);
+        if (nodes > 1 && !lp->cfg.node_no_presolve &&
+            npre_n < MIP_NODE_PRESOLVE_TRIAL) {
+            npre_n++;
+            npre_it += jaos_iterations(lp);
+            if (npre_n == MIP_NODE_PRESOLVE_TRIAL &&
+                (double)npre_it >
+                    MIP_NODE_PRESOLVE_ITERS * (double)MIP_NODE_PRESOLVE_TRIAL) {
+                lp->cfg.node_no_presolve = true;
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "node %lld: the first %lld node relaxations took %.1f "
+                       "iterations each; the nodes after them skip presolve",
+                       (long long)nodes, (long long)MIP_NODE_PRESOLVE_TRIAL,
+                       (double)npre_it / (double)MIP_NODE_PRESOLVE_TRIAL);
+            }
+        }
         phase_to(&ph, work, PH_OTHER);
         if (nodes > 1 &&
             (st == JAOS_ERR_NUMERICAL ||

@@ -18,11 +18,11 @@ brandy       ok        dual=181/992257 concurrent=0+181/992257 verdict=optimal/o
 capri        ok        dual=206/332986 concurrent=0+206/332986 verdict=optimal/optimal obj=2690.0129137681602/2690.0129137681602 checker=dual:ok/concurrent:ok 
 cycle        ok        dual=917/12882226 concurrent=0+917/12882226 verdict=optimal/optimal obj=-5.2263930248941017/-5.2263930248941017 checker=dual:ok/concurrent:ok 
 czprob       ok        dual=1154/13025221 concurrent=0+1154/13025221 verdict=optimal/optimal obj=2185196.6988565773/2185196.6988565773 checker=dual:ok/concurrent:ok 
-d2q06c       ok        dual=8846/583519565 concurrent=0+8846/852162610 verdict=optimal/optimal obj=122784.21081418944/122784.21081418944 checker=dual:ok/concurrent:ok 
+d2q06c       ok        dual=8846/583519565 concurrent=0+8846/853694086 verdict=optimal/optimal obj=122784.21081418944/122784.21081418944 checker=dual:ok/concurrent:ok 
 d6cube       ok        dual=419/24776601 concurrent=0+419/24776601 verdict=optimal/optimal obj=315.49166666666667/315.49166666666667 checker=dual:ok/concurrent:ok 
 degen2       ok        dual=591/5334102 concurrent=0+591/5334102 verdict=optimal/optimal obj=-1435.1780000000001/-1435.1780000000001 checker=dual:ok/concurrent:ok 
 degen3       ok        dual=2303/73851191 concurrent=0+2303/73851191 verdict=optimal/optimal obj=-987.29399999999998/-987.29399999999998 checker=dual:ok/concurrent:ok 
-dfl001       ok        dual=20409/2252737390 concurrent=0+20409/5480417479 verdict=optimal/optimal obj=11266396.046671389/11266396.046671389 checker=dual:ok/concurrent:ok 
+dfl001       ok        dual=20409/2252737390 concurrent=0+20409/5495292091 verdict=optimal/optimal obj=11266396.046671389/11266396.046671389 checker=dual:ok/concurrent:ok 
 e226         ok        dual=265/1492886 concurrent=0+265/1492886 verdict=optimal/optimal obj=-11.638929066370549/-11.638929066370549 checker=dual:ok/concurrent:ok 
 etamacro     ok        dual=571/3269352 concurrent=0+571/3269352 verdict=optimal/optimal obj=-755.7152333749134/-755.7152333749134 checker=dual:ok/concurrent:ok 
 fffff800     ok        dual=690/5312826 concurrent=0+690/5312826 verdict=optimal/optimal obj=555679.56481749623/555679.56481749623 checker=dual:ok/concurrent:ok 
@@ -43,15 +43,15 @@ israel       ok        dual=100/583426 concurrent=0+100/583426 verdict=optimal/o
 kb2          ok        dual=43/62823 concurrent=0+43/62823 verdict=optimal/optimal obj=-1749.9001299062056/-1749.9001299062056 checker=dual:ok/concurrent:ok 
 lotfi        ok        dual=200/809408 concurrent=0+200/809408 verdict=optimal/optimal obj=-25.264706061880005/-25.264706061880005 checker=dual:ok/concurrent:ok 
 maros        ok        dual=1108/11450655 concurrent=0+1108/11450655 verdict=optimal/optimal obj=-58063.743701125895/-58063.743701125895 checker=dual:ok/concurrent:ok 
-maros-r7     ok        dual=2574/248155186 concurrent=0+2574/567867022 verdict=optimal/optimal obj=1497185.1664796439/1497185.1664796439 checker=dual:ok/concurrent:ok 
+maros-r7     ok        dual=2574/248155186 concurrent=0+2574/575440916 verdict=optimal/optimal obj=1497185.1664796439/1497185.1664796439 checker=dual:ok/concurrent:ok 
 modszk1      ok        dual=611/4638822 concurrent=0+611/4638822 verdict=optimal/optimal obj=320.61972906430913/320.61972906430913 checker=dual:ok/concurrent:ok 
 nesm         ok        dual=2746/58217113 concurrent=0+2746/58217113 verdict=optimal/optimal obj=14076036.487562729/14076036.487562729 checker=dual:ok/concurrent:ok 
 perold       ok        dual=1340/29413458 concurrent=0+1340/29413458 verdict=optimal/optimal obj=-9380.7552782351613/-9380.7552782351613 checker=dual:ok/concurrent:ok 
-pilot        ok        dual=5636/891033818 concurrent=0+5636/1199247395 verdict=optimal/optimal obj=-557.48972928406818/-557.48972928406818 checker=dual:ok/concurrent:ok 
+pilot        ok        dual=5636/891033818 concurrent=0+5636/1201577713 verdict=optimal/optimal obj=-557.48972928406818/-557.48972928406818 checker=dual:ok/concurrent:ok 
 pilot-ja     ok        dual=1488/42270715 concurrent=0+1488/42270715 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813431 checker=dual:ok/concurrent:ok 
 pilot-we     ok        dual=2754/73799729 concurrent=0+2754/73799729 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/concurrent:ok 
 pilot4       ok        dual=832/18352099 concurrent=0+832/18352099 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838885 checker=dual:ok/concurrent:ok 
-pilot87      ok        dual=9490/3166227751 concurrent=0+9490/5557832897 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/concurrent:ok 
+pilot87      ok        dual=9490/3166227751 concurrent=0+9490/5570429583 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/concurrent:ok 
 pilotnov     ok        dual=2675/87209787 concurrent=0+2675/87209787 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/concurrent:ok 
 recipe       ok        dual=42/25273 concurrent=0+42/25273 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/concurrent:ok 
 sc105        ok        dual=69/68529 concurrent=0+69/68529 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/concurrent:ok 
@@ -96,7 +96,7 @@ woodw        ok        dual=1186/38855518 concurrent=0+1186/38855518 verdict=opt
 
 -- concurrent against dual --
 agreed 94 (checker accepts 94, interior 0), skipped 0, overrun 0, failed 0, disagreed 0, rejected 0, errors 0
-work units concurrent/dual, geometric mean:        1.0584
+work units concurrent/dual, geometric mean:        1.0586
 iterations (concurrent+1)/(dual+1), geometric mean: 0.9881
 work ratio, best  25fv47 at 1.0000
 work ratio, worst greenbeb at 2.7367

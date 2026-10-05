@@ -4604,11 +4604,18 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     #if !defined(JAOS_NO_PRESOLVE)
 
         const bool quadratic = jm_model_has_quadratic(m);
-        jaos_status pst = quadratic ? JAOS_OK : jm_presolve_run(m, &p, &pre_work);
+        const bool node_skip = m->cfg.node_solve && m->cfg.node_no_presolve &&
+                               m->start_col_status != nullptr &&
+                               m->start_row_status != nullptr;
+        jaos_status pst = quadratic || node_skip
+                              ? JAOS_OK
+                              : jm_presolve_run(m, &p, &pre_work);
         if (pst != JAOS_OK) {
             jm_presolve_free(&p);
             return pst;
         }
+        if (node_skip && !quadratic)
+            p.outcome = JM_PRESOLVE_NONE;
         if (quadratic) {
             p.outcome = JM_PRESOLVE_NONE;
             jm_log(m, JAOS_LOG_SUMMARY,

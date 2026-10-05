@@ -260,6 +260,10 @@ restarts outside network mode (they need a MIP presolve that removes what
 they fix; on every model MIPLIB 3 reads 1.061x, `bench/measurements/02-345/`),
 bound propagation
 and probing. Each needs a reading that lands it on, on the tree J7 leaves.
+Since 2026-10-05 a tree whose first 50 node relaxations average more than
+20 iterations skips the LP presolve at its warm nodes (MIPLIB 3 0.903x,
+`bench/measurements/02-352/`); presolve off at every warm node still runs
+`bell5` out of memory.
 Clique fixing and RINS went on on 2026-09-25, RINS off for a quadratic
 objective, and reduced-cost fixing on 2026-10-04. Read again one at a time
 on the tree of 3dfc0f6 (`bench/measurements/02-335/`), against MIPLIB 3's
