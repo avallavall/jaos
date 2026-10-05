@@ -3567,6 +3567,7 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
 {
     const int64_t nc = m->num_col;
     const int64_t nr = cx != nullptr ? lp->num_row : m->num_row;
+    const bool by_dist = cx == nullptr;
     int64_t added = 0;
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return -1;
@@ -3575,9 +3576,38 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
     int64_t *tl = jm_alloc_array(nc > 0 ? nc : 1, sizeof *tl);
     int64_t *ul = jm_alloc_array(steps + 1, sizeof *ul);
     bool *intl = jm_calloc_array(nc > 0 ? nc : 1, sizeof *intl);
-    if (tl == nullptr || ul == nullptr || intl == nullptr) {
+    double *dist = jm_alloc_array(nc > 0 ? nc : 1, sizeof *dist);
+    if (tl == nullptr || ul == nullptr || intl == nullptr || dist == nullptr) {
         added = -1;
         goto out;
+    }
+    *work += nc;
+    for (int64_t j = 0; j < nc; j++) {
+        dist[j] = 0.0;
+        if (m->col_integer[j])
+            continue;
+        double lo = ilo[j], hi = ihi[j];
+        if (cx != nullptr && !simple && cx->vlb_y[j] >= 0) {
+            const double v = cx->vlb_l[j] * x[cx->vlb_y[j]];
+            if (!isfinite(lo) || v > lo)
+                lo = v;
+        }
+        if (cx != nullptr && !simple && cx->vub_y[j] >= 0) {
+            const double v = cx->vub_u[j] * x[cx->vub_y[j]];
+            if (!isfinite(hi) || v < hi)
+                hi = v;
+        }
+        if ((isfinite(lo) && x[j] - lo <= MIP_INT_TOL) ||
+            (isfinite(hi) && hi - x[j] <= MIP_INT_TOL))
+            continue;
+        if (!isfinite(lo) && !isfinite(hi))
+            dist[j] = INFINITY;
+        else if (!isfinite(lo))
+            dist[j] = hi - x[j];
+        else if (!isfinite(hi))
+            dist[j] = x[j] - lo;
+        else
+            dist[j] = fmin(x[j] - lo, hi - x[j]);
     }
     memset(agg, 0, (size_t)nc * sizeof *agg);
     memset(cmag, 0, (size_t)(nc > 0 ? nc : 1) * sizeof *cmag);
@@ -3609,38 +3639,29 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                 *work += nt * (MIP_MIR_DELTAS + 2);
 
                 int64_t pick = -1;
-                double pick_a = 0.0;
+                double pick_a = 0.0, pick_d = 0.0;
                 for (int64_t t = 0; t < nt; t++) {
                     const int64_t j = tl[t];
-                    if (agg[j] == 0.0 || m->col_integer[j] || picked[j])
+                    if (agg[j] == 0.0 || m->col_integer[j] || picked[j] ||
+                        dist[j] == 0.0)
                         continue;
-                    double lo = ilo[j], hi = ihi[j];
-                    if (cx != nullptr && !simple && cx->vlb_y[j] >= 0) {
-                        const double v = cx->vlb_l[j] * x[cx->vlb_y[j]];
-                        if (!isfinite(lo) || v > lo)
-                            lo = v;
-                    }
-                    if (cx != nullptr && !simple && cx->vub_y[j] >= 0) {
-                        const double v = cx->vub_u[j] * x[cx->vub_y[j]];
-                        if (!isfinite(hi) || v < hi)
-                            hi = v;
-                    }
-                    if ((isfinite(lo) && x[j] - lo <= MIP_INT_TOL) ||
-                        (isfinite(hi) && hi - x[j] <= MIP_INT_TOL))
-                        continue;
-                    const double aj = fabs(agg[j]);
-                    if (aj > pick_a || (aj == pick_a && j < pick)) {
+                    const double aj = fabs(agg[j]), dj = dist[j];
+                    const bool by_a = aj > pick_a || (aj == pick_a && j < pick);
+                    if (by_dist ? pick < 0 || dj > pick_d ||
+                                      (dj == pick_d && by_a)
+                                : by_a) {
                         pick_a = aj;
+                        pick_d = dj;
                         pick = j;
                     }
                 }
                 if (pick < 0)
                     break;
 
-                int64_t rrow = -1;
-                double lambda = 0.0, rbound = 0.0;
-                for (int64_t k = lp->a_start[pick];
-                     k < lp->a_start[pick + 1] && rrow < 0; k++) {
+                int64_t rrow = -1, best_free = 0;
+                double lambda = 0.0, rbound = 0.0, best_mass = 0.0;
+                for (int64_t k = lp->a_start[pick]; k < lp->a_start[pick + 1];
+                     k++) {
                     const int64_t r = lp->a_index[k];
                     if (r >= nr || used[r])
                         continue;
@@ -3663,9 +3684,30 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
                                                  : lp->row_upper[r];
                     if (!isfinite(bnd))
                         continue;
+                    int64_t nfree = 0;
+                    double mass = 0.0;
+                    *work += lp->ar_start[r + 1] - lp->ar_start[r];
+                    for (int64_t q = lp->ar_start[r]; q < lp->ar_start[r + 1];
+                         q++) {
+                        const int64_t j = lp->ar_index[q];
+                        if (dist[j] == 0.0)
+                            continue;
+                        const double was = agg[j];
+                        const double now = was - lam * lp->ar_value[q];
+                        if (isinf(dist[j]))
+                            nfree += (now != 0.0) - (was != 0.0);
+                        else
+                            mass += (fabs(now) - fabs(was)) * dist[j];
+                    }
+                    if (rrow >= 0 &&
+                        (nfree > best_free ||
+                         (nfree == best_free && !(mass < best_mass))))
+                        continue;
                     rrow = r;
                     lambda = lam;
                     rbound = bnd;
+                    best_free = nfree;
+                    best_mass = mass;
                 }
                 if (rrow < 0)
                     break;
@@ -3712,6 +3754,7 @@ out:
     free(tl);
     free(ul);
     free(intl);
+    free(dist);
     return added;
 }
 

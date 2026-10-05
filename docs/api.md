@@ -783,7 +783,8 @@ under the same cap. It is off by default.
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\
 Lets an MIR row absorb up to `rows` other rows before it is rounded. Each
-absorbed row substitutes out a continuous column. The default is 6 since
+absorbed row substitutes out a continuous column, and is the row that
+leaves the aggregate's continuous columns nearest their bounds. The default is 6 since
 2026-09-25, and 0 is the single-row form. A root round's aggregated cuts
 are tried on a copy of the root LP first and kept only when they lift its
 bound by `MIP_MIR_AGG_GAIN` of itself; after a round that drops them or

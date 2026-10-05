@@ -90,7 +90,7 @@ and the QCQP reading of 02-319 (`conread.sh`).
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 3 of 30 at 1e10 work units.** Since 2026-10-04
+J7. **MIP: MIPLIB 2017, 4 of 30 at 1e10 work units.** Since 2026-10-04
 (`bench/measurements/02-328/`) the tree rounds a bound up to the
 objective's step when every cost sits on one, the root fixes the integer
 columns its rows' implied bounds fix, two heuristics run (lock rounding at
@@ -132,7 +132,8 @@ tree once the root's reduced costs fix a fifth of the integer columns,
 carrying the first root's cuts (`bench/measurements/02-345/`):
 `p200x1188c`'s bound at the limit goes to 14999 (479 of 1188 binaries
 fixed) and the gap sum to 14.85. HiGHS restarts several times; JAOS
-restarts once. A MIP presolve that merges the flows through a node
+restarts once. Since the aggregation's row choice of 02-347,
+`p200x1188c` solves and `beasleyC3` holds 782 over 739. A MIP presolve that merges the flows through a node
 (`bench/measurements/02-337/`) takes `beasleyC3` to 797 with a bound of
 724; HiGHS's presolve removes 597 of its 1750 rows where JAOS's removes
 161, so its other reductions come next. Second, flat roots: `neos-911970` and
@@ -146,7 +147,13 @@ first stall (`bench/measurements/02-333/`). `neos-3381206-awhea`'s bound sits fl
 rounds, so the rule stops it at 416; 20 rounds of Gomory cuts take its root
 to 445.3 for 6.1e9 work units. Third, no incumbent: `glass4`, `timtab1`,
 `ic97_potential`, `csched007` and `csched008`, where the feasibility jump
-fails within its cap. `csched008`'s root costs 3.71e9 work units since
+fails within its cap. Since 2026-10-05 the MIR aggregation takes the row
+that leaves the least bound distance in the aggregate, and outside network
+mode substitutes out the column farthest from its bounds
+(`bench/measurements/02-347/`): `timtab1`'s root goes from 245047 to
+427178 and its bound at the limit from 414399 to 528764 (SCIP's root
+457552, HiGHS's 609536), still with no point; `p200x1188c` solves and the
+gap sum is 14.61. `csched008`'s root costs 3.71e9 work units since
 its re-solves after cuts make their weights exact
 (`bench/measurements/02-334/`), and its bound at the limit is 171 (the
 reference 173), with no point. Fourth, `binkar10_1` holds the reference's point and
