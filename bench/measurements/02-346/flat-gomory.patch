@@ -1,0 +1,90 @@
+diff --git a/src/mip.c b/src/mip.c
+index 438b73f..7591f59 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -6751,6 +6751,85 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                         MIP_MIR_MORE_STALL * (1.0 + fabs(key_before)))
+                     break;
+             }
++            const char *fge = getenv("JAOS_FLATGOM");
++            const int64_t flat_gom = fge != nullptr ? atoll(fge) : 0;
++            fge = getenv("JAOS_FLATGOM_TOL");
++            const double flat_tol = fge != nullptr ? atof(fge) : 1e-2;
++            if (!stop && flat_gom > 0 && branch >= 0 &&
++                !jm_model_has_quadratic(m) &&
++                key - key_first < flat_tol * (1.0 + fabs(key_first))) {
++                int64_t fg_cuts = 0, fg_rounds = 0;
++                const double fg_from = key;
++                for (int64_t g = 0; g < flat_gom; g++) {
++                    phase_to(&ph, work, PH_CUTS);
++                    cb.n = cb.nnz = 0;
++                    if (row_cap < nc + lp->num_row + 1) {
++                        double *g2 = jm_realloc_array(row, nc + lp->num_row + 1,
++                                                      sizeof *row);
++                        if (g2 == nullptr)
++                            goto done;
++                        row = g2;
++                        row_cap = nc + lp->num_row + 1;
++                    }
++                    const int64_t gv = gomory_round(lp, m, x, &cb, row, cut,
++                                                    &work);
++                    if (gv < 0)
++                        goto done;
++                    if (gv == 0)
++                        break;
++                    const double kb = key;
++                    if (cuts_add(lp, &cb) != JAOS_OK)
++                        goto done;
++                    for (int64_t k = 0; root_cut_drop && k < cb.n; k++) {
++                        if (!cutbuf_append(&pool, &cb, k) ||
++                            !JM_GROW(act, act_cap, act_n + 1) ||
++                            !JM_GROW(in_copy.v, in_copy.cap, in_copy.n + 1))
++                            goto done;
++                        act[act_n++] = pool.n - 1;
++                        in_copy.v[in_copy.n++] = pool.n - 1;
++                    }
++                    cuts += gv;
++                    fg_cuts += gv;
++                    fg_rounds++;
++                    phase_to(&ph, work, PH_LP);
++                    budget(lp, m, work);
++                    st = jaos_solve(lp);
++                    solves++;
++                    work += jaos_work_units(lp);
++                    iters += jaos_iterations(lp);
++                    phase_to(&ph, work, PH_CUTS);
++                    if (st != JAOS_OK) {
++                        if (st == JAOS_ERR_NUMERICAL) {
++                            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
++                            jm_set_err(m, "root Gomory rounds: %s",
++                                       jaos_model_error(lp));
++                            stop = true;
++                            break;
++                        }
++                        goto done;
++                    }
++                    ns = jaos_status_of(lp);
++                    if (ns != JAOS_SOLVE_OPTIMAL) {
++                        outcome = ns;
++                        stop = true;
++                        break;
++                    }
++                    if (jaos_objective(lp, &obj) != JAOS_OK ||
++                        jaos_solution(lp, x, nullptr, nullptr, nullptr) !=
++                            JAOS_OK)
++                        goto done;
++                    key = sigma * obj;
++                    branch = select_branch(m, x, rule, pc_sum, pc_n);
++                    if (branch < 0 ||
++                        key - kb < MIP_MIR_MORE_STALL * (1.0 + fabs(kb)))
++                        break;
++                }
++                jm_log(m, JAOS_LOG_SUMMARY,
++                       "root: the bound sat flat, so %lld rounds of Gomory "
++                       "cuts added %lld cuts and moved it from %.17g to %.17g",
++                       (long long)fg_rounds, (long long)fg_cuts,
++                       sigma * fg_from, sigma * key);
++            }
+             lp->cfg.cut_resolve = false;
+             if (stop)
+                 break;
