@@ -221,7 +221,14 @@ singleton step no longer searches and shifts long columns (764fe58,
 updates or fewer without factoring again (`VERIFY_UPDATES`,
 `bench/measurements/02-353/`): a MIP node took two factorizations where
 one does, and MIPLIB 3 reads 0.844x, `warm` 0.949x, the LP sets 0.99x to
-1.00x. Verify with
+1.00x. A MIP node's instructions after it, on `bell5` (callgrind, 91
+rows): Curtis-Reid scaling of the presolved node LP 22% (up to 30
+conjugate-gradient iterations each node, unbilled in work units),
+`malloc`, `realloc` and `free` about 25% (some 2400 frees and 500
+reallocs a node, most from the LU's growing sparse vectors), presolve 11%
+and the LU factorization 19%. A node solve builds its simplex, its scale
+and its factors from nothing; keeping them from parent to child is the
+next lever (`bench/measurements/02-353/`). Verify with
 `tools/icount.sh` and `make compare COMPARE_ARGS='-t P0'` on a quiet
 machine; the gates byte-identical or re-based.
 
