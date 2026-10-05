@@ -217,7 +217,11 @@ dual needs 12977. JAOS already aggregates every doubleton equation of
 `stocfor3`; D97's bound transfer and a column counted implied free by any
 of its rows were refused (`bench/measurements/02-302/`). The LU's column
 singleton step no longer searches and shifts long columns (764fe58,
-`fit2p` 0.447x, `bench/measurements/02-313/`). Verify with
+`fit2p` 0.447x, `bench/measurements/02-313/`). Since 2026-10-05 a solve verifies its optimum on factors that carry 8
+updates or fewer without factoring again (`VERIFY_UPDATES`,
+`bench/measurements/02-353/`): a MIP node took two factorizations where
+one does, and MIPLIB 3 reads 0.844x, `warm` 0.949x, the LP sets 0.99x to
+1.00x. Verify with
 `tools/icount.sh` and `make compare COMPARE_ARGS='-t P0'` on a quiet
 machine; the gates byte-identical or re-based.
 

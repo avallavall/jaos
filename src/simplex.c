@@ -43,6 +43,8 @@ constexpr int64_t SPARSE_COL_DEN = 8;
 
 constexpr int64_t REFACTOR_EVERY = 64;
 
+constexpr int64_t VERIFY_UPDATES = 8;
+
 constexpr double LU_AGREE_TOL = 1e-5;
 
 constexpr int64_t TIME_CHECK_EVERY = 64;
@@ -190,6 +192,7 @@ typedef struct {
     double started;
     int64_t iters;
     bool needs_refactor;
+    bool lu_fresh;
 
     bool verified;
 
@@ -834,6 +837,7 @@ static jaos_status refactorize(sx *s)
     if (st != JAOS_OK)
         return st;
     s->needs_refactor = false;
+    s->lu_fresh = true;
     return JAOS_OK;
 }
 
@@ -1146,6 +1150,21 @@ static bool nbmark_consistent(const sx *s)
 static jaos_status refresh(sx *s, bool *ok, bool refine)
 {
     bool repaired = false;
+    if (refine && !s->needs_refactor && s->lu_fresh &&
+        s->lu.n_updates <= VERIFY_UPDATES && s->lu.rank == s->nrow) {
+        compute_primal(s, true);
+        compute_duals(s, true);
+        if (shifts_costs(s)) {
+            const bool sweep = s->shift_pending;
+            s->shift_pending = false;
+            if (sweep)
+                for (int64_t v = 0; v < s->nvar; v++)
+                    shift_to_feasible(s, v);
+        }
+        assert(nbmark_consistent(s));
+        *ok = true;
+        return JAOS_OK;
+    }
     s->n_refactor++;
 
     for (int attempt = 0;; attempt++) {

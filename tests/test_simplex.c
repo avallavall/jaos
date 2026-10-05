@@ -2505,7 +2505,15 @@ static void test_a_budget_stop_can_be_resumed(void)
     const int64_t whole_iters = jaos_iterations(m);
 
     jaos_clear_basis(m);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, whole_work / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    const int64_t part = jaos_work_units(m) + 1;
+    TEST_ASSERT_TRUE(part < whole_work);
+
+    jaos_clear_basis(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, part));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
     TEST_ASSERT_TRUE(jaos_iterations(m) > 0);
@@ -2533,7 +2541,7 @@ static void test_a_budget_stop_can_be_resumed(void)
     TEST_ASSERT_EQUAL_INT64(whole_work, jaos_work_units(m));
 
     jaos_clear_basis(m);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, whole_work / 2));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, part));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(m, cs, rs));
