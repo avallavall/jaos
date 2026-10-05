@@ -61,5 +61,9 @@ incumbents, and its gap sum goes from 14.61 to 14.53 (`binkar10_1`'s
 bound 6712.8 to 6718.4, `csched007`'s 293.8 to 299.8; `beasleyC3` 782 to
 804).
 
-The 50 and the 20 were set once from the iteration counts above and not
-swept.
+The 50 was set once and not swept. The bar of 20 was swept on MIPLIB 3
+after the landing (`npabar.py`, `m3-npa10.txt`, `m3-npa30.txt`,
+`m3-npa40.txt`, against the reading of 048124c): 0.966x at 10, where
+`enigma` crosses it and reads 3.550x; 0.903x at 20; 0.910x at 30 and
+0.907x at 40, where `khb05250` and `p0201` stay under it and keep their
+presolve.
