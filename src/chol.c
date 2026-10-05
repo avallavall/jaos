@@ -457,16 +457,14 @@ static bool nd_order(int64_t n, const int64_t *start, const int64_t *index,
         xadj[n] = q;
     }
     touched += 2 * start[n] + xadj[n];
-    int64_t live = 0, nlast = 0;
+    int64_t live = 0;
     for (int64_t v = 0; v < n; v++) {
         in[v] = 0;
         level[v] = -1;
-        if (xadj[v + 1] - xadj[v] > dense) {
+        if (xadj[v + 1] - xadj[v] > dense)
             in[v] = -1;
-            nlast++;
-        } else {
+        else
             seg[live++] = v;
-        }
     }
     {
         int64_t at = live;
@@ -544,7 +542,7 @@ static bool nd_order(int64_t n, const int64_t *start, const int64_t *index,
             j = 1;
         if (j > height - 1)
             j = height - 1;
-        int64_t na = 0, nb = 0, ns = 0;
+        int64_t na = 0, nb = 0;
         for (int64_t t = 0; t < cnt; t++) {
             const int64_t v = s[t];
             const int64_t lv = level[v];
@@ -564,7 +562,6 @@ static bool nd_order(int64_t n, const int64_t *start, const int64_t *index,
             mark[v] = side;
             na += side == 0;
             nb += side == 1;
-            ns += side == 2;
         }
         touched += cnt;
         {
