@@ -185,7 +185,19 @@ about 200 iterations over all 672 root cuts (7700 with
 `--no-root-cut-drop`), and strong branching at any reliability spends the
 budget in a few nodes, because a probe is a full LP solve rather than a
 few dual steps on the node's factors. `csched008`: HiGHS's first point,
-184, comes from a sub-MIP at node 533. Fourth, `binkar10_1` holds the reference's point and
+184, comes from a sub-MIP at node 533. `timtab1`: HiGHS's root takes the
+LP's 28694 to 569441 with 161 cuts held in its LP after one restart, and
+to 609536 later, where JAOS's ends at 427178 with 1943; HiGHS's points
+(816264 at the root, 767438 by 20 s) come from sub-MIPs that its stronger
+root lets fix enough columns. JAOS's zero-half finds no cut on `timtab1`
+or `ic97_potential`, because it reads only rows of integer columns and
+these rows carry continuous tension columns. Taking each continuous column
+out at the bound that leaves its term nonnegative (tried 2026-10-08 in a
+scratch build) still finds none: a single tension row then says only
+`p >= 0`. The periodicity shows only once the rows around a cycle of the
+event graph are summed and the potentials cancel, so the cut has to start
+from cycle aggregates, which neither zero-half nor JAOS's MIR aggregation
+builds today. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
 reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
 at reliability 4, the best-bound order and propagation at 4 passes end its
