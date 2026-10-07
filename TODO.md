@@ -159,7 +159,13 @@ integer columns integral); run at any share it finds 833156 only past
 (`noinc-rens-any-share`, `bench/measurements/02-348/`). `csched008`'s root costs 3.71e9 work units since
 its re-solves after cuts make their weights exact
 (`bench/measurements/02-334/`), and its bound at the limit is 171 (the
-reference 173), with no point. Fourth, `binkar10_1` holds the reference's point and
+reference 173), with no point. Since 2026-10-05 a tree that holds no
+incumbent after 1000 nodes dives, resuming from its stack up to 100 times a
+dive (`bench/measurements/02-355/`): `timtab1` finds 1128183 and `glass4`
+5.50e9, the other models read the same, and the gap sum is 13.94.
+`ic97_potential`, `csched007` and `csched008` still hold no point;
+`csched007` finds 378 when the dive starts at node 0, which costs `enigma`
+8x on MIPLIB 3. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
 reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
 at reliability 4, the best-bound order and propagation at 4 passes end its

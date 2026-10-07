@@ -101,7 +101,8 @@ passes flow on. The root fixes the integer columns its rows' implied bounds
 fix and the binaries its parity rows fix by elimination mod 2, and a bound
 rounds up to the objective's step when every cost sits on one. A rounding heuristic, lock rounding, a feasibility jump, a root dive,
 a feasibility pump and a sub-MIP heuristic (RENS at the root, RINS at the
-root and in the tree). A solution pool of distinct integer assignments, a MIP
+root and in the tree). A tree that has no incumbent after 1000 nodes dives
+until it finds one. A solution pool of distinct integer assignments, a MIP
 start, a cutoff, a node limit, an
 incumbent callback and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.

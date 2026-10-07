@@ -1,0 +1,40 @@
+--- a/src/mip.c	2026-10-07 22:11:44.509555201 +0200
++++ b/src/mip.c	2026-10-07 22:11:44.513613949 +0200
+@@ -5689,6 +5689,8 @@
+     const bool dive = m->cfg.mip_dive;
+ 
+     const bool stack_dive = dive && (backtrack > 0 || dive_gap > 0.0);
++    const int64_t noinc_bt = getenv("JAOS_NOINC") ? atoll(getenv("JAOS_NOINC")) : 0;
++    const int64_t noinc_after = getenv("JAOS_NOINC_AFTER") ? atoll(getenv("JAOS_NOINC_AFTER")) : 0;
+     const bool heur = !m->cfg.mip_no_heuristics;
+     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
+     const int64_t reliability = rule == JAOS_BRANCH_PSEUDOCOST
+@@ -6006,7 +6008,9 @@
+                     cur = next;
+                     next = nullptr;
+                 } else if (dstack_n > 0 &&
+-                           (backtrack == 0 || backtracks < backtrack) &&
++                           (stack_dive || (noinc_bt > 0 && !inc.have && nodes >= noinc_after)) &&
++                           ((noinc_bt > 0 && !inc.have && nodes >= noinc_after && !dive) ? backtracks < noinc_bt
++                                : (backtrack == 0 || backtracks < backtrack)) &&
+                            resume_within(dstack[dstack_n - 1], &heap, &kh, dstack,
+                                          dstack_n, dive_gap)) {
+                     cur = dstack[--dstack_n];
+@@ -7861,7 +7865,7 @@
+             up->est = rest + frac_u * pseudocost(branch, 1, nc, pc_sum, pc_n);
+         }
+ 
+-        const bool dive_here = dive &&
++        const bool dive_here = (dive || (noinc_bt > 0 && !inc.have && nodes >= noinc_after)) &&
+             (degrade <= 0.0 || cur == nullptr ||
+              branch_key - cur->key <= degrade * (1.0 + fabs(cur->key)));
+         bnode *first = f < 0.5 ? down : up;
+@@ -7880,7 +7884,7 @@
+         bnode *other = first == down ? up : down;
+         if (dive_here) {
+ 
+-            if (stack_dive) {
++            if (stack_dive || (noinc_bt > 0 && !inc.have && nodes >= noinc_after)) {
+                 if (!JM_GROW(dstack, dstack_cap, dstack_n + 1)) {
+                     node_free(down);
+                     node_free(up);

@@ -677,7 +677,11 @@ only nodes whose bound does not beat it. Any other value fails.
 `jaos_status jaos_set_mip_dive(jaos_model *m, bool on)`\
 Turns diving on or off. It is off by default. While diving, the tree solves
 next the child that `jaos_set_mip_dive_child` picks and puts the sibling in
-the open set, until a node is pruned or integral.
+the open set, until a node is pruned or integral. With diving off, a tree
+that holds no incumbent after `MIP_NOINC_DIVE_AFTER` (1000) nodes dives on
+its own until it finds one, resuming from the siblings it left up to
+`MIP_NOINC_DIVE_BACKTRACKS` (100) times a dive. With diving on, the
+settings of this call and of `jaos_set_mip_dive_backtrack` hold instead.
 
 **`jaos_set_mip_cut_rounds`**\
 `jaos_status jaos_set_mip_cut_rounds(jaos_model *m, int64_t rounds)`\

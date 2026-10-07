@@ -184,6 +184,9 @@ constexpr int64_t MIP_STRONG_CANDIDATES = 8;
 constexpr int64_t MIP_NODE_PRESOLVE_TRIAL = 50;
 constexpr double MIP_NODE_PRESOLVE_ITERS = 20.0;
 
+constexpr int64_t MIP_NOINC_DIVE_AFTER = 1000;
+constexpr int64_t MIP_NOINC_DIVE_BACKTRACKS = 100;
+
 constexpr double MIP_PROBE_CAP = 0.0;
 
 constexpr int64_t MIP_PROBE_DEPTH = -1;
@@ -5798,6 +5801,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t mirs = 0;
     bnode **dstack = nullptr;
     int64_t dstack_n = 0, dstack_cap = 0, backtracks = 0;
+    bool noinc_told = false;
     int64_t first_inc = 0;
     int64_t rcfixed = 0;
     int64_t tightened = 0;
@@ -6002,11 +6006,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             cur = nullptr;
             for (;;) {
                 bool resumed = false;
+                const bool noinc_dive = !dive && !inc.have &&
+                                        nodes >= MIP_NOINC_DIVE_AFTER;
                 if (next != nullptr) {
                     cur = next;
                     next = nullptr;
-                } else if (dstack_n > 0 &&
-                           (backtrack == 0 || backtracks < backtrack) &&
+                } else if (dstack_n > 0 && (stack_dive || noinc_dive) &&
+                           (noinc_dive ? backtracks < MIP_NOINC_DIVE_BACKTRACKS
+                                       : backtrack == 0 || backtracks < backtrack) &&
                            resume_within(dstack[dstack_n - 1], &heap, &kh, dstack,
                                          dstack_n, dive_gap)) {
                     cur = dstack[--dstack_n];
@@ -7861,7 +7868,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             up->est = rest + frac_u * pseudocost(branch, 1, nc, pc_sum, pc_n);
         }
 
-        const bool dive_here = dive &&
+        const bool noinc_dive = !dive && !inc.have &&
+                                nodes >= MIP_NOINC_DIVE_AFTER;
+        if (noinc_dive && !noinc_told) {
+            noinc_told = true;
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "node %lld: no incumbent yet; the tree dives, resuming "
+                   "from its stack up to %lld times a dive",
+                   (long long)nodes, (long long)MIP_NOINC_DIVE_BACKTRACKS);
+        }
+        const bool dive_here = (dive || noinc_dive) &&
             (degrade <= 0.0 || cur == nullptr ||
              branch_key - cur->key <= degrade * (1.0 + fabs(cur->key)));
         bnode *first = f < 0.5 ? down : up;
@@ -7880,7 +7896,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         bnode *other = first == down ? up : down;
         if (dive_here) {
 
-            if (stack_dive) {
+            if (stack_dive || noinc_dive) {
                 if (!JM_GROW(dstack, dstack_cap, dstack_n + 1)) {
                     node_free(down);
                     node_free(up);
