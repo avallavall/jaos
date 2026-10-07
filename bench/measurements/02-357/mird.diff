@@ -1,0 +1,193 @@
+--- a/src/mip.c	2026-10-08 00:29:43.284648796 +0200
++++ b/src/mip.c	2026-10-08 00:29:43.292812919 +0200
+@@ -3107,7 +3107,7 @@
+             lo[t] = ceil(ilo[j] - MIP_INT_TOL);
+             hi[t] = floor(ihi[j] + MIP_INT_TOL);
+             box *= hi[t] - lo[t] + 1.0;
+-            fit = hi[t] >= lo[t] && box <= (double)MIP_HULL_POINTS;
++            fit = box <= (double)MIP_HULL_POINTS;
+             const double f = x[j] - floor(x[j]);
+             if (f > MIP_INT_TOL && f < 1.0 - MIP_INT_TOL)
+                 frac = true;
+@@ -3228,6 +3228,65 @@
+     return hi - xj < xj - lo;
+ }
+ 
++static double mir_cut_at(const jaos_model *m, const double *x,
++                         const double *ilo, const double *ihi,
++                         const double *a_in, double b_in, const int64_t *nz,
++                         int64_t nnz, const bool *flip, double d, double *cut,
++                         double *rhs_out)
++{
++    double b = b_in;
++    for (int64_t t = 0; t < nnz; t++) {
++        const int64_t j = nz[t];
++        const double a = a_in[j];
++        if (a == 0.0)
++            continue;
++        const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]) !=
++                           (flip != nullptr && flip[t]);
++        b -= at_up ? a * ihi[j] : a * ilo[j];
++    }
++    const double b0 = b / d, f0 = b0 - floor(b0);
++    if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
++        return -1.0;
++    for (int64_t t = 0; t < nnz; t++)
++        cut[nz[t]] = 0.0;
++    double rhs = floor(b0);
++    for (int64_t t = 0; t < nnz; t++) {
++        const int64_t j = nz[t];
++        const double a0 = a_in[j];
++        if (a0 == 0.0)
++            continue;
++        const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]) !=
++                           (flip != nullptr && flip[t]);
++        const double a = (at_up ? -a0 : a0) / d;
++        double c;
++        if (m->col_integer[j]) {
++            const double fa = floor(a), fj = a - fa;
++            c = fa + (fj > f0 ? (fj - f0) / (1.0 - f0) : 0.0);
++        } else {
++            c = a < 0.0 ? a / (1.0 - f0) : 0.0;
++        }
++        if (c == 0.0)
++            continue;
++        if (at_up) {
++            cut[j] -= c;
++            rhs -= c * ihi[j];
++        } else {
++            cut[j] += c;
++            rhs += c * ilo[j];
++        }
++    }
++    double act = 0.0, nrm = 0.0;
++    for (int64_t t = 0; t < nnz; t++) {
++        const int64_t k = nz[t];
++        act += cut[k] * x[k];
++        nrm += cut[k] * cut[k];
++    }
++    *rhs_out = rhs;
++    if (nrm == 0.0)
++        return -1.0;
++    return (act - rhs) / sqrt(nrm);
++}
++
+ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                     const double *ilo, const double *ihi, const double *a_in,
+                     double b_in, double mag_in, int64_t terms_in,
+@@ -3275,58 +3334,73 @@
+ 
+             if (!ok || DBL_EPSILON * mag * (double)terms > MIP_MIR_ROUND)
+                 return 0;
+-            double best_eff = 0.0, best_rhs = 0.0;
++            double best_eff = 0.0, best_rhs = 0.0, best_d = 0.0;
+             bool have = false;
+             for (int64_t q = 0; q < nd; q++) {
+-                const double d = delta[q], b0 = b / d;
+-                const double f0 = b0 - floor(b0);
+-                if (f0 < MIP_CUT_AWAY || f0 > 1.0 - MIP_CUT_AWAY)
+-                    continue;
+-
+-                for (int64_t t = 0; t < nnz; t++)
+-                    cut[nz[t]] = 0.0;
+-                double rhs = floor(b0);
+-                for (int64_t t = 0; t < nnz; t++) {
+-                    const int64_t j = nz[t];
+-                    const double a0 = a_in[j];
+-                    if (a0 == 0.0)
+-                        continue;
+-                    const bool at_up = shift_to_upper(ilo[j], ihi[j], x[j]);
+-                    const double a = (at_up ? -a0 : a0) / d;
+-                    double c;
+-                    if (m->col_integer[j]) {
+-                        const double fa = floor(a), fj = a - fa;
+-                        c = fa + (fj > f0 ? (fj - f0) / (1.0 - f0) : 0.0);
+-                    } else {
+-                        c = a < 0.0 ? a / (1.0 - f0) : 0.0;
+-                    }
+-                    if (c == 0.0)
+-                        continue;
+-                    if (at_up) {
+-                        cut[j] -= c;
+-                        rhs -= c * ihi[j];
+-                    } else {
+-                        cut[j] += c;
+-                        rhs += c * ilo[j];
+-                    }
+-                }
+-                double act = 0.0, nrm = 0.0;
+-                for (int64_t t = 0; t < nnz; t++) {
+-                    const int64_t k = nz[t];
+-                    act += cut[k] * x[k];
+-                    nrm += cut[k] * cut[k];
+-                }
+-                if (nrm == 0.0)
+-                    continue;
+-                const double eff = (act - rhs) / sqrt(nrm);
++                double rhs = 0.0;
++                const double eff = mir_cut_at(m, x, ilo, ihi, a_in, b_in, nz,
++                                              nnz, nullptr, delta[q], cut,
++                                              &rhs);
+                 if (eff > best_eff) {
+                     best_eff = eff;
+                     best_rhs = rhs;
++                    best_d = delta[q];
+                     have = true;
+                     for (int64_t t = 0; t < nnz; t++)
+                         best[nz[t]] = cut[nz[t]];
+                 }
+             }
++            static int ext = -1;
++            if (ext < 0)
++                ext = getenv("JAOS_MIRD") ? atoi(getenv("JAOS_MIRD")) : 0;
++            if (have && (ext & 1)) {
++                const double d0 = best_d;
++                for (int k = 1; k <= 3; k++) {
++                    double rhs = 0.0;
++                    const double d = d0 / (double)(1 << k);
++                    const double eff = mir_cut_at(m, x, ilo, ihi, a_in, b_in,
++                                                  nz, nnz, nullptr, d, cut,
++                                                  &rhs);
++                    if (eff > best_eff) {
++                        best_eff = eff;
++                        best_rhs = rhs;
++                        best_d = d;
++                        for (int64_t t = 0; t < nnz; t++)
++                            best[nz[t]] = cut[nz[t]];
++                    }
++                }
++            }
++            bool mixed = false;
++            for (int64_t t = 0; t < nnz && !mixed; t++)
++                mixed = a_in[nz[t]] != 0.0 && !m->col_integer[nz[t]];
++            if (have && (ext & 2) && (!(ext & 4) || mixed)) {
++                bool *flip = jm_calloc_array(nnz > 0 ? nnz : 1, sizeof *flip);
++                if (flip != nullptr) {
++                    for (int64_t t = 0; t < nnz; t++) {
++                        const int64_t j = nz[t];
++                        if (a_in[j] == 0.0 || !m->col_integer[j] ||
++                            !isfinite(ilo[j]) || !isfinite(ihi[j]) ||
++                            !(x[j] > ilo[j] + MIP_INT_TOL) ||
++                            !(x[j] < ihi[j] - MIP_INT_TOL))
++                            continue;
++                        flip[t] = true;
++                        double rhs = 0.0;
++                        const double eff = mir_cut_at(m, x, ilo, ihi, a_in,
++                                                      b_in, nz, nnz, flip,
++                                                      best_d, cut, &rhs);
++                        if (eff > best_eff + 1e-9) {
++                            best_eff = eff;
++                            best_rhs = rhs;
++                            for (int64_t s = 0; s < nnz; s++)
++                                best[nz[s]] = cut[nz[s]];
++                        } else {
++                            flip[t] = false;
++                        }
++                    }
++                    free(flip);
++                }
++            }
++            (void)b;
+             for (int64_t t = 0; t < nnz; t++)
+                 cut[nz[t]] = 0.0;
+             if (!have)

@@ -4936,6 +4936,63 @@ static void test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root(vo
     TEST_ASSERT_EQUAL_INT64(1, nodes[1]);
 }
 
+static void test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound(void)
+{
+    const double c[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
+    const double cl[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const double cu[10] = {1, 1, 1, 1, 1, 1, 1, 1, INFINITY, INFINITY};
+    const double rl[6] = {1, 1, 1, 1, -INFINITY, -INFINITY};
+    const double ru[6] = {1, 1, 1, 1, 11.5, 8.5};
+    const double size[4] = {3, 5, 8, 4};
+    int64_t as[11], ai[18];
+    double av[18];
+    int64_t nz = 0;
+    for (int64_t j = 0; j < 10; j++) {
+        as[j] = nz;
+        if (j < 8) {
+            ai[nz] = j / 2;
+            av[nz++] = 1.0;
+            ai[nz] = 4 + j % 2;
+            av[nz++] = size[j / 2];
+        } else {
+            ai[nz] = 4 + (j - 8);
+            av[nz++] = -1.0;
+        }
+    }
+    as[10] = nz;
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 10, 6, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, nz, as,
+                     ai, av));
+    for (int64_t j = 0; j < 8; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
+    const char *root = strstr(g_log, "root: relaxation ");
+    TEST_ASSERT_NOT_NULL(root);
+    TEST_ASSERT_TRUE(strtod(root + strlen("root: relaxation "), nullptr) >
+                     0.5 - 1e-6);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    jaos_model_free(m);
+}
+
 static void test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(void)
 {
     int64_t nodes[2] = {0, 0};
@@ -5485,6 +5542,7 @@ int main(void)
     RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
     RUN_TEST(test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root);
+    RUN_TEST(test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound);
     RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
     RUN_TEST(test_a_quadratic_objective_branches_on_barrier_relaxations);
     RUN_TEST(test_a_quadratic_objective_matches_enumeration);

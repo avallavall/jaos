@@ -167,9 +167,12 @@ reference 173), with no point. Since 2026-10-05 a tree that holds no
 incumbent after 1000 nodes dives, resuming from its stack up to 100 times a
 dive (`bench/measurements/02-355/`): `timtab1` finds 1128183 and `glass4`
 5.50e9, the other models read the same, and the gap sum is 13.94.
-`ic97_potential`, `csched007` and `csched008` still hold no point;
-`csched007` finds 378 when the dive starts at node 0, which costs `enigma`
-8x on MIPLIB 3. Fourth, `binkar10_1` holds the reference's point and
+`ic97_potential` and `csched008` still hold no point; `csched007` finds
+474 since 2026-10-08, when a MIR cut on a row with a continuous column
+started measuring integer columns from their other bound where that raises
+its efficacy (`bench/measurements/02-357/`): `neos-911970`'s root goes from
+45.4 to 51.6 (SCIP's c-MIR 51.8) and the gap sum to 13.48, with MIPLIB 3
+unchanged. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
 reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
 at reliability 4, the best-bound order and propagation at 4 passes end its
