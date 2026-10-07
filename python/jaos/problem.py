@@ -984,6 +984,10 @@ class Problem:
         self._m.set_mip_flow_cover_rounds(rounds)
         return self
 
+    def set_mip_hull_rounds(self, rounds):
+        self._m.set_mip_hull_rounds(rounds)
+        return self
+
     def set_mip_node_cut_cap(self, cap):
         """At most `cap` cuts per node below the root (D301); 0 for no cap,
         negative for the default."""

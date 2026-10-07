@@ -725,6 +725,20 @@ Sets the rounds of zero-half cuts at the root. The default is 0, off.
 Sets the rounds of flow cover cuts at the root. The default is 5, and 100
 in network mode (see `jaos_set_mip_mir_rounds`); 0 turns them off.
 
+**`jaos_set_mip_hull_rounds`**\
+`jaos_status jaos_set_mip_hull_rounds(jaos_model *m, int64_t rounds)`\
+Sets the rounds of hull cuts at the root. A row of at most eight integer
+columns, whose box holds at most 1024 integer points and whose relaxation
+point has a fractional column, has its integer points listed. A small LP
+then finds the inequality over the row's columns that holds at every one
+of them and that the relaxation's point violates most, with each
+coefficient between -1 and 1. A row whose coefficients all have one
+magnitude and whose sides are multiples of it is skipped, since its
+relaxation is already its hull. A round in which a tenth of the model's
+rows or more get a hull cut does not count as a stalled round for the MIR
+rounds (see `jaos_set_mip_mir_rounds`). The default is 20; 0 turns them
+off, and a negative value restores the default.
+
 **`jaos_set_mip_cut_stall`**\
 `jaos_status jaos_set_mip_cut_stall(jaos_model *m, double fraction)`\
 Ends the root's cut rounds after a round that moved the bound by less than

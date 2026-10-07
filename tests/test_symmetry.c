@@ -172,6 +172,7 @@ static void test_orbital_branching_shortens_a_symmetric_tree(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, on));
         TEST_ASSERT_TRUE(m->cfg.mip_orbital_set);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));

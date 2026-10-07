@@ -90,7 +90,7 @@ and the QCQP reading of 02-319 (`conread.sh`).
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 4 of 30 at 1e10 work units.** Since 2026-10-04
+J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units.** Since 2026-10-04
 (`bench/measurements/02-328/`) the tree rounds a bound up to the
 objective's step when every cost sits on one, the root fixes the integer
 columns its rows' implied bounds fix, two heuristics run (lock rounding at
@@ -143,9 +143,13 @@ restart that ran them was refused (mip-deep-restart). Since 2026-10-04
 the root's MIR rounds go on past 6 while each lifts the bound
 (`bench/measurements/02-332/`): `neos-911970`'s root reaches 43.3 and its
 bound at the limit 45.0, and 52.0 since the node solves perturb on their
-first stall (`bench/measurements/02-333/`). `neos-3381206-awhea`'s bound sits flat for seven
-rounds, so the rule stops it at 416; 20 rounds of Gomory cuts take its root
-to 445.3 for 6.1e9 work units. Third, no incumbent: `glass4`, `timtab1`,
+first stall (`bench/measurements/02-333/`). `neos-3381206-awhea` solves at
+its root since 2026-10-07: hull cuts on its 475 bin rows (each row's
+integer points listed, the most violated valid inequality found by a small
+LP) take the root to 452.25 at round 13, where the bound rounds up to the
+optimum 453 (`bench/measurements/02-356/`). On `ic97_potential` SCIP's
+c-MIR alone lifts the root from 3868 to 3911, where JAOS's aggregated MIR
+lifts nothing. Third, no incumbent: `glass4`, `timtab1`,
 `ic97_potential`, `csched007` and `csched008`, where the feasibility jump
 fails within its cap. Since 2026-10-05 the MIR aggregation takes the row
 that leaves the least bound distance in the aggregate, and outside network

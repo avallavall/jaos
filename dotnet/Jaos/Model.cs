@@ -682,6 +682,7 @@ public sealed class Model : IDisposable
     public void SetMipCliqueRounds(long rounds) => Check(Native.jaos_set_mip_clique_rounds(h, rounds));
     public void SetMipZeroHalfRounds(long rounds) => Check(Native.jaos_set_mip_zero_half_rounds(h, rounds));
     public void SetMipFlowCoverRounds(long rounds) => Check(Native.jaos_set_mip_flow_cover_rounds(h, rounds));
+    public void SetMipHullRounds(long rounds) => Check(Native.jaos_set_mip_hull_rounds(h, rounds));
     public void SetMipCutStall(double fraction) => Check(Native.jaos_set_mip_cut_stall(h, fraction));
     public void SetMipNodeCutStall(double fraction) => Check(Native.jaos_set_mip_node_cut_stall(h, fraction));
     public void SetMipRootCutDrop(int on) => Check(Native.jaos_set_mip_root_cut_drop(h, on));

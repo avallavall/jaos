@@ -695,6 +695,7 @@ public final class Check {
         m.setMipCliqueRounds(0);
         m.setMipZeroHalfRounds(0);
         m.setMipFlowCoverRounds(0);
+        m.setMipHullRounds(0);
         m.setMipCutDepth(0);
         m.setMipHeuristics(false);
         m.setMipDiveHeuristic(0);
@@ -736,11 +737,12 @@ public final class Check {
             p.addLe(new Expr().add(x).add(y), 3.6);
             p.addLe(Expr.of(x), 2.2);
             p.addLe(Expr.of(y), 1.4);
-            p.maximize(new Expr().add(x).add(y));
+            p.maximize(new Expr().add(x).add(0.999, y));
             Model m = p.model();
             m.setMipCutRounds(0);
             m.setMipCoverRounds(0);
             m.setMipMirRounds(0);
+            m.setMipHullRounds(0);
             m.setMipCutDepth(0);
             m.setMipNodeLimit(1);
             List<IncumbentEvent> seen = new ArrayList<>();
@@ -752,7 +754,7 @@ public final class Check {
                   && seen.get(0).node() == 1 && seen.get(0).byRounding()
                   && seen.get(0).x()[0] == 2.0 && seen.get(0).x()[1] == 1.0,
                   "the incumbent callback sees the rounded point (2, 1) at node 1");
-            check(near(m.mipIncumbent().objective(), 3.0), "and the stopped tree keeps it");
+            check(near(m.mipIncumbent().objective(), 2.999), "and the stopped tree keeps it");
             m.setMipNodeLimit(0);
             m.setIncumbentCallback(e -> CallbackAction.STOP);
             check(p.solve() == SolveStatus.INTERRUPTED && m.mipResult().hasIncumbent(),
@@ -779,7 +781,7 @@ public final class Check {
         }
 
         try (Problem h = new Problem()) {
-            double[] w = {4, 6, 3, 4, 5, 2}, v = {10, 13, 7, 8, 11, 5};
+            double[] w = {4, 6, 3, 4, 5, 2}, v = {10, 13, 7, 8, 11, 5.001};
             Expr load = new Expr(), worth = new Expr();
             for (int k = 0; k < 6; k++) {
                 Var x = h.addVar(0, 1, true);
@@ -792,6 +794,7 @@ public final class Check {
             hm.setMipCutRounds(0);
             hm.setMipCoverRounds(0);
             hm.setMipMirRounds(0);
+            hm.setMipHullRounds(0);
             hm.setMipHeuristics(false);
             hm.setMipNodeLimit(1);
             List<Boolean> shortRefused = new ArrayList<>();
@@ -1195,6 +1198,7 @@ public final class Check {
             m.setMipCliqueRounds(2); reads(m, wrong, "mip_clique_rounds", "2");
             m.setMipZeroHalfRounds(3); reads(m, wrong, "mip_zero_half_rounds", "3");
             m.setMipFlowCoverRounds(2); reads(m, wrong, "mip_flow_cover_rounds", "2");
+            m.setMipHullRounds(3); reads(m, wrong, "mip_hull_rounds", "3");
             m.setMipLocalBranching(6); reads(m, wrong, "mip_local_branching", "6");
             m.setMipNodeSelect(0); reads(m, wrong, "mip_node_select", "0");
             m.setMipRestart(1); reads(m, wrong, "mip_restart", "true");

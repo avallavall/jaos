@@ -83,6 +83,7 @@ void Plain(Model m)
     m.SetMipCliqueRounds(0);
     m.SetMipZeroHalfRounds(0);
     m.SetMipFlowCoverRounds(0);
+    m.SetMipHullRounds(0);
     m.SetMipCutDepth(0);
     m.SetMipHeuristics(false);
     m.SetMipDiveHeuristic(0);
@@ -199,6 +200,7 @@ using (var m = new Model())
     m.SetMipCliqueRounds(2); Is("mip_clique_rounds", "2");
     m.SetMipZeroHalfRounds(2); Is("mip_zero_half_rounds", "2");
     m.SetMipFlowCoverRounds(2); Is("mip_flow_cover_rounds", "2");
+    m.SetMipHullRounds(3); Is("mip_hull_rounds", "3");
     m.SetMipCutStall(0.25); Is("mip_cut_stall", "0.25");
     m.SetMipNodeCutStall(0.5); Is("mip_node_cut_stall", "0.5");
     Flip("mip_root_cut_drop", on => m.SetMipRootCutDrop(on ? 1 : 0));
@@ -1176,6 +1178,7 @@ using (var p = new Problem())
     p.Model.SetMipCutRounds(0);
     p.Model.SetMipCoverRounds(0);
     p.Model.SetMipMirRounds(0);
+    p.Model.SetMipHullRounds(0);
     p.Model.SetMipCutDepth(0);
     p.Model.SetMipDive(true);
     p.Model.SetMipHeuristics(false);
@@ -1303,11 +1306,12 @@ using (var p = new Problem())
     p.AddLe(x + y, 3.6);
     p.AddLe(1.0 * x, 2.2);
     p.AddLe(1.0 * y, 1.4);
-    p.Maximize(x + y);
+    p.Maximize(x + 0.999 * y);
     var pm = p.Model;
     pm.SetMipCutRounds(0);
     pm.SetMipCoverRounds(0);
     pm.SetMipMirRounds(0);
+    pm.SetMipHullRounds(0);
     pm.SetMipCutDepth(0);
     pm.SetMipNodeLimit(1);
     var seen = new List<Incumbent>();
@@ -1320,7 +1324,7 @@ using (var p = new Problem())
     var (_, iobj) = pm.MipIncumbent();
     Check(st == SolveStatus.NodeLimit && seen.Count == 1 && seen[0].Node == 1 &&
           seen[0].ByRounding && seen[0].Values[x.Index] == 2.0 &&
-          seen[0].Values[y.Index] == 1.0 && Near(iobj, 3.0),
+          seen[0].Values[y.Index] == 1.0 && Near(iobj, 2.999),
           "the incumbent callback sees the rounded point a node limit keeps");
     pm.SetMipNodeLimit(0);
     pm.SetIncumbentCallback(_ => CallbackAction.Stop);
@@ -1356,7 +1360,7 @@ using (var p = new Problem())
 
 using (var h = new Problem())
 {
-    double[] w = { 4, 6, 3, 4, 5, 2 }, v = { 10, 13, 7, 8, 11, 5 };
+    double[] w = { 4, 6, 3, 4, 5, 2 }, v = { 10, 13, 7, 8, 11, 5.001 };
     var xs = new Var[6];
     for (int k = 0; k < 6; k++)
         xs[k] = h.AddVar(0, 1, true, $"x{k}");
@@ -1373,6 +1377,7 @@ using (var h = new Problem())
     hm.SetMipCutRounds(0);
     hm.SetMipCoverRounds(0);
     hm.SetMipMirRounds(0);
+    hm.SetMipHullRounds(0);
     hm.SetMipHeuristics(false);
     hm.SetMipNodeLimit(1);
     bool shortRefused = false;

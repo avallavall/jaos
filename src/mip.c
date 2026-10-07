@@ -28,6 +28,11 @@ constexpr int64_t MIP_ZERO_HALF_TRIPLE_CAP = 40;
 constexpr int64_t MIP_ZERO_HALF_CUT_CAP = 50;
 constexpr int64_t MIP_FLOW_COVER_ROUNDS = 5;
 constexpr int64_t MIP_FLOW_COVER_CUT_CAP = 50;
+
+constexpr int64_t MIP_HULL_ROUNDS = 20;
+constexpr int64_t MIP_HULL_COLS = 8;
+constexpr int64_t MIP_HULL_POINTS = 1024;
+constexpr int64_t MIP_HULL_KEEP = 10;
 constexpr bool MIP_CONFLICTS = true;
 constexpr bool MIP_SYMMETRY = false;
 constexpr bool MIP_ORBITAL = true;
@@ -1278,6 +1283,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_CLIQUE_ROUNDS: return (double)MIP_CLIQUE_ROUNDS;
     case JM_DEF_ZERO_HALF_ROUNDS: return (double)MIP_ZERO_HALF_ROUNDS;
     case JM_DEF_FLOW_COVER_ROUNDS: return (double)MIP_FLOW_COVER_ROUNDS;
+    case JM_DEF_HULL_ROUNDS: return (double)MIP_HULL_ROUNDS;
     case JM_DEF_CUT_STALL: return MIP_CUT_STALL;
     case JM_DEF_NODE_CUT_STALL: return MIP_NODE_CUT_STALL;
     case JM_DEF_ROOT_CUT_DROP: return MIP_ROOT_CUT_DROP ? 1.0 : 0.0;
@@ -3059,6 +3065,157 @@ static int64_t flow_cover_round(const jaos_model *m, jaos_model *lp,
     }
 out:
     free(vub_y); free(vub_u); free(plus); free(minus);
+    return added;
+}
+
+static int64_t hull_round(const jaos_model *m, jaos_model *lp, const double *x,
+                          const double *ilo, const double *ihi, cutbuf *cb,
+                          double *cut, int64_t *work)
+{
+    const int64_t nr = m->num_row, kk = MIP_HULL_COLS + 1;
+    const double tol = jm_primal_tolerance(m);
+    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+        return -1;
+    double *pts = jm_alloc_array(MIP_HULL_POINTS * MIP_HULL_COLS, sizeof *pts);
+    int64_t *astart = jm_alloc_array(kk + 1, sizeof *astart);
+    int64_t *aidx = jm_alloc_array(kk * MIP_HULL_POINTS, sizeof *aidx);
+    double *aval = jm_alloc_array(kk * MIP_HULL_POINTS, sizeof *aval);
+    double *rlo = jm_alloc_array(MIP_HULL_POINTS, sizeof *rlo);
+    double *rhi = jm_alloc_array(MIP_HULL_POINTS, sizeof *rhi);
+    int64_t added = -1;
+    if (pts == nullptr || astart == nullptr || aidx == nullptr ||
+        aval == nullptr || rlo == nullptr || rhi == nullptr)
+        goto out;
+    added = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t p0 = lp->ar_start[i], k = lp->ar_start[i + 1] - p0;
+        if (k < 2 || k > MIP_HULL_COLS)
+            continue;
+        int64_t col[MIP_HULL_COLS];
+        double a[MIP_HULL_COLS], lo[MIP_HULL_COLS], hi[MIP_HULL_COLS];
+        double v[MIP_HULL_COLS];
+        bool fit = true, frac = false;
+        double box = 1.0;
+        for (int64_t t = 0; t < k && fit; t++) {
+            const int64_t j = lp->ar_index[p0 + t];
+            fit = m->col_integer[j] && isfinite(ilo[j]) && isfinite(ihi[j]) &&
+                  ilo[j] <= ihi[j];
+            if (!fit)
+                break;
+            col[t] = j;
+            a[t] = lp->ar_value[p0 + t];
+            lo[t] = ceil(ilo[j] - MIP_INT_TOL);
+            hi[t] = floor(ihi[j] + MIP_INT_TOL);
+            box *= hi[t] - lo[t] + 1.0;
+            fit = hi[t] >= lo[t] && box <= (double)MIP_HULL_POINTS;
+            const double f = x[j] - floor(x[j]);
+            if (f > MIP_INT_TOL && f < 1.0 - MIP_INT_TOL)
+                frac = true;
+        }
+        *work += k;
+        if (!fit || !frac)
+            continue;
+        const double rl = lp->row_lower[i], ru = lp->row_upper[i];
+        bool unit = true;
+        for (int64_t t = 1; t < k && unit; t++)
+            unit = fabs(a[t]) == fabs(a[0]);
+        if (unit) {
+            const double sl = rl / fabs(a[0]), su = ru / fabs(a[0]);
+            if ((!isfinite(sl) || sl == floor(sl)) &&
+                (!isfinite(su) || su == floor(su)))
+                continue;
+        }
+        const double tl = isfinite(rl) ? tol * (1.0 + fabs(rl)) : 0.0;
+        const double tu = isfinite(ru) ? tol * (1.0 + fabs(ru)) : 0.0;
+        int64_t np = 0;
+        for (int64_t t = 0; t < k; t++)
+            v[t] = lo[t];
+        for (;;) {
+            double act = 0.0;
+            for (int64_t t = 0; t < k; t++)
+                act += a[t] * v[t];
+            if (act >= rl - tl && act <= ru + tu) {
+                for (int64_t t = 0; t < k; t++)
+                    pts[np * k + t] = v[t];
+                np++;
+            }
+            int64_t t = 0;
+            while (t < k && v[t] >= hi[t]) {
+                v[t] = lo[t];
+                t++;
+            }
+            if (t == k)
+                break;
+            v[t] += 1.0;
+        }
+        *work += (int64_t)box * k;
+        if (np == 0)
+            continue;
+        double cost[MIP_HULL_COLS + 1], clo[MIP_HULL_COLS + 1],
+            chi[MIP_HULL_COLS + 1], pi[MIP_HULL_COLS + 1];
+        int64_t nz = 0;
+        for (int64_t t = 0; t <= k; t++) {
+            astart[t] = nz;
+            cost[t] = t < k ? x[col[t]] : -1.0;
+            clo[t] = t < k ? -1.0 : -INFINITY;
+            chi[t] = t < k ? 1.0 : INFINITY;
+            for (int64_t q = 0; q < np; q++) {
+                const double e = t < k ? pts[q * k + t] : -1.0;
+                if (e == 0.0)
+                    continue;
+                aidx[nz] = q;
+                aval[nz] = e;
+                nz++;
+            }
+        }
+        astart[k + 1] = nz;
+        for (int64_t q = 0; q < np; q++) {
+            rlo[q] = -INFINITY;
+            rhi[q] = 0.0;
+        }
+        jaos_model *s = nullptr;
+        if (jaos_model_new(&s) != JAOS_OK) {
+            added = -1;
+            goto out;
+        }
+        bool ok = jaos_load_lp(s, k + 1, np, JAOS_MAXIMIZE, 0.0, cost, clo,
+                               chi, rlo, rhi, nz, astart, aidx, aval) ==
+                      JAOS_OK &&
+                  jaos_solve(s) == JAOS_OK &&
+                  jaos_status_of(s) == JAOS_SOLVE_OPTIMAL &&
+                  jaos_solution(s, pi, nullptr, nullptr, nullptr) == JAOS_OK;
+        *work += jaos_work_units(s);
+        jaos_model_free(s);
+        if (!ok)
+            continue;
+        double rhs = -INFINITY, act = 0.0;
+        for (int64_t t = 0; t < k; t++)
+            if (fabs(pi[t]) < 1e-9)
+                pi[t] = 0.0;
+        for (int64_t q = 0; q < np; q++) {
+            double e = 0.0;
+            for (int64_t t = 0; t < k; t++)
+                e += pi[t] * pts[q * k + t];
+            if (e > rhs)
+                rhs = e;
+        }
+        for (int64_t t = 0; t < k; t++)
+            act += pi[t] * x[col[t]];
+        if (!(act - rhs > tol * (1.0 + fabs(rhs))))
+            continue;
+        for (int64_t t = 0; t < k; t++)
+            cut[col[t]] = -pi[t];
+        const int r = cut_finish(lp, cb, cut, -rhs, x, col, k);
+        for (int64_t t = 0; t < k; t++)
+            cut[col[t]] = 0.0;
+        if (r < 0) {
+            added = -1;
+            goto out;
+        }
+        added += r;
+    }
+out:
+    free(pts); free(astart); free(aidx); free(aval); free(rlo); free(rhi);
     return added;
 }
 
@@ -5637,6 +5794,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         : net ? MIP_NET_ROUNDS : MIP_FLOW_COVER_ROUNDS;
     if (fc_rounds > root_rounds)
         root_rounds = fc_rounds;
+    const int64_t hull_rounds = m->cfg.mip_hull_rounds_set
+        ? m->cfg.mip_hull_rounds : MIP_HULL_ROUNDS;
+    if (hull_rounds > root_rounds)
+        root_rounds = hull_rounds;
     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
@@ -5763,7 +5924,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t covers = 0;
     int64_t cliques = 0;
     int64_t zero_halves = 0;
-    int64_t flow_covers = 0;
+    int64_t flow_covers = 0, hulls = 0;
     kitem *items = nullptr;
     double *pbuf = nullptr;
     litval *porder = nullptr;
@@ -6666,6 +6827,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     flow_covers += fv;
                     got += fv;
                 }
+                int64_t hull_got = 0;
+                if (r < hull_rounds) {
+                    const int64_t hv = hull_round(m, lp, x, ilo, ihi, &cb, cut,
+                                                  &work);
+                    if (hv < 0)
+                        goto done;
+                    hulls += hv;
+                    got += hv;
+                    hull_got = hv;
+                }
                 if (r < mir_rounds && net && !cmx.built) {
                     if (cmx.g == nullptr && !cmir_init(&cmx, nc))
                         goto done;
@@ -6816,6 +6987,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     key - key_before < cut_stall * (1.0 + fabs(key_before)))
                     break;
                 if (mir_more && r + 1 >= MIP_MIR_ROUNDS &&
+                    !(hull_got > 0 && hull_got * MIP_HULL_KEEP >= m->num_row) &&
                     key - key_before <
                         MIP_MIR_MORE_STALL * (1.0 + fabs(key_before)))
                     break;
@@ -6834,11 +7006,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             nfixed = root_cut_drop ? nperm : lp->num_row;
             jm_log(m, JAOS_LOG_SUMMARY,
                    "root: relaxation %.17g after %lld cuts, %lld of them "
-                   "covers, %lld cliques, %lld zero-half, %lld flow covers "
-                   "and %lld MIR",
+                   "covers, %lld cliques, %lld zero-half, %lld flow covers, "
+                   "%lld hull cuts and %lld MIR",
                    obj, (long long)cuts, (long long)covers,
                    (long long)cliques, (long long)zero_halves,
-                   (long long)flow_covers, (long long)mirs);
+                   (long long)flow_covers, (long long)hulls, (long long)mirs);
             if (mir_aggregate > 0 && !jm_model_has_quadratic(m))
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "root: MIR aggregation kept %lld cuts after %lld "

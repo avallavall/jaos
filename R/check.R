@@ -556,7 +556,7 @@ check(length(mr) == 13 && mr$lp_solves >= 1 &&
             "start_accepted") %in% names(mr)),
       "the MIP report carries all 13 fields")
 off <- list(mip_cut_rounds = 0, mip_cover_rounds = 0, mip_mir_rounds = 0,
-            mip_cut_depth = 0)
+            mip_hull_rounds = 0, mip_cut_depth = 0)
 r <- jaos_solve_lp(c(10, 13, 7, 9, 5), matrix(c(3, 5, 2, 4, 2), 1), -Inf, 8,
                    col_upper = rep(1, 5), integer = 1:5, maximize = TRUE,
                    options = c(off, mip_pool_size = 3))
@@ -719,7 +719,7 @@ check(four$status == "optimal" && four$work == one$work &&
       paste("a tree solved on four threads calls back on R's thread only,",
             four$calls, "of", one$calls, "calls"))
 
-m <- jaos_build_lp(c(1, 1), rbind(c(1, 1), c(1, 0), c(0, 1)), rep(-Inf, 3),
+m <- jaos_build_lp(c(1, 0.999), rbind(c(1, 1), c(1, 0), c(0, 1)), rep(-Inf, 3),
                    c(3.6, 2.2, 1.4), integer = 1:2, maximize = TRUE,
                    options = c(off, mip_node_limit = 1))
 seen <- list()
@@ -730,7 +730,7 @@ jaos_set_incumbent_callback(m, function(inc) {
 check(jaos_solve(m) == "node limit reached" && length(seen) == 1 &&
       seen[[1]]$node == 1 && seen[[1]]$by_rounding &&
       identical(seen[[1]]$x, c(2, 1)) &&
-      near(jaos_mip_incumbent(m)$objective, 3),
+      near(jaos_mip_incumbent(m)$objective, 2.999),
       "the incumbent callback sees the tree's point")
 jaos_set_option(m, "mip_node_limit", 0)
 jaos_set_incumbent_callback(m, function(inc) "stop")
@@ -759,12 +759,12 @@ check(fails(jaos_node_add_row(kept, 1, 1)),
 jaos_set_node_callback(m, NULL)
 jaos_solve(m)
 check(near(jaos_objective(m), 4), "and without the callback the row is gone")
-h <- jaos_build_lp(c(10, 13, 7, 8, 11, 5), matrix(c(4, 6, 3, 4, 5, 2), 1, 6),
+h <- jaos_build_lp(c(10, 13, 7, 8, 11, 5.001), matrix(c(4, 6, 3, 4, 5, 2), 1, 6),
                    -Inf, 12, col_upper = rep(1, 6), integer = 1:6,
                    maximize = TRUE,
                    options = list(mip_cut_rounds = 0, mip_cover_rounds = 0,
-                                  mip_mir_rounds = 0, mip_heuristics = FALSE,
-                                  mip_node_limit = 1))
+                                  mip_mir_rounds = 0, mip_hull_rounds = 0,
+                                  mip_heuristics = FALSE, mip_node_limit = 1))
 short_refused <- FALSE
 jaos_set_node_callback(h, function(ev) {
     jaos_node_add_solution(ev, c(1, 0, 1, 0, 1, 0))

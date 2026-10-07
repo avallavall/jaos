@@ -688,6 +688,8 @@ _sig("jaos_set_mip_zero_half_rounds", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_flow_cover_rounds", ctypes.c_int, _VP, _I64)
 
+_sig("jaos_set_mip_hull_rounds", ctypes.c_int, _VP, _I64)
+
 _sig("jaos_set_mip_node_cut_cap", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_cut_stall", ctypes.c_int, _VP, _D)

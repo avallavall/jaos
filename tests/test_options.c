@@ -67,6 +67,8 @@ static void test_options_reach_the_setters(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_option(m, "mip_probing_cap", "nan"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_flow_cover_rounds", "3"));
     TEST_ASSERT_TRUE(m->cfg.mip_flow_cover_rounds_set && m->cfg.mip_flow_cover_rounds == 3);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_hull_rounds", "4"));
+    TEST_ASSERT_TRUE(m->cfg.mip_hull_rounds_set && m->cfg.mip_hull_rounds == 4);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "mip_zero_half_rounds", "2"));
     TEST_ASSERT_TRUE(m->cfg.mip_zero_half_rounds_set && m->cfg.mip_zero_half_rounds == 2);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_option(m, "threads", "1"));

@@ -215,6 +215,7 @@ final class Native {
     static final MethodHandle SET_MIP_CLIQUE_ROUNDS = setter("jaos_set_mip_clique_rounds", JAVA_LONG);
     static final MethodHandle SET_MIP_ZERO_HALF_ROUNDS = setter("jaos_set_mip_zero_half_rounds", JAVA_LONG);
     static final MethodHandle SET_MIP_FLOW_COVER_ROUNDS = setter("jaos_set_mip_flow_cover_rounds", JAVA_LONG);
+    static final MethodHandle SET_MIP_HULL_ROUNDS = setter("jaos_set_mip_hull_rounds", JAVA_LONG);
     static final MethodHandle SET_MIP_CUT_STALL = setter("jaos_set_mip_cut_stall", JAVA_DOUBLE);
     static final MethodHandle SET_MIP_NODE_CUT_STALL = setter("jaos_set_mip_node_cut_stall", JAVA_DOUBLE);
     static final MethodHandle SET_MIP_ROOT_CUT_DROP = setter("jaos_set_mip_root_cut_drop", JAVA_INT);

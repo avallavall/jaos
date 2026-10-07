@@ -90,8 +90,9 @@ columns and indicator rows.
 
 **Mixed-integer programs.** Branch and bound over the dual simplex, best
 estimate first with the best bound every fifth pick, pseudocost branching.
-Gomory, knapsack cover, mixed-integer rounding and clique cuts at the root,
-and Gomory cuts to depth 3; on a network model, where many continuous
+Gomory, knapsack cover, mixed-integer rounding, flow cover and clique cuts at
+the root, hull cuts from the listed integer points of short rows, and Gomory
+cuts to depth 3; on a network model, where many continuous
 columns sit under binaries, the rounding cuts substitute those variable
 bounds first and are formed from the earlier rounds' cuts as well as the
 model's rows, and a cut that goes slack waits in a pool until the point

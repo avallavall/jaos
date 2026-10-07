@@ -796,6 +796,14 @@ class Model:
         Roy and Wolsey inequality. 0 for none, negative for the default."""
         self._check(_lib.jaos_set_mip_flow_cover_rounds(self._handle(), int(rounds)))
 
+    def set_mip_hull_rounds(self, rounds):
+        """Rounds of hull cuts at the root: a row of at most eight integer
+        columns whose box holds at most 1024 points has its integer points
+        listed, and a small LP finds the inequality valid for all of them
+        that the relaxation's point violates most. 0 for none, negative
+        for the default."""
+        self._check(_lib.jaos_set_mip_hull_rounds(self._handle(), int(rounds)))
+
     def set_mip_node_cut_cap(self, cap):
         """At most `cap` cuts per node below the root, the most efficacious
         kept (D301); 0 for no cap, a negative value for the default."""

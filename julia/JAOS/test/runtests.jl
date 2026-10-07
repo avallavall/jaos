@@ -377,7 +377,7 @@ function test_the_callbacks_see_the_solve_and_can_stop_it()
     JAOS.solve(p)
     @test JAOS.objective(p) ≈ 4.0
 
-    h = _lp([10, 13, 7, 8, 11, 5], zeros(6), ones(6), [-Inf], [12],
+    h = _lp([10, 13, 7, 8, 11, 5.001], zeros(6), ones(6), [-Inf], [12],
             [0, 1, 2, 3, 4, 5, 6], zeros(Int, 6), [4, 6, 3, 4, 5, 2]; sense = :max)
     for j in 0:5
         JAOS.set_col_integer(h, j)
@@ -385,6 +385,7 @@ function test_the_callbacks_see_the_solve_and_can_stop_it()
     JAOS.set_mip_cut_rounds(h, 0)
     JAOS.set_mip_cover_rounds(h, 0)
     JAOS.set_mip_mir_rounds(h, 0)
+    JAOS.set_mip_hull_rounds(h, 0)
     JAOS.set_mip_heuristics(h, false)
     JAOS.set_mip_node_limit(h, 1)
     short_refused = Ref(false)
@@ -411,8 +412,9 @@ function test_the_callbacks_see_the_solve_and_can_stop_it()
     end
     for fn in (JAOS.set_mip_cut_rounds, JAOS.set_mip_cover_rounds,
                JAOS.set_mip_mir_rounds, JAOS.set_mip_clique_rounds,
-               JAOS.set_mip_cut_depth, JAOS.set_mip_dive_heuristic,
-               JAOS.set_mip_feaspump, JAOS.set_mip_tighten)
+               JAOS.set_mip_hull_rounds, JAOS.set_mip_cut_depth,
+               JAOS.set_mip_dive_heuristic, JAOS.set_mip_feaspump,
+               JAOS.set_mip_tighten)
         fn(s, 0)
     end
     JAOS.set_mip_heuristics(s, false)
@@ -575,7 +577,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.presolve_report(m).num_col <= 3
     @test JAOS.solve_time(m) >= 0.0
     names = JAOS.option_names()
-    @test length(names) == 58
+    @test length(names) == 60
     @test "mip_gap" in names
     mktempdir() do dir
         path = joinpath(dir, "opts.txt")
@@ -637,7 +639,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.get_option(t, "mip_node_limit") == "7"
     @test parse(Float64, JAOS.get_option(t, "time_limit")) == 2.5
     @test isempty(wrong)
-    @test length(JAOS._SETTERS) == 53
+    @test length(JAOS._SETTERS) == 54
 end
 
 function test_moi_conformance()
@@ -828,8 +830,8 @@ function test_moi_lazy_constraints_and_user_cuts()
     MOI.set(cuts, MOI.ObjectiveSense(), MOI.MAX_SENSE)
     MOI.set(cuts, MOI.ObjectiveFunction{typeof(obj)}(), obj)
     for name in ("mip_cut_rounds", "mip_cover_rounds", "mip_mir_rounds",
-                 "mip_clique_rounds", "mip_cut_depth", "mip_dive_heuristic",
-                 "mip_feaspump", "mip_tighten")
+                 "mip_clique_rounds", "mip_hull_rounds", "mip_cut_depth",
+                 "mip_dive_heuristic", "mip_feaspump", "mip_tighten")
         MOI.set(cuts, MOI.RawOptimizerAttribute(name), 0)
     end
     MOI.set(cuts, MOI.RawOptimizerAttribute("mip_heuristics"), false)
@@ -869,7 +871,8 @@ function test_moi_result_count_reads_the_pool()
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ResultCount()) == 1
     MOI.set(model, MOI.RawOptimizerAttribute("mip_pool_size"), 4)
-    for name in ("mip_cut_rounds", "mip_cover_rounds", "mip_mir_rounds", "mip_cut_depth")
+    for name in ("mip_cut_rounds", "mip_cover_rounds", "mip_mir_rounds",
+                 "mip_hull_rounds", "mip_cut_depth")
         MOI.set(model, MOI.RawOptimizerAttribute(name), 0)
     end
     MOI.optimize!(model)

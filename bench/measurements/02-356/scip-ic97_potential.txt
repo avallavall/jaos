@@ -1,0 +1,8 @@
+cmir+flowcover                     root  +3.89582999436287e+03
+cmir+knapcover                     root  +3.90822830655707e+03
+all                                root  +3.86836363636364e+03
+cmir                               root  +3.91077428659287e+03
+agg (cmir+flow+knap)               root  +3.90445999115827e+03
+gomory                             root  +3.89044665512266e+03
+impliedbounds                      root  +3.86800000000000e+03
+none                               root  +3.86800000000000e+03
