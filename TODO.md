@@ -172,7 +172,20 @@ dive (`bench/measurements/02-355/`): `timtab1` finds 1128183 and `glass4`
 started measuring integer columns from their other bound where that raises
 its efficacy (`bench/measurements/02-357/`): `neos-911970`'s root goes from
 45.4 to 51.6 (SCIP's c-MIR 51.8) and the gap sum to 13.48, with MIPLIB 3
-unchanged. Fourth, `binkar10_1` holds the reference's point and
+unchanged. Read on 2026-10-08 against HiGHS 1.15.1 and SCIP 10, for the
+next steps: on `ic97_potential` SCIP's c-MIR cuts are cycle cuts over the
+integer columns alone (`p3284 + p3285 + p3286 + p3287 >= 1`, the tension
+rows around a cycle summed so the potentials cancel), built up over eight
+rounds to a root of 3895.8, and HiGHS finds its first point at node 52
+from a root of 3898.4; JAOS adds 512 cuts with its aggregation gate off and
+the root LP value does not move in any digit (3868.46). `neos-911970`:
+HiGHS solves it in 6.4 s with 1370 nodes, about 72 LP iterations a node,
+100 to 340 cuts held in its LP and some 9700 conflicts; JAOS's nodes take
+about 200 iterations over all 672 root cuts (7700 with
+`--no-root-cut-drop`), and strong branching at any reliability spends the
+budget in a few nodes, because a probe is a full LP solve rather than a
+few dual steps on the node's factors. `csched008`: HiGHS's first point,
+184, comes from a sub-MIP at node 533. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
 reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
 at reliability 4, the best-bound order and propagation at 4 passes end its
