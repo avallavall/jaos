@@ -7,6 +7,7 @@
 #include <string.h>
 
 constexpr size_t VERIFY_BLOCK_BYTES = 536870912;
+constexpr int64_t EXACT_PIVOT_CAP = 1000;
 
 typedef struct {
     int64_t    n;
@@ -867,11 +868,7 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
             goto done;
         rep.bound_bits = (double)((vprod_log2(&whole) + worst2 + 1) / 2);
     }
-    if (rep.bound_bits > rep.capacity_bits) {
-        rep.status = JAOS_PROOF_REFUSED;
-        rc = JAOS_OK;
-        goto done;
-    }
+    rc = JAOS_OK;
 
     rhs = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *rhs);
     xs  = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *xs);
@@ -1148,6 +1145,560 @@ done:
     vbasis_free(&b);
     *out = rep;
     return rc;
+}
+
+typedef struct {
+    vbasis   b;
+    vrowwise rw;
+    vsccs    s;
+    int64_t *mc;
+    int64_t *mr;
+} xbasis;
+
+static void xbasis_free(xbasis *x)
+{
+    free(x->s.comp);
+    free(x->mc);
+    free(x->mr);
+    vrowwise_free(&x->rw);
+    vbasis_free(&x->b);
+}
+
+static bool xbasis_build(const jaos_model *m, xbasis *x)
+{
+    memset(x, 0, sizeof *x);
+    if (!vbasis_build(m, &x->b))
+        return false;
+    x->mc = jm_alloc_array(x->b.n > 0 ? x->b.n : 1, sizeof *x->mc);
+    x->mr = jm_alloc_array(x->b.n > 0 ? x->b.n : 1, sizeof *x->mr);
+    return x->mc != nullptr && x->mr != nullptr && vbasis_scale(&x->b) &&
+           vrowwise_build(&x->b, &x->rw) &&
+           transversal(&x->b, x->mc, x->mr) && tarjan(&x->b, x->mr, &x->s);
+}
+
+static bool rat_scale2(jm_rational *r, int64_t e)
+{
+    if (e == 0 || jm_rational_is_zero(r))
+        return true;
+    jm_rational p2;
+    jm_rational_set_i64(&p2, 1);
+    if (e > 0 ? !jm_nat_shl(&p2.num.mag, &p2.num.mag, e)
+              : !jm_nat_shl(&p2.den, &p2.den, -e))
+        return false;
+    return jm_rational_mul(r, r, &p2);
+}
+
+static bool xbasis_cols(xbasis *x, jm_rational *rhs, jm_rational *out)
+{
+    for (int64_t i = 0; i < x->b.n; i++)
+        if (!rat_scale2(&rhs[i], -x->b.shift[i]))
+            return false;
+    vsolver V = { .b = &x->b, .rw = &x->rw, .match_row = x->mr,
+                  .match_col = x->mc, .s = &x->s, .transpose = false };
+    if (!solve_system(&V, rhs, out))
+        return false;
+    for (int64_t i = 0; i < x->b.n; i++)
+        if (!rat_scale2(&out[i], -x->b.cshift[x->mr[i]]))
+            return false;
+    return true;
+}
+
+static bool xbasis_rows(xbasis *x, jm_rational *rhs, jm_rational *out)
+{
+    for (int64_t i = 0; i < x->b.n; i++)
+        if (!rat_scale2(&rhs[i], -x->b.cshift[x->mr[i]]))
+            return false;
+    vsolver V = { .b = &x->b, .rw = &x->rw, .match_row = x->mr,
+                  .match_col = x->mc, .s = &x->s, .transpose = true };
+    if (!solve_system(&V, rhs, out))
+        return false;
+    for (int64_t i = 0; i < x->b.n; i++)
+        if (!rat_scale2(&out[i], -x->b.shift[i]))
+            return false;
+    return true;
+}
+
+static double xvar_lo(const jaos_model *m, int64_t v)
+{
+    return v < m->num_col ? m->col_lower[v] : m->row_lower[v - m->num_col];
+}
+
+static double xvar_hi(const jaos_model *m, int64_t v)
+{
+    return v < m->num_col ? m->col_upper[v] : m->row_upper[v - m->num_col];
+}
+
+static jaos_basis_status *xvar_st(jaos_model *m, int64_t v)
+{
+    return v < m->num_col ? &m->sol_col_status[v]
+                          : &m->sol_row_status[v - m->num_col];
+}
+
+static bool xvar_dot(const jaos_model *m, int64_t v, const jm_rational *z,
+                     jm_rational *out)
+{
+    if (v >= m->num_col) {
+        *out = z[v - m->num_col];
+        jm_rational_neg(out);
+        return true;
+    }
+    jm_rational a, t;
+    jm_rational_set_zero(out);
+    for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+        if (m->a_value[k] == 0.0)
+            continue;
+        if (!jm_rational_from_double(&a, m->a_value[k]) ||
+            !jm_rational_mul(&t, &a, &z[m->a_index[k]]) ||
+            !jm_rational_add(out, out, &t))
+            return false;
+    }
+    return true;
+}
+
+static double xvar_at(const jaos_model *m, int64_t v, jaos_basis_status st)
+{
+    if (st == JAOS_BASIS_AT_LOWER)
+        return xvar_lo(m, v);
+    if (st == JAOS_BASIS_AT_UPPER)
+        return xvar_hi(m, v);
+    return 0.0;
+}
+
+typedef enum {
+    XSTEP_PIVOT = 0,
+    XSTEP_FLIP,
+    XSTEP_OPTIMAL,
+    XSTEP_INFEASIBLE,
+    XSTEP_UNBOUNDED,
+    XSTEP_SHIFT,
+    XSTEP_FAIL,
+} xstep;
+
+static bool rat_abs_ratio(jm_rational *out, const jm_rational *a,
+                          const jm_rational *b)
+{
+    jm_rational na = *a, nb = *b;
+    if (jm_rational_sign(&na) < 0)
+        jm_rational_neg(&na);
+    if (jm_rational_sign(&nb) < 0)
+        jm_rational_neg(&nb);
+    return jm_rational_div(out, &na, &nb);
+}
+
+static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
+                        double *ray)
+{
+    const int64_t nc = m->num_col, nr = m->num_row, nv = nc + nr;
+    const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
+    xbasis x;
+    memset(&x, 0, sizeof x);
+    xstep res = XSTEP_FAIL;
+    jm_rational *rhs = calloc((size_t)(nr > 0 ? nr : 1), sizeof *rhs);
+    jm_rational *xs = calloc((size_t)(nr > 0 ? nr : 1), sizeof *xs);
+    jm_rational *us = calloc((size_t)(nr > 0 ? nr : 1), sizeof *us);
+    jm_rational *dv = calloc((size_t)(nv > 0 ? nv : 1), sizeof *dv);
+    int64_t *pos = jm_alloc_array(nv > 0 ? nv : 1, sizeof *pos);
+    int64_t *var = jm_alloc_array(nr > 0 ? nr : 1, sizeof *var);
+    const bool built = rhs != nullptr && xs != nullptr && us != nullptr &&
+                       dv != nullptr && pos != nullptr && var != nullptr &&
+                       xbasis_build(m, &x);
+    if (!built)
+        goto out;
+
+    for (int64_t v = 0; v < nv; v++)
+        pos[v] = -1;
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t w = x.b.who[x.mr[i]];
+        var[i] = w >= 0 ? w : nc + (-w - 1);
+        pos[var[i]] = i;
+    }
+
+    for (int64_t i = 0; i < nr; i++)
+        jm_rational_set_zero(&rhs[i]);
+    for (int64_t v = 0; v < nv; v++) {
+        if (pos[v] >= 0)
+            continue;
+        const double at = xvar_at(m, v, *xvar_st(m, v));
+        if (!isfinite(at))
+            goto out;
+        if (at == 0.0)
+            continue;
+        jm_rational r, a, t;
+        if (!jm_rational_from_double(&r, at))
+            goto out;
+        if (v >= nc) {
+            if (!jm_rational_add(&rhs[v - nc], &rhs[v - nc], &r))
+                goto out;
+            continue;
+        }
+        for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
+            if (m->a_value[k] == 0.0)
+                continue;
+            if (!jm_rational_from_double(&a, -m->a_value[k]) ||
+                !jm_rational_mul(&t, &a, &r) ||
+                !jm_rational_add(&rhs[m->a_index[k]], &rhs[m->a_index[k]], &t))
+                goto out;
+        }
+    }
+    if (!xbasis_cols(&x, rhs, xs))
+        goto out;
+
+    int64_t leave = -1, side = 0;
+    for (int64_t v = 0; v < nv && leave < 0; v++) {
+        if (pos[v] < 0)
+            continue;
+        bool okb = true;
+        double by = 0.0;
+        const int s = rat_in_bounds(&xs[pos[v]], xvar_lo(m, v), xvar_hi(m, v),
+                                    &by, &okb);
+        if (!okb)
+            goto out;
+        if (s != 0) {
+            leave = v;
+            side = s;
+        }
+    }
+
+    for (int64_t i = 0; i < nr; i++)
+        rhs[i] = cost[var[i]];
+    if (!xbasis_rows(&x, rhs, us))
+        goto out;
+
+    int64_t enter = -1;
+    for (int64_t v = 0; v < nv; v++) {
+        jm_rational_set_zero(&dv[v]);
+        if (pos[v] >= 0)
+            continue;
+        jm_rational au;
+        if (!xvar_dot(m, v, us, &au) || !jm_rational_sub(&dv[v], &cost[v], &au))
+            goto out;
+        if (xvar_lo(m, v) == xvar_hi(m, v))
+            continue;
+        const jaos_basis_status st = *xvar_st(m, v);
+        const int32_t sg = jm_rational_sign(&dv[v]);
+        if (enter < 0 && ((st == JAOS_BASIS_AT_LOWER && sg < 0) ||
+                          (st == JAOS_BASIS_AT_UPPER && sg > 0) ||
+                          (st == JAOS_BASIS_FREE && sg != 0)))
+            enter = v;
+    }
+
+    if (leave < 0 && enter < 0 && !publish) {
+        res = XSTEP_OPTIMAL;
+        goto out;
+    }
+    if (leave < 0 && enter < 0) {
+        for (int64_t j = 0; j < nc; j++) {
+            m->sol_col[j] = pos[j] >= 0
+                ? jm_rational_to_double(&xs[pos[j]])
+                : xvar_at(m, j, m->sol_col_status[j]);
+            jm_rational r = dv[j];
+            if (sigma < 0.0)
+                jm_rational_neg(&r);
+            m->sol_redcost[j] = pos[j] >= 0 ? 0.0 : jm_rational_to_double(&r);
+        }
+        for (int64_t i = 0; i < nr; i++) {
+            m->sol_row[i] = pos[nc + i] >= 0
+                ? jm_rational_to_double(&xs[pos[nc + i]])
+                : xvar_at(m, nc + i, m->sol_row_status[i]);
+            jm_rational y = us[i];
+            if (sigma < 0.0)
+                jm_rational_neg(&y);
+            m->sol_dual[i] = jm_rational_to_double(&y);
+        }
+        jm_rational acc, t, cj, xj;
+        bool fits = jm_rational_from_double(&acc, m->obj_offset);
+        for (int64_t j = 0; fits && j < nc; j++) {
+            if (m->col_cost[j] == 0.0)
+                continue;
+            if (pos[j] >= 0)
+                xj = xs[pos[j]];
+            else
+                fits = jm_rational_from_double(
+                    &xj, xvar_at(m, j, m->sol_col_status[j]));
+            fits = fits && jm_rational_from_double(&cj, m->col_cost[j]) &&
+                   jm_rational_mul(&t, &cj, &xj) &&
+                   jm_rational_add(&acc, &acc, &t);
+        }
+        if (fits)
+            m->objective = jm_rational_to_double(&acc);
+        res = XSTEP_OPTIMAL;
+        goto out;
+    }
+    if (leave >= 0 && enter >= 0) {
+        for (int64_t v = 0; v < nv; v++) {
+            if (pos[v] >= 0 || xvar_lo(m, v) == xvar_hi(m, v))
+                continue;
+            const jaos_basis_status st = *xvar_st(m, v);
+            const int32_t sg = jm_rational_sign(&dv[v]);
+            if (((st == JAOS_BASIS_AT_LOWER && sg < 0) ||
+                 (st == JAOS_BASIS_AT_UPPER && sg > 0) ||
+                 (st == JAOS_BASIS_FREE && sg != 0)) &&
+                !jm_rational_sub(&cost[v], &cost[v], &dv[v]))
+                goto out;
+        }
+        res = XSTEP_SHIFT;
+        goto out;
+    }
+
+    if (leave >= 0) {
+        for (int64_t i = 0; i < nr; i++)
+            jm_rational_set_zero(&rhs[i]);
+        jm_rational_set_i64(&rhs[pos[leave]], 1);
+        jm_rational *z = us;
+        if (!xbasis_rows(&x, rhs, z))
+            goto out;
+        int64_t best = -1;
+        jm_rational bratio;
+        jm_rational_set_zero(&bratio);
+        for (int64_t v = 0; v < nv; v++) {
+            if (pos[v] >= 0 || xvar_lo(m, v) == xvar_hi(m, v))
+                continue;
+            jm_rational al;
+            if (!xvar_dot(m, v, z, &al))
+                goto out;
+            const int32_t sa = jm_rational_sign(&al);
+            if (sa == 0)
+                continue;
+            const jaos_basis_status st = *xvar_st(m, v);
+            const bool ok = st == JAOS_BASIS_FREE ||
+                (st == JAOS_BASIS_AT_LOWER && sa == (side < 0 ? -1 : 1)) ||
+                (st == JAOS_BASIS_AT_UPPER && sa == (side < 0 ? 1 : -1));
+            if (!ok)
+                continue;
+            jm_rational ratio;
+            if (!rat_abs_ratio(&ratio, &dv[v], &al))
+                goto out;
+            int cmp = 0;
+            if (best >= 0 && !jm_rational_cmp_checked(&ratio, &bratio, &cmp))
+                goto out;
+            if (best < 0 || cmp < 0) {
+                best = v;
+                bratio = ratio;
+            }
+        }
+        if (best < 0) {
+            if (ray != nullptr)
+                for (int64_t i = 0; i < nr; i++)
+                    ray[i] = jm_rational_to_double(&z[i]);
+            res = XSTEP_INFEASIBLE;
+            goto out;
+        }
+        *xvar_st(m, best) = JAOS_BASIS_BASIC;
+        *xvar_st(m, leave) = side < 0 ? JAOS_BASIS_AT_LOWER
+                                      : JAOS_BASIS_AT_UPPER;
+        res = XSTEP_PIVOT;
+        goto out;
+    }
+
+    {
+        const int32_t dir = jm_rational_sign(&dv[enter]) < 0 ? 1 : -1;
+        for (int64_t i = 0; i < nr; i++)
+            jm_rational_set_zero(&rhs[i]);
+        if (enter >= nc) {
+            jm_rational_set_i64(&rhs[enter - nc], -1);
+        } else {
+            for (int64_t k = m->a_start[enter]; k < m->a_start[enter + 1];
+                 k++)
+                if (m->a_value[k] != 0.0 &&
+                    !jm_rational_from_double(&rhs[m->a_index[k]],
+                                             m->a_value[k]))
+                    goto out;
+        }
+        jm_rational *w = us;
+        if (!xbasis_cols(&x, rhs, w))
+            goto out;
+        int64_t best = -1;
+        int32_t best_to = 0;
+        jm_rational bt;
+        jm_rational_set_zero(&bt);
+        const double elo = xvar_lo(m, enter), ehi = xvar_hi(m, enter);
+        const jaos_basis_status est = *xvar_st(m, enter);
+        if (est != JAOS_BASIS_FREE && isfinite(elo) && isfinite(ehi)) {
+            jm_rational l, h;
+            if (!jm_rational_from_double(&l, elo) ||
+                !jm_rational_from_double(&h, ehi) ||
+                !jm_rational_sub(&bt, &h, &l))
+                goto out;
+            best = enter;
+        }
+        for (int64_t v = 0; v < nv; v++) {
+            if (pos[v] < 0)
+                continue;
+            const int64_t i = pos[v];
+            const int32_t sd = -dir * jm_rational_sign(&w[i]);
+            if (sd == 0)
+                continue;
+            const double bd = sd < 0 ? xvar_lo(m, v) : xvar_hi(m, v);
+            if (!isfinite(bd))
+                continue;
+            jm_rational b, gap, t;
+            if (!jm_rational_from_double(&b, bd) ||
+                !jm_rational_sub(&gap, &b, &xs[i]) ||
+                !rat_abs_ratio(&t, &gap, &w[i]))
+                goto out;
+            int cmp = 0;
+            if (best >= 0 && !jm_rational_cmp_checked(&t, &bt, &cmp))
+                goto out;
+            if (best < 0 || cmp < 0 || (cmp == 0 && v < best)) {
+                best = v;
+                bt = t;
+                best_to = sd;
+            }
+        }
+        if (best < 0) {
+            res = XSTEP_UNBOUNDED;
+            goto out;
+        }
+        if (best == enter) {
+            *xvar_st(m, enter) = est == JAOS_BASIS_AT_LOWER
+                                     ? JAOS_BASIS_AT_UPPER
+                                     : JAOS_BASIS_AT_LOWER;
+            res = XSTEP_FLIP;
+            goto out;
+        }
+        *xvar_st(m, enter) = JAOS_BASIS_BASIC;
+        *xvar_st(m, best) = best_to < 0 ? JAOS_BASIS_AT_LOWER
+                                        : JAOS_BASIS_AT_UPPER;
+        res = XSTEP_PIVOT;
+    }
+
+out:
+    xbasis_free(&x);
+    free(rhs); free(xs); free(us); free(dv); free(pos); free(var);
+    return res;
+}
+
+static jaos_status exact_fail(jaos_model *m, const char *why)
+{
+    jm_model_drop_exact(m);
+    m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+    jm_set_err(m, "exact solving: %s", why);
+    return JAOS_OK;
+}
+
+static bool exact_costs(const jaos_model *m, jm_rational *cost)
+{
+    const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (!jm_rational_from_double(&cost[j], sigma * m->col_cost[j]))
+            return false;
+    for (int64_t i = 0; i < m->num_row; i++)
+        jm_rational_set_zero(&cost[m->num_col + i]);
+    return true;
+}
+
+static jaos_status exact_infeasible(jaos_model *m, int64_t pivots)
+{
+    m->solve_status = JAOS_SOLVE_INFEASIBLE;
+    m->farkas_ok = true;
+    m->ray_ok = false;
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_exact_ray_report r;
+        if (jaos_exact_certificate(m, &r) == JAOS_OK && r.derived) {
+            jm_log(m, JAOS_LOG_SUMMARY, "exact: the floating-point optimum "
+                   "is infeasible over the rationals, shown after %lld exact "
+                   "pivots, with an exact certificate", (long long)pivots);
+            return JAOS_OK;
+        }
+        for (int64_t i = 0; i < m->num_row; i++)
+            m->sol_farkas[i] = -m->sol_farkas[i];
+    }
+    return exact_fail(m, "the model is infeasible over the rationals, and no "
+                         "exact certificate came from the row that shows it");
+}
+
+jaos_status jm_exact_finish(jaos_model *m)
+{
+    if (m->solve_status == JAOS_SOLVE_INFEASIBLE) {
+        jaos_exact_ray_report r;
+        if (jaos_exact_certificate(m, &r) != JAOS_OK || !r.derived)
+            return exact_fail(m, "no exact certificate of infeasibility "
+                                 "came from the ray the solve published");
+        jm_log(m, JAOS_LOG_SUMMARY, "exact: infeasibility proved over the "
+               "rationals");
+        return JAOS_OK;
+    }
+    if (m->solve_status == JAOS_SOLVE_UNBOUNDED) {
+        jaos_exact_ray_report r;
+        if (jaos_exact_unbounded_ray(m, &r) != JAOS_OK || !r.derived)
+            return exact_fail(m, "no exact unbounded ray came from the one "
+                                 "the solve published");
+        jm_log(m, JAOS_LOG_SUMMARY, "exact: unboundedness proved over the "
+               "rationals");
+        return JAOS_OK;
+    }
+    if (m->solve_status != JAOS_SOLVE_OPTIMAL)
+        return JAOS_OK;
+    if (!m->sol_basis_ok || m->sol_col_status == nullptr ||
+        m->sol_row_status == nullptr)
+        return exact_fail(m, "the optimum carries no basis to prove");
+
+    const int64_t nv = m->num_col + m->num_row;
+    jm_rational *cost = calloc((size_t)(nv > 0 ? nv : 1), sizeof *cost);
+    if (cost == nullptr || !exact_costs(m, cost)) {
+        free(cost);
+        return exact_fail(m, "a cost does not fit the limb budget");
+    }
+    int64_t pivots = 0, flips = 0, shifts = 0;
+    bool shifted = false;
+    const char *why = nullptr;
+    for (;;) {
+        if (!shifted) {
+            jaos_verify_report rep;
+            const jaos_status st = verify_core(m, &rep);
+            if (st != JAOS_OK) {
+                why = "the proof could not be set up";
+                break;
+            }
+            if (rep.status == JAOS_PROOF_OPTIMAL)
+                break;
+            if (rep.status == JAOS_PROOF_REFUSED) {
+                why = "a number in the proof outgrew the limb budget";
+                break;
+            }
+            if (rep.stage == JAOS_PROOF_STAGE_RANK) {
+                why = "the basis is singular over the rationals";
+                break;
+            }
+        }
+        if (pivots + flips + shifts >= EXACT_PIVOT_CAP) {
+            why = "the exact pivots reached their cap";
+            break;
+        }
+        const xstep s = exact_step(m, cost, false, m->sol_farkas);
+        if (s == XSTEP_PIVOT) {
+            pivots++;
+        } else if (s == XSTEP_FLIP) {
+            flips++;
+        } else if (s == XSTEP_SHIFT) {
+            shifts++;
+            shifted = true;
+        } else if (s == XSTEP_OPTIMAL && shifted) {
+            if (!exact_costs(m, cost)) {
+                why = "a cost does not fit the limb budget";
+                break;
+            }
+            shifted = false;
+        } else if (s == XSTEP_INFEASIBLE) {
+            free(cost);
+            return exact_infeasible(m, pivots);
+        } else if (s == XSTEP_UNBOUNDED) {
+            why = "the model is unbounded over the rationals";
+            break;
+        } else {
+            why = "a number in the proof outgrew the limb budget";
+            break;
+        }
+    }
+    if (why == nullptr && exact_step(m, cost, true, nullptr) != XSTEP_OPTIMAL)
+        why = "a number in the proof outgrew the limb budget";
+    free(cost);
+    if (why != nullptr)
+        return exact_fail(m, why);
+    jm_log(m, JAOS_LOG_SUMMARY, "exact: optimum proved over the rationals "
+           "after %lld exact pivots, %lld bound flips and %lld cost shifts",
+           (long long)pivots, (long long)flips, (long long)shifts);
+    return JAOS_OK;
 }
 
 jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)
@@ -1476,10 +2027,6 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
             goto done;
         rep.bound_bits = (double)((vprod_log2(&whole) + worst2 + 1) / 2);
     }
-    if (rep.bound_bits > rep.capacity_bits) {
-        rc = JAOS_OK;
-        goto done;
-    }
 
     for (int64_t c = 0; c < b.n; c++) {
         const int64_t w = b.who[c];
@@ -1504,6 +2051,7 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
     }
 
     rep.at_row = b.who[pos] < 0 ? -b.who[pos] - 1 : -1;
+    rc = JAOS_OK;
 
     rhs = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *rhs);
     us  = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *us);
@@ -1535,11 +2083,11 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
             rep.terms += V.terms;
             if ((int64_t)V.held > rep.bytes_held)
                 rep.bytes_held = (int64_t)V.held;
-            if (V.singular)
+            if (V.singular) {
                 jm_set_err(m, "jaos_exact_certificate: the published basis "
                               "is singular");
-            else
-                rc = JAOS_OK;
+                rc = JAOS_ERR_NUMERICAL;
+            }
             goto done;
         }
         rep.terms += V.terms;
@@ -1682,10 +2230,7 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
             goto done;
         rep.bound_bits = (double)((vprod_log2(&whole) + worst2 + 1) / 2);
     }
-    if (rep.bound_bits > rep.capacity_bits) {
-        rc = JAOS_OK;
-        goto done;
-    }
+    rc = JAOS_OK;
 
     rhs = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *rhs);
     xs  = calloc((size_t)(b.n > 0 ? b.n : 1), sizeof *xs);
@@ -1732,11 +2277,11 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
             rep.terms += V.terms;
             if ((int64_t)V.held > rep.bytes_held)
                 rep.bytes_held = (int64_t)V.held;
-            if (V.singular)
+            if (V.singular) {
                 jm_set_err(m, "jaos_exact_unbounded_ray: the published basis "
                               "is singular");
-            else
-                rc = JAOS_OK;
+                rc = JAOS_ERR_NUMERICAL;
+            }
             goto done;
         }
         rep.terms += V.terms;

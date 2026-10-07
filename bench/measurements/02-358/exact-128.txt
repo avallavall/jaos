@@ -1,0 +1,96 @@
+start 01:14:58
+25fv47 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.4
+80bau3b exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.3
+adlittle exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+afiro exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+agg exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+agg2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+agg3 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+bandm exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.5
+beaconfd exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+blend exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+bnl1 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.3
+bnl2 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.9
+boeing1 exact: optimum proved over the rationals after 7 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 3.0
+boeing2 exact: optimum proved over the rationals after 2 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+bore3d exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.6
+brandy exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.6
+capri exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.4
+cycle exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.8
+czprob exact: optimum proved over the rationals after 2 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.9
+d2q06c exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.6
+d6cube exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 6.9
+degen2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.6
+degen3 exact: optimum proved over the rationals after 4 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 203.8
+dfl001 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 7.8
+e226 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.5
+etamacro exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.0
+fffff800 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+finnis exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+fit1d exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+fit1p exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+fit2d exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.2
+fit2p exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.2
+forplan exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 4.8
+ganges exact: optimum proved over the rationals after 82 exact pivots, 1 bound flips and 1 cost shifts status optimal  secs 47.7
+gfrd-pnc exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+greenbea exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.0
+greenbeb exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2.2
+grow15 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.2
+grow22 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 10.1
+grow7 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.6
+israel exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 2.2
+kb2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+lotfi exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+maros-r7 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.0
+maros exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.6
+modszk1 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.1
+nesm exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2.8
+perold exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.7
+pilot-ja exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.8
+pilot-we exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.0
+pilot exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1.2
+pilot4 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.2
+pilot87 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 4.5
+pilotnov exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0.5
+recipe exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+sc105 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.7
+sc205 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 10.0
+sc50a exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+sc50b exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+scagr25 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.9
+scagr7 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+scfxm1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.3
+scfxm2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.1
+scfxm3 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.8
+scorpion exact: the floating-point optimum is infeasible over the rationals, shown after 6 exact pivots, with an exact certificate status infeasible  secs 1.1
+scrs8 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.5
+scsd1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+scsd6 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+scsd8 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2.3
+sctap1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+sctap2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+sctap3 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+seba exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+share1b exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+share2b exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+shell exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+ship04l exact: optimum proved over the rationals after 1 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+ship04s exact: optimum proved over the rationals after 1 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+ship08l exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+ship08s exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+ship12l exact: optimum proved over the rationals after 2 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.6
+ship12s exact: optimum proved over the rationals after 1 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.2
+sierra exact: the floating-point optimum is infeasible over the rationals, shown after 18 exact pivots, with an exact certificate status infeasible  secs 0.6
+stair exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 14.0
+standata exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+standmps exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+stocfor1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.1
+stocfor2 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 1.8
+stocfor3 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 4.0
+truss exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 3.7
+tuff exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.3
+vtp-base exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.0
+wood1p exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2.5
+woodw exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 0.4
+EXNET-END 01:21:20

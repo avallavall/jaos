@@ -1288,6 +1288,27 @@ class TestVerify(unittest.TestCase):
             self.assertGreaterEqual(r.largest_block, 1)
             self.assertLessEqual(r.largest_block, m.num_row)
 
+    def test_exact_solving_gives_the_rational_optimum(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=4, name="x")
+        y = p.add_var(ub=4, name="y")
+        p.add(x + 2 * y <= 3.5)
+        p.add(3 * x + y <= 5.1)
+        p.maximize(x + y)
+        p.set_exact(True)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        want = (fractions.Fraction(5.1) + 7) / 5
+        self.assertEqual(fractions.Fraction(p.exact_objective()), want)
+        self.assertEqual(p.objective_value, float(want))
+        q = jaos.Problem()
+        z = q.add_var(binary=True, name="z")
+        q.maximize(z)
+        q.set_exact(True)
+        with self.assertRaises(jaos.JaosError):
+            q.solve()
+        q.set_exact(False)
+        self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
+
     def test_a_small_optimum_is_proved(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

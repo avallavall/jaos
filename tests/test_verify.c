@@ -340,7 +340,7 @@ static void test_names_the_rank_stage_when_there_is_no_transversal(void)
 #endif
 }
 
-static void test_refuses_a_basis_wider_than_the_limbs(void)
+static void test_a_bound_past_the_limbs_no_longer_refuses_before_the_work(void)
 {
     enum { N = 100 };
     double cost[N], cl[N], cu[N], rl[N], ru[N], value[N];
@@ -364,14 +364,100 @@ static void test_refuses_a_basis_wider_than_the_limbs(void)
                      N, start, index, value));
 
     const jaos_verify_report r = verify_of(m);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_PROOF_REFUSED, r.status,
-        "a basis past the limb budget is not refused");
     TEST_ASSERT_TRUE_MESSAGE(r.bound_bits > r.capacity_bits,
-        "the bound does not exceed the capacity it was refused for");
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, r.terms,
-        "the refusal did work before refusing");
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, r.bytes_held,
-        "the refusal allocated a block table");
+        "the bound does not exceed the capacity");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_PROOF_OPTIMAL, r.status,
+        "a basis whose numbers fit is refused for its bound alone");
+    TEST_ASSERT_TRUE(r.terms > 0);
+    jaos_model_free(m);
+}
+
+static jaos_model *model_eleven(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[2] = { 3.0, 2.0 };
+    const double cl[2] = { 0.0, 0.0 }, cu[2] = { 3.0, INFINITY };
+    const double rl[2] = { -INFINITY, -INFINITY }, ru[2] = { 4.0, 6.0 };
+    const int64_t start[3] = { 0, 2, 4 }, index[4] = { 0, 1, 0, 1 };
+    const double value[4] = { 1.0, 1.0, 1.0, 3.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MAXIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     4, start, index, value));
+    return m;
+}
+
+static void test_exact_pivots_reach_the_optimum_from_every_basis(void)
+{
+    int64_t reached = 0;
+    for (int mask = 0; mask < 16; mask++) {
+        if (__builtin_popcount((unsigned)mask) != 2)
+            continue;
+        for (int xup = 0; xup < 2; xup++) {
+            if ((mask & 1) && xup)
+                continue;
+            jaos_model *m = model_eleven();
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            m->sol_col_status[0] = (mask & 1) ? JAOS_BASIS_BASIC
+                : xup ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+            m->sol_col_status[1] = (mask & 2) ? JAOS_BASIS_BASIC
+                                              : JAOS_BASIS_AT_LOWER;
+            m->sol_row_status[0] = (mask & 4) ? JAOS_BASIS_BASIC
+                                              : JAOS_BASIS_AT_UPPER;
+            m->sol_row_status[1] = (mask & 8) ? JAOS_BASIS_BASIC
+                                              : JAOS_BASIS_AT_UPPER;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_exact_finish(m));
+            TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                          jaos_model_error(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_EQUAL_DOUBLE(11.0, obj);
+            const char *ex = nullptr;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &ex));
+            TEST_ASSERT_EQUAL_STRING("11", ex);
+            double x[2] = { 0.0, 0.0 };
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_solution(m, x, nullptr, nullptr, nullptr));
+            TEST_ASSERT_EQUAL_DOUBLE(3.0, x[0]);
+            TEST_ASSERT_EQUAL_DOUBLE(1.0, x[1]);
+            reached++;
+            jaos_model_free(m);
+        }
+    }
+    TEST_ASSERT_EQUAL_INT64(9, reached);
+}
+
+static void test_exact_solving_finds_a_tenth_and_a_fifth_miss_three_tenths(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[2] = { 0.0, 0.0 };
+    const double cl[2] = { 0.1, 0.2 }, cu[2] = { 0.1, 0.2 };
+    const double rl[1] = { 0.3 }, ru[1] = { 0.3 };
+    const int64_t start[3] = { 0, 1, 2 }, index[2] = { 0, 0 };
+    const double value[2] = { 1.0, 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, start, index, value));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m),
+                                  jaos_model_error(m));
+    jaos_model_free(m);
+}
+
+static void test_exact_solving_refuses_a_mip_by_name(void)
+{
+    jaos_model *m = model_two();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_solve(m));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "linear programs"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     jaos_model_free(m);
 }
 
@@ -1313,7 +1399,10 @@ int main(void)
     RUN_TEST(test_rejects_a_structurally_singular_basis);
     RUN_TEST(test_rejects_a_basis_that_is_singular_with_a_transversal);
     RUN_TEST(test_names_the_rank_stage_when_there_is_no_transversal);
-    RUN_TEST(test_refuses_a_basis_wider_than_the_limbs);
+    RUN_TEST(test_a_bound_past_the_limbs_no_longer_refuses_before_the_work);
+    RUN_TEST(test_exact_pivots_reach_the_optimum_from_every_basis);
+    RUN_TEST(test_exact_solving_finds_a_tenth_and_a_fifth_miss_three_tenths);
+    RUN_TEST(test_exact_solving_refuses_a_mip_by_name);
     RUN_TEST(test_refuses_a_nonbasic_variable_on_an_infinite_bound);
     RUN_TEST(test_reads_the_bound_before_it_allocates);
     RUN_TEST(test_a_unit_basis_costs_no_bits);

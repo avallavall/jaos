@@ -954,6 +954,13 @@ class Problem:
         self._m.set_mip_dive(on)
         return self
 
+    def set_exact(self, on=True):
+        self._m.set_exact(on)
+        return self
+
+    def exact_objective(self):
+        return self._m.exact_objective()
+
     def set_mip_cut_rounds(self, rounds):
         """Rounds of Gomory cuts at the root: 0 for none, negative for the
         default of 1 (D289)."""

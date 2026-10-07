@@ -819,6 +819,7 @@ public final class Model implements AutoCloseable {
     public void setMipZeroHalfRounds(long rounds) { check(call(Native.SET_MIP_ZERO_HALF_ROUNDS, h, rounds)); }
     public void setMipFlowCoverRounds(long rounds) { check(call(Native.SET_MIP_FLOW_COVER_ROUNDS, h, rounds)); }
     public void setMipHullRounds(long rounds) { check(call(Native.SET_MIP_HULL_ROUNDS, h, rounds)); }
+    public void setExact(boolean on) { check(call(Native.SET_EXACT, h, on)); }
     public void setMipCutStall(double fraction) { check(call(Native.SET_MIP_CUT_STALL, h, fraction)); }
     public void setMipNodeCutStall(double fraction) { check(call(Native.SET_MIP_NODE_CUT_STALL, h, fraction)); }
     public void setMipMirRounds(long rounds) { check(call(Native.SET_MIP_MIR_ROUNDS, h, rounds)); }

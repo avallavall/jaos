@@ -68,6 +68,8 @@ typedef struct {
     bool mip_hull_rounds_set;
     int64_t mip_hull_rounds;
 
+    bool exact;
+
     bool mip_cut_stall_set;
     double mip_cut_stall;
 
@@ -438,6 +440,7 @@ bool jm_name_ok(const char *name);
 bool jm_lp_name_ok(const char *s);
 
 void jm_model_drop_exact(jaos_model *m);
+jaos_status jm_exact_finish(jaos_model *m);
 
 JAOS_NODISCARD jaos_status jm_branch_and_bound(jaos_model *m);
 void jm_mip_take_published(jaos_model *m);

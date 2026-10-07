@@ -761,6 +761,16 @@ class Model:
         measured 1.125x the work of the plain best-bound order (D289)."""
         self._check(_lib.jaos_set_mip_dive(self._handle(), bool(on)))
 
+    def set_exact(self, on=True):
+        """Whether solve() proves an LP's answer over the rationals. The
+        floating-point basis is checked exactly and repaired by exact
+        pivots; the published values are then the exact ones rounded, and
+        exact_objective() and the other exact getters give the rationals.
+        An answer that cannot be proved ends NUMERICAL_ERROR. Refused for a
+        model with integers, a quadratic objective, cones or quadratic
+        rows."""
+        self._check(_lib.jaos_set_exact(self._handle(), bool(on)))
+
     def set_mip_cut_rounds(self, rounds):
         """Rounds of Gomory cuts at the root (D289): 0 for none, a
         negative value for the default of 1."""

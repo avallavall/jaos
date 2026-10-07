@@ -344,4 +344,10 @@ An integer feasibility question over an unbounded space.
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**
 
-J19. **Exact solving with no tolerances** (missing).
+J19. **Exact solving with no tolerances.** LPs since 2026-10-08
+(`jaos_set_exact`, `bench/measurements/02-358/`): 59 of the 94 Netlib optima
+proved, 2 models infeasible over the rationals, 33 past the 4096-bit limbs.
+Left: numbers past the limbs (512 limbs reach 59 proved and 16 repairable
+at ten times the time; a magnitude that grows as it needs would reach the
+rest), MIPs (an exact branch and bound over exactly solved nodes), and data
+read as exact decimals rather than doubles.

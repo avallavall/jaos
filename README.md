@@ -118,8 +118,9 @@ every cost and bound. Farkas certificates and unbounded rays, floating and
 exact. An irreducible infeasible subsystem, written out as a model if asked,
 and a feasibility relaxation. An exact rational proof that the basis is
 optimal, the exact values, and a proof file that is checked from the model
-alone. The checker and the prover also take a point or a basis another solver
-produced.
+alone. With `--exact` an LP is solved exactly: a basis the proof breaks is
+repaired by pivots in rational arithmetic until it proves. The checker and
+the prover also take a point or a basis another solver produced.
 
 **A model is not read-only.** Bounds, costs, coefficients, the objective's
 sense and constant, rows and columns added or deleted, all reading back. A

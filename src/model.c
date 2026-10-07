@@ -853,6 +853,17 @@ jaos_status jaos_solve(jaos_model *m)
 
     jm_model_drop_exact(m);
 
+    if (m->cfg.exact && (jm_model_has_quadratic(m) || jm_model_has_conic(m) ||
+                         jm_model_has_integer(m))) {
+        jm_set_err(m, "exact solving covers linear programs: the answer it "
+                      "proves is a basis, and this model has %s",
+                   jm_model_has_integer(m) ? "integer columns or discrete "
+                                             "structure"
+                   : jm_model_has_conic(m) ? "cones or quadratic rows"
+                                           : "a quadratic objective");
+        return JAOS_ERR_INVALID_INPUT;
+    }
+
     if (jm_model_has_quadratic(m)) {
         if (m->cfg.force_primal || m->cfg.pdlp || m->cfg.concurrent) {
             jm_set_err(m, "the objective has a quadratic term, which only "
@@ -899,12 +910,16 @@ jaos_status jaos_solve(jaos_model *m)
         }
         return jm_branch_and_bound(m);
     }
-    if (m->cfg.concurrent && !m->cfg.node_solve)
-        return jm_solve_concurrent(m);
+    if (m->cfg.concurrent && !m->cfg.node_solve) {
+        const jaos_status cst = jm_solve_concurrent(m);
+        return cst == JAOS_OK && m->cfg.exact ? jm_exact_finish(m) : cst;
+    }
     const jaos_status st = jm_dual_simplex(m);
     if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR &&
         jm_model_has_quadratic(m))
         return jm_conic_after_barrier(m);
+    if (st == JAOS_OK && m->cfg.exact && !m->cfg.node_solve)
+        return jm_exact_finish(m);
     return st;
 }
 
@@ -1842,6 +1857,14 @@ jaos_status jaos_set_mip_flow_cover_rounds(jaos_model *m, int64_t rounds)
         return JAOS_ERR_INVALID_INPUT;
     m->cfg.mip_flow_cover_rounds_set = rounds >= 0;
     m->cfg.mip_flow_cover_rounds = rounds >= 0 ? rounds : 0;
+    return JAOS_OK;
+}
+
+jaos_status jaos_set_exact(jaos_model *m, bool on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.exact = on;
     return JAOS_OK;
 }
 

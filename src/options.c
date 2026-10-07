@@ -36,7 +36,7 @@ enum opt_id {
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
     O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_LOCAL_BRANCHING, O_NODE_SELECT, O_RESTART, O_THREADS,
-    O_GAP_RULE, O_HULL_ROUNDS,
+    O_GAP_RULE, O_HULL_ROUNDS, O_EXACT,
     O_COUNT
 };
 
@@ -101,6 +101,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_THREADS] = {"threads", OPT_INT, nullptr, 0},
     [O_GAP_RULE] = {"mip_gap_rule", OPT_ENUM, GAP_WORDS, 2},
     [O_HULL_ROUNDS] = {"mip_hull_rounds", OPT_INT, nullptr, 0},
+    [O_EXACT] = {"exact", OPT_BOOL, nullptr, 0},
 };
 
 int64_t jaos_num_options(void)
@@ -265,6 +266,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_THREADS: return jaos_set_threads(m, i);
     case O_GAP_RULE: return jaos_set_mip_gap_rule(m, (jaos_gap_rule)e);
     case O_HULL_ROUNDS: return jaos_set_mip_hull_rounds(m, i);
+    case O_EXACT: return jaos_set_exact(m, b == 1);
     case O_COUNT: break;
     }
     return JAOS_ERR_INVALID_INPUT;
@@ -349,6 +351,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_THREADS: i = jaos_threads_of(m); break;
     case O_GAP_RULE: e = (int)c->mip_gap_rule; break;
     case O_HULL_ROUNDS: i = (int64_t)eff(c->mip_hull_rounds_set, (double)c->mip_hull_rounds, JM_DEF_HULL_ROUNDS); break;
+    case O_EXACT: b = c->exact; break;
     case O_COUNT: return JAOS_ERR_INVALID_INPUT;
     }
     int n;

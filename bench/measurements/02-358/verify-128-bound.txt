@@ -1,0 +1,96 @@
+start 00:50:41
+25fv47 status optimal proof refused stage none bound_bits 51417 
+80bau3b status optimal proof refused stage none bound_bits 74119 
+adlittle status optimal proof optimal stage none bound_bits 3549 
+afiro status optimal proof optimal stage none bound_bits 1169 
+agg status optimal proof refused stage none bound_bits 4343 
+agg2 status optimal proof refused stage none bound_bits 7147 
+agg3 status optimal proof refused stage none bound_bits 6812 
+bandm status optimal proof refused stage none bound_bits 16763 
+beaconfd status optimal proof optimal stage none bound_bits 3926 
+blend status optimal proof optimal stage none bound_bits 3739 
+bnl1 status optimal proof refused stage none bound_bits 27987 
+bnl2 status optimal proof refused stage none bound_bits 72620 
+boeing1 status optimal proof refused stage none bound_bits 13090 
+boeing2 status optimal proof refused stage none bound_bits 4466 
+bore3d status optimal proof refused stage none bound_bits 6755 
+brandy status optimal proof refused stage none bound_bits 12900 
+capri status optimal proof refused stage none bound_bits 12351 
+cycle status optimal proof refused stage none bound_bits 42020 
+czprob status optimal proof refused stage none bound_bits 45906 
+d2q06c status optimal proof refused stage none bound_bits 126451 
+d6cube status optimal proof optimal stage none bound_bits 1434 
+degen2 status optimal proof optimal stage none bound_bits 732 
+degen3 status optimal proof broken stage dual bound_bits 2906 at_col 734 violation 5.5511151231257827e-17 
+dfl001 status optimal proof refused stage none bound_bits 8989 
+e226 status optimal proof refused stage none bound_bits 10369 
+etamacro status optimal proof refused stage none bound_bits 14547 
+fffff800 status optimal proof refused stage none bound_bits 16501 
+finnis status optimal proof refused stage none bound_bits 11648 
+fit1d status optimal proof optimal stage none bound_bits 1171 
+fit1p status optimal proof optimal stage none bound_bits 1323 
+fit2d status optimal proof optimal stage none bound_bits 298 
+fit2p status optimal proof optimal stage none bound_bits 1210 
+forplan status optimal proof refused stage none bound_bits 6242 
+ganges status optimal proof refused stage none bound_bits 32245 
+gfrd-pnc status optimal proof refused stage none bound_bits 4764 
+greenbea status optimal proof refused stage none bound_bits 124886 
+greenbeb status optimal proof refused stage none bound_bits 142774 
+grow15 status optimal proof refused stage none bound_bits 24831 
+grow22 status optimal proof refused stage none bound_bits 32420 
+grow7 status optimal proof refused stage none bound_bits 11529 
+israel status optimal proof refused stage none bound_bits 5993 
+kb2 status optimal proof optimal stage none bound_bits 2450 
+lotfi status optimal proof optimal stage none bound_bits 2248 
+maros-r7 status optimal proof refused stage none bound_bits 89214 
+maros status optimal proof refused stage none bound_bits 28135 
+modszk1 status optimal proof refused stage none bound_bits 17320 
+nesm status optimal proof refused stage none bound_bits 40339 
+perold status optimal proof refused stage none bound_bits 53244 
+pilot-ja status optimal proof refused stage none bound_bits 68673 
+pilot-we status optimal proof refused stage none bound_bits 63402 
+pilot status optimal proof refused stage none bound_bits 133834 
+pilot4 status optimal proof refused stage none bound_bits 36645 
+pilot87 status optimal proof refused stage none bound_bits 184703 
+pilotnov status optimal proof refused stage none bound_bits 54926 
+recipe status optimal proof optimal stage none bound_bits 13 
+sc105 status optimal proof optimal stage none bound_bits 1529 
+sc205 status optimal proof optimal stage none bound_bits 2688 
+sc50a status optimal proof optimal stage none bound_bits 920 
+sc50b status optimal proof optimal stage none bound_bits 2167 
+scagr25 status optimal proof refused stage none bound_bits 17623 
+scagr7 status optimal proof refused stage none bound_bits 4501 
+scfxm1 status optimal proof refused stage none bound_bits 10806 
+scfxm2 status optimal proof refused stage none bound_bits 21936 
+scfxm3 status optimal proof refused stage none bound_bits 32433 
+scorpion status optimal proof refused stage none bound_bits 13329 
+scrs8 status optimal proof refused stage none bound_bits 15975 
+scsd1 status optimal proof optimal stage none bound_bits 2662 
+scsd6 status optimal proof refused stage none bound_bits 4410 
+scsd8 status optimal proof refused stage none bound_bits 12518 
+sctap1 status optimal proof optimal stage none bound_bits 592 
+sctap2 status optimal proof optimal stage none bound_bits 911 
+sctap3 status optimal proof optimal stage none bound_bits 1166 
+seba status optimal proof optimal stage none bound_bits 198 
+share1b status optimal proof refused stage none bound_bits 4862 
+share2b status optimal proof optimal stage none bound_bits 3384 
+shell status optimal proof optimal stage none bound_bits 260 
+ship04l status optimal proof broken stage dual bound_bits 641 at_col 195 violation 5.6843418860808015e-14 
+ship04s status optimal proof broken stage dual bound_bits 695 at_col 140 violation 5.6843418860808015e-14 
+ship08l status optimal proof optimal stage none bound_bits 1208 
+ship08s status optimal proof optimal stage none bound_bits 1207 
+ship12l status optimal proof broken stage dual bound_bits 1800 at_col 2970 violation 1.4210854715202004e-14 
+ship12s status optimal proof broken stage dual bound_bits 1800 at_col 1939 violation 7.1054273576010019e-15 
+sierra status optimal proof broken stage primal bound_bits 1139 at_col 120 violation 7.5495165674510645e-14 
+stair status optimal proof refused stage none bound_bits 38558 
+standata status optimal proof optimal stage none bound_bits 1395 
+standmps status optimal proof refused stage none bound_bits 7521 
+stocfor1 status optimal proof refused stage none bound_bits 4278 
+stocfor2 status optimal proof refused stage none bound_bits 53733 
+stocfor3 status optimal proof refused stage none bound_bits 405883 
+truss status optimal proof refused stage none bound_bits 51803 
+tuff status optimal proof refused stage none bound_bits 9367 
+vtp-base status optimal proof optimal stage none bound_bits 2092 
+wood1p status optimal proof refused stage none bound_bits 15056 
+woodw status optimal proof refused stage none bound_bits 33054 
+VNET-END 00:51:27

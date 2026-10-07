@@ -277,6 +277,17 @@ expect_exit 5 "--hull-rounds refuses a negative" \
 "$JAOS" options | grep -q '^mip_hull_rounds ' \
     && pass "jaos options lists mip_hull_rounds" \
     || flunk "jaos options does not list mip_hull_rounds"
+if [ "$faulty" -eq 0 ]; then
+    expect_exit 0 "--exact proves solve1.mps" \
+        "$JAOS" solve "$DATA/solve1.mps" --exact
+    [ -n "$(line_of objective_exact)" ] && pass "and prints objective_exact" \
+        || flunk "--exact printed no objective_exact"
+fi
+expect_exit 5 "--exact refuses a MIP" \
+    "$JAOS" solve "$DATA/nl_int.lp" --exact
+"$JAOS" options | grep -q '^exact ' \
+    && pass "jaos options lists exact" \
+    || flunk "jaos options does not list exact"
 expect_exit 5 "--zero-half-rounds refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --zero-half-rounds -1
 "$JAOS" options | grep -q '^mip_zero_half_rounds ' \

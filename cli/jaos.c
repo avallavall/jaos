@@ -27,7 +27,7 @@ static const char U_SYNOPSIS[] =
     "                  [--cutoff V]\n"
     "                  [--basis BAS] [--write-basis BAS]\n"
     "                  [--write-point PT] [--write-duals D] [--pool-out PRE]\n"
-    "                  [--proof PATH]\n"
+    "                  [--proof PATH] [--exact]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--threads N]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
@@ -264,6 +264,9 @@ static const char U_SOLVE_E[] =
     "  --opt NAME=VALUE any option by name (jaos options lists them); repeats\n"
     "  --params FILE    options from a file, one 'name value' per line\n"
     "  --no-heuristics  no rounding heuristic at the nodes of a MIP\n"
+    "  --exact          prove an LP's answer over the rationals, pivoting in\n"
+    "                   exact arithmetic where the basis fails; prints\n"
+    "                   objective_exact, or ends numerical_error\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
     "                   or most-fractional\n"
@@ -913,7 +916,7 @@ struct solve_options {
     int64_t probe_depth;
     int64_t pool_size;
     bool no_cut_drop;
-    bool dive, no_heuristics;
+    bool dive, no_heuristics, exact;
 
     bool has_primal_tol, has_dual_tol;
     double primal_tol, dual_tol;
@@ -1099,6 +1102,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-heuristics") == 0) {
             o->no_heuristics = true;
+            continue;
+        }
+        if (strcmp(a, "--exact") == 0) {
+            o->exact = true;
             continue;
         }
 
@@ -1639,6 +1646,10 @@ static int cmd_solve(int argc, char **argv)
         rc = library_error("turn the dive on for", o.file, m);
         goto out;
     }
+    if (o.exact && jaos_set_exact(m, true) != JAOS_OK) {
+        rc = library_error("set exact solving for", o.file, m);
+        goto out;
+    }
     if (o.no_heuristics && jaos_set_mip_heuristics(m, false) != JAOS_OK) {
         rc = library_error("turn the heuristics off for", o.file, m);
         goto out;
@@ -1758,6 +1769,9 @@ static int cmd_solve(int argc, char **argv)
         double obj = 0.0;
         if (jaos_objective(m, &obj) == JAOS_OK)
             printf("objective %.17g\n", obj);
+        const char *exact_obj = nullptr;
+        if (o.exact && jaos_exact_objective(m, &exact_obj) == JAOS_OK)
+            printf("objective_exact %s\n", exact_obj);
         printf("iterations %" PRId64 "\n", jaos_iterations(m));
         printf("work_units %" PRId64 "\n", jaos_work_units(m));
 

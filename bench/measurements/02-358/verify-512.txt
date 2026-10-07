@@ -1,0 +1,96 @@
+start 00:55:01
+25fv47  secs 120.6
+80bau3b proof broken stage primal bound_bits 74119 largest_block 34 at_row 1264 terms 29548  secs 0.4
+adlittle proof optimal stage none bound_bits 3549 largest_block 19 terms 9324  secs 0.1
+afiro proof optimal stage none bound_bits 1169 largest_block 4 terms 221  secs 0.0
+agg proof optimal stage none bound_bits 4343 largest_block 9 terms 5461  secs 0.1
+agg2 proof optimal stage none bound_bits 7147 largest_block 3 terms 7317  secs 0.1
+agg3 proof optimal stage none bound_bits 6812 largest_block 3 terms 7309  secs 0.1
+bandm proof optimal stage none bound_bits 16763 largest_block 83 terms 722030  secs 23.9
+beaconfd proof optimal stage none bound_bits 3926 largest_block 1 terms 4300  secs 0.0
+blend proof optimal stage none bound_bits 3739 largest_block 16 terms 8904  secs 0.1
+bnl1 proof broken stage primal bound_bits 27987 largest_block 81 at_row 13 terms 312313  secs 4.3
+bnl2 proof broken stage dual bound_bits 72620 largest_block 140 at_col 1533 terms 3111680  secs 40.9
+boeing1 proof broken stage dual bound_bits 13090 largest_block 41 at_col 53 terms 90617  secs 0.2
+boeing2 proof broken stage dual bound_bits 4466 largest_block 7 at_col 24 terms 1979  secs 0.0
+bore3d proof optimal stage none bound_bits 6755 largest_block 44 terms 105232  secs 0.7
+brandy proof optimal stage none bound_bits 12900 largest_block 90 terms 884150  secs 18.4
+capri proof optimal stage none bound_bits 12351 largest_block 44 terms 109069  secs 0.7
+cycle proof optimal stage none bound_bits 42020 largest_block 72 terms 560979  secs 8.2
+czprob proof broken stage dual bound_bits 45906 largest_block 6 at_col 1673 terms 9284  secs 0.1
+d2q06c proof refused stage none bound_bits 126451 largest_block 892 terms 18752  secs 1.4
+d6cube proof optimal stage none bound_bits 1434 largest_block 223 terms 13205202  secs 4.3
+degen2 proof optimal stage none bound_bits 732 largest_block 223 terms 11977540  secs 1.2
+degen3 proof refused stage none bound_bits 2906 largest_block 684 terms 3473  secs 0.2
+dfl001 proof refused stage none bound_bits 8989 largest_block 3129 terms 6308  secs 7.6
+e226 proof optimal stage none bound_bits 10369 largest_block 62 terms 285034  secs 2.9
+etamacro proof optimal stage none bound_bits 14547 largest_block 61 terms 274178  secs 0.5
+fffff800 proof optimal stage none bound_bits 16501 largest_block 27 terms 33065  secs 0.1
+finnis proof optimal stage none bound_bits 11648 largest_block 4 terms 3765  secs 0.1
+fit1d proof optimal stage none bound_bits 1171 largest_block 10 terms 15240  secs 0.1
+fit1p proof optimal stage none bound_bits 1323 largest_block 10 terms 16540  secs 0.1
+fit2d proof optimal stage none bound_bits 298 largest_block 20 terms 143645  secs 0.7
+fit2p proof optimal stage none bound_bits 1210 largest_block 20 terms 98834  secs 0.8
+forplan proof optimal stage none bound_bits 6242 largest_block 50 terms 194623  secs 2.4
+ganges proof broken stage primal bound_bits 32245 largest_block 39 at_col 1669 terms 82259  secs 0.2
+gfrd-pnc proof optimal stage none bound_bits 4764 largest_block 1 terms 3633  secs 0.0
+greenbea  secs 120.6
+greenbeb proof refused stage none bound_bits 142774 largest_block 513 terms 16908  secs 0.4
+grow15  secs 120.6
+grow22  secs 120.6
+grow7 proof optimal stage none bound_bits 11529 largest_block 98 terms 1261442  secs 50.4
+israel proof optimal stage none bound_bits 5993 largest_block 55 terms 219605  secs 1.1
+kb2 proof optimal stage none bound_bits 2450 largest_block 19 terms 9586  secs 0.0
+lotfi proof optimal stage none bound_bits 2248 largest_block 2 terms 1595  secs 0.0
+maros-r7 proof refused stage none bound_bits 89214 largest_block 104 terms 89636  secs 51.9
+maros proof broken stage primal bound_bits 28135 largest_block 108 at_col 393 terms 771793  secs 13.5
+modszk1 proof broken stage primal bound_bits 17320 largest_block 174 at_row 57 terms 2994036  secs 39.9
+nesm  secs 120.6
+perold  secs 120.6
+pilot-ja proof refused stage none bound_bits 68673 largest_block 544 terms 1339  secs 0.1
+pilot-we proof refused stage none bound_bits 63402 largest_block 519 terms 702  secs 0.1
+pilot proof refused stage none bound_bits 133834 largest_block 1103 terms 1279  secs 1.3
+pilot4  secs 120.6
+pilot87 proof refused stage none bound_bits 184703 largest_block 1488 terms 13599  secs 4.5
+pilotnov  secs 120.6
+recipe proof optimal stage none bound_bits 13 largest_block 1 terms 803  secs 0.0
+sc105 proof optimal stage none bound_bits 1529 largest_block 85 terms 700874  secs 0.4
+sc205 proof optimal stage none bound_bits 2688 largest_block 184 terms 7276113  secs 6.1
+sc50a proof optimal stage none bound_bits 920 largest_block 42 terms 86575  secs 0.0
+sc50b proof optimal stage none bound_bits 2167 largest_block 48 terms 140140  secs 0.1
+scagr25 proof optimal stage none bound_bits 17623 largest_block 54 terms 184636  secs 0.5
+scagr7 proof optimal stage none bound_bits 4501 largest_block 1 terms 833  secs 0.0
+scfxm1 proof optimal stage none bound_bits 10806 largest_block 13 terms 9695  secs 0.2
+scfxm2 proof optimal stage none bound_bits 21936 largest_block 25 terms 36474  secs 0.7
+scfxm3 proof optimal stage none bound_bits 32433 largest_block 25 terms 62640  secs 1.2
+scorpion proof broken stage primal bound_bits 13329 largest_block 14 at_row 17 terms 8791  secs 0.1
+scrs8 proof optimal stage none bound_bits 15975 largest_block 23 terms 22875  secs 0.3
+scsd1 proof optimal stage none bound_bits 2662 largest_block 13 terms 5640  secs 0.1
+scsd6 proof optimal stage none bound_bits 4410 largest_block 19 terms 13049  secs 0.1
+scsd8 proof optimal stage none bound_bits 12518 largest_block 149 terms 3865933  secs 26.9
+sctap1 proof optimal stage none bound_bits 592 largest_block 42 terms 88022  secs 0.0
+sctap2 proof optimal stage none bound_bits 911 largest_block 2 terms 8886  secs 0.0
+sctap3 proof optimal stage none bound_bits 1166 largest_block 5 terms 11964  secs 0.0
+seba proof optimal stage none bound_bits 198 largest_block 1 terms 6452  secs 0.0
+share1b proof optimal stage none bound_bits 4862 largest_block 10 terms 5141  secs 0.1
+share2b proof optimal stage none bound_bits 3384 largest_block 10 terms 3374  secs 0.0
+shell proof optimal stage none bound_bits 260 largest_block 1 terms 4134  secs 0.0
+ship04l proof broken stage dual bound_bits 641 largest_block 1 at_col 195 terms 2479  secs 0.0
+ship04s proof broken stage dual bound_bits 695 largest_block 4 at_col 140 terms 2420  secs 0.0
+ship08l proof optimal stage none bound_bits 1208 largest_block 8 terms 15482  secs 0.1
+ship08s proof optimal stage none bound_bits 1207 largest_block 8 terms 9795  secs 0.1
+ship12l proof broken stage dual bound_bits 1800 largest_block 5 at_col 2970 terms 13021  secs 0.1
+ship12s proof broken stage dual bound_bits 1800 largest_block 5 at_col 1939 terms 9763  secs 0.1
+sierra proof broken stage primal bound_bits 1139 largest_block 1 at_col 120 terms 2305  secs 0.0
+stair  secs 120.6
+standata proof optimal stage none bound_bits 1395 largest_block 1 terms 3754  secs 0.0
+standmps proof optimal stage none bound_bits 7521 largest_block 1 terms 4888  secs 0.0
+stocfor1 proof optimal stage none bound_bits 4278 largest_block 14 terms 4258  secs 0.0
+stocfor2 proof optimal stage none bound_bits 53733 largest_block 37 terms 106765  secs 1.3
+stocfor3 proof optimal stage none bound_bits 405883 largest_block 41 terms 334902  secs 11.2
+truss  secs 120.6
+tuff proof optimal stage none bound_bits 9367 largest_block 29 terms 35198  secs 0.2
+vtp-base proof optimal stage none bound_bits 2092 largest_block 31 terms 37922  secs 0.0
+wood1p proof broken stage primal bound_bits 15056 largest_block 74 at_col 625 terms 335311  secs 17.1
+woodw proof optimal stage none bound_bits 33054 largest_block 21 terms 53345  secs 0.3
+VNET-END 01:20:59

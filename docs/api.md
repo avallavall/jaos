@@ -2055,17 +2055,45 @@ Fills the same two intervals for the bounds of each column.
 These calls work in exact rational arithmetic with a fixed budget of
 `JM_EXACT_LIMBS` limbs of 32 bits, which is 4096 bits in a default build. A
 report's `bound_bits` is the size a result needs, and `capacity_bits` is the
-size the arithmetic holds. The exact getters return decimal strings that
+size the arithmetic holds. Since 2026-10-08 `bound_bits` is a worst-case
+estimate that is reported but refuses nothing: the arithmetic runs, every
+operation checks its limbs, and the call refuses only when a number really
+outgrows the budget. The exact getters return decimal strings that
 the model owns. Each string is an integer or a ratio of two integers.
 `jaos_verify` and `jaos_verify_basis` refuse a quadratic objective, cones,
 quadratic rows and integer structure.
+
+**`jaos_set_exact`**\
+`jaos_status jaos_set_exact(jaos_model *m, bool on)`\
+Makes `jaos_solve` prove its answer over the rationals. It is off by
+default, and the option name is `exact`. It covers linear programs:
+`jaos_solve` refuses a model with integer columns, discrete structure, a
+quadratic objective, cones or quadratic rows while it is on. After the
+floating-point solve ends optimal, the basis is checked as `jaos_verify`
+does. Where the check breaks, the basis is repaired by pivots in exact
+arithmetic. A basis that is dual feasible takes dual simplex steps, one
+that is primal feasible takes primal simplex steps, and one that is
+neither first moves the costs of its wrong-signed columns until it is dual
+feasible, solves that problem, and then restores the costs. Ties go to the
+smallest index, which rules out cycling. When the basis proves, the
+published point, duals, reduced costs and objective are the exact values
+rounded to the nearest double, and the exact getters below return the
+rationals. When a dual step finds no entering column, the model as loaded
+is infeasible: the status becomes `JAOS_SOLVE_INFEASIBLE` and
+`jaos_exact_certificate` holds the exact multipliers. An answer that
+ends infeasible or unbounded in floating point takes the exact
+certificate or direction instead. Anything that cannot be proved ends
+`JAOS_SOLVE_NUMERICAL_ERROR` with the reason in `jaos_model_error`: a
+number past the limb budget, or `EXACT_PIVOT_CAP` (1000) exact pivots.
+The model's data are its doubles: an MPS value such as 0.1 is the double
+nearest 0.1, and the proof is about those numbers.
 
 **`jaos_verify`**\
 `jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)`\
 Proves or refutes that the basis behind the last optimum is optimal, in
 exact arithmetic and with no tolerance. `out->status` is
 `JAOS_PROOF_OPTIMAL` (0), `JAOS_PROOF_BROKEN` (1) or `JAOS_PROOF_REFUSED`
-(2). `JAOS_PROOF_REFUSED` means the numbers do not fit the budget.
+(2). `JAOS_PROOF_REFUSED` means a number outgrew the budget.
 `out->stage` is `JAOS_PROOF_STAGE_NONE` (0) unless the proof broke. A broken
 proof names its stage, `JAOS_PROOF_STAGE_RANK` (1), `JAOS_PROOF_STAGE_PRIMAL`
 (2) or `JAOS_PROOF_STAGE_DUAL` (3). At the primal or the dual stage, `at_row`
@@ -2106,7 +2134,7 @@ the budget while the values did.
 `jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)`\
 Derives the exact Farkas multipliers of an infeasible answer from the basis
 the solve stopped on. `out->derived` is true when it succeeds. The call
-returns `JAOS_OK` with `derived` false when `bound_bits` exceeds
+returns `JAOS_OK` with `derived` false when a number outgrows
 `capacity_bits`. `blocks`, `largest_block`, `terms` and `bytes_held` mean
 what they mean in `jaos_verify_report`. `at_row` is the row at the basis
 position where the published ray is largest, or -1 when a column holds that
