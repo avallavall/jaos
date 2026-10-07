@@ -1,0 +1,30 @@
+--- a/src/mip.c	2026-10-08 01:39:42.544844763 +0200
++++ b/src/mip.c	2026-10-08 01:39:42.552834809 +0200
+@@ -6927,11 +6927,13 @@
+                 }
+                 if (got == 0 && agb.n == 0)
+                     break;
+-                if (net) {
+-                    if (cutbuf_select(&cb, nc, MIP_NET_CUT_CAP,
+-                                      MIP_NET_PARALLEL, &work) < 0 ||
+-                        cutbuf_select(&agb, nc, MIP_NET_CUT_CAP,
+-                                      MIP_NET_PARALLEL, &work) < 0)
++                const int64_t sel_cap = getenv("JAOS_SELECT") ? atoll(getenv("JAOS_SELECT")) : 0;
++                const double sel_par = getenv("JAOS_SELPAR") ? atof(getenv("JAOS_SELPAR")) : MIP_NET_PARALLEL;
++                if (net || sel_cap > 0) {
++                    const int64_t cap = net ? MIP_NET_CUT_CAP : sel_cap;
++                    const double par = net ? MIP_NET_PARALLEL : sel_par;
++                    if (cutbuf_select(&cb, nc, cap, par, &work) < 0 ||
++                        cutbuf_select(&agb, nc, cap, par, &work) < 0)
+                         goto done;
+                     got = cb.n;
+                 }
+@@ -6940,7 +6942,7 @@
+                     const cutbuf *add = pass == 0 ? &cb : &agb;
+                     if (add->n == 0)
+                         continue;
+-                    if (pass == 1 && !net) {
++                    if (pass == 1 && !net && !getenv("JAOS_AGG_NOPROBE")) {
+                         agg_probes++;
+                         jaos_model *pv = nullptr;
+                         if (jaos_model_copy(lp, &pv) != JAOS_OK ||
