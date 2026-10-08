@@ -327,7 +327,14 @@ geometric mean of work and the 2017 gap sum: zero-half 1.092x and 0.999x,
 lifted covers 1.043x and 0.984x (`misc03` 2.534x), local branching 1.983x
 and 0.988x with one model fewer solved, propagation 1.070x and 1.047x,
 probing 1.325x in the sum with `bell5` out of memory at 4 GB, and reduced-cost
-fixing 0.944x and 0.999x, which landed it.
+fixing 0.944x and 0.999x, which landed it. Read again on 2026-10-08 on
+the tree with hull cuts and MIR bound flips (`bench/measurements/02-361/`):
+zero-half 1.225x, lifted covers 1.040x, propagation 1.224x, the restart
+1.085x, probing 1.051x with `bell5` out of memory, conflicts 1.000x with no
+tree changed, strong branching at reliability 4 or 2 under a probe cap of 1
+1.256x and 1.223x with the 2017 gap sum 15.9 against 13.5; none lands.
+Conflict analysis that never changes a tree on either set is the one to
+look at first.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (rounds of 4 cost 1.37x the
