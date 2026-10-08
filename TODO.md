@@ -368,8 +368,10 @@ bar on MIPLIB 2017 and were built and refused (`presolve-duplicate-rows`,
 J16. **Links.** GAMS, which needs a link library of its own; `.nl` bodies
 above degree two, refused by line today.
 
-J17. **The feasibility relaxation's proof that the widest box is empty.**
-An integer feasibility question over an unbounded space.
+J17. **The feasibility relaxation's proof that the widest box is empty,
+where inequality rows leave no integer point.** The equality rows' lattice
+is proved since 2026-10-08 (`bench/measurements/02-362/`); a model such as
+`1 <= 3 x - 3 y <= 2` over integers still ends with "may admit no point".
 
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**

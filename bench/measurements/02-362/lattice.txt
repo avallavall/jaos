@@ -1,0 +1,22 @@
+seed 1
+plant models 2000 proved 0 skipped 0 work 164615
+  box [-20,20] point/none/limit: unproved 1980/0/20, proved 0/0/0
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 0/0
+half models 2000 proved 1116 skipped 0 work 138070
+  box [-20,20] point/none/limit: unproved 836/43/5, proved 0/1045/71
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 24/19
+dense 32x127 plant proved 0 work 161730 seconds 0.009
+dense 32x127 odd proved 1 work 170849 seconds 0.011
+dense 16x255 odd proved 1 work 50568 seconds 0.003
+dense 8x511 odd proved 1 work 18012 seconds 0.001
+seed 2
+plant models 2000 proved 0 skipped 0 work 164456
+  box [-20,20] point/none/limit: unproved 1983/0/17, proved 0/0/0
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 0/0
+half models 2000 proved 1082 skipped 0 work 139637
+  box [-20,20] point/none/limit: unproved 862/40/16, proved 0/1009/73
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 18/22
+dense 32x127 plant proved 0 work 168079 seconds 0.010
+dense 32x127 odd proved 1 work 162516 seconds 0.010
+dense 16x255 odd proved 1 work 50282 seconds 0.003
+dense 8x511 odd proved 1 work 19030 seconds 0.001

@@ -852,6 +852,14 @@ how wide the last box was and exits 5. `tests/data/relax_runaway.mps`,
 three rows of such a model, ends that way after 8 rounds
 (`bench/measurements/02-297/`).
 
+Since 2026-10-08 the search then tries to prove that no box holds a
+point. It takes the equality rows, eliminates the continuous columns with
+exact whole numbers, and checks whether the integer columns can meet what
+is left. When they cannot, the message adds "none in any box" and names
+the reason. `relax_runaway` ends that way: its rows ask
+`6 x1 + 4 x4 = -19`, and no pair of integers gives an odd sum from even
+terms (`bench/measurements/02-362/`).
+
 Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
 lower bound above its upper is a contradiction between two of the file's
 own numbers on one row, and no amount of moving that row's two ends

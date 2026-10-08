@@ -10,6 +10,7 @@ constexpr double RELAX_BOX_START = 2.0;
 constexpr double RELAX_BOX_GROWTH = 2.0;
 constexpr int64_t RELAX_BOX_ROUNDS = 16;
 constexpr int64_t RELAX_ROUND_WORK = 64;
+constexpr int64_t RELAX_LATTICE_CELLS = 4096;
 
 typedef struct {
     bool lo, hi;
@@ -283,6 +284,311 @@ static double rx_at(const double *x, int64_t e)
     return e < 0 ? 0.0 : x[e];
 }
 
+static bool rx_eq_row(const jaos_model *m, int64_t i)
+{
+    return m->row_lower[i] == m->row_upper[i] && isfinite(m->row_lower[i]) &&
+           (m->row_ind_col == nullptr || m->row_ind_col[i] < 0);
+}
+
+static bool rx_is_int(const jaos_model *m, int64_t j)
+{
+    return m->col_integer != nullptr && m->col_integer[j];
+}
+
+static int64_t rx_find(int64_t *up, int64_t i)
+{
+    while (up[i] != i) {
+        up[i] = up[up[i]];
+        i = up[i];
+    }
+    return i;
+}
+
+static bool rx_quot(jm_bigint *q, const jm_bigint *a, const jm_bigint *b)
+{
+    jm_nat rem;
+    if (!jm_nat_divmod(&q->mag, &rem, &a->mag, &b->mag))
+        return false;
+    q->sign = q->mag.n == 0 ? 0 : a->sign * b->sign;
+    return true;
+}
+
+static bool rx_axpy(jm_bigint *r, const jm_bigint *f, const jm_bigint *g,
+                    const jm_bigint *p)
+{
+    jm_bigint s, t;
+    return jm_bigint_mul(&s, f, r) && jm_bigint_mul(&t, g, p) &&
+           jm_bigint_sub(r, &s, &t);
+}
+
+static bool rx_content(jm_bigint *row, int64_t w)
+{
+    jm_nat g, one, rem;
+    jm_nat_set_zero(&g);
+    for (int64_t u = 0; u < w; u++)
+        if (row[u].sign != 0 && !jm_nat_gcd(&g, &g, &row[u].mag))
+            return false;
+    jm_nat_set_u64(&one, 1);
+    if (g.n == 0 || jm_nat_cmp(&g, &one) == 0)
+        return true;
+    for (int64_t u = 0; u < w; u++)
+        if (row[u].sign != 0 &&
+            !jm_nat_divmod(&row[u].mag, &rem, &row[u].mag, &g))
+            return false;
+    return true;
+}
+
+static bool rx_smaller(const jm_bigint *a, const jm_bigint *b)
+{
+    return jm_nat_cmp(&a->mag, &b->mag) < 0;
+}
+
+static bool rx_block_fill(const jaos_model *m, jm_bigint *a, int64_t w,
+                          const int64_t *rows, int64_t nb, const int64_t *rs,
+                          const int64_t *rj, const double *rv,
+                          const int64_t *cpos)
+{
+    jm_dyadic d;
+    for (int64_t p = 0; p < nb; p++) {
+        const int64_t r = rows[p];
+        int64_t low = INT64_MAX;
+        for (int64_t e = rs[r]; e <= rs[r + 1]; e++) {
+            const double v = e < rs[r + 1] ? rv[e] : m->row_lower[r];
+            if (!jm_dyadic_from_double(&d, v))
+                return false;
+            if (d.m.sign != 0 && d.e < low)
+                low = d.e;
+        }
+        for (int64_t e = rs[r]; e <= rs[r + 1]; e++) {
+            const double v = e < rs[r + 1] ? rv[e] : m->row_lower[r];
+            const int64_t u = e < rs[r + 1] ? cpos[rj[e]] : w - 1;
+            if (!jm_dyadic_from_double(&d, v))
+                return false;
+            if (d.m.sign != 0 && !jm_bigint_shl(&a[p * w + u], &d.m, d.e - low))
+                return false;
+        }
+        if (!rx_content(a + p * w, w))
+            return false;
+    }
+    return true;
+}
+
+static bool rx_eliminate(const jaos_model *m, jm_bigint *a, int64_t w,
+                         int64_t nb, const int64_t *cols, bool *alive,
+                         int64_t *work)
+{
+    for (int64_t t = 0; t + 1 < w; t++) {
+        if (rx_is_int(m, cols[t]))
+            continue;
+        int64_t p = -1;
+        for (int64_t r = 0; r < nb; r++)
+            if (alive[r] && a[r * w + t].sign != 0 &&
+                (p < 0 || rx_smaller(&a[r * w + t], &a[p * w + t])))
+                p = r;
+        if (p < 0)
+            continue;
+        alive[p] = false;
+        const jm_bigint f = a[p * w + t];
+        for (int64_t r = 0; r < nb; r++) {
+            if (!alive[r] || a[r * w + t].sign == 0)
+                continue;
+            const jm_bigint g = a[r * w + t];
+            for (int64_t u = 0; u < w; u++)
+                if (!rx_axpy(&a[r * w + u], &f, &g, &a[p * w + u]))
+                    return false;
+            *work += w;
+            if (!rx_content(a + r * w, w))
+                return false;
+        }
+    }
+    return true;
+}
+
+static int rx_hermite(const jaos_model *m, jm_bigint *a, int64_t w,
+                      int64_t nb, const int64_t *cols, const bool *alive,
+                      bool *open, int64_t *work)
+{
+    const int64_t nc = w - 1;
+    for (int64_t t = 0; t < nc; t++)
+        open[t] = rx_is_int(m, cols[t]);
+    for (int64_t p = 0; p < nb; p++) {
+        if (!alive[p])
+            continue;
+        jm_bigint *row = a + p * w;
+        int64_t k;
+        for (;;) {
+            k = -1;
+            for (int64_t t = 0; t < nc; t++)
+                if (open[t] && row[t].sign != 0 &&
+                    (k < 0 || rx_smaller(&row[t], &row[k])))
+                    k = t;
+            if (k < 0)
+                break;
+            bool more = false;
+            for (int64_t t = 0; t < nc; t++) {
+                if (t == k || !open[t] || row[t].sign == 0)
+                    continue;
+                more = true;
+                jm_bigint q, one;
+                jm_bigint_set_i64(&one, 1);
+                if (!rx_quot(&q, &row[t], &row[k]))
+                    return -1;
+                for (int64_t r = p; r < nb; r++) {
+                    if (!alive[r])
+                        continue;
+                    if (!rx_axpy(&a[r * w + t], &one, &q, &a[r * w + k]))
+                        return -1;
+                }
+                *work += nb - p;
+            }
+            if (!more)
+                break;
+        }
+        if (k < 0) {
+            if (row[nc].sign != 0)
+                return 1;
+            continue;
+        }
+        jm_bigint y, one;
+        jm_nat rem;
+        if (!jm_nat_divmod(&y.mag, &rem, &row[nc].mag, &row[k].mag))
+            return -1;
+        if (rem.n != 0)
+            return 1;
+        y.sign = y.mag.n == 0 ? 0 : row[nc].sign * row[k].sign;
+        jm_bigint_set_i64(&one, 1);
+        open[k] = false;
+        for (int64_t r = p + 1; r < nb; r++) {
+            if (!alive[r] || a[r * w + k].sign == 0)
+                continue;
+            if (!rx_axpy(&a[r * w + nc], &one, &a[r * w + k], &y))
+                return -1;
+            jm_bigint_set_zero(&a[r * w + k]);
+        }
+        *work += nb - p;
+    }
+    return 0;
+}
+
+static bool rx_lattice_block(const jaos_model *m, const int64_t *rows,
+                             int64_t nb, const int64_t *rs, const int64_t *rj,
+                             const double *rv, int64_t *cpos, int64_t *cols,
+                             int64_t *work)
+{
+    int64_t nc = 0;
+    bool any_int = false;
+    for (int64_t p = 0; p < nb; p++)
+        for (int64_t e = rs[rows[p]]; e < rs[rows[p] + 1]; e++)
+            if (cpos[rj[e]] < 0) {
+                cpos[rj[e]] = nc;
+                cols[nc++] = rj[e];
+                any_int = any_int || rx_is_int(m, rj[e]);
+            }
+    const int64_t w = nc + 1;
+    bool proved = false;
+    jm_bigint *a = nullptr;
+    bool *alive = nullptr, *open = nullptr;
+    if (!any_int || nb > RELAX_LATTICE_CELLS / w)
+        goto out;
+    a = calloc((size_t)(nb * w), sizeof *a);
+    alive = jm_alloc_array(nb, sizeof *alive);
+    open = jm_alloc_array(nc, sizeof *open);
+    if (a == nullptr || alive == nullptr || open == nullptr)
+        goto out;
+    for (int64_t p = 0; p < nb; p++)
+        alive[p] = true;
+    if (!rx_block_fill(m, a, w, rows, nb, rs, rj, rv, cpos) ||
+        !rx_eliminate(m, a, w, nb, cols, alive, work))
+        goto out;
+    proved = rx_hermite(m, a, w, nb, cols, alive, open, work) == 1;
+out:
+    for (int64_t t = 0; t < nc; t++)
+        cpos[cols[t]] = -1;
+    free(a);
+    free(alive);
+    free(open);
+    return proved;
+}
+
+static bool rx_lattice_empty(const jaos_model *m, int64_t *work)
+{
+    const int64_t nr = m->num_row, nc = m->num_col;
+    if (nr == 0 || nc == 0)
+        return false;
+    bool proved = false;
+    int64_t *up = jm_alloc_array(nr, sizeof *up);
+    int64_t *rs = calloc((size_t)nr + 1, sizeof *rs);
+    int64_t *at = jm_alloc_array(nr + 1, sizeof *at);
+    int64_t *order = jm_alloc_array(nr, sizeof *order);
+    int64_t *cpos = jm_alloc_array(nc, sizeof *cpos);
+    int64_t *cols = jm_alloc_array(nc, sizeof *cols);
+    int64_t *rj = nullptr;
+    double *rv = nullptr;
+    if (up == nullptr || rs == nullptr || at == nullptr || order == nullptr ||
+        cpos == nullptr || cols == nullptr)
+        goto out;
+    for (int64_t i = 0; i < nr; i++)
+        up[i] = i;
+    for (int64_t j = 0; j < nc; j++) {
+        cpos[j] = -1;
+        int64_t first = -1;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            if (m->a_value[k] == 0.0 || !rx_eq_row(m, i))
+                continue;
+            rs[i + 1]++;
+            const int64_t ri = rx_find(up, i);
+            if (first < 0) {
+                first = ri;
+            } else if (ri != first) {
+                const int64_t lo = ri < first ? ri : first;
+                up[ri + first - lo] = lo;
+                first = lo;
+            }
+        }
+    }
+    for (int64_t i = 0; i < nr; i++)
+        rs[i + 1] += rs[i];
+    rj = jm_alloc_array(rs[nr] > 0 ? rs[nr] : 1, sizeof *rj);
+    rv = jm_alloc_array(rs[nr] > 0 ? rs[nr] : 1, sizeof *rv);
+    if (rj == nullptr || rv == nullptr)
+        goto out;
+    for (int64_t i = 0; i < nr; i++)
+        at[i] = rs[i];
+    for (int64_t j = 0; j < nc; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            if (m->a_value[k] == 0.0 || !rx_eq_row(m, i))
+                continue;
+            rj[at[i]] = j;
+            rv[at[i]++] = m->a_value[k];
+        }
+    for (int64_t i = 0; i <= nr; i++)
+        at[i] = 0;
+    for (int64_t i = 0; i < nr; i++)
+        if (rx_eq_row(m, i)) {
+            up[i] = rx_find(up, i);
+            at[up[i] + 1]++;
+        }
+    for (int64_t i = 0; i < nr; i++)
+        at[i + 1] += at[i];
+    for (int64_t i = 0; i < nr; i++)
+        if (rx_eq_row(m, i))
+            order[at[up[i]]++] = i;
+    for (int64_t i = 0, b = 0; i < nr && !proved; i++) {
+        if (!rx_eq_row(m, i) || up[i] != i)
+            continue;
+        const int64_t e = at[i];
+        proved = rx_lattice_block(m, order + b, e - b, rs, rj, rv, cpos, cols,
+                                  work);
+        b = e;
+    }
+out:
+    free(up); free(rs); free(at); free(order);
+    free(cpos); free(cols); free(rj); free(rv);
+    return proved;
+}
+
 jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
                            double *row_move, double *col_move,
                            jaos_relax_report *out)
@@ -384,8 +690,17 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
         }
     }
     if (out->status != JAOS_SOLVE_OPTIMAL) {
-
-        if (too_wide)
+        if (too_wide && scope == JAOS_RELAX_COLS &&
+            rx_lattice_empty(m, &used)) {
+            out->work_units = used;
+            out->status = JAOS_SOLVE_INFEASIBLE;
+            jm_set_err(m, "no point in the columns' box widened by %.6g, "
+                          "after %lld rounds and %lld work units, and none "
+                          "in any box: the equality rows, with the "
+                          "continuous columns eliminated, ask for an "
+                          "integer combination that no integer point gives",
+                       width, (long long)(rounds + 1), (long long)used);
+        } else if (too_wide)
             jm_set_err(m, "no point in the columns' box widened by %.6g, "
                           "after %lld rounds and %lld work units, so there "
                           "is no smallest violation to report; the rows and "

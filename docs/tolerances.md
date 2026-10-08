@@ -856,13 +856,15 @@ mode whatever this says, carrying the first root's cuts
 | `MIP_OBJ_ROUND` | 1e-6 | how far below a grid value a bound may sit, in steps, and still round to it rather than to the one above, so a relaxation's rounding error does not cut off an optimum on the grid. Not swept |
 | `MIP_OBJ_ROUND_REL` | 1e-9 | the same slack per step of the bound's own size, so a large objective keeps room for the error of its larger terms. Not swept |
 
-## The feasibility relaxation's five numbers
+## The feasibility relaxation's six numbers
 
 All in `src/relax.c`, and none of them is a tolerance. The first three size
 the box a freed integer column is held in, and a wrong setting of them
-costs rounds, never an answer. The last two, `RELAX_BOX_ROUNDS` and
+costs rounds, never an answer. The next two, `RELAX_BOX_ROUNDS` and
 `RELAX_ROUND_WORK`, cap the search: set too low, they end it with no
-answer (`JAOS_ERR_NUMERICAL`, and the message names the widest box tried). Over the columns the elastic copy frees every column, and a free
+answer (`JAOS_ERR_NUMERICAL`, and the message names the widest box tried).
+The sixth, `RELAX_LATTICE_CELLS`, sizes the proof that runs when those two
+stop the search. Over the columns the elastic copy frees every column, and a free
 integer column gives the tree an unbounded space, so a freed integer column
 is held in its own bounds widened by `M` on each freed side, and `M` grows
 until the total comes out at or below it. Then that total is the answer for
@@ -876,6 +878,7 @@ more than `M` outside its own bounds, and that alone costs more than `M`.
 | `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by when the box is too narrow, or when it holds no integer point at all. Every round ends, so a work limit bounds the whole search. **Measured 2026-09-14** (`bench/measurements/02-230/`): 12000 generated models over six seeds, three scopes each, against the free box; no total moves past 1e-9, the rows scope is byte-identical, and the columns scope costs 1.10x to 1.27x the work per seed, the LP solve that sets `M` being most of it, with one model at 26x. Not swept: the cost is the extra solves and the growth factor only decides how many, and a model whose rows plus integrality admit no point never ends under any factor |
 | `RELAX_BOX_ROUNDS` | 16 | How many times `M` may grow before the search over the columns stops and says so. A model whose rows plus integrality admit no point at all has none in any box, so the growth never ended: `tests/data/relax_runaway.mps` stopped only on the caller's work limit, and the report then read "the relaxation's solve answered work limit reached". `M` may grow 15 times: the 16th box that fails stops the search without growing it. The widest box is 32768 times the first, and the model that needs more than that is the model this cap is for. Not swept |
 | `RELAX_ROUND_WORK` | 64 | The work a round after the first may take, as a multiple of the first round's, which is the LP that sets `M` plus the first box. The rounds are what runs away, not their number: on an infeasible model a box twice as wide costs about four times the work, so the sixteenth round alone is out of reach. With both caps `relax --cols` on `relax_runaway` ends by itself after 8 rounds, 6.2e7 work units and 0.13 s, and names the box it stopped at. The caps cost nothing where an answer exists: the 4000 generated models of `bench/measurements/02-230/relax.c`, two seeds of 2000 over three scopes, read byte-identical with them in place (`bench/measurements/02-297/`). Not swept |
+| `RELAX_LATTICE_CELLS` | 4096 | The most numbers a block of equality rows may hold, rows times columns plus one, for the proof that no box holds a point. The proof runs when the two caps above stop a search over the columns alone. It reads the equality rows without an indicator in blocks that share no column, drops every bound and every other row, scales each row to whole numbers, eliminates the continuous columns and brings the rest to Hermite normal form, all in 4096-bit integers. A row whose pivot does not divide its right-hand side proves the model has no integer point, and the report then says infeasible. A block past the cap is skipped. At the cap the block holds 2.2 MB. **Read on 2026-10-08** (`bench/measurements/02-362/`): a dense all-integer block at the cap, 32 rows by 127 columns, takes 0.011 s and 170849 work units, where the box search on `relax_runaway` takes 4.0e7. On 4000 generated models with a planted integer point the proof claims none; on 4000 with the point moved by one half on an integer column it settles 2198, and a MIP solve in a box finds a point on none of them. Not swept |
 
 ## The conic interior point's numbers
 

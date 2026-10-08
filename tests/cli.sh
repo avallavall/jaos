@@ -1683,6 +1683,11 @@ case "$err" in
         pass "and names the widest box it tried" ;;
     *) flunk "the capped relax said '$err'" ;;
 esac
+case "$err" in
+    *"none in any box"*)
+        pass "and proves from the equality rows that no box holds a point" ;;
+    *) flunk "the capped relax proved nothing: '$err'" ;;
+esac
 fi
 expect_exit 5 "relax --work-limit needs a number" \
     "$JAOS" relax "$DATA/t1.mps" --work-limit x

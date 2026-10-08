@@ -1,8 +1,8 @@
 * Over the columns alone the elastic copy frees every column, and a free
 * integer column gives the tree an unbounded space. These rows admit no
 * integer point: C3 = 2 from R3, C4 = 3 C2 - 1 from R2, and R1 then asks
-* 3 C1 + 2 C4 = -9.5, which no pair of integers gives. Proving that needs
-* the whole space, so `relax --cols` on this model needs a work limit.
+* 3 C1 + 2 C4 = -9.5, which no pair of integers gives. No box proves that,
+* so `relax --cols` proves it from the equality rows once the boxes stop.
 NAME runaway
 ROWS
  N obj

@@ -2024,7 +2024,12 @@ other one is -1. Both are -1 when nothing moved. `out` also receives the
 work units in `work_units` and the status of the solve in `status`. The
 call solves an elastic copy and does not change the model. It fails on a
 model with cones or quadratic rows or with an unknown `scope`, and returns
-`JAOS_ERR_NUMERICAL` when the copy's solve does not end optimal.
+`JAOS_ERR_NUMERICAL` when the copy's solve does not end optimal. Over the
+columns alone, a search whose boxes stay empty past its caps tries to
+prove that no box holds a point: the equality rows, with the continuous
+columns eliminated, may ask for an integer combination that no integer
+point gives. Then `status` is `JAOS_SOLVE_INFEASIBLE` and the message says
+"none in any box".
 
 ## Ranging
 

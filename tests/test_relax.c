@@ -270,10 +270,54 @@ static void test_a_model_with_no_integer_point_ends_by_itself(void)
         jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
     TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m),
                                 "no point in the columns' box widened by"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "none in any box"));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
     TEST_ASSERT_TRUE(rep.work_units > 0);
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
         jaos_feasrelax(m, JAOS_RELAX_ROWS, rm, cm, &rep));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    jaos_model_free(m);
+}
+
+static void test_a_row_of_even_terms_asking_an_odd_sum_has_no_point(void)
+{
+    jaos_model *m = two_pinned_integers(0.5, 1.0, 0.75);
+    double rm[1], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "none in any box"));
+    jaos_model_free(m);
+}
+
+static void test_two_rows_that_meet_at_a_half_have_no_point(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[2] = {0.0, 0.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {0.0, 0.0};
+    const double rl[2] = {1.0, 0.0}, ru[2] = {1.0, 0.0};
+    const int64_t s[3] = {0, 2, 4};
+    const int64_t ix[4] = {0, 1, 0, 1};
+    const double v[4] = {1.0, 1.0, 1.0, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 0, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+    double rm[2], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "none in any box"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_bounds(m, 0, 2.0, 2.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, rep.total);
     jaos_model_free(m);
 }
 
@@ -569,6 +613,8 @@ int main(void)
     RUN_TEST(test_two_rows_share_the_violation);
     RUN_TEST(test_an_inverted_box_has_no_relaxation);
     RUN_TEST(test_a_model_with_no_integer_point_ends_by_itself);
+    RUN_TEST(test_a_row_of_even_terms_asking_an_odd_sum_has_no_point);
+    RUN_TEST(test_two_rows_that_meet_at_a_half_have_no_point);
     RUN_TEST(test_a_scope_that_is_not_one_of_the_three_is_refused);
     RUN_TEST(test_an_infeasible_answer_publishes_its_basis);
     RUN_TEST(test_a_verdict_presolve_reached_publishes_no_basis);
