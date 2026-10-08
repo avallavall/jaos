@@ -225,7 +225,12 @@ A survey of every root against SCIP's cuts
 (`bench/measurements/02-351/`) finds Gomory cuts the family JAOS uses
 least: SCIP's Gomory rounds alone close most of the root gap on `dcmulti`,
 `misc06`, `lseu`, `khb05250`, `p0201` and `misc03`, and a second JAOS
-round reads 1.111x on MIPLIB 3, the small trees paying.
+round reads 1.111x on MIPLIB 3, the small trees paying. Integral slacks in
+the Gomory formula, and Gomory rounds that go on while they lift the
+bound, were built and refused on 2026-10-08 (`gomory-integral-slacks`,
+`gomory-rounds-while-lifting`, `bench/measurements/02-364/`): the roots
+rise (`p0033` solves at its root) and the trees grow, `bell5` 141x or out
+of memory.
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 

@@ -1,0 +1,83 @@
+diff --git a/src/mip.c b/src/mip.c
+index 29db6c5..828eb2d 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1637,6 +1637,22 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+         }
+     }
+     int64_t added = 0;
++    bool *rint = jm_alloc_array(nr > 0 ? nr : 1, sizeof *rint);
++    if (rint == nullptr || jm_model_ensure_rowwise(lp) != JAOS_OK) {
++        free(rint);
++        jm_tableau_free(tb);
++        return -1;
++    }
++    const bool gisl = getenv("JAOS_GISL") == nullptr || atoi(getenv("JAOS_GISL")) != 0;
++    for (int64_t i = 0; i < nr; i++) {
++        bool in = gisl && (m->row_ind_col == nullptr || i >= m->num_row ||
++                           m->row_ind_col[i] < 0);
++        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && in; k++)
++            in = m->col_integer[lp->ar_index[k]] &&
++                 floor(lp->ar_value[k]) == lp->ar_value[k];
++        rint[i] = in;
++    }
++    *work += lp->ar_start[nr];
+     for (int64_t j = 0; j < nc; j++) {
+         if (!m->col_integer[j])
+             continue;
+@@ -1680,7 +1696,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+                 ok = false;
+                 break;
+             }
+-            const bool integral = structural && m->col_integer[v] &&
++            const bool integral = (structural ? m->col_integer[v] : rint[i]) &&
+                                   floor(shift) == shift;
+             double g;
+             if (integral) {
+@@ -1712,6 +1728,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+     }
+     *work += jm_tableau_work(tb);
+     jm_tableau_free(tb);
++    free(rint);
+     return added;
+ }
+ 
+@@ -6724,6 +6741,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 goto done;
+             const double key_first = key;
+             bool stop = false;
++            const double gstall = getenv("JAOS_GSTALL") != nullptr
++                ? atof(getenv("JAOS_GSTALL")) : 0.0;
++            const int64_t gmax = getenv("JAOS_GMAX") != nullptr
++                ? atoll(getenv("JAOS_GMAX")) : 20;
++            const double gcap = getenv("JAOS_GCAP") != nullptr
++                ? atof(getenv("JAOS_GCAP")) : INFINITY;
++            int64_t gom_total = 0;
++            bool gom_live = false;
+             lp->cfg.cut_resolve = true;
+             for (int64_t r = 0; r < root_rounds && !stop; r++) {
+                 phase_to(&ph, work, PH_CUTS);
+@@ -6843,10 +6868,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     row = g2;
+                     row_cap = nc + lp->num_row + 1;
+                 }
+-                if (r < rounds) {
++                if (r < rounds ||
++                    (gom_live && r < gmax &&
++                     (double)gom_total < gcap * (double)m->num_row)) {
+                     got = gomory_round(lp, m, x, &cb, row, cut, &work);
+                     if (got < 0)
+                         goto done;
++                    gom_total += got;
+                 }
+                 if (r < cover_rounds) {
+                     const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+@@ -7033,6 +7061,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        sigma * key, (long long)lp->num_row);
+                 if (stop || got == 0)
+                     break;
++                gom_live = gstall > 0.0 &&
++                           key - key_before >= gstall * (1.0 + fabs(key_before));
+                 branch = select_branch(m, x, rule, pc_sum, pc_n);
+                 if (branch < 0)
+                     break;
