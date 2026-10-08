@@ -1,0 +1,43 @@
+diff --git a/src/simplex.c b/src/simplex.c
+index 8123e3c..a9efa41 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4657,6 +4657,38 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+ 
+         m->presolve_counts = p.counts;
+ 
++        if (m->cfg.node_solve && p.outcome == JM_PRESOLVE_REDUCED &&
++            getenv("JAOS_NODESCALE") != nullptr) {
++            pst = m->scale_valid ? JAOS_OK
++                                 : jm_model_scale(m, JM_SCALE_CURTIS_REID);
++            jaos_model *r = &p.reduced;
++            double *rs = pst == JAOS_OK
++                ? jm_alloc_array(r->num_row > 0 ? r->num_row : 1, sizeof *rs)
++                : nullptr;
++            double *cs = pst == JAOS_OK
++                ? jm_alloc_array(r->num_col > 0 ? r->num_col : 1, sizeof *cs)
++                : nullptr;
++            if (rs != nullptr && cs != nullptr) {
++                for (int64_t i = 0; i < r->num_row; i++)
++                    rs[i] = m->row_scale[p.orig_row[i]];
++                for (int64_t j = 0; j < r->num_col; j++)
++                    cs[j] = m->col_scale[p.orig_col[j]];
++                free(r->row_scale);
++                free(r->col_scale);
++                r->row_scale = rs;
++                r->col_scale = cs;
++                r->scale_valid = true;
++                r->scale_clamped = m->scale_clamped;
++                rs = cs = nullptr;
++            }
++            free(rs);
++            free(cs);
++            if (pst != JAOS_OK) {
++                jm_presolve_free(&p);
++                return pst;
++            }
++        }
++
+         if (p.outcome == JM_PRESOLVE_NONE) {
+             if (!quadratic)
+                 jm_log(m, JAOS_LOG_SUMMARY, "presolve: nothing fired");

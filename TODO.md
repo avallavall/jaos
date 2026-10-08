@@ -54,9 +54,9 @@ J8. **LP: time per iteration and presolve.** `stocfor3` takes 11.2x
 HiGHS. Half of that is presolve: HiGHS leaves 8259 rows, JAOS 13305. In the
 simplex the largest item left is the dense FTRAN of the steepest-edge `tau`
 (14% of `stocfor3`'s instructions). In a MIP node, Curtis-Reid scaling of
-the node LP is 22% of `bell5`'s instructions; next, carry the root's scale
-factors to the nodes through presolve's maps (`bench/measurements/02-353/`,
-`02-354/`). Verify with `tools/icount.sh` and
+the node LP is 22% of `bell5`'s instructions (`bench/measurements/02-353/`,
+`02-354/`); the tree's LP scale carried to the node was refused
+(`node-scale-from-parent`). Verify with `tools/icount.sh` and
 `make compare COMPARE_ARGS='-t P0'` on a quiet machine; the gates
 byte-identical or re-based.
 
