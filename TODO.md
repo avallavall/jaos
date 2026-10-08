@@ -196,8 +196,11 @@ out at the bound that leaves its term nonnegative (tried 2026-10-08 in a
 scratch build) still finds none: a single tension row then says only
 `p >= 0`. The periodicity shows only once the rows around a cycle of the
 event graph are summed and the potentials cancel, so the cut has to start
-from cycle aggregates, which neither zero-half nor JAOS's MIR aggregation
-builds today. Fourth, `binkar10_1` holds the reference's point and
+from cycle aggregates. A family that sums least-slack cycles of rows with
+two continuous columns and hands the sum to the MIR was built and refused
+on 2026-10-08 (`cycle-cuts-two-potentials`, `bench/measurements/02-363/`):
+`ic97_potential`'s root goes from 3868.46 to 3874.46 only, and no other
+root of the set moves. Fourth, `binkar10_1` holds the reference's point and
 a bound 0.4% short after 16000 nodes, where HiGHS closes in 4066. Its root
 reads 6693 against HiGHS's 6701, and at 1e10 work units strong branching
 at reliability 4, the best-bound order and propagation at 4 passes end its

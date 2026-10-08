@@ -1,0 +1,444 @@
+diff --git a/src/mip.c b/src/mip.c
+index 29db6c5..ea56114 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -33,6 +33,9 @@ constexpr int64_t MIP_HULL_ROUNDS = 20;
+ constexpr int64_t MIP_HULL_COLS = 8;
+ constexpr int64_t MIP_HULL_POINTS = 1024;
+ constexpr int64_t MIP_HULL_KEEP = 10;
++constexpr int64_t MIP_CYCLE_ROUNDS = 20;
++constexpr int64_t MIP_CYCLE_TRIES = 2000;
++constexpr int64_t MIP_CYCLE_CUTS = 200;
+ constexpr bool MIP_CONFLICTS = true;
+ constexpr bool MIP_SYMMETRY = false;
+ constexpr bool MIP_ORBITAL = true;
+@@ -3768,6 +3771,344 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+     return added;
+ }
+ 
++typedef struct {
++    int64_t na, nn, nseen;
++    int64_t *from, *to, *row, *adj_start, *adj, *node_of;
++    int64_t *pred, *heap, *hpos, *touched, *cyc, *cols;
++    signed char *side;
++    bool *mark;
++    double *inv, *slack, *dist;
++    uint64_t *seen;
++    double jmax;
++    bool built;
++} cycgraph;
++
++typedef struct {
++    double s;
++    int64_t e;
++} cycrank;
++
++static int cycrank_cmp(const void *pa, const void *pb)
++{
++    const cycrank *p = pa, *q = pb;
++    if (p->s != q->s)
++        return p->s < q->s ? -1 : 1;
++    return (p->e > q->e) - (p->e < q->e);
++}
++
++static void cyc_free(cycgraph *g)
++{
++    free(g->from); free(g->to); free(g->row); free(g->adj_start);
++    free(g->adj); free(g->node_of); free(g->pred); free(g->heap);
++    free(g->hpos); free(g->touched); free(g->cyc); free(g->cols);
++    free(g->side); free(g->mark); free(g->inv); free(g->slack);
++    free(g->dist); free(g->seen);
++    memset(g, 0, sizeof *g);
++}
++
++static bool cyc_row(const jaos_model *m, const jaos_model *lp, int64_t i,
++                    int64_t *jp, int64_t *jn, double *a)
++{
++    if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
++        return false;
++    int64_t c[2] = {-1, -1}, nci = 0, nint = 0;
++    double v[2] = {0.0, 0.0};
++    for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
++        const int64_t j = lp->ar_index[k];
++        if (lp->ar_value[k] == 0.0)
++            continue;
++        if (m->col_integer[j]) {
++            nint++;
++            continue;
++        }
++        if (nci == 2)
++            return false;
++        c[nci] = j;
++        v[nci++] = lp->ar_value[k];
++    }
++    if (nci != 2 || nint == 0 || v[0] != -v[1])
++        return false;
++    const int t = v[0] > 0.0 ? 0 : 1;
++    *jp = c[t];
++    *jn = c[1 - t];
++    *a = v[t];
++    return true;
++}
++
++static bool cyc_build(const jaos_model *m, const jaos_model *lp, cycgraph *g,
++                      int64_t *work)
++{
++    const int64_t nr = m->num_row, nc = m->num_col;
++    g->built = true;
++    g->node_of = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->node_of);
++    if (g->node_of == nullptr)
++        return false;
++    for (int64_t j = 0; j < nc; j++)
++        g->node_of[j] = -1;
++    *work += nc + lp->ar_start[nr];
++    int64_t na = 0, jp, jn;
++    double a;
++    for (int64_t i = 0; i < nr; i++)
++        if (cyc_row(m, lp, i, &jp, &jn, &a))
++            na += isfinite(lp->row_lower[i]) + isfinite(lp->row_upper[i]);
++    if (na == 0)
++        return true;
++    g->from = jm_alloc_array(na, sizeof *g->from);
++    g->to = jm_alloc_array(na, sizeof *g->to);
++    g->row = jm_alloc_array(na, sizeof *g->row);
++    g->side = jm_alloc_array(na, sizeof *g->side);
++    g->inv = jm_alloc_array(na, sizeof *g->inv);
++    g->slack = jm_alloc_array(na, sizeof *g->slack);
++    g->cyc = jm_alloc_array(na + 1, sizeof *g->cyc);
++    g->seen = jm_alloc_array(MIP_CYCLE_TRIES, sizeof *g->seen);
++    g->cols = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->cols);
++    g->mark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->mark);
++    if (g->from == nullptr || g->to == nullptr || g->row == nullptr ||
++        g->side == nullptr || g->inv == nullptr || g->slack == nullptr ||
++        g->cyc == nullptr || g->seen == nullptr || g->cols == nullptr ||
++        g->mark == nullptr)
++        return false;
++    int64_t e = 0, nn = 0;
++    g->jmax = 0.0;
++    for (int64_t i = 0; i < nr; i++) {
++        if (!cyc_row(m, lp, i, &jp, &jn, &a))
++            continue;
++        if (g->node_of[jp] < 0)
++            g->node_of[jp] = nn++;
++        if (g->node_of[jn] < 0)
++            g->node_of[jn] = nn++;
++        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
++            if (m->col_integer[lp->ar_index[k]] &&
++                fabs(lp->ar_value[k]) / a > g->jmax)
++                g->jmax = fabs(lp->ar_value[k]) / a;
++        for (int s = 1; s >= -1; s -= 2) {
++            if (!isfinite(s > 0 ? lp->row_lower[i] : lp->row_upper[i]))
++                continue;
++            g->from[e] = g->node_of[s > 0 ? jn : jp];
++            g->to[e] = g->node_of[s > 0 ? jp : jn];
++            g->row[e] = i;
++            g->side[e] = (signed char)s;
++            g->inv[e] = 1.0 / a;
++            e++;
++        }
++    }
++    g->na = na;
++    g->nn = nn;
++    g->adj_start = jm_calloc_array(nn + 1, sizeof *g->adj_start);
++    g->adj = jm_alloc_array(na, sizeof *g->adj);
++    g->pred = jm_alloc_array(nn, sizeof *g->pred);
++    g->heap = jm_alloc_array(nn, sizeof *g->heap);
++    g->hpos = jm_alloc_array(nn, sizeof *g->hpos);
++    g->touched = jm_alloc_array(nn, sizeof *g->touched);
++    g->dist = jm_alloc_array(nn, sizeof *g->dist);
++    if (g->adj_start == nullptr || g->adj == nullptr || g->pred == nullptr ||
++        g->heap == nullptr || g->hpos == nullptr || g->touched == nullptr ||
++        g->dist == nullptr)
++        return false;
++    for (int64_t t = 0; t < na; t++)
++        g->adj_start[g->from[t] + 1]++;
++    for (int64_t v = 0; v < nn; v++) {
++        g->adj_start[v + 1] += g->adj_start[v];
++        g->hpos[v] = -1;
++        g->dist[v] = INFINITY;
++    }
++    for (int64_t v = 0; v < nn; v++)
++        g->pred[v] = g->adj_start[v];
++    for (int64_t t = 0; t < na; t++)
++        g->adj[g->pred[g->from[t]]++] = t;
++    return true;
++}
++
++static bool cyc_less(const cycgraph *g, int64_t u, int64_t v)
++{
++    return g->dist[u] < g->dist[v] || (g->dist[u] == g->dist[v] && u < v);
++}
++
++static void cyc_swap(cycgraph *g, int64_t p, int64_t q)
++{
++    const int64_t u = g->heap[p], v = g->heap[q];
++    g->heap[p] = v;
++    g->heap[q] = u;
++    g->hpos[v] = p;
++    g->hpos[u] = q;
++}
++
++static void cyc_up(cycgraph *g, int64_t p)
++{
++    while (p > 0 && cyc_less(g, g->heap[p], g->heap[(p - 1) / 2])) {
++        cyc_swap(g, p, (p - 1) / 2);
++        p = (p - 1) / 2;
++    }
++}
++
++static void cyc_down(cycgraph *g, int64_t p, int64_t hn)
++{
++    for (;;) {
++        int64_t c = 2 * p + 1;
++        if (c >= hn)
++            return;
++        if (c + 1 < hn && cyc_less(g, g->heap[c + 1], g->heap[c]))
++            c++;
++        if (!cyc_less(g, g->heap[c], g->heap[p]))
++            return;
++        cyc_swap(g, p, c);
++        p = c;
++    }
++}
++
++static bool cyc_path(cycgraph *g, int64_t e, double cap, int64_t *work)
++{
++    const int64_t src = g->to[e], dst = g->from[e];
++    int64_t hn = 0, nt = 0;
++    bool found = false;
++    g->dist[src] = 0.0;
++    g->pred[src] = -1;
++    g->touched[nt++] = src;
++    g->heap[0] = src;
++    g->hpos[src] = 0;
++    hn = 1;
++    while (hn > 0) {
++        const int64_t u = g->heap[0];
++        g->hpos[u] = -2;
++        hn--;
++        if (hn > 0) {
++            g->heap[0] = g->heap[hn];
++            g->hpos[g->heap[0]] = 0;
++            cyc_down(g, 0, hn);
++        }
++        if (!(g->dist[u] < cap))
++            break;
++        if (u == dst) {
++            found = true;
++            break;
++        }
++        for (int64_t k = g->adj_start[u]; k < g->adj_start[u + 1]; k++) {
++            const int64_t t = g->adj[k];
++            if (g->row[t] == g->row[e])
++                continue;
++            const int64_t v = g->to[t];
++            const double d = g->dist[u] + g->slack[t];
++            if (g->hpos[v] == -2 || !(d < g->dist[v]))
++                continue;
++            if (g->hpos[v] == -1 && !isfinite(g->dist[v]))
++                g->touched[nt++] = v;
++            g->dist[v] = d;
++            g->pred[v] = t;
++            if (g->hpos[v] == -1) {
++                g->heap[hn] = v;
++                g->hpos[v] = hn++;
++            }
++            cyc_up(g, g->hpos[v]);
++        }
++        *work += g->adj_start[u + 1] - g->adj_start[u] + 1;
++    }
++    int64_t len = 0;
++    if (found) {
++        g->cyc[len++] = e;
++        for (int64_t v = dst; v != src; v = g->from[g->pred[v]])
++            g->cyc[len++] = g->pred[v];
++    }
++    for (int64_t t = 0; t < nt; t++) {
++        g->dist[g->touched[t]] = INFINITY;
++        g->hpos[g->touched[t]] = -1;
++    }
++    g->cyc[len] = -1;
++    return found;
++}
++
++static int64_t cycle_round(const jaos_model *m, jaos_model *lp,
++                           const double *x, const double *ilo,
++                           const double *ihi, cutbuf *cb, double *cut,
++                           double *best, double *delta, double *agg,
++                           cycgraph *g, int64_t *work)
++{
++    if (jm_model_ensure_rowwise(lp) != JAOS_OK)
++        return -1;
++    if (!g->built && !cyc_build(m, lp, g, work))
++        return -1;
++    if (g->na == 0)
++        return 0;
++    const int64_t na = g->na, nc = m->num_col;
++    memset(agg, 0, (size_t)nc * sizeof *agg);
++    memset(cut, 0, (size_t)nc * sizeof *cut);
++    cycrank *rk = jm_alloc_array(na, sizeof *rk);
++    if (rk == nullptr)
++        return -1;
++    for (int64_t e = 0; e < na; e++) {
++        const int64_t i = g->row[e];
++        double act = 0.0;
++        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
++            act += lp->ar_value[k] * x[lp->ar_index[k]];
++        const double bd = g->side[e] > 0 ? lp->row_lower[i] : lp->row_upper[i];
++        const double s = g->side[e] * (act - bd) * g->inv[e];
++        g->slack[e] = s > 0.0 ? s : 0.0;
++        rk[e] = (cycrank){g->slack[e], e};
++        *work += lp->ar_start[i + 1] - lp->ar_start[i];
++    }
++    qsort(rk, (size_t)na, sizeof *rk, cycrank_cmp);
++    int64_t added = 0, tries = 0;
++    g->nseen = 0;
++    const int64_t cyc_cap = getenv("JAOS_CYCN") != nullptr
++        ? atoll(getenv("JAOS_CYCN")) : MIP_CYCLE_CUTS;
++    for (int64_t t = 0; t < na && tries < MIP_CYCLE_TRIES &&
++                        added < cyc_cap; t++) {
++        const int64_t e = rk[t].e;
++        if (!(g->slack[e] < g->jmax))
++            break;
++        tries++;
++        if (!cyc_path(g, e, g->jmax - g->slack[e], work))
++            continue;
++        uint64_t h = 0;
++        int64_t len = 0;
++        for (; g->cyc[len] >= 0; len++) {
++            uint64_t z = (uint64_t)g->cyc[len] + 0x9e3779b97f4a7c15ULL;
++            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
++            z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
++            h += z ^ (z >> 31);
++        }
++        bool dup = false;
++        for (int64_t q = 0; q < g->nseen && !dup; q++)
++            dup = g->seen[q] == h;
++        if (dup)
++            continue;
++        g->seen[g->nseen++] = h;
++        double b = 0.0, mag = 0.0;
++        int64_t nz = 0;
++        for (int64_t q = 0; q < len; q++) {
++            const int64_t a = g->cyc[q], i = g->row[a];
++            const double s = g->side[a] * g->inv[a];
++            const double bd = g->side[a] > 0 ? lp->row_lower[i]
++                                             : lp->row_upper[i];
++            b += s * bd;
++            mag += fabs(s * bd);
++            for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++) {
++                const int64_t j = lp->ar_index[k];
++                if (!m->col_integer[j])
++                    continue;
++                if (!g->mark[j]) {
++                    g->mark[j] = true;
++                    g->cols[nz++] = j;
++                }
++                agg[j] -= s * lp->ar_value[k];
++            }
++            *work += lp->ar_start[i + 1] - lp->ar_start[i];
++        }
++        const int got = mir_side(m, lp, x, ilo, ihi, agg, -b, mag, len,
++                                 nullptr, cb, cut, best, delta, g->cols, nz);
++        for (int64_t q = 0; q < nz; q++) {
++            agg[g->cols[q]] = 0.0;
++            g->mark[g->cols[q]] = false;
++        }
++        if (got < 0) {
++            free(rk);
++            return -1;
++        }
++        added += got;
++    }
++    free(rk);
++    return added;
++}
++
+ static int mir_col_cmp(const void *pa, const void *pb)
+ {
+     const int64_t a = *(const int64_t *)pa, b = *(const int64_t *)pb;
+@@ -5852,6 +6193,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         ? m->cfg.mip_hull_rounds : MIP_HULL_ROUNDS;
+     if (hull_rounds > root_rounds)
+         root_rounds = hull_rounds;
++    const int64_t cyc_rounds = getenv("JAOS_CYC") != nullptr
++        ? atoll(getenv("JAOS_CYC")) : MIP_CYCLE_ROUNDS;
++    if (cyc_rounds > root_rounds)
++        root_rounds = cyc_rounds;
+     const int64_t backtrack = m->cfg.mip_dive_backtrack_set
+         ? m->cfg.mip_dive_backtrack : MIP_DIVE_BACKTRACK;
+     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
+@@ -5978,7 +6323,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t covers = 0;
+     int64_t cliques = 0;
+     int64_t zero_halves = 0;
+-    int64_t flow_covers = 0, hulls = 0;
++    int64_t flow_covers = 0, hulls = 0, cycles = 0;
++    cycgraph cyg = {0};
+     kitem *items = nullptr;
+     double *pbuf = nullptr;
+     litval *porder = nullptr;
+@@ -6704,11 +7050,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 mu = jm_alloc_array(nc + 1, sizeof *mu);
+             if (cover_rounds > 0 && (items == nullptr || mu == nullptr))
+                 goto done;
+-            if (mir_rounds > 0 && mbest == nullptr)
++            const bool mir_bufs = mir_rounds > 0 || cyc_rounds > 0;
++            if (mir_bufs && mbest == nullptr)
+                 mbest = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mbest);
+-            if (mir_rounds > 0 && mdelta == nullptr)
++            if (mir_bufs && mdelta == nullptr)
+                 mdelta = jm_alloc_array(MIP_MIR_DELTAS + 1, sizeof *mdelta);
+-            if (mir_rounds > 0 && magg == nullptr)
++            if (mir_bufs && magg == nullptr)
+                 magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
+             if (mir_rounds > 0 && mir_aggregate > 0 && mused == nullptr) {
+                 if (!JM_GROW(mused, mused_cap, nr > 0 ? nr : 1))
+@@ -6716,6 +7063,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 mpicked = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mpicked);
+                 mcmag = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mcmag);
+             }
++            if (mir_bufs && (mbest == nullptr || mdelta == nullptr ||
++                             magg == nullptr))
++                goto done;
+             if (mir_rounds > 0 && (mbest == nullptr || mdelta == nullptr ||
+                                    magg == nullptr ||
+                                    (mir_aggregate > 0 &&
+@@ -6891,6 +7241,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     got += hv;
+                     hull_got = hv;
+                 }
++                if (r < cyc_rounds) {
++                    const int64_t yv = cycle_round(m, lp, x, ilo, ihi, &cb,
++                                                   cut, mbest, mdelta, magg,
++                                                   &cyg, &work);
++                    if (yv < 0)
++                        goto done;
++                    cycles += yv;
++                    got += yv;
++                }
+                 if (r < mir_rounds && net && !cmx.built) {
+                     if (cmx.g == nullptr && !cmir_init(&cmx, nc))
+                         goto done;
+@@ -7061,10 +7420,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "root: relaxation %.17g after %lld cuts, %lld of them "
+                    "covers, %lld cliques, %lld zero-half, %lld flow covers, "
+-                   "%lld hull cuts and %lld MIR",
++                   "%lld hull cuts, %lld cycle cuts and %lld MIR",
+                    obj, (long long)cuts, (long long)covers,
+                    (long long)cliques, (long long)zero_halves,
+-                   (long long)flow_covers, (long long)hulls, (long long)mirs);
++                   (long long)flow_covers, (long long)hulls,
++                   (long long)cycles, (long long)mirs);
+             if (mir_aggregate > 0 && !jm_model_has_quadratic(m))
+                 jm_log(m, JAOS_LOG_SUMMARY,
+                        "root: MIR aggregation kept %lld cuts after %lld "
+@@ -8340,6 +8700,7 @@ done:
+     free(mused);
+     free(mpicked);
+     cmir_free(&cmx);
++    cyc_free(&cyg);
+     free(rp_del);
+     free(rp_mark);
+     free(rp_sel);
