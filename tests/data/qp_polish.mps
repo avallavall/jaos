@@ -1,8 +1,8 @@
 * A circulation on 12 nodes and 30 arcs with separable curvatures from
 * 1e-11 to 2, from bench/measurements/02-365/netqp.py (seed 33). The
 * barrier's point leaves rows and columns a little past the checker's
-* windows and the push does not settle; the polish, which holds the
-* barrier's active set, closes the rows and refits the duals.
+* windows and the first push does not settle; the push from the
+* barrier's own active set does (bench/measurements/02-367/).
 NAME netqp
 ROWS
  N obj

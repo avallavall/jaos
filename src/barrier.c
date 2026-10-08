@@ -125,6 +125,7 @@ typedef struct {
     const int8_t *pin;
     bool *dec;
     double push_delta, push_scale;
+    bool push_plain;
 } bx;
 
 static void bx_free(bx *s)
@@ -2231,7 +2232,8 @@ static jaos_status qp_push(bx *s)
         pin[j] = PUSH_FREE;
         if (k == FIXED || k == 0)
             continue;
-        const double near = QP_PUSH_NEAR * (1.0 + s->norm_b);
+        const double near = s->push_plain
+            ? -1.0 : QP_PUSH_NEAR * (1.0 + s->norm_b);
         const bool at_lo = (k & HAS_LO) &&
                            (s->w[j] < s->zl[j] ||
                             (s->w[j] <= near &&
@@ -2836,6 +2838,15 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         }
         free(kz); free(kw); free(kv); free(kl); free(ku); free(ky);
         *iters = s.iters;
+    }
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+        !s.pushed && !m->cfg.barrier_no_crossover) {
+        s.push_plain = true;
+        st = qp_push(&s);
+        s.push_plain = false;
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "the push from the variables the barrier reads at a bound "
+               "alone %s", s.pushed ? "settled" : "did not settle either");
     }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);

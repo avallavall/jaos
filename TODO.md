@@ -24,14 +24,6 @@ certificate for an infeasibility whose free column with no curvature needs
 its coefficient to vanish exactly. Verify with `make cblib` and 02-319's
 `conread.sh`.
 
-J20. **Bounded network QPs that end with no answer.** Of 400 generated
-circulations with every arc bounded (`bench/measurements/02-366/netqpb.py`,
-seeds 163, 182, 231 and 353), four end `NUMERICAL_ERROR`. The push leaves
-rows unsatisfied after 40 rounds, the polish leaves duals 5.6e-6 to 2.5e-4
-off, and the conic walk then fails too. Next: read why the push's rows stay
-off on these small models. Verify with `netqpb_read.py` on the 400 and the
-QP readings of 02-366.
-
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

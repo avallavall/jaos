@@ -256,32 +256,18 @@ static void test_the_push_hands_the_primal_a_vertex(void)
     }
 }
 
-static void catch_polish(void *user, jaos_log_level level, const char *line)
-{
-    (void)level;
-    if (strstr(line, "the checker refused the barrier's point; polished, it "
-                     "passes") != nullptr)
-        (*(int *)user)++;
-}
-
-static void test_a_refused_barrier_point_is_polished_onto_its_rows(void)
+static void test_a_circulation_with_tiny_curvatures_passes_the_checker(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_mps(m, "tests/data/qp_polish.mps"));
-    int polished = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_set_log_callback(m, catch_polish, &polished));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    TEST_ASSERT_EQUAL_INT(1, polished);
     double x[30], y[12];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     jaos_check_report rep;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
     jaos_model_free(m);
@@ -302,6 +288,35 @@ static void test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed(void)
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
     TEST_ASSERT_TRUE(rep.objective_gap <= 1e-7);
+    jaos_model_free(m);
+}
+
+static void catch_plain(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "at a bound alone settled") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_push_that_cycles_is_tried_again_from_the_plain_set(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_plain_push.mps"));
+    int settled = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_plain, &settled));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, settled);
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
     jaos_model_free(m);
 }
 
@@ -784,7 +799,8 @@ int main(void)
     RUN_TEST(test_the_augmented_system_takes_every_bound_kind);
     RUN_TEST(test_the_augmented_system_takes_a_fixed_column);
     RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
-    RUN_TEST(test_a_refused_barrier_point_is_polished_onto_its_rows);
+    RUN_TEST(test_a_circulation_with_tiny_curvatures_passes_the_checker);
     RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
+    RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
     return UNITY_END();
 }
