@@ -37,7 +37,7 @@ Against 395e4d6:
 | QPLIB's convex QPs (`cqp-*.txt`) | the same answers; QPLIB_9002 takes 1.84e9 work units against 1.50e9, because the extra push runs before its polish |
 | QPLIB's 17 convex MIQPs (`miqp-*.txt`) | the same statuses; QPLIB_4270, 5527, 5543 and 5577, which end with no answer either way, take 1.01x to 1.32x the work |
 | 02-248's 6000 generated QPs (`gen-*.txt`) | the same |
-| Maros-Meszaros (`maros-meszaros.txt`) | 0 regressed, 0 improved |
+| Maros-Meszaros (`maros-meszaros.txt`) | 0 regressed, 0 improved; `powell20` takes 1.26x the work, because the extra push runs there and does not settle either, and the barrier's point stands as before (`bench/results/maros-meszaros.txt`) |
 
 `tests/data/qp_plain_push.mps` is seed 163.
 
