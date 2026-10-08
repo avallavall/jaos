@@ -60,6 +60,7 @@ constexpr int64_t QP_PUSH_FREEINGS = 3;
 constexpr double  QP_PUSH_EXTRAPOLATE = 1e6;
 constexpr int64_t QP_PUSH_CG = 100;
 constexpr double  QP_PUSH_GAP = 1e-8;
+constexpr double  QP_PUSH_PIN_GAP = 1e-7;
 
 enum { HAS_LO = JM_BX_LO, HAS_UP = JM_BX_UP, FIXED = JM_BX_FIXED };
 enum { PUSH_FREE = 0, PUSH_LOWER = 1, PUSH_UPPER = 2 };
@@ -123,7 +124,7 @@ typedef struct {
 
     const int8_t *pin;
     bool *dec;
-    double push_delta;
+    double push_delta, push_scale;
 } bx;
 
 static void bx_free(bx *s)
@@ -1843,6 +1844,19 @@ static double push_row_residual(bx *s, const double *z,
     return worst;
 }
 
+static bool push_wrong(const bx *s, int64_t j, double dj, double thr)
+{
+    const uint8_t k = s->kind[j];
+    const double gap = QP_PUSH_PIN_GAP * s->push_scale;
+    if (s->pin[j] == PUSH_LOWER)
+        return dj < -thr ||
+               (dj < 0.0 && (k & HAS_UP) && -dj * (s->up[j] - s->lo[j]) > gap);
+    if (s->pin[j] == PUSH_UPPER)
+        return dj > thr ||
+               (dj > 0.0 && (k & HAS_LO) && dj * (s->up[j] - s->lo[j]) > gap);
+    return false;
+}
+
 static int64_t push_signs(bx *s, const double *zn, const double *yn,
                           double *d, double tol_d, double *worst,
                           int64_t *loose, double *gap)
@@ -1861,6 +1875,10 @@ static int64_t push_signs(bx *s, const double *zn, const double *yn,
         if (j < s->ncol)
             obj += (s->cost[j] + 0.5 * gq) * zn[j];
         d[j] = k == FIXED ? 0.0 : s->cost[j] + gq - s->tmp[j];
+    }
+    s->push_scale = 1.0 + fabs(obj);
+    for (int64_t j = 0; j < s->nvar; j++) {
+        const uint8_t k = s->kind[j];
         if (k == FIXED)
             continue;
         const double thr_user = j < s->ncol
@@ -1875,14 +1893,10 @@ static int64_t push_signs(bx *s, const double *zn, const double *yn,
                 : ((k & HAS_UP) ? s->up[j] - zn[j] : 0.0);
             if (room > 0.0)
                 far += fabs(d[j]) * room;
-        } else if (pin[j] == PUSH_LOWER && d[j] < -thr) {
+        } else if (push_wrong(s, j, d[j], thr)) {
             wrong++;
-            if (-d[j] > *worst)
-                *worst = -d[j];
-        } else if (pin[j] == PUSH_UPPER && d[j] > thr) {
-            wrong++;
-            if (d[j] > *worst)
-                *worst = d[j];
+            if (fabs(d[j]) > *worst)
+                *worst = fabs(d[j]);
         }
     }
     *gap = far / (1.0 + fabs(obj));
@@ -2566,8 +2580,7 @@ static jaos_status qp_push(bx *s)
                                         ? QP_PUSH_USER_TOL * gamma[j]
                                         : QP_PUSH_USER_TOL / rho[j - s->ncol];
             const double thr = thr_user < tol_d ? thr_user : tol_d;
-            if ((pin[j] == PUSH_LOWER && d[j] < -thr) ||
-                (pin[j] == PUSH_UPPER && d[j] > thr)) {
+            if (push_wrong(s, j, d[j], thr)) {
                 pin[j] = PUSH_FREE;
                 pinned--;
             }

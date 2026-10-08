@@ -1,0 +1,3 @@
+138 instances: 137 solved, 138 shape ok, 137 objective ok, 137 checker ok, 137 deterministic, 1 failed
+-- against baseline --
+baseline: 0 regressed, 0 improved, 0 new

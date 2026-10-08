@@ -287,6 +287,24 @@ static void test_a_refused_barrier_point_is_polished_onto_its_rows(void)
     jaos_model_free(m);
 }
 
+static void test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_pin_gap.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    TEST_ASSERT_TRUE(rep.objective_gap <= 1e-7);
+    jaos_model_free(m);
+}
+
 static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
@@ -767,5 +785,6 @@ int main(void)
     RUN_TEST(test_the_augmented_system_takes_a_fixed_column);
     RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
     RUN_TEST(test_a_refused_barrier_point_is_polished_onto_its_rows);
+    RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
     return UNITY_END();
 }
