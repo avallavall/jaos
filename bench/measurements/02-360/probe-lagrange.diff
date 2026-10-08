@@ -1,0 +1,133 @@
+--- a/src/mip.c	2026-10-08 02:01:25.571438318 +0200
++++ b/src/mip.c	2026-10-08 02:01:25.575396576 +0200
+@@ -6,6 +6,7 @@
+ #include <assert.h>
+ #include <float.h>
+ #include <math.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -1422,6 +1423,103 @@
+     return (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) * (qu > MIP_PC_EPS ? qu : MIP_PC_EPS);
+ }
+ 
++static bool probe_lagrange(const jaos_model *lp, double sigma, double *out,
++                           int64_t *work)
++{
++    const int64_t nc = lp->num_col, nr = lp->num_row;
++    static int dbg = 0;
++    if (!lp->sol_basis_ok || lp->sol_col_status == nullptr ||
++        lp->sol_row_status == nullptr || nr == 0) {
++        if (dbg++ < 3) fprintf(stderr, "PLAG nobasis ok=%d\n", (int)lp->sol_basis_ok);
++        return false;
++    }
++    int64_t *bs = jm_alloc_array(nr + 1, sizeof *bs);
++    int64_t *bi = jm_alloc_array(lp->num_nz + nr + 1, sizeof *bi);
++    double *bv = jm_alloc_array(lp->num_nz + nr + 1, sizeof *bv);
++    double *y = jm_alloc_array(nr, sizeof *y);
++    int64_t *who = jm_alloc_array(nr, sizeof *who);
++    jm_lu lu;
++    jm_lu_init(&lu);
++    jm_work w = {0};
++    bool ok = false;
++    if (bs == nullptr || bi == nullptr || bv == nullptr || y == nullptr ||
++        who == nullptr)
++        goto out;
++    int64_t q = 0, p = 0;
++    for (int64_t j = 0; j < nc && q <= nr; j++) {
++        if (lp->sol_col_status[j] != JAOS_BASIS_BASIC)
++            continue;
++        if (q == nr)
++            goto out;
++        bs[q] = p;
++        who[q] = j;
++        for (int64_t k = lp->a_start[j]; k < lp->a_start[j + 1]; k++) {
++            bi[p] = lp->a_index[k];
++            bv[p] = lp->a_value[k];
++            p++;
++        }
++        q++;
++    }
++    for (int64_t i = 0; i < nr; i++) {
++        if (lp->sol_row_status[i] != JAOS_BASIS_BASIC)
++            continue;
++        if (q == nr)
++            goto out;
++        bs[q] = p;
++        who[q] = -(i + 1);
++        bi[p] = i;
++        bv[p] = -1.0;
++        p++;
++        q++;
++    }
++    if (q != nr) {
++        if (dbg++ < 6) fprintf(stderr, "PLAG count %lld of %lld\n", (long long)q, (long long)nr);
++        goto out;
++    }
++    bs[nr] = p;
++    if (jm_lu_factor(&lu, nr, bs, bi, bv, LU_PIVOT_TOL, &w) != JAOS_OK ||
++        lu.rank < nr)
++        goto out;
++    for (int64_t t = 0; t < nr; t++)
++        y[t] = who[t] >= 0 ? sigma * lp->col_cost[who[t]] : 0.0;
++    jm_lu_btran(&lu, y, &w);
++    for (int64_t i = 0; i < nr; i++)
++        if ((y[i] > 0.0 && !isfinite(lp->row_lower[i])) ||
++            (y[i] < 0.0 && !isfinite(lp->row_upper[i])))
++            y[i] = 0.0;
++    double bound = sigma * lp->obj_offset;
++    for (int64_t j = 0; j < nc; j++) {
++        double d = sigma * lp->col_cost[j];
++        for (int64_t k = lp->a_start[j]; k < lp->a_start[j + 1]; k++)
++            d -= lp->a_value[k] * y[lp->a_index[k]];
++        if (fabs(d) <= 1e-9)
++            continue;
++        const double at = d > 0.0 ? lp->col_lower[j] : lp->col_upper[j];
++        if (!isfinite(at)) {
++            if (dbg++ < 6) fprintf(stderr, "PLAG col %lld d %g\n", (long long)j, d);
++            goto out;
++        }
++        bound += d * at;
++    }
++    for (int64_t i = 0; i < nr; i++) {
++        if (fabs(y[i]) <= 1e-9)
++            continue;
++        const double at = y[i] > 0.0 ? lp->row_lower[i] : lp->row_upper[i];
++        if (!isfinite(at)) {
++            if (dbg++ < 6) fprintf(stderr, "PLAG row %lld y %g\n", (long long)i, y[i]);
++            goto out;
++        }
++        bound += y[i] * at;
++    }
++    *out = bound;
++    ok = isfinite(bound);
++out:
++    *work += w.units + lp->num_nz + nc + nr;
++    jm_lu_free(&lu);
++    free(bs); free(bi); free(bv); free(y); free(who);
++    return ok;
++}
++
+ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
+                                 const double *x, double key, double sigma,
+                                 int64_t reliability, int64_t cap,
+@@ -1492,8 +1590,17 @@
+             (*probes)++;
+             *work += jaos_work_units(lp);
+             if (st == JAOS_OK && capping &&
+-                jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT)
++                jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT) {
+                 (*capped)++;
++                double lb = 0.0;
++                if (getenv("JAOS_PLAG") && probe_lagrange(lp, sigma, &lb, work)) {
++                    double gain = lb - key;
++                    if (gain < 0.0)
++                        gain = 0.0;
++                    pc_sum[d * nc + j] += gain / (d == 0 ? f : 1.0 - f);
++                    pc_n[d * nc + j] += 1;
++                }
++            }
+             if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
+                 double obj = 0.0;
+                 if (jaos_objective(lp, &obj) == JAOS_OK) {
