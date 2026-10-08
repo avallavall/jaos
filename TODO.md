@@ -103,9 +103,9 @@ J16. **Links.** GAMS, which needs a link library of its own; `.nl` bodies
 above degree two.
 
 J17. **The feasibility relaxation's proof that no box holds a point, where
-inequality rows leave no integer point**, such as `1 <= 3 x - 3 y <= 2`
-over integers. The equality rows' case is proved
-(`bench/measurements/02-362/`).
+several inequality rows together leave no integer point.** The equality
+rows' case and the single ranged row's case are proved
+(`bench/measurements/02-362/`, `02-369/`).
 
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**

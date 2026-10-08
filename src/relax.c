@@ -510,6 +510,78 @@ out:
     return proved;
 }
 
+static bool rx_range_row_empty(const jaos_model *m, int64_t i)
+{
+    const int64_t p0 = m->ar_start[i], p1 = m->ar_start[i + 1];
+    const double lo = m->row_lower[i], hi = m->row_upper[i];
+    jm_dyadic d;
+    int64_t low = INT64_MAX;
+    bool any = false;
+    for (int64_t k = p0; k <= p1 + 1; k++) {
+        const double v = k < p1 ? m->ar_value[k] : (k == p1 ? lo : hi);
+        if (k < p1 && !rx_is_int(m, m->ar_index[k]))
+            return false;
+        if (!jm_dyadic_from_double(&d, v))
+            return false;
+        if (d.m.sign != 0 && d.e < low)
+            low = d.e;
+        any = any || (k < p1 && d.m.sign != 0);
+    }
+    if (!any)
+        return false;
+    jm_nat g, rem, one;
+    jm_bigint bl, bh, span, t;
+    jm_nat_set_zero(&g);
+    jm_bigint_set_zero(&bl);
+    jm_bigint_set_zero(&bh);
+    for (int64_t k = p0; k <= p1 + 1; k++) {
+        const double v = k < p1 ? m->ar_value[k] : (k == p1 ? lo : hi);
+        if (!jm_dyadic_from_double(&d, v))
+            return false;
+        if (d.m.sign == 0)
+            continue;
+        if (!jm_bigint_shl(&t, &d.m, d.e - low))
+            return false;
+        if (k < p1) {
+            if (!jm_nat_gcd(&g, &g, &t.mag))
+                return false;
+        } else if (k == p1) {
+            bl = t;
+        } else {
+            bh = t;
+        }
+    }
+    jm_nat_set_u64(&one, 1);
+    if (jm_nat_cmp(&g, &one) <= 0 || !jm_bigint_sub(&span, &bh, &bl))
+        return false;
+    if (!jm_nat_divmod(nullptr, &rem, &bl.mag, &g))
+        return false;
+    if (rem.n == 0)
+        return false;
+    jm_nat gap = g;
+    if (bl.sign > 0)
+        jm_nat_sub(&gap, &g, &rem);
+    else
+        gap = rem;
+    return span.sign >= 0 && jm_nat_cmp(&span.mag, &gap) < 0;
+}
+
+static int64_t rx_range_empty(jaos_model *m, int64_t *work)
+{
+    if (jm_model_ensure_rowwise(m) != JAOS_OK)
+        return -1;
+    for (int64_t i = 0; i < m->num_row; i++) {
+        const double lo = m->row_lower[i], hi = m->row_upper[i];
+        if (!isfinite(lo) || !isfinite(hi) || !(lo < hi) ||
+            (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0))
+            continue;
+        *work += m->ar_start[i + 1] - m->ar_start[i] + 2;
+        if (rx_range_row_empty(m, i))
+            return i;
+    }
+    return -1;
+}
+
 static bool rx_lattice_empty(const jaos_model *m, int64_t *work)
 {
     const int64_t nr = m->num_row, nc = m->num_col;
@@ -690,10 +762,25 @@ jaos_status jaos_feasrelax(jaos_model *m, jaos_relax_scope scope,
         }
     }
     if (out->status != JAOS_SOLVE_OPTIMAL) {
-        if (too_wide && scope == JAOS_RELAX_COLS &&
-            rx_lattice_empty(m, &used)) {
+        const bool cols_only = too_wide && scope == JAOS_RELAX_COLS;
+        const bool lattice = cols_only && rx_lattice_empty(m, &used);
+        const int64_t range_row = cols_only && !lattice
+                                      ? rx_range_empty(m, &used) : -1;
+        if (lattice || range_row >= 0) {
             out->work_units = used;
             out->status = JAOS_SOLVE_INFEASIBLE;
+        }
+        if (range_row >= 0) {
+            out->at_row = range_row;
+            jm_set_err(m, "no point in the columns' box widened by %.6g, "
+                          "after %lld rounds and %lld work units, and none "
+                          "in any box: row %lld, over integer columns only, "
+                          "asks for a value between its sides that no "
+                          "multiple of its coefficients' greatest common "
+                          "divisor reaches",
+                       width, (long long)(rounds + 1), (long long)used,
+                       (long long)range_row);
+        } else if (lattice) {
             jm_set_err(m, "no point in the columns' box widened by %.6g, "
                           "after %lld rounds and %lld work units, and none "
                           "in any box: the equality rows, with the "

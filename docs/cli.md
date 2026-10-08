@@ -717,8 +717,9 @@ the sum over the rounds. `tests/data/relax_rounds.mps` needs four rounds.
 The search stops after `RELAX_BOX_ROUNDS` widenings, or when a round passes
 `RELAX_ROUND_WORK` times the first round's work
 (`bench/measurements/02-297/`). It then tries to prove from the equality
-rows that no box holds an integer point. When it can, the message adds
-"none in any box" and names the reason (`bench/measurements/02-362/`). The
+rows, or from one ranged row over integer columns, that no box holds an
+integer point. When it can, the message adds "none in any box" and names
+the reason (`bench/measurements/02-362/`, `02-369/`). The
 tool says on stderr how wide the last box was and exits 5.
 
 Exit 0 with an answer. Exit 5 when the copy did not finish, or when the

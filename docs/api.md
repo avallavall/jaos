@@ -2042,8 +2042,10 @@ model with cones or quadratic rows or with an unknown `scope`, and returns
 columns alone, a search whose boxes stay empty past its caps tries to
 prove that no box holds a point: the equality rows, with the continuous
 columns eliminated, may ask for an integer combination that no integer
-point gives. Then `status` is `JAOS_SOLVE_INFEASIBLE` and the message says
-"none in any box".
+point gives, or a ranged row over integer columns may lie between two
+multiples of its coefficients' greatest common divisor. Then `status` is
+`JAOS_SOLVE_INFEASIBLE`, the message says "none in any box", and for a
+ranged row `at_row` names it.
 
 ## Ranging
 
