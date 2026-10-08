@@ -1,0 +1,31 @@
+diff --git a/src/mip.c b/src/mip.c
+index 29db6c5..55d7ea6 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -6410,19 +6410,21 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         const int64_t node_work = jaos_work_units(lp);
+         work += node_work;
+         iters += jaos_iterations(lp);
++        const int64_t npre_trial = getenv("JAOS_NPT") != nullptr
++            ? atoll(getenv("JAOS_NPT")) : MIP_NODE_PRESOLVE_TRIAL;
+         if (nodes > 1 && !lp->cfg.node_no_presolve &&
+-            npre_n < MIP_NODE_PRESOLVE_TRIAL) {
++            npre_n < npre_trial) {
+             npre_n++;
+             npre_it += jaos_iterations(lp);
+-            if (npre_n == MIP_NODE_PRESOLVE_TRIAL &&
++            if (npre_n == npre_trial &&
+                 (double)npre_it >
+-                    MIP_NODE_PRESOLVE_ITERS * (double)MIP_NODE_PRESOLVE_TRIAL) {
++                    MIP_NODE_PRESOLVE_ITERS * (double)npre_trial) {
+                 lp->cfg.node_no_presolve = true;
+                 jm_log(m, JAOS_LOG_SUMMARY,
+                        "node %lld: the first %lld node relaxations took %.1f "
+                        "iterations each; the nodes after them skip presolve",
+-                       (long long)nodes, (long long)MIP_NODE_PRESOLVE_TRIAL,
+-                       (double)npre_it / (double)MIP_NODE_PRESOLVE_TRIAL);
++                       (long long)nodes, (long long)npre_trial,
++                       (double)npre_it / (double)npre_trial);
+             }
+         }
+         phase_to(&ph, work, PH_OTHER);
