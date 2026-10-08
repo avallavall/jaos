@@ -26,33 +26,6 @@ SCIP's (`bench/compare/README.md`).
 
 ## Tier 1: answers the checker refuses
 
-J2. **QPLIB_9002 has no accepted optimum.** Since 02-315 a QP optimum
-the checker refuses is not published, and QPLIB_9002 ends
-`NUMERICAL_ERROR`. It is a network flow (2890 columns, 1649 equality
-rows of coefficients ±1) with a separable quadratic cost whose
-curvatures run from 9e-12 to 2. The barrier stops making progress at a
-dual residual of about 3e-9, and the push's first full step finds 743 of
-1983 pinned variables with the wrong sign; after 5 freeings 734 are
-left, the worst 1.5e2 (02-318). Two causes were found. First, the push's
-equality-constrained QP does not fix the rows' duals in the directions
-no free column touches, and its regularised step moves them by up to
-345 there. Keeping the barrier's duals in those directions (a solve with
-the rows' residual at zero) took the wrong signs from 760 to 40 under
-`JAOS_NEARMODE=6` of the diff below, but the push still did not settle:
-freeing the 40 at once gave each a step of 1e-8 the wrong way, and they
-were pinned again. Second, the pinned set is
-really wrong: at the push's point the LP `min g'x` with `g = c + Qx` over
-the same rows reaches 2.3e-4 lower than `g'x`, so duals from that LP do
-not rescue it. Freeing one variable a round from those clean duals
-(`one-free.diff`) takes the wrong signs from 275 to 251 in 5 rounds, and
-then a row stays 1.2e-6 off with none of its variables pinned, so the
-push has nothing to release. It needs an active-set iteration that frees
-one variable at a time from duals the rows fix, and releases a pin
-elsewhere in the row's connected part when such a row stays off; or a
-barrier that converges further. The dual-direction solve is in
-`bench/measurements/02-318/push-modes.diff` (`JAOS_YCLEAN`). Verify with
-the QPLIB reading of 02-318 (`cqp-new.txt`).
-
 J3. **Conic models with no accepted optimum.** Since 02-319 a refused
 conic optimum is settled on its active rows (a least move of the columns,
 then a least-squares refit of the duals, with two rules for which rows

@@ -256,6 +256,37 @@ static void test_the_push_hands_the_primal_a_vertex(void)
     }
 }
 
+static void catch_polish(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "the checker refused the barrier's point; polished, it "
+                     "passes") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_refused_barrier_point_is_polished_onto_its_rows(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_polish.mps"));
+    int polished = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_polish, &polished));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, polished);
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_solution(m, x, y, CHECK_TOL, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
@@ -735,5 +766,6 @@ int main(void)
     RUN_TEST(test_the_augmented_system_takes_every_bound_kind);
     RUN_TEST(test_the_augmented_system_takes_a_fixed_column);
     RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
+    RUN_TEST(test_a_refused_barrier_point_is_polished_onto_its_rows);
     return UNITY_END();
 }

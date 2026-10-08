@@ -172,9 +172,11 @@ sits exactly on the bounds the optimum sits on and the checker takes both
 sides. On the 138 QPs of Maros and Meszaros (`make maros-meszaros`) 137
 end `OPTIMAL` and the checker takes all 137; `values` is refused as not
 convex (`bench/results/maros-meszaros.txt`). On QPLIB's 19 convex QPs
-(`bench/measurements/02-256/`, `02-295/`, `02-318/`) 10 end `OPTIMAL` and
-the checker takes all 10 at 1e-7. QPLIB_9002 ends `numerical_error`: its
-push leaves pinned variables with the wrong sign. Seven of the eight
+(`bench/measurements/02-256/`, `02-295/`, `02-318/`, `02-365/`) 11 end
+`OPTIMAL` and the checker takes all 11 at 1e-7. QPLIB_9002 joined them on
+2026-10-08: its push leaves pinned variables with the wrong sign, and the
+barrier's own point, polished with the barrier's active set held, passes
+the checker. Seven of the eight
 largest (10000 to 1003001 columns) stop at a work limit of 1e11, and
 QPLIB_9008 runs out of memory. The rest of those two sets is what keeps
 the row from ●.

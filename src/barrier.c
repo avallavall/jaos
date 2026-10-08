@@ -2019,6 +2019,161 @@ static jaos_status push_polish(bx *s, double *zn, double *yn, double *d,
     return JAOS_OK;
 }
 
+static bool bx_passes(jaos_model *m, jaos_check_report *ck)
+{
+    return jaos_check_solution(m, m->sol_col, m->sol_dual,
+                               jm_primal_tolerance(m), ck) == JAOS_OK &&
+           ck->primal_feasible && ck->dual_feasible;
+}
+
+static double bx_polish_rows(bx *s, const double *zt, const double *row_tol,
+                             const bool *dec, double *r)
+{
+    mul_e(s, zt, r);
+    double worst = 0.0;
+    for (int64_t i = 0; i < s->nrow; i++) {
+        r[i] = dec[i] ? 0.0 : -r[i];
+        if (fabs(r[i]) / row_tol[i] > worst)
+            worst = fabs(r[i]) / row_tol[i];
+    }
+    return worst;
+}
+
+static jaos_status bx_polish(bx *s, bool *done)
+{
+    const jaos_model *m = s->m;
+    const int64_t nv = s->nvar, nr = s->nrow;
+    *done = false;
+    if (s->augmented)
+        return JAOS_OK;
+    double *zt = jm_alloc_array(nv > 0 ? nv : 1, sizeof *zt);
+    double *t = jm_alloc_array(nv > 0 ? nv : 1, sizeof *t);
+    double *r = jm_alloc_array(nr > 0 ? nr : 1, sizeof *r);
+    double *row_tol = jm_alloc_array(nr > 0 ? nr : 1, sizeof *row_tol);
+    bool *dec = jm_calloc_array(nr > 0 ? nr : 1, sizeof *dec);
+    bool *held = jm_calloc_array(nv > 0 ? nv : 1, sizeof *held);
+    double *ys = jm_alloc_array(nr > 0 ? nr : 1, sizeof *ys);
+    const double delta = s->delta;
+    int64_t nheld = 0;
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (zt == nullptr || t == nullptr || r == nullptr || row_tol == nullptr ||
+        dec == nullptr || held == nullptr || ys == nullptr)
+        goto out;
+    for (int64_t j = 0; j < nv; j++) {
+        const uint8_t k = s->kind[j];
+        zt[j] = s->z[j];
+        if (k == FIXED) {
+            s->theta[j] = 0.0;
+            continue;
+        }
+        const bool at_lo = (k & HAS_LO) && s->w[j] < s->zl[j];
+        const bool at_up = (k & HAS_UP) && s->v[j] < s->zu[j];
+        if (at_lo && (!at_up || s->w[j] <= s->v[j])) {
+            zt[j] = s->lo[j];
+            held[j] = true;
+        } else if (at_up) {
+            zt[j] = s->up[j];
+            held[j] = true;
+        }
+        if (held[j]) {
+            nheld++;
+            s->theta[j] = s->dense[j] ? QP_PUSH_DENSE_THETA : 0.0;
+            continue;
+        }
+        double inv = s->quad[j] + QP_PUSH_REG;
+        if (k & HAS_LO) inv += s->zl[j] / s->w[j];
+        if (k & HAS_UP) inv += s->zu[j] / s->v[j];
+        s->theta[j] = 1.0 / inv;
+    }
+    const double tol_p = QP_PUSH_TOL * (1.0 + s->norm_b);
+    for (int64_t i = 0; i < nr; i++)
+        row_tol[i] = 1.0;
+    for (int64_t j = 0; j < s->ncol; j++) {
+        const double xj = fabs(m->col_scale[j] * zt[j]);
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            row_tol[m->a_index[q]] += fabs(m->a_value[q]) * xj;
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        const double user = QP_PUSH_USER_TOL * m->row_scale[i] * row_tol[i];
+        row_tol[i] = user < tol_p ? user : tol_p;
+        bool any = s->kind[s->ncol + i] != FIXED && !held[s->ncol + i];
+        for (int64_t q = m->ar_start[i]; !any && q < m->ar_start[i + 1]; q++) {
+            const int64_t j = m->ar_index[q];
+            any = s->kind[j] != FIXED && !held[j];
+        }
+        dec[i] = !any;
+    }
+    jm_work_add(&s->work, (m->num_nz + nv + nr) * JM_WORK_NONZERO);
+    s->dec = dec;
+    s->delta = QP_PUSH_DELTA;
+    st = form_normal(s);
+    s->delta = delta;
+    s->dec = nullptr;
+    if (st != JAOS_OK)
+        goto out;
+    const double before = bx_polish_rows(s, zt, row_tol, dec, r);
+    double after = before;
+    int64_t pass = 0;
+    for (; pass < QP_PUSH_REFINE && after > 0.01; pass++) {
+        solve_normal(s, r);
+        for (int64_t i = 0; i < nr; i++)
+            if (dec[i])
+                r[i] = 0.0;
+        mul_et(s, r, t);
+        for (int64_t j = 0; j < nv; j++)
+            if (s->kind[j] != FIXED && !held[j])
+                zt[j] += s->theta[j] * t[j];
+        jm_work_add(&s->work, 2 * nv * JM_WORK_NONZERO);
+        after = bx_polish_rows(s, zt, row_tol, dec, r);
+    }
+    memcpy(ys, s->y, (size_t)nr * sizeof *ys);
+    for (int64_t q = 0; q < QP_PUSH_REFINE; q++) {
+        mul_et(s, ys, t);
+        const double *qz = grad_q(s, zt);
+        for (int64_t j = 0; j < nv; j++) {
+            if (s->kind[j] == FIXED || held[j]) {
+                t[j] = 0.0;
+                continue;
+            }
+            const double gq = qz != nullptr ? qz[j] : s->quad[j] * zt[j];
+            t[j] = s->theta[j] * (s->cost[j] + gq - t[j]);
+        }
+        mul_e(s, t, r);
+        for (int64_t i = 0; i < nr; i++)
+            if (dec[i])
+                r[i] = 0.0;
+        solve_normal(s, r);
+        for (int64_t i = 0; i < nr; i++)
+            if (!dec[i])
+                ys[i] += r[i];
+        jm_work_add(&s->work, 2 * nv * JM_WORK_NONZERO);
+    }
+    bool inside = true;
+    for (int64_t j = 0; j < nv && inside; j++) {
+        const uint8_t k = s->kind[j];
+        const double tol_c = j < s->ncol ? QP_PUSH_USER_TOL / m->col_scale[j]
+                                         : QP_PUSH_USER_TOL * m->row_scale[j - s->ncol];
+        inside = isfinite(zt[j]) &&
+                 !((k & HAS_LO) && zt[j] < s->lo[j] - tol_c) &&
+                 !((k & HAS_UP) && zt[j] > s->up[j] + tol_c);
+    }
+    jm_log(m, JAOS_LOG_DETAIL,
+           "  polish: %lld columns set on the bound the barrier reads them "
+           "at; the rows go from %.3e to %.3e of their tolerance in %lld "
+           "passes, %s", (long long)nheld, before, after, (long long)pass,
+           inside && after <= 1.0 ? "kept" : "refused");
+    if (inside && after <= 1.0) {
+        memcpy(s->z, zt, (size_t)nv * sizeof *zt);
+        memcpy(s->y, ys, (size_t)nr * sizeof *ys);
+        *done = true;
+    }
+    st = JAOS_OK;
+out:
+    free(zt); free(t); free(r); free(row_tol); free(dec); free(held);
+    free(ys);
+    return st;
+}
+
 static jaos_status qp_push(bx *s)
 {
     const jaos_model *m = s->m;
@@ -2673,11 +2828,45 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         st = bx_publish(&s, outcome, p);
 
     jaos_check_report ck = {};
-    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
-        !s.pushed && !m->cfg.barrier_no_crossover && m->sol_col != nullptr &&
-        (jaos_check_solution(m, m->sol_col, m->sol_dual,
-                             jm_primal_tolerance(m), &ck) != JAOS_OK ||
-         !ck.primal_feasible || !ck.dual_feasible)) {
+    bool refused = st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
+                   s.quadratic && !s.pushed && !m->cfg.barrier_no_crossover &&
+                   m->sol_col != nullptr && !bx_passes(m, &ck);
+    bool reduced = false;
+#if !defined(JAOS_NO_PRESOLVE)
+    reduced = p->outcome == JM_PRESOLVE_REDUCED;
+#endif
+    if (refused && !reduced) {
+        double *keep = jm_alloc_array(s.nvar + s.nrow, sizeof *keep);
+        bool done = false;
+        if (keep == nullptr)
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        if (st == JAOS_OK) {
+            memcpy(keep, s.z, (size_t)s.nvar * sizeof *keep);
+            memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
+            st = bx_polish(&s, &done);
+        }
+        if (st == JAOS_OK && done) {
+            st = bx_publish(&s, outcome, p);
+            refused = st == JAOS_OK && !bx_passes(m, &ck);
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the checker refused the barrier's point; polished, %s "
+                   "(columns off by %.3g, rows by %.3g of their traffic, "
+                   "duals by %.3g, gap %.3g)",
+                   refused ? "it is still refused and the point before it "
+                             "stands" : "it passes",
+                   ck.max_col_violation, ck.max_row_violation_relative,
+                   ck.max_dual_violation, ck.objective_gap);
+            if (st == JAOS_OK && refused) {
+                memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
+                memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
+                st = bx_publish(&s, outcome, p);
+                if (st == JAOS_OK)
+                    (void)bx_passes(m, &ck);
+            }
+        }
+        free(keep);
+    }
+    if (st == JAOS_OK && refused) {
         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
         m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
         jm_set_err(m, "the barrier stopped near an optimum that the checker "
