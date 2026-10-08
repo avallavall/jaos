@@ -10,7 +10,7 @@ library with GCC on Linux, and is licensed under Apache 2.0.
 
 Two properties hold on every commit. The answer is bit-identical on every
 machine and every run: no clock decides anything, no iteration order depends
-on an address, and floating-point contraction is off. And an answer counts
+on an address, and floating-point contraction is off. An answer counts
 only when an independent checker, which shares no algorithm with the
 solver, accepts it against the model as the caller loaded it.
 
@@ -18,9 +18,9 @@ solver, accepts it against the model as the caller loaded it.
 
 The last tagged release is 0.5.0. JAOS answers all 139 Netlib reference
 instances correctly and solves 24 MIPLIB 3 instances to their catalogue
-optima. On the Netlib set it is about 2x slower per solve than HiGHS and
-Clp, and faster than SoPlex. `bench/compare/` measures and publishes the
-factors.
+optima. On the Netlib set it is slower per solve than HiGHS and Clp and
+faster than SoPlex. [`bench/compare/README.md`](bench/compare/README.md)
+has the latest comparison.
 
 `SPECS.md` lists every feature with its status. `TODO.md` holds the current
 milestone's backlog, and it is empty between milestones.
@@ -92,26 +92,24 @@ columns and indicator rows.
 estimate first with the best bound every fifth pick, pseudocost branching.
 Gomory, knapsack cover, mixed-integer rounding, flow cover and clique cuts at
 the root, hull cuts from the listed integer points of short rows, and Gomory
-cuts to depth 3; on a network model, where many continuous
-columns sit under binaries, the rounding cuts substitute those variable
-bounds first and are formed from the earlier rounds' cuts as well as the
-model's rows, and a cut that goes slack waits in a pool until the point
-violates it again. Before the tree a presolve merges continuous columns that an
-equality row makes equal, such as the flows in and out of a node that only
-passes flow on. The root fixes the integer columns its rows' implied bounds
-fix and the binaries its parity rows fix by elimination mod 2, and a bound
-rounds up to the objective's step when every cost sits on one. A rounding heuristic, lock rounding, a feasibility jump, a root dive,
-a feasibility pump and a sub-MIP heuristic (RENS at the root, RINS at the
-root and in the tree). A tree that has no incumbent after 1000 nodes dives
-until it finds one. A solution pool of distinct integer assignments, a MIP
-start, a cutoff, a node limit, an
-incumbent callback and a node callback that adds lazy constraints and user
+cuts to depth 3. On a network model, where many continuous columns sit under
+binaries, the rounding cuts substitute those variable bounds first and are
+formed from the earlier rounds' cuts as well as the model's rows. A cut that
+goes slack waits in a pool until the point violates it again. Before the
+tree, a presolve merges continuous columns that an equality row makes equal,
+such as the flows in and out of a node that only passes flow on. The root
+fixes the integer columns that its rows' implied bounds fix, and the
+binaries that its parity rows fix by elimination mod 2. A bound rounds up to
+the objective's step when every cost sits on one. A rounding heuristic, lock
+rounding, a feasibility jump, a root dive, a feasibility pump and a sub-MIP
+heuristic (RENS at the root, RINS at the root and in the tree). A tree that
+has no incumbent after 1000 nodes dives until it finds one. A solution pool
+of distinct integer assignments, a MIP start, a cutoff, a node limit, an
+incumbent callback, and a node callback that adds lazy constraints and user
 cuts and picks the branching column. Conflict analysis at infeasible nodes.
 Symmetry detection at the root and orbital branching on its orbits. The
 tree can take its open nodes in rounds solved on several threads, with the
 same answer at any thread count (`--tree-batch`, off by default).
-Every default was set on the MIPLIB 3 set (`make miplib`), and the node
-order on the MIPLIB 2017 reading as well (`bench/measurements/02-286/`).
 
 **After the answer.** The independent checker. Sensitivity and ranging for
 every cost and bound. Farkas certificates and unbounded rays, floating and
@@ -122,13 +120,13 @@ alone. With `--exact` an LP is solved exactly: a basis the proof breaks is
 repaired by pivots in rational arithmetic until it proves. The checker and
 the prover also take a point or a basis another solver produced.
 
-**A model is not read-only.** Bounds, costs, coefficients, the objective's
-sense and constant, rows and columns added or deleted, all reading back. A
-re-solve starts from the previous basis. A solve stopped on a work limit, a
-time limit or a callback parks its whole state on the model and the next
-solve goes on from exactly where it stopped, so an LP stopped and solved on
-ends on the uninterrupted answer to the bit; a stopped solve also writes its
-basis, which is the warm start from a file.
+**Editing a model.** Bounds, costs, coefficients, the objective's sense and
+constant, and rows and columns can be changed, added or deleted, and all of
+them read back. A re-solve starts from the previous basis. A solve stopped
+on a work limit, a time limit or a callback parks its whole state on the
+model, and the next solve continues from where it stopped. An LP stopped and
+resumed ends on the uninterrupted answer to the bit. A stopped solve also
+writes its basis, which is the warm start from a file.
 
 **Command line.** `make cli` builds `jaos`. `jaos solve model.mps` prints one
 fact per line; the exit code is the verdict. `convert`, `check`, `stats`,
@@ -173,12 +171,12 @@ optimize!(model)
 **.NET, Java and R.** `dotnet/Jaos` (.NET 8, P/Invoke), `java/src`
 (Java 22 or later, the foreign-function API, no glue code) and `R/jaos`
 (an R package over `.Call`) reach every C call Python reaches. .NET and
-Java call all 200 directly. R calls 142 of them and reaches the other 58,
-the option setters and getters, through the option names. The callbacks,
-the checkers, the exact proofs, the IIS and the files are all there. The
-.NET and Java packages add a modelling layer (`Problem`, `Var`, `Expr`)
-that re-solves warm after a bound, cost or sense changes; R has
-`jaos_solve_lp` over a dense or sparse matrix.
+Java call each one directly. R reaches the option setters and getters
+through the option names. The callbacks, the checkers, the exact proofs,
+the IIS and the files are all there. The .NET and Java packages add a
+modelling layer (`Problem`, `Var`, `Expr`) that re-solves warm after a
+bound, cost or sense changes. R has `jaos_solve_lp` over a dense or sparse
+matrix.
 
 ```csharp
 using var p = new Problem();
@@ -218,8 +216,7 @@ make pgo          # rebuild from a profile of it solving real models
 
 `make netlib-kennington` and `make netlib-infeas` run the other two reference
 sets, `make maros-meszaros` the 138 QPs of Maros and Meszaros (137 of them
-convex), and
-`make cblib` the 29 continuous instances of CBLIB 2014. Every set takes
+convex), and `make cblib` the 29 continuous instances of CBLIB 2014. Every set takes
 `J=N` to run N instances at a time. `bench/fetch.sh` downloads the
 instances and checks them against pinned sha256 hashes.
 
@@ -247,42 +244,23 @@ That installs the same files plus a package config, so a consumer writes
 `find_package(jaos REQUIRED)` and links `jaos::jaos` (the archive),
 `jaos::shared` or runs `jaos::cli`.
 
-`make` builds with `-O3 -flto -g -DNDEBUG`. `make pgo` is worth about 1.1x on
-top (1.1122x in the table of [`docs/build.md`](docs/build.md)) and needs
-the fetched instances. It profiles `libjaos.a`, and the tool gets the
-profile when `make cli` links it again; `libjaos.so`, the Python wheels
-and the other bindings carry no profile.
+`make` builds with `-O3 -flto -g -DNDEBUG`. `make pgo` rebuilds from a
+profile and needs the fetched instances. It profiles `libjaos.a`, and the
+tool gets the profile when `make cli` links it again. `libjaos.so`, the
+Python wheels and the other bindings carry no profile. See
+[`docs/build.md`](docs/build.md).
 
 ## Results
 
 The gate is the Netlib collection: 94 standard instances, 16 Kennington, 29
 infeasible. Every feasible instance solves to the published optimum within the
 gate's tolerance, the checker accepts every answer, and the 29 infeasible
-models are refused. `bench/README.md` says how it is run.
+models are refused. [`bench/README.md`](bench/README.md) says how it is run.
 
-`make compare COMPARE_ARGS='-t P0'` times JAOS against HiGHS, SoPlex and Clp
-with every solver's own presolve on and the dual simplex forced. It times
-SoPlex and Clp only after `make compare-solvers` has built them. The reading
-in `bench/compare/results/P0.txt` (2026-09-22, tree 7311fa3):
-
-| vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
-|---|---|---|
-| 2.03x slower per solve | 0.66x, faster | 1.93x slower |
-
-JAOS takes about as many iterations as HiGHS and Clp (1.14x and 1.06x) and
-fewer than SoPlex (0.45x). One iteration costs 1.5x to 1.8x what it costs
-each rival, and that is what separates JAOS from the field.
-
-On MIP, `bench/compare/run-mip.sh` gives each solver 20 s per instance, one
-thread and a relative gap of 1e-6 (2026-09-21, tree 3086162). On MIPLIB 3
-JAOS solves 23 of 24, HiGHS 1.15.1 and SCIP 10.0 all 24, and JAOS's shifted
-mean time is 1.43x HiGHS's and 1.48x SCIP's. On the 30 MIPLIB 2017
-instances of `make miplib2017` JAOS solves none, HiGHS 8 and SCIP 7. These
-MIP numbers were taken at tree 3086162, before the current MIP defaults
-(the best-estimate node order, ae25a70), and a re-take is due.
-
-JAOS is timed against other solvers on LP and MIP only. A QP rung and a
-conic rung are a row in `TODO.md`.
+`bench/compare/` times JAOS against HiGHS, SoPlex and Clp on Netlib, against
+HiGHS and SCIP on MIPLIB, against HiGHS and Clp on the Maros-Meszaros QPs,
+and against SCIP on CBLIB. [`bench/compare/README.md`](bench/compare/README.md)
+says how to run it and holds the latest reading.
 
 ## Layout
 

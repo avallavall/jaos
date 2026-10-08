@@ -18,6 +18,13 @@ with mingw-w64 and runs the tool under wine, both installed in the WSL.
   One line each with what would make it worth trying again. Read it before
   trying a performance idea.
 
+The story of a change, its numbers and its readings go in one place only:
+`bench/measurements/02-NNN/README.md`. SPECS, TODO, refusals and `docs/`
+link to that folder and do not retell it. A SPECS row is status, what
+exists, what is missing. A TODO row is what is wrong, the next step, how to
+verify. A refusal is the idea, where it was measured, what reopens it.
+`docs/` describes what the code does now, with no history.
+
 There is no changelog, no decisions file and no session log. Git history is
 the log. Old decisions (`D<n>` in docs) are in `git show 2d3c56b:DECISIONS.md`.
 Code carries no comments. `docs/` holds the constants (`tolerances.md`), the

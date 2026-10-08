@@ -23,7 +23,7 @@ make miplib J=2              # when src/mip.c changed
 ```
 
 Kennington and MIPLIB 3 run at `J=2`, each in its own job, because a
-MIPLIB tree once grew past 8 GB at a higher `J`.
+MIPLIB tree can grow past 8 GB at a higher `J`.
 
 **Always pass `J=N`.** Without it the set runs one instance at a time.
 
@@ -51,10 +51,10 @@ catalogue optimum, and the node count is part of the baseline.
 
 For CBLIB the files stay gzipped CBF (`-x cbf.gz`), the checker is
 `jaos_check_conic_solution` with every cone's dual, and the reference is
-the library's own solution, except on nql and qssp, where the library's
-solution is not the optimum: those eight carry the DIMACS value or the
-value `bench/measurements/02-254/` certified (`bench/cblib.manifest` says
-which and why).
+the library's own solution. On nql and qssp the library's solution is not
+the optimum, so those eight carry the DIMACS value or the value certified
+in `bench/measurements/02-254/` (`bench/cblib.manifest` says which and
+why).
 
 ## Baselines and results
 
@@ -97,20 +97,15 @@ primal simplex, presolve or the crossover changes.
 - `make plato-pds`, `make plato-fome` and `make plato-nug`: the PLATO
   sets, for presolve measurements. `make plato` runs the first two.
   plato-pds and plato-fome compare against their baselines. plato-nug has
-  none and runs only when named. Since 2026-09-25 it stops each solve at
-  `PLATO_NUG_WORK` work units (1e12, the runner's `-L`), so its file is
-  always written: nug08-3rd solves in 3.9e11, and nug20 and nug30 stop at
-  the limit after 132292 and 37376 iterations, in 28 minutes at `J=3` and
-  2.3 GB. Without it they had run past 2 h 15 min and 4.9 GB, and the
-  runner, which writes its file only when every instance ends, wrote
-  nothing. The runner took `-L` and `-O` for MIP sets only until the same
-  day; it now applies both to every set. The PLATO readings
-  and baselines date from 2026-08 and have not been re-taken since. Their
-  baseline headers name `make netlib-baseline`; the targets that rewrite
-  them are `make plato-pds-baseline` and `make plato-fome-baseline`.
-- `make compare-solvers`, `make compare COMPARE_ARGS='-t P0'` and
-  `bench/compare/run-mip.sh`: JAOS timed against other solvers, in
-  seconds, on LP and MIP only. A QP rung and a conic rung are a row in
-  `TODO.md`. `bench/compare/README.md` describes the harness.
+  none and runs only when named. It stops each solve at `PLATO_NUG_WORK`
+  work units (1e12, the runner's `-L`), so its file is always written. The
+  baseline headers of
+  plato-pds and plato-fome name `make netlib-baseline`, but the targets
+  that rewrite them are `make plato-pds-baseline` and
+  `make plato-fome-baseline`.
+- `make compare-solvers`, `make compare COMPARE_ARGS='-t P0'`,
+  `bench/compare/run-mip.sh` and `bench/compare/run-qp.sh`: JAOS timed
+  against other solvers, in seconds, on LP, MIP, QP and conic sets.
+  `bench/compare/README.md` describes the harness.
 - `bench/measurements/<id>/`: raw readings behind each refusal in
   `refusals.txt`. `make refusals` re-runs the ones that have a script.

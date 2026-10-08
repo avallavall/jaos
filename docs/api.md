@@ -222,8 +222,8 @@ the rule of [Determinism](#determinism): the same model would get a
 different tree on a machine with more cores. To let threads speed up a
 MIP, set a batch that stays the same on every machine, for example 8, and
 set the threads to what the machine allows. Threads beyond the batch wait.
-Rounds pay where a node takes hundreds of pivots. Where a node takes a few,
-they cost more work than they save, which is why the default stays 1
+Rounds save time where a node takes hundreds of pivots. Where a node takes
+a few, they cost more work than they save, so the default stays 1
 (`bench/measurements/02-290/`).
 
 In each case the answer and `jaos_work_units` are the same at any thread
@@ -661,8 +661,7 @@ Sets the gap that ends the search. A node closes when its bound is within
 `gap * (1 + |incumbent|)` of the incumbent, or `gap * |incumbent|` under the
 relative rule of `jaos_set_mip_gap_rule`. The default is 1e-6. A gap of 0
 means zero: a node closes only when its bound does not beat the incumbent.
-Before 2026-09-24, 0 restored the default. The call fails when `gap` is
-negative or not finite.
+The call fails when `gap` is negative or not finite.
 
 **`jaos_set_mip_gap_rule`**\
 `jaos_status jaos_set_mip_gap_rule(jaos_model *m, jaos_gap_rule rule)`\
@@ -802,8 +801,8 @@ under the same cap. It is off by default.
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\
 Lets an MIR row absorb up to `rows` other rows before it is rounded. Each
 absorbed row substitutes out a continuous column, and is the row that
-leaves the aggregate's continuous columns nearest their bounds. The default is 6 since
-2026-09-25, and 0 is the single-row form. A root round's aggregated cuts
+leaves the aggregate's continuous columns nearest their bounds. The default
+is 6, and 0 is the single-row form. A root round's aggregated cuts
 are tried on a copy of the root LP first and kept only when they lift its
 bound by `MIP_MIR_AGG_GAIN` of itself; after a round that drops them or
 finds none, aggregation stops for the solve. In network mode (see
@@ -827,8 +826,8 @@ depth 0. The default is 0, the root only.
 `jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves)`\
 Sets the most solves of RINS. RINS fixes the integer columns on which the
 incumbent and a node's relaxation agree, and dives on the rest. It runs once
-per distinct incumbent. The default is 50 since 2026-09-25, and 0, off, for
-a model with a quadratic objective, whose dives are barrier solves. 0 turns
+per distinct incumbent. The default is 50, and 0, off, for a model with a
+quadratic objective, whose dives are barrier solves. 0 turns
 it off. While it is on, a linear model also runs a sub-MIP of at most 500
 nodes: at the root without an incumbent over the integer columns its
 relaxation leaves fractional, each boxed to its floor and ceiling (RENS);
@@ -968,8 +967,7 @@ off by default.
 
 **`jaos_set_mip_rcfix`**\
 `jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)`\
-Turns reduced-cost fixing at the root on or off. It is on by default since
-2026-10-04 (off before). Once
+Turns reduced-cost fixing at the root on or off. It is on by default. Once
 an incumbent exists, it moves an integer column's far bound to the furthest
 integer the column's reduced cost allows. Every node inherits the new bound,
 and `jaos_mip_result` counts such columns in `fixed_cols`.
@@ -1021,7 +1019,7 @@ call fails when `multiple` is NaN or positive infinity.
 
 **`jaos_set_mip_clique_fix`**\
 `jaos_status jaos_set_mip_clique_fix(jaos_model *m, int on)`\
-Turns clique fixing on or off. It is on by default since 2026-09-25. At each node, a binary
+Turns clique fixing on or off. It is on by default. At each node, a binary
 column fixed to one value fixes every literal that the root's clique table
 puts in conflict with it. A node that holds both sides of a conflict closes
 without a solve.
@@ -1097,9 +1095,8 @@ Sets how many open nodes a branch and bound takes in one round. The round's
 relaxations are solved on up to `jaos_set_threads` threads. The tree takes
 their answers in the round's own order, so the tree does not depend on the
 thread count. The default, 1, is the tree that takes one node at a time.
-Above 1 the search changes. The conic tree reaches an optimum with less
-work on the models it finishes, and a run it stops at a limit tends to hold
-a better bound and a worse incumbent. The linear tree (since 2026-09-22)
+Above 1 the search changes (`bench/measurements/02-264/` for the conic
+tree, `bench/measurements/02-290/` for the linear tree). The linear tree
 solves each node of a round from the node's own basis on a copy of the
 tree's model. It then takes the nodes in order and solves each again from
 its copy's final basis, so the cuts and conflicts one node finds reach the
@@ -1674,9 +1671,26 @@ node set aside. `bound` in `jaos_mip_result` then includes the bounds set
 aside.
 
 A simplex solve stopped by a limit or a callback keeps its working state on
-the model. The next `jaos_solve` goes on from where it stopped. An edit,
+the model. The next `jaos_solve` goes on from where it stopped, and ends on
+the answer, the work units and the iterations of a run that never stopped
+(`bench/measurements/02-247/`). The counts go on across a stop, so a solve
+resumed under the limit that stopped it stops again at once. An edit,
 `jaos_set_basis`, `jaos_clear_basis`, or a new algorithm or tolerance
-discards that state.
+discards that state. The next solve then starts from the stored basis: the
+one the stop left, the one `jaos_set_basis` gave, or the slack basis after
+`jaos_clear_basis`. A branch and bound keeps no such state: its tree starts
+again and reaches the same objective.
+
+```mermaid
+flowchart LR
+    S[solve] -->|optimal, infeasible, unbounded| A[answer published]
+    S -->|work_limit, time_limit, interrupted| P[state parked on the model]
+    P -->|solve again, nothing changed| R[resume the walk it left]
+    R --> S
+    P -->|edit, basis set or cleared, algorithm or tolerance changed| D[state dropped]
+    D -->|solve again| W[start from the stored basis]
+    W --> S
+```
 
 **`jaos_status_of`**\
 `jaos_solve_status jaos_status_of(const jaos_model *m)`\
@@ -2060,8 +2074,7 @@ Fills the same two intervals for the bounds of each column.
 These calls work in exact rational arithmetic with a fixed budget of
 `JM_EXACT_LIMBS` limbs of 32 bits, which is 4096 bits in a default build. A
 report's `bound_bits` is the size a result needs, and `capacity_bits` is the
-size the arithmetic holds. Since 2026-10-08 `bound_bits` is a worst-case
-estimate that is reported but refuses nothing: the arithmetic runs, every
+size the arithmetic holds. `bound_bits` is a worst-case estimate that is reported but refuses nothing: the arithmetic runs, every
 operation checks its limbs, and the call refuses only when a number really
 outgrows the budget. The exact getters return decimal strings that
 the model owns. Each string is an integer or a ratio of two integers.

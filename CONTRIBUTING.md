@@ -23,11 +23,12 @@ make miplib J=2              # when src/mip.c changed
 ```
 
 Kennington and MIPLIB run at `J=2`, each in its own job, because a MIPLIB
-tree once grew past 8 GB at a higher `J`. Two more sets have committed
+tree can grow past 8 GB at a higher `J`. Two more sets have committed
 baselines: `make maros-meszaros` runs when `src/barrier.c` or `src/chol.c`
 changed, and `make cblib` when `src/conic.c`, `src/conictree.c` or
-`src/chol.c` changed. No instance may regress. A baseline is rewritten only with its
-`*-baseline` target, and only after the diff has been read.
+`src/chol.c` changed. No instance may regress. A baseline is rewritten
+only with its `*-baseline` target, and only after the diff has been read.
+[`bench/README.md`](bench/README.md) says what each set judges.
 
 ## The checks outside `make test`
 
@@ -40,8 +41,7 @@ make fuzz         # one libFuzzer target per model reader, under clang-20
 `make coverage` builds the library and the unit suite at `-O0` with
 `--coverage` in `build/cov/`, runs the suite, and prints one line per
 `src/` file (gcov-14; `GCOV=` names another). A file with a low figure is
-where a new test reaches the most untested code. The first reading, 87.25%
-of 30107 lines with the file-by-file table, is in
+where a new test reaches the most untested code. A reading is in
 `bench/measurements/02-276/`.
 
 `make valgrind` runs every unit-test program under valgrind with
@@ -61,7 +61,7 @@ build/fuzz/fuzz_nl corpus/nl -max_total_time=600 -rss_limit_mb=2048
 ```
 
 A finding is fixed with a test that reads the smallest file showing it.
-The first run of all six is in `bench/measurements/02-277/`.
+A run of all six is in `bench/measurements/02-277/`.
 
 ## The rules a change must hold
 
@@ -89,8 +89,8 @@ A feature is done when it reaches all of these, in one batch:
 2. the tool in `cli/jaos.c`, with a check in `tests/cli.sh`;
 3. `python/jaos` at both layers (the ctypes calls and the modelling
    layer), with a test in `python/test_jaos.py`;
-4. the documents it changes: `docs/api.md`, `docs/cli.md`, `docs/format-support.md` and
-   the README.
+4. the documents it changes: `docs/api.md`, `docs/cli.md`,
+   `docs/format-support.md` and the README.
 
 ## The record
 
@@ -111,5 +111,4 @@ Open an issue on GitHub with the model file (or the smallest one that
 shows the problem), the command, and what `jaos --version` and
 `jaos --commit` print. The version names the last tagged release, and the
 commit names the build (`jaos.version()` and `jaos.build_commit()` in
-Python). A security problem
-goes through `SECURITY.md` instead.
+Python). A security problem goes through `SECURITY.md` instead.

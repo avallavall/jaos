@@ -1,162 +1,156 @@
 # Tolerances
 
-Every number a solve compares against, where it acts, and what it decides.
-They were drafts until the Netlib gate closed. It has, so they
-are frozen at the values below. A change to any of them goes here with
-its measurement.
+Every constant in `src/` that a solve compares against, caps or sizes: its
+value, what it controls, why it has that value, and the folder under
+`bench/measurements/` that holds the measurement. A change to any of them
+goes here with its measurement. The weights of the work units are in
+`docs/work-units.md`.
 
-Three spaces are involved and confusing them is the way to misread every
-figure below. The solver runs on a **scaled copy** of the model, so its
-tolerances are magnitudes in scaled space (see `docs/scaling.md`). The
-independent checker runs on the **model as loaded**, so its tolerance is a
-magnitude in the units the caller wrote. Presolve also runs on the model as
-loaded, and runs there *before the scaling exists* — so its constants are
-magnitudes in the caller's own units too, but they are not the checker's
-either: the checker's is a caller's diagnostic choice for judging a finished
-answer, and presolve's decide what the solver is handed in the first place.
-None of the three is converted into another; they are separate judgements,
-which is the point of having them apart.
+The constants live in three spaces. The solver runs on a scaled copy of the
+model (`docs/scaling.md`), so its tolerances are magnitudes in scaled space.
+Presolve runs on the model as loaded, before the scaling exists, so its
+constants are in the caller's units. The checker also runs on the model as
+loaded, with a tolerance the caller passes. None of the three is converted
+into another.
+
+The sets named below are the Netlib standard 94, the infeasible 29, the
+Kennington 16, MIPLIB 3 (24 instances), the 2017 set (30 MIPLIB 2017
+instances), Maros-Meszaros, QPLIB and CBLIB. Work is in work units. A ratio
+is the geometric mean of per-instance work against the setting in use,
+unless the row says otherwise. The gate fails an instance past 2x its
+baseline work, so a setting that does that is not taken as a default.
 
 ## The solver's tolerances
 
-Defined in `src/simplex.c`, `src/lu.c`, `src/chol.c`, `src/check.c`, `src/scale.c`, `src/barrier.c`, `src/pdlp.c` and `src/concurrent.c`. `LU_PIVOT_TOL` is in `src/jaos_internal.h`, because ranging, the barrier's crash basis and the crossover's push factor their bases with the same threshold.
+Defined in `src/simplex.c`, `src/lu.c`, `src/chol.c`, `src/check.c`,
+`src/scale.c`, `src/barrier.c`, `src/pdlp.c` and `src/concurrent.c`.
+`LU_PIVOT_TOL` is in `src/jaos_internal.h`, because ranging, the barrier's
+crash basis and the crossover's push factor their bases with the same
+threshold.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `PRIMAL_TOL` | 1e-7 | How far a basic variable may sit outside its bound before it counts as violated — so it decides which rows the dual simplex tries to repair, and when there are none left. **In one place it is read against a magnitude and not on its own**: the dual's bound-flipping ratio test walks the breakpoints, subtracts each flip's reach from the violation it is trying to absorb, and, when the candidate list runs out with a positive remainder, either takes the last candidate as a pivot or reports the model infeasible. That remainder is a difference of sums the size of the flips, so its rounding is the size of the flips too, and the test is against `primal_tol * (1 + the reach the flips absorbed)`. A flat `primal_tol` there answered infeasible on a feasible model: a column free below starts a dual solve on the bound dual phase 1 lends it, so the violation to absorb and the flip that absorbs it are both 4.1666e10 and their difference is 1.14e-5, one unit in the last place of a number that size and four decades past 1e-7 (`tests/test_simplex.c`, `test_a_bound_flip_of_1e10_does_not_read_as_infeasible`). Loosening it can only cost a pivot: a model that is infeasible states it again at the next iteration, with the flips applied and the reach gone from the threshold. **Measured over the four gates**: netlib, netlib-infeas and netlib-kennington byte-identical, and 4 of the 24 MIP instances move their node count, dcmulti 775 to 791 at 1.03x, enigma 3734 to 2918 at 0.88x, lseu 6993 to 7253 at 1.02x and p0033 217 to 267 at 1.17x, which is the fix firing at a node and moving the vertex the branching reads. **What the tolerance cannot see** was measured the same day and is not a defect: it is where JAOS stops being able to answer. A row with a coefficient of 1e12 beside one of 1 converts between two scales, so one infeasibility reads as 0.5 in the row's units and as 5e-13 in the column's, and a tolerance in the column's units cannot see the second. On `-1e12 x0 - x1 = -0.5` with `x0 >= 0` and `x1 >= 1` the least the left side can be is -1, so the model has no point; the dual lands on `x0 = -5e-13`, which is inside 1e-7, calls the basis feasible and reports the model unbounded along a free column, while the same rows with every cost at zero report infeasible from a basis that carries the same breach as 0.5. **Measured over 10500 generated models**: 4500 whose data spans three decades give no complaint from the dual, the primal, the barrier or the concurrent solve, judged by the checker and by cross-checking each verdict against the zero-cost model; 6000 whose data spans eighteen decades, 1e-6 to 1e12, give about one complaint per 400, every one of them a breach smaller than 1e-7 in some variable's own units. The tolerance is the contract and it is stated in the model's units, so a model that needs more decades than it carries is one JAOS cannot judge |
-| `DUAL_TOL` | 1e-9 | The width of the Harris window: how far a reduced cost may be pushed past feasible in exchange for a larger pivot — **and, more consequentially, what the solve calls zero for a reduced cost at all**. `dual_breach`, `published_breach`, `settled_dual_violation` and `held_by_an_invented_bound` all read it, so it decides when there is nothing left to price and the solve stops. A reduced cost is a rate: what a column is still worth is that rate times the distance it would travel, and this bounds the rate alone. Swept over all three sets through `jaos_set_dual_tolerance`, which reaches the same number. Loosening one decade to 1e-6 makes `pilot` and `pilot87` fail outright. Tightening to 1e-9 repairs the four netlib instances that publish a point which is not the optimum — `pilot` 2.31e-05 → 5.27e-09, `pilot87` and `scsd6` to the reference exactly, `etamacro` to one ulp — three of them for less work, at a netlib work geomean of 1.0339x and **six instances past the gate's 2.0x bar**. 1e-8 does not reach `pilot` at all; 1e-10 fails `dfl001` and 1e-11 fails `wood1p` too, so the value is bounded on both sides. **Changed from 1e-7 to 1e-9 on 2026-08-25, on the maintainer's decision.** The campaign: `pilot` 2.312e-05 → 5.266e-09, `pilot87` and `scsd6` publish Koch exactly, `etamacro` 1.315e-08 → 1.137e-13; work geometric mean **1.0339x on netlib** and **1.0976x on Kennington**, which D174 did not measure — `pds-20` pays 4.815x and `d2q06c` 5.319x. `gate: PASS` on all three sets, no answer worse. **Every site that reads it now bounds a rate.** `can_move` tested a rate-times-distance product against it until 2026-08-28; it reads `breached` now, the same bound taken in both spaces. That sweep was taken against the product, and the two versions separate only as this constant loosens, so it describes the code at 1e-9 and not the shape of the curve away from it |
-| `PIVOT_MIN` | 1e-9 | Smallest \|alpha\| the ratio test will accept as a pivot at all. Below this a candidate is not eligible, whatever its ratio. **It is a stability floor and not a noise floor**, and the distinction is measured rather than argued: `pivot` and `theta_dual` both divide by this number, and 1e-10 is as dangerous to divide by when it is exact as when it is not. Over the standard 94, every one of the thirteen calls where it rejects an `alpha[q]` has that value equal to its own traffic to all seventeen digits — a dot product with one term and no cancellation, which is the best determined a number gets. Telling a pivot from the rounding of its own arithmetic is a different question and `PIVOT_MARGIN` is what asks it |
-| `PIVOT_MARGIN` | 1.0 | The noise floor, in ulps of a quantity's own terms, at **two** places. **(a)** In the two primal ratio tests, on an entry of `B^-1 M_q`, against that column's largest entry. **(b)** On the pricing row's `alpha[q]` at the three sites that judge a pivot element, against `sum_i \|rho_i * a_iq\|` — its own traffic, which is not the column's, so the constant carries over but the quantity does not. On the second, the census puts 1.0 in the middle of a window five orders wide, `(0.352, 20740)`, and 32874 times below anything the gate reaches; it rejects exactly one call on the standard 94, `scsd1`'s, where `alpha[q]` stands at a third of one ulp of its own terms. Its walk costs a work geometric mean of **1.000001x on the dual solve and 1.000496x on the forced primal**, because the stability test runs first and the walk is skipped on every call already rejected. Reading (a) follows. Dimensionless, so it belongs to neither space; the threshold it builds is in scaled space with `s->col`. Since D212 a row below it is dropped from the candidate list, so it neither pivots nor blocks; it moves by at most the step times the floor, which is below the column's own rounding. An absolute floor alone is simultaneously too strict and too lax depending on the column's scale: on `pilot87` it accepted an FTRAN residue of 1.59e-07 on a row whose true entry is exactly zero, on a column reaching 2.1e+14, and the solve refused calling itself defective. Swept over the forced-primal campaign at 0, 3e-1, 1 and 2. **Bounded on both sides by measurement.** Below 3.3457e-06 it decides nothing at all — that is the smallest ratio any of the 94 instances ever reaches, and it is `pilot87`'s own refusal. At 3e-1 and at 1 the campaign reads 56 ok / 30 disagree / 8 overrun / 0 errors against 55 / 31 / 7 / 1 at 0, so the value sits on a plateau three times wide rather than on a spike. Above 5.4855 it would start to reach the gate, which is `wood1p`'s ratio and the only thing near it: `primal_ratio_test` is reached by 3 of the 94 standard instances and by none at all on `netlib-infeas` or `netlib-kennington`. 1.0 is also stricter than `DROP_REL`, which already calls anything below about 45 ulps of the basis matrix's largest magnitude structurally absent. Costs 1.000000x work on the dual solve, byte-identical on all 94, and 0.995321x on the forced primal |
-| `PRIMAL_HARRIS_DELTA` | 0.5 | The width of the Harris window in the **two primal** ratio tests, as a multiple of `s->primal_tol` — 5e-8 at the default `PRIMAL_TOL`, and the per-model override scales with it, which is why the field is multiplied and not the default (`jaos_set_primal_tolerance`). In the space `xb` lives in. The dual's equivalent is `DUAL_TOL` used directly. **Bounded above by the same tolerance**, by the phase-1 argument in `docs/research/harris-primal.md`: pass one lets a relaxed basic end up to `delta` outside its bound, and that still counts as feasible only while `delta <= primal_tol`. Multiplying the field keeps that true for any override; a hardcoded 5e-8 would not. An `assert` in `primal_pick` pins the bound on the widened value itself, because nothing else did: before it, 1e9 passed `make test`, and no test reaches that call with a width that matters. It does not pass now. A `static_assert` cannot carry the bound, because a comparison of floating constants is not an integer constant expression and `-Wpedantic -Werror` rejects one. The product underflows to zero for a subnormal `primal_tol`, which `jaos_set_primal_tolerance` accepts; zero is the no-relaxation width and the assert admits it. The ratio one half is MINOS's and SNOPT's, where `delta_f / 2` is where EXPAND **starts** a tolerance that then grows toward `delta_f`; JAOS holds its width fixed and carries none of that schedule, so this is the ratio borrowed and not the method. 1.0 met the bound exactly and is what D212 shipped. **0.5 is also a power of two, so the product is exact**: no contraction can round it differently, which a value like 0.1 could not claim. **Swept over seven settings** on the forced-primal campaign — 0, 0.01, 0.1, 0.3, 0.5, 1, 10. Agreement with the dual reads 59, 61, 61, 61, 61, 60, 58, and from 0.01 to 0.5 it is the **same 61 instances name for name**: a plateau four settings wide, not a spike. What the plateau buys over 1.0 is one instance, `wood1p`. **The gate does not move anywhere in 0 to 10** — all three sets byte-identical at 0, 0.1, 0.5, 1 and 10 — and at 1e9 it breaks, `pilot87` failing the checker, which is what proves the probe reached the code rather than measuring nothing. `pilot87`'s phase-1 divergence does not follow the width: its worst relative rise runs 7.2e+11, 8.3e+11, 1.4e+03, 3.3e+16, 8.1e+11, 8.3e+13, 4.6e+11 across the seven, with no order, so no setting here can be justified by it. **One reading does separate 0.5**: the share of phase-1 pivots below 1e-3 over all 94 instances is lowest there of the seven widths, which refutes the objection that a narrower window can only reach a smaller pivot |
-| `PHASE1_RISE_MAX` | 1.0 | How far the primal phase 1's total infeasibility may rise above its own running minimum before the basis is called unrepairable and the solve publishes `NUMERICAL_ERROR`, as a fraction of that minimum. 1.0 is "it may double". In the scaled space `xb` lives in, and not dimensionless: the ratio is invariant only while the violated SET is unchanged, and each violated variable carries its own scale factor, so a set that changes between the minimum and the rise changes the ratio without anything moving in the model the caller handed in. The census below was taken with Curtis-Reid scaling on, which is the default; `JM_SCALE_NONE` is reachable only from the unit tests, and no reading covers an unscaled forced-primal solve. The quantity is a sum of bound violations and cannot rise at all under an exact pivot; it rises when the basis has gone near singular and `refresh` recomputes `xb` from it. **Bounded on both sides by a census of every rise on all 110 forced-primal solves**. Below, the largest rise on a solve that ends `ok` is `pilot`'s 9.36752e-10 and the largest on any instance but `pilot87` is `woodw`'s 4.26896e-08; above, `pilot87` reaches 8.06882e+11. Every threshold from 1e-7 to 1e+11 stops `pilot87` and nothing else, and from **1e-5 to 1e+2 it stops it at the same iteration**, 19532, because its rise jumps from 2.04558e-06 straight to 633.034 with nothing between. So this sits in the middle of a plateau eight decades wide rather than on a spike, and the measurement does not choose inside it — the same shape as `PRIMAL_HARRIS_DELTA`'s. What settles the value is not the window but what stopping costs: `pilot87`'s running minimum last improved at phase-1 iteration 19532 of 381886, so the 362354 iterations the rule removes lowered it by nothing. `dfl001` is the control and is not touched at any threshold above 3.30714e-10: it grinds 125807 phase-1 iterations and is still improving at the last one. Swept as a campaign as well as a census, at 1e-12, 1.0 and 1e+12, each its own tree and its own binary — and at 1e+12, above every rise measured, the record is identical to the tree before the rule existed |
-| `LU_PIVOT_TOL` | 0.1 | Markowitz threshold: a pivot must be at least this fraction of the largest magnitude in its column. Sparsity is traded for stability here and nowhere else |
-| `LU_UPDATE_TOL` | 1e-9 | Floor on the new diagonal in a Forrest-Tomlin update, relative to the spike's largest magnitude. Deliberately far looser than the Markowitz threshold: after elimination a legitimate pivot can be orders of magnitude below the spike |
-| `FTRAN_HYPER_DEN` | 10 | the density below which FTRAN solves only the slots its right-hand side reaches: a walk over the L columns from the input nonzeros, then over the U columns, marks the reachable slots, the pattern is sorted so the arithmetic runs in the same slot order as the full pass, and every answer stays bit-identical (all four gates, 0 changed). Density is predicted per kind of vector (the entering column and the flips, which ask for a pattern, against the dense solves) from an exponential average of the last answers' nonzero counts, `FTRAN_DENSITY_KEEP`; a prediction at or above 1/`FTRAN_HYPER_DEN` takes the full pass, and so does a solve whose L reach already crossed that line. The work counter bills the reach walk per edge examined and the sort per word and per entry, so in work units the change reads worse where it is faster on the machine (ken-11 +7%, cre-a +20%) and the row closed on instructions: **swept at 5, 10, 20 and 40** under callgrind inside `jm_dual_simplex` on afiro, 25fv47, maros-r7, greenbea, ken-11, pds-06, osa-07 and cre-a against the full pass, geometric mean 0.953x, **0.951x**, 0.954x, 0.959x; at 10 ken-11 0.828x, pds-06 0.865x, cre-a 0.927x, osa-07 0.995x, and the four dense ones within 1.2% (afiro, 1.09M instructions) and 0.3%. Over the four gates no status, iteration count or objective moved on 163 instances and work read 1.037x on netlib, 1.016x infeas, 1.067x Kennington, 1.010x the MIP set; the widest gap between the two measures is ganges, 1.549x in work and 0.987x in instructions (02-31) |
-| `FTRAN_DENSITY_KEEP` | 0.9 | the weight the previous prediction keeps against the density the last solve of its kind produced. The estimate survives a refactorization. Not swept: held |
-| `LU_AGREE_TOL` | 1e-5 | How far the two computations of the pivot element may disagree before the factorization they came through is rebuilt instead of pivoted on. `alpha_q` arrives by BTRAN with the pricing row, `col[r]` by FTRAN for the basis update; they are one number in exact arithmetic, so this is the factorization contradicting itself and not a guess about conditioning. Over all 139 gate instances no pivot reaches 1e-7 and the worst is 7.83e-08; on `pilot87` at a refactorization interval of 128, where the solve grinds 1.38M iterations, it reaches 1.99. The first pivot to cross 1e-7, 1e-6, 1e-5, 1e-4 and 1e-3 is the same one, so this sits in the middle of a four-decade plateau |
-| `IMPLIED_ROUNDS` | 64 | Cap on the checker's bound-propagation rounds — a safety stop and not a quality knob, since the loop exits as soon as a round bounds nothing new. Set where the propagation reaches its fixed point: swept over the standard set, certified answers go 17, 23, 32, 38, 46, 47, 48, 48 at 1, 2, 4, 8, 16, 32, 64, 128 rounds. The cost is flat across the whole sweep — 119 s to 128 s against a gate of about 120 s — so there is nothing to trade against |
-| `DROP_REL` | 1e-14 | A value below this fraction of the basis matrix's largest magnitude is structurally absent. Relative, because an absolute floor would call a uniformly small basis singular |
-| `EXP_LIMIT` | 20 | The largest exponent a scale factor may have, `2^±20`, in `src/scale.c`; Curtis-Reid and geometric scaling are clamped to it. It was 512 until 2026-09-15, which is no limit at all: Maros-Meszaros `dtoc3`, a control chain with coefficients of 1 and 2e-4, got row factors from `2^-79` to `2^84` and column factors to `2^91`, its scaled data ran to 1e27, the barrier's relative residual read 4e-23 at the origin, and the origin was published as `OPTIMAL` with the rows off by 15 (`bench/measurements/02-250/`). **Read at 20, 30 and 512 over the standard 94**: byte-identical, since no netlib factor reaches `2^20`; the Kennington 16, the infeasible 29, the MIPLIB 24 and the barrier readings are byte-identical at 20. dtoc3 now ends `NUMERICAL_ERROR`, with the rows 1.4e-6 off in the scaled space and the objective 0.136 against 235.26, which is the `BARRIER_DELTA` floor on the rows against a dual step of 1e7, the same wall the liswet family stands at |
-| `TINY` | 1e-300 | The same floor where no scale is available to compare against |
-| `CHOL_PIVOT_REL` | 1e-14 | In the sparse Cholesky, a pivot at or below this fraction of its own row's diagonal in the input is called zero and replaced by `CHOL_PIVOT_HUGE`. Relative to the row's own diagonal and not to the largest one, because the normal equations `A D A^T` carry the spread of `D`, which is many decades wide near the end of a barrier run, and a small diagonal is legitimate there while a pivot that has cancelled to rounding noise of its own row is not. Absolute floor `TINY` when the diagonal is zero. **A draft.** What set it is the test in `tests/test_chol.c` where two identical rows give an exact zero pivot and the six random normal-equation systems where no pivot is replaced; the measurement that fixes it is the barrier's own, on the standard 94, when that lands |
-| `CHOL_PIVOT_HUGE` | 1e128 | What a replaced pivot becomes. Its square root is 1e64, so the column below it is scaled to nothing and the solve returns a component near zero for that row, which is the usual barrier treatment of a dependent row. Large enough to make that component negligible and small enough that its square and its product with any entry stay finite in double |
-| `CHOL_DENSE`, `CHOL_DENSE_MIN` | 10, 16 | On request (`jm_chol_symbolic_dense`, which the conic interior point and its Newton finish make and the barrier does not), a node with more than `max(16, 10 sqrt(n))` neighbours leaves the minimum-degree graph and is ordered last, the rule and the values of Amestoy, Davis and Duff's AMD. Minimum degree rescans a node's neighbour list whenever one of its neighbours goes, so a node that touches every member of a cone of `d` members made the ordering cost `d²`: one cone of 50000 members took 6.7 s in the ordering and 0.24 s with the rule, and CBLIB 2014 without it reads 25 optima instead of 26 at 21% more work (`bench/measurements/02-254/`). Not swept away from AMD's values. The pick itself is a heap on `(degree, index)` since 2026-09-19, the same node the old scan of the degree's whole bucket picked (3000 random patterns: the same permutation, fill and work) |
-| `CHOL_ND_TRY` | 100 | Since 2026-10-05 the symbolic Cholesky can order by nested dissection as well as by minimum degree. It counts the minimum-degree factor first, and only when that factor costs more than this many operations per nonzero of the input does it also order by nested dissection; then both factors are counted under a cap that starts at twice this and grows fourfold, so neither count runs far past the cheaper one, and the one with fewer operations is kept, minimum degree on a tie. The dissection is George and Liu's: a breadth-first level structure from a pseudo-peripheral node, the middle level's nodes that touch the next level as the separator, both halves dissected in turn, separators ordered after them. On Maros-Meszaros (`bench/measurements/02-344/`) it wins on the grid models only, where minimum degree costs 137 (`aug2d`) to 1340 (`cont-200`) operations per nonzero. On the other models it costs 2 to 2e9 times minimum degree's operations, and those models range from 0.03 to 29800 operations per nonzero. The set reads 0.973x in the geometric mean of work and 0.879x in the sum, `cont-200` 0.514x, `ksip` 1.074x the worst; CBLIB 1.001x; the barrier's Netlib reading pays 0.1% to 0.7% on five models. On QPLIB_9008 it gives 2.80e9 nonzeros and 1.75e13 operations against minimum degree's 7.67e9 and 2.8e14. Not swept: 100 sits under the smallest winner's 137 and above most losers |
-| `CHOL_ND_MIN` | 1000 | the fewest rows a factor needs for nested dissection to be tried; smaller ones keep minimum degree. `aug3d`'s normal matrix, 1000 rows, is the smallest that gains (0.831x the work). Not swept |
-| `CHOL_ND_LEAF` | 200 | the size at which the dissection stops and orders a part by minimum degree. Not swept |
-| `CHOL_BLOCK` | 32 | How many consecutive rows the numeric Cholesky takes as one block when `--threads` is above 1. Each row of a block is solved against the rows before the block on a thread of its own; then, on one thread and in row order, each row takes the updates from the block's earlier rows, in the order the one-thread factor applies them. So the factor is bit-identical at any thread count and any block size (`tests/test_chol.c`). A larger block moves work from the threads to the ordered part. **Swept at 16, 32, 64 and 128** on dfl001 at four threads, one run each (`bench/measurements/02-288/`): 43.01 s, 38.76 s, 35.87 s and 39.99 s against 67.67 s on one thread. 32 and 64 are within one run's noise of each other; 16 starts threads too often and 128 leaves too much in the ordered part |
-| `CHOL_BLOCK_WORK` | 1e6 | The eliminations a block must hold, counted once in the symbolic phase, before its rows go to threads. A lighter block is factored on one thread, where starting the threads would cost more than the block. **Swept at 0, 1e4, 1e5, 1e6 and 1e7** with blocks of 32, on dfl001 at four threads: 41.84 s, 37.92 s, 32.80 s, 38.76 s and 39.63 s. 1e5 and 1e6 are within one run's noise (maros-r7 reads 3.35 s and 2.85 s the other way round); 0 starts threads for blocks too light to pay for them |
-| `CHOL_THREADS_MAX` | 64 | The most threads one factor runs on; a larger `--threads` factors on 64. Not swept: it sizes the arrays of thread handles, above any count measured |
-| `BARRIER_TOL` | 1e-8 | Where the barrier stops: the largest of the primal residual over `1 + max(|b|, |bounds|)`, the dual residual over `1 + |c|`, and `|primal - dual objective|` over `1 + |primal objective|`, all in scaled space, at or below this. **Swept 2026-09-08 at 1e-6, 1e-8 and 1e-10 over the 19 hard instances** with everything else at its value: all three agree with the dual on 19 of 19, at work 1.188x, **1.255x** and 1.331x, and the checker at 1e-6 accepts 2, 8 and 14 of the interior points. The tighter setting buys checker acceptance at 6% more work and a longer walk into the region where the normal matrix is worst conditioned. The crossover, which landed after this reading, is the route to a point the checker accepts. The value stays at the customary 1e-8, and the reading has not been retaken with the crossover in place |
-| `BARRIER_STEP` | 0.99995 | The fraction of the step to the boundary that is taken, separately for the primal and the dual, after Mehrotra's corrector. Swept at 0.9, 0.99, 0.999 and 0.99995 over the same 19: 18, 19, 19, 19 agree at 1.437x, 1.480x, 1.352x, **1.255x**, and the checker accepts 1, 2, 5, 8. Monotone in both readings up to the value Mehrotra published, which is where it stays |
-| `BARRIER_REG` | 1e-9 | The primal regularisation of the barrier's Newton system: what is added to every bounded variable's `Θ^{-1}` (`zl/w + zu/v`) before the normal matrix is formed, **times the worst of the three relative measures capped at 1**, so it is full strength while the point is far and vanishes as it converges. In scaled space. It bounds `Θ` from above, which is what keeps the normal matrix's conditioning inside what the Cholesky can factor once `mu` is small; a flat 1e-8 that does not shrink leaves a dual residual of `reg` times the step that never closes on `greenbea`, whose degenerate directions move the point by 1e7 a step. **Swept 2026-09-08 over the 19 hard Netlib instances** (scfxm1-3, brandy, modszk1, stair, greenbea, greenbeb, capri, cycle, pilot, pilot87, d2q06c, bnl1, 25fv47, degen3, nesm, perold, fit2d), agreement with the dual and work geometric mean: off 11 of 19 at 1.367x, 1e-12 17 at 1.273x, 1e-11 17 at 1.253x, 1e-10 18 at 1.327x, **1e-9 19 at 1.255x**, 1e-8 17 at 1.350x, 1e-6 17 at 1.387x, flat 1e-8 15 at 1.648x. Bounded on both sides by an instance: below 1e-9 `greenbea` and one of `pilot87` or `brandy` stall, above it `pilot87` fails and `pilot` takes 73 iterations |
-| `BARRIER_FREE_REG` | 1e-8 | The same term for a free variable, where `Θ^{-1}` would otherwise be zero, not scaled down, because a free column has nothing else bounding its step. Swept at 1e-6, 1e-8 and 1e-10 over the same 19 with `BARRIER_REG` at 1e-10: 18, 18, 18 agree at 1.302x, 1.327x, 1.314x; the three instances with free columns (`capri` 14, `cycle` 7, `greenbeb` 4) do not separate the three values. Held at the middle |
-| `BARRIER_DELTA` | 1e-10 | The dual regularisation: what is added to the diagonal of the normal matrix `A Θ A^T` before it is factored, so a dependent row gives a pivot of `delta` and not one the Cholesky replaces. Swept at 0, 1e-10, 1e-8, 1e-6 over the same 19 with `BARRIER_REG` at 1e-10: 18, 19, 18, 19 agree at 1.336x, 1.318x, 1.327x, 1.309x, which reads flat. **It is not flat on the pilot family.** With `BARRIER_REG` at its 1e-9, 1e-8 loses `pilot-we` (fails at 133 iterations) and `pilotnov` (stalls at 110), both of which converge in 26 and 20 without it; over the eleven instances pilot-we, pilotnov, pilot, pilot87, pilot-ja, pilot4, brandy, greenbea, greenbeb, scfxm3 and stair, 0 and 1e-12 agree on 10 (greenbea stalls) at 0.951x and 0.940x, **1e-10 on all 11 at 0.947x**, 1e-8 on 8. Bounded on both sides by an instance: below it `greenbea`, above it the two pilots |
-| `BARRIER_START_MIN` | 1e-6 | The floor under Mehrotra's two starting shifts. The starting point solves two least-squares problems, then adds `0.5 p / sum(zl, zu)` to every primal slack and `0.5 p / sum(w, v)` to every dual, where `p` is the complementarity product of the least-squares point. When the cost vector lies in the range of `A^T`, which is what a node whose columns carry one cost gives, the dual least-squares residual is zero, both shifts collapse and the starting complementarity is 1e-20 instead of order one. The first Newton step then moves the primal by 1e-10 and the dual by 1e8, and the run never comes back: a QP whose rows leave no interior point stops at `BARRIER_DIVERGE` or runs to `BARRIER_MAX_ITER` with the right objective and a dual residual pinned at 1e-8 by the cancellation in `A^T y`. Under this value both shifts become 1, which is what the code already did when the product was zero. **Measured 2026-09-09 over 129 instances**, the standard 94, the 19 infeasible ones that reach the barrier and the 16 Kennington: the smallest shift any of them produces is 1.8e-4 (`tuff`), the next 2.4e-3 (`sc205`), and none falls between zero and 1e-6; `klein1`, `klein2` and `klein3` produce exactly zero, which the old test already caught. Two decades under the smallest measured shift and fourteen over the 1.8e-20 of the node that set it |
-| `BARRIER_MAX_ITER` | 200 | Iterations after which the barrier stops and hands the model to the dual simplex, which starts from the slack basis and gives the verdict. In `bench/results/barrier.txt` of 2026-09-22 the longest converging run on the standard 94 takes 47 iterations (`pilot`). fit2p, greenbea and stocfor3 reach the cap, and the dual simplex then takes as many iterations as it takes cold. A run past 100 has stalled, and the rest of the cap is there so that a stall is handed over and not a limit. Not swept |
-| `CROSS_PUSH` | on | Whether the crossover pushes its basis guess to a vertex before the simplex: every nonbasic column goes onto a bound along the direction that keeps the rows satisfied, and a basic column that reaches its own bound first leaves the basis (the primal half of Bixby and Saltzman's push). When the guess has not one basic per row, factors singular, or leaves a free column that nothing blocks, the guess goes to the dual simplex as before. **Measured 2026-09-22 on the standard 94** (`bench/measurements/02-287/`): 80 agreed and 14 overruns at 3.1775x the dual's work, against 77 and 17 at 3.2602x without it; d2q06c, pilot87 and tuff finish inside the cap |
-| `CROSS_PUSH_PRIMAL` | on | Whether the primal simplex, rather than the dual, finishes from a pushed basis. The push leaves a primal feasible point, which is where the primal starts. **Measured 2026-09-22**: the dual after the push reads 79 agreed and 15 overruns at 3.3449x, worse than no push, and leaves d2q06c and pilot87 over the cap |
-| `CROSS_PUSH_SNAP` | 1e-9 | How near a bound, relative to (1 + \|bound\|), a nonbasic column of the barrier's point must sit to be put on that bound before the push moves anything. The barrier stops at a relative gap of 1e-8, so a column this close is on the bound to the barrier's own accuracy. Not swept |
-| `CROSS_PUSH_PIVOT` | 1e-7 | The smallest entry of a moving column's direction, relative to the direction's largest, that the push's ratio test reads; a smaller one is rounding and would make a pivot of noise. Not swept |
-| `CROSS_PUSH_FEAS` | 1e-9 | The slack, relative to (1 + \|bound\|), the first pass of the push's ratio test allows a basic column past its bound (Harris's two passes); the second pass takes the largest pivot among the columns that block inside that step. Not swept |
-| `CROSS_PUSH_UPDATE_TOL` | 1e-9 | The smallest pivot ratio the push accepts in an LU update; below it the push factors its basis again. Not swept |
-| `BARRIER_DIVERGE` | 1e6 | The multiple of the data past which the barrier's iterate is called divergent and the model goes to the dual simplex for its verdict: the primal iterate's infinity norm over `1 + |b| + |bounds|`, or the largest of the dual iterate's `y`, `zl` and `zu` over `1 + |c|`, each in the scaled space the barrier works in. The barrier certifies neither infeasibility nor unboundedness, so the hand-off is what turns a run that cannot converge into a certified verdict. **Measured on every iteration of the standard 94 and the infeasible 29** (`bench/measurements/02-220/`): the largest ratio a converging run reaches is 3.8e4 (`recipe`, dual side, converging three iterations later), the next 1.4e3 (`pilot`), so 1e4 is refused. Of the 19 infeasible instances that reach the barrier, 18 pass 1e6 between iteration 3 and 95; at 1e8 four of them take 10 to 87 iterations longer to the same verdict and at 1e10 five run to `BARRIER_MAX_ITER`. `cplex2` stays under 1.5e2 and ends at the cap under any setting. Two decades above the converging floor, measured on the standard and infeasible sets only. **Since 2026-09-15 the test fires only on an iteration that made no progress**, the worst of the three relative residuals not below `BARRIER_STALL_DROP` times the best seen: Maros-Meszaros `hues-mod` has costs of 1e-21 to 1e-4, so its dual iterate reads 2.8e6 times `1 + |c|` on the iteration the residuals fall from 1e12 to 3.6e3, and it converges three iterations later. The 94, the 29 and both infeasible readings are byte-identical under the rule |
-| `BARRIER_DENSE_FACTOR` | 10 | A column is left out of the normal matrix when its nonzero count exceeds this times the average column count (and `BARRIER_DENSE_MIN`); the left-out columns come back through a Sherman-Morrison-Woodbury correction on every solve, `k` extra solves of the sparse factor per factorisation and a dense `k × k` Cholesky, every pass billed. When that small system is not positive definite the columns rejoin the normal matrix and the solve continues on the full form. On the standard 94 it fires on fit1p (23 columns of 627 rows), fit2p (25 of 3000) and seba (14 of 231); fit2p goes from past 10x the dual's work to 1.64x, fit1p to 12.2x, seba to 23.8x. **Swept at 5 and 20** (`bench/measurements/02-223/`): 20 is the same file as 10, no column on the set sitting between them; 5 reads 74 against 73 but both gains are hand-offs to the dual simplex (d2q06c after 97 barrier iterations, fit1p at the cap) and it makes the barrier worse where it newly fires, fffff800 31 to 89 iterations and past the limit, pilot-ja 29 to 68, israel 4 to 17 |
-| `BARRIER_AUG_FLOOR` | 1e-30 | The smallest magnitude a pivot may keep in the quasi-definite LDL of the augmented system (`cfg.barrier_augmented`). A pivot below it, or one whose sign is not the one its block was promised, is replaced by this value with that sign and counted. The two blocks carry opposite signs by construction, negative where `Q + Theta^-1` sits and positive where `delta I` does, so a pivot of the wrong sign is a breakdown and not a choice, and no pivoting is needed to avoid one: that is what keeps the factor the same on every machine. The value is a floor against division by zero and not a tuning knob, which is why it sits thirty decades below `BARRIER_DELTA` rather than near it; the Cholesky's own `CHOL_PIVOT_REL` guards a different thing, a pivot small relative to its row, which a fixed sign already rules out here. Not swept: it is a floor and not a knob, and the only reading taken of it is the unit suite's 60 random quasi-definite systems, where no pivot reaches it. `form_aug` says on the detail log how many pivots a factorisation replaced, so a run that does reach it says so |
-| `BARRIER_DENSE_MIN` | 30 | The count a column must exceed to be dense at all, so a small model with a short average never treats a column of a dozen entries as dense. Not swept |
-| `BARRIER_DENSE_MAX` | 100 | Above this many dense columns none is left out: the correction costs `k` solves per factorisation and `k × rows` doubles, and past a hundred the normal matrix is dense enough to factor as it is. Not swept |
-| `BARRIER_AUG_TRY` | 1e8 | The operation count a model's normal-matrix factor has to reach, `Σ_j h_j²` over the columns' heights, before the barrier also builds the augmented system's pattern and keeps the cheaper (`bench/measurements/02-272/`). It only ever looks when the quadratic objective is diagonal, since a model with `q_nz` takes the augmented system and an LP keeps the normal one. **Swept at 1e7 and 1e9**: QPLIB_8785, 10038, 10034 and 8500 read the same at both. **With no floor at all** `make maros-meszaros` regresses 6 instances, boyd1 85.7x, because the second symbolic analysis alone costs 2.0e10 work units where boyd1's whole solve costs 2.4e8 |
-| `BARRIER_AUG_EDGE` | 1.0 | How much cheaper the augmented factor has to be before it is taken, as a factor on its operation count. **Swept at 0.5 and 2.0**: QPLIB_8785, 10038 and 10034 take the augmented system and reach 59, 16 and 169 iterations at every setting; at 0.5 QPLIB_8500 takes it too and still reaches 2 |
-| `BARRIER_DIVERGE_QP` | 1e10 | `BARRIER_DIVERGE` for a quadratic model. An LP the barrier abandons goes to the dual simplex, which solves it, so calling the walk divergent early costs nothing; a QP the barrier abandons has no answer, so the walk is allowed a dual iterate 1e10 times the data before it is given up. **Read 2026-09-15 at 1e6, 1e8 and 1e10 over the seven Maros-Meszaros models the limit stopped**: qpcboei2, qforplan, cvxqp1_l, cvxqp3_l and powell20 solve at 1e8 and above, huestis (costs of 1e-21, its dual iterate reads 2e8 times `1 + |c|` on the way down) at 1e10, qgrow22 at none; with the same limit on LPs the infeasible 29 through the barrier changed on 11 and 17 instances, bgprtr and box1 overrunning their work cap before the handoff, which is why the LP limit stays at 1e6 |
-| `BARRIER_TOL_QP` | 1e-10 | Where a quadratic walk stops on its second leg. A quadratic model stops at `BARRIER_TOL` like an LP, and the push finishes it from there; when the push does not settle, the walk goes on from its own last iterate to this tolerance, at most `BARRIER_LEG2_ITERS` further iterations, and the push is tried again. If the second leg cannot get there the point at `BARRIER_TOL` stands. **Read 2026-09-15 over the Maros-Meszaros models the push left unsettled**: liswet10 and liswet11 reach 1e-10 in 7 iterations each and the push settles, so the checker takes them; qgfrdxpn reaches it in 7 and the push still does not settle; qsierra and qgrow22 cannot reach it. Stopping every quadratic walk at 1e-10 instead would solve the same two, lose qsierra and qgrow22 to `NUMERICAL_ERROR`, and cost the generated set of 02-248 13% more work, which is why it is a second leg and not the tolerance |
-| `BARRIER_LEG2_ITERS` | 50 | The most iterations the second leg may take. The two models it wins need 7. Not swept |
-| `BARRIER_STALL_ITERS` | 5 | Iterations without progress after which a quadratic model's walk is called stalled: from then on both sides take one step length, `min(ap, ad)`, and sigma is floored at `BARRIER_STALL_SIGMA`. Progress means the largest of the three relative residuals fell below `BARRIER_STALL_DROP` times the best seen. Two steps leave the dual residual at `(1 - ad) rd + (ap - ad) Q dz`, which nothing drives down on a quadratic model, and Mehrotra's sigma can settle into a cycle where mu goes up and down and never falls; the two together are what `bench/refusals.txt` (barrier-qp-equal-steps) named as the reopen condition. **Swept 2026-09-15 at 3, 5 and 10 over 3000 generated convex QPs** (`bench/measurements/02-249/`): all three solve every model; 3 fires on healthy walks and costs 1.2% more work, 10 reads within 0.1% of 5 |
-| `BARRIER_STALL_DROP` | 0.9 | The factor by which the worst residual has to fall for an iteration to count as progress. Not swept |
-| `BARRIER_STALL_SIGMA` | 0.5 | The floor under Mehrotra's sigma once the walk has stalled, so every step from there centres at least this much. Swept at 0.2, 0.3, 0.5, 0.7 and 1.0: 0.2 leaves one of the five stalled models unsolved and 1.0, pure centring, leaves two; 0.3 and 0.5 solve all five and every model of the generated set, 0.3 at 0.3% less work, 0.7 at 0.6% more. 0.5 stays for the margin over the edge at 0.2 |
-| `BARRIER_STALL_DELTA` | 1e-3 | What `BARRIER_DELTA` is multiplied by once a quadratic walk has stalled with the primal residual the worst of its three measures and above `BARRIER_TOL`, so the rows' regularisation drops from 1e-10 to 1e-13 for the rest of the walk. The drop is tried, not trusted: the first factorisation that replaces a pivot under it puts `delta` back for good, which is what Maros-Meszaros qseba needs, its LDL losing 16 pivots at 1e-13 and diverging. A stall with the dual residual or the gap on top leaves `delta` alone: two generated models that stall that way diverge under the drop and converge without it. The row residual a regularised Newton step leaves is `delta` times the dual step, and on the Maros-Meszaros liswet family (10000 free columns) the dual step is large enough that the primal residual stuck at 1e-8 while mu fell to 1e-57 and the gap, the residual priced by `y`, stayed at 1e-3. **Swept 2026-09-15 at 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5 and 1e-6 over liswet1, 7 to 12, dtoc3, q25fv47 and ubh1** (`bench/measurements/02-250/`): 0, 1, 1, 5, 5, 5 and 5 of the ten reach `OPTIMAL`; from 1e-3 down liswet1, 8, 9, 10 and 11 solve at the reference objective and liswet7 and 12 diverge instead of stalling, dtoc3, q25fv47 and ubh1 stay where they were. The generated set of 02-248 never stalls and is byte-identical at 1e-3 and at 1e-6; the LP path never reads it |
-| `BARRIER_NEAR_TOL` | 1e-6 | How close to converged, the worst of the three relative residuals, a quadratic walk that hits `BARRIER_MAX_ITER` has to be for the push to be tried from its last point before the model is handed to the dual simplex. The push solves the active set's KKT system exactly, so a walk that stalled with its residuals at 1e-8 to 1e-6 is finished by it where its own steps could not: Maros-Meszaros `q25fv47` stopped at 200 iterations with a dual residual of 2.9e-8 and a gap of 2.5e-10, and the push settles in 17 rounds to the reference objective with the checker taking both sides. If the push does not settle, the handoff goes ahead as before. Swept 2026-09-15 at 1e-6, 1e-5 and 1e-4 over q25fv47, boyd2 and ubh1: the same one solves at all three, boyd2 (gap 1.6e-6) and ubh1 (gap 0.23) do not, so the tightest stays |
-| `BARRIER_MU_DEAD` | 1e-30 | The complementarity under which a quadratic walk within `BARRIER_NEAR_TOL` on all three measures is handed to the push before it converges; when the push does not settle, the walk goes on. With `mu` that small the walk's steps only take a fixed fraction off the dual residual: QPLIB_8785 reaches the library's objective by iteration 36 with `mu` at 1e-70, its dual residual then falls by 0.77 an iteration, and the budget of 1e11 ends six iterations short of `BARRIER_TOL`. Pushed at iteration 48, it settles in two rounds and ends `OPTIMAL` at 8.5e10 work units, and QPLIB_8845 ends at 7.6e8 where it took 4.1e9. On the Maros-Meszaros set it fires on six instances, each to the same objective and five for less work, q25fv47 at 22% of it (`bench/measurements/02-295/`). Not swept |
-| `BARRIER_REG_RETRY` | 1e-8 | The primal regularisation the augmented system is refactored with when the quasi-definite LDL replaced a pivot at `BARRIER_AUG_FLOOR`: a replaced pivot is a direction the solve gets wrong by 1e30, and three of the five stalled models of 02-249 diverged on exactly that, the dual iterate jumping from 7 times the data to 5.6e5 in one step. The floor stays for the rest of the walk and grows by `BARRIER_REG_GROWTH` each time it is not enough, up to `BARRIER_REG_MAX`. Not swept on its own: the growth reaches what is needed |
-| `BARRIER_REG_GROWTH` | 100 | What the regularisation floor multiplies by on a further replaced pivot. Not swept |
-| `BARRIER_REG_MAX` | 1e-2 | Where the regularisation floor stops growing and the direction is taken as it comes. Swept at 1e-6, 1e-4 and 1e-2 over the same 3000: byte-identical work at all three, so the floor never needs more than one growth on the generated set. Maros-Meszaros qgrow22 is what set it at 1e-2 on 2026-09-15: its LDL replaced 61 pivots at 1e-4, the next direction was NaN, and at 1e-2 the walk converges to the reference objective |
-| `QP_PUSH_REG` | 1e-6 | The proximal term on a free variable in the push that finishes a QP (`qp_push` in `src/barrier.c`): the equality-constrained QP on the variables the complementarity leaves free is solved with `Q + QP_PUSH_REG I` in place of `Q`, so a flat direction of `Q` moves the point by `rt / QP_PUSH_REG` at most and the quasi-definite LDL keeps a spread of 1e4 against `BARRIER_DELTA`. The price is a reduced cost of `QP_PUSH_REG |dz|` left on every free variable, which a second round takes off where it is above `QP_PUSH_TOL`. **Swept 2026-09-15 at 1e-4, 1e-6 and 1e-8 over 3000 generated convex QPs** (`bench/measurements/02-248/`): 1e-4 sends 44% of the models to a second round for nothing, at 1.132x the work of the barrier alone against 1.091x; 1e-8 loses pivots to the spread and 8 pushes never settle, so the barrier's point stands there and the checker refuses 3 |
-| `QP_PUSH_TOL` | 1e-9 | Where the push is settled, in scaled space: a free variable may sit outside its box by this times `1 + max(|b|, |bounds|)`, and a reduced cost may have the wrong sign on a pinned variable, or be nonzero on a free one, by this times `1 + |c|`. Swept at 1e-7, 1e-9 and 1e-11 over the same 3000: 1e-7 buys nothing, 1e-11 is under what one round reaches on 44% of the models and costs them a second round, 1.132x against 1.091x |
-| `QP_PUSH_ROUNDS` | 40 | Rounds of the push, each one factorisation and one solve, after which the barrier's point stands. The longest push over 6000 generated convex QPs took 3; Maros-Meszaros `qgfrdxpn` pinned one variable a round on a flat face and ran out at 40 until the stretch of `QP_PUSH_EXTRAPOLATE` and the freeings that go on while they help. A round whose step comes out non-finite (`qgrow22`'s first) is taken again with the proximal term and the rows' regularisation each multiplied by `BARRIER_REG_GROWTH`, up to `BARRIER_REG_MAX`. Not swept |
-| `QP_PUSH_DELTA` | 1e-8 | The dual regularisation on the push's rows, in place of `BARRIER_DELTA`: with the pinned variables out of the system and the free ones on `QP_PUSH_REG`, a row diagonal of 1e-10 against 1e-6 lost pivots to cancellation on the Maros-Meszaros LP-like QPs (`qscfxm1` replaced 70 and published a point of NaNs as optimal). The residual it leaves on the rows, `delta` times the dual step, is taken off by `QP_PUSH_REFINE` passes of iterative refinement. Set 2026-09-15 on those instances; not swept |
-| `QP_PUSH_REFINE` | 8 | The most passes of iterative refinement on the push's solve, each a residual against the unregularised rows and one more solve on the same factorisation, stopping once the rows are within a hundredth of `QP_PUSH_TOL`, so a full step lands the rows exactly instead of `QP_PUSH_DELTA` times the dual step off. `qsctap1` had a row activity 1.2e-6 past the bound its slack was pinned on, and the checker refused the dual side on it and 19 others of the set; 2 passes leave 1e-11 there. A residual the passes do not move at all is not the regularisation's: the pinned set has made the rows inconsistent, and the push then releases, in every row still off, the pinned variable with the smallest dual slack and goes round again (qisrael, qpilotno and liswet8 settle that way; liswet10 and 11 release and re-pin 40000 times and give up). Not swept. **Since 2026-10-08 the polish of a barrier point the checker refuses** (`bx_polish`, after a push that did not settle) takes the same three numbers: each column the barrier reads at a bound is set on it, the rows are closed over the other columns weighted by `1 / (q + QP_PUSH_REG + zl/w + zu/v)` on a factorisation regularised by `QP_PUSH_DELTA`, in at most this many passes, and as many passes of a least-squares step on the duals bring the free columns' reduced costs back to zero. QPLIB_9002 passes the checker that way (`bench/measurements/02-365/`) |
-| `QP_PUSH_CG` | 100 | The most conjugate-gradient steps of the polish that runs once, when the push settles with its rows still more than a hundredth of their tolerance off. It solves `E Θ E' y = r` for the rows' residual over the free variables, preconditioned by the push's own factor, and takes the step on the free variables and the rows' duals only when the rows come closer, no free variable leaves its box and the push's sign test still passes. The refinement's passes cannot do this when `E Θ E'` has eigenvalues far under `QP_PUSH_DELTA`: on liswet2, 9998 of 10000 second-difference rows are active, each pass took 0.3% off the residual, and the rows stayed 2.9e-10 off with the objective 1.1e-6 under the optimum (24.998048 against 24.998076 from BPMPD, HiGHS and Clp). The polish takes the rows to 5e-12 in 86 steps and the objective to 24.9980761 (`bench/measurements/02-293/`). The same steps in every round whose refinement stalled changed the push's path: liswet8 did not settle and liswet8, 10 and 11 took 2.1x to 2.8x the work (`qp-push-cg-rounds`). Not swept |
-| `QP_PUSH_USER_TOL` | 1e-7 | A reduced cost is taken as zero, in the model's own units, at this, on a free variable and for the sign of a pinned one alike: the push judges it in scaled space against the smaller of `QP_PUSH_TOL` times `1 + |c|` and this times the column's scale factor, because the checker judges reduced costs at an absolute 1e-6 in the model's units and a model with costs of 1e7 (qgfrdxpn, objective 1e11) can pass the relative test with a reduced cost of 1e-3 left. A round that only tightens reduced costs, with the pinned set unchanged, reuses the factorisation and costs solves alone. qetamacr settled with a pinned variable 1.5e-6 on the wrong side under the relative test alone. The rows and the boxes are judged in the model's units too: a row within this times `max(1, Σ|a_ij x_j|)`, which is the checker's own relative row test, and a free variable within this of its bound, so that no snap onto the bound is ever needed (a snap of 1e-7 moved qisrael's rows by 2e-6 and boyd1's, with coefficients of 1e12, by 0.08). Not swept; on the generated set it never binds |
-| `QP_PUSH_NEAR` | 1e-7 | A variable this close to a bound, times `1 + max(|b|, |bounds|)`, is pinned at the start of the push even when its dual slack is the smaller of the two, unless that dual slack is under this times its distance from the bound. A free variable that a partial step brings within this of its bound, times `1 + |bound|`, is pinned there. On the generated set it never fires; on `qgfrdxpn` it is not enough. **Both scales changed on 2026-09-24** (`bench/measurements/02-318/`). Maros-Meszaros `qgrow22` has bounds up to 3.2e7, so the start pinned columns 2.7e-4 from their bound whose dual slack was 6e-32, and a partial step moved columns up to 3 onto a bound. 28 pinned columns kept the wrong sign after 3 freeings, and the solve ended `numerical_error`. It now settles in 4 rounds at 31.5e6 work units. `qrecipe` needs the start rule as it was: three of its columns sit 4e-5 from their bound with a dual slack of 6e-6, and with neither of them pinned its suboptimality bound rose from 2.7e-16 to 1.8e-10. Not swept |
-| `QP_PUSH_GAP` | 1e-8 | The push takes one more round on the same factorisation while two things hold: each free variable's reduced cost times its distance to the bound that reduced cost points at, summed, is over this times `1 + |objective|`, and the sum has halved since the round before. The checker's gap test sums the same products at 1e-7 against `1 + |primal| + |dual|`. On QPLIB_8785 free reduced costs of 3.3e-10 pass `QP_PUSH_TOL`, but those columns sit 6.5e5 from their bounds, and the gap came to 1.31e-7. One more round takes it to 3.0e-9 for 1.0001x the work (`bench/measurements/02-318/`). Not swept |
-| `QP_PUSH_PIN_GAP` | 1e-7 | Since 2026-10-08 a pinned variable whose reduced cost has the wrong sign under the push's threshold still counts as wrong, and is freed, when that reduced cost times the width of its box passes this times `1 + |objective|`: the checker charges the product against the other bound and passes a gap of 1e-7. On a generated circulation (`tests/data/qp_pin_gap.mps`) a column pinned on its upper bound 0 with a reduced cost of +1.2e-8 and a lower bound 1e6 away left a gap of 1.18e-7, and the answer was published; freed, the push settles in 4 rounds instead of 3 and the gap is 7e-12. At `QP_PUSH_GAP` (1e-8) instead, the convex MIQP QPLIB_10069, whose objective is 0, freed reduced costs ten times under the checker's level on its binaries and took 2.75x the work (`bench/measurements/02-366/`). Not swept |
-| `PROBE_CERT_TOL` | 1e-6 | When the barrier hands a quadratic model to the dual simplex for a verdict on its rows and bounds, an `INFEASIBLE` verdict is kept only if the Farkas ray certifies at this tolerance, the CLI checker's default; otherwise the model ends `NUMERICAL_ERROR`. Maros-Meszaros `ksip` is where the dual called a feasible system infeasible with a ray of zeros. The same tolerance judges the other side: when the rows and bounds are feasible, the direction the ray LP finds is kept only if `jaos_check_ray` certifies it at this tolerance, the rate below `-tol (1 + Σ|c_j d_j|)`, no bound or row escaped, and the curvature `|d'Qd|` at most `tol` times the largest `|q_ij|` times the largest `|d_j|` squared. HiGHS's `qpunbounded.lp` is where the barrier stopped with no verdict on an unbounded QP. Not swept |
-| `QP_PUSH_FREEINGS` | 3 | How many times a full step may free the pinned variables whose reduced cost came out with the wrong sign before the barrier's point stands. The pinned set can only grow between freeings, so the push ends; the reading needed 1 at most. **Since 2026-09-19 the push goes on past 3 while each freeing leaves fewer wrong signs than the one before**, and stops at the first that does not: `qgfrdxpn` went 34, 28, 16, 7, 3, 2, 0 and settles after 6, where a limit of 12 let `boyd1` swing between two pinned sets of 10431 and 6424 and end refused. Not swept |
-| `QP_PUSH_EXTRAPOLATE` | 1e6 | The most the push stretches a step along the rows' null space when it stalls on a flat face. After a full step with no wrong sign and free reduced costs still above tolerance, the next round's proximal step moves a variable of almost no curvature by only `rt / QP_PUSH_REG`, the same distance every round: `qsierra` sat at 1680 pinned and 9 free reduced costs for 40 rounds. The push then solves once more on the same factorisation with the rows' residual set to zero, which gives a direction `dz_n` the rows do not see, and goes on along it to the line minimum or to the first bound, whichever is nearer, at most this many times the step. It does so only when that is at least the step again and the rows stay inside a tenth of their tolerance along it, because a noise-level stall is not a flat face: on `huestis` the unguarded form took steps of 1e-9 along an inexact direction and drove the rows 48 off. `qsierra` settles in 8 rounds, the first bound at 1.7e4 and 5.2e4 steps, and `qgfrdxpn` in 11; the 6000 generated QPs of 02-248 are byte-identical, since no push there stalls. Not swept |
-| `QP_PUSH_DENSE_THETA` | 1e-30 | What a pinned column that the normal equations hold as a dense column gets for `theta`, since the dense correction divides by it: `1 / theta` of 1e30 on the Schur complement's diagonal makes the column as good as absent, which is what pinning means, and `theta` times the column's entries is nothing. Not swept |
-| `PDLP_TOL` | 1e-4 | Where the first-order method stops: the primal residual `|Ez|` over `1 + |bounds|`, the dual residual over `1 + |c|` (the part of `c - E^T y` outside the cone the bounds allow) and the gap over `1 + |primal| + |dual|`, all 2-norms in the scaled space, each under this. The reference's default; its high-accuracy setting is 1e-8. The crossover that follows starts the dual simplex from the point's basis guess, so the tolerance decides how good that guess is against how many first-order iterations buy it. **Swept at 1e-4 against 1e-6** (`bench/measurements/02-221/`): at 10x the dual's work the two agreed on every verdict of the standard 94 and only truss moved, 3.30x against 3.99x with a crossover of 8540 against 8903 dual iterations; without a limit 1e-4 converged on ten small instances in 448 to 123773 iterations where 1e-6 took 768 to 148096 and left israel and scagr7 past the cap. The published answer is the crossover's vertex at either setting |
-| `PDLP_MAX_ITER` | 200000 | Iterations after which the first-order method stops and hands the model to the dual simplex from the slack basis. At `PDLP_TOL` without a work limit afiro converged at 448, adlittle 3648, kb2 15168, share2b 104320 and israel 123773 in the reading of `bench/measurements/02-221/`, so the cap sits above the slowest of the small set. Under that campaign's 10x work limit the limit stopped every run first except pilot, pilot87 and d2q06c, which reached the cap and were handed off. Not swept |
-| `PDLP_CHECK_EVERY` | 64 | How many iterations pass between evaluations of the KKT error on the current iterate and on the running average, which is where termination and the restart decision are read; each evaluation costs two matrix passes for the average. The reference evaluates every 64 as well. Not swept |
-| `PDLP_INFEAS_TOL` | 1e-8 | How far the difference of successive iterates may sit from a ray before the first-order method calls the model refused. Applegate et al. (2021) prove the difference converges to a certificate: a dual ray, whose bound value is positive and whose reduced costs sit inside their sign cone, says the model is infeasible; a primal ray, which the rows send to zero, which stays inside the box's recession cone and which lowers the objective, says it is unbounded. The difference is taken over one `PDLP_CHECK_EVERY` window, snapshotted after the restart decision so no restart falls inside it. Both tests are scale free: the residual is divided by the ray's own worth, which is what makes one number cover every model. **Measured 2026-09-09 over 114 instances**, the 95 of the standard 94 that reach the method and the 19 refused ones that do, each run with the test off and the smallest ratio it ever reaches recorded: the smallest a feasible model reached was 1.135e-07 on the dual side (`maros-r7`) and 8.045e-07 on the primal (`dfl001`), while `bgprtr` reached 5.7e-11, `cplex1` 1.05e-10 and `forest6` 7.2e-09. One decade under the smallest feasible ratio and two under the primal one. At 1e-6 it would have taken three more refused models and two feasible ones with them |
-| `PDLP_INFEAS_FROM` | 4096 | The iteration before which the ray test does not run and its snapshot is not taken. A ray is what an iterate walks when it cannot converge, so a model that converges early can only pay for the test and never gain. **Measured 2026-09-09 on the standard 94**: without the gate the certificate cost 0.83% of the work (geometric mean against the dual simplex 4.8092 to 4.8492), with it 0.10% (4.8141), and the iteration count was 2.9572 either way, so no feasible model changed its walk. Sixteen times under the earliest firing measured, `forest6` at 67853 iterations, so all three catches survived: `cplex1` 200000 to 5292, `forest6` to 67853, `bgprtr` to 176345, each run alone without a work limit. The reading of 2026-09-22 (`bench/results/pdlp.txt`) has the work geometric mean at 5.5471 and the iterations at 3.3896 |
-| `PDLP_RESTART_SUFFICIENT` | 0.2 | A restart fires when the better of the current iterate and the average has a weighted KKT error under this fraction of the error at the last restart; the reference's β_sufficient. Not swept |
-| `PDLP_RESTART_NECESSARY` | 0.8 | A restart also fires when the error is under this fraction of the last restart's and has stopped improving since the previous check; the reference's β_necessary. Not swept |
-| `PDLP_RESTART_ARTIFICIAL` | 0.36 | A restart also fires when the current epoch holds at least this fraction of all iterations so far; the reference's β_artificial. Not swept |
-| `PDLP_RUIZ_ROUNDS` | 10 | Rounds of Ruiz equilibration on the constraint matrix with its slack columns before the first-order iteration, each round dividing every row and column by the square root of its largest entry, followed by one Pock-Chambolle pass (α = 1: the square root of the absolute row and column sums); on top of the Curtis-Reid scaling the model already carries, undone at publication and at the crossover. The reference's count. Ten small instances without a work limit, iterations before against after (`bench/measurements/02-222/`): afiro 448 to 262, adlittle 3648 to 1041, sc50a 896 to 450, sc105 4672 to 2064, blend 20032 to 5059, kb2 15168 to 2757, stocfor1 46976 to 21729, scagr7 74176 to 11986, share2b 104320 to 78773, israel 123773 to 1857. **Swept at 0, 5 and 20** over the standard 94 at 10x the dual's work: 18, 17 and 20 instances finished inside the limit against 22 at 10 then, none disagreed at any count, and 3 finished with no preconditioning at all (3fc772f). The sets overlapped but moved, and the count is what the campaign measures. The reading of 2026-09-22 (`bench/results/pdlp.txt`) has 24 inside the limit at 10 |
-| `CONCURRENT_SLICE` | 134217728 | The work budget the concurrent solve hands each of its three runs in the first round, multiplied by `CONCURRENT_GROWTH` at every round after it. `--algorithm concurrent` copies the model three times, sets the dual on the first, the primal on the second and the barrier on the third, and runs them in that order; the first to answer wins. A model the dual settles inside the first budget therefore costs exactly what the dual costs, because the other two never start, so the value is where the dual is called slow. A simplex run that a round's budget stops parks its state, and the next round resumes it. The next round's budget then caps that run's whole walk, not the round alone, and the work billed counts only what the round added (`docs/work-units.md`, the concurrent solve); until 2026-09-23 it counted the earlier rounds again. **Swept 2026-09-10, before the resume landed on 2026-09-15**, over the whole standard 94 at 3.4e7, 6.7e7, 1.34e8 and 2.68e8. 1.34e8 sat above the 90th percentile of the dual's work on the standard 94 then (median 2.3e6, third quartile 2.4e7, `bench/results/primal.txt`). Work geometric mean against the dual and the count that agreed inside 10x its work: 1.199x with 93 of 94, 1.140x with 93, **1.090x with 94** and 1.077x with 94. Cost fell all the way. On `grow22` the dual then stalled for 14176 iterations and the primal walked it in 610, and it read 0.122x, 0.205x, **0.372x** and 0.706x. 1.34e8 was the smallest budget at which every instance agreed inside the limit, and 2.68e8 bought 0.013 of the mean for half of that win. The worst instance at the value was stocfor3 at 6.75x. Since 2026-09-21 the dual takes 2014 iterations on grow22, and the primal no longer wins it. **The reading of 2026-09-23** (`bench/results/concurrent.txt`, after the billing fix): 94 of 94 agree, work geometric mean against the dual 1.0556, iterations 0.9881. No instance costs less than the dual alone (best 25fv47 at 1.0000), and the worst is greenbeb at 2.5649 |
-| `CONCURRENT_GROWTH` | 8 | What the concurrent solve multiplies each run's budget by after a round in which none of the three answered. Since 2026-09-15 a simplex run stopped by its budget parks its whole state, steepest-edge weights included, and the next round resumes it from there. The barrier has no warm start and begins again from Mehrotra's point, so each extra round pays for its barrier run again. **Swept 2026-09-10, before the resume**, at 4, 8 and 16 over twelve instances of the standard set spanning 1.3e4 to 6.6e8 dual work units, at a first budget of 2.1e6 so that the growth is what moves: work geometric mean against the dual 2.27x, **2.07x** and 2.12x. At 4 the rounds were too many (degen3 14.1x), and at 16 a round overshot what the winner needed (25fv47 10.8x). Held at 8 for the full-set sweep of `CONCURRENT_SLICE`. Neither sweep has been retaken since the resume |
-| `PDLP_STEP_TRIES` | 64 | How many times the adaptive step may shrink in one iteration before the step is taken as it is. The reference loops without a cap; the cap only bounds the work billed to one iteration and was never reached on the standard 94. Not swept |
-| `DSE_MIN` | 1e-12 | Floor on a steepest-edge weight. Every weight is a squared norm and so positive by construction; the recurrence subtracts, and subtraction can cancel a small true value to zero. A guard against dividing by zero, not a tuning knob |
-| `DEVEX_RESET` | 3.0 | Devex pricing in the primal simplex, behind `cfg.primal_devex` since 02-31 with steepest edge the default: the reference-framework weights are reset to 1 when the entering column's true weight over the framework and its carried estimate differ by more than this factor, in either direction. Weights only grow under the update, so the estimate drifts upward; the reset is what keeps the pricing from decaying to Dantzig's rule. Measured on `make primal` against Dantzig pricing (`cfg.primal_dantzig`, `build/bench/primal --dantzig`) at 3.0: 77 of 94 standard instances reach the dual's answer against 73, overruns 16 to 14, disagreements 5 to 3; over the 73 instances both finish, iterations 1.0146x (fewer on 40, more on 21) and work 1.0395x, the weight updates being the cost. Phase 1 iterations over the set 292901 to 280441. Swept at 2.0, 3.0 and 10.0: 73, 77 and 75 instances reach the dual's answer, with 6, 3 and 6 disagreeing, so 3.0 is bounded on both sides |
-| `DSE_DRIFT` | 10.0 | How far a carried weight may sit from the exact one before the whole set is discarded and restarted. Well outside what rounding produces, well inside what one badly conditioned pivot can. Since 02-31 the same factor guards the primal's steepest-edge weights: the entering column's exact weight, 1 + the squared norm of its solved column, is compared with the carried one at every pivot, and a drift restarts the set at 1 + each column's squared norm, exact for the slack basis. Since 2026-09-21 a drift in the dual whose weights are exact (from a cold start, or after `DSE_GUESS_RESTARTS` on a warm one) hands the pricing to dual Devex for the rest of the solve (`DUAL_DEVEX_RESET`); a node solve of the MIP tree still restarts the set, and so does a drift while the weights are guessed |
-| `DUAL_DEVEX_RESET` | 10.0 | Dual Devex, which prices the dual simplex once a steepest-edge weight has drifted past `DSE_DRIFT` outside the MIP tree: the reference framework is reset to the current basis, every weight 1, when the pivot row's weight over the framework, read off the pivot row, and its carried estimate differ by more than this factor in either direction. **Swept 2026-09-21** over the standard 94 against the steepest-edge baseline, work (`bench/measurements/02-278/`): 2 0.9584x, 3 0.9472x, 5 0.9471x with pilot at 1.97x, **10 0.9276x**, 30 0.9279x, 100 0.9479x with pilot ending `NUMERICAL_ERROR`, 1000 0.9352x, never resetting 0.9731x. The primal's `DEVEX_RESET` of 3 is not the dual's best, and pilot bounds 10 on both sides |
-| `PSE_CHEAP_RESTARTS` | 64 | How many times the primal's steepest-edge weights, once the entering column's carried weight has drifted past `DSE_DRIFT`, are reset to the slack basis's weights (cheap, `nnz + rows`, exact for no other basis) before a drift restart in phase 2 rebuilds them exactly for the current basis (one FTRAN per variable). Phase 1 always takes the cheap reset. **Set 2026-09-09 by a sweep over the 13 instances the change touched** (pilot87, maros-r7, pilot, sctap3, ship04l, standata, wood1p, degen3, d6cube, dfl001, fit1d, fit2d, seba), with the exact rebuild in both phases: at 64 and 256 degen3 is fixed but pilot87 trips `PHASE1_RISE_MAX` and maros-r7 overruns; at 1024 pilot fails too; at 4096 maros-r7 and pilot recover and pilot87 still fails; never (the old behaviour) has no failure and degen3 slow. Every failure was a phase-1 walk under exact weights, so the exact rebuild was confined to phase 2 and the sweep's smallest value kept: 8 of the 13 finish inside the bound, degen3 in 3741 iterations against 15291, pilot87 in 53336 against 67339. The five that stayed past 10x the dual's work were d6cube, dfl001, fit1d, fit2d and seba (`TODO.md` at f1a5390) |
-| `DSE_RESOLVE_EXACT` | 1 | a re-solve of the root relaxation after a round of cuts replaces its steepest-edge weights by exact ones once, when it has run this many times `nrow + ncol + 1` iterations; the tree's other node solves keep guessed weights. Read on 2026-10-04 (`bench/measurements/02-334/`): `csched008`'s six cut rounds took 116568 iterations and 1.29e10 work units, past the 2017 limit of 1e10, and take 30066 and 3.71e9; its bound at the limit goes from none to 171 and the 2017 gap sum from 16.37 to 15.47. MIPLIB 3 moves by nothing. The same trigger in every node solve read MIPLIB 3 1.051x with `enigma` 2.196x (`node-dse-exact-long`). Not swept |
-| `DSE_GUESS_RESTARTS` | 64 | how many times a warm start's guessed steepest-edge weights may drift past `DSE_DRIFT` before they are replaced by exact ones, one BTRAN of a unit vector per row. A warm basis starts every weight at 1.0, which is exact only for the slack basis, and each drift restarts the whole set at 1.0 again, so a walk that keeps drifting learns nothing about its rows: `klein2` warm from its own infeasible basis priced by violation alone for 106201 iterations, tripped the guard and restarted cold. A cold start never counts, its weights being exact from the first pivot, and neither does a node solve of the tree (`cfg.node_solve`), because the vertex a node lands on decides its children and exact weights at every node measured l152lav 0.435x against gt2 4.0x, bell3a 2.7x and bell5 unfinished (`bench/refusals.txt`, warm-weights-eager). **Swept at 1, 2, 4, 8, 16, 32, 64, 128** on the warm bench of 91 against the same tree without it, geometric mean of work: 1.346x, 1.054x, 1.043x, 1.017x, 1.004x, 0.990x, **0.985x**, 0.987x. At 1 a re-solve that needs one iteration pays the whole computation for nothing, stocfor3 13.0x, stair 11.8x, truss 11.5x; at 32 lotfi still pays 1.49x; at 64 the only instance that moves is 25fv47 at 0.25x, and 128 gives the same 25fv47 back 0.31x. `klein2` answers warm in 247 iterations at 64 (02-31) |
-| `DUAL_PERTURB` | 1e-6 | the size of the cost perturbation the dual simplex applies the first time it stalls (after `PERTURB_STALL_FACTOR`'s plateau; inside the MIP tree `STALL_FACTOR`'s until 2026-10-04), before it falls back to Bland's rule; a solve that perturbed refines the duals it publishes once: every nonbasic column between two different bounds has its cost moved away from dual infeasibility by this fraction of (1 + \|its cost\|) times a fixed function of its index (a 64-bit mixing hash: no clock, no seed, the same on every machine), and the move is written into `shift`, so the settling that repays every shift at the end removes it and the re-entry cleans what that leaves. Ties in the ratio test are what a dual-degenerate walk cycles on, and a step past a strictly positive reduced cost is what breaks them. Set by the defect that showed the cycle: grow15 with `x0 <= 575295`, cold, made no progress for 9261 iterations, switched to Bland at 10558 and tripped the guard at 185201; with the perturbation it ends optimal at 10679, primal and dual feasible. When the perturbation landed, only the instances that stall moved over the four gates: grow22 from 52901 to 14176 iterations (0.257x work) and l152lav's tree to 0.77x. The other 161 were byte-identical, and the warm bench read 92 ok of 92 for the first time. Since the plateau outside the tree became `PERTURB_STALL_FACTOR`'s on 2026-09-21, the dual takes 2014 iterations on grow22. Not swept: held at the size the primal's refused perturbation used, one decade above `DUAL_TOL` times the largest reduced costs seen (02-31) |
-| `ARTIFICIAL_BOUND` | 1e10 | The bound dual phase 1 lends a column whose cost points at a bound it does not have. No verdict depends on it: unboundedness is proven against a ray, and a model this bound cuts off is refused rather than answered. So it decides how often the method has to give up, not whether an answer is true |
+| `PRIMAL_TOL` | 1e-7 | How far a basic variable may sit outside its bound before it counts as violated, so it decides which rows the dual simplex repairs and when it stops. The bound-flipping ratio test reads it as `primal_tol * (1 + the reach the flips absorbed)`, because its remainder is a difference of sums as large as the flips (`tests/test_simplex.c`). On a model whose data spans far more decades than a double holds, a breach can sit under this in one column's units and be large in a row's (`bench/measurements/02-244/`) |
+| `DUAL_TOL` | 1e-9 | The width of the dual's Harris window, and the size below which a reduced cost counts as zero, so it decides when the solve stops. At 1e-7 four Netlib instances publish a point that is not the optimum and 1e-8 still leaves `pilot` wrong; 1e-10 fails `dfl001`. 1e-9 costs 1.03x the work of 1e-7 on Netlib and 1.10x on Kennington (`bench/measurements/02-84/`, `bench/measurements/02-96/`) |
+| `PIVOT_MIN` | 1e-9 | Smallest \|alpha\| the ratio test accepts as a pivot. A stability floor: `pivot` and `theta_dual` divide by it. Whether a pivot is rounding noise is `PIVOT_MARGIN`'s question |
+| `PIVOT_MARGIN` | 1.0 | The noise floor, in ulps of a quantity's own terms: on an entry of `B^-1 M_q` against its column's largest entry in the two primal ratio tests, and on the pricing row's `alpha[q]` against `sum_i \|rho_i * a_iq\|`. Below it a candidate leaves the list. Relative, because an absolute floor is too strict or too lax by the column's scale. In the primal ratio tests it decides nothing below 3.3e-6 and reaches `wood1p` above 5.49; on `alpha[q]` it sits in a window from 0.35 to 20740 (`bench/measurements/02-122/`, `bench/measurements/02-124/`) |
+| `PRIMAL_HARRIS_DELTA` | 0.5 | The Harris window of the two primal ratio tests, as a multiple of `s->primal_tol`, so it scales with `jaos_set_primal_tolerance`. It must stay at or below `primal_tol` for phase 1 to stay correct (`docs/research/harris-primal.md`); an `assert` in `primal_pick` checks it. 0.01 to 0.5 agree with the dual on the same 61 instances, one more than 1.0, and 0.5 is a power of two, so the product is exact (`bench/measurements/02-127/`) |
+| `PHASE1_RISE_MAX` | 1.0 | How far the primal phase 1's total infeasibility may rise above its running minimum, as a fraction of it, before the solve ends `NUMERICAL_ERROR`. The sum cannot rise under an exact pivot; a rise means a near-singular basis. The largest rise on a good forced-primal solve is 4.3e-8 and `pilot87`'s is 8.1e11, and every value from 1e-5 to 1e2 stops `pilot87` at the same iteration and nothing else. Read with Curtis-Reid scaling; `JM_SCALE_NONE` is reached only by unit tests (`bench/measurements/02-133/`) |
+| `LU_PIVOT_TOL` | 0.1 | Markowitz threshold: a pivot must be at least this fraction of the largest magnitude in its column |
+| `LU_UPDATE_TOL` | 1e-9 | Floor on the new diagonal in a Forrest-Tomlin update, relative to the spike's largest magnitude. After elimination a legitimate pivot can be orders below the spike, so it is far looser than the Markowitz threshold |
+| `FTRAN_HYPER_DEN` | 10 | FTRAN solves only the slots its right-hand side reaches when the predicted density is below 1/this, with bit-identical answers. Work units bill the reach walk, so it was set on instructions: of 5, 10, 20 and 40, 10 reads the fewest, 0.951x the full pass (`bench/measurements/02-31/`) |
+| `FTRAN_DENSITY_KEEP` | 0.9 | The weight the previous density prediction keeps against the last solve of its kind. Not swept |
+| `LU_AGREE_TOL` | 1e-5 | How far the BTRAN and FTRAN values of the pivot element may disagree before the factorization is rebuilt; they are one number in exact arithmetic. On the gates the worst is 7.8e-8, and one pivot is the first past every value from 1e-7 to 1e-3, so any value in that range acts the same |
+| `IMPLIED_ROUNDS` | 64 | Cap on the checker's bound-propagation rounds, a safety stop. On the standard set the certified answers stop rising at 64 and the cost is flat |
+| `DROP_REL` | 1e-14 | A value below this fraction of the basis matrix's largest magnitude is structurally absent. Relative, so a uniformly small basis is not called singular |
+| `EXP_LIMIT` | 20 | The largest scale-factor exponent, `2^±20`, for Curtis-Reid and geometric scaling. Without it `dtoc3`'s factors passed `2^84` and the barrier published a wrong `OPTIMAL`; no Netlib factor reaches `2^20` (`bench/measurements/02-250/`) |
+| `TINY` | 1e-300 | The same floor where no scale is available |
+| `CHOL_PIVOT_REL` | 1e-14 | A Cholesky pivot at or below this fraction of its row's input diagonal is called zero and replaced by `CHOL_PIVOT_HUGE` (`TINY` when the diagonal is zero). Relative to the row's own diagonal, since `A D A^T` spans many decades late in a barrier run. A draft, set by `tests/test_chol.c` |
+| `CHOL_PIVOT_HUGE` | 1e128 | What a replaced pivot becomes, so the solve gives that row a component near zero, the usual barrier treatment of a dependent row. Its square stays finite |
+| `CHOL_DENSE`, `CHOL_DENSE_MIN` | 10, 16 | When asked (`jm_chol_symbolic_dense`, used by the conic solver), a node with more than `max(16, 10 sqrt(n))` neighbours is ordered last, AMD's rule and values. It keeps a large cone's ordering from going quadratic (`bench/measurements/02-254/`). Not swept |
+| `CHOL_ND_TRY` | 100 | When the minimum-degree factor costs more than this many operations per input nonzero, the symbolic Cholesky also tries nested dissection and keeps the cheaper. Dissection wins only on the Maros-Meszaros grids, from 137 operations per nonzero up, so 100 sits under the smallest winner (`bench/measurements/02-344/`). Not swept |
+| `CHOL_ND_MIN` | 1000 | The fewest rows for nested dissection to be tried; `aug3d`'s 1000 is the smallest that gains. Not swept |
+| `CHOL_ND_LEAF` | 200 | The part size at which dissection hands over to minimum degree. Not swept |
+| `CHOL_BLOCK` | 32 | Rows per block of the threaded numeric Cholesky; the factor is bit-identical at any thread count and block size. Of 16, 32, 64 and 128 on dfl001, 32 and 64 tie within noise (`bench/measurements/02-288/`) |
+| `CHOL_BLOCK_WORK` | 1e6 | The eliminations a block needs before its rows go to threads. 1e5 and 1e6 tie within noise; 0 starts threads for blocks too light to pay (`bench/measurements/02-288/`) |
+| `CHOL_THREADS_MAX` | 64 | The most threads one factor runs on; it sizes the thread handle arrays. Not swept |
+| `BARRIER_TOL` | 1e-8 | Where the barrier stops: relative primal and dual residuals and relative gap, in scaled space, all at or below this. 1e-6 to 1e-10 all agree with the dual on 19 hard Netlib instances, and the crossover gives the checked point, so it stays at the customary 1e-8 |
+| `BARRIER_STEP` | 0.99995 | The fraction of the step to the boundary taken after Mehrotra's corrector. From 0.9 up to Mehrotra's 0.99995, agreement and checker acceptance rise and work falls |
+| `BARRIER_REG` | 1e-9 | Primal regularisation on each bounded variable's `Θ^{-1}`, scaled by the worst relative measure capped at 1, so it fades as the run converges. Of the values from off to 1e-6, only 1e-9 agrees with the dual on all 19 hard instances |
+| `BARRIER_FREE_REG` | 1e-8 | The same term for a free variable, not scaled down. The instances with free columns do not separate 1e-6 to 1e-10, so it is held at the middle |
+| `BARRIER_DELTA` | 1e-10 | Dual regularisation on the diagonal of `A Θ A^T`, so a dependent row gives a pivot of `delta`. On the pilot family and its neighbours only 1e-10 solves all eleven: `greenbea` stalls below it, `pilot-we` and `pilotnov` fail at 1e-8 |
+| `BARRIER_START_MIN` | 1e-6 | The floor under Mehrotra's starting shifts; below it they become 1. When the costs lie in the range of `A^T` the shifts collapse and the walk never recovers; the smallest nonzero shift on the LP sets is 1.8e-4 |
+| `BARRIER_MAX_ITER` | 200 | Iterations after which the barrier hands the model to the dual simplex. The longest converging run on the standard 94 takes 47. Not swept |
+| `CROSS_PUSH` | on | The crossover pushes its basis guess to a vertex before the simplex (the primal half of Bixby and Saltzman's push). On the standard 94 it takes the agreed count from 77 to 80 for less work (`bench/measurements/02-287/`) |
+| `CROSS_PUSH_PRIMAL` | on | The primal simplex finishes from a pushed basis, which is primal feasible. Finishing with the dual reads worse than no push at all (`bench/measurements/02-287/`) |
+| `CROSS_PUSH_SNAP` | 1e-9 | How near a bound, relative to (1 + \|bound\|), a nonbasic column must sit to be put on it before the push; the barrier's own accuracy. Not swept |
+| `CROSS_PUSH_PIVOT` | 1e-7 | The smallest direction entry, relative to the largest, the push's ratio test reads. Not swept |
+| `CROSS_PUSH_FEAS` | 1e-9 | The slack, relative to (1 + \|bound\|), the first pass of the push's Harris ratio test allows. Not swept |
+| `CROSS_PUSH_UPDATE_TOL` | 1e-9 | The smallest pivot ratio the push accepts in an LU update before it refactors. Not swept |
+| `BARRIER_DIVERGE` | 1e6 | The multiple of the data past which an iterate that made no progress is divergent, and the model goes to the dual simplex for a verdict. A converging run reaches at most 3.8e4 on the standard 94 and infeasible 29, and 18 of 19 infeasible runs pass 1e6; 1e8 and 1e10 delay or lose those verdicts (`bench/measurements/02-220/`) |
+| `BARRIER_DENSE_FACTOR` | 10 | A column with more nonzeros than this times the average leaves the normal matrix and returns through a Sherman-Morrison-Woodbury correction. 20 reads the same; 5 makes the barrier worse where it newly fires (`bench/measurements/02-223/`) |
+| `BARRIER_AUG_FLOOR` | 1e-30 | The smallest pivot magnitude the augmented system's quasi-definite LDL keeps; a smaller or wrong-signed pivot is replaced with the block's sign and counted. A floor against division by zero, far under `BARRIER_DELTA`. Not swept |
+| `BARRIER_DENSE_MIN` | 30 | The count a column must exceed to be dense at all. Not swept |
+| `BARRIER_DENSE_MAX` | 100 | Above this many dense columns none is left out, since each costs a solve per factorization. Not swept |
+| `BARRIER_AUG_TRY` | 1e8 | For a diagonal quadratic objective, the normal factor's operation count above which the barrier also builds the augmented system and keeps the cheaper. With no floor the second analysis costs boyd1 85x its solve; 1e7 and 1e9 read the same (`bench/measurements/02-272/`) |
+| `BARRIER_AUG_EDGE` | 1.0 | How much cheaper the augmented factor must be to be taken. 0.5 and 2.0 read the same |
+| `BARRIER_DIVERGE_QP` | 1e10 | `BARRIER_DIVERGE` for a QP, which has no simplex to fall back on. Five of seven Maros-Meszaros models the LP limit stopped solve from 1e8, and huestis at 1e10; on LPs that limit made two infeasible runs overrun before the handoff (`bench/measurements/02-250/`) |
+| `BARRIER_TOL_QP` | 1e-10 | Where a QP walk's second leg stops when the push does not settle from the `BARRIER_TOL` point. It lets liswet10 and liswet11 pass; stopping every QP there would lose qsierra and qgrow22 and cost 13% more work (`bench/measurements/02-250/`) |
+| `BARRIER_LEG2_ITERS` | 50 | The most iterations of the second leg; the models it wins need 7. Not swept |
+| `BARRIER_STALL_ITERS` | 5 | Iterations without progress after which a QP walk is stalled and takes equal step lengths with sigma floored. Of 3, 5 and 10 on 3000 generated QPs, 3 fires on healthy walks and 10 reads like 5 (`bench/measurements/02-249/`) |
+| `BARRIER_STALL_DROP` | 0.9 | The factor the worst residual must fall by to count as progress. Not swept |
+| `BARRIER_STALL_SIGMA` | 0.5 | The floor under sigma once stalled. 0.3 and 0.5 solve all five stalled models; 0.5 keeps a margin over 0.2, which fails one (`bench/measurements/02-249/`) |
+| `BARRIER_STALL_DELTA` | 1e-3 | What `BARRIER_DELTA` is multiplied by once a QP walk stalls on its primal residual, undone at the first replaced pivot. From 1e-3 down five of ten Maros-Meszaros models reach `OPTIMAL`; the LP path never reads it (`bench/measurements/02-250/`) |
+| `BARRIER_NEAR_TOL` | 1e-6 | How close a QP walk at `BARRIER_MAX_ITER` must be for the push to be tried before the handoff. 1e-6 to 1e-4 win the same model, so the tightest stays (`bench/measurements/02-250/`) |
+| `BARRIER_MU_DEAD` | 1e-30 | The complementarity under which a QP walk within `BARRIER_NEAR_TOL` is pushed early, since the walk then gains only a fixed fraction per step. On Maros-Meszaros it fires on six instances, five for less work (`bench/measurements/02-295/`). Not swept |
+| `BARRIER_REG_RETRY` | 1e-8 | The primal regularisation the augmented system is refactored with after a pivot was replaced at `BARRIER_AUG_FLOOR`, which grows by `BARRIER_REG_GROWTH` up to `BARRIER_REG_MAX` (`bench/measurements/02-249/`). Not swept on its own |
+| `BARRIER_REG_GROWTH` | 100 | The growth factor of that floor. Not swept |
+| `BARRIER_REG_MAX` | 1e-2 | Where the floor stops growing. qgrow22 needs 1e-2; the generated QPs read the same from 1e-6 (`bench/measurements/02-250/`) |
+| `QP_PUSH_REG` | 1e-6 | The proximal term on a free variable in the push that finishes a QP (`qp_push`), so a flat direction of `Q` moves the point by at most `rt / QP_PUSH_REG`. 1e-4 sends 44% of 3000 generated QPs to a second round; at 1e-8, 8 pushes never settle (`bench/measurements/02-248/`) |
+| `QP_PUSH_TOL` | 1e-9 | Where the push is settled, in scaled space, on boxes and reduced costs. 1e-7 buys nothing; 1e-11 costs 44% of the models a second round (`bench/measurements/02-248/`) |
+| `QP_PUSH_ROUNDS` | 40 | Rounds of the push before the barrier's point stands. The longest push on 6000 generated QPs took 3. Not swept |
+| `QP_PUSH_DELTA` | 1e-8 | The dual regularisation on the push's rows; 1e-10 lost pivots on the LP-like Maros-Meszaros QPs (`bench/measurements/02-250/`). Not swept |
+| `QP_PUSH_REFINE` | 8 | Passes of iterative refinement on the push's solve. When the passes cannot move a row, the push releases that row's pinned variable with the smallest dual slack. `bx_polish` uses `QP_PUSH_REG`, `QP_PUSH_DELTA` and this count to polish a point the checker refuses (`bench/measurements/02-365/`). Not swept |
+| `QP_PUSH_CG` | 100 | Conjugate-gradient steps of the one polish run after the push settles with its rows still off, for systems refinement cannot close (liswet2) (`bench/measurements/02-293/`). Running it every round was refused (`qp-push-cg-rounds`). Not swept |
+| `QP_PUSH_USER_TOL` | 1e-7 | The push's tests in the model's units, beside the scaled ones, because the checker judges in those units: reduced costs, rows by the checker's own relative test, and boxes (`bench/measurements/02-250/`). Not swept |
+| `QP_PUSH_NEAR` | 1e-7 | At the start, a variable within this times `1 + max(\|b\|, \|bounds\|)` of a bound is pinned unless its dual slack is under this times its distance; after a partial step, within this times `1 + \|bound\|`. With the model-wide scale alone, `qgrow22`'s bounds of 3.2e7 pinned columns far from their bounds (`bench/measurements/02-318/`). Not swept |
+| `QP_PUSH_GAP` | 1e-8 | The push takes another round while the free variables' reduced costs times distances exceed this times `1 + \|objective\|` and keep halving, since the checker sums the same products (`bench/measurements/02-318/`). Not swept |
+| `QP_PUSH_PIN_GAP` | 1e-7 | A pinned variable with a small wrong-signed reduced cost is still freed when that cost times its box width exceeds this times `1 + \|objective\|` (`tests/data/qp_pin_gap.mps`). At 1e-8 QPLIB_10069 took 2.75x the work (`bench/measurements/02-366/`). Not swept |
+| `PROBE_CERT_TOL` | 1e-6 | When the dual simplex judges a QP's rows and bounds, an `INFEASIBLE` verdict stands only if its ray certifies at this tolerance, and an unbounded direction only if `jaos_check_ray` certifies it with small curvature; otherwise `NUMERICAL_ERROR`. The CLI checker's default. Not swept |
+| `QP_PUSH_FREEINGS` | 3 | How many times a full step may free wrongly pinned variables; past 3 it goes on while each freeing leaves fewer wrong signs (`bench/measurements/02-248/`). Not swept |
+| `QP_PUSH_EXTRAPOLATE` | 1e6 | The most the push stretches a step along the rows' null space on a flat face, only when the stretch adds at least one more step and keeps the rows within a tenth of tolerance. `qsierra` settles in 8 rounds; the generated QPs do not change. Not swept |
+| `QP_PUSH_DENSE_THETA` | 1e-30 | The `theta` a pinned dense column gets, which makes it absent from the Schur complement. Not swept |
+| `PDLP_TOL` | 1e-4 | Where the first-order method stops: relative primal, dual and gap 2-norms in scaled space. The reference's default. The crossover publishes a vertex either way, and 1e-4 gives every verdict 1e-6 gives for fewer iterations (`bench/measurements/02-221/`) |
+| `PDLP_MAX_ITER` | 200000 | Iterations before the handoff to the dual simplex, above the slowest small instance that converges (israel, 123773) (`bench/measurements/02-221/`). Not swept |
+| `PDLP_CHECK_EVERY` | 64 | Iterations between KKT evaluations, the reference's interval. Not swept |
+| `PDLP_INFEAS_TOL` | 1e-8 | How close the difference of iterates must be to a ray for the method to call the model infeasible or unbounded (Applegate et al., 2021); scale free. Feasible models reach no lower than 1.1e-7, infeasible ones 5.7e-11 to 7.2e-9 |
+| `PDLP_INFEAS_FROM` | 4096 | The iteration before which the ray test does not run. It cuts the test's cost from 0.83% to 0.10% of the work and sits far under the earliest firing measured |
+| `PDLP_RESTART_SUFFICIENT` | 0.2 | The reference's β_sufficient for a restart. Not swept |
+| `PDLP_RESTART_NECESSARY` | 0.8 | The reference's β_necessary. Not swept |
+| `PDLP_RESTART_ARTIFICIAL` | 0.36 | The reference's β_artificial. Not swept |
+| `PDLP_RUIZ_ROUNDS` | 10 | Rounds of Ruiz equilibration before the method, then one Pock-Chambolle pass; the reference's count. Of 0, 5, 10 and 20, 10 finishes the most of the standard 94 inside 10x the dual's work (`bench/measurements/02-222/`) |
+| `CONCURRENT_SLICE` | 134217728 | The first-round work budget of each concurrent run (dual, primal, barrier), so a model the dual settles inside it costs exactly the dual. 1.34e8 is the smallest budget at which every instance agreed inside 10x the dual's work. The sweep predates the resume of parked runs; `bench/results/concurrent.txt` holds the current reading |
+| `CONCURRENT_GROWTH` | 8 | What each budget multiplies by after a round with no answer. Of 4, 8 and 16, 4 runs too many rounds and 16 overshoots. Not retaken since the resume |
+| `PDLP_STEP_TRIES` | 64 | Times the adaptive step may shrink in one iteration; never reached on the standard 94. Not swept |
+| `DSE_MIN` | 1e-12 | Floor on a steepest-edge weight, which cancellation can drive to zero |
+| `DEVEX_RESET` | 3.0 | Primal Devex (`cfg.primal_devex`) resets its framework when a true weight and its estimate differ by more than this factor. Of 2, 3 and 10, 3 reaches the dual's answer most often |
+| `DSE_DRIFT` | 10.0 | How far a carried steepest-edge weight may drift from the exact one before the set restarts. In the dual, a drift with exact weights hands pricing to dual Devex (`DUAL_DEVEX_RESET`); with guessed weights or in a MIP node, the set restarts (`bench/measurements/02-31/`) |
+| `DUAL_DEVEX_RESET` | 10.0 | Dual Devex's reset factor. From 2 to 1000, 10 has the lowest work and `pilot` bounds it on both sides (`bench/measurements/02-278/`) |
+| `PSE_CHEAP_RESTARTS` | 64 | How many drift restarts of the primal's steepest-edge weights use the cheap slack-basis reset before phase 2 rebuilds them exactly. Exact rebuilds in phase 1 made `pilot87` and `maros-r7` fail |
+| `DSE_RESOLVE_EXACT` | 1 | A root re-solve after cuts takes exact weights once it has run this many times `nrow + ncol + 1` iterations. `csched008`'s cut rounds fall from 1.29e10 to 3.71e9 work units, MIPLIB 3 unchanged (`bench/measurements/02-334/`). Not swept |
+| `DSE_GUESS_RESTARTS` | 64 | How many times a warm start's guessed weights may drift past `DSE_DRIFT` before exact ones replace them; never in a MIP node (`warm-weights-eager`). Of 1 to 128 on the warm bench, 64 has the lowest work (`bench/measurements/02-31/`) |
+| `DUAL_PERTURB` | 1e-6 | The cost perturbation the dual applies at its first stall, scaled by `1 + \|cost\|` and a fixed hash of the column index, repaid at the end through `shift`. It breaks the ties a degenerate walk cycles on. Not swept: one decade above `DUAL_TOL` times the largest reduced costs (`bench/measurements/02-31/`) |
+| `ARTIFICIAL_BOUND` | 1e10 | The bound dual phase 1 lends a column whose cost points at a missing bound. No verdict depends on it; it decides how often the method gives up |
 
-Six more numbers in `src/simplex.c` are not tolerances but sit beside them:
+These numbers in `src/simplex.c` are counts:
 
 | Name | Value | What it decides |
 |---|---|---|
-| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. Alongside it: the reactive fallback on a failed update, and one more refactorization at the end of a solve, because optimality is not accepted on carried values, unless the factors carry `VERIFY_UPDATES` updates or fewer (since 2026-10-05). The trigger PLAN 2.5.5 also calls for — watching an FTRAN/BTRAN residual *during* the solve — still does not exist. **Swept 2026-08-24 and it never had been**, six settings each its own tree and its own binary, all three gate sets at every one. Work as a geometric mean of per-instance ratios against 64: **8** 1.0318, **16** 0.9484, **32** 0.9143, **64** 1.000, **128** 1.1873, **256** 1.5663; worst single instance 2.267 (`grow22`), 4.430 (`d2q06c`), 2.819 (`grow15`), —, 5.881 (`d2q06c`), 9.125 (`nesm`). **64 is not the minimum**: 32 is 8.6% better on the mean. It stays for the worst case and for accuracy — at 32 `pilot87` goes from 1.044e-07 to 5.329e-05 against Koch, three orders worse, and still clears the gate's 3.017e-04 window with 5.7x to spare. **No answer changes verdict at any setting**, 94 netlib and 29 infeasible at six intervals. The control: the record at 64 is identical to `bench/results/netlib.txt` on all 94 instance lines. **Read again 2026-09-23** (`bench/measurements/02-299/`), after e180c91 made the refactor cheaper in time and left the work unchanged, over netlib, the infeasible set and Kennington: **32** 0.9466, **48** 0.9604, **96** 1.0857, **128** 1.1499 against 64, every verdict the same. 32 and 48 raise `wood1p`'s suboptimality bound from 9.88e-15 to 2.2e-09 and 8.69e-10, so 64 stays |
-| `VERIFY_UPDATES` | 8 | the most basis updates the factors may carry when a solve verifies its optimum or its infeasibility without a fresh refactorization: the primal values and the duals are computed again on the same factors with one step of iterative refinement against the basis's own columns. More updates, or a basis changed outside the updates, refactorize as before. A MIP node solve takes a few pivots, so its verification was a second factorization: a node of `bell5` costs 14720 work units, and a solve that needs no pivot 11609, two factorizations of about 5300 each. **Swept at 0, 4, 8, 16 and 32** on MIPLIB 3 (`bench/measurements/02-353/`): 0.993x (to the bit), 0.910x, **0.844x**, 0.884x and 0.944x in the geometric mean of work, every answer taken by the checker; at 8 none past 1.04x (`bell3a` 0.596x, `bell5` 0.696x, `lseu` 0.512x), where 16 and 32 leave `l152lav` at 1.753x and 1.504x |
-| `ITER_SANITY_FACTOR` | 200 | Times `rows + columns + 1`, an iteration ceiling that is not a limit but a guard against a non-terminating loop. Hitting it is a defect in JAOS and is reported as a library error, never as a solve outcome |
-| `SETTLE_ROUNDS` | 32 | How many times a settled point may be handed back to the dual simplex. A backstop, and a dimensionless count rather than a tolerance. **It does bind**, which its comment denied until D245: raising it to 128 costs `wood1p` 1.49x work for a bit-identical answer — same digest, same basis — and the gate reports `0 regressed` throughout, because its bar is 2.0x. So this stays 32 and the primal gets its own |
-| `SETTLE_ROUNDS_PRIMAL` | 256 | The same backstop for a solve that set `cfg.force_primal`, which arrives at the re-entry with a whole solve's worth of dual infeasibility rather than a handful of columns. It was binding at 32 on 14 of the standard 94: on `25fv47` all 32 rounds ran with the violation still falling, 784.9 to 10.8, and the objective descending throughout. **Swept on both sides**: the forced primal agrees with the dual on **61** instances at 32, **69** at 64, **75** at 128, and at 256 one more converts (`woodw`) with another moving to an honest overrun; **512 is byte-identical to 256** — the plateau — because three of the remaining trajectories are stuck flat, not slow. Chosen once per solve, so the shipped path never reads it. Since 02-31 the primal's phase 2 no longer shifts costs (that was the dual's tolerance mechanism reached through the shared pivot, and it erased the reduced costs the primal prices on, so phase 2 ended after one pivot and the re-entry did the whole solve: 522814 re-entry iterations over the set), so the forced primal arrives with no shift outstanding and the re-entry made 7 iterations over the 94; the rounds stay as the backstop |
-| `POLISH_ROUNDS` | 4 | how many times an optimum may be refined in the model's own units before it is published. The simplex refines the basic solution once in scaled units, and a row scaled down hard can hide a residue that is invisible there and past `PRIMAL_TOL` in the model's units: pilotnov with `x2 <= 4` published column values that left the equality POPL01 by 5.43e-5 on a row whose terms sum to 1.26e6 in magnitude, 4e-11 of that mass, while the row's logical said 0. Each round recomputes every row's residue from the published column values with compensated sums in the model's units, stops when the worst is at or under `PRIMAL_TOL`, and otherwise scales the residue back, solves it through the factorization and corrects the basics; one round took that row to 2.2e-10. A safety stop and not a quality knob: the loop exits on the first clean round, and none of the 110 cold optima of netlib and Kennington needs any (their worst residue is under 1e-7 already), so the four gates stayed bit-identical but for the check's own work. Not swept: held (02-31) |
-| `WARM_REPAIR_MAX_SHORT` | 8 | **Swept again on 2026-09-23** (`bench/results/warm.txt` and `warm-kennington.txt`, caps 4, 6, 8, 16, 64 and no cap), because a basis published by a solve that aggregated maps onto the next solve's presolved model a few basic members short, and at 4 the warm re-solve of `pilot` (6 short of 1392 rows) started from the slack basis at 31.4x its cold work. Netlib warm/cold work geometric mean and worst instance: cap 4 0.2281 (pilot 31.43x), 6 0.2136 (pilot 4.05x), **8 0.2132 (pilot 4.05x)**, 16 0.2177 (bnl2 8.30x), 64 0.2246 (d2q06c 15.24x), no cap 0.2593 (cycle 35.65x). Kennington reads 0.0154 at every cap. 8 is the minimum of the mean with the worst case of 6; the cliff of the older sweep below moved past 8. The 17 instances still costlier warm than cold at 8 share one cause: the cold solve runs on the aggregated model, and a solve with a starting basis is not aggregated. **The sweep of 2026-08, before the aggregator:** How many basic members a mapped starting basis may be missing and still be repaired by promoting logicals rather than refused. It decides cost and never an answer: past the cap `build_warm_basis` returns false and the solve starts cold, which is always correct. Swept on both sides over every distinct shortfall in the set, from "never repair" to "always" — netlib work geometric mean 0.2553, 0.2089, 0.2047, **0.1916**, 0.1886, 0.1895, 0.1874, 0.1938 … 0.2605 at caps 0, 1, 2, **4**, 5, 6, 7, 8 … 596, with the worst per-instance ratio holding at 4.65 through cap 4 and then stepping to 15.48 at 7 (`greenbea`) and 172.03 at 345 (`dfl001`). The mean is flat across 1..7 and the worst case is not, so the value sits at the end of a plateau rather than at the minimum: 7 is 2.2% better on the mean for a worst case 3.3x larger. Kennington does not vote — all five of its short solves are short by exactly 1, so every cap at or above 1 gives it the whole gain, 0.0572 → 0.0070. **The relative shape was swept too and is worse**: capping `S/nrow` reaches only 0.2081 and meets the 15.48 cliff with 8 instances admitted, where the absolute cap admits 31 before reaching it, because `greenbea` is 7 short of 1954 rows — the smallest relative shortfall in the set and one of the two worst outcomes |
+| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. 32 costs 5% to 9% less work but loses three orders of `pilot87`'s accuracy and raises `wood1p`'s suboptimality bound to 2e-9 (`bench/measurements/02-92/`, `bench/measurements/02-299/`) |
+| `VERIFY_UPDATES` | 8 | The most updates the factors may carry when a solve verifies its answer without refactorizing. Of 0 to 32 on MIPLIB 3, 8 has the lowest work, 0.844x (`bench/measurements/02-353/`) |
+| `ITER_SANITY_FACTOR` | 200 | Times `rows + columns + 1`, a ceiling against a loop that does not end; hitting it is a library error |
+| `SETTLE_ROUNDS` | 32 | Times a settled point may go back to the dual simplex. At 128 `wood1p` costs 1.49x for the same answer |
+| `SETTLE_ROUNDS_PRIMAL` | 256 | The same for `cfg.force_primal`. Agreement with the dual rises up to 256, and 512 is byte-identical (`bench/measurements/02-157/`, `bench/measurements/02-161/`) |
+| `POLISH_ROUNDS` | 4 | Refinements of an optimum in the model's units before publication, for a row whose scaling hides a residue past `PRIMAL_TOL`. No cold Netlib or Kennington optimum needs one (`bench/measurements/02-31/`). Not swept |
+| `WARM_REPAIR_MAX_SHORT` | 8 | How many basic members a mapped starting basis may miss and still be repaired; past it the solve starts cold. 8 has the lowest warm/cold work on Netlib; 4 leaves `pilot` at 31x (`bench/results/warm.txt`) |
 
 ## The checker's tolerance
 
-`jaos_check_solution` takes one tolerance from the caller and applies it in
-original space. There is no default: a checker that chose its own would be
-grading on a curve it set.
+`jaos_check_solution` takes one tolerance, `tol`, from the caller and
+applies it in the model's own units. It has no default. The report's fields
+are in `docs/api.md`. Activities are Neumaier sums over Dekker's exact
+products in `double`; `long double` is not used, because its width differs
+between x86-64 and aarch64. The model is put in minimize form first.
 
-Given a claimed `x` and row duals `y`, with activities `a_i = A_i · x`
-accumulated as a Neumaier sum over Dekker's exact products in `double`, and
-everything canonicalised to minimisation (for a maximisation model the costs
-and duals are negated internally). No walk in the file uses `long double`:
-that type is 64 mantissa bits on x86-64 and 113 on aarch64, and what the
-checker computes reaches `bench/results/`, so it would not be the same
-figure on two machines:
+**Primal.** A violation is `max(lo − v, v − hi, 0)` over the finite bounds.
+`primal_feasible` reads the column violation, the row violation divided by
+the row's traffic (`Σ |a_ij x_j|` floored at 1), and the integrality and
+cone violations. A row with coefficients
+near 1e12 cannot be met closer than its own rounding, so the row test is
+relative.
 
-**Primal.** For each column and each row, the violation of `v ∈ [lo, hi]`
-is `max(lo − v, v − hi, 0)`, counting only bounds that are finite. The
-report carries the largest column violation and the largest row violation
-separately, and `primal_feasible` is the column violation and the row
-violation *relative to the row's traffic*, `Σ |a_ij x_j|` floored at 1,
-both being within tolerance. The relative form is the one the dual side
-has always used for a row's multiplier; since 2026-09-15 the primal side
-matches it, because Maros-Meszaros `boyd1` has rows whose coefficients run
-to 1e12 and a point 0.015 off them in absolute terms, 2e-14 relative, is as
-exact as a double can be. The absolute row violation stays in the report
-(`row`) beside the relative one (`rowrel`). Every gate reading is
-byte-identical under the change: a simplex answer's rows are met to
-roundoff either way.
-
-**Dual.** For a multiplier `w` attached to a value `v` with bounds
-`[lo, hi]`, in minimize-canonical form:
+**Dual.** A multiplier `w` on a value `v` with bounds `[lo, hi]`, in
+minimize form:
 
 ```
 |w| <= tol            no condition                    (negligible multiplier)
@@ -164,864 +158,360 @@ w > 0                 requires v <= lo + tol · s      (at its lower bound)
 w < 0                 requires v >= hi - tol · s      (at its upper bound)
 ```
 
-which is dual feasibility and complementary slackness in one test: a
-multiplier that is not negligible must point at a bound its value is
-actually resting on. A multiplier pointing at an infinite bound is itself a
-violation, of exactly its own magnitude. Row multipliers are the duals as
-given; column multipliers are the reduced costs `d_j = c_j − A_j · y`,
-recomputed here from the original matrix.
-
-`s` is the scale of the value being tested, and it differs by kind:
-
 ```
 row i      s = max(1, sum over j of |A_ij · x_j|)     the row's own traffic
 column j   s = max(1, |x_j|)
 ```
 
-A row activity is a sum, and a sum whose terms cancel cannot be pinned to an
-absolute tolerance. Row 3 of Netlib's `finnis` used to add terms totalling
-4.0e10 in magnitude and come to rest 1.5e-6 from its bound, where **one ulp
-at 4.0e10 is 7.6e-6** — the residue is a fifth of a single rounding step at
-the scale the row worked at. Judged absolutely at 1e-6, that row is "not at
-its bound" and its multiplier of 28 is reported as a violation of 28, on a
-solution whose duality gap is 2.2e-10. No double-precision answer can pass
-that test and no amount of solver work can produce one; the demand is for
-seventeen correct decimal digits of a sum that cancels ten orders of
-magnitude.
+A multiplier that points at an infinite bound is a violation of its own
+size. Column multipliers are the reduced costs `c_j − A_j · y`, recomputed
+from the model. A row activity is a sum whose terms can cancel, so its
+distance from a bound is judged against the size of its terms. This scale
+cannot hide a wrong answer: a row excused at distance `d` still adds `w · d`
+to the gap (`bench/measurements/02-170/`).
 
-**That row is the whole load the relative window was carrying, and D261
-took it off.** `finnis`'s 4.0e10 came from four columns published on bounds
-the solve had lent them; with those retired row 3 carries 7734 and rests
-exactly on its bound. Measured over the standard set at `tol = 1e-6`
-(`bench/measurements/02-170/run-window-need.sh`): before D261, **one
-instance** had rows an absolute window would refuse — `finnis` row 0 at 3.39
-times the window and row 3 at 1.52, both admitted by the relative one. After
-it, **zero of 94**, worst 0. The window stays, and the reason is D24's: it
-exists because a row activity is a sum, which is a fact about arithmetic and
-not about this population, and a population that is quiet today is not an
-argument for removing the only thing that would catch it. What has changed
-is that no gate instance now demonstrates it, so the case above is written
-in the past tense and the script is what re-asks the question.
-
-A column value is one published number rather than a sum of cancelling
-terms, so it takes the ordinary mixed absolute/relative form and nothing
-more. The row case is the one that needed the argument.
-
-**Why the scale cannot excuse a wrong answer.** This test is a diagnostic;
-the gap below is the proof, and the two are tied together exactly. Since
-`P − D` is the sum of `w_v · (v − bound_v)`, a row waived here at distance
-`d` with multiplier `w` still contributes exactly `w · d` to the gap, at full
-size and with no cancellation available to it — every term of that sum is
-non-negative on a primal-feasible point. So the waiver can decline to report
-a discrepancy twice; it cannot hide one. `tests/test_check.c` builds the case
-where the sign condition is waived and the answer is refused anyway, with
-`0 − (−500)` checked against `1000 × 0.5`, and the case where a row genuinely
-off its bound is still reported at the full magnitude of its multiplier.
-
-The exemption is for the condition and for nothing else. **Every
-multiplier contributes to the dual objective below, including the ones
-held to no condition** — the only thing a negligible multiplier is spared
-is being required to rest on a bound.
-
-That distinction is not a detail. `D(y)` is defined as the sum over
-variables of the least `w · t` attainable in `[lo, hi]`, which makes it a
-function of `y` alone; dropping terms from it by their magnitude is not
-part of that definition. What gets dropped is `w · bound`, and that is
-small only if the bound is: a multiplier of `1e-7` on a variable resting on
-a bound of `1e6` carries `0.1` of dual objective. Discarding it while the
-primal still counts `c_j v_j` invents a gap proportional to the tolerance —
-which is what used to reject `pilot-ja`, whose duals are exactly correct.
-
-Two other rules close that case and are both wrong, recorded here because
-each looks reasonable. Contributing `w · v` makes the term cancel, so on a
-model whose multipliers all fall under `tol` the gap is identically zero
-for every feasible point and the checker certifies the whole polytope.
-Choosing the bound nearest `v`, which is what HiGHS does for its own
-diagnostic, produces negative terms that offset real residuals elsewhere in
-the model, and computes `(−inf + inf) / 2` on a free variable.
-
-**Gap.** As each multiplier is checked it contributes `w · bound` to the
-dual objective, where `bound` is the one its sign points at. The gap is
-then relative:
+**Gap.** Every multiplier, including those under `tol`, adds `w · bound` to
+the dual objective, where `bound` is the one its sign points at. The gap is
 
 ```
 gap = |primal_objective − dual_objective| / (1 + |primal_objective| + |dual_objective|)
 ```
 
-Both objectives appear in the scale, not just the primal. A relative measure
-that normalises by one side alone reports a larger error the further the two
-are apart, which is backwards — the scale should say how big the numbers being
-compared are, not how badly they disagree. This is the form PDLP uses, which
-HiGHS adopted for its own gap, and the same shape as the DIMACS error measures
-used to validate benchmark results. Changing to it moved no verdict on the
-Netlib set: 0 regressed, 0 improved, measured against the recorded baseline.
-
-`dual_feasible` is the largest dual violation and the gap both being
-within tolerance.
-
-Because every multiplier contributes, `P − D` is exactly
-`sum_v w_v (v_v − bound_v)` — each term the complementary-slackness residue
-of a single variable. On a point that is *exactly* primal feasible every one
-of them is non-negative, and that is what gives an accepted solution a
-guarantee rather than a reassurance: `P − P* <= gap`, by weak duality.
-
-**The halves, and why the gap alone does not carry that guarantee.**
-Non-negativity is a property of feasibility, and the checker accepts points
-that are feasible only within `tol`. An entity sitting `d` outside its bound
-turns its own term negative, so the sum is a difference of two quantities and
-not an accumulation of one:
-
-```
-Q = sum of the terms that are >= 0        N = sum of |the terms that are < 0|
-P − D = Q − N,   gap = |Q − N| / (1 + |P| + |D|)
-```
-
-Both are reported, in the objective's own units, as `gap_positive` and
-`gap_negative`. Neither decides anything.
-
-They are there because `Q` and `N` cancel, and a gap has no way to say
-whether it is small because both halves are small or because two large ones
-met. The bound that survives the distinction is `P − P* <= Q`: it is the
-positive half alone, so a negative half cannot buy it down. `tests/test_check.c`
-builds the case where the gap reads zero on a point carrying 900 of each, and
-`grow22` shows the same shape at the size a real instance produces — a gap of
-`1.99e-13` over halves of `6.41e-05` and `1.24e-07`, which is to say the gap
-understates its own bound by eight orders. `finnis` used to be the example
-here, at `2.21e-10` over `1.05e-04` and `2.89e-05`, and D261 took its halves
-down to `6.44e-11` and `1.63e-11`. The census of both halves over the
-standard set is `bench/measurements/02-170/row-census-candidate.txt`.
-
-What this is *not* is a false acceptance, and D24 says so in the same breath
-as raising it: hiding a negative half costs an equal positive one, and the
-positive half is exactly what bounds the suboptimality. The two halves are an
-instrument for a question the gap could not be asked, not a repair to a hole
-in it.
-
-**The hole is somewhere else, and it is in the identity rather than in the
-halves.** `P − D = sum_v w_v (v − bound_v)` needs every term, and a multiplier
-whose sign points at an *infinite* bound has none to give: the term is minus
-infinity, because the dual objective of a variable free in the improving
-direction is unbounded below. Dropping it leaves a sum belonging to a
-different problem — one where that variable had a finite bound — so `Q` stops
-bounding anything. Two variables and one constraint build a point that is
-arbitrarily suboptimal and on which `Q`, the gap and every violation all read
-zero.
-
-`gap_certified` says whether the sum was complete, and `max_dropped_multiplier`
-how big the largest missing term's multiplier was. **Neither decides
-anything**, and that is not caution: D47 measured the obvious threshold —
-judging the multiplier against the traffic of the dot product that formed it,
-the same move D23 made for rows — and it separates nothing, because what makes
-a dropped term cost anything is the distance the variable would travel, which
-is a property of the polytope and not of the column.
-
-**So the distance is computed instead of thresholded.** `certified_suboptimality`
-is `|w|` times how far that column can move on its own, with every other
-variable pinned where it is. Nothing else moving means no other bound can be
-broken, so the direction is feasible for its whole length and the number is a
-lower bound on `P − P*` rather than an estimate — arrived at with no basis, no
-factorization and no reference value. Where that distance is finite the
-product is self-limiting, which is why this needs no threshold: a multiplier
-that is really roundoff certifies a roundoff-sized suboptimality. Where it is
-infinite the product is infinite for any nonzero multiplier at all, so those
-are counted in `unquantified_rays` instead of being reported as a certificate
-— split on this checker's own `|w| <= tol`, the definition of nonzero it
-already uses everywhere else.
-
-**A column with a curvature of its own needs no bound.** When the objective
-gives column `j` a diagonal entry `q > 0` of `Q` and no entry off the
-diagonal, and the model has no quadratic rows and no cones, the Lagrangian
-is separable in that column. Its term is then `-min(w s + q s²/2)` over the
-steps `s` its box allows, implied bounds included. That is `w²/(2q)` when
-the minimiser lies inside the box, and never more than the linear term
-`w (v − bound)`. So a multiplier that points at an infinite bound is charged
-`w²/(2q)` instead of dropped, and a small multiplier is charged by the
-curvature instead of by the distance to a far bound. `aug2dcqp` read a
-bound of 1.7: 772 multipliers of -1.8e-15 to -4.4e-13 were charged
-against implied bounds of 3.6e10 to 3.6e18. It reads 2.2e-15 with the
-curvature (`bench/measurements/02-293/`). A column with no quadratic
-term, or one that shares an entry of `Q` with another column, keeps the
-linear term.
-
-**The primal residue, relative.** `max_row_violation_relative` reports the
-worst row residue as a fraction of what that row carries — `sum_j |a_ij x_j|`,
-the same quantity the bound-proximity window is built from. It decides
-nothing, and D24 is the argument for why it is not allowed to: primal
-feasibility is the hypothesis the identity above stands on, so relaxing it
-would remove D23's licence rather than extend it. The measurement is kept
-because it is real — `greenbea` clears the absolute 1e-6 bar with 95% of the
-margin to spare, at 4.66e-08 on a row carrying 6.5e+05, and the absolute
-number cannot tell that from the same residue on a row carrying 0.7.
-`finnis` was the example here, clearing the same bar with 16% of the margin;
-D261 took its residue to 1.58e-13 and `greenbea` is the worst on the
-standard set now (`bench/measurements/02-170/`).
-
-The four tests are deliberately not independent. Activities come from a
-scatter over the matrix while the dual objective accumulates from bounds,
-so a corrupted dot product shows up as a nonzero gap even when it also
-corrupts the reduced costs it would have to fool. The system is
-overdetermined; one broken kernel cannot satisfy all of it.
+with both objectives in the scale, as in PDLP and HiGHS. `dual_feasible` is
+the dual violation and the gap both within `tol`. `P − D` equals
+`sum_v w_v (v − bound_v)`, and on a point feasible only within `tol` some
+terms are negative. `gap_positive` and `gap_negative` report the two
+halves. `gap_positive` bounds `P − P*` whatever the negative half is, and
+neither half decides anything. A multiplier pointing at an infinite bound
+leaves the sum incomplete (`gap_certified`), and `certified_suboptimality`
+then charges `|w|` times how far that column can move alone, a lower bound
+on `P − P*`. Where that distance is infinite the column is counted in
+`unquantified_rays`. In a model with no quadratic rows and no cones, a
+column with a diagonal `q > 0` in `Q` and nothing off the diagonal is
+charged `w²/(2q)` when that minimiser lies in its box
+(`bench/measurements/02-293/`).
 
 ## Presolve's tolerances
 
-Defined in `src/presolve.c` and `src/aggregate.c`. Presolve runs on the model as loaded, before
-`sx_init` computes any scaling, so nothing here is comparable with the
-solver's table above — those are magnitudes in scaled space and the scaling
-depends on a matrix presolve has just changed. Nor is the checker's `tol`
-usable here: it is a number the caller supplies to judge a finished answer,
-and it was never measured for deciding whether to fold a bound. Every
-constant below is new and each arrives with its own sweep.
+Defined in `src/presolve.c` and `src/aggregate.c`. Presolve runs on the
+model as loaded, before `sx_init` scales it, so these are magnitudes in the
+caller's units.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number. **Four sites ask it, and a debug assertion reads it too.** The list has been wrong in this table before, so it is spelled out: the solve's entry (`jm_box_inverted`), asking whether a caller's box is inverted beyond rounding; the singleton row's fold, asking whether a column's interval has genuinely emptied; the emptied row, asking whether its bounds still admit zero after every column removed from it shifted them; and the frozen row, asking whether its activity range has left its own bounds. Postsolve's assertion, compiled only without `NDEBUG`, reads it for the window a basic row's activity may sit in. Clause 1 of the activity pass, asking whether a live row can be satisfied at all, does not read it: it keeps a literal 8, like the readings in the paragraph after this table. The window is this many `DBL_EPSILON` times the scale that produced the residue, never this value alone. The scale is the size of the bounds at the solve's entry and the row's traffic at the emptied row and the frozen row. The fold takes the larger of the new bounds and the row's traffic divided by its own coefficient, because it judges `cur_rl[i] / a` and the error came down with it. **Eight ulps is a bound here and not a scale claim, and that rests on `cur_rl`/`cur_ru` being compensated** — a running difference of k terms would need k ulps, which D162 and D163 briefly added and D166 removed once there was no drift left to cover. See "the scale, and the term count" below, which is kept because the question will be asked again. Set from a measurement of the residues themselves rather than from a sweep: instrumenting the three sites that read it on 2026-08-06 over all three sets emitted 32240 probe lines, of which 12 carried a residue above zero (the fold site prints only on a collapse, so its share of that total is collapses rather than reaches), **all twelve on `netlib-infeas`** and none below 3.69e8 ulps. So no feasible model on the 139 puts a residue anywhere in (0, 3.69e8 ulps], the constant may be set anywhere in that interval, and 8 is taken because it is where `ps_row_tol` already is. Swept 1, 2, 4, 8, 16, 64, 256 with `make clean` between settings: solved 94, objective ok 94, checker ok 94 and 7598 rows / 24695 columns removed at every one. The canary flips four times inside the grid and the seven binaries have seven distinct md5s — the second check is the one that matters, because the canary's four conflicts do not separate 2 from 4 or 8 from 16 |
-| `PRESOLVE_IMPLIED_FREE_ULPS` | 8 | Whether the box a row implies on a singleton column lies inside the column's OWN box, so the column's bounds can never bind and it can be substituted out. Subtracted from the column's bounds rather than added to the implied ones, so the family declines at exact equality: being wrong here is silent, and drops a bound that was real. The window is this many `DBL_EPSILON` times `max(1, |b|, traffic) / |a_ij|`, which is the row sum's residue carried through the division that produces the implied end. **It is a switch, not a dial.** Swept 0, 1, 8, 64, 4096 with `make clean` between settings: rows removed set-wide read 9992, 8639, 8639, 8639, 8639, `maros-r7` reads 984, 980, 980, 980, 980, and solved / objective ok / checker ok are 94 at every one. One step, between 0 and 1, and four decades of nothing above it — the family's firing is bimodal, because an implied box is either comfortably inside the column's box or exactly at its bound and almost nothing lands in a 1e-12 relative band. The canary is in the instance rather than in a model built for it: 4 of `maros-r7`'s 984 candidate rows sit at exact equality, so 0 must read 984 and anything above it 980, and it does. That canary separates 0 from the rest and nothing else, so the check that carries the plateau is the second one — five settings, five distinct md5s of `presolve.o`. **Zero is not obviously wrong and is not free**: it removes 1353 more rows and reads a geometric mean of 0.9627x against 8, but `d2q06c` costs 2.2163x there, which crosses `bench/run.c`'s own 2.0x work bar. So 8 ships. Whether the window's absolute floor should exist at all has not been measured |
-| `AGG_ROW_MAX` | 3 | The longest equality the aggregator (`src/aggregate.c`) substitutes a column out of. A longer row spreads its entries into every other row of the column, so the fill grows with it. **Read at 2, 3, 4 and 8** with the pivot and fill settings below (`bench/measurements/02-285/`): netlib's work reads 0.913x to 0.929x at 2, 0.887x at 3, 0.902x at 4 with dfl001 ending `NUMERICAL_ERROR`, and 0.872x at 8 with pilot at 4.1x. That sweep ran only on models where stage one had removed something. After the fix that runs the aggregator on the rest too, 3 reads 0.888x on netlib, 0.771x on the infeasible set and 0.745x on Kennington with no instance past 2x, and the MIP set is byte-identical, because a model with integer columns is not aggregated. 3 is the longest that passes all four gates. **Read again 2026-09-23** (`bench/measurements/02-301/`), after a failed aggregated solve started retrying without the aggregator: against 3, rows of 4 read 1.030x in work over netlib, the infeasible set and Kennington, 5 read 1.013x and 8 read 1.025x, each with an instance past 2x (`d2q06c` 3.21x, `cycle` 3.80x), so 3 stays |
-| `AGG_PIVOT_REL` | 0.5 | How large the substituted column's coefficient must be against the largest in its row, so the multipliers the substitution writes into other rows stay at most 2. Read at 0.01, 0.1 and 0.5 (02-285): at rows of 4, 0.1 leaves pilot4 at 4.8x and dfl001 failing; at rows of 2, 0.5 leaves pilot at 3.3x while 0.1 passes; at rows of 3, 0.5 passes all four gates. The pilot family moves chaotically with the setting, so this is the one setting read that passes, not the top of a curve |
-| `AGG_FILL_MAX` | 8 | The largest Markowitz count, (column entries - 1) times (row entries - 1), a substitution may have; among the candidates of a row the smallest count wins, the first in the row on a tie. At rows of 2, 32 read 0.913x on netlib against 0.917x at 8, with tuff's suboptimality bound 6.9x the baseline's (02-285). **Read at rows of 3 on 2026-09-23** (`bench/measurements/02-301/`): 16 reads 1.007x and 32 reads 1.021x in work over netlib, the infeasible set and Kennington, with `cycle` at 2.51x and `pilotnov` at 4.22x; rows of 4 with 16 read 0.998x but `pilot` 7.56x. 8 stays |
-| `AGG_PASSES` | 8 | Cap on the aggregator's passes over the equality rows. A pass that substitutes nothing ends the loop first, so this is a safety stop. Not swept |
-| `AGG_IMPLIED_FREE_ULPS` | 0 | The aggregator's window in the implied free test: the box the row implies on the column, from the other columns' bounds summed in compensated arithmetic, must lie inside the column's own box, shrunk by this many `DBL_EPSILON` times `max(1, |b|, traffic) / |a_ij|`. At 0 an implied bound equal to the column's own counts. At stage one's 8 (`PRESOLVE_IMPLIED_FREE_ULPS`) the aggregator substitutes nothing on stocfor3 or cycle (02-285, the first reading): their flow rows imply the column's bound exactly, as a sum of columns at 0. A bound implied exactly is redundant, and the published point can cross it by the rounding of one row |
-| `AGG_CANCEL_ULPS` | 8 | When a substitution adds two coefficients whose sum is within this many `DBL_EPSILON` of the larger term, the entry is dropped as a zero rather than kept as rounding. Not swept |
-| `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's fixed-point rounds — a safety stop and not a quality knob, since the loop exits as soon as a round changes nothing, and it lands on top of the structural backstop `num_row + num_col + 1` rather than above it. Set where the propagation reaches its fixed point: swept over the standard set, rows removed go 6060, 7178, 7549, 7596, 7598, 7598, 7598, 7598 at 1, 2, 4, 8, 16, 32, 64, 128 rounds, and columns removed 22671, 24300, 24629, 24693, 24695, 24695, 24695, 24695. The canary is a chain of 200 singleton rows built to resolve one link per round, and it reads 1, 2, 4, 8, 16, 32, 64, 128. The cost is flat across the whole sweep — 97.2 s to 103.6 s at `J=12` against a set that takes about 99 s — so there is nothing to trade against |
+| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, as this many `DBL_EPSILON` times the scale that produced it. Four sites read it: the solve's entry (`jm_box_inverted`), the singleton row's fold, the emptied row and the frozen row, plus a postsolve debug assertion. No feasible gate model leaves a residue between 0 and 3.69e8 ulps, so 1 to 256 give the same results; 8 matches `ps_row_tol` (`bench/measurements/02-09/`) |
+| `PRESOLVE_IMPLIED_FREE_ULPS` | 8 | The window, in `DBL_EPSILON` times `max(1, \|b\|, traffic) / \|a_ij\|`, by which a singleton column's implied box must sit inside its own box to be substituted out. It declines at exact equality, since a wrong yes drops a real bound. Only 0 reads differently, and it costs `d2q06c` 2.2x (`bench/measurements/02-12/`) |
+| `AGG_ROW_MAX` | 3 | The longest equality the aggregator substitutes a column out of; longer rows spread fill. 3 is the longest that passes all four gates; 4, 5 and 8 each put an instance past 2x. Models with integer columns are not aggregated (`bench/measurements/02-285/`, `bench/measurements/02-301/`) |
+| `AGG_PIVOT_REL` | 0.5 | How large the substituted coefficient must be against its row's largest, so the multipliers stay at most 2. With rows of 3 only 0.5 passes all four gates; the pilot family moves erratically with it (`bench/measurements/02-285/`) |
+| `AGG_FILL_MAX` | 8 | The largest Markowitz count a substitution may have; the smallest wins. 16 and 32 cost more and put instances past 2x (`bench/measurements/02-285/`, `bench/measurements/02-301/`) |
+| `AGG_PASSES` | 8 | Cap on the aggregator's passes, a safety stop. Not swept |
+| `AGG_IMPLIED_FREE_ULPS` | 0 | The aggregator's implied-free window. At 8 it substitutes nothing on stocfor3 or cycle, whose flow rows imply the bound exactly; an exactly implied bound is redundant (`bench/measurements/02-285/`) |
+| `AGG_CANCEL_ULPS` | 8 | A substituted sum within this many `DBL_EPSILON` of its larger term is dropped as zero. Not swept |
+| `JM_PRESOLVE_ROUNDS` | 16 | Cap on presolve's rounds, a safety stop. On the standard set the removals stop changing at 16 and the cost is flat |
 
-## The scale, and the term count
+Every presolve window scales by the row's traffic, never by one bound's size
+(`bench/measurements/02-72/`). `cur_rl` and `cur_ru`, a row's bounds as
+columns leave it, use a Neumaier accumulator, so they carry no drift and
+eight ulps needs no term for the count of columns removed
+(`bench/measurements/02-76/`). Widening a window to cover a value already
+wrong was refused: it published a point 7.5 times `CHECK_TOL` outside two
+rows (`bench/measurements/02-73/`). The simplex's `compute_primal` and the
+published objective are compensated sums for the same reason
+(`bench/measurements/02-78/`, `bench/measurements/02-79/`).
 
-**All three sites scale by the row's traffic, and that took three decisions to
-arrive at.** The pass that tests a frozen row for feasibility after the round
-loop used to scale by `ps_bound_scale(cur_rl[i], cur_ru[i])`, and the paragraph
-here used to call that forced. It was not:
-
-- `row_traffic[i]` no longer saturates to `+inf` when a column with a
-  half-infinite box is relaxed out of a row. It accumulates only what a finite
-  end absorbed, so the reason the bound scale stood in expired.
-- The traffic is what the window has to cover, and the bound's magnitude is
-  not.
-- The bound's magnitude is worse than merely irrelevant. It is the magnitude
-  of ONE END, and the test compares a computed activity against the OTHER
- : `-1e12 <= x0 + x1 <= 0` with both columns cost-0 in `[1e-4, 1]`
-  is infeasible by 2e-4, and the lower bound alone bought a window of 1.78e-3
-  on the upper side. It published `optimal`. The same model with
-  `rl = -INFINITY` was refused correctly all along, which is the control.
-
-`ps_row_tol` still cannot be used at that site: it scales by the LIVE traffic,
-and a frozen row's live traffic is routinely zero, which collapses the window
-to 1.776e-15 absolute whatever the row's scale.
-
-**And the constant alone is not the whole window, because `cur_rl`/`cur_ru` are
-a running difference.** Every removed column subtracts its own
-`a * v` from both, with no compensation, so each subtraction rounds by up to
-half an ulp of the partial it produces and the error after k of them goes with
-k. Eight ulps covers a k of about three; **the largest k on the three sets is
-325**, at the frozen-row test on Kennington, and this table owns that number —
-the source comments point here rather than repeating it. So every window that
-judges one of those numbers carries a second term:
-
-> `k * DBL_EPSILON * (|the end being tested| + row_traffic[i])`
-
-Three things about it, each of which was got wrong first and measured or tested
-into shape (`bench/measurements/02-72/`):
-
-- **The scale is not the traffic alone.** A partial is bounded by
-  `|row_lower[i]| + traffic`, and near the firing boundary `cur_rl[i]` is near
-  the ACTIVITY rather than near zero, so the traffic does not dominate. A row
-  of activity 1e9 with 300 removals totalling 0.9 of traffic carries about
-  1.8e-5 of error against a traffic-only window of 6.8e-14.
-- **It is ONE end and not `ps_bound_scale`.** Scaling by the larger of the two
-  brings D161's defect back through the count — two cost-0 singleton
-  relaxations are two shifts, and `2 * eps * 1e12` is 4.4e-4 against an
-  infeasibility of 2e-4. D161's own test caught it.
-- **It is zero at k = 0**, which is what keeps D161 for a row nothing was ever
-  removed from.
-
-It is ADDED to the eight ulps, never substituted for them, so no window can
-come out narrower than it was — narrowing one of these is what produces a false
-INFEASIBLE. Measured over the three sets before landing: **0 verdicts flip** on
-any of the 139, the twelve genuine infeasibility firings in `netlib-infeas`
-survive it, and **the widest ABSOLUTE window is 6.587e-08**, at Kennington's
-frozen-row test, against 6.494e-08 without the count. This table owns that
-figure too.
-
-**The base moved as well as the k-term, and the entry did not say so at
-first.** The two halves are added where the wider scale used to be taken, so a
-row with both traffics large pays eight ulps twice instead of once, whatever k
-is. At k = 0 that is 8 ulps of 1, which is 1.78e-15, because a traffic above
-zero implies a shift count above zero at every producer.
-
-**The fourth site landed one entry later**, and the three that came
-first were described here as "every site that judges a running difference"
-while the fold did not carry the count. That sentence was false for one commit.
-The fold now takes it, scaled by `row_traffic[i] / |a|` and by the end
-`tightens_lo`/`tightens_hi` says the running difference supplied.
-
-**The reopen condition is the absolute window and not a ratio.** A set carrying
-a larger `rg.traffic` than Kennington's 3.66e7, or a row with a shift count far
-above 325, is where these windows stop being comfortably under `PRIMAL_TOL`.
-
-**And the count does not cover an error that arrives inside a VALUE.** When the
-fold fixes a column at `cur_rl[i] / a`, that number carries row i's accumulated
-error, and the row receiving the fixed column is charged one shift at its own
-traffic. `bench/measurements/02-73/` has the model where that publishes
-INFEASIBLE on a feasible model. **Carrying the error into the window was built
-and refused**: it stops the refusal and then publishes a point violating
-two rows by 7.5 times `CHECK_TOL` (1e-6, the tolerance `bench/run.c` hands the checker), because a window decides whether to refuse
-and cannot correct a value that is already wrong.
-
-**The error itself was removed instead, and the counts were then taken
-back out.** `cur_rl`/`cur_ru` keep their residue through a Neumaier
-accumulator, so the running difference no longer drifts and the fold fixes
-columns at the value the model actually has. With no drift there were no terms
-left to count, and `row_shifts`, `ps_shift_excess` and `ps_end_scale` are gone.
-
-**So the term described above does not ship.** It is written down because the
-question it answers is real and will be asked again: eight ulps is not a bound
-on a running sum of k terms. The answer this project reached is that the sum
-should not lose the terms, not that the window should be widened until it
-covers the loss. Removing the counts also narrows four windows, and at the
-emptied-row test that is the direction worth having — that test is the last
-word on an emptied row and too wide there accepts an infeasible model silently.
-
-The evidence that compensation covers what the counts covered is that all five
-tests the counts were built for pass without them
-(`bench/measurements/02-76/`), and those tests are the models: each was
-validated against a tree that fails it.
-
-**The same argument reaches the simplex.** `compute_primal` builds
-`-N x_N` by walking the nonbasic columns in column order, so a row that meets a
-large term before many small ones was dropping the small ones — the identical
-shape one layer out, and it made the `-DJAOS_NO_PRESOLVE` build refuse a model
-whose feasible point is exactly representable. That sum is compensated now,
-with the same Neumaier accumulator and for the same reason `long double` is not
-used. No constant moved: there is no window here to widen, only a sum to
-take correctly. `bench/measurements/02-78/` carries the reading.
-
-**And the published objective, which is the same sum one step further on
-.** It is `obj_offset` plus `c_j x_j` over the published values, taken
-on the model that publishes them. 81 of netlib's 94 agree bit for bit with
-`jaos_check_solution` now, against 34. **What a compensated sum cannot reach
-is the rounding of each product**: on `finnis` the accumulation is exact to
-6.3e-09 while 2.65e-05 remains, all of it from rounding `c_j * x_j` to a
-double, where one term of 6.5e11 rounds by up to 7.2e-05 on its own.
-`bench/measurements/02-79/split-the-error.txt` separates the two, and any
-claim that compensating a sum made it accurate should separate them the same
-way first. **The `finnis` figures in this paragraph are D169's and the term
-of 6.5e11 was a column published on a bound the solve had lent it; D261
-retired it and `sum |c_j x_j|` there is 3.14e+05**. The argument is unchanged: a compensated sum
-cannot reach a rounded product, and that is why the two-product exists.
-
-## The proxy the constant used to rest on
-
-Kept because it is what "measured from one side only" looks like, and because
-the number it produced is still true.
-
-> accumulated shift / `ps_bound_scale(cur_rl, cur_ru)` ≤
-> `PRESOLVE_ROUND_ULPS` = 8
-
-Measured over the 8293 frozen rows the standard set produces: worst ratio
-**2.718e-4** (`finnis` row 99), or 4.834e-4 counting one rounding per stored
-entry rather than the eight the proxy assumes.
-
-The scale mostly recovers itself, which is why the margin is so wide: in an
-emptied frozen row one bound falls to zero and the other retains the magnitude
-that was subtracted, so `ps_bound_scale` returns the shift. `greenbea` row 57
-carries 660 of shift and reads `cur_rl = -660, cur_ru = 0`. The 60 rows of
-8293 where that does not happen are the ones with an infinite bound, where the
-scale falls to its floor of 1; their largest shift is 153.
-
-**It bounds the window from one side only.** It says the window is not too
-tight. Nothing in it says the window is not too wide, and at 1e-9 it was: on a
-row of magnitude 1e9 the window is 1.0, and
-
-```
-min x0  s.t.  x0 + x1 == 1e9 + 1,  x0 in [0.5, 0.5],  x1 in [0, 1e9]
-```
-
-is infeasible by 0.5 and walked straight through it, reaching
-`jm_postsolve_solved` and publishing OPTIMAL with `x1` half a unit above its
-own declared upper bound. The model's ratio is about 1.0, far inside the
-5.6295e5 the proxy allowed, so no amount of tightening the proxy would have
-found it.
-
-The residue measurement replaced the proxy on both sides. Of the 19082 frozen
-rows across all three sets, exactly 4 carry a residue above zero and all four
-are on `netlib-infeas` at 1.5e15 ulps or more, so a window of 8 refuses
-everything that should be refused and nothing else. `galenet` and `pilot4i`
-are still caught, now with margins larger than D102 recorded rather
-than smaller.
-
-**One number in `src/presolve.c` is deliberately not in this table.** The
-three readings of a row's activity range — the model is infeasible, the row
-is forced to an extreme, the row can never bind — each ask whether a computed
-sum equals a bound. That is not a judgement and has nothing to tune: the only
-thing that can separate two numbers that should be equal is the rounding in
-the sum, so the window is a small multiple of `DBL_EPSILON` times the traffic
-through it. Making it a tunable instead cost 02-04 a campaign, and the raw
-readings are in `bench/measurements/02-04/`.
-
-`ps_row_tol` therefore keeps its own literal 8 and does NOT read
-`PRESOLVE_ROUND_ULPS`, though the two agree today. 02-09 routed it through the
-shared function for a few hours and put those three readings on the
-`EXTRA_CFLAGS` hook, which review caught: `make netlib
-EXTRA_CFLAGS=-DJAOS_PRESOLVE_ROUND_ULPS_VALUE=64` reproduced 02-04's failure,
-`pilot` INFEASIBLE with column 3554 pinned. Two constants that happen to be
-equal are not one constant. If they ever have to move together, that is a
-decision with a measurement behind it and not a shared symbol.
-
-**Bound tightening is not here because it does not ship.** 02-04 built the
-family, measured six variants of it against the standard set and refused all
-six: every one returned INFEASIBLE on models that have an optimum. The
-evidence is in the same directory and the reasoning is in `src/presolve.c`
-beside the reading that would have been the fourth.
+`ps_row_tol` judges whether a row's activity range makes it infeasible,
+forced or redundant. It keeps its own literal 8: routed through
+`PRESOLVE_ROUND_ULPS` at 64 it made `pilot` INFEASIBLE
+(`bench/measurements/02-04/`, `bench/measurements/02-09/`). Presolve has no
+bound tightening; all six variants built returned INFEASIBLE on feasible
+models (`bench/measurements/02-04/`).
 
 ## The writers' numbers
 
-None of these is a tolerance and none decides an answer. They are here
-because every constant in the source has a home in this file, and because
-the first one looks like a style choice and is not.
+None of these decides an answer.
 
 | Name | Value | What it decides |
 |---|---|---|
-| the digit count | 15, then 16, then 17 | How many significant digits `wr_num` prints. **It is the round trip, not the layout.** `%.17g` of a finite double always reads back as that double, which is the IEEE-754 guarantee, so seventeen is exact by construction; the writer tries fifteen and sixteen first and keeps one only when `strtod` returns the same value, so the short forms are exact by check. The fallback is the one path nothing checks at run time, and `src/write.c` asserts it. Measured over 5,110,541 values — 4,000,000 random bit patterns, one-ulp walks from 1.0, small rationals and decimal fractions — of which 2,222,696 reached the fallback: **0 did not read back**. The same reading says what the loop buys: fifteen digits survives 6% of random bit patterns and 86% of decimal fractions, which is what an MPS file usually carries |
-| `NAME_LEN` | 256 | `JAOS_NAME_MAX + 1`. The buffer for every name the writer copies, a model's own names and the generated ones. A name the model holds fits by construction, since a name is at most 255 bytes. `lp_substitute` refuses a name that does not fit, and a substitute whose underscores would pass 255 bytes (`src/write.c`). Not swept |
-| `NUM_LEN` | 32 | Buffer for a written number. Seventeen significant digits, a sign, a decimal point and a four-character exponent, rounded up. Not a limit the writer can reach |
-| `LP_WRAP` | 72 | Column at which `jaos_write_lp` breaks an expression across lines. The reader does not care and a person reading the file does. Nothing measures it |
+| the digit count | 15, then 16, then 17 | Significant digits `wr_num` prints: 15 or 16 when `strtod` reads them back exactly, else 17, which always does. `src/write.c` asserts it |
+| `NAME_LEN` | 256 | `JAOS_NAME_MAX + 1`, the writer's name buffer; `lp_substitute` refuses a name that does not fit. Not swept |
+| `NUM_LEN` | 32 | Buffer for a written number of seventeen digits, sign, point and exponent |
+| `LP_WRAP` | 72 | Column at which `jaos_write_lp` breaks an expression, for a person reading the file |
 
 ## Acceptance, for the Netlib gate
 
-Separate from all of the above, and not a solver tolerance: an instance is
-accepted when `|obj − ref| <= 1e-6 · max(1, |ref|)` against Koch's
-reference values [22], with the checker green in original space. That
-criterion is relative, and a test that pins a large objective absolutely is
-stricter than the project's own gate — which makes it a test about
-floating-point luck rather than about the solver.
+An instance is accepted when `|obj − ref| <= 1e-6 · max(1, |ref|)` against
+Koch's reference values [22], with the checker green in the model's units.
+A test that pins a large objective absolutely is stricter than the gate.
 
-## How the gate settled the eight failures
+## The exact arithmetic and the verifier
 
-Instances have now argued with them. The Netlib gate has been run over the
-whole standard set (`bench/results/netlib.txt`), and **all 94 instances come
-back with the checker green** at the tolerance above. All eight of the
-original failures closed, and **not one of them closed by moving a number**:
-
-| instance | what it actually was | |
-|---|---|---|
-| `pilot-ja` | a contribution the checker was dropping | D21 |
-| `finnis` | a bound-proximity test judged absolutely on a row that cancels ten orders of magnitude | D23 |
-| `nesm` | a settled basis the dual simplex had never been handed back | D25 |
-| `grow15` | a cycle that had been read as a stall | D26 |
-| `etamacro` | a repair test reading the wrong quantity, in the wrong space | D27 |
-| `greenbea` | a column with nowhere to rest, needing a basis change rather than a move | D28 |
-| `pilot` | an answer read off an inaccurate solve of a fresh factorization | D29 |
-| `pilot87` | a clean-up loop dispatching one column of twelve | D30 |
-
-That is the case for leaving these numbers where they are, made by instances
-rather than by argument: every failure anyone was tempted to blame on a
-tolerance turned out to be something else. `etamacro` is the sharpest,
-because it genuinely was a question about a tolerance's *space* — its breach
-is `4.89e-8` scaled and `1.56e-6` published. The answer was not to change
-the tolerance or to pick a space, but to test a quantity that has neither:
-the term the breach contributes to the duality gap, which comes out the same
-number either way.
-
-**Nothing is left of that list**, and the last two are worth a paragraph each
-because both were, at the time, the strongest case anyone had for moving a
-number.
-
-**`pilot` was the one case where a tolerance was genuinely the question, and
-it was the primal one.** Everything else about that answer was right: the
-objective inside `2.3e-5` of Koch against a bar of `5.6e-4`, the dual
-violation exactly zero, the gap `6.6e-14`. What refused it was
-`interval_violation`, an absolute test, on a row `1.73e-6` — 1.73 tolerances
-— outside its bound. D24 refused to make that test relative for four reasons;
-D28 recorded that one of them had expired, and what replaced it was stronger:
-the relative figure said `pilot`'s row was `6.93e-9` of what the row carries
-against `8.21e-17` for `finnis`, so a relative window would have waved through
-a violation that was real. **The row was real, and it was the answer that was
-wrong.** D29 refined both solves of the refresh that verifies an optimum, and
-the residue went from `1.73e-6` to `6.73e-13` — four hundred thousand times
-narrower than the window anyone was proposing to widen, on a solve that came
-out *cheaper*. It reads `9.09e-13` today.
-
-That is the whole argument of this section arriving at its own last case:
-the instance that most looked like a tolerance was not one either.
-
-`pilot87` was not a tolerance question at all, and it turned out not to be a
-precision one either: an objective 7.6x outside the bar was a wrong answer,
-and loosening a number to admit it would have converted a defect into a pass
-and proved nothing. The defect was a clean-up loop dispatching one
-column of twelve, and the objective now lands 1.33e-7 relative from
-Koch's exact value.
-
-That is the argument for the freeze rather than a footnote to it. Eight
-instances were refused across the campaign, every one was tempting to blame
-on a number, and every one was something else. A tolerance that survived
-eight opportunities to be the culprit and never was is a number with evidence
-behind it — which is what these now are, and why moving one from here
-on takes a measurement on both sides, written beside it here.
-
-## The exact arithmetic's one number
-
-The exact arithmetic of `src/exact.c` has a single constant, defined in
-`src/jaos_internal.h`, and it is not a tolerance. It is a
-capacity, and the difference matters: no setting of it can change an answer,
-because it decides only how large a magnitude fits before an operation
-returns false. Every other number in this file decides what counts as zero.
-
-| constant | value | |
-|---|---|---|
-| `JM_EXACT_LIMBS` | 128 | Limbs of 32 bits in one magnitude, so 4096 bits, and a `jm_rational` is 1048 bytes. The floor is what one double costs: a finite double is `m * 2^e` with `e` no smaller than -1074, so its denominator needs up to 1075 bits and its numerator up to 1024, and 34 limbs holds either. The rest is headroom for the sums and products that read them. **Swept at D275 over the standard 94, `make clean` between settings and the reported capacity as the canary** (`bench/measurements/02-180/`):<br><br>`128` → 28 proved, 60 refused, 6 broken, 79 s<br>`256` → 40 proved, 48 refused, 6 broken, 68 s<br>`512` → 51 proved, 34 refused, 9 broken, 142 s<br>`1024` → 57 proved, 24 refused, 13 broken, **2500 s**<br><br>**The value stays at 128 for the seconds and not for the answers.** The reach it buys is real -- four doublings take the proved count from 28 to 57 and leave 70 of 94 with a verdict rather than a shrug -- and the last doubling costs 18x the one before it, because a multiply is quadratic in limbs. A caller who wants the reach can have it with `-DJM_EXACT_LIMBS=N`, which is what the constant is for.<br><br>**Widening it is bought with block size.** A `jm_bigint` is `4 * limbs + 16` bytes on a 64-bit machine (the limbs, the count, the sign and padding: 528 at 128 limbs), and a block of `k` rows holds `k*(k+1)` of them, so `VERIFY_BLOCK_BYTES` admits a block of 1007 rows at 128 limbs and 360 at 1024. `degen3` shows the trade: BROKEN at 128 on a table of about 272 MiB, refused at 256 where the same table is about 537 MiB (`bench/measurements/02-180/`). Two constants, one of them shrinking what the other buys. Not reachable by widening at all: `pilot87` wants 2556 limbs and a 21 GiB block.<br><br>**The width test is gone since 2026-10-08** (`bench/measurements/02-358/`): `bound_bits`, a Hadamard-style worst case, refused a basis before any arithmetic, and the real numbers are usually far smaller. With the arithmetic run and each operation checked, the standard 94 at 128 limbs read 50 proved, 33 refused, 11 broken, 112 s, where the width test gave 28, 60, 6. The same at 512 limbs is in that directory |
-
-## The verifier's capacity, and the one that was removed
-
-`src/verify.c` has two constants. `VERIFY_PROD_BITS` is under "The other
-constants". `VERIFY_BLOCK_BYTES`, like `JM_EXACT_LIMBS`, is a capacity
-rather than a tolerance: no setting of it can change an answer, only
-whether the call gives one.
-
-| constant | value | |
-|---|---|---|
-| `VERIFY_BLOCK_BYTES` | 536870912 | 512 MiB. What one call may hold for a single block's dense elimination. **Arithmetic, not a fitted value**: a block of `k` rows holds `k*(k+1)` numbers, and the test sizes each at `sizeof(jm_bigint)`, 528 bytes at 128 limbs, whatever limbs the number uses. So this ceiling is a block of 1007 rows. It exists so an oversized block is refused before the allocation rather than by it. D272 measured the largest block of every gate basis: the biggest that also passes the width test is `pds-20`'s 1542 rows, which is 1198 MiB at 528 bytes an entry, above this ceiling. The width test ran first until 2026-10-08, when it was removed; whether `pds-20` is refused by this ceiling or by running out of limbs has not been read since. Bounded above by nothing except the machine |
-| `EXACT_PIVOT_CAP` | 1000 | the most exact pivots, bound flips and cost shifts `jaos_set_exact` takes to repair one basis before it ends `numerical_error`. Each step solves the basis twice or three times in exact arithmetic, so the cap bounds the time a hopeless repair can take. On the standard 94 the most any repair took was 82 pivots, 1 flip and 1 shift (`ganges`, `bench/measurements/02-358/`). Not swept |
-
-**A second constant was removed rather than left unmeasured.** An earlier
-draft of `jaos_verify` kept `VERIFY_BOUND_MARGIN`, 64 bits of slack below the
-capacity, to cover the rounding in a bound computed with `log2`. The bound is
-integer arithmetic now and has no rounding to cover, so the margin had no
-quantity to guard and no measurement on either side. The test is
-`bound_bits > capacity_bits` and nothing else. **That test is not a
-guarantee and the header says so**: it bounds the matrix minors, while the
-right-hand side column an elimination carries also holds model bound values
-and the accumulated denominator, and neither is in it. A basis that passes it
-can still run out of limbs during the work, which is a refusal too, with
-`terms` saying how far it got. No margin closes that gap; only bounding the
-right-hand side would, and nobody has.
-
-Two things in `tests/test_exact.c` pin the capacity rather than describe it.
-The largest magnitude the array holds is built, and shifting it one bit,
-adding it to itself and doubling it all return false. Beside that runs the
-control, one bit lower, where all three succeed. That pair is what makes the
-limit a measurement instead of a comment, and it caught the first version of
-`jm_nat_shl`, which charged a spare limb for any shift that was not a whole
-number of limbs and so refused a value that fits.
-## Branch and bound's eighty numbers and thirteen switches
-
-The table below holds 78 numbers of `src/mip.c`, 2 of `src/symmetry.c`
-(`SYM_MAX_DEPTH` and `SYM_LEAF_CAP`) and six of the switches.
-`MIP_LOG_EVERY` and `MIP_STEER_ROUNDS` are under "The other constants", and
-the other seven switches are in the prose below. The numbers of
-`src/mip.c`, in the table's order: the first two are D288's, the four under them the root
-cuts', then the cut depth's, the node cut cap's, the cover rounds', the
-two stalls', the MIR cuts' three, the aggregation's two, the dive
-heuristic's two, RINS's, local branching's two, the node order's two, the
-restart's share, the round's cap and the feasibility pump's two, the
-dive's backtrack budget and its resume gap, the branching rule's, the two
-after it strong branching's, then the probe cap's and the probe depth's.
-The last twenty date from 2026-10-04 (TODO row J7,
-`bench/measurements/02-328/`): the implied bounds' two, the network cut
-rounds' seven, the sub-MIP's six and the objective step's five.
-The MIP set is
-where a sweep of any of them runs, and since 2026-09-21 the 2017 set too.
-The rounds, the cut depth, the node cut cap, the cover rounds, the two
-stalls, the MIR rounds, the aggregation steps, the dive heuristic's solves
-and its depth, RINS's budget, local branching's size, the node order and
-its bound pick, the restart's share, the pump's rounds, the backtrack
-budget, the resume gap, the dive's degradation bound, the reliability, the
-cap and the probe depth have theirs. Each of the others says beside it what
-it waits for. Seven more switches sit beside the numbers as `constexpr
-bool`, read on the same set: `MIP_ROOT_CUT_DROP`, on since D306 (0.799x the
-work over the 24 with it, none past 2x, `bench/measurements/02-202/`);
-`MIP_COVER_LIFT`, off, and read again on the 2017 set on 2026-09-22 at
-1.001x against the 0.95x pay rule (`cuts-2017-reading`,
-`bench/measurements/02-298/`); `MIP_NODE_MIR`, off; `MIP_PUMP_GENERAL`,
-off; `MIP_PUMP_ALWAYS`, off, whether the pump runs at the root where
-something already holds an incumbent, D318's guard re-asked for the
-objective pump; `MIP_RCFIX`, on since 2026-10-04 (off before), whether
-the root pulls in an integer column's far bound to the furthest integer its
-reduced cost still allows once an incumbent exists: on the tree of 3dfc0f6
-it reads MIPLIB 3 0.944x in the geometric mean of work (`mod008` 0.586x,
-`p0282` 0.596x, `gt2` 1.189x the worst) and the 2017 gap sum 0.999x, where
-on the tree of 02-325 it read 1.010x and 1.000x
-(`bench/measurements/02-335/`); and `MIP_RESTART`, off, whether the tree starts again from the root
-once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns
-(`bench/refusals.txt`, mip-restart); since 2026-10-05 it is on in network
-mode whatever this says, carrying the first root's cuts
-(`bench/measurements/02-345/`).
-
-| constant | value | what it decides |
-|---|---|---|
-| `MIP_INT_TOL` | 1e-6 | how far a relaxation's value may sit from the nearest integer and count as integral, in the model's own units. A value inside it is published rounded, on the incumbent's own publication since 2026-09-14 and before that only on the republished point, so a caller who read the incumbent straight from a solve saw the relaxation's last bits. Below the primal tolerance it would call integral what the relaxation cannot place; far above it a fractional point would be published as an answer. Not swept: every line of `bench/results/miplib.txt` reads `int=0`, so no instance of the set sits near it and a sweep would move nothing |
-| `MIP_CLIQUE_ROUNDS` | 4 | Rounds of clique cuts at the root. Measured on the MIP set against none: 0.9697x the work over the 24, `gen` 0.6224x and `p0282` 0.6881x, 22 instances within 0.1% and `mod010` 1.0963x at the root, none past 2x. Not swept beyond on and off |
-| `MIP_ZERO_HALF_ROUNDS` | 0 | rounds of zero-half cuts at the root beside the other families: each row with integer coefficients on integer columns and an integer side, alone, in pairs and in triples, is halved with the bound rows that make every coefficient even, and rounded down where the right-hand side is odd and the slacks at the point sum below 1 (Caprara and Fischetti's {0, 1/2}-cuts, in the pairs-and-bounds heuristic). `jaos_set_mip_zero_half_rounds` and `--zero-half-rounds` override it. **Swept at 1, 2 and 4** over the MIP set (02-31): 1.210x, 1.182x, 1.219x, 1 to 4 better, 10 to 12 worse, 2 or 3 past 2x. The cuts are real and the trees they leave are longer: gt2 445 to 1175 nodes at 2.91x, enigma 2814 to 6749 at 2.50x, misc07 35287 to 66603 at 2.02x, against stein45 0.890x; and where none is found the scan is the cost (mod010 1.98x, 0 cuts). Read again on the 2017 set on 2026-09-22: 1.000x of the default's gap sum against the 0.95x pay rule (`cuts-2017-reading`, `bench/measurements/02-298/`). Off |
-| `MIP_ZERO_HALF_ROW_CAP` | 100 | the tightest candidate rows a zero-half round pairs; pairs are cut off by their slack sum so the cap rarely binds. Not swept |
-| `MIP_ZERO_HALF_TRIPLE_CAP` | 40 | the tightest candidate rows a round takes in triples. Not swept |
-| `MIP_ZERO_HALF_CUT_CAP` | 50 | the cuts one zero-half round keeps, in enumeration order. Not swept |
-| `MIP_FLOW_COVER_ROUNDS` | 5 | rounds of flow cover cuts at the root beside the other families: the two-entry rows `x - u y <= 0` with `y` binary give the variable upper bounds, a row whose columns all have lower bound 0 and whose inflow columns have finite capacities is a single-node flow set, the cover is the greedy prefix by `u (1 - y*) - x*` that exceeds the right-hand side, and the cut is Padberg, Van Roy and Wolsey's with `lambda y` on the outflow columns of capacity above `lambda`. `jaos_set_mip_flow_cover_rounds` and `--flow-cover-rounds` override it. **Swept at 1, 2 and 4** over the MIP set (02-31): 1.012x, 1.017x, 1.017x, none past 2x. Only blend2 and dcmulti carry the structure: blend2 0.986x on 4 cuts, dcmulti 1.493x on 12 with its tree 415 to 687 nodes; the other 22 pay the scan. Read again on the 2017 set on 2026-09-22: 0.989x of the default's gap sum against the 0.95x pay rule (`cuts-2017-reading`, `bench/measurements/02-298/`). **On at 5 since 2026-09-24**: on the tree of 20f2edb, where a node keeps its parent's basis through presolve (d6245e0), 5 rounds read 1.000x in work on MIPLIB 3 (dcmulti 0.858x with its tree 481 to 416 nodes, blend2 1.134x, the rest within 1.6%) and 0.989x on the 2017 set's gap sum, the dual side 0.340 to 0.329, and the root bound of sp150x300d goes from 27.3 to 51.0 and of p200x1188c from 5701 to 9865 (`bench/measurements/02-317/`). Other counts were not swept |
-| `MIP_FLOW_COVER_CUT_CAP` | 50 | the cuts one flow cover round keeps, in row order. Not swept |
-| `MIP_HULL_ROUNDS` | 20 | rounds of hull cuts at the root beside the other families. A row of at most `MIP_HULL_COLS` integer columns whose box holds at most `MIP_HULL_POINTS` integer points, and whose relaxation point has a fractional column, has its integer points listed; an LP over the row's columns finds the inequality, each coefficient in [-1, 1], that holds at every point and that the point violates most, and its right-hand side is then recomputed exactly over the listed points. A row whose coefficients share one magnitude and whose sides are multiples of it is skipped: a single row of that kind is totally unimodular and is its own hull. `jaos_set_mip_hull_rounds` and `--hull-rounds` override it. Read on 2026-10-07 (`bench/measurements/02-356/`): on `neos-3381206-awhea`, a bin packing with 475 rows `45a + 36b + 31c + 14d <= 100y`, the root's bound sat at the LP's 415.24 through every round; SCIP's root with c-MIR and flow covers reaches 451.96, and the per-bin facet `a + b + 0.5c <= 2y` alone takes the LP to 452.25. With hull cuts and `MIP_HULL_KEEP` the root reaches 452.25 at round 13, the bound rounds up to 453 and the model solves at the root for 2.05e9 work units (1e10 with no point before). MIPLIB 3 reads 0.984x in the geometric mean (`p0033` 0.722x, 101 nodes to 13); the 2017 set solves 5 of 30, and its gap sum reads 14.19 against 13.94, all of it `graphdraw-domain`, whose root is the same to the bit (no hull cut) while the row scan adds 0.15% to its root's work; its heuristics, whose budgets follow that work, end at 28362 instead of 21399. Not swept |
-| `MIP_HULL_COLS` | 8 | the most columns a row may have for hull cuts. Not swept |
-| `MIP_HULL_POINTS` | 1024 | the most integer points a row's box may hold for hull cuts; `neos-3381206-awhea`'s rows hold 576. Not swept |
-| `MIP_HULL_KEEP` | 10 | a root round in which hull cuts reach at least one row in `MIP_HULL_KEEP` does not end the MIR rounds as stalled (`MIP_MIR_MORE_STALL`). On `neos-3381206-awhea` the bound stays flat for six rounds of about 400 hull cuts while the LP moves its load from bin to bin, then rises from round 7 to 13. **Read at 0, 10 and every round with a hull cut** (`bench/measurements/02-356/`): at 0 the MIR rounds stop at round 6 and the model does not solve (MIPLIB 3 0.999x); with every such round, `p0033` runs 11 rounds of one hull cut each and its heuristics, budgeted on the root's work, take it to 1.915x (MIPLIB 3 1.035x); at 10 it reads 0.722x |
-| `MIP_CONFLICTS` | on | whether an infeasible node's Farkas proof is turned into a conflict row: the proof's column combination is priced over the node's bounds, the branching fixings on the path are relaxed to the global bounds one at a time, deepest first, while the proof's gap survives, and the fixings kept, when every one is a binary at a value, give the row `sum(x_j for j fixed at 0) - sum(x_j for j fixed at 1) >= 1 - |fixed at 1|`, added as a permanent row ahead of the node cut copies. Nodes' saved bases are padded with basic slacks for the rows added since they were saved. Skipped where the model has indicator rows or SOS sets, whose node bounds the proof does not see. `jaos_set_mip_conflicts` and `--conflicts` switch it. **Measured on the MIP set of 24** (02-31): 0.924x in work, 7 better, 5 worse, none past 2x: egout 0.206x (6841 to 887 nodes, 253 conflicts), enigma 0.807x, p0033 0.917x, dcmulti 0.923x, misc03 0.947x, against misc07 1.106x (35287 to 27605 nodes but 1563 rows in the relaxation) and l152lav 1.053x; 12 instances see no conflict and read 1.000x. On |
-| `MIP_CONFLICT_MAX` | 32 | the most binaries a conflict row may hold; a longer conflict is dropped, since a row that forbids one long path prunes almost nothing. Not swept |
-| `MIP_CONFLICT_GAP` | 1e-9 | the gap the proof must keep, relative to (1 + \|the rows' side\|), for a fixing to be dropped or the row to be written; below it the proof is rounding. Not swept |
-| `MIP_SYMMETRY` | off | whether the root looks for the model's symmetries on its own; `MIP_ORBITAL` on runs the same search, so the search runs by default and this switch matters only with orbital branching off. The search: the coloured graph of columns, rows and nonzeros, colour refinement to an equitable partition (each vertex's new colour is its old colour and the sorted multiset of its edges' colours and neighbours' colours, re-ranked until the count stops growing), and a partition-backtracking search: the first leaf individualises the smallest vertex of the first non-singleton cell at each level; every other vertex of each of those cells, deepest level first, is individualised in its turn, refined and descended leftmost to a leaf, and the map between the two leaves is checked edge by edge; a map that holds is a generator, and the vertices its orbit already covers are not tried again at that level. `jaos_set_mip_symmetry` and `--symmetry` switch it on its own; the report carries the counts |
-| `MIP_SYMMETRY_WORK` | 250 | the work the search may spend, as a multiple of (nonzeros + columns + rows); refinement rounds and automorphism checks count against it, and a search that runs out returns the generators it has. **Read off the MIP set** (02-31, a driver over jm_symmetry_find at caps from 1e4 to 1e8): 12 of the 24 carry a symmetry; the work each needs to finish, in multiples of its size, is stein27 190 (8 generators, one orbit of all 27 columns), rgn 229 (4 generators, 28 orbits), p0201 118, blend2 86, misc07 54, gen 30, enigma and misc03 under 20, misc06 490 (12 generators, 15 orbits) and air03 430 (13 generators, 13 orbits of two, 43M work against a 27M solve). 250 finishes every instance but the last two, which stop with the generators found so far; the instances with no symmetry finish under 20. **Swept at 100 against 250 with orbital branching on** (02-31): 0.943x against 0.835x, because a partial group gives p0201 a poorer orbit (1.807x against 0.412x) and rgn and stein27 half their gain; air03 reads 1.357x at 100 and 1.892x at 250, the search alone on a one-node tree. 250 held |
-| `MIP_ORBITAL` | on | orbital branching and fixing (Ostrowski, Linderoth, Rossi and Smriglio): at a node, the generators that fix pointwise every binary the path set to 1 and every non-binary column the path branched on generate a subgroup, and its column orbits come by union-find; a branching on a fractional binary zeroes its whole orbit on the zero side (the one side is the plain `x = 1`), and at node entry every orbit holding a binary the path zeroed is zeroed. Valid because every zero on a path is a union of orbits of a group containing the node's, so the image of a solution under a stabilising symmetry keeps the path. `jaos_set_mip_orbital` and `--orbital` switch it, and on it runs the symmetry search. **Measured on the MIP set of 24** (02-31): 0.835x in work, 5 better, 7 worse, none past 2x: rgn 0.156x (4233 to 235 nodes), misc07 0.356x (27605 to 9063), p0201 0.412x, misc03 0.416x, stein27 0.543x, against enigma 1.224x (1584 to 2139 nodes on 123 widened branchings) and air03 1.892x, which is the search alone. Orbital fixing at node entry fired nowhere on the set, the widened branchings having zeroed the orbits already. On |
-| `SYM_MAX_DEPTH` | 64 | the levels of the first leaf's path the search keeps and revisits; a deeper path is descended but not searched below that level. Not swept |
-| `SYM_LEAF_CAP` | 64 | the leaves the backtracking under one alternative vertex may visit before that vertex is given up; a leftmost descent alone finds an automorphism only where the choice of vertex commutes with it, which a six-cycle already breaks. Not swept |
-| `MIP_CLIQUE_FIX` | on | whether each node fixes by the root's clique table: the table holds the conflicts the all-binary rows put between literals (the pairs the clique cuts enumerate, built once after the root solve rather than every round) plus the implications probing found, and at a node every binary fixed to one setting fixes the literals in conflict with it, cascading, a node holding both sides of a conflict cut without a solve. `jaos_set_mip_clique_fix` and `--no-clique-fix` switch it off. **On since 2026-09-25, read with RINS on** (`bench/measurements/02-325/`): MIPLIB 3 0.735x in summed work and 1.002x in the geometric mean, `l152lav` 0.614x (1742 to 1207 nodes), enigma 0.756x, bell3a 0.806x, bell5 1.292x (14767 to 20089 nodes), rgn 1.145x, misc03 1.141x, misc07 1.138x; the 2017 gap sum 0.994x; QPLIB's 17 convex MIQPs at 1e10 the same lines. Alone it read 0.734x and 0.980x on MIPLIB 3 and 1.002x on the 2017 set, `graphdraw-domain`'s bound falling from 14115 to 13180. **Measured before on the MIP set of 24** (02-31): 1.026x in work, 6 better (p0201 0.881x, 797 to 675 nodes; rgn 0.892x; l152lav 0.909x; bell3a 0.932x on the same tree) and 9 worse (enigma 1.853x, 2814 to 5837 nodes; misc07 1.202x; p0282 1.097x), none past 2x, and not one node cut by a conflict anywhere, because a branching never fixes both sides of a conflict the relaxation already holds. The fixings move the vertex and the branching with it, the mechanism of D324. With probing feeding the table 1.094x. It was off from that reading until the tree of 2026-09-25 read it again |
-| `MIP_CLIQUE_ROW_CAP` | 64 | The largest literals of a row and side that feed the conflict graph; the pairs are enumerated in weight order and stop at the first that does not conflict, so the cap bounds the work per row and reaches nothing on the MIP set, whose rows are shorter. Not swept |
-| `MIP_GAP` | 1e-6 | the relative gap that closes the search: stop, and call the answer OPTIMAL, when no open node's bound beats the incumbent by more than `MIP_GAP * (1 + |incumbent|)`, in minimize form. `jaos_set_mip_gap` overrides it, and 0 means zero since 2026-09-24; under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Not swept: every instance of the set closes with the bound equal to the incumbent |
-| `MIP_CUT_ROUNDS` | 1 | rounds of Gomory mixed-integer cuts at the root, one cut per fractional integer column of the relaxation's basis per round; a round that adds nothing ends them, and `jaos_set_mip_cut_rounds` overrides it. **Swept at 0, 1, 2, 3 and 5** over the 17 instances the plain tree of D288 solves, dive off. Work against the plain tree, geometric mean of per-instance ratios: **0.660x at 1** (7 better, 8 worse, none past 2x, worst `p0201` at 1.66x); 0.609x at 2, with three past the gate's own regression factor of 2 (`p0201` 4.08x, `misc03` 3.50x, `rgn` 2.31x); 0.706x at 3, with `misc03` at 13.1x, `p0201` at 10.1x and `pk1` failing numerically at the root; 0.839x at 5 with the dive on, `stein45` no longer finishing. One is the setting with the best mean that keeps every instance under 2x. `bell3a`, which the plain tree does not finish in 40 s, finishes at every setting from 1. **Read at 2 on 2026-10-05** on the tree of c7093d6 (`bench/measurements/02-351/`), where SCIP's Gomory rounds alone close most of the root gap on `dcmulti`, `misc06`, `lseu`, `khb05250`, `p0201` and `misc03`: MIPLIB 3 reads 1.111x in the geometric mean and 0.756x in the sum (`misc07` 0.426x, `l152lav` 0.729x against `mod008` 3.111x, `misc03` 2.272x); 1 stays |
-| `MIP_CUT_AWAY` | 0.01 | a basic integer column is cut only when its fraction sits inside `[AWAY, 1 - AWAY]`: the cut divides by the fraction and by its complement, and a fraction near 0 or 1 gives a cut the relaxation cannot hold to tolerance. The bound Balas, Ceria, Cornuejols and Natraj use (Gomory cuts revisited, 1996). Not swept: held |
-| `MIP_CUT_DROP` | 1e-9 | a coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid and drops the entry; kept when that bound is infinite. Not swept: held |
-| `MIP_CUT_SLACK` | 1e-15 | how far a cut's right-hand side is pulled back before the cut is judged and kept, in units of the cut's own span, `1 + \|rhs\| + Σ_j \|a_j\| max(1, \|l_j\|, \|u_j\|)`. A cut is built by summing terms and the sum rounds. A valid cut whose right-hand side rounds up by even one bit throws away the integer points that sat exactly on it, and when those are all the points the model has, the relaxation goes infeasible and the tree reports a feasible model infeasible. Pulling the right-hand side back only ever keeps points, so any slack is valid; what a larger one costs is a weaker cut and a looser bound. Beside it a cut is refused outright when its right-hand side is past the largest its own left side can reach over the current bounds, `Σ_j a_j (a_j > 0 ? u_j : l_j)`, since such a cut admits no point at all; that test is exact and needs no tolerance, but on its own it catches only the cuts that shut out everything. **Measured 2026-09-09 over 20000 generated models** of 4 to 9 integer columns and 1 to 5 rows, each compared against full enumeration and solved three ways: with the reach test alone the default settings lost 5 models to a false infeasible and the bare tree 1; with the slack beside it none of the 20000 fails under the default settings or the bare tree. The one read in full has a Gomory cut whose right-hand side is 5.55e-17 where exact arithmetic gives 0, with every coefficient negative and every column at zero or above, so nothing satisfies it; it takes a Gomory cut plus a cover or a MIR cut to reach that state, and Gomory alone never does. 1e-15 is four times the machine epsilon, the smallest slack that covers one rounding step, and it was chosen over 1e-11 because the larger value costs about 1e-10 of the tree's bound and lost `misc03` of the MIP set to the dual simplex's own settling check |
-| `MIP_CUT_DYNAMISM` | 1e6 | the largest ratio of a kept cut's largest to smallest coefficient; a cut past it is not added. Not swept: held. The `pk1` failure at three rounds happened under it, so it is not what protects the root from a bad cut; the rounds count is |
-| `MIP_CUT_DEPTH` | 3 | a node whose depth is at most this gets one round of Gomory cuts on its own relaxation, the root being depth 0 and getting `MIP_CUT_ROUNDS`; a node's cuts are read over its bounds, so they hold in its subtree only and are in the copy for exactly the nodes under it. `jaos_set_mip_cut_depth` overrides it. **Swept at 0, 1, 2, 4, 8 and 1000** over the MIP set: 1.056x at 1 (6 better, 10 worse, 3 past 2x), 1.260x at 2, 1.508x at 4, 1.948x at 8 over the 16 that finish, 2.440x at every node. The node counts fall on most instances at every depth (`egout` 39127 to 1803) and the rows carried cost more than the nodes saved (`p0201` 46x at every node), so 0 is the default and a deeper setting is refused as a default. With a slack cut leaving the relaxation: 0.896x at 1 (3 past 2x), 0.802x at 2 with `misc03` alone past 2x at 2.053x, 0.833x at 4 over the 16 that finish; 0 stayed, one instance short. **With four cuts per node: 0.955x at 1, 0.920x at 2, 0.835x at 3, 0.854x at 4 with one past 2x, 0.852x at 6, 0.827x at 8 with one past 2x, 0.877x at every node with three past 2x. 3 is the setting with the best mean that keeps every instance under 2x, and the default** |
-| `MIP_NODE_CUT_CAP` | 4 | how many cuts a node below the root may add in its round, the most efficacious kept, violation over the cut's Euclidean norm, the earlier on a tie; 0 is no cap and the root's rounds are never capped. `jaos_set_mip_node_cut_cap` overrides it. **Swept at 0, 2, 4, 8 and 16 at depth 2, and at 3, 4 and 6 at depth 3** over the MIP set on the D300 baseline: at depth 2, 0.935x uncapped, 1.088x at 2, 0.920x at 4, 1.004x at 8, 0.948x at 16; at depth 3, 0.836x at 3, **0.835x at 4**, 0.994x at 6 with two past 2x. Not a smooth lever, and 4 is the setting with the best mean that keeps every instance under 2x at the depth that is the default |
-| `MIP_COVER_ROUNDS` | 4 | rounds of knapsack cover cuts at the root beside the Gomory rounds; a round that adds nothing ends both families. `jaos_set_mip_cover_rounds` overrides it. **Swept at 0, 1, 2, 3, 4, 5 and 8** beside the default Gomory round, at 1 and 2 with the Gomory round off, and at 3 with two Gomory rounds, over the MIP set: 1.001x, 0.961x, 0.749x, **0.745x**, 0.767x, 0.804x against one Gomory round alone; covers alone 1.052x and 0.912x against the plain tree; two Gomory rounds with three covers 0.778x with two instances past 2x. Four is the setting with the best mean that keeps every instance under 2x, and the only one of these that moves a default |
-| `MIP_CUT_STALL` | 0.0 | a root round that moves the bound by less than this times (1 + \|bound\|) is the last; 0 ends the rounds only when one adds nothing. `jaos_set_mip_cut_stall` overrides it. **Swept at 1e-4, 1e-3 and 1e-2** over the MIP set of 24: 1.007x, 1.172x and 1.121x against no stall, the last two with an instance past 2x; every round the stall removed was worth its solve, so 0 stays and the stall is refused as a default |
-| `MIP_NODE_CUT_STALL` | 0.0 | a node whose round moves its bound by less than this times (1 + \|bound\|) gets no round under it, the root's whole phase judged the same way; 0 never switches a subtree off. `jaos_set_mip_node_cut_stall` overrides it. **Swept at 1e-3, 1e-2, 2e-2, 5e-2 and 1e-1** alone, and at the last four beside the root-cut drop: alone 0.993x over 23, 0.833x, **0.816x**, 0.832x and 0.897x with one past 2x; with the drop 0.832x, 0.782x, 0.773x and 0.768x over 23, each with `bell5` at the cap and `enigma` past 2x. It meets the bar alone and never beside the drop, which reads better and finishes every instance, so 0 stays |
-| `MIP_MIR_ROUNDS` | 6 | rounds of mixed-integer rounding cuts on the model's rows at the root, beside the Gomory and cover rounds; a round that adds nothing ends every family. `jaos_set_mip_mir_rounds` overrides it. **Swept at 1, 2, 3, 4, 5, 6, 8 and 12** over the MIP set of 24 on the D306 defaults: 1.017x, 0.933x, 0.790x, 0.752x, 0.773x, **0.719x**, 0.725x and 0.737x against none, every setting from two down with no instance past 2x; six is the setting with the best mean and the curve is flat past it |
-| `MIP_MIR_MORE` | 20 | the most MIR rounds the root runs outside network mode when `jaos_set_mip_mir_rounds` is not called: past `MIP_MIR_ROUNDS` a round runs only while the one before lifted the bound by `MIP_MIR_MORE_STALL`. Read on 2026-10-04 (`bench/measurements/02-332/`): on `neos-911970` the bound sits at 23.26 for five rounds and then climbs every round, to 24.05 at 6 and 43.33 at 20 (HiGHS's root 52.1); on `gt2` it stops moving at round 2 and 18 more rounds add 1 to 6 cuts each. 20 rounds on every model read MIPLIB 3 1.037x in the geometric mean of work with `gt2` 2.515x, and the 2017 gap sum 17.52 against 16.80; with the stall rule, 1.005x (`p0033` 1.80x) and 16.54. Not swept further |
-| `MIP_MIR_MORE_STALL` | 1e-4 | the share of (1 + \|bound\|) a MIR round past `MIP_MIR_ROUNDS` must lift the root bound by for the next to run; `MIP_NET_STALL`'s value. Not swept |
-| `MIP_MIR_FLIP_GAIN` | 1e-9 | how much a bound flip must raise a MIR cut's efficacy to be kept. Outside network mode, once the best divisor of a row with a continuous column is chosen, each integer column strictly inside its bounds is measured from its other bound in turn (Marchand and Wolsey's complementation step), and the flip stays when the cut's efficacy rises by more than this. Read on 2026-10-08 (`bench/measurements/02-357/`): `neos-911970`'s root goes from 45.42 to 51.56 (SCIP's c-MIR 51.81), `csched007` gets its first point (474), the 2017 gap sum goes from 14.19 to 13.48, and MIPLIB 3 reads 1.000x. Flipping on rows with integer columns only reads 1.090x on MIPLIB 3 (`gt2` 1.82x, `p0201` 1.74x, `mod008` 1.65x) with the same 2017 gain; trying the divisor halved up to three times takes `neos-911970`'s root down to 43.8. Not swept |
-| `MIP_MIR_DELTAS` | 8 | how many scalings a row's MIR cut tries beyond 1: the \|a_j\| of the integer columns whose shifted value is fractional, in column order, deduplicated by exact equality. Decides which candidates are tried, never a number in an answer; the most violated wins. Not swept: held, since Marchand and Wolsey's own list is this set plus the divisors of the best, and a longer list only adds candidates the efficacy rule can reject |
-| `MIP_MIR_ROUND` | 1e-9 | the rounding a MIR side's shifted right-hand side may carry and still be cut: `DBL_EPSILON` times the sum of the terms' magnitudes times the term count, in the row's own units, against this. The cut divides by the right-hand side's fraction and by its complement, so a computed fraction below the true one is a cut that is not valid, and a side whose sum cannot be placed to this gets no cut (the review's case: a column whose one finite bound is 1e15 puts the fraction on a multiple of 1/8 whatever the data). 1e-9 bounds the coefficient error at 1e-7 after the 1 / (1 - f0) factor that `MIP_CUT_AWAY` caps at 100, the primal tolerance's own scale. Not swept: held. The same exposure exists in the Gomory cut's basic value and is carried, since that value comes out of a solve and not a sum here |
-| `MIP_MIR_AGGREGATE` | 6 | how many continuous columns a MIR aggregate may substitute out with another row before it is rounded; 0 is D309's single-row form. Each step takes a column of the aggregate that sits away from both its bounds and has not been picked already: outside network mode the one farthest from its bounds, in network mode the one with the largest coefficient, then the largest coefficient and the lowest index on a tie. Among the other rows that hold it with a coefficient worth pivoting on and a finite bound on the side the multiplier's sign needs, it takes the one that leaves the least sum of \|coefficient\| times bound distance over the aggregate's continuous columns (fewest columns with no finite bound first, the lowest-indexed row on a tie); the aggregate is rounded after every step. Until 2026-10-05 the column was always the largest coefficient and the row the lowest-indexed one; the new choice takes `timtab1`'s root from 245047 to 427178, solves `p200x1188c` and reads 0.982x on MIPLIB 3 and 14.85 to 14.61 on the 2017 gap sum (`bench/measurements/02-347/`). `jaos_set_mip_mir_aggregate` overrides it. **Swept at 1, 2, 3 and 6** over the MIP set of 24: 1.185x, 1.165x, **1.140x** and 1.192x against the single-row round, every arm leaving `bell5` at the 240 s cap and every arm with `gen` past 2x (8.60x at two steps), 1.030x over the 17 against 1.523x over the seven. The cuts are real, `egout` reading 0.564x with its tree halved, and cost more per round than they save, so 0 stayed. **On at 6 since 2026-09-25, behind `MIP_MIR_AGG_GAIN`** (`bench/measurements/02-320/`, `02-321/`): bell5's growth was its tree's sensitivity to the root LP, since its aggregated cuts lift the bound by 3e-5 of itself, and the probe drops such cuts. MIPLIB 3 reads 1.012x against 1.282x unguarded, and the 2017 set's gap sum 0.986x (exp-1-500-5-5's bound 49815 to 61197 of 65887) |
-| `MIP_MIR_AGG_GAIN` | 1e-2 | How much a root round's aggregated MIR cuts must lift the bound, as a share of `1 + |bound|`, before they are kept. The round adds its other cuts and solves as before, then solves a copy of the root LP with the aggregated cuts added; below this the copy is thrown away and aggregation stops for the solve, and a round that finds no aggregated cut stops it too. A model with a quadratic objective does not aggregate: its relaxations are barrier solves with no warm start, and on QPLIB_5924 the copy cost the root its bound at 1e10 work units. So a model whose aggregated cuts do not pay keeps the path it had with aggregation off, and pays one extra solve at the root. **Read at 1e-4 and 1e-2** on MIPLIB 3 (`bench/measurements/02-321/`): at 1e-4 bell3a and dcmulti keep cuts that lift their bounds by 3.2e-3 and 1.6e-3 and their trees grow 1.86x and 1.59x (1.061x over the set); at 1e-2 both keep their trees and the set reads 1.012x, the rest being the first round's search. egout (3.5e-2 and 1.7e-1) and exp-1-500-5-5 (6.7e-2 to 1.8e-1 a round) keep theirs at either. **Read at 1e-3** on 2026-10-05 on the tree of ebf79c2 (`bench/measurements/02-349/`): MIPLIB 3 1.032x with khb05250 2.125x, and the 2017 gap sum 14.613 against 14.606 (`timtab1`'s bound at the limit 528764 to 533784). 1e-2 stays |
-| `MIP_MIR_LAMBDA` | 1e6 | the largest multiplier an aggregation step may use, and 1 / this the smallest: the step forms `agg - lambda row_r`, so a multiplier far from 1 makes the aggregate a difference of numbers of very different size and the coefficients carry a rounding the cut's own map then multiplies by up to 1 / `MIP_CUT_AWAY`. Not swept: held, at `MIP_CUT_DYNAMISM`'s own bound on a kept cut's coefficient spread, and the per-coefficient magnitude test against `MIP_MIR_ROUND` is what actually refuses a side |
-| `MIP_DIVE_HEURISTIC_DEPTH` | 0 | the deepest node the dive heuristic runs at, the root being 0; every node at this depth or above gets its own dive on its own relaxation, and 0 is the root alone, D313's form. `jaos_set_mip_dive_heuristic_depth` overrides it; nothing happens with the dive heuristic off. **Swept at 1, 2 and 4** over the MIP set of 24: 1.049x, 1.144x with two instances past 2x, 1.356x with four past 2x and `khb05250` at 2.846x on a tree that did not move. No node count moves at any depth, so it is judged on the first incumbent like D290 and D313: earlier on 4, 5 and 8 instances and later on none (`bell3a` node 230 to 3). Refused as a default because the rate is worse than what is already on: D290 moved 8 of 17 for 1.8%, D313 6 of 24 for 3.2%, depth 1 four more of 24 for 4.9% |
-| `MIP_RINS` | 50 | how many relaxations a RINS dive may solve at a node: the integer columns the incumbent and the node's relaxation already place at the same integer are fixed there and D313's dive runs on what is left, once per distinct incumbent. 0 is off, and a model with a quadratic objective takes 0 unless it sets its own. `jaos_set_mip_rins` overrides it. **On since 2026-09-25 at 50, read with clique fixing on** (`bench/measurements/02-325/`, the numbers under `MIP_CLIQUE_FIX`). Alone it read 1.025x on MIPLIB 3 in the geometric mean (dcmulti 1.115x) and 0.992x in the 2017 gap sum, `mas74`'s incumbent going from 17243.1 to 14769.7. On the 17 convex MIQPs its dives are barrier solves and take the budget: QPLIB_3694's bound fell from 96.9 to 91.5 and QPLIB_3861's from 171.7 to 158.9, so a quadratic objective keeps it off. **Swept before at 10, 50 and 200** over the MIP set of 24: 1.007x, 1.008x and 1.008x, none past 2x, every instance finished, and 50 and 200 byte-identical because a neighbourhood with most columns fixed ends in few solves. It found a point on one instance of the 24 and moved no first incumbent, since D313's root dive reaches them first, and stayed off until the 2017 set read it |
-| `MIP_LOCAL_BRANCHING` | 0 | how many binary columns the local branching tree may flip from the incumbent; 0 is off. `jaos_set_mip_local_branching` overrides it. On the 2017 set at 1e10 work units (`bench/measurements/02-286/`), 10 flips read 0.975x on the mean primal plus dual gap and 20 flips 0.992x, with no instance finished; 10 flips improve 10 incumbents, pk1 196 to 45, exp-1-500-5-5 102167 to 77608 and tr12-30 195766 to 167155 among them. So it stays off |
-| `MIP_LOCAL_BRANCHING_NODES` | 1000 | the node limit of one local branching tree. Not swept: set so that one tree costs a small share of the 1e10 units the 2017 reading allows an instance |
-| `MIP_START_NODES` | 1000 | the node limit of the tree that completes a partial MIP start, with the start's integer columns fixed. Not swept: the local branching tree's cap, for the same reason. On the MIPLIB 3 instance p0201 with half its columns given, the completion found the optimum inside the cap |
-| `MIP_NODE_SELECT` | 1 | which open node the tree takes when it does not dive: 0 is the lowest bound, 1 the lowest estimate. A child's estimate is its parent's bound plus, over the fractional integer columns of the parent's relaxation, the smaller of each column's two pseudocost gains, with the branching column's own gain taken in the child's direction. `jaos_set_mip_node_select` and `--node-select` override it. On the 2017 set at 1e10 work units (`bench/measurements/02-286/`) the estimate with the bound every fifth pick reads 0.896x on the mean primal plus dual gap, incumbents on 17 instances against 15 and none solved either way. On MIPLIB 3 it reads 0.922x the work over 23 instances with none past 2x, and bell5 at 1.694x. So it is on. The estimate also left one relaxation of neos-3754480-nidda failing at node 5719, which ended that tree until a failed node was set aside |
-| `MIP_ESTIMATE_BOUND_EVERY` | 5 | under the estimate order, every this-many-th pick takes the lowest bound instead, so the tree's bound keeps rising. **Swept at 10 and 5**, and at 2 and 3 on bell5 alone: 10 reads 0.858x on the 2017 set, better than 5, but leaves bell5 without an incumbent at 6.3e9 work units, twice its baseline. 2 and 3 leave it unfinished there too, 3 with the optimum in hand. 5 finishes it at 5.33e9 |
-| `MIP_RESTART_FRAC` | 0.2 | the share of the integer columns the root's reduced costs must fix against the root's incumbent before the tree starts again from the root, under `--restart`. **Swept at 0.2 and 0.05** on the 2017 set at 1e10 work units: neither fired on any of the 30, because a restart needs an incumbent at the root and that many fixings. Both read the default's gaps; the check itself bills `nc` work units at a root that has an incumbent, so sp150x300d ends one iteration apart. Held |
-| `MIP_BATCH_MAX` | 64 | The largest round `mip_tree_batch` can ask the linear tree for, and the size of the arrays a round uses; the linear tree's `CT_BATCH_MAX`. A cap, not a tolerance. The round size under it was read at 4, and at 8 for the time (`bench/measurements/02-290/`): rounds of 4 cost 1.37x the work on MIPLIB 3 with four instances past 2x, and 1.041x on the 2017 set, so the default stays 1. The cap itself is not swept |
-| `MIP_FEASPUMP` | 20 | how many rounds the feasibility pump may run at the root: each round rounds the point it holds and re-solves the copy for the point of the relaxation nearest that rounding in L1. It runs only while nothing has an answer yet, since this is the plain pump and looks for a feasible point rather than a good one. 0 is off. `jaos_set_mip_feaspump` overrides it. **Swept at 1, 3, 5, 20, 50 and 100** over the MIP set of 24: 1.006x, 1.011x, 1.014x, **1.026x**, 1.037x and 1.053x, with the first incumbent moving to node 1 on 0, 2, 4, 6, 6 and 6 instances and later on none, every instance finished and none past 2x. No node count moves at any setting, so it is judged on the first incumbent like D290 and D313; 20 is the setting with the best mean among those that reach every instance a larger one reaches, and 50 and 100 say the curve is flat past it |
-| `MIP_PUMP_FLIPS` | 10 | how many integer columns a stalled pump moves to the other side: a rounding that comes back unchanged would repeat for ever, so the columns whose relaxation value sits furthest from the rounding are flipped, the lowest index breaking a tie. Fischetti, Glover and Lodi draw this count at random, which would break D8's bit-identical results, so it is fixed and the choice inside it is a total order. Not swept: held. It moves which points the pump visits and no number in an answer, and `tests/test_mip.c` carries a model whose rounding repeats so the path is executed |
-| `MIP_PUMP_OBJ` | 0.5 | the objective pump's decay: each of the pump's rounds minimizes `(1 - a)` times the distance plus `a` times the model's own objective, the two scaled to comparable Euclidean norms, and `a` multiplies by this each round from 1, so the blend fades to the plain distance. 0 is the plain pump. `jaos_set_mip_pump_obj` overrides it. **Swept at 0.3, 0.5, 0.7 and 0.9** over the MIP set of 24: 0.987x, **0.984x**, 0.985x and 0.985x the work of the plain pump, 2 better and 0 worse at every decay, none past 2x, no node count moved; at 0.3 and 0.5 the first incumbent moves to node 1 on `gt2` (from 382) and later on none, at 0.7 and 0.9 `lseu`'s moves from node 1 to 47. 0.5 is the best mean and the largest decay that loses nothing; `dcmulti` 0.908x and `misc03` 0.786x are the two better, on trees that did not change, because the pump's own re-solves cost less when the objective moves less between rounds |
-| `MIP_RCFIX_SLACK` | 1e-6 | the slack a reduced-cost fixing adds before it rounds down. Both terms of the quotient are known to the simplex's own tolerance, and adding slack before the floor only ever loosens the new bound, so the deduction stays valid whatever the slack is; what a larger one costs is a bound that is looser than it could be. Not swept: held, at the primal tolerance's own scale |
-| `MIP_PROPAGATE` | 0 | how many passes of bound propagation a node makes before its relaxation is solved; 0 is off, and a pass that moves nothing ends the rounds. Each pass reads the model's own rows over the node's bounds, proves the node infeasible where a row's smallest activity is already above its upper bound, and pulls in the integer bounds the rows imply. `jaos_set_mip_propagate` overrides it. **Swept at 1, 2 and 4 passes at every node, and at 2 and 4 at the root alone** over the MIP set of 24: at every node **1.093x, 1.104x and 1.074x** with `bell5` unfinished at the cap in all three; at the root alone **1.051x** at both pass counts, the two arms byte-identical because the root's first pass finds everything the later ones would. `l152lav` 0.549x and `p0282` 0.726x against `gt2` 5.065x and `bell3a` 2.018x. Off at every setting. **Re-measured at the root alone with the clique cuts in** (02-31): 1.072x, 18 of 24 byte-identical, `bell3a` 2.531x and `p0201` 1.876x, none better; still off |
-| `MIP_QUAD_PROPAGATE` | 4 | what `MIP_PROPAGATE` reads instead of 0 when the objective has a quadratic term. The barrier needs a strictly feasible point, and a node with an equality row plus branching bounds often has none: the primal residual falls to 1e-11, the dual iterate runs to 1e+7, `BARRIER_DIVERGE` fires and the node comes back `NUMERICAL_ERROR`. Propagation fixes the columns the rows have already forced, and the barrier takes a fixed column in its stride. `jaos_set_mip_propagate` overrides it, 0 included. **Measured 2026-09-09 over 400 generated cardinality models** (5 to 9 binary columns, equal or near-equal costs, one or two equality rows through a random integer point, `q` drawn from 2 to 12), each compared against full enumeration: **28 of 400 ended `NUMERICAL_ERROR` with propagation off, 7 at 1 pass, 3 at 4 and 3 at 16**, and not one arm ever answered wrongly. Four is where it stops paying. On 1200 generated models with one-sided rows and 600 with equalities the default answers all of them, so the passes cost nothing there. A node solve for a quadratic objective is a cold barrier run, far dearer than the warm simplex re-solve of a linear node, which is why the linear default stays 0. **Retaken 2026-09-09 after `BARRIER_START_MIN` landed**: the failures this value was set against are gone, 0 of 1600 models over four seeds end `NUMERICAL_ERROR` with propagation off, so what holds the value now is work. Over the 400 at seed 20260909, 206487919 work units and 5520 nodes with the four passes against 237306538 and 5602 without them, and the same 13% of work at the other three seeds |
-| `MIP_PROPAGATE_DEPTH` | -1 | the deepest node bound propagation runs at, the root being 0; negative is every node. The root's deductions are made over the model's own bounds, so they hold for every integer point of the model and the tree keeps them in its own `ilo` and `ihi` for nothing; a deeper node's are read over that node's bounds and are rebuilt at every node, which is what a positive depth pays for. `jaos_set_mip_propagate_depth` overrides it; nothing happens with `MIP_PROPAGATE` at 0. **Swept at 0 and 1** beside four passes over the MIP set of 24: the root alone reads 1.051x and one level down 1.080x with `bell5` lost at the cap, against 1.074x for every node. The root alone moves a bound on 6 of the 24 and the other 18 read **exactly 1.000x**, so a pass that finds nothing is free; what costs is `bell3a` at 2.531x with its tree 64077 to 117317 nodes off 16 moved bounds. Off with the feature |
-| `MIP_PROP_SLACK` | 1e-9 | the slack a propagated bound keeps before it is rounded, the same argument as `MIP_RCFIX_SLACK`: a row's implied bound is a quotient of a difference of sums, so it is known to the size of those sums, and loosening before the floor keeps every integer point the row admits. Not swept: held |
-| `MIP_PROP_INFEAS` | 1e-7 | how far a row's implied activity must sit outside its own bound before propagation calls the node infeasible with no relaxation solved, relative to (1 + \|the bound\| + \|the activity\|). Two orders above `MIP_PROP_SLACK` on purpose: a bound rounded too loosely costs strength, while a node pruned wrongly here is an optimum thrown away. Not swept: held |
-| `MIP_PROP_MOVE` | 0.5 | how far a propagated bound must move a column before it is taken, in the column's own units. Only integer columns are pulled in, so a real move is a whole integer and half of one is the natural floor; it is what stops a bound that moved by rounding alone from churning the relaxation. Not swept: held |
-| `MIP_TIGHTEN` | on | whether the root tightens coefficients before the tree: in a one-sided row, a binary column whose coefficient cannot make the row tight on its own, because the row's slack with that column at 0 (a coefficient that pushes the row towards its bound) or at 1 (one that pulls it away) is positive, has the coefficient shrunk by that slack and, for a positive coefficient in a `<=` row or a negative one in a `>=` row, the bound with it; the other sign keeps the bound. No integer point moves and the relaxation gains a face (Savelsbergh's coefficient improvement, on the tree's own copy, so the published rows are the model's). `jaos_set_mip_tighten` and `--no-tighten` override it. **Since 2026-09-23** the second case reads the slack at 1, as Savelsbergh's rule does after complementing the column; it had read it at 0, which fires only on a row redundant either way and left every `x - u y <= 0` with `x <= U < u` alone. MIPLIB 3 then reads 0.928x in work (`bench/measurements/02-307/`): p0033 0.272x at 33 nodes instead of 289, gen 0.721x, lseu 0.911x, p0282 0.956x, p0201 0.975x, the other 19 byte-identical. **Measured first on the MIP set of 24** (02-31): it fires on 2, gen 1.001x and p0282 0.996x with its tree 5159 to 4997 nodes, 22 byte-identical, 0.9999x over the set, for one pass over the rows. Kept on as a reduction that costs nothing measurable and takes nothing away; the knapsack of the unit suite goes from a cover cut at the root to an integral root |
-| `MIP_TIGHTEN_MIN` | 1e-9 | the slack a row must show, relative to (1 + \|its bound\|), before its coefficient is tightened at all, so a slack that is rounding alone changes nothing. Not swept: held |
-| `MIP_PROBING` | off | whether the root probes the binary columns fractional at its relaxation, after the root solve and before the cuts: each is tried at 0 and at 1 with the rows propagated over the bounds for `MIP_PROBING_ROUNDS` rounds, most fractional first, under `MIP_PROBING_CAP`; a setting that makes some row impossible fixes the column the other way, the bounds both settings imply are kept as the tree's bounds, a column that fits neither way makes the model infeasible, and a root that moved is solved again. `jaos_set_mip_probing` and `--probing` switch it on. **Measured on the MIP set of 24** (02-31): the first form, every binary before the root solve with no cap, 1.566x with 5 past 2x (air03 136x, 10757 binaries against 91k nonzeros; misc07 35287 to 95949 nodes). This form, 1.109x with 0 better and bell3a 2.535x, at every cap from 0.5x to none. No probe fixes a column on any of the 24. What the probes find are bounds, and a bound written back moves the branching (bell3a 16 bounds, 64077 to 117317 nodes; p0201 6 bounds, 797 to 1369, 1.875x; gen 42 bounds, 1.514x on 5 nodes), the same mechanism D324 saw; where they find nothing the probe itself is the cost (air03 1.461x, 35 columns at 0.5x the root's work; mod010 1.124x). Off; what could reopen it is an instance set where a probe fixes a column, or the implications fed to the clique cuts instead of written as bounds |
-| `MIP_PROBING_ROUNDS` | 2 | the propagation rounds each probe makes; one reaches a row's own neighbours, two a chain through them. Not swept: held |
-| `MIP_PROBING_CAP` | 1.0 | the work the root's probing may spend, as a multiple of the work the root solve itself took; 0 is no cap. `jaos_set_mip_probing_cap` and `--probing-cap` override it. **Swept at 0.5, 1, 2 and 0** over the MIP set with probing on (02-31): 1.108x, 1.109x, 1.109x, 1.109x, one tree at every cap on 21 of the 24, because a probe costs two propagations over the rows and most instances probe every fractional binary inside 0.5x the root's work (air03 35 columns at 0.52x, l152lav 55 at 0.34x); the cap binds on p0201, egout, gen and p0282 only. 1 held as the default since no cap reads differently |
-| `MIP_DIVE_BACKTRACK` | 0 | how many times a dive may resume from the deepest sibling it left on its stack once a node ends; 0 sends every sibling to the open set at once, D289's dive. `jaos_set_mip_dive_backtrack` overrides it; nothing happens with the dive off. **Swept at 0, 1, 2, 4, 16 and unbounded** with the nearer child and at 4 and unbounded with the pseudocost side, dive on, over the MIP set: 0.835x over 23 with `bell5` at the cap and two past 2x at 0, then 1.026x, 1.134x, 1.007x, 0.992x over all 24 with two past 2x, 1.170x with five past 2x; the pseudocost side 1.011x and 1.142x. No setting is under the bar, so 0 stays and the dive stays off |
-| `MIP_DIVE_GAP` | 0.0 | how far a waiting sibling's bound may sit above the best open node's, as a fraction of (1 + \|best\|), for the dive to resume from it; 0 puts no bound on the resume. `jaos_set_mip_dive_gap` overrides it; nothing happens with the dive off. **Swept at 1e-4, 1e-3, 1e-2, 1e-1 and 1**, with no resume count, and at 1e-2 with a count of four, over the MIP set: 1.067x, 1.085x, 1.134x, 1.334x, 1.355x and 1.080x against the control, every one above 1.0x, so 0 stays and the dive stays off. The rule's first form compared the sibling against the heap alone, which a dive empties, and read one number at every fraction; the comparison spans the heap and the dive's stack now, and `tests/test_mip.c` fails if it stops deciding |
-| `MIP_DIVE_HEURISTIC` | 50 | how many relaxations the root's dive heuristic may solve: on a copy of the root's relaxation as the cuts left it, fix the integer column nearest an integer there and solve again, up to this many times, and judge an integral point by `rounded_point` like every other heuristic point. 0 is off. `jaos_set_mip_dive_heuristic` overrides it. **Swept at 10, 50 and 200** over the MIP set of 24: 1.015x, **1.032x** and 1.036x the work, none past 2x and every instance finished at every setting, with the first incumbent moving earlier on 1, 6 and 7 instances and later on none. Judged on the first incumbent by D290's rule, since a heuristic cannot shrink a best-bound tree and no node count moves at any setting; 50 reaches six of the seven the largest setting reaches at nearly the smallest setting's work |
-| `MIP_DIVE_DEGRADE` | 0.0 | how far a node's own bound may fall away from its parent's, as a fraction of (1 + \|parent\|), for the dive to go on into one of its children; 0 puts no bound on it, D289's form. `jaos_set_mip_dive_degrade` overrides it; nothing happens with the dive off. It reads the bound the branch itself reached, snapshotted before the node's own cut round, so the fraction means the same thing at every `MIP_CUT_DEPTH`. **Swept at 1e-3, 1e-2 and 1e-1** against the plain dive over the MIP set: 1.097x, 1.081x and 1.048x -- every fraction costs more than no bound, with `bell5` unfinished in every arm and in the plain dive too, so 0 stays and the dive stays off |
-| `MIP_PC_EPS` | 1e-6 | the floor of a direction's pseudocost score: the score is the product of the two directions' expected gains, and a direction whose gain was 0 would otherwise zero the column out of the choice. Achterberg, Koch and Martin (Branching rules revisited, 2005) use the same floor. Decides an order between columns, never a number in an answer. Not swept: held |
-| `MIP_RELIABILITY` | 0 | branches per direction before a column's pseudocost is trusted; below it the column's children are solved on the spot and the gains initialise the pseudocosts. `jaos_set_mip_reliability` overrides it. **Swept at 0, 1, 2, 4 and 8** over the MIP set, pseudocost branching, everything else at its default (`bench/measurements/02-192/`): work against 0 reads 0.971x at 1 (7 better, 9 worse, `mod010` 2.84x and `enigma` 2.07x past the gate's factor), 1.064x at 2, 1.173x at 4 and 1.437x at 8, while the node counts fall at every setting (`dcmulti` 585 to 135 at 4, `mod010` 7 to 3). The probes are worth their information and not their price: each is a full child solve. 0 is the default and the setting is refused as a default; `bench/refusals.txt` carries what reopens it |
-| `MIP_STRONG_CANDIDATES` | 8 | how many unreliable columns a node probes, the best by pseudocost score. Not swept: held, since no setting of the count above was worth its work, and a cap on the candidates only lowers the price of a thing that did not pay at any price measured |
-| `MIP_NODE_PRESOLVE_TRIAL` | 50 | how many node relaxations below the root the tree counts the simplex iterations of before it decides whether its nodes keep the LP presolve; see `MIP_NODE_PRESOLVE_ITERS`. Set once and not swept (`bench/measurements/02-352/`) |
-| `MIP_NODE_PRESOLVE_ITERS` | 20.0 | when the first `MIP_NODE_PRESOLVE_TRIAL` node relaxations average more simplex iterations than this, the node relaxations after them that start from a basis skip the LP presolve. Where presolve removes rows and fixes columns the parent's basis holds basic, the reduced model starts far from its optimum: `l152lav` takes 463 iterations a node with presolve and 39 without, `dcmulti` 112 and 19, while `mod008`, `bell3a` and `lseu` take 4 to 7 either way and keep presolve. MIPLIB 3 reads 0.903x in the geometric mean and 0.526x in the sum, none past 2x (`l152lav` 0.136x, `misc07` 1.501x), and the 2017 gap sum 14.61 to 14.53. Skipping presolve at every warm node reads 0.861x but runs `bell5` out of memory (`warm-node-no-presolve`). **Swept at 10, 20, 30 and 40** on MIPLIB 3 (`bench/measurements/02-352/`): 0.966x, 0.903x, 0.910x and 0.907x; at 10 `enigma` crosses the bar and reads 3.550x, from 30 on `khb05250` and `p0201` stay under it and keep their presolve |
-| `MIP_NOINC_DIVE_AFTER` | 1000 | the node count from which a tree that holds no incumbent dives: each node pushes its second child on a stack and solves the first next, as `--dive` with a backtrack limit does, until a point is found. Not applied under `--dive`, which keeps the user's settings. Read on 2026-10-05 (`bench/measurements/02-355/`): `timtab1` finds 1128183 and `glass4` 5.50e9 where neither held a point, every other model of the 2017 set and of MIPLIB 3 reads the same to the bit, and the 2017 gap sum goes from 14.45 to 13.94. **Swept at 0, 200, 500, 1000 and 2000** with 100 resumes: from node 0 the gap sum reads 13.03 (`csched007` finds 378) but MIPLIB 3 1.119x (`enigma` 8x, which finds its first point near node 900); 1.067x at 200, 1.112x at 500, 1.000x at 1000 and 2000, where the gap sum reads 14.11 |
-| `MIP_NOINC_DIVE_BACKTRACKS` | 100 | how many times a no-incumbent dive (`MIP_NOINC_DIVE_AFTER`) resumes from its stack before the stack goes back to the open set and the next pick by bound starts a new dive. Read at 16, 100 and 1000 from node 0 (`bench/measurements/02-355/`): MIPLIB 3 1.049x, 1.119x and 1.102x; the 2017 gap sum 14.01 at 16 and 13.03 at 100 |
-| `MIP_PROBE_CAP` | 0.0 | the work cap on each strong-branching probe as a multiple of the work the node's own relaxation took; a probe that reaches it stops and teaches nothing; 0 is no cap. `jaos_set_mip_probe_cap` overrides it. **Swept at 0, 0.5, 1 and 2** at reliability 1 and at 2 over the MIP set: at reliability 1, 0.971x uncapped, 1.228x at 0.5, 0.998x at 1, 1.018x at 2; at reliability 2, 1.064x, 1.307x, 1.081x, 1.091x. Every capped arm has an instance past 2x (`mod010` 4.51x at 1 with its tree unchanged at 7 nodes). A probe that reaches the cap pays its work and teaches nothing, so no cap is the default and the cap is refused as a default |
-| `MIP_PROBE_DEPTH` | -1 | the deepest node at which strong branching probes, the root being 0; negative is every depth. `jaos_set_mip_probe_depth` overrides it. **Swept at 0 with reliability 1, 2, 4 and 8, and at 1 and 2 with reliability 4** over the MIP set: 0.987x at the root only, one reading at every reliability because every root candidate is unreliable (9 better, 5 worse, `mod010` 2.84x and `enigma` 2.58x past 2x), 1.010x one level down, 1.024x two. Refused as a default with D293; every depth stays the default |
-| `MIP_IMPLIED_PASSES` | 20 | the passes over the rows that work out implied bounds for every column before the root's coefficient tightening. Each pass reads a row's least and greatest activity over the current bounds and pulls in each column's bound the row implies, rounded inward for an integer column and widened by the primal tolerance for a continuous one. A continuous column's implied bound feeds the tightening only; an integer column the passes fix at one value is fixed for the whole tree. The passes stop when one moves nothing. Not swept |
-| `MIP_IMPLIED_MOVE` | 1e-3 | how far an implied bound must move, relative to (1 + \|the old bound\|), before a pass takes it, so a cycle of rows that tightens a bound by ever smaller steps stops. Not swept. The implied fixing landed with it: on `sp150x300d` it fixes 29 binaries a demand node's only feasible arc needs and lifts the root relaxation from 4.89 to 34.14, HiGHS's own value after its presolve; on `beasleyC3` 26 binaries, 40.4 to 152.0. MIPLIB 3 reads 0.907x in the geometric mean of work, `egout` 0.075x, `bell3a` 1.364x and `dcmulti` 1.222x. Taking every tightened integer bound instead of the fixings alone sends `bell5` past 4 GB and `bell3a` to 1.857x, as the propagation of D324 did |
-| `MIP_PARITY_WORK` | 100 | the largest Gaussian elimination mod 2 the root's parity step runs, in units of the model's nonzeros plus columns plus rows: the step is skipped when rows times 64-bit words times the possible pivots passes it. A parity row is an equality row over integer columns with integer coefficients, at least one of them even, whose odd coefficients sit on binaries or fixed columns. Of the 54 models of MIPLIB 3 and the 2017 set, two have such rows (`bench/measurements/02-331/`): `enlight_hard`'s 100 rows over 100 binaries have rank 100, the elimination takes 2e4 operations and fixes every binary, and the model solves at the root (37, the reference) where it reached 1e10 work units with no point; `enigma`'s one row fixes nothing. Not swept |
-| `MIP_PRESOLVE` | on | whether the MIP presolve runs before the tree: an equality row whose only entries are two continuous columns with opposite coefficients and a right-hand side of 0 makes them equal, so the row and the second column go and the first takes the second's entries, cost and bounds. Read on 2026-10-04 (`bench/measurements/02-337/`): seven of the 54 models of MIPLIB 3 and the 2017 set have such rows (`binkar10_1` 180, `beasleyC3` 161, `sp150x300d` 61, `egout` and `csched008` 10, `tr12-30` 4, `csched007` 2). MIPLIB 3 reads 0.996x in the geometric mean of work (`egout` 0.896x) and the 2017 gap sum goes from 15.45 to 15.28: `sp150x300d` solves at 0.087x the work, `beasleyC3` holds 797 against 754 with a bound of 724 where it held 889 and 702, and `binkar10_1`'s bound falls from 6715.38 to 6713.13. Rows with a right-hand side other than 0, or with equal coefficients, were read too and are left out: the substitution then turns a variable-bound row `x - u y <= 0` into one with a nonzero right-hand side, which the network c-MIR no longer reads as a variable bound, and `sp150x300d` took 3.4e9 work units |
-| `MIP_PRESOLVE_PASSES` | 20 | the most passes of the MIP presolve; a pass takes every row it can whose columns no other substitution of the pass has touched, so a chain of pass-through nodes contracts over several passes. The seven models of `MIP_PRESOLVE` end in 2 to 5 passes. Not swept |
-| `MIP_NET_MIN_COLS` | 50 | the fewest continuous columns that must sit under a binary through a two-entry row `a x + c y <= 0` (or `>=`, or `=`) before the root's cuts run in network mode. `-DJAOS_MIP_NET_MIN_COLS_VALUE` overrides it at build time, as `bench/measurements/02-328/fcnet.sh` does to reach small generated models. With `MIP_NET_SHARE` it keeps MIPLIB 3's `bell5` (14 such columns, 0.30 of its continuous ones), `bell3a` (16, 0.26) and `flugpl` (5, 0.71) out: without the gate the same rounds cost `bell5` 64.4x, `flugpl` 3.88x and `enigma` 2.24x. In: `blend2`, `egout` and `gen` of MIPLIB 3, and `beasleyC3`, `exp-1-500-5-5`, `neos-3627168-kasai`, `neos-3754480-nidda`, `p200x1188c`, `sp150x300d` and `tr12-30` of the 2017 set. Not swept |
-| `MIP_NET_SHARE` | 1/3 | the share of a model's continuous columns that must sit under a binary for network mode, beside `MIP_NET_MIN_COLS`. `exp-1-500-5-5`, a lot-sizing model, reads 0.34 and gains the most from it. Not swept |
-| `MIP_NET_ROUNDS` | 100 | the root's MIR and flow cover rounds in network mode, 20 until 2026-10-04. With the pool of `MIP_NET_POOL_CAP` and the cut rows below, `MIP_NET_STALL` ends the rounds before round 50 on all six network models of the two MIP sets; `p200x1188c`'s root reaches 13137 for 1.0e9 work units, where 20 rounds end at 11716, and its bound at the 2017 limit goes from 12019 to 13767 (`bench/measurements/02-342/`). Each MIR cut there substitutes a continuous column's variable bound (`x = u y - s` or `x = l y + s`) before the rounding, as Marchand and Wolsey's c-MIR does, and is tried twice: once with each continuous column at the bound nearest its value, once with a column whose coefficient is positive at its lower bound and the others at their upper; the delta is each integer coefficient in turn, then the best divided by 2, 4 and 8. On `beasleyC3` the two bound rules together lift the root from 509 to 693 (HiGHS 733); either alone stops near 510. Since 2026-10-04 the MIR round and its aggregation in network mode read every row of the root's relaxation, the cuts of the rounds before included, so a cut can be formed from earlier cuts (`bench/measurements/02-341/`): `p200x1188c`'s root goes from 9980 to 12005 with the single-row round alone (HiGHS 11640) and `tr12-30`'s from 116340 to 130156 with the aggregation (its optimum 130596). `jaos_set_mip_mir_rounds` and `jaos_set_mip_flow_cover_rounds` override it. Not swept |
-| `MIP_NET_STALL` | 1e-4 | the round stall in network mode: the rounds end after one that lifts the bound by less than this share of (1 + \|bound\|). Not swept: `exp-1-500-5-5` still gains 1e-3 a round at round 20 |
-| `MIP_NET_CUT_CAP` | 200 | the cuts one network round keeps, the most efficacious first. Without a cap `exp-1-500-5-5` adds 8673 cuts in 6 rounds and the root takes 7.6e9 work units for a bound of 65064; capped at 200 with `MIP_NET_PARALLEL` it reaches 65144 in 20 rounds for 1.0e9 |
-| `MIP_NET_PARALLEL` | 0.5 | the largest cosine a kept network cut may have with one kept before it in the same round. Read on `exp-1-500-5-5` with 6 rounds and the aggregation probe of `MIP_MIR_AGG_GAIN` still on: at 0.9 the root ends at 40990, since the aggregated cuts of a round repeat each other and the probe drops them; at 0.5 at 57518, 2000 to 5000 a round. Not swept further |
-| `MIP_NET_HEUR_CAP` | 0.25 | in network mode, the work the root's dive and pump may spend once an incumbent exists, as a share of the root's work so far. After 20 rounds `beasleyC3`'s relaxation carries 2392 cuts and its dive and pump spent 2.1e10 work units on it; capped, the root takes 1.6e9. Before the first incumbent they run uncapped, so `tr12-30` keeps the pump's first point. Since 2026-10-04 lock rounding runs before the dive and the pump, so its point starts the cap sooner: `beasleyC3`'s root heuristics go from 7.9e9 to 6.2e8 work units (`bench/measurements/02-329/`). Not swept |
-| `MIP_NET_F0_HI` | 1e-6 | how near 1 the fraction `f0` of a network c-MIR cut's scaled right-hand side may sit: the cut is formed when `f0` lies in `[MIP_CUT_AWAY, 1 - MIP_NET_F0_HI]`. The continuous part of the cut grows as 1 / (1 - `f0`), and the efficacy rule and `MIP_MIR_ROUND` judge the result. With `MIP_CUT_AWAY` (0.01) at both ends, `sp150x300d`'s root bound reached 56.4; at 1e-6 it reaches 63.9. Over both MIP sets (`bench/measurements/02-329/`, arms `b2a` and `b2b`) the 2017 gap sum goes from 21.34 to 21.32, `p200x1188c`'s bound from 10934 to 11336, and MIPLIB 3 from 0.992x to 0.988x of the work at 9ab84a4. Not swept further |
-| `MIP_NET_POOL_CAP` | 200 | in network mode, from the root's second cut round on, a round first takes out of the relaxation every cut whose row is basic and slack by more than `MIP_NET_POOL_SLACK`, keeps it in a pool, and puts back at most this many of the pool's cuts the point violates, the most efficacious first, before it separates. `MIP_NET_CUT_CAP`'s value. The pool keeps `beasleyC3`'s relaxation near 2500 rows where it grew past 4000, and its root costs 0.68e9 work units instead of 3.48e9 for the same bound (`bench/measurements/02-342/`). Not swept |
-| `MIP_NET_POOL_EFF` | 1e-4 | the efficacy, violation over the Euclidean norm, a pool cut needs to come back. Not swept |
-| `MIP_NET_POOL_SLACK` | 1e-6 | how far past its bound, as a share of (1 + \|bound\|), a cut's activity must be for it to count as slack and leave, or as violated and come back. A cut that is basic but on its bound stays. The pool runs in network mode only: on every model it flattens `neos-911970`'s root at 23.26 (45.42 without it), with this rule or with every basic row taken out, since that root needs the cuts of five flat rounds to gather (02-339). Not swept |
-| `MIP_SUBMIP_NODES` | 500 | the node limit of the sub-MIP heuristic. At the root without an incumbent it solves the model with every integer column the relaxation leaves integral fixed and the others boxed to their floor and ceiling (RENS); with one, the model with every integer column fixed where the incumbent and the relaxation agree (RINS), cut off at the incumbent. Below the root it runs as RINS on the node's relaxation. Its own RINS and local branching are off. On the 2017 set it gives `neos-911970` and `binkar10_1` their first point at the root, and in the tree `p200x1188c` its optimum 15078 and `neos-911970` 55.6 against 54.76. `jaos_set_mip_rins` at 0 turns it off with the RINS dive. Not swept |
-| `MIP_SUBMIP_FIXED` | 0.3 | the share of the integer columns a sub-MIP must fix before it runs, so a sub-MIP is a small model. Not swept |
-| `MIP_SUBMIP_WORK` | 20000 | the work cap of one sub-MIP, in units of the model's nonzeros plus columns plus rows. Not swept |
-| `MIP_SUBMIP_EVERY` | 100 | the fewest nodes between two sub-MIPs below the root. Not swept |
-| `MIP_SUBMIP_SHARE` | 0.1 | the share of the tree's work the sub-MIPs below the root may take together. Not swept |
-| `MIP_SUBMIP_ROOT` | 0.5 | the work a root sub-MIP may take, as a share of the root's work so far. **Swept at 0.5, 2 and no share** on MIPLIB 3 over the fixings and the objective step: 1.040x, 1.090x and 1.101x in the geometric mean of work, the cost all on trees of a few hundred nodes (`khb05250`, `p0033`, `rgn`); the 2017 roots find the same points at 0.5 and at 2 |
-| `MIP_FJ_WORK` | 20000 | the most work one feasibility jump may spend, in units of the model's nonzeros plus columns plus rows; `MIP_FJ_ROOT` sets a lower cap on most models. The jump runs at the root of a linear model with no incumbent after lock rounding, once from the relaxation's point and once from zero. Each step moves one column to the value that most lowers the weighted violation of its rows; when no move lowers it, the weight of every violated row rises by 1. Not swept |
-| `MIP_FJ_SAMPLE` | 25 | how many violated rows one step of the jump draws, with a seeded xorshift generator; the columns of those rows are scored and the best move is taken, ties to the lowest column. Not swept |
-| `MIP_FJ_ROOT` | 0.5 | the work one feasibility jump may take, as a share of the root's work so far. Read at the root on 2026-10-04 (`bench/measurements/02-329/fj-root.txt`): where the jump finds a point it needs at most 0.29x the root's work (`graphdraw-domain` 4.8e5 against 1.7e6, `neos-3381206-awhea` 0.014x, `neos-3627168-kasai` 0.032x, `neos-2657525-crna` 6.3e4 from zero); where it fails it ran to the `MIP_FJ_WORK` cap, 1.7e7 to 1.7e8 work units a search (`misc03` 4.6e7 against a root of 9.7e5). Against the tree of 9ab84a4, MIPLIB 3 read 1.020x in the geometric mean of work before the jump, 1.183x with the jump uncapped (`p0033` 4.01x, `misc03` 3.13x) and 1.014x at 0.5 (`p0033` 1.18x, `misc03` 1.03x); the 2017 set holds 24 incumbents both ways, 20 without the jump. Not swept further |
-| `MIP_OBJ_DENOM` | 100 | the largest denominator the objective step looks for in a cost: when every column with a cost is integer and every cost is a fraction with a denominator up to this, every integer point's objective lies on a grid `offset + k step`, `step` the greatest common divisor of the costs over their least common denominator, and the tree rounds a bound up to the grid before it compares it to the incumbent. It closes `sp150x300d` of the 2017 set, whose bound stood at 68.10 against 69 at 1e10 work units, in 8.0e9 alone and 7.6e8 with the implied fixings; on MIPLIB 3 it reads 0.941x in the geometric mean of work (`stein27` 0.506x, `mod008` 0.583x, `l152lav` 1.190x). A continuous column with a cost turns it off. Not swept |
-| `MIP_OBJ_LCM` | 1e6 | the largest common denominator of the costs the objective step accepts. Not swept |
-| `MIP_OBJ_FIT` | 1e-9 | how close a cost times a candidate denominator must sit to an integer, relative to max(1, \|the product\|). Not swept |
-| `MIP_OBJ_ROUND` | 1e-6 | how far below a grid value a bound may sit, in steps, and still round to it rather than to the one above, so a relaxation's rounding error does not cut off an optimum on the grid. Not swept |
-| `MIP_OBJ_ROUND_REL` | 1e-9 | the same slack per step of the bound's own size, so a large objective keeps room for the error of its larger terms. Not swept |
-
-## The feasibility relaxation's six numbers
-
-All in `src/relax.c`, and none of them is a tolerance. The first three size
-the box a freed integer column is held in, and a wrong setting of them
-costs rounds, never an answer. The next two, `RELAX_BOX_ROUNDS` and
-`RELAX_ROUND_WORK`, cap the search: set too low, they end it with no
-answer (`JAOS_ERR_NUMERICAL`, and the message names the widest box tried).
-The sixth, `RELAX_LATTICE_CELLS`, sizes the proof that runs when those two
-stop the search. Over the columns the elastic copy frees every column, and a free
-integer column gives the tree an unbounded space, so a freed integer column
-is held in its own bounds widened by `M` on each freed side, and `M` grows
-until the total comes out at or below it. Then that total is the answer for
-the free box too, because a point cheaper than it would hold some column
-more than `M` outside its own bounds, and that alone costs more than `M`.
-
-| constant | value | |
-|---|---|---|
-| `RELAX_BOX_FLOOR` | 1 | The least `M` ever starts from. The copy is solved once with the integer marks dropped, and that value is a lower bound on the answer; a lower bound of zero would make the first box a point |
-| `RELAX_BOX_START` | 2 | `M` starts at this multiple of that lower bound, rounded up to an integer so an integer column's widened bounds stay integral. Any multiple above 1 ends in one round whenever the integer answer is within that factor of the LP's; at 2 the control in `bench/measurements/02-230/` finds one model in 2000 where the first box is too narrow, so the rounds are rarely paid and the check that decides them is not dead code |
-| `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by when the box is too narrow, or when it holds no integer point at all. Every round ends, so a work limit bounds the whole search. **Measured 2026-09-14** (`bench/measurements/02-230/`): 12000 generated models over six seeds, three scopes each, against the free box; no total moves past 1e-9, the rows scope is byte-identical, and the columns scope costs 1.10x to 1.27x the work per seed, the LP solve that sets `M` being most of it, with one model at 26x. Not swept: the cost is the extra solves and the growth factor only decides how many, and a model whose rows plus integrality admit no point never ends under any factor |
-| `RELAX_BOX_ROUNDS` | 16 | How many times `M` may grow before the search over the columns stops and says so. A model whose rows plus integrality admit no point at all has none in any box, so the growth never ended: `tests/data/relax_runaway.mps` stopped only on the caller's work limit, and the report then read "the relaxation's solve answered work limit reached". `M` may grow 15 times: the 16th box that fails stops the search without growing it. The widest box is 32768 times the first, and the model that needs more than that is the model this cap is for. Not swept |
-| `RELAX_ROUND_WORK` | 64 | The work a round after the first may take, as a multiple of the first round's, which is the LP that sets `M` plus the first box. The rounds are what runs away, not their number: on an infeasible model a box twice as wide costs about four times the work, so the sixteenth round alone is out of reach. With both caps `relax --cols` on `relax_runaway` ends by itself after 8 rounds, 6.2e7 work units and 0.13 s, and names the box it stopped at. The caps cost nothing where an answer exists: the 4000 generated models of `bench/measurements/02-230/relax.c`, two seeds of 2000 over three scopes, read byte-identical with them in place (`bench/measurements/02-297/`). Not swept |
-| `RELAX_LATTICE_CELLS` | 4096 | The most numbers a block of equality rows may hold, rows times columns plus one, for the proof that no box holds a point. The proof runs when the two caps above stop a search over the columns alone. It reads the equality rows without an indicator in blocks that share no column, drops every bound and every other row, scales each row to whole numbers, eliminates the continuous columns and brings the rest to Hermite normal form, all in 4096-bit integers. A row whose pivot does not divide its right-hand side proves the model has no integer point, and the report then says infeasible. A block past the cap is skipped. At the cap the block holds 2.2 MB. **Read on 2026-10-08** (`bench/measurements/02-362/`): a dense all-integer block at the cap, 32 rows by 127 columns, takes 0.011 s and 170849 work units, where the box search on `relax_runaway` takes 4.0e7. On 4000 generated models with a planted integer point the proof claims none; on 4000 with the point moved by one half on an integer column it settles 2198, and a MIP solve in a box finds a point on none of them. Not swept |
-
-## The conic interior point's numbers
-
-All in `src/conic.c`. The walk runs on a scaled copy of the problem (Ruiz
-on the rows and columns, a cone's rows scaled together, the objective by
-the largest cost), so its tolerances are magnitudes there; the Newton
-finish and the checks run on the model as loaded. **The readings are
-`bench/measurements/02-253/`**: 1000 generated models at each of the seeds
-1, 2 and 3, one variant at a time, and for each variant the models that
-fail a check, the iterations and work units summed over the 3000, and the
-worst dual violation the checker reports on an optimum. The values below
-read **10 failed, 34597 iterations, 429475776 work units, worst dual
-violation 2.2e-16, longest walk 26 iterations**; every failure is a
-numerical error and none a wrong verdict. The variants were read with
-`CONIC_REG` at 1e-8, where the same set reads 12 failed and 417694043 work
-units, so their counts below are against that.
-
-**Since 2026-09-19 the second reading is `bench/measurements/02-254/`**:
-the 29 continuous CBLIB 2014 instances under 70 MB beside the 3000
-generated models. Every cone's scaling block now enters the Newton
-system as the identity and two rank-one terms, a cone's inner products
-and determinants are summed with compensation, and the gap is the larger
-of the objectives' difference and the complementarity; with those, and
-the two constants below that 02-254 added, the generated set reads **8
-failed, 34559 iterations, 457753888 work units, worst dual violation
-2.2e-16, longest walk 36**, and CBLIB reads 26 optima, all 26 taken by
-the checker, three numerical errors, 697 iterations and 440299195736 work
-units.
+These are capacities. They decide whether an operation or a block fits,
+and no setting of them changes an answer.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `CONIC_TOL` | 1e-10 | The walk stops `OPTIMAL` when the relative primal residual, the relative dual residual and the relative gap are all at or below it. **Swept at 1e-9 and 1e-11**: at 1e-9, 13 fail and the Newton finish, starting further out, leaves one optimum a dual violation of 4.7e-5; at 1e-11 the same 12 fail at 10% more iterations and 13% more work. **The gap is the larger of `\|pobj - dobj\|` and the complementarity `s'z`, each over `1 + \|objective\|`, since 2026-09-19**: the homogeneous objectives' difference is offset by the residuals, and CBLIB's nql60 stopped at 5e-14 by it with a complementarity of 5.6e-7, which the checker refused. Without the complementarity CBLIB reads 28 optima of which the checker takes 19; with it, 26 of 26 (02-254) |
-| `CONIC_STALL_ITERS` | 3 | A walk that holds a point within `CONIC_TOL_ROUGH` stops after this many iterations in which the largest of the three measures has not fallen below its best, and answers from that point by the rules below. With the complementarity in the gap, the nql walks of CBLIB went on to 113 and 200 iterations with the primal residual climbing from 1e-10 to 1e-5, and answered from their iteration-19 point anyway. **Swept at 1, 2, 3, 5 and 10**: every value reads the same verdicts, 8 failed and 26 of 26; 3, 5 and 10 give the same answers to the bit on 02-253, at 440, 467 and 532 thousand million work units on CBLIB, while 1 and 2 change answers on 02-253 because some of their walks would still have improved (02-254). 3 is the smallest that cuts no walk short |
-| `CONIC_TOL_STALL` | 1e-8 | A walk that stops without reaching `CONIC_TOL` keeps its last point within this and answers `OPTIMAL` from it, after the Newton finish. Not swept on its own; `CONIC_TOL_ROUGH` below reads the same question |
-| `CONIC_TOL_ROUGH` | 1e-6 | A stopped walk's last point within this still stands, but only when the checker takes the finished point on both sides; otherwise the solve ends `NUMERICAL_ERROR`. **Swept at 1e-8 and 1e-5**: at 1e-8, which turns the rule off, 14 fail; at 1e-5 the same 12 as at 1e-6 |
-| `CONIC_TOL_INFEAS` | 1e-8 | The certificate tests, `\|A'z\|` against `-b'z` for infeasibility and `\|Ax + s\|, \|Px\|` against `-q'x` for a ray, both with `tau < kappa`. **Swept at 1e-7 and 1e-9**: at 1e-7, 23 fail, the rays taken earlier too rough for the ray checker even after the projection; at 1e-9, 16 fail and three planted infeasibilities end otherwise |
-| `CONIC_TOL_INFEAS_STALL` | 1e-5 | The same two tests on a walk that stalls: a direction with a non-finite part, or a step below `CONIC_STALL_STEP`. What they find still goes through its checker, and an infeasibility found this way that the checker refuses ends `NUMERICAL_ERROR`. **Swept at 1e-6 and 1e-4**: 13 fail at 1e-6, the same 12 at 1e-4 as at 1e-5 |
-| `CONIC_MAX_ITER` | 200 | Iterations after which the walk stops. The longest walk over the 3000 takes 26. Not swept |
-| `CONIC_STEP` | 0.99 | The fraction of the step to the cones' boundary that is taken. **Swept at 0.95 and 0.999**: at 0.95, 14 fail at 19% more iterations; at 0.999, 10 fail at 29% more iterations and 45% more work |
-| `CONIC_REG` | 1e-7 | The static regularisation of the quasi-definite Newton systems, `+reg` on the columns and `-reg` on the rows, in the walk and in the Newton finish. **Swept at 1e-9, 1e-8, 1e-7 and 1e-6**: 61, 12, 10 and 11 fail; at 1e-6 one optimum keeps a dual violation of 1.7e-6 and the work is 8% above 1e-8, at 1e-7 it is 2.8% above with every optimum clean. Changed from 1e-8 to 1e-7 on 2026-09-19 on that reading |
-| `CONIC_PIVOT` | 1e-13 | The floor under a pivot of the quasi-definite LDL, below which the pivot is replaced with its sign kept. Not swept |
-| `CONIC_REFINE` | 10 | Passes of iterative refinement against the unregularised system, in the walk and in the Newton finish, stopping once the residual is 1e-14 of the right-hand side (1e-15 in the finish). Not swept |
-| `CONIC_RUIZ` | 10 | Rounds of Ruiz equilibration; a cone's rows take the largest of their factors, so the cone stays a cone. Not swept |
-| `CONIC_SCALE_MIN`, `CONIC_SCALE_MAX` | 1e-4, 1e4 | The clamp on every Ruiz factor and on the objective's scale. Not swept |
+| `JM_EXACT_LIMBS` | 128 | 32-bit limbs per magnitude in `src/exact.c` (4096 bits); one double needs 34. More limbs prove more bases, but 1024 take about 18x the time of 512. `-DJM_EXACT_LIMBS=N` widens it (`bench/measurements/02-180/`, `bench/measurements/02-358/`) |
+| `VERIFY_BLOCK_BYTES` | 536870912 | 512 MiB, the most one verify call may hold for a block's dense elimination: a block of 1007 rows at 528 bytes a number. It refuses an oversized block before allocating. Bounded only by the machine |
+| `EXACT_PIVOT_CAP` | 1000 | Exact pivots, flips and shifts `jaos_set_exact` may take to repair one basis. The largest repair on the standard 94 took 82 pivots (`bench/measurements/02-358/`). Not swept |
+
+There is no `VERIFY_BOUND_MARGIN`: the width test it padded is gone, and the
+verifier checks each operation instead (`bench/measurements/02-358/`).
+`VERIFY_PROD_BITS` is under "The other constants".
+
+## Branch and bound
+
+The numbers and switches of `src/mip.c`, and two numbers of
+`src/symmetry.c` (`SYM_MAX_DEPTH`, `SYM_LEAF_CAP`). `MIP_LOG_EVERY` and
+`MIP_STEER_ROUNDS` are under "The other constants". The setters and options
+that override them are in `docs/api.md`. Settings are read on MIPLIB 3, by
+the geometric mean of work with every instance under 2x, and on the 2017
+set at 1e10 work units by the sum of the primal and dual gaps; a cut family
+pays there when it brings that sum to 0.95x. A heuristic that moves no node
+count is judged by how early the first incumbent arrives. Network mode is
+the root's cut mode for a model with many continuous columns under binaries
+(`MIP_NET_MIN_COLS`).
+
+| Name | Value | What it decides |
+|---|---|---|
+| `MIP_ROOT_CUT_DROP` | on | Lets a root cut leave the relaxation below a node where it does not bind. 0.799x the work on MIPLIB 3, none past 2x (`bench/measurements/02-202/`) |
+| `MIP_COVER_LIFT` | off | Gives each cover cut Balas's lifted coefficients instead of extending it by every heavier item. The 2017 set reads 1.001x, short of 0.95x (`bench/measurements/02-298/`) |
+| `MIP_NODE_MIR` | off | Adds MIR cuts over a node's own bounds to the node's Gomory round |
+| `MIP_PUMP_GENERAL` | off | Gives the pump an extra column and two rows per general integer column, so the column's distance to its rounding counts wherever the rounding lies |
+| `MIP_PUMP_ALWAYS` | off | Runs the pump at the root even when an incumbent exists |
+| `MIP_RCFIX` | on | Once an incumbent exists, the root pulls an integer column's far bound in as far as its reduced cost allows. MIPLIB 3 reads 0.944x (`bench/measurements/02-335/`) |
+| `MIP_RESTART` | off | Restarts the tree from the root once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns (`mip-restart` in `bench/refusals.txt`). Network mode restarts whatever this says, keeping the first root's cuts (`bench/measurements/02-345/`) |
+| `MIP_INT_TOL` | 1e-6 | How far a relaxation value may sit from an integer and count as integral, in the model's units; such a value is published rounded. A smaller value asks for more than the relaxation's own accuracy, and a larger one publishes fractional points. Not swept: no MIPLIB 3 instance comes near it |
+| `MIP_CLIQUE_ROUNDS` | 4 | Rounds of clique cuts at the root. 0.97x the work on MIPLIB 3, none past 2x. Not swept beyond on and off |
+| `MIP_ZERO_HALF_ROUNDS` | 0 | Rounds of zero-half cuts at the root (Caprara and Fischetti, pairs-and-bounds): integer rows alone, in pairs and in triples, halved with the bound rows that make every coefficient even. Off: at 1 to 4 rounds the cuts lengthen the trees and MIPLIB 3 reads 1.18x to 1.22x; the 2017 set reads 1.000x (`bench/measurements/02-31/`, `bench/measurements/02-298/`) |
+| `MIP_ZERO_HALF_ROW_CAP` | 100 | The tightest candidate rows a zero-half round pairs. Not swept |
+| `MIP_ZERO_HALF_TRIPLE_CAP` | 40 | The tightest candidate rows a round takes in triples. Not swept |
+| `MIP_ZERO_HALF_CUT_CAP` | 50 | The cuts one zero-half round keeps, in enumeration order. Not swept |
+| `MIP_FLOW_COVER_ROUNDS` | 5 | Rounds of flow cover cuts at the root (Padberg, Van Roy and Wolsey) on single-node flow sets, with variable upper bounds read from rows `x - u y <= 0`. 5 rounds read 1.000x on MIPLIB 3 and 0.989x on the 2017 set, and raise the root bounds of sp150x300d and p200x1188c (`bench/measurements/02-317/`). Other counts not swept |
+| `MIP_FLOW_COVER_CUT_CAP` | 50 | The cuts one flow cover round keeps, in row order. Not swept |
+| `MIP_HULL_ROUNDS` | 20 | Rounds of hull cuts at the root: for a short row with few integer points in its box, an LP over the listed points finds the most violated valid inequality, and its right-hand side is recomputed exactly. A row that is its own hull is skipped. It solves `neos-3381206-awhea` at the root, and MIPLIB 3 reads 0.984x (`bench/measurements/02-356/`). Not swept |
+| `MIP_HULL_COLS` | 8 | The most columns a row may have for hull cuts. Not swept |
+| `MIP_HULL_POINTS` | 1024 | The most integer points a row's box may hold for hull cuts; `neos-3381206-awhea`'s rows hold 576. Not swept |
+| `MIP_HULL_KEEP` | 10 | A root round in which hull cuts reach at least one row in `MIP_HULL_KEEP` does not count as stalled (`MIP_MIR_MORE_STALL`). At 0 `neos-3381206-awhea` stops before its bound rises; with every such round `p0033` costs 1.9x (`bench/measurements/02-356/`) |
+| `MIP_CONFLICTS` | on | Turns an infeasible node's Farkas proof into a permanent conflict row over the binaries the path fixed, after relaxing every fixing the proof does not need. Skipped with indicator rows or SOS sets. 0.924x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`) |
+| `MIP_CONFLICT_MAX` | 32 | The most binaries a conflict row may hold; a longer one prunes almost nothing. Not swept |
+| `MIP_CONFLICT_GAP` | 1e-9 | The gap the proof must keep, relative to (1 + \|the rows' side\|), for a fixing to be dropped or the row written; below it the proof is rounding. Not swept |
+| `MIP_SYMMETRY` | off | Runs the root's symmetry search (colour refinement, then partition backtracking) on its own. `MIP_ORBITAL` runs the same search, so this matters only with orbital branching off |
+| `MIP_SYMMETRY_WORK` | 250 | The work the search may spend, as a multiple of (nonzeros + columns + rows); a search that runs out keeps the generators found. At 250 every symmetric MIPLIB 3 instance finishes but misc06 and air03; 100 gives p0201 a poorer orbit, 0.943x against 0.835x (`bench/measurements/02-31/`) |
+| `MIP_ORBITAL` | on | Orbital branching and fixing (Ostrowski, Linderoth, Rossi and Smriglio): the zero side of a branch zeroes the binary's whole orbit under the node's stabiliser, and node entry zeroes every orbit the path zeroed. 0.835x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`) |
+| `SYM_MAX_DEPTH` | 64 | The levels of the first leaf's path the search revisits. Not swept |
+| `SYM_LEAF_CAP` | 64 | The leaves the backtracking under one alternative vertex may visit before giving it up. Not swept |
+| `MIP_CLIQUE_FIX` | on | At each node, a binary fixed to one value fixes the literals in conflict with it in the root's clique table (the all-binary rows' conflicts and probing's implications), cascading; a node holding both sides of a conflict is cut without a solve. With RINS on, MIPLIB 3 reads 0.735x in summed work and 1.002x in the geometric mean, and the 2017 set 0.994x (`bench/measurements/02-325/`) |
+| `MIP_CLIQUE_ROW_CAP` | 64 | The largest literals of a row and side that feed the conflict graph; it bounds the work per row. Not swept |
+| `MIP_GAP` | 1e-6 | The relative gap that closes the search: no open node beats the incumbent by more than `MIP_GAP * (1 + \|incumbent\|)`. Under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Not swept: every MIPLIB 3 instance closes with bound equal to incumbent |
+| `MIP_CUT_ROUNDS` | 1 | Rounds of Gomory mixed-integer cuts at the root. Swept at 0 to 5: 1 has the best mean with every instance under 2x, and 2 and 3 put several past 2x. A later reading of 2 gave 1.111x (`bench/measurements/02-351/`) |
+| `MIP_CUT_AWAY` | 0.01 | A basic integer column is cut only when its fraction lies in `[AWAY, 1 - AWAY]`, since the cut divides by the fraction and its complement. Balas, Ceria, Cornuejols and Natraj's bound. Not swept |
+| `MIP_CUT_DROP` | 1e-9 | A coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid; kept when that bound is infinite. Not swept |
+| `MIP_CUT_SLACK` | 1e-15 | How far a cut's right-hand side is pulled back, in units of its span `1 + \|rhs\| + Σ_j \|a_j\| max(1, \|l_j\|, \|u_j\|)`. A rounded-up side can cut off the integer points on it and make a feasible model read infeasible; pulling back only keeps points. Over 20000 generated models checked by enumeration it removes every false infeasible. 1e-15 covers one rounding step; 1e-11 loosened the bound enough to lose `misc03` |
+| `MIP_CUT_DYNAMISM` | 1e6 | The largest ratio of a kept cut's largest to smallest coefficient. Not swept: held |
+| `MIP_CUT_DEPTH` | 3 | Nodes down to this depth get one round of Gomory cuts on their own relaxation, valid in their subtree. Swept from 0 to every node: 3 has the best mean (0.835x) with every instance under 2x |
+| `MIP_NODE_CUT_CAP` | 4 | How many cuts a node below the root keeps, the most efficacious first; 0 is no cap. Swept at 0 to 16: 4 has the best mean with every instance under 2x at the default depth |
+| `MIP_COVER_ROUNDS` | 4 | Rounds of knapsack cover cuts at the root. Swept from 0 to 8: 4 has the best mean (0.745x against Gomory alone) with every instance under 2x |
+| `MIP_CUT_STALL` | 0.0 | A root round that moves the bound by less than this times (1 + \|bound\|) is the last; 0 stops only when a round adds nothing. At 1e-4 to 1e-2 every round it removed was worth its solve (`bench/measurements/02-202/`) |
+| `MIP_NODE_CUT_STALL` | 0.0 | A node whose round moves its bound by less than this share gets no round under it; 0 never stops. Alone 2e-2 reads 0.816x, but beside the root-cut drop every value puts `enigma` past 2x and the drop alone reads better (`bench/measurements/02-202/`) |
+| `MIP_MIR_ROUNDS` | 6 | Rounds of MIR cuts on the model's rows at the root. Swept from 1 to 12: 6 has the best mean (0.719x against none) and the curve is flat past it |
+| `MIP_MIR_MORE` | 20 | The most MIR rounds outside network mode: past `MIP_MIR_ROUNDS` a round runs only while the one before lifted the bound by `MIP_MIR_MORE_STALL`, because some roots sit flat and then climb. MIPLIB 3 reads 1.005x and the 2017 gap sum falls from 16.80 to 16.54; 20 rounds without the rule put `gt2` at 2.5x (`bench/measurements/02-332/`) |
+| `MIP_MIR_MORE_STALL` | 1e-4 | The share of (1 + \|bound\|) such a round must lift the bound by; `MIP_NET_STALL`'s value. Not swept |
+| `MIP_MIR_FLIP_GAIN` | 1e-9 | How much flipping an integer column to its other bound must raise a MIR cut's efficacy to be kept (Marchand and Wolsey's complementation), outside network mode on rows with a continuous column. The 2017 gap sum falls from 14.19 to 13.48 and MIPLIB 3 reads 1.000x (`bench/measurements/02-357/`). Not swept |
+| `MIP_MIR_DELTAS` | 8 | How many scalings a row's MIR cut tries beyond 1, taken from the fractional integer columns' coefficients. Not swept: a longer list only adds candidates the efficacy rule can reject |
+| `MIP_MIR_ROUND` | 1e-9 | The rounding a MIR side's shifted right-hand side may carry and still be cut, `DBL_EPSILON` times its terms' magnitudes times their count. An understated fraction gives an invalid cut; 1e-9 keeps the coefficient error under 1e-7 after the 1 / (1 - f0) that `MIP_CUT_AWAY` caps at 100. Not swept |
+| `MIP_MIR_AGGREGATE` | 6 | How many continuous columns a MIR aggregate may substitute out with other rows before it is rounded; 0 is the single-row form. Each step picks the column farthest from its bounds (in network mode the largest coefficient) and the row that leaves the least bound distance. Unguarded, every count put `gen` past 2x; behind `MIP_MIR_AGG_GAIN`, 6 reads 1.012x on MIPLIB 3 and 0.986x on the 2017 set (`bench/measurements/02-321/`, `bench/measurements/02-347/`) |
+| `MIP_MIR_AGG_GAIN` | 1e-2 | How much a root round's aggregated MIR cuts must lift the bound, as a share of `1 + \|bound\|`, measured on a copy of the root LP; below it aggregation stops for the solve. A quadratic objective never aggregates, since its relaxations are cold barrier solves. 1e-4 keeps weak cuts that grow bell3a's and dcmulti's trees 1.6x to 1.9x, and 1e-3 puts khb05250 at 2.1x (`bench/measurements/02-321/`, `bench/measurements/02-349/`) |
+| `MIP_MIR_LAMBDA` | 1e6 | The largest multiplier an aggregation step may use, and 1 / this the smallest, since a multiplier far from 1 makes the aggregate a difference of very different sizes. Not swept: held at `MIP_CUT_DYNAMISM` |
+| `MIP_DIVE_HEURISTIC_DEPTH` | 0 | The deepest node the dive heuristic runs at; 0 is the root alone. At 1, 2 and 4 no node count moves and the work rises to 1.05x to 1.36x |
+| `MIP_RINS` | 50 | How many relaxations a RINS dive may solve at a node, with the integer columns fixed where incumbent and relaxation agree; 0 is off. A quadratic objective takes 0, since its dives are barrier solves. 10, 50 and 200 read the same on MIPLIB 3; with clique fixing see `MIP_CLIQUE_FIX` (`bench/measurements/02-325/`) |
+| `MIP_LOCAL_BRANCHING` | 0 | How many binaries the local branching tree may flip from the incumbent; 0 is off. 10 and 20 flips read 0.975x and 0.992x on the 2017 set and finish nothing (`bench/measurements/02-286/`) |
+| `MIP_LOCAL_BRANCHING_NODES` | 1000 | The node limit of one local branching tree, a small share of an instance's 1e10 units. Not swept |
+| `MIP_START_NODES` | 1000 | The node limit of the tree that completes a partial MIP start. On p0201 with half its columns given it finds the optimum inside it. Not swept |
+| `MIP_NODE_SELECT` | 1 | The open node the tree takes when it does not dive: 0 the lowest bound, 1 the lowest pseudocost estimate. With the bound every fifth pick the 2017 set reads 0.896x and MIPLIB 3 0.922x, none past 2x (`bench/measurements/02-286/`) |
+| `MIP_ESTIMATE_BOUND_EVERY` | 5 | Under the estimate order, every this-many-th pick takes the lowest bound so the tree's bound keeps rising. 10 reads better on the 2017 set but leaves bell5 without an incumbent at twice its work; 5 finishes it |
+| `MIP_RESTART_FRAC` | 0.2 | The share of integer columns the root's reduced costs must fix before `--restart` restarts the tree. 0.2 and 0.05 fired on none of the 2017 set. Held |
+| `MIP_BATCH_MAX` | 64 | The largest round `mip_tree_batch` can ask the linear tree for, and the size of the round's arrays; the linear tree's `CT_BATCH_MAX`. Rounds of 4 cost 1.37x on MIPLIB 3, so the default round is 1 (`bench/measurements/02-290/`) |
+| `MIP_FEASPUMP` | 20 | Rounds of the feasibility pump at the root, while nothing has an answer yet; 0 is off. From 1 to 100 no node count moves, and 20 reaches every early incumbent a larger value does at 1.026x the work |
+| `MIP_PUMP_FLIPS` | 10 | How many integer columns a stalled pump moves to the other side, furthest from the rounding first. Fischetti, Glover and Lodi draw it at random, which would break bit-identical results. Not swept |
+| `MIP_PUMP_OBJ` | 0.5 | The objective pump's decay: each round weighs the model's objective by `a` against the distance, and `a` multiplies by this from 1. At 0.3 to 0.9 all read about 0.985x the plain pump; 0.5 is the largest decay that delays no first incumbent |
+| `MIP_RCFIX_SLACK` | 1e-6 | The slack a reduced-cost fixing adds before it rounds down; slack only loosens the bound, so the deduction stays valid. Not swept: held at the primal tolerance's scale |
+| `MIP_PROPAGATE` | 0 | Passes of bound propagation over the rows before a node's relaxation is solved; 0 is off. At 1, 2 and 4 passes MIPLIB 3 reads 1.05x to 1.10x, because the moved bounds change the branching (`bench/measurements/02-31/`) |
+| `MIP_QUAD_PROPAGATE` | 4 | What `MIP_PROPAGATE` reads instead of 0 when the objective is quadratic, where a node solve is a cold barrier run. On 400 generated cardinality QPs checked by enumeration, four passes take 13% less work than none |
+| `MIP_PROPAGATE_DEPTH` | -1 | The deepest node propagation runs at; negative is every node. The root alone reads 1.051x and one level 1.080x, against 1.074x at every node. It has no effect while `MIP_PROPAGATE` is 0 |
+| `MIP_PROP_SLACK` | 1e-9 | The slack a propagated bound keeps before it is rounded, as with `MIP_RCFIX_SLACK`. Not swept |
+| `MIP_PROP_INFEAS` | 1e-7 | How far a row's implied activity must sit outside its bound, relative to (1 + \|bound\| + \|activity\|), to prune a node unsolved. Two orders above `MIP_PROP_SLACK`, because a wrong prune throws an optimum away. Not swept |
+| `MIP_PROP_MOVE` | 0.5 | How far a propagated bound must move an integer column before it is taken, so rounding alone never churns the relaxation. Not swept |
+| `MIP_TIGHTEN` | on | Tightens coefficients of binaries in one-sided rows on the tree's copy (Savelsbergh's coefficient improvement); no integer point moves. MIPLIB 3 reads 0.928x (`bench/measurements/02-307/`) |
+| `MIP_TIGHTEN_MIN` | 1e-9 | The slack a row must show, relative to (1 + \|its bound\|), before a coefficient is tightened. Not swept |
+| `MIP_PROBING` | off | Probes the root's fractional binaries at 0 and at 1 with propagation, fixing a column whose one side is impossible and keeping the bounds both sides imply. On MIPLIB 3 it fixes nothing and reads 1.109x, because the bounds it finds change the branching (`bench/measurements/02-31/`) |
+| `MIP_PROBING_ROUNDS` | 2 | Propagation rounds per probe. Not swept |
+| `MIP_PROBING_CAP` | 1.0 | Probing's work as a multiple of the root solve's; 0 is no cap. 0.5 to no cap all read 1.108x to 1.109x (`bench/measurements/02-31/`) |
+| `MIP_DIVE_BACKTRACK` | 0 | How many times a dive resumes from the deepest sibling on its stack; 0 sends every sibling to the open set. No value from 1 to unbounded meets the bar, so the dive stays off |
+| `MIP_DIVE_GAP` | 0.0 | How far above the best open bound a sibling may be for the dive to resume from it; 0 is no limit. `tests/test_mip.c` fails if it stops deciding. Every value from 1e-4 to 1 costs more than none |
+| `MIP_DIVE_HEURISTIC` | 50 | Relaxations the root's dive heuristic may solve, fixing the column nearest an integer each time; 0 is off. At 50 the first incumbent comes earlier on six of the seven instances 200 reaches, at 1.032x the work |
+| `MIP_DIVE_DEGRADE` | 0.0 | How far a node's bound may fall from its parent's for the dive to go on into its children; 0 is no limit. Every value from 1e-3 to 1e-1 costs more than none |
+| `MIP_PC_EPS` | 1e-6 | The floor under each direction's gain in the pseudocost product score, so a zero gain does not erase a column (Achterberg, Koch and Martin). Not swept |
+| `MIP_RELIABILITY` | 0 | Branches per direction before a pseudocost is trusted; below it the children are solved on the spot. Node counts fall at every value, but each probe is a full solve and 1 puts two instances past 2x (`bench/measurements/02-192/`) |
+| `MIP_STRONG_CANDIDATES` | 8 | How many unreliable columns a node probes. Not swept: no reliability setting paid |
+| `MIP_NODE_PRESOLVE_TRIAL` | 50 | How many node relaxations the tree counts iterations for before `MIP_NODE_PRESOLVE_ITERS` decides (`bench/measurements/02-352/`). Not swept |
+| `MIP_NODE_PRESOLVE_ITERS` | 20.0 | When the trial nodes average more simplex iterations than this, later warm node relaxations skip the LP presolve, which can leave the parent's basis far from the reduced model's optimum. At 10 to 40, 20 has the best mean (0.903x) and 10 puts `enigma` at 3.6x (`bench/measurements/02-352/`) |
+| `MIP_NOINC_DIVE_AFTER` | 1000 | The node count from which a tree with no incumbent dives until it finds a point; not applied under `--dive`. From node 0 `enigma` costs 8x; 1000 is the earliest that leaves MIPLIB 3 unchanged, and the 2017 gap sum falls from 14.45 to 13.94 (`bench/measurements/02-355/`) |
+| `MIP_NOINC_DIVE_BACKTRACKS` | 100 | How many times that dive resumes from its stack before a new dive starts. Of 16, 100 and 1000, 100 gives the lowest 2017 gap sum (`bench/measurements/02-355/`) |
+| `MIP_PROBE_CAP` | 0.0 | The work cap on each strong-branching probe as a multiple of the node's; 0 is no cap. Every capped value puts an instance past 2x |
+| `MIP_PROBE_DEPTH` | -1 | The deepest node at which strong branching probes; negative is every depth. Probing at the root only puts two instances past 2x |
+| `MIP_IMPLIED_PASSES` | 20 | Passes over the rows deriving implied bounds before the root's coefficient tightening; an integer column fixed this way is fixed for the tree (`bench/measurements/02-328/`). Not swept |
+| `MIP_IMPLIED_MOVE` | 1e-3 | How far an implied bound must move, relative to (1 + \|old bound\|), to be taken, so a cycle of shrinking steps stops. The fixings lift `sp150x300d`'s root from 4.89 to 34.14; taking every tightened integer bound sent `bell5` past 4 GB (`bench/measurements/02-328/`). Not swept |
+| `MIP_PARITY_WORK` | 100 | The largest elimination mod 2 the root's parity step runs, in units of (nonzeros + columns + rows). It fixes every binary of `enlight_hard`, which then solves at the root (`bench/measurements/02-331/`). Not swept |
+| `MIP_PRESOLVE` | on | Merges two continuous columns joined by an equality row with opposite coefficients and side 0. MIPLIB 3 reads 0.996x and the 2017 gap sum falls from 15.45 to 15.28; other sides are left out because they break the variable-bound rows network c-MIR reads (`bench/measurements/02-337/`) |
+| `MIP_PRESOLVE_PASSES` | 20 | The most passes of the MIP presolve; the models read end in 2 to 5. Not swept |
+| `MIP_NET_MIN_COLS` | 50 | The fewest continuous columns under a binary, through two-entry rows, for network mode; `-DJAOS_MIP_NET_MIN_COLS_VALUE` overrides it at build time. With `MIP_NET_SHARE` it keeps `bell5`, `bell3a` and `flugpl` out, which the network rounds cost up to 64x (`bench/measurements/02-328/`). Not swept |
+| `MIP_NET_SHARE` | 1/3 | The share of the continuous columns that must sit under a binary for network mode. Not swept |
+| `MIP_NET_ROUNDS` | 100 | The root's MIR and flow cover rounds in network mode, where MIR cuts substitute variable bounds first (c-MIR) and may build on earlier cuts. `MIP_NET_STALL` ends them before round 50 on every network model (`bench/measurements/02-341/`, `bench/measurements/02-342/`). Not swept |
+| `MIP_NET_STALL` | 1e-4 | The rounds end after one that lifts the bound by less than this share of (1 + \|bound\|). Not swept |
+| `MIP_NET_CUT_CAP` | 200 | The cuts one network round keeps. Without it `exp-1-500-5-5`'s root takes 7.6x the work for a weaker bound |
+| `MIP_NET_PARALLEL` | 0.5 | The largest cosine between two kept cuts of one round. At 0.9 the round's cuts repeat each other. Not swept further |
+| `MIP_NET_HEUR_CAP` | 0.25 | The root's dive and pump work in network mode, once an incumbent exists, as a share of the root's work (`bench/measurements/02-329/`). Not swept |
+| `MIP_NET_F0_HI` | 1e-6 | A network c-MIR cut is formed when its fraction `f0` lies in `[MIP_CUT_AWAY, 1 - MIP_NET_F0_HI]`. With `MIP_CUT_AWAY` at both ends `sp150x300d`'s root reached 56.4 against 63.9 (`bench/measurements/02-329/`) |
+| `MIP_NET_POOL_CAP` | 200 | In network mode, slack basic cuts leave the relaxation for a pool and at most this many violated ones come back each round. It cuts `beasleyC3`'s root work to a fifth (`bench/measurements/02-342/`). Not swept |
+| `MIP_NET_POOL_EFF` | 1e-4 | The efficacy a pool cut needs to come back. Not swept |
+| `MIP_NET_POOL_SLACK` | 1e-6 | How far past its bound a cut's activity must be to leave the relaxation or come back. The pool is off outside network mode because it holds `neos-911970`'s root bound at 23.26 against 45.42 without it (`bench/measurements/02-339/`). Not swept |
+| `MIP_SUBMIP_NODES` | 500 | The node limit of the sub-MIP heuristic, RENS at a root with no incumbent and RINS elsewhere. It gives `neos-911970` and `binkar10_1` their first point (`bench/measurements/02-328/`). Not swept |
+| `MIP_SUBMIP_FIXED` | 0.3 | The share of integer columns a sub-MIP must fix to run. Not swept |
+| `MIP_SUBMIP_WORK` | 20000 | The work cap of one sub-MIP, in units of (nonzeros + columns + rows). Not swept |
+| `MIP_SUBMIP_EVERY` | 100 | The fewest nodes between two sub-MIPs below the root. Not swept |
+| `MIP_SUBMIP_SHARE` | 0.1 | The share of the tree's work the sub-MIPs below the root may take. Not swept |
+| `MIP_SUBMIP_ROOT` | 0.5 | A root sub-MIP's work as a share of the root's work. 0.5, 2 and no share read 1.040x, 1.090x and 1.101x on MIPLIB 3 with the same 2017 points (`bench/measurements/02-328/`) |
+| `MIP_FJ_WORK` | 20000 | The most work one feasibility jump may spend, in units of (nonzeros + columns + rows). The jump runs at the root of a linear model with no incumbent. Not swept |
+| `MIP_FJ_SAMPLE` | 25 | How many violated rows one jump step draws, with a seeded generator. Not swept |
+| `MIP_FJ_ROOT` | 0.5 | One jump's work as a share of the root's. A successful jump needs at most 0.29x; uncapped, failures put `p0033` at 4x, and at 0.5 MIPLIB 3 reads 1.014x (`bench/measurements/02-329/fj-root.txt`) |
+| `MIP_OBJ_DENOM` | 100 | The largest cost denominator the objective step looks for: when every costed column is integer, the objective lies on a grid and a bound is rounded up to it. It closes `sp150x300d` and reads 0.941x on MIPLIB 3 (`bench/measurements/02-328/`). Not swept |
+| `MIP_OBJ_LCM` | 1e6 | The largest common denominator of the costs the step accepts. Not swept |
+| `MIP_OBJ_FIT` | 1e-9 | How close a cost times a denominator must sit to an integer, relative to max(1, \|product\|). Not swept |
+| `MIP_OBJ_ROUND` | 1e-6 | How far below a grid value, in steps, a bound may sit and still round to it. Not swept |
+| `MIP_OBJ_ROUND_REL` | 1e-9 | The same slack per step of the bound's own size. Not swept |
+
+## The feasibility relaxation
+
+All in `src/relax.c`, and none is a tolerance. A freed integer column is held
+in its own bounds widened by `M` on each freed side, and `M` grows until the
+total comes out at or below it; that total is then the answer for the free
+box too. The first three constants cost rounds, never an answer.
+`RELAX_BOX_ROUNDS` and `RELAX_ROUND_WORK` stop the search with
+`JAOS_ERR_NUMERICAL`, naming the widest box tried, and
+`RELAX_LATTICE_CELLS` sizes the proof that runs then.
+
+| Name | Value | What it decides |
+|---|---|---|
+| `RELAX_BOX_FLOOR` | 1 | The least `M` starts from, so a zero LP bound does not make the first box a point |
+| `RELAX_BOX_START` | 2 | `M` starts at this multiple of the LP bound, rounded up to an integer. At 2 one generated model in 2000 needs a second round (`bench/measurements/02-230/`) |
+| `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by. On 12000 generated models no total moves past 1e-9 against the free box (`bench/measurements/02-230/`). Not swept: it only sets how many extra solves run |
+| `RELAX_BOX_ROUNDS` | 16 | How many boxes the search over the columns may try, so a model with no integer point in any box stops (`tests/data/relax_runaway.mps`). Not swept |
+| `RELAX_ROUND_WORK` | 64 | A later round's work as a multiple of the first's; a box twice as wide costs about four times the work on an infeasible model. The caps change nothing where an answer exists (`bench/measurements/02-297/`). Not swept |
+| `RELAX_LATTICE_CELLS` | 4096 | The most numbers, rows times (columns + 1), a block of equality rows may hold for the Hermite-form proof that no box holds an integer point; a larger block is skipped. The proof never claims infeasible on 4000 models with a planted point, and settles 2198 of 4000 with the point moved by a half (`bench/measurements/02-362/`). Not swept |
+
+## The conic interior point
+
+All in `src/conic.c`. The walk runs on a Ruiz-scaled copy, so its
+tolerances are magnitudes there; the Newton finish and the checks run on the
+model as loaded. The readings are `bench/measurements/02-253/` (3000
+generated models, one variant at a time) and `bench/measurements/02-254/`
+(the 29 continuous CBLIB 2014 instances under 70 MB). "Fail" counts
+generated models that fail a check, always as a numerical error; the
+variants were read with `CONIC_REG` at 1e-8, where 12 fail. At the values
+below, 8 fail, and CBLIB gives 26 optima, all taken by the checker.
+
+| Name | Value | What it decides |
+|---|---|---|
+| `CONIC_TOL` | 1e-10 | The walk stops `OPTIMAL` when relative primal, dual and gap measures are at or below it; the gap takes the larger of the objectives' difference and `s'z`, since without `s'z` the checker refused 9 of 28 CBLIB optima. 1e-9 fails 13; 1e-11 fails 12 for 13% more work (`bench/measurements/02-254/`) |
+| `CONIC_STALL_ITERS` | 3 | Iterations without a new best after which a walk within `CONIC_TOL_ROUGH` stops. 3 is the smallest that cuts no walk short; 1 and 2 change answers (`bench/measurements/02-254/`) |
+| `CONIC_TOL_STALL` | 1e-8 | A stopped walk's point within this answers `OPTIMAL` after the Newton finish. Not swept on its own |
+| `CONIC_TOL_ROUGH` | 1e-6 | A stopped walk's point within this stands only if the checker takes both sides. 1e-8, which turns the rule off, fails 14; 1e-5 reads like 1e-6 |
+| `CONIC_TOL_INFEAS` | 1e-8 | The infeasibility and ray certificate tests, with `tau < kappa`. 1e-7 fails 23 on rays too rough for the checker; 1e-9 fails 16 and loses three planted infeasibilities |
+| `CONIC_TOL_INFEAS_STALL` | 1e-5 | The same tests on a stalled walk, still checked. 1e-6 fails 13; 1e-4 reads like 1e-5 |
+| `CONIC_MAX_ITER` | 200 | Iterations before the walk stops; the longest of the 3000 takes 26. Not swept |
+| `CONIC_STEP` | 0.99 | The fraction of the step to the cones' boundary taken. 0.95 fails 14 for 19% more iterations; 0.999 fails 10 for 45% more work |
+| `CONIC_REG` | 1e-7 | Static regularisation of the quasi-definite Newton systems. 1e-9 to 1e-6 fail 61, 12, 10 and 11; 1e-6 leaves a dual violation of 1.7e-6, while 1e-7 keeps every optimum clean for 2.8% more work than 1e-8 |
+| `CONIC_PIVOT` | 1e-13 | The floor under an LDL pivot, replaced with its sign kept. Not swept |
+| `CONIC_REFINE` | 10 | Passes of iterative refinement against the unregularised system. Not swept |
+| `CONIC_RUIZ` | 10 | Rounds of Ruiz equilibration; a cone's rows share one factor. Not swept |
+| `CONIC_SCALE_MIN`, `CONIC_SCALE_MAX` | 1e-4, 1e4 | The clamp on every Ruiz factor and the objective's scale. Not swept |
 | `CONIC_STALL_STEP` | 1e-10 | A step below this is a stall. Not swept |
-| `CONIC_NEWTON_STEPS` | 2 | Newton steps of the finish; a step that does not lower the KKT residual is undone and the finish stops there. On `tests/data/g_qcp.mps` the residual goes 1.8e-6, 1.3e-11, 4.6e-16. **Swept at 1 and 4**: one step fails 15 and leaves a dual violation of 3.7e-5; four fail the same 12 as two at 1.5% more work |
-| `CONIC_NEWTON_WIDE` | 64 | A cone on its boundary with more members than this enters the finish's Newton system as the diagonal part of its Hessian and one rank-one term held by one extra variable; a narrower one is written dense. Before 2026-09-19 the finish did not run past a limit of 1e6 entries, and it changed when CBLIB's cones of 2475 to 99998 members made the finish skip sched and fail to allocate chainsing's `d²` map. **Read at 16, 64 and 256**: the same answers on both readings of 02-254 |
-| `CONIC_PSD_TOL` | 1e-10 | A quadratic row's `Q` is factored by pivoted Cholesky, and a pivot below this times the largest entry ends the factor: what is left has to be zero to the same tolerance, or the row is refused as not convex. Not swept |
-| `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's `Q` may touch, because the factor is dense. Not swept |
-| `CONIC_RAY_ZERO` | 1e-7 | A ray's parts, and an infeasibility certificate's multipliers, below this times the largest are set to zero before the checker sees them. Before it none of 34 rays passed, a part of 1e-9 that should be zero pushing past a finite bound, and 135 of 286 capped-cone infeasibilities published no certificate, a multiplier of that size on a row with a free column. **Swept at 1e-9 and 1e-5**: 91 fail at 1e-9, the same 12 at 1e-5 as at 1e-7. Since 2026-09-19 it also bounds a narrower cleanup, tried first on a certificate the checker refuses (`bench/measurements/02-263/`): a column free in its coefficient's direction whose terms add up to no more than this times the largest entry has the entries that touch it zeroed. On turbine07_lowb's nodes that passes where zeroing every small entry left a column of traffic 272 at -0.0066. Not swept apart: the same scale decides what is negligible in both |
-| `CONIC_RAY_ACTIVE` | 1e-6 | A ray the checker refuses is projected onto the rows it moves by less than this times the row's traffic, and onto `F d = 0` for every quadratic row, by conjugate gradients on `J J'`. The projection took seed 2 from 24 failed to 3. **Swept at 1e-8 and 1e-4**: the same 12 at both |
-| `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Conjugate-gradient steps of the projection, and its stop at this fraction of the squared starting residual. Not swept |
-| `CONIC_NEWTON_ROUNDS` | 4 | How many times the Newton finish may run. After each run every column sitting on a bound whose reduced cost pushes it the other way leaves the active set, and the finish runs again without them (`bench/measurements/02-273/`). The loop stops as soon as no column leaves that way. **Swept at 1, 2, 3 and 6** on CBLIB's three `sched_*_orig` and on 200 of 02-253's models: 1 solves none of the three, 2 solves two, and 3, 4 and 6 solve all three at the same work |
-| `CONIC_LOOSE_MARGIN` | 1e-9 | A linear row leaves the conic walk, outside a tree node, when its activity over the columns' boxes stays inside its sides by at least this times `1 + Σ|a_ij bound_j|`; its dual is 0 and its activity is computed from the answer. The margin keeps a row whose box activity only touches a side, since that one can bind. `tests/data/g_cone_badbox.mps` with `x11 + x13 >= 0` added, both columns at least 1.7e6, ended `numerical_error` at a refused certificate, and ends `optimal` without the row (`bench/measurements/02-322/`). Not swept |
-| `CONIC_CERT_TILT` | 32 | The width of the ladder the search walks when it re-weights an infeasibility certificate the checker refuses (`bench/measurements/02-270/`), `2^-32` to `2^32` of the step, and the number of refining steps after it. The certificate's gap is concave in the multipliers, so one wide ladder and a refinement inside it find the best point on a line. **Swept at 12, 24, 40, 48 and 64** on the 12 ball models of 02-253 that published no certificate: 12 and 24 fix 10 of the 12, 32 and every wider value fix 11 |
-| `CONIC_CERT_SWEEPS` | 1 | Passes the search makes over the rows, one multiplier at a time. **Swept at 2, 3 and 6**: all fix the same 11 of 12, so the later passes only cost work |
-| `CONIC_CERT_CALLS` | 1024 | Calls to the certificate checker the coordinate climb may make. The cap is tested once per ladder step, and a step makes two calls. It does not bound the tilt ladder that runs before the climb: on a model with quadratic rows the ladder adds up to 130 calls (65 + 64 + 1) per outer round, and the search makes two outer rounds. Each call is charged the model's size (nonzeros, columns and rows, plus one) in work units; the ladder is bounded on its own and its calls are charged the same way. **Swept at 256, 512, 2048 and 4096**: 256 fixes 7 of the 12, 512 fixes 8, 1024 and above fix 11 |
+| `CONIC_NEWTON_STEPS` | 2 | Newton steps of the finish; a step that does not lower the KKT residual is undone. One step fails 15; four read like two for 1.5% more work |
+| `CONIC_NEWTON_WIDE` | 64 | A boundary cone wider than this enters the finish as a diagonal plus a rank-one term, since CBLIB's widest cones made the dense form too large. 16 and 256 read the same (`bench/measurements/02-254/`) |
+| `CONIC_PSD_TOL` | 1e-10 | A quadratic row's pivoted Cholesky stops at a pivot below this times the largest; a nonzero remainder refuses the row as not convex. Not swept |
+| `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's dense `Q` may touch. Not swept |
+| `CONIC_RAY_ZERO` | 1e-7 | Ray parts and certificate multipliers below this times the largest are zeroed before the checker sees them; it also bounds a narrower cleanup tried first (`bench/measurements/02-263/`). 1e-9 fails 91; 1e-5 reads like 1e-7 |
+| `CONIC_RAY_ACTIVE` | 1e-6 | A refused ray is projected, by conjugate gradients, onto the rows it moves by less than this times the row's traffic; this took seed 2 from 24 failures to 3. 1e-8 and 1e-4 read the same |
+| `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Steps of that projection and its stop. Not swept |
+| `CONIC_NEWTON_ROUNDS` | 4 | Runs of the Newton finish, each dropping the columns whose reduced cost pushes them off their bound. 3 or more solve CBLIB's three `sched_*_orig` at the same work; 1 solves none (`bench/measurements/02-273/`) |
+| `CONIC_LOOSE_MARGIN` | 1e-9 | Outside a tree node, a linear row whose box activity stays inside its sides by this times `1 + Σ\|a_ij bound_j\|` leaves the walk (`tests/data/g_cone_badbox.mps`, `bench/measurements/02-322/`). Not swept |
+| `CONIC_CERT_TILT` | 32 | The ladder width, `2^-32` to `2^32` of the step, when a refused certificate is re-weighted. 32 or wider fixes 11 of 12 ball models; 12 and 24 fix 10 (`bench/measurements/02-270/`) |
+| `CONIC_CERT_SWEEPS` | 1 | Passes over the rows of that search. 2, 3 and 6 fix the same 11 |
+| `CONIC_CERT_CALLS` | 1024 | Checker calls the coordinate climb may make, each charged the model's size in work units. 256 fixes 7, 512 fixes 8, 1024 and above 11 |
 
-## The conic tree's three numbers
+## The conic tree
 
-`src/conictree.c`, the branch and bound for a model with cones or
-quadratic rows and integer columns, since 2026-09-19. Its gap is the MIP
-tree's (`MIP_GAP`, or the `mip_gap` option), and it has three numbers of
-its own: `CT_INT_TOL`, `CT_PC_EPS` and `CT_BATCH_MAX`. **The reading is
-`bench/measurements/02-255/`**: 3000 generated
-models against brute force over every integer value.
+`src/conictree.c` is the branch and bound for a model with cones or
+quadratic rows and integer columns. Its gap is `MIP_GAP`. The reading is
+`bench/measurements/02-255/`, 3000 generated models checked against brute
+force.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `CT_INT_TOL` | 1e-6 | A column value within this of an integer counts as integral, and a relaxation whose integer columns are all within it closes its node by a solve with those columns fixed at their rounded values. Since 2026-09-25 it is also the distance from 0 within which an SOS member counts as zero, and the margin inside `(0, lower)` a semi-continuous column has to reach before it is branched on, as `MIP_INT_TOL` is in the MIP tree. The same value as `MIP_INT_TOL`. Not swept: every answer of 02-255 agrees with brute force to 2.5e-16, so the tolerance never chose a wrong point |
-| `CT_PC_EPS` | 1e-6 | The floor under each direction's estimated gain in the pseudocost score, the product of the two, so a column whose one side has shown no gain yet still ranks by the other. The same floor as the MIP tree's product rule. Not swept: its job is to keep a zero from erasing a product, and on `tests/test_conic.c`'s weighted rounding model the rule takes 39 nodes against 63 for the most fractional column |
-| `CT_BATCH_MAX` | 64 | The largest round `mip_tree_batch` can ask the conic tree for, and the size of the arrays a round uses. It is a cap, not a tolerance: a round that large already holds more nodes than any machine here has cores, and the search it gives is far from the one-node tree's. Not swept: `bench/measurements/02-264/` reads rounds of 1, 2, 4 and 8, and 1 is the default |
+| `CT_INT_TOL` | 1e-6 | A value within this of an integer is integral; also the zero of an SOS member and the margin a semi-continuous column must reach. `MIP_INT_TOL`'s value. Not swept: every answer agrees with brute force to 2.5e-16 |
+| `CT_PC_EPS` | 1e-6 | The floor under each gain in the pseudocost product, as in the MIP tree. Not swept |
+| `CT_BATCH_MAX` | 64 | The largest round `mip_tree_batch` can ask the conic tree for. A cap; the default round is 1 (`bench/measurements/02-264/`) |
 
-Its two heuristics take the MIP tree's switches and have no number of
-their own. At the root the relaxation is rounded and solved with its
-integer columns fixed (`--no-heuristics` turns it off). While no
-incumbent is known the root then dives: each solve fixes the half of the
-fractional integer columns nearest an integer, so the cap
-`MIP_DIVE_HEURISTIC` (50, the `mip_dive_heuristic` option) binds only
-past 2^50 of them. On the generated set of 02-255 every answer is the
-same to the bit at 1.093x the work, and on CBLIB's mixed-integer set the
-instances with no incumbent go from 17 to 0. A rounding at nodes 2, 4, 8
-and on as well was read and refused (`conic-rounding-schedule` in
-`bench/refusals.txt`).
-
-Since 2026-09-19 the MIP tree runs the same two at the root of a model
-with a quadratic objective, before its own dive and while no incumbent
-is known: the rounded solve, and when that gives no feasible point, the
-halving dive, capped by the same `MIP_DIVE_HEURISTIC` and ended by the
-same rounded solve. `--no-heuristics` and `--dive-heuristic 0` turn both
-off, and a model with no quadratic objective never reaches them, so the
-MIP set's 24 instances are the same to the bit. On QPLIB's 17 convex
-mixed-integer QPs (`bench/measurements/02-259/`) QPLIB_3913 and 4270 get
-an incumbent where they had none and QPLIB_3547's goes from 0 to -0.2007
-against a reference of -0.56; the other 14 end as before.
+The conic tree's root rounding and halving dive take the MIP tree's switches
+and `MIP_DIVE_HEURISTIC`. The MIP tree runs the same two at the root of a
+quadratic model with no incumbent (`bench/measurements/02-259/`). Rounding
+at deeper nodes was refused (`conic-rounding-schedule`).
 
 ## The other constants
 
-These were in the code without a line here until 2026-09-21. The first
-group decides a solve; the rest are sizes a format or a buffer sets, and
-cadences that decide only when something is noticed or printed.
+The first group decides a solve. The rest are sizes a format or a buffer
+sets, and cadences of checks and output.
 
-| Constant | Value | What it decides |
+| Name | Value | What it decides |
 |---|---|---|
-| `STALL_FACTOR` | 10 | The dual simplex turns to Bland's rule when the best total primal infeasibility has not improved for `STALL_FACTOR * (nrow + ncol + 1)` iterations, and turns it off as soon as the total improves. **Measured on both sides** (D17, commit 0661af8): the longest plateau on an instance that terminates is truss's, at 1.67 of its size. A solve that has not perturbed by then (its early perturbation turned off) perturbs at this count before it turns to Bland's rule; until 2026-10-04 that was every node solve of the MIP tree |
-| `PERTURB_STALL_FACTOR` | 1 | The dual perturbs its costs (`DUAL_PERTURB`) once the best total primal infeasibility has not improved for `PERTURB_STALL_FACTOR * (nrow + ncol + 1)` iterations, a tenth of the plateau that turns on Bland's rule. **Swept 2026-09-21** over the standard 94 against the tree without it, work (`bench/measurements/02-280/`): 0.3 0.9955x with pilot 7.9x and nesm 3.9x, 0.5 0.9656x with pilot 1.11x and truss 1.09x, **1 0.9688x** with four instances moved and all four better (grow22 0.113x, grow15 0.508x, grow7 0.891x, truss 0.995x), 2 0.9829x with grow22 alone moved, 10 unchanged. At 1 Kennington and the MIP set are byte-identical and the infeasible set reads 1.0002x. Perturbing before the first iteration, as the rivals do, was refused (`dual-perturb-at-start`). Since 2026-09-23 a solve whose early perturbation is followed by a full `STALL_FACTOR` plateau does not go on to Bland's rule: it stops and starts again once from the same start with the early perturbation off, which is the path the dual took before this constant. `pilot` with its column 3 held at 1018, solved from the slack basis, had looped for 952801 iterations to the iteration guard; it now restarts after 79555 and ends optimal. Since 2026-10-04 the node solves of the MIP tree perturb at this plateau too, where they waited for `STALL_FACTOR`'s (`bench/measurements/02-333/`): MIPLIB 3 reads 0.981x in the geometric mean of work and 0.939x in the sum, `enigma` 0.704x and `l152lav` 0.904x, and the 2017 gap sum 16.54 to 16.37, `neos-911970`'s bound at the limit 45.0 to 52.0 and `neos-2657525-crna`'s incumbent 825 to 53.8; the root of `csched008`, whose re-solves after each cut round ran 40000 iterations, costs 1.29e10 work units instead of 3.52e10 |
-| `NOISE_MARGIN` | 1e5 | A reduced cost of the wrong sign below `NOISE_MARGIN * DBL_EPSILON` times its column's traffic is read as rounding, not as a cost, where the simplex re-enters a column. **Measured** (commit af171bc): over both feasible sets noise and real costs sit seven orders apart and 1e5 is the geometric middle; 1e5 and 1e7 give identical answers, and 1e3 works and costs pds-20 28% more work |
-| `SPARSE_ALPHA_DEN` | 4 | The pricing row is read through its pattern while the pattern holds at most `nvar / SPARSE_ALPHA_DEN` entries. **Swept** at eight settings over two sets and three over Kennington (commit 0af0412): sparse always is worse than dense always, and the osa models pay up to 1.35x for it |
-| `SPARSE_RHO_DEN` | 4 | The row `rho` is ordered and walked through its pattern while it holds at most `nrow / SPARSE_RHO_DEN` entries. **Swept** at seven settings (commit 9e400be) |
-| `SPARSE_COL_DEN` | 8 | The forward solve keeps its answer's pattern while the column holds at most `nrow / SPARSE_COL_DEN` entries. **Not measured**: commit c9ce295 says so of it alone |
-| `PIVOT_SEARCH_LIMIT` | 4 | The Markowitz search in `src/lu.c` stops once it has examined this many candidates and holds an acceptable pivot. Not swept |
-| `REPAIR_ATTEMPTS` | 4 | The most repairs of a singular basis in one refactorisation. One pass suffices in exact arithmetic; the cap is a backstop against threshold pivoting declining a pivot the algebra says exists (commit 06d49c1). Not swept |
-| `MIP_STEER_ROUNDS` | 1000 | The most rounds of a node callback at one node: each round fires the callback, adds the rows it returned and solves the node again when one cuts the point. A backstop. Not swept |
-| `CONIC_RAY_PROBE_TOL` | 1e-6 | The tolerance the ray checker is handed for a direction the conic solve over directions finds (commit 99a6ff5). Not swept |
-| `VERIFY_PROD_BITS` | 256 | The exact verifier's bound keeps a product of more than this many bits as its top 256 bits and an exponent, rounded up, so the bound stays an upper bound. Not swept |
-| `GEO_MAX_PASS` | 20 | The most passes of the geometric-mean scaling, which stops sooner when the spread improves by less than `GEO_TOL`. Only the tests reach it (`docs/scaling.md`). Not swept |
-| `GEO_TOL` | 1e-3 | The geometric pass stops when the row spread, in log2 units, improves by less than this, or when the spread is 0 (`src/scale.c`). Set with the scaling in 4123d0e. Not swept |
-| `CR_MAX_ITER` | 30 | The most conjugate-gradient iterations of Curtis-Reid scaling (`src/scale.c`), which sets the scale factors of every LP and QP solve. Set in 4123d0e. Not swept |
-| `CR_TOL` | 1e-8 | Curtis-Reid's conjugate gradients stop when the residual's inner product `r'z` falls to `CR_TOL^2` times its start, or when `p'q` is not positive. Set in 4123d0e. Not swept |
-| `BIG` | 2^996 | `jm_two_product_residue` (`src/model.c`) returns 0 for a factor above it, because `SPLIT` times such a factor could overflow. Above it, the compensated sum of the published objective drops that product's residue. Arithmetic (e29198a), not swept |
-| `SPLIT` | 134217729 | `2^27 + 1`, Dekker's constant: it splits a double into two halves of 26 bits for the exact product in `jm_two_product_residue`. Arithmetic, not a setting |
-| `CONCURRENT_ARMS` | 3 | The concurrent solve's arms, in order: the dual, the primal, the barrier |
-| `TIME_CHECK_EVERY` | 64 | The simplex reads the clock for a time limit once every this many iterations |
-| `PROGRESS_EVERY` | 64 | The simplex calls the progress callback once every this many iterations |
-| `LOG_EVERY` | 1000 | A log line every this many simplex iterations |
-| `MIP_LOG_EVERY` | 100 | A log line every this many branch-and-bound nodes |
-| `OSIL_INF` | 1e30 | OSiL's infinity: a bound of this magnitude or more reads as infinite. Set by the format |
-| `QPLIB_INF` | 1e20 | The QPLIB reader's infinity until the file's own "value for infinity" line sets it, which comes before every bound |
+| `STALL_FACTOR` | 10 | The dual turns to Bland's rule after `STALL_FACTOR * (nrow + ncol + 1)` iterations without a better total infeasibility. The longest plateau on a terminating instance is 1.67 times its size (measured in commit 0661af8) |
+| `PERTURB_STALL_FACTOR` | 1 | The dual perturbs its costs (`DUAL_PERTURB`) after this times `nrow + ncol + 1` iterations without progress, in every solve including MIP nodes. At 1 every Netlib instance that moves gets better; 0.5 makes `pilot` and `truss` worse (`bench/measurements/02-280/`, `bench/measurements/02-333/`). Perturbing at the start was refused (`dual-perturb-at-start`) |
+| `NOISE_MARGIN` | 1e5 | A wrong-signed reduced cost below `NOISE_MARGIN * DBL_EPSILON` times its column's traffic is rounding when the simplex re-enters a column. Noise and real costs sit seven orders apart and 1e5 is the middle (measured in commit af171bc) |
+| `SPARSE_ALPHA_DEN` | 4 | The pricing row goes through its pattern while it holds at most `nvar / SPARSE_ALPHA_DEN` entries (measured in commit 0af0412) |
+| `SPARSE_RHO_DEN` | 4 | The row `rho` goes through its pattern while it holds at most `nrow / SPARSE_RHO_DEN` entries (measured in commit 9e400be) |
+| `SPARSE_COL_DEN` | 8 | The forward solve keeps its answer's pattern while it holds at most `nrow / SPARSE_COL_DEN` entries. Not measured |
+| `PIVOT_SEARCH_LIMIT` | 4 | Candidates the Markowitz search examines once it holds an acceptable pivot. Not swept |
+| `REPAIR_ATTEMPTS` | 4 | Repairs of a singular basis in one refactorization, a backstop. Not swept |
+| `MIP_STEER_ROUNDS` | 1000 | Rounds of a node callback at one node, a backstop. Not swept |
+| `CONIC_RAY_PROBE_TOL` | 1e-6 | The ray checker's tolerance for a direction the conic solve finds. Not swept |
+| `VERIFY_PROD_BITS` | 256 | The exact verifier's bound keeps a longer product as its top 256 bits and an exponent, rounded up. Not swept |
+| `GEO_MAX_PASS` | 20 | Passes of geometric-mean scaling, reached only by tests (`docs/scaling.md`). Not swept |
+| `GEO_TOL` | 1e-3 | Geometric scaling stops when the row spread improves by less than this in log2. Not swept |
+| `CR_MAX_ITER` | 30 | Conjugate-gradient iterations of Curtis-Reid scaling. Not swept |
+| `CR_TOL` | 1e-8 | Curtis-Reid stops when `r'z` falls to `CR_TOL^2` of its start. Not swept |
+| `BIG` | 2^996 | Above it `jm_two_product_residue` returns 0, since `SPLIT` times the factor could overflow. Arithmetic |
+| `SPLIT` | 134217729 | `2^27 + 1`, Dekker's constant for the exact product. Arithmetic |
+| `CONCURRENT_ARMS` | 3 | The concurrent solve's arms: dual, primal, barrier |
+| `TIME_CHECK_EVERY` | 64 | Simplex iterations between clock reads for a time limit |
+| `PROGRESS_EVERY` | 64 | Simplex iterations between progress callbacks |
+| `LOG_EVERY` | 1000 | Simplex iterations between log lines |
+| `MIP_LOG_EVERY` | 100 | Branch-and-bound nodes between log lines |
+| `OSIL_INF` | 1e30 | OSiL's infinity, set by the format |
+| `QPLIB_INF` | 1e20 | QPLIB's infinity until the file's own line sets it |
 | `NAME_MAX_LEN` | 255 | The longest name the LP reader takes |
 | `MAXTOK` | 16 | The most fields on one MPS line |
 | `OSIL_MAX_ATTR` | 16 | The most attributes the OSiL reader keeps on one tag |
-| `JM_NAME_BUF` | 24 | The buffer for a positional name, `C<j+1>` or `R<i+1>`, which holds any 64-bit index |
-| `JM_NL_OPTIONS` | 9 | The option slots of a `.nl` header, kept for the `.sol` written back |
+| `JM_NAME_BUF` | 24 | The buffer for a positional name such as `C<j+1>` |
+| `JM_NL_OPTIONS` | 9 | The option slots of a `.nl` header |
 | `PROOF_LINE` | 4096 | The longest line the proof-file reader takes |
-| `SLURP_CHUNK` | 65536 | The bytes one read of a file asks for, straight into the heap buffer that grows to hold the whole file. Before 2026-09-21 the read went through a stack buffer of that size, a sixteenth of a Windows thread's stack |
-| `JM_READ_DECLARED_FLOOR` | 2^20 | The largest count of variables, constraints, cone blocks or entries that the `.nl`, QPLIB, CBF and OSiL readers take from a file shorter than that count in bytes (`jm_declared_fits`). A count is read before the data it counts and sizes the arrays the reader allocates, so without a limit a 50-byte file asked for 1.7 TB (the fuzz run of 2026-09-21, `bench/measurements/02-277/`). Over the 449 real files on disk (Netlib, Kennington, the infeasible set, MIPLIB 3, Maros-Meszaros, CBLIB, 63 of QPLIB and `tests/data`), the largest of rows, columns and nonzeros per byte is 0.069 (`nql30.cbf.gz`), so one per byte is 14 times the worst real file. The floor lets a small file declare up to a million of them, which a compact format such as CBF's `F n` or OSiL's `mult` does legitimately |
+| `SLURP_CHUNK` | 65536 | Bytes per read of a file into its growing heap buffer |
+| `JM_READ_DECLARED_FLOOR` | 2^20 | The largest declared count the `.nl`, QPLIB, CBF and OSiL readers take from a file shorter than that count in bytes (`jm_declared_fits`), so a tiny file cannot make the reader allocate terabytes. Real files reach 0.069 counts per byte (`bench/measurements/02-277/`) |
 | `WINDOW` | 32768 | DEFLATE's window (RFC 1951) |
 | `MIN_MATCH`, `MAX_MATCH` | 3, 258 | DEFLATE's shortest and longest match (RFC 1951) |
 | `HUFF_MAXSYM` | 288 | The literal and length alphabet of RFC 1951 |
 | `GZ_FHCRC`, `GZ_FEXTRA`, `GZ_FNAME`, `GZ_FCOMMENT`, `GZ_RESERVED` | 0x02, 0x04, 0x08, 0x10, 0xe0 | The gzip header's flag bits (RFC 1952) |
 | `HASH_BITS`, `HASH_SIZE` | 15, 32768 | The deflate encoder's hash table over three-byte prefixes. Not swept |
-| `CHAIN_MAX` | 128 | The most earlier positions the encoder tries for one match. With the table above it sets the output at 1.3387x the size of `gzip -9` (`bench/measurements/02-217/`). Not swept |
+| `CHAIN_MAX` | 128 | Earlier positions the encoder tries per match; the output is 1.3387x `gzip -9`'s size (`bench/measurements/02-217/`). Not swept |
 
 `JM_WORK_NONZERO`, `JM_WORK_ELIMINATED`, `JM_WORK_UPDATE` and
 `JM_WORK_FACTOR` are the work units' weights, and `docs/work-units.md`

@@ -1,21 +1,17 @@
 # Work units
 
-The currency of the reproducible budget. A work unit is counted in
-the kernels, never derived from a clock, so the same model consumes the
-same number of units on every machine — which is what makes
-`jaos_set_work_limit` mean something a wall-clock limit cannot.
+A work unit is counted in the kernels and never derived from a clock. The
+same model consumes the same number of units on every machine, so
+`jaos_set_work_limit` stops a solve at the same point everywhere. Read
+`jaos_work_units` after a solve to see what it cost.
 
-Read `jaos_work_units` after a solve to see what it cost.
-
-**A budget that stops can be started again.** A simplex solve cut off by a
-work limit, a time limit or a callback parks its whole state on the model:
-the factorisation, its update chain, the pricing weights, the shifts and the
-phase. Raising the limit and calling `jaos_solve` again goes on from exactly
-where it stopped, so an LP stopped and solved on ends on the uninterrupted
-answer to the bit, work and iterations included (since 2026-09-15,
-`bench/measurements/02-247/`). There is no answer to read in between: the
-run did not produce one, and `jaos_basis` says so, because a stopping point
-is not a solution. An edit, a new basis, or a changed algorithm or
+A simplex solve stopped by a work limit, a time limit or a callback parks
+its state on the model: the factorisation, its update chain, the pricing
+weights, the shifts and the phase. Raising the limit and calling
+`jaos_solve` again continues from that state. An LP stopped and resumed
+ends on the uninterrupted answer to the bit, work and iterations included
+(`bench/measurements/02-247/`). A stopped solve has no answer to read, and
+`jaos_basis` says so. An edit, a new basis, or a changed algorithm or
 tolerance drops the parked state, and the next solve starts warm from the
 basis the stop left. The barrier, PDLP and the conic interior point have no
 basis to keep, so a run of one of them cut off by a budget starts again
@@ -23,9 +19,9 @@ from its starting point.
 
 ## The weights
 
-Defined in `src/jaos_internal.h`. Drafts until calibrated;
-the definition becomes public contract at 1.0, and after that the ratios
-change only at a major version.
+Defined in `src/jaos_internal.h`. They are drafts until calibrated. The
+definition becomes public contract at 1.0, and after that the ratios change
+only at a major version.
 
 | Constant | Weight | Event |
 |---|---|---|
@@ -34,300 +30,254 @@ change only at a major version.
 | `JM_WORK_UPDATE` | 64 | Fixed cost of one basis update |
 | `JM_WORK_FACTOR` | 4096 | Fixed cost of one refactorization |
 
-An elimination is charged by what it does, not by which routine runs it:
-the same axpy costs the same inside a factorization and inside a
-Forrest-Tomlin update. That is why there is one weight for it and not two.
+An elimination does the same axpy inside a factorization and inside a
+Forrest-Tomlin update, so it has one weight in both.
 
 The two fixed costs exist because both operations have an O(dim) floor
-independent of how much they change — three full passes in an update, the
-setup in a factorization — and a budget that ignored the floor would
+that does not depend on how much they change: three full passes in an
+update, the setup in a factorization. Without them the budget would
 promise a run far cheaper than the one it buys.
 
 ## Where it is charged
 
-The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`, `src/aggregate.c`,
-`src/simplex.c`, `src/barrier.c`, `src/pdlp.c`, `src/conic.c`, and one
-pass in `src/ranging.c`. The searches built on them, the branch and bound,
-the conic tree, the concurrent solve, the IIS and the feasibility
-relaxation, add up what their solves billed and charge their own passes on
-top. Each has its paragraph below.
+The kernels bill directly: `src/lu.c`, `src/chol.c`, `src/presolve.c`,
+`src/aggregate.c`, `src/simplex.c`, `src/barrier.c`, `src/pdlp.c`,
+`src/conic.c`, and one pass in `src/ranging.c`. The searches built on them
+(the branch and bound, the conic tree, the concurrent solve, the IIS and
+the feasibility relaxation) add up what their solves billed and charge
+their own passes on top. Most charges follow one rule: one unit per
+position touched.
 
-**Presolve changed what a figure means.** A work figure read before
-presolve existed and one read after are not comparable on a model presolve
-reduces, because the solve billed a different model. All eight committed
-baselines were taken with presolve on.
+**Presolve** (`jm_presolve_run`) charges `JM_WORK_NONZERO` per nonzero a
+round visits while it computes a reduction: each entry of a column being
+fixed, once, and each live entry of a row whose activity range is
+computed. The range charge is paid on every live row of every round,
+because the round reads the ranges to decide whether there is a reduction
+at all (`bench/measurements/02-04/`). A round that finds nothing still
+bills the whole live matrix once. The implied free column singleton pays
+the range charge like every other reader of a row's activity. When it
+fires it pays it a second time, because the substitution walks the row
+again to move the eliminated column's cost onto the other live columns. A
+candidate that is examined and declined pays once.
 
-**Presolve** (`jm_presolve_run`): `JM_WORK_NONZERO` per nonzero a round
-actually visits while computing a reduction — the entries of a column being
-fixed, visited once each while its cost and its matrix contribution shift the
-rows it touches, and one per live entry of a row whose activity range is
-computed. The range charge is the one that scales differently from the rest:
-it is paid on every live row of every round, not once per reduction, because
-the range is what the round reads to decide whether there is a reduction at
-all (02-04). A round that finds nothing therefore still bills the whole live
-matrix once, which is the honest figure — that scan is the work.
+Presolve charges the same `jm_work` that the reduced model's solve then
+continues: `jm_dual_simplex` seeds the simplex's accumulator with
+presolve's total before `sx_init` runs. So `jaos_set_work_limit` sees one
+total for the whole solve, and a solve stopped and resumed keeps that one
+total. A work figure taken with presolve on cannot be compared with one
+taken with it off, because the two solves billed different models.
+Nothing else in `src/presolve.c` bills anything (see "What is outside the
+budget").
 
-The implied free column singleton pays that range charge like every
-other reader of a row's activity, and then pays it a **second** time when it
-fires: the substitution walks the row again to push the eliminated column's
-cost onto every other live column in it. Two passes over the same row, billed
-as two, because two is what it does. A candidate that is examined and declined
-pays once.
+**Aggregation** (`jm_aggregate`, `src/aggregate.c`) charges
+`JM_WORK_NONZERO` per nonzero of the model it copies into its row and
+column lists, per entry it reads while it tests a row's candidates, per
+entry it looks up or changes while it substitutes a column, and once more
+per nonzero of the reduced model it builds. It bills onto the same
+`jm_work` as presolve. It runs on every continuous model solved cold by
+the dual simplex outside a tree. It does not run on a model with a
+starting basis, cones or quadratic rows. A solve that publishes a basis
+stores it as the next start, so a second solve of the same model does not
+aggregate. Where it runs and substitutes nothing, it still pays one pass
+over the nonzeros, and a pass per candidate column over each equality row
+of two to `AGG_ROW_MAX` entries. A solve that substituted something and
+then ends with a numerical error is solved once more without the
+aggregator, under what is left of the work and time limits. The failed
+attempt's work and iterations are added to the answer's. When the failed
+attempt ends with a complete basis, postsolve maps it to the model and the
+second solve starts from it. The caller's own start comes back if the
+second solve publishes no basis.
 
-Charged onto
-the same `jm_work` the reduced model's own solve then
-continues (`jm_dual_simplex` seeds `sx`'s accumulator with presolve's total
-before `sx_init` runs), so a caller's `jaos_set_work_limit` sees one total
-for the whole solve and not two, and a solve stopped and resumed keeps
-that one total: the parked state carries the accumulator, the resumed
-solve reports the whole walk's work, and a limit is a limit on the whole
-walk — the reason D-14 exists at all: an
-inflated or omitted total is compared against the same budget that decides
-where a solve stops, and phase 1 is the standing example
-of what that costs when it goes silently wrong. Nothing else in
-`src/presolve.c` bills anything; see "What is outside the budget" below for
-what that leaves.
-
-**Aggregation** (`jm_aggregate`, `src/aggregate.c`): `JM_WORK_NONZERO` per
-nonzero of the model it copies into its row and column lists, per entry it
-reads while it tests a row's candidates, per entry it looks up or changes
-while it substitutes a column, and once more per nonzero of the reduced
-model it builds. It bills onto the same `jm_work` as presolve. It runs on
-every continuous model solved cold by the dual simplex outside a tree: not
-on a model with a starting basis, cones or quadratic rows. A solve that
-publishes a basis stores it as the next start, so a second solve of the
-same model does not aggregate. On a model it runs on, a model
-where nothing is substituted still pays one pass over its nonzeros, and a
-pass per candidate column over each equality row of two to `AGG_ROW_MAX`
-entries. A solve that substituted something and then ends with a numerical
-error is solved once more without the aggregator, under what is left of
-the work and time limits, and the failed attempt's work and iterations are
-added to the answer's. When the failed attempt ends with a complete basis,
-postsolve maps it to the model and the second solve starts from it; the
-caller's own start comes back if the second solve publishes no basis.
-
-**Restarts inside the dual simplex** carry their work. A warm start that
-reaches no answer restarts cold, and a solve whose early cost perturbation
-is followed by a full stall restarts from the same start without it; in
-both, the work of the abandoned attempt stays on the counter.
+**Restarts inside the dual simplex** keep their work. A warm start that
+reaches no answer restarts cold. A solve whose early cost perturbation is
+followed by a full stall restarts from the same start without it. In both
+cases the work of the abandoned attempt stays on the counter.
 
 **Factorization** (`jm_lu_factor`): `JM_WORK_FACTOR` once on entry, plus
 `JM_WORK_ELIMINATED` per nonzero the elimination produces.
 
-**Triangular solves** (`jm_lu_ftran`, `jm_lu_btran`): `JM_WORK_NONZERO` per
-entry actually visited — the entries of each L column used, each U column
-used, and each Forrest-Tomlin eta — plus, in the hyper-sparse form both
-directions take on a sparse right-hand side, one per edge the reach walk
-examines and one per word and per entry of the pattern sort. Both
-directions charge the same way, which is why a BTRAN-heavy iteration is not
-cheaper than an FTRAN-heavy one in the budget any more than it is on the
-machine. The walk is billed although it replaces an unbilled traversal of
-every slot, so on the hyper-sparse instances the counter reads a few
-percent above the full pass while the instruction count reads below it
-(`FTRAN_HYPER_DEN` in `tolerances.md`).
+**Triangular solves** (`jm_lu_ftran`, `jm_lu_btran`): `JM_WORK_NONZERO`
+per entry visited (the entries of each L column used, each U column used,
+and each Forrest-Tomlin eta). In the hyper-sparse form, which both
+directions take on a sparse right-hand side, they also charge one per edge
+the reach walk examines and one per word and per entry of the pattern
+sort. Both directions charge the same way. The reach walk is billed,
+although it replaces an unbilled pass over every slot, so on hyper-sparse
+instances the counter can read slightly above the full pass while fewer
+instructions run (`FTRAN_HYPER_DEN` in `tolerances.md`).
 
 **Basis update** (`jm_lu_update`): `JM_WORK_UPDATE` for the floor, plus
 `JM_WORK_ELIMINATED` per entry of the eliminated row.
 
 **Pricing** (`src/simplex.c`): the pricing row `rho' M_v` charges the
-nonzeros of column `v` — one for a logical, `nnz` for a structural — and
-the row scan that picks which infeasibility to repair charges one per row.
-Scanning the candidates charges one per live candidate, and the Harris
-two-pass over them charges two.
+nonzeros of column `v`: one for a logical, `nnz` for a structural. The
+row-wise pass over `rho` charges `touched + nrow`, because it reads every
+row whether it skips it or not. It reads the solver's own row-wise copy,
+whose nonbasic entries come first in each row, and `touched` counts those
+entries only. Keeping that copy in step charges the nonzeros of each
+column that enters or leaves the basis, and rebuilding it after a new
+basis charges `nnz + nrow`. The row scan that picks which infeasibility to
+repair charges one per row. Scanning the candidates charges one per live
+candidate, and the Harris two-pass over them charges two.
+
+**Ordering the pricing row's pattern** charges one per position the
+scatter recorded, one per bitmap word the read-back looks at, and one per
+distinct position handed back. It is charged only on the iterations that
+take the sparse path. Without this charge the counter would show a gain
+for reading `alpha` through a pattern of any size, including one that
+costs more than the scan it replaces.
 
 **Ratio test and bookkeeping**: building the candidate set charges one per
-variable it looked at — the nonbasic ones when the pricing row is read
-densely, because that scan walks the nonbasic set and never reaches a basic
-variable at all, and the size of its pattern when it is not. The
-dual update charges by the same rule and arrives at a different number: its
-dense form still walks the whole range, reading every variable's status to
-find out whether it has a cost to step, so every variable is one it looked
-at. Two charges that no longer match, from the same rule applied to two
-loops, one of which was taught to skip. The dual update also sweeps every
-variable on the first iteration after anything rewrites a reduced cost
-outside a pivot, because that sweep is repairing rather than stepping
-. The
-steepest-edge weight update charges one per row, the exact weight that feeds
-it charges one per slot it adds up rather than one per row, and each
-swap attempted while settling up charges two per row. After a weight drifts
-the dual prices by Devex, whose update charges one per slot of the pivot
-row it reads for the row's reference weight and one per row of the entering
-column it updates, and whose reset charges one per row; it solves no second
-column, which is where it saves on the steepest-edge update. A solve that
+variable it looks at. When the pricing row is read densely, that is the
+nonbasic set, because the scan never reaches a basic variable. Otherwise
+it is the size of the row's pattern. The dual update follows the same
+rule, but its dense form walks every variable to read its status, so it
+charges one per variable. It also sweeps every variable on the first
+iteration after anything rewrites a reduced cost outside a pivot.
+
+The steepest-edge weight update charges one per row. The exact weight that
+feeds it charges one per slot it adds up, and each swap attempted while
+settling up charges two per row. After a weight drifts, the dual prices by
+Devex. The Devex update charges one per slot of the pivot row it reads for
+the row's reference weight and one per row of the entering column it
+updates, and its reset charges one per row. Devex solves no second column,
+which is where it costs less than the steepest-edge update. A solve that
 ends under Devex, or that perturbed its costs, refines the duals it
-publishes once: one per nonzero of the
-basic columns for the residual, one BTRAN, and one per nonzero of every
-column for the reduced costs. The primal's
-steepest-edge weights, when the entering column's carried weight has drifted
-past `DSE_DRIFT` from its exact one, are reset to the slack basis's weights
-at `nnz + rows`, and in phase 2, after `PSE_CHEAP_RESTARTS` such resets,
-rebuilt exactly for the current basis instead: one FTRAN per variable, each
-billed by the solve itself, plus one per row per variable for the squares.
-Until 2026-09-09 every restart wrote the slack basis's weights, which are
-exact for no other basis, so on `degen3` the drift check fired again on the
-next iteration and 10723 of its 15291 iterations paid a reset and priced on
-wrong weights.
+publishes once: one per nonzero of the basic columns for the residual, one
+BTRAN, and one per nonzero of every column for the reduced costs.
 
-**The primal phase 1** bills four things, all by the same rule as everything
-above: one unit per position touched. It had no entry here at all while its
-first charge changed twice.
+The primal's steepest-edge weights are reset when the entering column's
+carried weight has drifted past `DSE_DRIFT` from its exact one. A reset
+writes the slack basis's weights at `nnz + rows`. In phase 2, after
+`PSE_CHEAP_RESTARTS` such resets, the weights are rebuilt exactly for the
+current basis instead: one FTRAN per variable, each billed by the solve
+itself, plus one per row per variable for the squares.
 
-*Building the cost vector* (`primal_phase1_costs`) charges the number of
-positions the LAST call set, plus one per row it scans to find this call's.
-The first term used to be `nvar` and was billed nothing: the clear was a
-`memset` over the whole variable set. D198 started billing it and D199
-replaced the `memset` with a scatter over the positions actually set, so the
-charge now follows what the clear visits. At most `nrow` positions can be set,
-because only a basic variable can be infeasible and a basis holds distinct
-variables.
-
-*Pricing* charges one per variable, exactly as phase 2 does. The loop reads
-every variable's status to decide whether its phase-1 reduced cost improves,
-so every variable is one it looked at.
-
-*The ratio test* charges one per row. It scans the whole basis, because phase 1
-must know which basics would cross a declared bound in either direction, not
-only the one the entering column is moving away from.
-
-*A bound flip* charges one per row, the same charge phase 2 makes for the same
-operation. Nothing else is billed for it: no basis changes, so there is no
-factorization, no update and no triangular solve to pay for.
-
-The phase-1 duals are billed inside `compute_duals`, where every other caller
-of it is billed. Lending it a different cost vector for one call changes no
-charge, because it changes no work.
-
-**Ordering the pricing row's pattern** charges one per position the scatter
-recorded, one per bitmap word the read-back looked at, and one per distinct
-position handed back. It is charged only on the iterations that take the
-sparse path, and it is what makes that path's saving honest: without it the
-counter would show a gain for reading `alpha` through a pattern of any size,
-including one large enough to cost more than the scan it replaces.
+**The primal phase 1.** Building the cost vector (`primal_phase1_costs`)
+charges the number of positions the last call set, plus one per row it
+scans to find this call's. At most `nrow` positions can be set, because
+only a basic variable can be infeasible and a basis holds distinct
+variables. Pricing charges one per variable, as phase 2 does. The ratio
+test charges one per row, because phase 1 must know which basics would
+cross a declared bound in either direction. A bound flip charges one per
+row and nothing else, because no basis changes. The phase-1 duals are
+billed inside `compute_duals`, like every other call of it.
 
 **Ending a solve** is the largest single charge most solves make outside
-the iterations themselves, and it is worth knowing about before choosing a
-work limit. Optimality is not accepted on carried values, so when the
-loop believes it is finished the point is recomputed from a fresh
-factorization and priced again: one full `JM_WORK_FACTOR` plus its
-eliminations, plus the two triangular solves and the pricing pass that
-follow. On a small model that can be most of the total — a three-row model
-in the test suite went from 4411 units to 8517 when this was introduced —
-and on anything the size of a real instance it disappears into the noise.
-It is charged rather than exempted because it is work the machine actually
-does, and a budget that hid it would promise a run cheaper than the one it
-buys.
+the iterations. Optimality is not accepted on carried values. When the
+loop believes it is finished, the point is recomputed from a fresh
+factorization and priced again: one `JM_WORK_FACTOR` plus its
+eliminations, two triangular solves and a pricing pass. On a small model
+this can be most of the total, so it matters when choosing a small work
+limit.
 
-**Reading the unbounded verdict** charges an FTRAN and one per row, for
+**Reading the unbounded verdict** charges an FTRAN and one per row for
 each column still resting on a bound phase 1 lent it. Most solves charge
-nothing here, because most models need no lent bounds and most that do are
-not held by them at the end.
+nothing here.
 
-**The sparse Cholesky** (`src/chol.c`) bills its four passes by the same
-rule, one unit per position touched, and is the only kernel outside
-`src/lu.c` that charges `JM_WORK_FACTOR`.
+**The sparse Cholesky** (`src/chol.c`) bills four passes. It is the only
+kernel outside `src/lu.c` that charges `JM_WORK_FACTOR`.
 
 *The ordering* (`jm_chol_symbolic`, first pass) charges `JM_WORK_NONZERO`
 per adjacency entry it reads: the variable and element lists of the pivot
-when the new element is formed, and the element and variable lists of every
-variable in that element when their degrees are recomputed. A scan that
-skips a dead entry still pays for reading it.
+when the new element is formed, and the element and variable lists of
+every variable in that element when their degrees are recomputed. A scan
+that skips a dead entry still pays for reading it.
 
 *The symbolic factorisation* (same call, second pass) charges
-`JM_WORK_NONZERO` per entry of the permuted upper triangle and one per node
-of every row's reach in the elimination tree, which is exactly one per
+`JM_WORK_NONZERO` per entry of the permuted upper triangle and one per
+node of every row's reach in the elimination tree, which is one per
 nonzero of `L` below the diagonal.
 
 *The numeric factorisation* (`jm_chol_numeric`) charges `JM_WORK_FACTOR`
 once on entry, `JM_WORK_NONZERO` per input entry gathered and per row of
 `L` produced, and `JM_WORK_ELIMINATED` per multiply-add in the column
-updates, which is the sum over the columns of the reach of the entries
-already written in each. That last term is the flop count of the
-factorisation and dominates on anything but a tree.
+updates. That last term is the flop count of the factorisation and
+dominates on anything but a tree.
 
 *The solve* (`jm_chol_solve`) charges `JM_WORK_NONZERO` per entry of `L`
-in each direction, the diagonal included, plus the two permutations at one
-per row. The test suite pins one three-row system exactly.
+in each direction, the diagonal included, plus one per row for each of
+the two permutations.
 
-*The quasi-definite LDL* serves the barrier's augmented system and the whole
-conic interior point. Its factorisation (`jm_ldlt_numeric`) charges
+*The quasi-definite LDL* serves the barrier's augmented system and the
+whole conic interior point. Its factorisation (`jm_ldlt_numeric`) charges
 `JM_WORK_FACTOR` once, plus the entries gathered and the multiply-adds, as
 the Cholesky does. Its solve (`jm_ldlt_solve`) charges `2 * nnz + 3 * n`:
 one more per row than the Cholesky solve, for the divide by the diagonal.
 
 *On threads*, the numeric factorisation works in blocks (`CHOL_BLOCK`) on
 `--threads` lanes. Each lane counts what it gathered and eliminated, and
-the counts are summed, so the charge is the one-thread charge at any thread
-count.
+the counts are summed, so the charge is the one-thread charge at any
+thread count.
 
-**The barrier** (`src/barrier.c`) is billed on top of the Cholesky by the
-same rule. Forming the normal matrix `A Θ A^T` charges `JM_WORK_NONZERO`
-per multiply-add, which is the sum over the columns of the square of their
-length, plus one per entry of the pattern read out. A column with more
-than `BARRIER_DENSE_FACTOR` times the average count is left out of that
-matrix, and the Sherman-Morrison-Woodbury correction that puts it back
-charges `k * nr + k * dnz + k^3 / 6 + k^2` per factorisation and
+**The barrier** (`src/barrier.c`) is billed on top of the Cholesky.
+Forming the normal matrix `A Θ A^T` charges `JM_WORK_NONZERO` per
+multiply-add (the sum over the columns of the square of their length),
+plus one per entry of the pattern read out. A column with more than
+`BARRIER_DENSE_FACTOR` times the average count is left out of that matrix.
+The Sherman-Morrison-Woodbury correction that puts it back charges
+`k * nr + k * dnz + k^3 / 6 + k^2` per factorisation and
 `k * nr + dnz + k^2` per solve, for `k` dense columns holding `dnz`
 entries. Every product with `A` or `A^T` charges one per nonzero plus one
-per row, and a product with a quadratic objective's `Q` two per entry.
-The augmented system, when the barrier takes it, is factored and solved by
-the LDL above. Every sweep over the variables, the residuals, the scaling, the
-two directions, the step lengths, the neighbourhood check and the update,
+per row, and a product with a quadratic objective's `Q` two per entry. The
+augmented system, when the barrier takes it, is factored and solved by the
+LDL above. Every sweep over the variables (the residuals, the scaling, the
+two directions, the step lengths, the neighbourhood check and the update)
 charges one per variable. Nothing is charged per iteration beyond what the
-iteration touches, for the reason the simplex has no per-iteration
-constant either.
+iteration touches.
 
 *The QP push* (`qp_push`) finishes a quadratic model's point. Each round
 factors and solves its own system at the LDL's rates and charges one per
 entry it sweeps. Its sign test charges `2 * nvar`. When it settles, the
 exact duals it sets on inactive rows and single-row columns charge
-`nrow + ncol`, and the sign test that judges them one more `2 * nvar`.
-Its polish by conjugate gradients charges `6 * nr` a step, plus a product
-pair with the rows and a solve with their factor a step, for up to
-`QP_PUSH_CG` steps. The early
-hand-off at `BARRIER_MU_DEAD` and the walk that goes on after a push that
-does not settle bill onto the same counter as the walk.
+`nrow + ncol`, and the sign test that judges them another `2 * nvar`. Its
+polish by conjugate gradients charges `6 * nr` per step, plus a product
+pair with the rows and a solve with their factor per step, for up to
+`QP_PUSH_CG` steps. The early hand-off at `BARRIER_MU_DEAD`, and the walk
+that goes on after a push that does not settle, bill onto the same counter
+as the walk.
 
 *The crossover* charges the sort of the basis guess at one per variable
 per pass of a comparison sort, `nvar * (2 + floor(log2 nvar))`, then the
 LU factorisation of the guess at the factorisation's own rate, and two per
 row for each repair pass that swaps an unpivoted position for a logical.
-Since 2026-09-22 the push then moves every nonbasic column onto a bound:
-`nnz + nvar` to start, then for each column it moves, its entries, an FTRAN
-at the LU's rate, `2 * nr` twice, and an LU update at the update's rate or
-a refactorisation. The primal simplex finishes from the pushed basis, and
-it is billed as any warm-started solve is, on the same counter, so
-`jaos_work_units` reads the whole journey from the starting point to the
+The push then moves every nonbasic column onto a bound. It charges
+`nnz + nvar` to start, then for each column it moves: its entries, an
+FTRAN at the LU's rate, `2 * nr` twice, and an LU update at the update's
+rate or a refactorisation. The primal simplex finishes from the pushed
+basis and is billed as any warm-started solve, on the same counter, so
+`jaos_work_units` reads the whole path from the starting point to the
 vertex.
 
-**PDLP** (`src/pdlp.c`) bills by the same rule. Every product with `A` or
-`A^T` charges one per nonzero plus one per entry of the vector it writes;
-each Ruiz round of the preconditioning is one such pass. Every sweep over
-the iterates (the step, the running averages, the restart test, the KKT
-error, and the ray test every `PDLP_CHECK_EVERY` iterations) charges one
-per entry it reads. What finishes it is the barrier's crash basis, billed
-as above, and the dual simplex from it; PDLP does not run the push.
+**PDLP** (`src/pdlp.c`): every product with `A` or `A^T` charges one per
+nonzero plus one per entry of the vector it writes, and each Ruiz round of
+the preconditioning is one such pass. Every sweep over the iterates (the
+step, the running averages, the restart test, the KKT error, and the ray
+test every `PDLP_CHECK_EVERY` iterations) charges one per entry it reads.
+The barrier's crash basis, billed as above, and the dual simplex from it
+finish the solve. PDLP does not run the push.
 
-**The conic interior point** (`src/conic.c`) bills its passes the same
-way: each product with the matrix one per nonzero plus one per entry
-written, each sweep over the iterate one per entry (twelve per variable and
-row for the step's bookkeeping), and each pass of iterative refinement one
-per entry of the system. The product with a cone's scaling block
-(`mul_h`) inside that refinement charges two per row of the cone block,
-one read and one written (unbilled until 2026-09-23). The Newton finish charges
-`(CONIC_REFINE + 2) * u` a step, where `u` is the entries of its system,
-whatever number of refinement passes ran, and it runs up to
-`CONIC_NEWTON_ROUNDS` times. When the checker refuses its point, the
-settle step runs the same system for a projection and a dual refit, up to
-twice, at the same rate. The scan for rows that hold at every point of
-their columns' boxes charges one per nonzero when it drops any. The ray polish charges `(it + 2) * (2 * at +
-n + nrow)` for its conjugate gradients. The ray probe is a full LP solve,
-and the sub-solves on a reduced model are full solves; the work of each is
-added. Its factorisations go through `src/chol.c` and are billed there. An
+**The conic interior point** (`src/conic.c`): each product with the matrix
+charges one per nonzero plus one per entry written. Each sweep over the
+iterate charges one per entry (twelve per variable and row for the step's
+bookkeeping), and each pass of iterative refinement one per entry of the
+system. The product with a cone's scaling block (`mul_h`) inside that
+refinement charges two per row of the cone block, one read and one
+written. The Newton finish charges `(CONIC_REFINE + 2) * u` per step,
+where `u` is the entries of its system, whatever number of refinement
+passes ran. It runs up to `CONIC_NEWTON_ROUNDS` times. When the checker
+refuses its point, the settle step runs the same system for a projection
+and a dual refit, up to twice, at the same rate. The scan for rows that
+hold at every point of their columns' boxes charges one per nonzero when
+it drops any. The ray polish charges `(it + 2) * (2 * at + n + nrow)` for
+its conjugate gradients. The ray probe is a full LP solve, and the
+sub-solves on a reduced model are full solves; the work of each is added.
+Its factorisations go through `src/chol.c` and are billed there. An
 infeasibility certificate the checker refuses is searched again before it
 is given up. The coordinate climb makes at most `CONIC_CERT_CALLS` checker
-calls. The tilt ladder before it is bounded on its own, at most 130 calls
-per outer round for two rounds, and its calls are charged the same way:
-one pass over the model each, `nnz + cols + rows + 1`.
+calls. The tilt ladder before it makes at most 130 calls per outer round,
+for two rounds. Each checker call charges one pass over the model,
+`nnz + cols + rows + 1`.
 
 **Ranging** (`src/ranging.c`) refactors the published basis and bills the
 factorisation and its solves at the LU's rates, plus one unit per entry of
@@ -339,20 +289,20 @@ any solve, and the tree adds that bill to its total. Every other pass it
 makes (a cut separator, a heuristic, probing, the clique table, orbital
 fixing, propagation) adds one unit per entry of the model it reads, and a
 round of Gomory cuts adds the tableau rows it reads. Four passes read the
-model more than once and bill that: a MIR round `(nnz + nc + nr) *
-(MIP_MIR_DELTAS + 1)`, a clique round `nm * nm` per clique of `nm`
-members, a stalled pump round `MIP_PUMP_FLIPS * nc`, and orbital fixing
-`ngen * nfix + kept * nc`. The probe of a root round's aggregated MIR cuts
-bills its copy of the root LP at `nnz + nr + nc` and its solve as any
-solve. Symmetry detection (`src/symmetry.c`) searches
+model more than once and bill that: a MIR round
+`(nnz + nc + nr) * (MIP_MIR_DELTAS + 1)`, a clique round `nm * nm` per
+clique of `nm` members, a stalled pump round `MIP_PUMP_FLIPS * nc`, and
+orbital fixing `ngen * nfix + kept * nc`. The probe of a root round's
+aggregated MIR cuts bills its copy of the root LP at `nnz + nr + nc` and
+its solve as any solve. Symmetry detection (`src/symmetry.c`) searches
 under a cap and bills what it spent of it. Under `--tree-batch N` above 1,
 each node of a round is solved on its own copy of the tree's LP with
-`(work_limit - work) / n` of the budget, and its work is added; the tree
+`(work_limit - work) / n` of the budget, and its work is added. The tree
 then solves each node again from the round's basis, and that solve is
-billed too. So the work at N above 1 differs from the work at 1 (1.37x on
-MIPLIB 3 at rounds of 4, `bench/measurements/02-290/`), but not with the
-thread count. `jaos_work_units` after a MIP solve is that total, and the
-work limit is a limit on it.
+billed too. So the work at N above 1 differs from the work at 1
+(`bench/measurements/02-290/`), but it does not change with the thread
+count. `jaos_work_units` after a MIP solve is that total, and the work
+limit applies to it.
 
 **The conic tree** (`src/conictree.c`) adds up the work of every conic
 solve it runs: the nodes, the rounding and the dive. Each solve gets the
@@ -361,143 +311,66 @@ budget that is left, and under `--tree-batch N` a round's nodes share it.
 **The concurrent solve** (`src/concurrent.c`) bills the sum over its three
 arms, in the rounds the one-thread schedule runs them, so the total is the
 same at any thread count. A simplex arm stopped by its slice parks its
-state and resumes from it in the next round, and a resumed solve reports
-its whole walk. `settle_arm` bills a resumed arm only what it added since
-the last round, and the next round's budget caps the arm's whole walk.
-Under a work limit, a resumed arm may add at most what is left of it.
-Until 2026-09-23 the whole walk was added every round, so an arm that ran
-two rounds was billed for its first round twice.
+state and resumes from it in the next round. `settle_arm` bills a resumed
+arm only what it added since the last round, and the next round's budget
+caps the arm's whole walk. Under a work limit, a resumed arm may add at
+most what is left of it.
 
-**The IIS** (`src/iis.c`) adds the work of every re-solve it runs, and each
-re-solve gets the whole work and time limit. **The feasibility relaxation**
-(`src/relax.c`) adds the work of every solve of its elastic copy, and caps
-every box round after the first at `RELAX_ROUND_WORK` times the first
-round's work.
+**The IIS** (`src/iis.c`) adds the work of every re-solve it runs, and
+each re-solve gets the whole work and time limit. **The feasibility
+relaxation** (`src/relax.c`) adds the work of every solve of its elastic
+copy, and caps every box round after the first at `RELAX_ROUND_WORK`
+times the first round's work.
 
 ## What is outside the budget
 
-**Model loading is not charged.** Reading a file or calling `jaos_load_lp`
-costs no units, deliberately: the budget is a solve budget, and a caller
-who loads once and solves repeatedly should not see the load in every
-figure.
+**Model loading.** Reading a file or calling `jaos_load_lp` costs no
+units. The budget is a solve budget, and a caller who loads once and
+solves repeatedly should not see the load in every figure.
 
-**Scaling is not charged either**, which is a smaller and less deliberate
-statement. A solve computes a Curtis-Reid scaling when the model has none,
-and that computation — a Jacobi-preconditioned conjugate gradient over the
-matrix — is real work that no unit currently counts. It is stated here
-because it is true, not because it was decided.
+**Scaling.** A solve computes a Curtis-Reid scaling when the model has
+none. That computation, a Jacobi-preconditioned conjugate gradient over
+the matrix, is real work that no unit counts.
 
-**Neither pricing form bills its own sweep over the variables**, and that
-predates D40: the clear of `alpha` and the reset of its basic entries are
-real work no unit counts, in the row-wise form as in the column-wise one it
-replaced. D40 makes the first of those much smaller on a sparse iteration
-without making it visible. On an iteration that ends up reading `alpha`
-densely it also records part of a pattern it then discards — bounded by a
-quarter of the variables, and unbilled for the same reason the clear is.
+**The pricing row's clear.** The clear of `alpha` and the reset of its
+basic entries are not billed. On an iteration that ends up reading
+`alpha` densely, the part of a pattern it recorded and then discards (at
+most a quarter of the variables) is not billed either.
 
-**Presolve's own bookkeeping is not billed, and neither is building the
-reduced model.** The classification pass that decides which
-column is fixed reads every column once regardless of whether it fires —
-an O(rows + cols) floor per round, the same shape the two fixed factorization
-and update costs above rest on, but with no rate chosen for it: this phase's
-one round fires or it does not, and inventing a per-round constant from a
-single round would be fitting a number to one instance, which is the
-mistake this project's first rule exists to prevent. The reduced model's own
-construction — the CSC prefix and the copy of every surviving column's
-nonzeros into it — is a one-time structural cost and is unbilled for the
-same reason: it is real work, it is not a reduction being computed, and no
-measurement exists for what a rate on it should be. Both floors are real and
-invisible in the counter the same way the `nvar/64`-read floor below is; a
-model presolve barely reduces pays nearly all of this and is billed almost
-nothing for it.
+**Presolve's bookkeeping and the reduced model.** The classification pass
+that decides which column is fixed reads every column once per round,
+whether it fires or not. Building the reduced model copies every surviving
+column's nonzeros into a new CSC. Both are real work with no measured rate,
+so neither is billed. A model presolve barely reduces pays nearly all of
+this and is billed almost nothing for it.
 
-**The nonbasic bitmap's words are not billed either.** The dense candidate
-scan reads one machine word per 64 variables to find the bits that are set,
-and only the bits it finds are charged. A word is not a variable, the
-rule above is one per variable looked at, and a second currency for the
-skipping would need a rate — which is a number with no measurement on either
-side of it. The consequence is worth stating rather than leaving to be
-discovered: on a model whose nonbasic set is a small fraction of its
-variables the scan bills almost nothing while still paying `nvar/64` reads,
-so the floor under that charge is real and invisible. It is stated here for
-the same reason the unbilled `alpha` sweep above is.
+**The nonbasic bitmap's words.** The dense candidate scan reads one
+machine word per 64 variables to find the bits that are set, and only the
+bits it finds are charged. On a model whose nonbasic set is a small
+fraction of its variables, the scan pays `nvar/64` reads and bills almost
+nothing.
 
-**Pricing does bill its walk over the pricing row**, which is worth stating
-because the charge is easy to misread. The row-wise pass charges
-`touched + nrow`; the second term was one per logical column in the
-column-wise form it replaced, and here only `nnz(rho)` logicals are written.
-What it matches instead is the walk over `rho` itself, which reads every row
-whether it skips it or not. On the Kennington set that single charge is 27%
-of everything billed. Since 2026-09-25 the pass reads the solver's own
-row-wise copy, whose nonbasic entries come first in each row, and
-`touched` counts those entries only. Keeping the copy in step charges the
-nonzeros of each column that enters or leaves the basis, and rebuilding it
-after a new basis charges `nnz + nrow`.
+**The clock.** A time limit is read once every 64 iterations in the
+simplex and PDLP, once per iteration in the barrier and the conic interior
+point, and once per node in both trees. It can stop a solve. It never
+chooses a pivot. This is why the work limit and the time limit are
+separate calls, and why only the work limit is reproducible.
 
-**The clock is never involved.** A time limit is read once every 64
-iterations in the simplex and PDLP, once per iteration in the barrier and
-the conic interior point, and once per node in both trees. It can only stop
-a solve; it can never choose a pivot.
-That separation is why the two budgets are separate calls with separate
-meanings, and why only one of them is reproducible.
+## There is no per-iteration constant
 
-## There is no per-iteration constant, and that is measured
-
-An iteration is charged entirely through the events above — the nonzeros its
-solves touch, the variables its bookkeeping sweeps, the rows its pricing
-scans, the update it ends with. There is no fixed charge for the iteration
-itself, and D32 is the measurement that settled it rather than an omission.
-
-D32 (2026-08-08, commit 42f0d49) attributed every unit to the phase that
-spent it, and two things came out of it, both worth knowing before choosing
-a work limit. **The basis update was 1.8%
-of an iteration**, not the bulk of it: over the standard 94 and the 16
-Kennington, the non-update work of an iteration runs from 4.4x the update's
-cost on the smallest model to 1450x on the largest. And **more than half of
-all work was the pricing row and the ratio test**, with another 27.5% in the
-dual update and the steepest-edge weights — which came to exactly
-`nvar + 2*nrow` per iteration, in every one of the 110 solves. D41 replaced
-the `nvar` in that with the size of the pricing row's pattern on the
-iterations that have one, so the sum is no longer fixed by the dimensions;
-what has not changed is that every term of it is still a dimension or a
-count, which is the point the figure was making.
-
-That last figure is why the constant is zero rather than small. Every part
-of an iteration's cost scales with a dimension or with a count of nonzeros;
-none of it is a floor. A fixed charge would bill a second time for work the
-counter already sees.
-
-Where the instructions go is what a speed change answers to. **The
-reading of 2026-09-21** (tree 8296fb8, `bench/measurements/02-281/`):
-`valgrind --tool=callgrind` on the release build, counting only inside
-`jm_dual_simplex`, each function's own share after inlining. truss is the
-pricing-heavy instance and pilot87 the factorization-heavy one; fit2d
-has 10500 columns over 25 rows, so its loop is its ratio test; maros-r7
-spends a third of its instructions in the triangular solves.
-
-| function | truss | fit2d | maros-r7 | pilot87 |
-|---|---|---|---|---|
-| `jm_lu_factor`, the Markowitz elimination | 1.43% | 0.03% | 17.24% | **34.93%** |
-| `ftran_u_dense` | 4.00% | 0.08% | **18.43%** | 10.01% |
-| `ftran_prefix` | 5.77% | 0.18% | 7.71% | 6.16% |
-| `jm_lu_btran_sparse` | 3.30% | 0.06% | 5.27% | 7.36% |
-| `btran_l_pattern` and `btran_u_pattern` | 4.06% | 0.04% | 4.05% | 7.40% |
-| `pivot` in `src/lu.c`, the basis update | 1.72% | 0.04% | 3.97% | 3.68% |
-| `build_pricing_row`: the pivot row's BTRAN and the pricing row | **20.38%** | 17.65% | 6.97% | 11.26% |
-| `admit_candidate`, the ratio test's filter | 15.92% | 6.66% | 2.84% | 2.92% |
-| `run`, the loop, with the row scan and the ratio test's passes inlined | 11.21% | **62.76%** | 4.84% | 2.96% |
-| `pivot` in `src/simplex.c`: the dual and primal updates and the weights | 13.27% | 3.55% | 4.32% | 3.35% |
-| `shift_to_feasible` | 7.33% | 2.34% | 1.53% | 1.13% |
-| `memset`, mostly the pricing row's clear after a dense row | 5.85% | 1.27% | 3.22% | 1.77% |
-
-callgrind counts a `rep stosb` store once per step, so the `memset` share
-overstates its time. D32's table of units by phase, which this replaces,
-predated D40, D41, D93 and the Devex fallback.
+An iteration is charged entirely through the events above: the nonzeros
+its solves touch, the variables its bookkeeping sweeps, the rows its
+pricing scans and the update it ends with. An attribution of every unit
+to the phase that spent it (D32) showed that each part of an iteration's
+cost scales with a dimension or a count of nonzeros, with no floor. A
+fixed charge per iteration would bill a second time for work the counter
+already sees. Where the instructions of a dual simplex solve go, function
+by function, is read in `bench/measurements/02-281/`.
 
 ## Determinism
 
 Every charge above is a fixed integer added at a fixed point in a
-fixed-order loop. No charge depends on a value, a timing, an address or an
-allocation, so two runs of the same model on the same input consume
-identical totals — and the test suite pins one model's total exactly,
-which is what catches a kernel that stops charging.
+fixed-order loop. No charge depends on a value, a timing, an address or
+an allocation, so two runs of the same model consume identical totals.
+The test suite pins one model's total exactly, which catches a kernel
+that stops charging.

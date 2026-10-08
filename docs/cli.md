@@ -1,12 +1,12 @@
 # The command-line tool
 
-`jaos` solves a model from a file, converts one between the formats JAOS
-reads and writes, and runs the library's five analyses on a model: the
-independent checker, the infeasible subsystem, the feasibility relaxation,
-the exact verifier and ranging. It is a thin program over the public API: it links `libjaos.a`
-through `include/jaos.h` like any other consumer, and it can do exactly what
-the library can do. `make cli` builds it as `build/cli/jaos`, and `make test`
-compiles it and runs its test, `tests/cli.sh`.
+`jaos` solves a model from a file and converts a model between the formats
+JAOS reads and writes. It also runs the library's five analyses on a model:
+the independent checker, the infeasible subsystem, the feasibility
+relaxation, the exact verifier and ranging. It links `libjaos.a` through
+`include/jaos.h` like any other consumer, so it can do what the library can
+do. `make cli` builds it as `build/cli/jaos`, and `make test` compiles it
+and runs its test, `tests/cli.sh`.
 
 ## Usage
 
@@ -71,24 +71,16 @@ jaos --commit
 jaos --help [COMMAND]
 ```
 
-**The branch-and-bound switches are the long half of that list, and every
-one of them has a measurement behind it.** A default is a setting that was
-swept and won; a switch that is off is one that was built, measured and
-refused, and it stays reachable so the refusal can be re-tested.
-`bench/refusals.txt` names what would reopen each, and `make refusals`
-runs the ones with a script. None of them changes an LP.
-
 Options take their value as the next argument: `--work-limit 1000`, not
 `--work-limit=1000`.
 
 Every command prints one fact per line on stdout, as `key value`. Rows and
-columns are named as the file names them; a constraint an LP file left
-unlabelled is called by its position, `R<I+1>` counting from 1, and a
-column `C<J+1>`. The exception is `at_row` and `at_col` in
-`check --proof` and `verify`, which print the 0-based index of the row
-or column. Numbers are printed with 17 significant digits, so
-they read back as the same double; an infinite bound reads `inf` or `-inf`.
-Everything that is not a fact about the model goes to stderr.
+columns carry the names the file gives them. A row the file left unnamed is
+`R<I+1>`, counting from 1, and such a column is `C<J+1>`. The exception is
+`at_row` and `at_col` in `check --proof` and `verify`, which print the
+0-based index. Numbers have 17 significant digits, so they read back as the
+same double. An infinite bound reads `inf` or `-inf`. Everything that is
+not a fact about the model goes to stderr.
 
 ## `solve`
 
@@ -104,211 +96,242 @@ time 0.000087
 
 - `status` is one word: `optimal`, `infeasible`, `unbounded`, `work_limit`,
   `time_limit`, `node_limit`, `numerical_error` or `interrupted`. On
-  `numerical_error` the reason the library gives goes to stderr as
-  `jaos: FILE ends numerical_error: REASON` (since 2026-09-19). A solve
-  whose point makes the objective overflow a double ends
-  `numerical_error` with that reason (since 2026-09-21); before, it ended
-  `optimal` with an objective of `inf`. In a branch and bound, a node whose
-  relaxation fails is set aside with its bound and the tree goes on (since
-  2026-09-22; before, the first such node ended the tree). The tree then
-  ends `optimal` only when its incumbent is within the gap of every bound
-  set aside, and `numerical_error` with the first such node's reason
-  otherwise.
-- `objective` is printed only when the solve found an optimum. The library
-  refuses to give an objective for any other outcome, because a number
-  cannot be told apart from a genuine objective of zero, and the tool
-  respects that refusal. The value is printed with 17 significant digits, so
-  it reads back as the same double.
-- `objective_exact` follows `objective` under `--exact` when the optimum was
-  proved over the rationals: the exact objective as an integer or a ratio
-  of two integers.
+  `numerical_error` the library's reason goes to stderr as
+  `jaos: FILE ends numerical_error: REASON`. A point whose objective
+  overflows a double ends `numerical_error` with that reason.
+- `objective` is printed only for an optimum, because the library gives no
+  objective for any other outcome.
+- `objective_exact` follows `objective` under `--exact` when the optimum
+  was proved over the rationals. It is an integer or a ratio of two
+  integers.
 - `iterations` and `work_units` are the solve's own counts.
-- `nodes`, `cuts`, `heuristic_points`, `first_incumbent` and `bound` are
-  printed when a branch and bound solved at least one node. They are the
-  relaxations the tree solved, the rows the cut rounds added (at the root
-  and at the nodes down to `--cut-depth`), the incumbents any heuristic
-  found (the rounding, the root dive, the pump, RINS, local branching and
-  the fixed solve at the root of a quadratic model), the node at which the
-  first incumbent appeared (0 when none), and the best objective any open
-  node could still reach, which is the optimum when the status is
-  `optimal`. `incumbent`
-  follows `bound` when the tree holds an integer point (since 2026-09-19),
-  so a tree stopped by a limit says what it found as well as how far off it
-  might be. At `optimal` the `objective`, `bound` and `incumbent` lines
-  print the same number (since 2026-09-24). `start_accepted` follows when
-  `--mip-start` or `--partial-start` gave a start: 1 when the start, or the
-  point that completed it, was taken, 0 when it was not.
 - `time` is the solve's wall-clock seconds. It is the last line of the
-  solve's own report. `--check`, `--pool-out` and `--proof` print their
-  lines after it.
+  solve's own report. The lines of `--check`, `--pool-out` and `--proof`
+  come after it.
 
-`--quiet` prints the `status` line and none of the rest of the solve's
-report. The lines of `--check`, `--pool-out` and `--proof` still print.
+Where presolve fired, four more lines follow the counts. `presolve_rows`,
+`presolve_columns` and `presolve_nonzeros` give the size of the model the
+simplex ran on, and `presolve_rounds` counts the presolve rounds. A model
+presolve does not touch prints none of the four, and neither does a build
+with presolve compiled out.
 
-**Where presolve fired, four more lines follow the counts**:
-`presolve_rows`, `presolve_columns` and `presolve_nonzeros` are the model
-the simplex actually ran on, and `presolve_rounds` is the cascading loop's
-own count. A model presolve does not touch prints none of the four, and
-neither does a build with presolve compiled out.
+A branch and bound that solved at least one node prints these lines, in
+this order: `nodes`, `cuts`, `heuristic_points`, `first_incumbent`,
+`fixed_cols`, `tightened`, `symmetry_generators`, `symmetry_orbits` and
+`bound`, then `incumbent`, `start_accepted` and `pool_points` when they
+apply. An LP prints none of them.
 
-**A mixed-integer solve prints its own lines**, in this order: `nodes`,
-`cuts`, `heuristic_points`, `first_incumbent`, `fixed_cols`, `tightened`,
-`symmetry_generators`, `symmetry_orbits` and `bound`, then `incumbent`,
-`start_accepted` and `pool_points` when they apply. `fixed_cols` counts the bounds
-`--rcfix` moved and `tightened` the bounds `--propagate` moved; each reads
-0 when its switch is off. An LP prints none of them.
+- `nodes` counts the relaxations the tree solved.
+- `cuts` counts the rows the cut rounds added, at the root and at the nodes
+  down to `--cut-depth`.
+- `heuristic_points` counts the incumbents a heuristic found.
+- `first_incumbent` is the node at which the first incumbent appeared, 0
+  when none did.
+- `fixed_cols` counts the bounds `--rcfix` moved, and `tightened` the
+  bounds `--propagate` moved. Each reads 0 when its switch is off.
+- `bound` is the best objective an open node could still reach.
+- `incumbent` follows when the tree holds an integer point, so a tree
+  stopped by a limit says what it found. At `optimal` the `objective`,
+  `bound` and `incumbent` lines print the same number.
+- `start_accepted` follows when `--mip-start` or `--partial-start` gave a
+  start: 1 when the start, or the point that completed it, was taken, and 0
+  when it was not.
+- `pool_points` is described under `--pool-size`.
+
+In a branch and bound, a node whose relaxation fails is set aside with its
+bound and the tree goes on. The tree then ends `optimal` only when its
+incumbent is within the gap of every bound set aside. Otherwise it ends
+`numerical_error` with the first such node's reason.
 
 ### What is reproducible
 
-Every line but `time` is byte-identical between two runs of the
-same file with the same options, on any machine. The `time` line is the
-one number JAOS reports that is not reproducible. `grep -v '^time '`
-removes it before a diff. `head -n -1` removes it only when `--check`,
-`--pool-out` and `--proof` are absent, because their lines follow it. Do not
-put the `time` line in a file you diff against later.
+Every line but `time` is byte-identical between two runs of the same file
+with the same options, on any machine. `grep -v '^time '` removes the
+`time` line before a diff. `head -n -1` removes it only when `--check`,
+`--pool-out` and `--proof` are absent, because their lines follow it.
 
-One exception: a run that stops on `--time-limit` or on Ctrl-C is cut by a
-clock, and where a clock cuts is not reproducible. Its `iterations` and
-`work_units` lines can differ between runs. A run that stops on
-`--work-limit` is reproducible, because the work counter is deterministic.
+A run that stops on `--time-limit` or on Ctrl-C stops where the clock
+says, so its `iterations` and `work_units` lines can differ between runs. A
+run that stops on `--work-limit` is reproducible.
 
-A stop does not change the answer either, in-process. A solve that ends
-`work_limit`, `time_limit` or `interrupted` leaves its whole state on the
-model, the factorisation, its update chain, the pricing weights, the
-shifts and the phase, and the next `jaos_solve` on that model goes on
-from exactly where it stopped, so an LP stopped and solved on ends on the
-answer the uninterrupted run ends on, to the bit, work and iterations
-included: the counts go on across a stop, and a limit is a limit on the
-whole walk, so a solve resumed under the limit that stopped it stops
-again at once. Any edit to the model, a basis set or cleared, or a change
-of algorithm or tolerance drops the parked state and the next solve
-starts over, warm from the basis the stop left. The state is the solve's
-own working set and is held until then, or until the model is freed. A
-stop inside the settling re-entry after an optimum resumes that re-entry
-from its first round. A MIP has no such state: its tree starts again and
-reaches the same objective. Measured over 6000 generated models
-(`bench/measurements/02-247/`). The tool cannot resume, since its
-process ends with the solve; `--basis` is its warm start.
+In the library, a stopped solve can go on from where it stopped (see
+`jaos_solve` in `docs/api.md`). The tool cannot resume, because its
+process ends with the solve. `--start` and `--basis` are its warm starts.
 
-```mermaid
-flowchart LR
-    S[solve] -->|optimal, infeasible, unbounded| A[answer published]
-    S -->|work_limit, time_limit, interrupted| P[state parked on the model]
-    P -->|solve again, nothing changed| R[resume the walk it left]
-    R --> S
-    P -->|edit, basis set or cleared, algorithm or tolerance changed| D[state dropped]
-    D -->|solve again| W[warm start from the basis the stop left]
-    W --> S
-```
-
-The solver's log, when `--log` asks for one, goes to stderr and never to
-stdout. Logging never changes an answer: a model solved at `--log detail`
-prints the same facts as the same model solved silently.
+The solver's log, when `--log` asks for one, goes to stderr. Logging does
+not change an answer.
 
 ### Options
 
 | option | what it does |
 |---|---|
-| `--solution OUT` | writes the solution file to `OUT`: the optimum when the solve found one, and the certificate when it proved the model infeasible or unbounded. A MIP carries a certificate when its root relaxation is infeasible, the relaxation's Farkas ray, which the checker confirms against the model as loaded before it is published; a MIP infeasible by integrality alone has none. A solve that stopped on a budget or an interrupt has no answer to write; no file is written and stderr says why. The file format is JAOS's own; `docs/format-support.md` describes it. |
-| `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, a file `solve --solution` wrote for this model: the statuses are read and handed to the model before the solve, so re-solving a model from its own answer costs no iteration. Either kind of file will do since D332 -- an optimum's, or a certificate's, which carries the basis the refusal stopped on -- so a run that ended INFEASIBLE resumes after one bound moves. A file for another model, or one carrying no basis at all, is refused with the library's message and exit 5. |
-| `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file: the format every solver in the field writes a basis in, so `BAS` may be another solver's. It is read and handed to the model before the solve, exactly as `--start` does with JAOS's own file. Not with `--start`: a solve begins in one place, and being handed two is a question the caller has to answer. A file whose names or count do not fit this model is refused with the library's message and exit 5. |
-| `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, in the same format. The rule is wider than `--solution`'s: an optimum, a refusal, an unboundedness and a stop on a budget all leave a basis, and only a solve with none at all does not -- one that never ran, one abandoned for numerical reasons, a verdict presolve reached with no simplex. That case is said on stderr and leaves the exit code the answer's, because the answer is not what went wrong. A path ending in `.gz` is compressed. |
-| `--write-point PT` | writes the optimum's point to `PT` as a point file: one `NAME VALUE` line per column and nothing else. It is the shape another program's checker takes, and the shape `check --point` reads back. The rule is `--solution`'s: an optimum has a point and nothing else does, and a solve without one writes no file and says why on stderr. |
-| `--write-duals D` | writes the row multipliers to `D` in the point file's shape, so `check --point P --duals D` has both halves without an awk in between. The rule is `--write-point`'s. |
-| `--pool-out PRE` | writes one point file per solution pool entry: `PRE-0.pt` is the best, `PRE-1.pt` the next, in the order the pool keeps them. No two of them share their integer assignment. `--pool-size K` is what makes the pool bigger than the incumbent. An LP has no integer point, so nothing is written and stderr says so without changing the exit code. Each file is one `check --point` reads back. Prints `pool_files N`, the number of files written. |
-| `--check` | runs the independent checker on the answer and prints its eighteen-field report, then a `check_ok` line. It is the report `check FILE SOLUTION` prints and it saves the round trip through a file. The exit code stays the solve's: a checker that could change it would make `solve` two commands with one name. It judges an optimum; a solve that ended otherwise has no point and no duals, which is said on stderr and changes nothing. On a model with cones, `max_cone_violation` follows the eighteen fields. `check_ok` is `yes` when the point is primal feasible and the duals are feasible or were not checked. The check always uses a tolerance of 1e-7, whatever `--primal-tol` says. |
-| `--proof PATH` | writes the answer's exact proof to `PATH`. An optimum's proof is its coordinates, so the tool runs `jaos verify` first and writes nothing when the verdict is `broken` or `refused`, saying so on stderr. On an optimal MIP, or a model with a quadratic objective, cones or quadratic rows, `jaos verify` refuses the model with an error, and the tool exits 5 after printing its report. An infeasible or unbounded answer's proof is its certificate, and the tool derives the exact ray for it first. A double is an exact rational, but a multiplier computed in floating point is not the one that makes the combination cancel, so a file of doubles can say broken to the checker. When the exact ray cannot be derived (presolve settled the answer and left no basis, or the derivation ran out of limbs), the published doubles are written instead and the file is checked before it is handed over. When that check fails, nothing is written, stderr says so and the tool exits 5. The file is always plain text, whatever its name. `jaos check FILE --proof PATH` judges any of the three from the model alone. Prints `proof_file PATH` when it wrote one. |
-| `--exact` | solves an LP exactly: the floating-point answer is proved over the rationals, and a basis the proof breaks is repaired by pivots in exact arithmetic (`jaos_set_exact` in `docs/api.md`). A proved optimum prints `objective_exact`, and its point, duals and objective are the exact values rounded to the nearest double; a model that turns out infeasible over the rationals ends `infeasible` with an exact certificate; anything that cannot be proved ends `numerical_error` with the reason. A MIP, a quadratic objective or a model with cones is a usage error. Read on Netlib with 4096-bit limbs (`bench/measurements/02-358/`). |
-| `--mip-start SOLUTION` | hands the branch and bound the integer point in `SOLUTION`, a file this model's `solve --solution` wrote, before it runs. It is checked at the root by the same acceptance every heuristic point gets, so a point that is not integral, or that sits outside a bound or a row, is refused and the search runs as if none had been given -- a starting point the caller got wrong is never published as an answer. What it buys is the pruning: the tree has a bound from node 1. No effect on an LP. |
-| `--partial-start POINT` | hands the branch and bound the columns a point file names: one `NAME VALUE` line per column given, `#` for a comment. A column the file leaves out has no start value. At the root a copy of the model with every given integer column fixed at its rounded value is solved as a tree of at most `MIP_START_NODES` nodes, and its best point is judged as `--mip-start` judges a point. The given values of continuous columns are not used. A name the model does not have, or a value that is not a finite number, is a usage error. The `start_accepted` line says whether the start was taken. |
-| `--cutoff V` | drops every node whose relaxation cannot beat objective `V`, from node 1 and with no incumbent needed. It also gates what may become the incumbent, so a cutoff tighter than the true optimum ends the search `infeasible` and exits 1 -- the honest answer to "is there a solution better than this?", not a defect. `V` is in the model's own sense. No effect on an LP. |
-| `--work-limit N` | stops the solve after `N` deterministic work units. `N` must be a positive integer. The outcome is `work_limit`. The stop lands at the next point the solver checks: within one iteration's step for an LP, and for a MIP within one sub-solve's step, since every solve the tree starts, at a node, after cuts, in probing and in the heuristics, runs under what is left of `N` and the tree ends when one of them stops on it. |
-| `--time-limit SECONDS` | stops the solve after that many wall-clock seconds. Must be positive; fractions are fine. The outcome is `time_limit`. It is the one input that breaks bit-identity: where a run stops depends on the machine's clock, so two runs stopped by it can differ. `--work-limit` stops at the same point on every machine. |
+| `--solution OUT` | writes the solution file to `OUT`: the optimum, or the certificate of an infeasible or unbounded model. A MIP has a certificate only when its root relaxation is infeasible. A solve stopped by a limit or an interrupt writes no file, and stderr says why. `docs/format-support.md` describes the format. |
+| `--start SOLUTION` | warm-starts from the basis in `SOLUTION`, an optimum's or a certificate's file that `solve --solution` wrote for this model. A file for another model, or one with no basis, is refused with the library's message and exit 5. |
+| `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file, which may come from another solver. Giving both `--basis` and `--start` is a usage error. A file whose names or count do not fit the model is refused with the library's message and exit 5. |
+| `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, as an MPS basis file. An optimum, an infeasible or unbounded answer and a stop on a limit leave a basis. A solve that never ran, one that ended on a numerical error, and a verdict presolve reached without a simplex leave none. Then stderr says so and the exit code stays the answer's. |
+| `--write-point PT` | writes the optimum's point to `PT`, one `NAME VALUE` line per column, the shape `check --point` reads. Any other outcome writes no file, and stderr says why. |
+| `--write-duals D` | writes the optimum's row duals to `D` in the same shape, for `check --point P --duals D`. |
+| `--pool-out PRE` | writes one point file per solution pool entry, best first: `PRE-0.pt`, `PRE-1.pt`, and so on. Prints `pool_files N`, the number of files written. An LP has no pool, so nothing is written and stderr says so. The exit code does not change. |
+| `--check` | runs the independent checker on an optimum and prints the eighteen-field report of `check FILE SOLUTION`, then a `check_ok` line. `check_ok` is `yes` when the point is primal feasible and the duals are feasible or were not checked. On a model with cones, `max_cone_violation` follows the eighteen fields. The tolerance is always 1e-7, whatever `--primal-tol` says. The exit code stays the solve's. For any other outcome stderr says there is nothing to check. |
+| `--proof PATH` | writes the answer's exact proof to `PATH`, always as plain text, and prints `proof_file PATH`. For an optimum the tool runs `jaos verify` first and writes nothing unless the verdict is `optimal`. Where `jaos verify` refuses the model (an optimal MIP, a quadratic objective, cones or quadratic rows), the tool exits 5 after printing its report. For an infeasible or unbounded answer the tool derives the exact ray. When it cannot, it writes the published doubles if they pass the exact check. Otherwise it writes nothing, says so on stderr and exits 5. `jaos check FILE --proof PATH` judges the file. |
+| `--exact` | proves an LP's answer over the rationals and repairs a basis the proof breaks by exact pivots (`jaos_set_exact` in `docs/api.md`; measured in `bench/measurements/02-358/`). A proved optimum prints `objective_exact`, and its published values are the exact ones rounded to the nearest double. A model that turns out infeasible over the rationals ends `infeasible` with an exact certificate. An answer that cannot be proved ends `numerical_error` with the reason. A MIP, a quadratic objective or a model with cones is a usage error. |
+| `--work-limit N` | stops the solve after `N` deterministic work units, as `work_limit`. `N` must be a positive integer. In a MIP every sub-solve runs under what is left of `N`. |
+| `--time-limit SECONDS` | stops the solve after that many wall-clock seconds, as `time_limit`. Must be positive; fractions are fine. It is the one input that breaks bit-identity. |
 | `--primal-tol T` | how far a variable may sit outside its bounds and still count as feasible. Default 1e-7. |
 | `--dual-tol T` | how far a reduced cost may sit on the wrong side of zero. Default 1e-9, `DUAL_TOL` in `docs/tolerances.md`. |
-| `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root of a mixed-integer model: one cut per fractional integer column of the relaxation's basis per round, kept for the whole tree. Default 1, the setting that measured 0.660x the plain tree's work with no instance past 2x; `0` turns them off. A negative count is a usage error. No effect on an LP. |
-| `--clique-rounds N` | rounds of clique cuts at the root, beside the other rounds. Every all-binary row and finite side, read over literals, says which pairs of literals cannot both be 1; those pairs form a conflict graph, and a clique of it the point violates gives the cut "at most one of these". The clique is grown greedily from the literal with the largest value, in a fixed order, so the cuts are the same on every machine. Default 4; `0` for none. |
-| `--cover-rounds N` | rounds of knapsack cover cuts at the root, beside the Gomory rounds: every all-binary row, each finite side read as a knapsack over literals, gives the greedy cover the point violates, extended by every heavier item. Default 4, the setting that measured 0.745x the work of the Gomory round alone over the MIP set with no instance past 2x; `0` turns them off. A negative count is a usage error. No effect on an LP. |
-| `--zero-half-rounds N` | rounds of zero-half cuts at the root, beside the other rounds. Every row with integer coefficients on integer columns and an integer side, alone, in pairs and in triples of the tightest hundred, is halved; a column with an odd coefficient sum takes the bound row that makes it even; where the right-hand side comes out odd and the rows' slacks at the point sum below 1, the halved row rounded down is a cut the point violates. At most fifty per round. Default 0: at 1, 2 and 4 rounds the MIP set read 1.210x, 1.182x and 1.219x, `gt2` 2.91x and `enigma` 2.50x with their trees two to three times longer, and `mod010` 1.98x for the scan alone. |
-| `--flow-cover-rounds N` | rounds of flow cover cuts at the root, beside the other rounds. A two-entry row `x - u y <= 0` with `y` binary gives `x` a variable upper bound; a row with every column at lower bound 0 and finite capacities on its inflow side is read as a single-node flow set, a flow cover is picked greedily by the fixed-charge slack `u (1 - y) - x` at the point, and the Padberg, Van Roy and Wolsey inequality is added where the point violates it, with `lambda y` in place of `x` on outflow columns whose capacity exceeds `lambda`. Default 5 since 2026-09-24: on the tree of d6245e0 and after, 5 rounds read 1.000x in work on MIPLIB 3 (`dcmulti` 0.86x, `blend2` 1.13x) and 0.989x in the 2017 set's gap sum, and they lift the root bound of the fixed-charge networks (`sp150x300d` 27.3 to 51.0, `p200x1188c` 5701 to 9865; `bench/measurements/02-317/`). Before that tree 1 to 4 rounds read 1.012x to 1.017x. `0` turns them off. |
-| `--hull-rounds N` | rounds of hull cuts at the root, beside the other rounds. A row of at most eight integer columns whose box holds at most 1024 integer points, and whose point has a fractional column, has its integer points listed; a small LP finds the inequality over its columns, coefficients between -1 and 1, that holds at every point and that the relaxation's point violates most. A row whose coefficients share one magnitude and whose sides are multiples of it is skipped. A round that cuts a tenth of the rows or more does not end the MIR rounds as stalled, which is what lets `neos-3381206-awhea` reach 452.25 and solve at its root (`MIP_HULL_ROUNDS` in `docs/tolerances.md`). Default 20; `0` turns them off. |
-| `--cut-depth D` | one round of Gomory cuts at every node whose depth is at most `D`, each valid in its node's subtree and in the relaxation for exactly the nodes under it. Default 3, with `--node-cut-cap`'s four cuts per node, the pair that measured 0.835x the work of root-only cuts over the MIP set with no instance past 2x; `0` is the root only. A negative depth is a usage error. No effect on an LP. |
-| `--node-cut-cap K` | at most `K` cuts per node below the root, the most efficacious kept, violation over the cut's norm. Default 4; `0` is no cap, and the root's rounds are never capped. A negative count is a usage error. Only matters with `--cut-depth`. |
-| `--no-cut-drop` | carries a node's cut to every node under it even once its slack is basic there; by default a cut that does not bind at a node leaves the relaxation under it, and two nodes holding the same cuts share the rows. Only matters with `--cut-depth`. |
-| `--dive` | dives from each selected node of a branch and bound: the child on the nearer side of the fraction is solved next and its sibling joins the open set, until a node is pruned or integral. Off by default: the plain dive reads 0.934x the work over the 23 MIPLIB 3 instances it finishes, and 0.855x on the mean primal plus dual gap of the 2017 set, but bell5 does not finish under it (D289-dive in `bench/refusals.txt`). Without `--dive`, a tree that holds no incumbent after 1000 nodes dives on its own until it finds one, with up to 100 resumes a dive (`MIP_NOINC_DIVE_AFTER` in `docs/tolerances.md`); with `--dive`, the dive options hold instead. No effect on an LP. |
-| `--dive-child RULE` | which child the dive solves first, with `--dive`: `nearer`, the default, is the side the fraction is closer to; `up` and `down` are fixed; `pseudocost` is the direction whose expected objective loss is the smaller. An unknown rule is a usage error. No effect on an LP or without `--dive`. |
-| `--cut-stall F` | ends the root's cut rounds after one that moved the bound by less than `F` of (1 + \|bound\|). Default 0, never: every fraction read at or above 1.007x over the MIP set. |
-| `--node-cut-stall F` | gives no cut round to a node whose own round moved its bound by less than `F` of (1 + \|bound\|), and none to anything under it. Default 0, never: alone it reads 0.816x, and beside the root-cut drop every fraction leaves `bell5` at the cap. |
-| `--root-cut-drop` | lets a root cut leave the relaxation below a node where its slack is basic, like a node's own cut. On by default: 0.799x the work over the MIP set, 13 better and 2 worse, none past 2x. `--no-root-cut-drop` keeps every root cut in every node. |
-| `--cover-lift` | lifts each cover cut with Balas's coefficients instead of extending it by every heavier item. Off by default: 1.005x with `l152lav` past 2x. `--no-cover-lift` is the default. |
-| `--mir-rounds N` | rounds of mixed-integer rounding cuts on the model's rows at the root, beside the Gomory and cover rounds: every row and finite side shifted to the bounds nearer the point, scaled by a few candidates, the most violated kept. Default 6, which measured 0.719x the work over the MIP set with none past 2x; `0` turns them off. Since 2026-10-04 the default goes on past 6, up to 20, while each round lifts the root bound by at least 1e-4 of itself (`MIP_MIR_MORE`, `MIP_MIR_MORE_STALL`); a count given here is run as given. |
-| `--mir-aggregate N` | lets a MIR row absorb `N` others, substituting a continuous column out each time, before it is rounded. Default 6 since 2026-09-25, and 0 is the single-row form. A root round's aggregated cuts are first tried on a copy of the root LP and kept only when they lift its bound by `MIP_MIR_AGG_GAIN` of itself; after a round that drops them or finds none, aggregation stops for the solve. A model with a quadratic objective keeps the single-row form, since its relaxations are barrier solves with no warm start and the copy would cost a root round (QPLIB_5924 lost its root bound at 1e10 that way). Unguarded, the aggregate measured 1.140x at its best step count with `gen` past 2x, and at 6 steps `bell5`'s tree grew 143x; guarded, MIPLIB 3 reads 1.012x. Only matters with `--mir-rounds`. |
-| `--node-mir` | adds MIR cuts over a node's own bounds to its Gomory round, under the same cap. Off by default: 0.991x with two instances past 2x, and the same shape at every cap and depth. `--no-node-mir` is the default. |
-| `--dive-backtrack N` | lets a dive resume from the deepest sibling it left, up to `N` times per dive. Default 0, every sibling to the open set at once: 0.992x at sixteen with two past 2x, 1.170x unbounded. Only matters with `--dive`. |
-| `--dive-gap F` | resumes only while the waiting sibling's bound is within `F` of (1 + \|best open bound\|). Default 0, no bound on the resume: 1.067x at its tightest fraction and worse above. Only matters with `--dive`. |
-| `--dive-degrade F` | goes on into a child only while the node's own bound is within `F` of (1 + \|its parent's\|), read before the node's own cut round. Default 0, no bound: 1.048x at best against the plain dive. Only matters with `--dive`. |
-| `--dive-heuristic N` | at the root, on a copy of the relaxation as the cuts left it, fixes the integer column nearest an integer and solves again, up to `N` times, and judges an integral point like any heuristic point. Default 50: 1.032x the work with the first incumbent earlier on 6 of 24 and later on none. `0` turns it off. In a model with cones or quadratic rows each solve fixes half of the fractional integer columns instead (see `solve`). |
-| `--dive-heuristic-depth D` | runs that dive at every node down to depth `D`, the root being 0. Default 0, the root alone: depth 1 reads 1.049x and depth 4 1.356x with four instances past 2x, a worse rate than the heuristics already on. |
-| `--rins N` | fixes the integer columns an incumbent and a node's relaxation already agree on and runs the dive on the rest, up to `N` solves, once per distinct incumbent (after Danna, Rothberg and Le Pape). Default 50 since 2026-09-25, and 0, off, on a model with a quadratic objective, whose dives are barrier solves; `--rins 0` turns it off. With clique fixing it reads 1.002x on MIPLIB 3 and 0.994x in the 2017 set's gap sum (`bench/measurements/02-325/`). |
-| `--local-branching K` | for each distinct incumbent, solves the model again as a small tree with one more row, which keeps the binary columns within `K` flips of the incumbent, stopped at `MIP_LOCAL_BRANCHING_NODES` nodes; a better point it finds becomes the incumbent (after Fischetti and Lodi). Default 0, off. On the 2017 set at 1e10 work units (`bench/measurements/02-286/`), 10 flips read 0.975x on the mean primal plus dual gap and 20 flips 0.992x, with no instance finished; 10 flips improve 10 incumbents, pk1 196 to 45, exp-1-500-5-5 102167 to 77608 and tr12-30 195766 to 167155 among them. |
-| `--feaspump N` | rounds of the feasibility pump at the root: the relaxation's point is rounded, the copy is re-solved for the point nearest that rounding in L1, and the pair repeats. Default 20: 1.026x the work with the first incumbent at node 1 on six of 24 and later on none. `0` turns it off. It runs only while nothing has an answer yet. |
-| `--pump-general 0\|1` | gives the pump an auxiliary column and two rows per general integer column, so such a column's distance to its rounding counts wherever the rounding sits (after Bertacco, Fischetti and Lodi). Off by default: 1.007x alone with `gt2` the only instance it moves, and the objective pump reaches `gt2` without it. |
-| `--pump-obj F` | blends the model's own objective into each of the pump's rounds at a weight that multiplies by `F` per round from 1 (after Achterberg and Berthold), so early rounds pull toward good points and late ones toward feasible. Default 0.5: 0.984x the plain pump's work, 2 better and 0 worse, `gt2`'s first incumbent from node 382 to 1. `0` is the plain pump; `1` or more is a usage error. |
-| `--pump-always` | runs the pump at the root even where something already holds an incumbent. Off by default: 1.051x, `gen` at 3.083x, and **the first incumbent moved on none of the 24** -- the guard is skipping a pump that would have found nothing. `--no-pump-always` is the default. |
-| `--rcfix` | at the root, once an incumbent exists, pulls an integer column's far bound in to the furthest integer its reduced cost still allows, and every node inherits it. On by default since 2026-10-04: MIPLIB 3 0.944x in the geometric mean of work, `mod008` 0.586x and `gt2` 1.189x, and the 2017 gap sum 0.999x (`bench/measurements/02-335/`); it read 1.010x on an older tree, `p0282` 0.519x against `gt2` 2.492x. `--no-rcfix` turns it off. |
-| `--tighten` | at the root, a binary column whose coefficient in a one-sided row cannot make the row tight on its own has the coefficient shrunk by the row's slack and, for a positive coefficient in a `<=` row, the bound with it. The slack is read with the column at 0 when its coefficient pushes the row towards its bound and at 1 when it pulls away, so `x - 10 y <= 0` with `x <= 3` becomes `x - 3 y <= 0`. No integer point moves and the relaxation gets a tighter face. The same switch covers the parity step: equality rows such as `x1 + x2 + x3 - 2 y = 1` give their binaries' sum mod 2, and elimination mod 2 fixes every binary those rows determine (see `jaos_set_mip_tighten` in `docs/api.md`). On by default; `--no-tighten` turns both off. |
-| `--mip-presolve` | before the tree, merges two continuous columns that an equality row with a right-hand side of 0 and opposite coefficients makes equal, and drops the row, until no such row is left; the answer is mapped back to every column (see `jaos_set_mip_presolve` in `docs/api.md`). On by default; `--no-mip-presolve` turns it off. |
-| `--probing` | after the root solve, each binary column fractional there is tried at 0 and at 1 with the rows propagated over the bounds, most fractional first, under `--probing-cap`; a setting that makes some row impossible fixes the column the other way, the bounds both settings imply are kept, a column that fits neither way makes the model infeasible, and a root that moved is solved again before the cuts. Off by default: 1.109x over the MIP set with no instance better, no column fixed on any of the 24, and the bounds it keeps moving bell3a's tree 64077 to 117317 nodes. `--no-probing` is the default. |
-| `--probing-cap M` | stops the root's probing at `M` times the work the root solve itself took. `0` is no cap; a negative value is a usage error; 1 by default. No effect without `--probing`. |
-| `--clique-fix` | at each node, a binary column fixed to one setting fixes every literal the root's clique table puts in conflict with it, and a node holding both sides of a conflict is cut without a solve. The table is built once after the root solve from the all-binary rows, plus the implications probing found, and feeds the clique cuts either way. On by default since 2026-09-25: with RINS, MIPLIB 3 reads 0.735x in summed work (`l152lav` 0.614x) and 1.002x in the geometric mean (`bench/measurements/02-325/`). `--no-clique-fix` turns it off. |
-| `--conflicts` | conflict analysis at a node whose relaxation is infeasible: the Farkas proof is read over the branching fixings on the path, each fixing the proof can do without is dropped, deepest first, and when the rest are binaries fixed to a value, at most 32 of them, a row forbidding that combination together is added ahead of the cut copies and kept for the rest of the search. On by default: 0.924x over the MIP set, 7 better and 5 worse, none past 2x, `egout` 0.206x with its tree 6841 to 887 nodes, `misc07` 1.106x for 1563 rows. `--no-conflicts` turns it off. |
-| `--symmetry` | symmetry detection at the root: the model as a coloured graph (a vertex per column coloured by cost, bounds and kind, one per row coloured by its bounds, an edge per nonzero coloured by the coefficient), colour refinement to an equitable partition, then a partition search that individualises a vertex of the first cell with more than one member, refines, and reads an automorphism off each pair of leaves, under a work cap of `MIP_SYMMETRY_WORK` (250) times the model's size (nonzeros plus columns plus rows). Each automorphism found is a generator; the column orbits come from the generators. Every MIP solve prints `symmetry_generators` and `symmetry_orbits`. Off on its own, but `--orbital`, which is on by default, runs the same search; this switch matters with `--no-orbital`. |
-| `--orbital` | orbital branching and fixing: at a node, the symmetries that fix every binary the path set to 1 (and every non-binary column it branched on) give the orbits; a branching on a binary zeroes its whole orbit on the zero side, and a node zeroes every orbit holding a binary the path zeroed. On by default: 0.835x over the MIP set, `rgn` 0.156x with its tree 4233 to 235 nodes, `misc07` 0.356x, `stein27` 0.543x, against `air03` 1.892x for the search alone. `--no-orbital` turns it off. |
-| `--propagate N` | passes of bound propagation at each node before its relaxation is solved: each reads the model's rows over the node's own bounds, proves the node infeasible with no solve where a row admits no point, and pulls in the integer bounds the rows imply. Default 0, off: 1.093x at one pass and 1.074x at four, with `bell5` unfinished at the cap. On a model with a quadratic objective the default is 4 (`MIP_QUAD_PROPAGATE`). `jaos options` prints the unset value as -1 (`mip_propagate`). |
-| `--propagate-depth D` | the deepest node propagation runs at, the root being 0; negative, the default, is every node. Depth 0 is not less propagation but the free half of it, since the root's deductions hold for the whole tree: 1.051x, and it moves a bound on 6 of 24 while the other 18 read exactly 1.000x. Only matters with `--propagate`. |
-| `--algorithm A` | what solves an LP, one of five: `dual`, the default, `primal`, `barrier`, `pdlp` or `concurrent`. The two simplexes also solve the root relaxation and every node of a MIP; the barrier solves plain LPs only, and a MIP under `--algorithm barrier` still runs its relaxations on the dual. The primal takes more work than the dual on the Netlib set and is there for a caller who wants it; both give the same answer. The barrier is Mehrotra's predictor-corrector on the normal equations, factored by the sparse Cholesky in `src/chol.c` with the dense columns left out and corrected for on every solve, followed by a crossover: the interior point ranks every column and row by how far it sits inside its bounds against its dual slack, the best `rows` of them make a basis guess (repaired through the LU where it is singular). Since 2026-09-22 a push then puts every nonbasic column on one of its bounds, along the direction that keeps the rows satisfied, and a basic column that reaches its own bound first leaves the basis (the primal half of Bixby and Saltzman's push); the primal simplex finishes from that primal feasible basis. Where the push cannot finish, the dual simplex finishes from the guess under the ordinary warm start, as before. Either way the answer is a vertex with a basis like any other. `jaos_iterations` counts both parts. The barrier certifies neither infeasibility nor unboundedness, so a run whose iterate grows past `BARRIER_DIVERGE` times the data, turns non-finite, or reaches `BARRIER_MAX_ITER` without converging hands the model to the dual simplex, which starts from the slack basis and gives the verdict with its certificate; `jaos_iterations` counts both parts there too. `bench/results/barrier.txt` is its reading against the dual on the standard set and `bench/results/barrier-infeas.txt` on the infeasible one. A model with a quadratic objective (`QUADOBJ` in MPS, a `[ ... ] / 2` block in LP) solves by the barrier under the default `dual`, without presolve or crossover, and a MIP with one solves its root and every node by the barrier, cold at each node and without Gomory cuts; `primal` and `pdlp` refuse a quadratic objective and exit 5. Such a model takes the augmented system rather than the normal equations, since its quadratic part fills them; a diagonal quadratic part folds into the normal matrix instead, and there the barrier reads both factors' operation counts, `Σ_j h_j²` over the columns' heights, and keeps the cheaper. It only reads the second one when the normal factor costs at least `BARRIER_AUG_TRY`, because the symbolic analysis is billed too. `--log summary` says which system it took. When the barrier ends such a solve without an answer (`numerical_error`), the conic interior point described below solves the model again, root and nodes alike, its work units, iterations and time counted on from the barrier's, so the work and time limits hold for the two together. Since 2026-09-24 a barrier point whose push did not settle is put to the checker at the primal tolerance before it is called optimal, and one the checker refuses counts as no answer, so the conic interior point takes it; its answer is put to the checker the same way, and when the checker refuses both the solve ends `numerical_error` (QPLIB_9002 and Maros-Meszaros `qgrow22` had been published optimal with duals off by 2.1e4 and 3e-6). It runs as at the top of a solve even at a node, so a walk that stops near an optimum the checker refuses ends `numerical_error` rather than pass as a rough node. At the root of a MIP with a quadratic objective, while no incumbent is known, the relaxation's integer columns are rounded and the model is solved with them fixed; when that gives no feasible point, a dive fixes the half of the fractional integer columns nearest an integer at each solve, up to `--dive-heuristic N` solves, and rounds and solves its last point the same way. `--no-heuristics` or `--dive-heuristic 0` turns both off. `pdlp` is the first-order method: primal-dual hybrid gradient on the same scaled model after `PDLP_RUIZ_ROUNDS` of Ruiz equilibration and the Pock-Chambolle scaling, with the adaptive step and the restarts to the running average of Applegate et al. (2021), the primal weight rebalanced at each restart, every matrix pass billed; it stops at a relative tolerance of `PDLP_TOL` and finishes through the same crossover, hands off to the dual simplex the same way, and `bench/results/pdlp.txt` is its reading. `concurrent` is the portfolio: it copies the model three times, sets the dual on the first, the primal on the second and the barrier on the third, and runs them in that order under a work budget of `CONCURRENT_SLICE` that multiplies by `CONCURRENT_GROWTH` each round. The first run to answer wins and its answer, its basis and its certificate become the model's; the work is the sum over the three, so a model the dual settles inside the first budget costs exactly what the dual costs and the other two never start. Nothing reads a clock, so the winner is the same on every machine. It solves plain LPs only: a MIP under `--algorithm concurrent` runs its relaxations on the dual as under `barrier`, and a quadratic objective is refused as `primal` and `pdlp` refuse it. A model with second-order cones or quadratic rows (since 2026-09-19) solves by the conic interior point under `dual` or `barrier`, a homogeneous self-dual walk with Nesterov-Todd scaling (`src/conic.c`), finished by a Newton step on the constraints it ends on; `primal`, `pdlp` and `concurrent` refuse it and exit 5. The finish's point is taken when it is feasible on both sides, and also when the walk's own point is refused and the finish's worst violation is smaller. Since 2026-09-24 an optimum of a solve outside a tree node is put to the checker at the primal tolerance before it is published, and one the checker refuses ends `numerical_error`: 8 of QPLIB's continuous QCQPs, whose duals missed by 8.5e-7 to 3.6e-5, had been published optimal. Since 2026-09-25 such a point is settled before it is given up. The columns take the least move that puts every row whose dual is larger than its slack on its side, with the duals kept; then the duals of those rows are refitted by least squares to the columns' stationarity, and the other rows' duals are set to 0. When the checker still refuses, the same runs again from the finish's point with every row whose dual is over the checker's tolerance held on its side. The first point the checker takes is published; 9 of QPLIB's 13 continuous QCQPs end `optimal` that way, where 2 did. A node of the conic tree keeps its rough point as before. Since 2026-09-20 every column that leaves the finish sitting on a bound with a reduced cost pushing it the other way leaves its active set, and the finish runs again without them, up to `CONIC_NEWTON_ROUNDS` times. Since 2026-09-25 a linear row whose activity over its columns' boxes stays inside its sides, by `CONIC_LOOSE_MARGIN`, leaves the walk outside a tree node; its dual is 0 and its activity is computed from the answer. When the walk ends on an improving direction the ray checker refuses, or ends with no answer at all, the model goes to the feasibility solve and then to a solve over the directions the rows, the bounds, the quadratic parts and the cones leave open, and the answer is `unbounded` only with a direction that solve finds and the checker takes. The walk leaves out two kinds of quadratic cone. A cone whose head has an upper bound of 0 holds all its columns at 0, so the walk fixes them there; such a cone has no interior point, and the walk needs one. A cone whose head is free above, costs nothing and appears in no row and no other cone never binds, so its dual is 0, a point the walk cannot reach from inside; after the walk its head is set to the norm of the rest. The duals, certificates and rays published for the model cover both kinds, the first rebuilt from its columns' reduced costs, and `--log summary` counts them. When every cone goes that way and no row is quadratic, nothing conic is left and the model is solved by the algorithm it would have had without cones, on a copy with those columns fixed. Its `infeasible` comes with a certificate the checker takes; only a model with a quadratic row may end `infeasible` without one, since a diagonal part's curvature caps each column at `a^2 / (-2h)` and carries the proof, and on any other model a refused certificate ends `numerical_error`. A certificate the checker refuses is looked at again before that: the checker's test is sharp in the proportion between the multipliers and not in their scale, so the solve scales every quadratic row's multiplier by one factor, then moves one multiplier at a time against the checker, then negates a multiplier that curves its row the wrong way, then projects a cone dual back onto its cone. The search is capped, its cost is charged to `work_units`, and it does not run at a tree node. Such a model with integer columns solves by a branch and bound of its own (`src/conictree.c`): depth first until an incumbent, then best bound first with a plunge after each branching, the conic interior point at every node. A node whose relaxation fails is split at the middle of its widest integer column. A failed node with every integer column fixed is set aside with its bound, and the tree then ends `optimal` only when its incumbent is within the gap of every bound set aside, `numerical_error` otherwise; `--log summary` counts both. The column branched on is the one whose pseudocosts promise the largest gain, the product of the two directions' estimates, each the mean gain per unit a branch on that column has shown so far, with the mean over all columns standing in until it has one; so the root, knowing nothing, takes the most fractional column, and `--branching most-fractional` keeps that rule throughout. At the root, the relaxation's integer columns are rounded and the model is solved with them fixed (`--no-heuristics` turns this off). While no incumbent is known, the root then dives: each solve fixes the half of the fractional integer columns nearest an integer, up to `--dive-heuristic N` solves (default 50, `0` turns it off), and the last point is rounded the same way. The `mip_gap` option, `--branching`, `--node-limit`, `--cutoff`, `--mip-start` and the work and time limits apply to it, the cut options and the other heuristic options do not, and SOS sets, semi-continuous columns and indicator rows beside cones exit 5. |
-| `--threads N` | the thread count, `1` by default; `0` takes every core the machine has. Four things run more than one: `--algorithm concurrent`, the barrier's Cholesky factor, and the rounds of nodes of the conic tree and of the linear tree under `--tree-batch` above 1. The conic tree solves a round's relaxations on up to `N` threads, each on its own copy of the model, and takes their answers in the round's own order; the rounds do not depend on `N`, so the tree, its bound, its node count and its `work_units` line are the same at any count and only `time` moves (`bench/measurements/02-264/`). The linear tree runs its rounds the same way (see `--tree-batch`). With `N` above 1 the concurrent solve starts its three methods at once instead of one after another, and the moment one of them answers every method behind it in the order stops, because a method behind the winner is never the one whose answer is published. The answer, the basis, the certificate and the `work_units` line are the same at any count, because the work billed is still the work the one-thread schedule would have done; the `time` line is the one that moves. Since 2026-09-22 the barrier factors its normal equations on up to `N` threads too: the rows of each block of `CHOL_BLOCK` are solved on their own threads, and the factor is bit-identical at any count, so again only `time` moves (dfl001 67.7 s to 38.8 s on four threads, `bench/measurements/02-288/`). A negative count is a usage error. Since the thread count never changes the search, a MIP speeds up with threads only under a `--tree-batch` above 1; a batch that stays the same on every machine keeps the answer the same everywhere. |
-| `--opt NAME=VALUE` | any option by name, repeatable; the same setters the flags above reach. Names: `work_limit`, `time_limit`, `threads`, `primal_tolerance`, `dual_tolerance`, `algorithm`, `log_level`, `mip_gap`, `mip_node_limit`, `mip_tree_batch`, `mip_branching`, `mip_reliability`, `mip_probe_cap`, `mip_probe_depth`, `mip_cut_rounds`, `mip_cut_depth`, `mip_cut_drop`, `mip_node_cut_cap`, `mip_cover_rounds`, `mip_cut_stall`, `mip_node_cut_stall`, `mip_root_cut_drop`, `mip_cover_lift`, `mip_mir_rounds`, `mip_node_mir`, `mip_mir_aggregate`, `mip_dive`, `mip_dive_child`, `mip_dive_backtrack`, `mip_dive_gap`, `mip_dive_degrade`, `mip_dive_heuristic`, `mip_dive_heuristic_depth`, `mip_rins`, `mip_feaspump`, `mip_pump_general`, `mip_pump_obj`, `mip_pump_always`, `mip_rcfix`, `mip_tighten`, `mip_presolve`, `mip_probing`, `mip_probing_cap`, `mip_clique_fix`, `mip_conflicts`, `mip_symmetry`, `mip_orbital`, `mip_propagate`, `mip_propagate_depth`, `mip_heuristics`, `mip_pool_size`, `mip_cutoff`, `mip_clique_rounds`, `mip_zero_half_rounds`, `mip_flow_cover_rounds`, `mip_local_branching`, `mip_node_select`, `mip_restart`, `mip_gap_rule`, `mip_hull_rounds`, `exact`. A name matches in any case. Booleans take `true`/`false`, `on`/`off`, `yes`/`no` or `1`/`0`, also in any case. `mip_node_select` takes an integer: 0 for `bound`, 1 for `estimate`. `mip_gap` is the gap at which a branch and bound stops as optimal; it has no flag of its own, its default is 1e-6, and 0 means zero. `mip_gap_rule` takes `shifted`, the default, which measures the gap against `1 + |incumbent|`, or `relative`, which measures it against `|incumbent|` as SCIP and HiGHS do. `log_level` takes effect only through `--log`: set by `--opt` or `--params` it prints nothing, because the tool installs its log callback only for `--log`. An unknown name or a value of the wrong kind is a usage error. |
-| `--params FILE` | options from a file: one `name value`, `name = value` or `name: value` per line, `#` to end of line a comment. Read before the `--opt` flags, so `--opt` overrides the file. Every other flag overrides both, except `--threads`, `--work-limit`, `--time-limit` and `--reliability`: the tool applies those four first, so the file and `--opt` override them. |
-| `--no-heuristics` | turns the rounding heuristics off: by default every fractional node's relaxation is rounded to the nearest integers and kept as the incumbent when it is inside every bound and row. At the root of a linear model the same switch covers lock rounding and the feasibility jump (see `jaos_set_mip_heuristics` in `docs/api.md`). In a model with cones or quadratic rows the rounding runs at the root only, with a solve of the continuous columns (see `solve`). No effect on an LP. |
-| `--node-limit N` | stops a branch and bound before its `N`-th node past the limit, as `node_limit`, keeping the incumbent it has; `N` must be a positive integer. No effect on an LP. |
-| `--tree-batch N` | how many open nodes a branch and bound takes in one round (`N >= 1`, default 1, the tree that takes one node at a time). A round holds at most 64 nodes, and a larger `N` is read as 64. A round's relaxations are solved on up to `--threads` threads and their answers are taken in the round's own order, so the answer, the bound and the work do not depend on the thread count. Above 1 the search itself changes. On CBLIB's 80 mixed-integer instances the conic tree's rounds of four reach the same optima with 0.85x the work, and a run stopped by a work limit tends to end with a better bound and a worse incumbent (`bench/measurements/02-264/`). The linear tree (since 2026-09-22) solves each node of a round on its own copy of its LP and then takes the nodes in order, each from its copy's final basis. It pays where a node takes many pivots: l152lav falls from 93.91 s to 35.11 s at rounds of 4 on four threads and 21.28 s at rounds of 8 on eight. Where a node takes a few, the copies and the second solves cost more: bell3a goes from 16.41 s to 27.72 s, and over MIPLIB 3 rounds of 4 cost 1.37x the work (`bench/measurements/02-290/`). An LP ignores it. The option name is `mip_tree_batch`. |
-| `--branching RULE` | which column a fractional node branches on: `pseudocost`, the default, scores each column by the objective gain a unit move in each direction has cost so far in the tree; `most-fractional` takes the column farthest from an integer. The conic tree reads it too, with plain means for its pseudocosts and no probes. No effect on an LP. |
-| `--node-select RULE` | which open node a branch and bound takes next when it does not dive. `estimate`, the default since 2026-09-22, is the lowest pseudocost estimate: the parent's bound plus the smaller gain of each fractional integer column, with the lowest bound taken every fifth pick. `bound` is the lowest bound, the order before. On the 2017 set at 1e10 work units the estimate reads 0.896x on the mean primal plus dual gap, and on MIPLIB 3 0.922x the work with bell5 at 1.694x (`bench/measurements/02-286/`). An unknown rule is a usage error. No effect on an LP. |
-| `--restart` | at the root, once an incumbent exists, counts the integer columns the root's reduced costs would fix. When they are `MIP_RESTART_FRAC` of them or more, the tree starts again from the root with those columns fixed and the incumbent as its start, the cuts of the first root's relaxation in the second's. Off by default and on in network mode since 2026-10-05: there it takes `p200x1188c`'s bound at the 2017 limit from 13767 to 14999 (`bench/measurements/02-345/`), while on every model MIPLIB 3 reads 1.061x (`mod008` 3.2x). `--no-restart` turns it off. No effect on an LP. |
-| `--reliability N` | how many branches in each direction a column needs before its pseudocost is trusted; below it, at most eight candidates per node have their children solved on the spot and the gains initialise the pseudocosts. Default 0, never: over the MIP set reliability 1 reads 0.971x the work, but with mod010 at 2.84x and enigma at 2.07x, and 2, 4 and 8 read worse. No effect on an LP or under most-fractional branching. |
-| `--probe-cap M` | stops each strong-branching child solve at `M` times the work the node's own relaxation took; a probe that reaches it teaches the pseudocost nothing. Default 0, no cap; a negative value is a usage error. No effect without `--reliability`. |
-| `--probe-depth D` | strong branching probes at nodes down to depth `D` only, the root being 0; by default every depth. A negative depth is a usage error. No effect without `--reliability`. |
-| `--pool-size K` | keeps the `K` best distinct integer points a branch and bound finds, best first, and prints `pool_points N`, how many it holds, whenever `--pool-size` is on the command line, 1 included. A size set by `--opt` or `--params` prints no line. `K` must be a positive integer. Default 1, the incumbent alone. Two points are distinct when they differ on an integer column: two vertices of one optimal face that differ only in a continuous column are one entry, the better of the two, which is how the field's solution pools count as well. A model whose discrete structure is SOS sets or semi-continuous columns alone has no integer column, and there two entries are distinct when they differ anywhere. |
+| `--algorithm A` | the method for a continuous model: `dual`, the default, `primal`, `barrier`, `pdlp` or `concurrent`. [Which method solves what](#which-method-solves-what) says which models each one takes. |
+| `--threads N` | the thread count, `1` by default; `0` takes every core. More threads speed up `--algorithm concurrent`, the barrier's Cholesky factor, and a tree under a `--tree-batch` above 1. The answer, the tree and the `work_units` line are the same at any count, and only `time` changes (`bench/measurements/02-264/`, `bench/measurements/02-288/`). `docs/api.md`, "Threads", has the details. A negative count is a usage error. |
 | `--log LEVEL` | prints the solver's log on stderr. `LEVEL` is `off`, `summary`, `progress` or `detail`. Default `off`. |
 | `--quiet` | prints the `status` line and none of the rest of the solve's report. The lines of `--check`, `--pool-out` and `--proof` still print. |
+| `--opt NAME=VALUE` | any option by name, repeatable; the same setters the flags above reach. Names: `work_limit`, `time_limit`, `threads`, `primal_tolerance`, `dual_tolerance`, `algorithm`, `log_level`, `mip_gap`, `mip_node_limit`, `mip_tree_batch`, `mip_branching`, `mip_reliability`, `mip_probe_cap`, `mip_probe_depth`, `mip_cut_rounds`, `mip_cut_depth`, `mip_cut_drop`, `mip_node_cut_cap`, `mip_cover_rounds`, `mip_cut_stall`, `mip_node_cut_stall`, `mip_root_cut_drop`, `mip_cover_lift`, `mip_mir_rounds`, `mip_node_mir`, `mip_mir_aggregate`, `mip_dive`, `mip_dive_child`, `mip_dive_backtrack`, `mip_dive_gap`, `mip_dive_degrade`, `mip_dive_heuristic`, `mip_dive_heuristic_depth`, `mip_rins`, `mip_feaspump`, `mip_pump_general`, `mip_pump_obj`, `mip_pump_always`, `mip_rcfix`, `mip_tighten`, `mip_presolve`, `mip_probing`, `mip_probing_cap`, `mip_clique_fix`, `mip_conflicts`, `mip_symmetry`, `mip_orbital`, `mip_propagate`, `mip_propagate_depth`, `mip_heuristics`, `mip_pool_size`, `mip_cutoff`, `mip_clique_rounds`, `mip_zero_half_rounds`, `mip_flow_cover_rounds`, `mip_local_branching`, `mip_node_select`, `mip_restart`, `mip_gap_rule`, `mip_hull_rounds`, `exact`. A name matches in any case. Booleans take `true`/`false`, `on`/`off`, `yes`/`no` or `1`/`0`, also in any case. `mip_node_select` takes an integer: 0 for `bound`, 1 for `estimate`. `mip_gap` is the gap at which a branch and bound stops as optimal; it has no flag of its own, its default is 1e-6, and 0 means zero. `mip_gap_rule` takes `shifted`, the default, which measures the gap against `1 + |incumbent|`, or `relative`, which measures it against `|incumbent|` as SCIP and HiGHS do. `log_level` takes effect only through `--log`: set by `--opt` or `--params` it prints nothing, because the tool installs its log callback only for `--log`. An unknown name or a value of the wrong kind is a usage error. |
+| `--params FILE` | options from a file: one `name value`, `name = value` or `name: value` per line, `#` to end of line a comment. Read before the `--opt` flags, so `--opt` overrides the file. Every other flag overrides both, except `--threads`, `--work-limit`, `--time-limit` and `--reliability`: the tool applies those four first, so the file and `--opt` override them. |
 
 Both tolerances act in the scaled space the solver works in;
-`docs/tolerances.md` says what that means. A value the library refuses, such
-as a negative tolerance, is reported on stderr and the tool exits 5 before
-reading the file.
+`docs/tolerances.md` says what that means. A value the library refuses,
+such as a negative tolerance, is reported on stderr and the tool exits 5
+before reading the file.
 
-Ctrl-C during a solve stops it at the next point the solver checks, and the
-tool prints `status interrupted` and exits 3. It does not kill the process
-mid-way.
+Ctrl-C during a solve stops it at the next point the solver checks. The
+tool then prints `status interrupted` and exits 3.
+
+### Branch-and-bound options
+
+These options steer the branch and bound, and none of them changes an LP.
+Each one sets the option named like the flag with `mip_` in front and
+underscores for dashes: `--cut-rounds` sets `mip_cut_rounds`, and
+`--mip-presolve` sets `mip_presolve`. The setter of that option in
+`docs/api.md` describes it in full. Some defaults differ in network mode,
+which `jaos_set_mip_mir_rounds` in `docs/api.md` defines.
+
+Each default is the setting that won its measurement. A switch that is off
+by default was measured and refused. It stays so the refusal can be tested
+again: `bench/refusals.txt` says what would reopen each one, and
+`make refusals` runs the ones that have a script.
+
+| option | what it does |
+|---|---|
+| `--mip-start SOLUTION` | gives the tree the integer point in `SOLUTION`, a file this model's `solve --solution` wrote. The root judges it like any heuristic point, and a point that is not integral or breaks a bound or a row is refused. An accepted start lets the tree prune from node 1. |
+| `--partial-start POINT` | gives the tree the values of the columns a point file names (`#` starts a comment). At the root, a copy of the model with every given integer column fixed at its rounded value is solved as a tree of at most `MIP_START_NODES` nodes, and its best point is judged as `--mip-start` judges one. The given values of continuous columns are not used. A name the model does not have, or a value that is not finite, is a usage error. |
+| `--cutoff V` | prunes every node that cannot beat objective `V`, in the model's own sense, from node 1. No point that fails to beat `V` becomes the incumbent, so a cutoff better than the optimum ends `infeasible` with exit 1. |
+| `--node-limit N` | stops the tree when its node count reaches `N`, as `node_limit`, keeping its incumbent. `N` must be a positive integer. |
+| `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root, kept for the whole tree. Default 1; `0` turns them off. A negative count is a usage error. |
+| `--cut-depth D` | one round of Gomory cuts at every node down to depth `D`; each cut holds in its node's subtree. Default 3; `0` keeps the cuts at the root. A negative depth is a usage error. |
+| `--node-cut-cap K` | keeps at most `K` cuts per node below the root, the most efficacious. Default 4; `0` is no cap. A negative count is a usage error. |
+| `--no-cut-drop` | keeps a node's cut in every node under it. By default a cut that does not bind at a node leaves the relaxation under it. |
+| `--root-cut-drop` | lets a root cut leave the relaxation below a node where it does not bind. On by default; `--no-root-cut-drop` keeps every root cut in every node. |
+| `--cut-stall F` | ends the root's cut rounds after one that moved the bound by less than `F` of (1 + \|bound\|). Default 0, never. |
+| `--node-cut-stall F` | gives no more cut rounds to a node, or to anything under it, once its own round moved its bound by less than `F` of (1 + \|bound\|). Default 0, never. |
+| `--cover-rounds N` | rounds of knapsack cover cuts at the root, from the all-binary rows. Default 4; `0` turns them off. A negative count is a usage error. |
+| `--cover-lift` | lifts each cover cut with Balas's coefficients. Off by default; `--no-cover-lift` keeps the default, which extends a cover by every heavier item. |
+| `--clique-rounds N` | rounds of clique cuts at the root, from the conflict graph of the all-binary rows. The graph is searched in a fixed order. Default 4; `0` turns them off. |
+| `--zero-half-rounds N` | rounds of zero-half cuts at the root, from rows with integer data taken alone, in pairs and in triples, at most fifty cuts per round. Default 0, off. |
+| `--flow-cover-rounds N` | rounds of flow cover cuts at the root (after Padberg, Van Roy and Wolsey), from single-node flow sets whose columns have variable upper bounds on binaries. Default 5 (`bench/measurements/02-317/`); `0` turns them off. |
+| `--hull-rounds N` | rounds of hull cuts at the root: for a row of at most eight integer columns with at most 1024 integer points, the valid inequality the point violates most (`MIP_HULL_ROUNDS` in `docs/tolerances.md`). Default 20; `0` turns them off. |
+| `--mir-rounds N` | rounds of mixed-integer rounding cuts on the model's rows at the root. Default 6. Left at the default, the rounds go on up to 20 while each lifts the root bound by at least 1e-4 of itself (`MIP_MIR_MORE`, `MIP_MIR_MORE_STALL`). A count given here runs as given. `0` turns them off. |
+| `--mir-aggregate N` | lets an MIR row absorb up to `N` other rows before it is rounded. Aggregated root cuts are kept only when they lift the bound by `MIP_MIR_AGG_GAIN` of itself. Default 6; `0` is the single-row form, which a model with a quadratic objective always uses. |
+| `--node-mir` | adds MIR cuts over a node's own bounds to its Gomory round. Off by default; `--no-node-mir` keeps the default. |
+| `--dive` | dives from each selected node: the child `--dive-child` picks is solved next and its sibling joins the open set, until a node is pruned or integral. Off by default (D289-dive in `bench/refusals.txt`). Without `--dive`, a tree with no incumbent after 1000 nodes dives on its own until it finds one (`MIP_NOINC_DIVE_AFTER` in `docs/tolerances.md`). |
+| `--dive-child RULE` | which child a dive solves first: `nearer`, the default, `up`, `down` or `pseudocost`. An unknown rule is a usage error. Only matters with `--dive`. |
+| `--dive-backtrack N` | lets a dive resume from the deepest sibling it left, up to `N` times. Default 0. Only matters with `--dive`. |
+| `--dive-gap F` | resumes a dive only while the waiting sibling's bound is within `F` of (1 + \|best open bound\|). Default 0, no condition. Only matters with `--dive`. |
+| `--dive-degrade F` | goes on into a child only while its bound is within `F` of (1 + \|its parent's\|). Default 0, no condition. Only matters with `--dive`. |
+| `--dive-heuristic N` | at the root, on a copy of the relaxation, fixes the integer column nearest an integer and solves again, up to `N` times. Default 50; `0` turns it off. |
+| `--dive-heuristic-depth D` | runs that dive at every node down to depth `D`, the root being 0. Default 0, the root alone. |
+| `--rins N` | fixes the integer columns on which an incumbent and a node's relaxation agree and dives on the rest, up to `N` solves per incumbent (after Danna, Rothberg and Le Pape). Default 50 (`bench/measurements/02-325/`), and 0 on a model with a quadratic objective unless it is set. |
+| `--local-branching K` | for each incumbent, solves a tree of at most `MIP_LOCAL_BRANCHING_NODES` nodes that keeps the binary columns within `K` flips of it (after Fischetti and Lodi). Default 0, off (`bench/measurements/02-286/`). |
+| `--feaspump N` | rounds of the feasibility pump at the root, while there is no incumbent. Default 20; `0` turns it off. |
+| `--pump-general 0\|1` | gives the pump an auxiliary column and two rows per general integer column (after Bertacco, Fischetti and Lodi). Off by default. |
+| `--pump-obj F` | blends the objective into the pump at a weight that starts at 1 and is multiplied by `F` each round (after Achterberg and Berthold). Default 0.5; `0` is the plain pump; `1` or more is a usage error. |
+| `--pump-always` | runs the pump at the root even when an incumbent exists. Off by default; `--no-pump-always` keeps the default. |
+| `--no-heuristics` | turns off the rounding heuristics: the rounding of each fractional node's point and, at the root of a linear model, lock rounding and the feasibility jump. In a model with cones or quadratic rows it turns off the root's rounding. |
+| `--rcfix` | reduced-cost fixing at the root once an incumbent exists; every node inherits the bounds. On by default (`bench/measurements/02-335/`); `--no-rcfix` turns it off. |
+| `--tighten` | coefficient tightening of binary columns in one-sided rows, and the parity step over equality rows, at the root. On by default; `--no-tighten` turns both off. |
+| `--mip-presolve` | before the tree, merges two continuous columns that an equality row makes equal. On by default; `--no-mip-presolve` turns it off. |
+| `--probing` | after the root solve, tries each fractional binary at 0 and at 1 and keeps what the propagation proves. Off by default; `--no-probing` keeps the default. |
+| `--probing-cap M` | stops probing at `M` times the work of the root solve. Default 1; `0` is no cap; a negative value is a usage error. |
+| `--clique-fix` | at each node, fixes every literal the root's clique table puts in conflict with a fixed binary. On by default (`bench/measurements/02-325/`); `--no-clique-fix` turns it off. |
+| `--conflicts` | at an infeasible node whose proof needs at most 32 binaries fixed on the path, adds a row that forbids that combination. On by default; `--no-conflicts` turns it off. |
+| `--symmetry` | detects the model's symmetries at the root, under a work cap of `MIP_SYMMETRY_WORK` (250) times the model's size. Off by default. `--orbital`, which is on by default, runs the same search, so this switch matters only with `--no-orbital`. |
+| `--orbital` | orbital branching and fixing with the root's symmetries. On by default; `--no-orbital` turns it off. |
+| `--propagate N` | passes of bound propagation at each node before its relaxation is solved. Default 0, and 4 on a model with a quadratic objective (`MIP_QUAD_PROPAGATE`). `jaos options` prints the unset value as -1. |
+| `--propagate-depth D` | the deepest node at which propagation runs, the root being 0. Negative, the default, is every node. |
+| `--restart` | starts the tree again from the root when the root's reduced costs fix at least `MIP_RESTART_FRAC` of the integer columns. Off by default and on in network mode (`bench/measurements/02-345/`); `--no-restart` turns it off. |
+| `--branching RULE` | `pseudocost`, the default, scores each column by the gain its branches have shown so far; `most-fractional` takes the column farthest from an integer. |
+| `--node-select RULE` | which open node the tree takes next: `estimate`, the default, the lowest pseudocost estimate with the lowest bound every fifth pick, or `bound`, the lowest bound (`bench/measurements/02-286/`). An unknown rule is a usage error. |
+| `--reliability N` | strong branching on up to eight candidates per node until a column has `N` branches each way. Default 0, never. Only matters under pseudocost branching. |
+| `--probe-cap M` | stops each strong-branching child solve at `M` times the work of the node's own relaxation. Default 0, no cap; a negative value is a usage error. Only matters with `--reliability`. |
+| `--probe-depth D` | runs strong branching only at nodes down to depth `D`. By default every depth. A negative depth is a usage error. Only matters with `--reliability`. |
+| `--tree-batch N` | how many open nodes the tree takes per round (`N >= 1`, default 1; more than 64 reads as 64). A round runs on up to `--threads` threads and its answers are taken in order, so the answer does not depend on the thread count. Above 1 the search itself changes (`bench/measurements/02-264/`, `bench/measurements/02-290/`). |
+| `--pool-size K` | keeps the `K` best distinct integer points, best first. `K` must be a positive integer. Default 1, the incumbent alone. Two points are distinct when they differ on an integer column, or anywhere when the model has no integer column. Prints `pool_points N`, how many the pool holds, whenever `--pool-size` is on the command line. A size set by `--opt` or `--params` prints no line. |
+
+### Which method solves what
+
+`jaos_solve` in `docs/api.md` gives the same rules for the library.
+
+- `dual`, the default, and `primal` are the two simplex methods, and they
+  give the same answer. A MIP's relaxations run on the primal under
+  `primal` and on the dual under every other setting.
+- `barrier` is Mehrotra's predictor-corrector with a sparse Cholesky
+  factor (`src/chol.c`), then a crossover to a basis that the primal or the
+  dual simplex finishes. It certifies neither infeasibility nor
+  unboundedness: a run that diverges or reaches `BARRIER_MAX_ITER` hands
+  the model to the dual simplex. `bench/results/barrier.txt` holds its
+  reading.
+- `pdlp` is primal-dual hybrid gradient (after Applegate et al., 2021) to a
+  relative tolerance of `PDLP_TOL`, then the same crossover and hand-off.
+  `bench/results/pdlp.txt` holds its reading.
+- `concurrent` runs the dual, the primal and the barrier on three copies,
+  in that order, under work budgets that start at `CONCURRENT_SLICE` and
+  grow by `CONCURRENT_GROWTH`. The first answer wins. The work is the sum
+  over the three, and no clock decides the winner.
+- A MIP under `barrier`, `pdlp` or `concurrent` runs its relaxations on the
+  dual.
+- A quadratic objective (`QUADOBJ` in MPS, a `[ ... ] / 2` block in LP) is
+  solved by the barrier under `dual` or `barrier`, without presolve or
+  crossover. `--log summary` says which linear system it took. When the
+  barrier fails, or the checker refuses its point, the conic interior point
+  solves the model again, and the limits cover both. When the checker
+  refuses both, the solve ends `numerical_error`.
+- A MIP with a quadratic objective solves its root and every node by the
+  barrier, without Gomory cuts. While no incumbent is known, its root
+  rounds the integer columns and solves with them fixed, then dives up to
+  `--dive-heuristic N` solves. `--no-heuristics` or `--dive-heuristic 0`
+  turns both off.
+- Second-order cones or quadratic rows are solved by the conic interior
+  point (`src/conic.c`) under `dual` or `barrier`. Outside a tree node, an
+  optimum the checker refuses is repaired and checked again, and the solve
+  ends `numerical_error` when it still fails. `unbounded` comes only with a
+  direction the ray checker takes. `infeasible` comes with a certificate
+  the checker takes, except on a model with a quadratic row. A cone whose
+  head is fixed at 0, or one that can never bind, is left out of the walk.
+  When every cone is left out and no row is quadratic, the model is solved
+  as if it had no cones.
+- With integer columns as well, the conic branch and bound
+  (`src/conictree.c`) solves the model, with the conic interior point at
+  every node. It reads `mip_gap`, `--branching`, `--node-limit`,
+  `--tree-batch`, `--cutoff`, `--mip-start`, `--no-heuristics`,
+  `--dive-heuristic` and the work and time limits, and no other
+  branch-and-bound option. SOS sets, semi-continuous columns and indicator
+  rows beside cones exit 5.
+- `primal`, `pdlp` and `concurrent` refuse a quadratic objective, cones and
+  quadratic rows, and the tool exits 5.
 
 ## `options`
 
 `jaos options` prints every option with its value, one `name value` per
-line: the defaults, unless `--opt NAME=VALUE` or `--params FILE` on the same
-command line changed one. The output is exactly what `--params` reads, so
+line: the defaults, unless `--opt NAME=VALUE` or `--params FILE` on the
+same command line changed one. The output is what `--params` reads, so
 `jaos options --opt ... > run.txt` saves a run's settings and
 `jaos solve model.mps --params run.txt` replays them. `mip_propagate`
-prints -1 while it is unset, which leaves the choice to the tree (4 passes
-on a model with a quadratic objective, 0 otherwise), and a replayed -1
-keeps that choice. Exit 0 unless an option
-is unknown or its value is of the wrong kind, which is a usage error.
+prints -1 while it is unset, which leaves the choice to the tree, and a
+replayed -1 keeps that choice. Exit 0 unless an option is unknown or its
+value is of the wrong kind, which is a usage error.
 
 ## `stats`
 
 `jaos stats FILE` reads the model and prints what it is, one `key value`
-per line. It solves nothing, which makes it the one analysis subcommand
-with no verdict: the exit code is 0 unless the file cannot be read.
+per line. It solves nothing, so the exit code is 0 unless the file cannot
+be read.
 
 ```
 $ jaos stats model.mps
@@ -341,88 +364,60 @@ objective_max_abs 10
 ```
 
 The four row counts partition the rows and the four column counts
-partition the columns, so each set sums to its total; that is what the
-tests check, because a count that is merely printed is not evidence that
-the walk saw every row. A **ranged** row or column has two finite bounds
+partition the columns. A **ranged** row or column has two finite bounds
 that differ, a **fixed** one has two that are equal, and a **free** one has
-neither. **Binary** is what the branch and bound would see: the bounds
-rounded inward to integers being exactly 0 and 1, not a pair
-that happens to read 0 and 1 before rounding. The magnitude pairs are over
-the nonzeros and over the nonzero costs, and their ratio is what scaling
-exists to shrink. `quadratic_rows` counts the rows with a quadratic part
-and `cones` the second-order cones (since 2026-09-19).
+neither. A **binary** column is an integer column whose bounds, rounded
+inward to integers, are exactly 0 and 1. The magnitude pairs range over
+the nonzeros and over the nonzero costs. `quadratic_rows` counts the rows
+with a quadratic part and `cones` the second-order cones.
 
 ## `convert`
 
-`convert` reads `IN` and writes `OUT`. The output format is chosen by
-`OUT`'s extension: `.mps` writes free-format MPS, `.lp` writes CPLEX-style
-LP, `.nl` writes AMPL's text `.nl` with the names in `.col` and `.row`
-beside it, `.qplib` writes the QPLIB text format, `.osil` writes OSiL
-XML, `.cbf` writes the Conic Benchmark Format (without names; see
-`docs/format-support.md`), and any other extension is a usage
-error. The readers take `.mps`, `.lp`, `.nl`, `.qplib`, `.osil` and
-`.cbf` by extension. The output name is
-checked before the input is read. The `.nl` writer lists the integer
-columns last, as the format does, so a model whose integer columns sit
-before a continuous one comes back in that order, names carried. It
-refuses SOS sets, semi-continuous columns, indicator rows, cones,
-quadratic rows and a quadratic objective. Write MPS, LP, QPLIB or OSiL
-for a quadratic objective, and MPS for cones or quadratic rows, since
-`.nl` carries them only as nonlinear bodies, which the writer does not
-write.
+`convert` reads `IN` and writes `OUT`. `OUT`'s extension chooses the
+format: `.mps` writes free-format MPS, `.lp` CPLEX-style LP, `.nl` AMPL's
+text `.nl` with the names in `.col` and `.row` beside it, `.qplib` the
+QPLIB text format, `.osil` OSiL XML, and `.cbf` the Conic Benchmark Format
+without names. Any other extension is a usage error. The output name is
+checked before the input is read.
 
-**`--positional` takes every name off the model before writing**,
-so the file comes out with `R1`, `C1` and `COST`. It is the escape hatch
-for a model whose names you would rather not carry at all; a name the LP
-dialect cannot spell is otherwise written under `c<j+1>` or `r<i+1>`
-with a comment map at the top of the file saying what it was.
-What is lost is the names and nothing else. Over the 139 gate instances
-every LP conversion reads back and re-solves to the same status and
-objective, with the names and with `--positional` alike
-(`bench/measurements/02-274/`). The default keeps the names, because a
-model with its own names is worth more to a person reading it.
+The `.nl` writer lists the integer columns last, as the format does, and
+refuses SOS sets, semi-continuous columns, indicator rows, cones, quadratic
+rows and a quadratic objective. Write MPS, LP, QPLIB or OSiL for a
+quadratic objective, and MPS for cones or quadratic rows.
 
-**A `.gz` after either extension compresses the file**, so
-`out.mps.gz` and `out.lp.gz` work and name the same two formats. That is
-not special to `convert`: every path this tool writes to compresses when
-it ends in `.gz`, `--solution`, `--write-basis`, `--write-point`,
-`--write-duals`, `iis --write` and `relax --apply` included. The one
-exception is the proof file of `solve --proof` and `verify --proof`,
-which is always plain text, whatever its name. Every path the tool reads
-takes a compressed file back: `--start`, `--basis`, `check`'s solution,
-`--point` and `--duals`.
-`docs/format-support.md`, "Compressed output", has the rule and what it
-costs in size.
+What JAOS writes, JAOS reads back as the same model, names included. A row
+or column the input did not name is written by its position, `R<I+1>`,
+`C<J+1>`, `COST`. A name the LP dialect cannot spell (one holding a `-`,
+starting with a digit, or spelling a keyword) is written to LP as
+`c<j+1>`, `r<i+1>` or `obj`, and a `\ column c2 was x-1` comment at the top
+of the file keeps the original. MPS takes every name.
 
-What JAOS writes, JAOS reads back as the same model, names included: the
-input's names are written out, and a row or column the input did not name
-is written by its position, `R<I+1>`, `C<J+1>`, `COST`. A name the
-LP dialect cannot spell -- one holding a `-`, starting with a digit, or
-spelling a keyword -- is written to LP under `c<j+1>`, `r<i+1>` or
-`obj`, an underscore appended while the model holds that name too, and
-a `\ column c2 was x-1` comment at the top of the file keeps the
-original. MPS takes every name.
+`--positional` takes every name off the model before writing, so the file
+comes out with `R1`, `C1` and `COST`. Only the names are lost
+(`bench/measurements/02-274/`).
 
-A write the format cannot express is refused: the tool prints the library's
-message, which names the row or column, exits 5, and leaves no file behind.
-`docs/format-support.md` lists what each format cannot express. A free
-row goes to LP as `>= -inf` and a ranged row as two rows joined by a
-`\ range` comment, the forms HiGHS reads too. When the LP writer refuses
-a model, converting it to `.mps` instead works.
+Every path this tool writes to is compressed when it ends in `.gz`, except
+the proof file of `solve --proof` and `verify --proof`, which is always
+plain text. Every path the tool reads may be compressed.
+`docs/format-support.md`, "Compressed output", has the rule.
+
+A write the format cannot express is refused. The tool prints the
+library's message, which names the row or column, exits 5, and leaves no
+file behind. `docs/format-support.md` lists what each format cannot
+express.
 
 ## `check`
 
-`check FILE SOLUTION` reads the model from `FILE`, reads `SOLUTION`, a file
-that `solve --solution` wrote, and judges what it holds with the library's
-independent checkers. The checkers work on the model as loaded, in its
-original units, and share no code with the solver. The first line says
-which kind of answer the file claims, `status optimal`, `status
-infeasible` or `status unbounded`, and that decides which checker runs and
-which report follows.
+`check FILE SOLUTION` reads the model from `FILE` and `SOLUTION`, a file
+that `solve --solution` wrote, and judges what the file holds with the
+library's independent checkers. The checkers work on the model as loaded,
+in its original units, and share no code with the solver. The first line
+says which kind of answer the file claims: `status optimal`,
+`status infeasible` or `status unbounded`.
 
-For an optimum the checker judges the column values and row duals, and the
-output is its report, one field per line, with the field names of
-`jaos_check_report` in `include/jaos.h`:
+For an optimum the checker judges the column values and row duals. The
+output is its report, with the field names of `jaos_check_report` in
+`include/jaos.h`:
 
 ```
 status optimal
@@ -446,36 +441,25 @@ checked_duals yes
 gap_certified yes
 ```
 
-`docs/tolerances.md`, "The checker's tolerance", says what each number
-means and why most of them decide nothing on their own. The struct also
-has `max_integrality_violation`, which the tool does not print. The two
-that decide are
-`primal_feasible` and `dual_feasible`. The exit code is 0 when both are
-`yes` and 1 otherwise.
+`docs/api.md`, under `jaos_check_solution`, says what each number means,
+and `docs/tolerances.md`, "The checker's tolerance", how `tol` is applied.
+The two fields that decide are `primal_feasible` and
+`dual_feasible`. The exit code is 0 when both are `yes` and 1 otherwise.
 
-**On a model with cones** the file has to carry the `cone` records that
-`solve --solution` writes for one, and the check reads them as the
-cones' duals: the dual half then also asks that each cone's dual lies in
-the dual cone, and the report ends with `max_cone_violation`, how far
-the column values lie outside the cones. An infeasible model's
-certificate is judged with its cone part the same way. A file without
-the records is refused with exit 5. `solve --check` on a model with
-cones reads the duals the solve left. A quadratic row needs nothing
-extra: its dual is its `row` record's, and the checker takes the row's
-gradient `a + Qx` at the point.
+On a model with cones the file must carry the `cone` records that
+`solve --solution` writes, and the check reads them as the cones' duals.
+The report then ends with `max_cone_violation`. A file without the records
+is refused with exit 5. A quadratic row needs nothing extra: the checker
+takes the row's gradient `a + Qx` at the point.
 
 On a model with integer columns, SOS sets, semi-continuous columns or
-indicator rows the dual half does not run and `checked_duals` reads `no`.
-The duals such an answer carries belong to the last node of the tree, and
-LP duality does not close a MIP's gap, so the dual test would measure the
-integrality gap and call a right answer wrong. The primal half decides
-there, and it already counts the integrality violation and the SOS
-nonzeros.
+indicator rows the dual half does not run and `checked_duals` reads `no`,
+because LP duality does not close a MIP's gap. The primal half decides,
+and it counts the integrality violation and the SOS nonzeros.
 
-For a certificate the file carries one `ray` record per row when the
-model was proved infeasible, or per column when it was proved unbounded,
-and the matching checker judges it from the model alone. The report is
-`jaos_certificate_report`'s fields for an infeasible file and
+For a certificate the file carries one `ray` record per row when the model
+was proved infeasible, or per column when it was proved unbounded. The
+report is `jaos_certificate_report`'s fields for an infeasible file and
 `jaos_ray_report`'s for an unbounded one, then `certified`:
 
 ```
@@ -486,34 +470,25 @@ gap 3
 certified yes
 ```
 
-For an unbounded quadratic model the ray also has to be flat: `curvature`
-is `d'Qd` along the ray, and `certified` needs it within the tolerance
-times the largest `|q_ij|` times the largest `|d_j|` squared, because the
-quadratic term turns any other direction back up. On a linear model it
-reads 0.
-
-The exit code is 0 when `certified` is `yes` and 1 otherwise. A
-certificate whose numbers were changed still reads, because the reader
-judges the format and not the mathematics; it is the checker that refuses
-it.
+For an unbounded quadratic model the ray must also be flat: `curvature` is
+`d'Qd` along the ray, and `certified` needs it near zero. On a linear model
+it reads 0. The exit code is 0 when `certified` is `yes` and 1 otherwise.
 
 `--tol T` is the checker's tolerance. It defaults to 1e-7, the solver's own
-feasibility tolerance. `docs/tolerances.md` says how the checker applies it.
+feasibility tolerance.
 
 The solution file must be for this model. The library refuses a file whose
-row or column count differs from the model's, or whose records carry names
-other than the model's own, and the tool exits 5 with the library's
-message. From an optimum it reads the values and the row duals; the reduced
-costs, activities and basis statuses in the file are not used, because the
-checker recomputes what it needs from the model.
+row or column count differs from the model's, or whose records carry other
+names, and the tool exits 5 with the library's message. The checker reads
+the values and the row duals and recomputes everything else from the
+model.
 
 ### `check FILE --point POINT [--duals DUALS]`
 
-**A point file is another solver's answer**: one `NAME VALUE` line
-per column, in any order, `#` to end of line for a comment, and nothing
-else in it. Two lines of awk turn most solvers' output into one, which is
-the whole point of a format this poor. `check --point` runs the same
-independent checker on it and prints the same report.
+A point file holds another solver's answer: one `NAME VALUE` line per
+column, in any order, `#` to end of line for a comment. `check --point`
+runs the same checker on it and prints the same report, with
+`status point` as its first line.
 
 ```
 $ jaos check model.mps --point other-solver.txt
@@ -526,42 +501,25 @@ checked_duals no
 gap_certified no
 ```
 
-The first line is `status point`, which says which reader ran rather than
-what the answer is: a point file claims a point and claims nothing about
-the model.
+`--duals DUALS` brings the row multipliers, in a file of the same shape
+over the row names. Without it the dual half does not run and the exit code
+comes from the primal half alone. With it the verdict is
+`primal_feasible && dual_feasible`, as for a solution file.
 
-**`--duals DUALS` brings the row multipliers**, in a file of the same
-shape over the row names. Without it the dual half of the report does not
-run, `checked_duals` reads `no`, and the exit code is the primal half
-alone -- 0 when the point is feasible, 1 when it is not. With it the
-whole report runs and the verdict is `primal_feasible && dual_feasible`,
-as for a solution file.
-
-**Every column must appear exactly once.** A column the file does not
-name is refused with its name and exit 5, because a value nobody wrote is
-how a wrong answer gets judged feasible. `solve --write-point` writes one
-of these, so the round trip is checkable.
+Every column must appear exactly once. A column the file does not name is
+refused with its name and exit 5.
 
 ### `check FILE --proof PROOF`
 
-The other half of `check` judges an **exact proof file**, the one `solve
---proof` or `verify --proof` wrote. It is not the solution
-file's checker with a tighter bar: it has no bar at all. Every comparison
-is over the rationals, the model's own doubles being exact rationals
-themselves, so there is no tolerance in this path and no near miss.
-
-It also reads **no basis**. The file carries none. For an optimum the
-checker re-derives the three conditions that make a point optimal — the
-point is inside every bound and every row, every reduced cost points into
-the model from the side its column rests on, and anything strictly inside
-its bounds carries a zero multiplier — and those three together are
-sufficient, so a file that passes is proved optimal rather than consistent
-with somebody else's basis.
-
-Those three conditions are the ones a linear program has. The checker
-refuses a model that carries integer columns, SOS sets, semi-continuous
-columns or a quadratic objective, and exits 5, because a file holding a
-point and its multipliers says nothing about any of them.
+This form judges an exact proof file, the one `solve --proof` or
+`verify --proof` wrote. Every comparison is over the rationals, so this
+path has no tolerance. The file carries no basis. For an optimum the
+checker tests the three conditions that together prove a point optimal:
+the point is inside every bound and row, every reduced cost points into the
+model from the side its column rests on, and anything strictly inside its
+bounds carries a zero multiplier. The checker refuses a model with integer
+columns, SOS sets, semi-continuous columns or a quadratic objective, and
+exits 5.
 
 ```
 $ jaos solve model.mps --proof model.proof
@@ -576,34 +534,26 @@ terms 148
 proof holds
 ```
 
-`claims` says which of the three the file asserts. The `primal`, `dual`
-and `objective` lines belong to an optimum and are printed for one only;
-for a certificate the verdict is the `proof` line alone, with `at_row` or
-`at_col` giving the 0-based index of the row or column where it failed. `terms` is how many exact products the
-check formed, which is what its cost scales with.
+`claims` says which answer the file asserts. The `primal`, `dual` and
+`objective` lines are printed for an optimum only. For a certificate the
+verdict is the `proof` line alone, with `at_row` or `at_col` giving the
+0-based index where it failed. `terms` is how many exact products the check
+formed.
 
-The exit code is 0 when the proof holds and 1 when it does not. A file
-that is not a proof for this model is a usage error, exit 5. A product or
-a sum that outgrows the exact arithmetic's limb budget exits 4: that is
-"cannot judge" and not a verdict.
+The exit code is 0 when the proof holds and 1 when it does not. A file that
+is not a proof for this model exits 5. A number that outgrows the exact
+arithmetic's limb budget exits 4, which means "cannot judge".
 
-**The two certificate kinds need no `verify` step**, because the vector the
-solve publishes is already exact and what is uncertain is only whether it
-certifies. **They are also judged more strictly than `check FILE
-SOLUTION`**, which ignores a term below its own traffic because a sum of
-doubles cannot place a zero more finely. Over the 29 pinned infeasibles
-the tolerance checker certifies 28 and this one certifies 18; every one of
-the eleven fails on a single column whose multiplier is a rounding away
-from zero with no finite bound on the side it points at. Both numbers are
-right and they answer different questions
-.
-
+A certificate is judged more strictly here than by `check FILE SOLUTION`,
+which ignores a term below the rounding level of its sum. A multiplier one
+rounding away from zero, on a column with no finite bound on the side it
+points at, passes there and fails here.
 
 ## `diff`
 
-`diff A B` reads both files and says whether they describe the same model
-. It prints one line per difference, then a `differences` count; exit
-0 when the two are the same model, 1 when they are not.
+`diff A B` reads both files and says whether they describe the same model.
+It prints one line per difference, then a `differences` count. Exit 0 when
+the two are the same model, 1 when they are not.
 
 ```
 $ jaos convert model.mps model.lp
@@ -614,45 +564,26 @@ nonzeros 5 6
 differences 1
 ```
 
-`cmp` cannot answer this. A model converted to another format is the same
-model in different bytes, and that is the case this command exists for.
+Values are compared exactly, and names as the model gives them, so a row
+nobody named is `R<i+1>` on both sides. A size that differs stops the
+comparison. The lines are:
 
-What it compares is what a model **is**: the three sizes, the sense and the
-objective constant, every bound, cost and integrality mark, every
-coefficient, and every name as the model gives it — so a row nobody named
-is `R<i+1>` on both sides and matches a file that spells it that
-way. Values are compared **exactly**; a caller who wants a tolerance wants
-`check`, which judges a point against a model rather than a model against a
-model.
-
-The lines for the linear part are these. `rows`, `columns` and
-`nonzeros` carry the two sizes, and `sense` and `offset` the two values.
-`col_name` and `row_name` carry the index and the two names. `cost`,
-`integer` and `col_entries` carry the column's name and the two values.
-`col_bounds` and `row_bounds` carry the name and four bounds: `A`'s
-lower and upper, then `B`'s. `entry` carries the column's name, the
-row's name and the two coefficients.
-
-It compares the discrete structure too, because a model that carries it is
-a different model and answers a different question: the semi-continuous
-mark on every column (`semicontinuous`), the quadratic coefficient on every
-column and every off-diagonal pair of `Q` (`quadratic`, `quadratic_pair`,
-`quadratic_nz`), the SOS sets with their type, members and weights
-(`sos_sets`, `sos`, `sos_member`), the indicator column on every row
-(`indicator`), and since 2026-09-19 the second-order cones with their
-type, size and members (`cones`, `cone`, `cone_member`) and every row's
-quadratic part (`row_quadratic_nz`, `row_quadratic`). Two models that
-differ only in an SOS set reach different answers, so `diff` says so.
-
-A size that differs stops the walk, because every index after it means
-something else and a per-row report on two models of different shapes is
-noise.
+- `rows`, `columns` and `nonzeros` with the two sizes; `sense` and `offset`
+  with the two values.
+- `col_name` and `row_name` with the index and the two names.
+- `cost`, `integer` and `col_entries` with the column's name and the two
+  values.
+- `col_bounds` and `row_bounds` with the name and four bounds: `A`'s lower
+  and upper, then `B`'s.
+- `entry` with the column's name, the row's name and the two coefficients.
+- `semicontinuous`; `quadratic`, `quadratic_pair` and `quadratic_nz` for
+  `Q`; `sos_sets`, `sos` and `sos_member`; `indicator`; `cones`, `cone` and
+  `cone_member`; `row_quadratic_nz` and `row_quadratic` for the rows'
+  quadratic parts.
 
 ## `show`
 
-`show FILE --row NAME` prints one row. `stats` counts a model and
-`diff` compares two; this one answers "what does this constraint actually
-say", which is where a wrong answer starts.
+`show FILE --row NAME` prints one row:
 
 ```
 $ jaos show model.mps --row DEMAND
@@ -667,26 +598,20 @@ term X3 1
 ```
 
 `--col NAME` prints a column the same way, with its `cost` and `integer`
-lines, and its terms named by row. Exactly one of the two is required.
-
-A row with a quadratic part prints it after the terms, a
-`quadratic_entries` count and one `qterm COLUMN COLUMN VALUE` line per
-entry of the lower triangle, in the model's own convention: the row is
-`a'x + ½ x'Qx`, so `qterm x x 2` is `x²`.
-
-The terms name the other side, which is the point: a row's numbers are
-useless without the column each belongs to, and an MPS file groups its
-entries by column, so reading one row off it means counting fields.
+lines and its terms named by row. Exactly one of the two is required. A row
+with a quadratic part prints a `quadratic_entries` count after the terms,
+then one `qterm COLUMN COLUMN VALUE` line per entry of the lower triangle.
+The row is `a'x + ½ x'Qx`, so `qterm x x 2` is `x²`.
 
 It solves nothing, and a positional name works where the model named
 nothing. Exit 0, or 5 when no row or column carries the name.
+
 ## `iis`
 
 `iis FILE` solves the model. When the answer is infeasible, it finds one
 irreducible infeasible subsystem: a set of bound sides that has no feasible
-point on its own, and that becomes feasible when any one of them is dropped.
-The output is the status line, one line per bound side in the subsystem,
-then the counts from the report:
+point, and that becomes feasible when any one of them is dropped. The
+output is the status line, one line per bound side, then the counts:
 
 ```
 status infeasible
@@ -701,46 +626,29 @@ work_units 41450
 from_certificate yes
 ```
 
-A row's two bounds are two constraints, and so are a column's, so a row
-whose both sides are in the subsystem appears twice. The number of side
-lines equals `members`. Rows come first, then columns, each in index order
-and each under its name.
+A row with both sides in the subsystem appears twice. Rows come first, then
+columns, each in index order. `candidates` is how many sides the deletion
+filter started from, `solves` how many re-solves it ran on a private copy,
+and `work_units` what they cost. `from_certificate` says whether the
+candidates came from the infeasibility certificate. The subsystem found is
+the same on every machine and every run.
 
-`candidates`, `solves` and `work_units` are the cost: how many sides the
-deletion filter started from, how many re-solves it ran, and what they cost
-in the same unit `solve` reports. The re-solves run on a private copy, so
-nothing is billed to the model. `from_certificate` says whether the
-candidates came from the infeasibility certificate or the filter had to
-start from every finite side.
-
-A model may have several such subsystems. This finds one, the same one on
-every machine and every run, so the output is reproducible.
-
-A subsystem is a set of row and column bounds and nothing else. Integer and
+The subsystem covers row and column bounds only. Integer and
 semi-continuous columns, SOS sets, indicator rows and a quadratic objective
-term are all dropped before the search, and the model `--write` produces
-carries none of them. So the answer explains the linear relaxation. When the
-relaxation is feasible and only one of the dropped things makes the model
-infeasible, there is no subsystem of bounds to find: the tool says so on
-stderr and exits 5.
+are dropped before the search, so the answer explains the linear
+relaxation. When that relaxation is feasible, the tool says so on stderr
+and exits 5.
 
 Exit 0 when a subsystem was printed. When the model is optimal or unbounded
 the tool prints its status line, says on stderr that there is nothing to
 find, and exits 1. Exit 5 on an error, including a re-solve that could not
-decide its side.
-
-`--work-limit N` stops the solve after N deterministic work units. The
-first solve is what decides whether there is a subsystem at all, so a solve
-that stops early ends the command: the tool says the solve did not finish
-and exits 5.
+decide its side. `--work-limit N` stops the solve after N work units; a
+first solve that stops early ends the command with exit 5.
 
 ### `iis FILE --write OUT`
 
-**`--write OUT` writes the subsystem itself as a model**, `.mps`,
-`.lp`, `.nl`, `.qplib`, `.osil` or `.cbf` by the extension, with a `.gz`
-after any of them to compress it. A list of
-bound sides is something to read; the file is something to open, hand to
-another solver, or solve again.
+`--write OUT` writes the subsystem as a model, in the format `OUT`'s
+extension names (the six `convert` writes, with `.gz` to compress).
 
 ```
 $ jaos iis model.mps --write sub.mps
@@ -758,27 +666,19 @@ $ jaos solve sub.mps
 status infeasible
 ```
 
-What the file is: the member sides kept at the values they had, every
-other side relaxed to its infinity, every row with no member side dropped,
-every column left with no entries and no bound of its own dropped, and
-every cost zeroed. So it is a feasibility question, and solving it reads
-`infeasible` -- which is the check worth running on it, and the one all 29
-reference infeasibilities pass (`bench/measurements/02-218/`).
-
-Names survive and indices do not: what was row 40 may be row 2 in the
-file, so a member is recognisable by the name it had. A model that is not
-infeasible has no subsystem, so nothing is written and the exit code is
-the answer's.
-
-`--positional` takes every name off the subsystem before `--write`, as
-`convert --positional` does.
+The member sides keep their values. Every other side becomes infinite,
+every row with no member side and every column with no entries and no
+member bound is dropped, and every cost is zeroed. Solving the file reads
+`infeasible` (`bench/measurements/02-218/`). Names survive and indices do
+not. A model that is not infeasible writes no file. `--positional` takes
+every name off the subsystem before writing, as `convert --positional`
+does.
 
 ## `relax`
 
-`relax FILE` reads the model and answers a different question from `iis`:
-not where it contradicts itself, but how much has to be given up to stop
-the contradiction. It prints one line per bound that has to move, signed
-and named, then the totals:
+`relax FILE` finds the smallest total move of bounds that makes the model
+feasible. It prints one line per bound that has to move, signed and named,
+then the totals:
 
 ```
 row LIM2 upper 2.5
@@ -789,105 +689,60 @@ largest 2.5
 work_units 8890
 ```
 
-A move below zero says that bound's lower side has to come down by that
-much; above zero, its upper side has to go up by it. Add every move to the
-bound it names and the model has a feasible point, and no other set of
-moves has a smaller total. A feasible model prints no move line and a
-total of 0.
-
-"Smallest" is the total, the sum of the sizes. It is not the smallest
-number of bounds moved, which is a different and much harder problem.
+A negative move lowers the bound's lower side by that much, and a positive
+move raises its upper side. Add every move to the bound it names and the
+model has a feasible point, and no other set of moves has a smaller total.
+"Smallest" means the smallest sum of the sizes. A feasible model prints no
+move line and a total of 0.
 
 | option | what it does |
 |---|---|
 | `--rows` | only row bounds may move |
 | `--cols` | only column bounds may move |
-| `--apply OUT` | write the model with every move applied, in the format `OUT`'s extension names (the six `convert` writes) |
+| `--apply OUT` | write the model with every move applied, in the format `OUT`'s extension names (the six `convert` writes); the extension is checked before the input is read |
 | `--positional` | take every name off before writing `OUT` |
 | `--work-limit N` | stop the elastic copy after N deterministic work units |
 
-`--apply` makes the answer actionable: it adds each move to the bound it
-names and writes the model out, so the relaxation can be solved rather
-than read off. The writer is chosen by `OUT`'s extension and chosen before
-the input is read, so a typo fails before a solve is paid for. The
-objective is the caller's own — a relaxation says what feasibility costs
-in bounds, and what the relaxed model then optimises to is a question for
-a solve.
+Without `--rows` or `--cols`, both may move, at the same price per unit.
 
-Without either, both may move and they are weighed against each other at
-the same price per unit. Rows only is what to ask for when the column
-bounds are physical limits; columns only is the reverse.
+The model itself is never solved. An elastic copy is, and `work_units` is
+what it cost. The copy carries the integer marks, the SOS sets, the
+semi-continuous columns and the indicator rows. A semi-continuous column's
+lower bound never moves.
 
-The model itself is never solved. An elastic copy is, carrying this
-command's own limits and tolerances, and `work_units` is what that cost.
-The answer is the same on every machine and every run.
+A freed integer column is held in a box: its own bounds widened by `M` on
+each side. `M` starts at twice the answer of the copy without integer
+marks, and doubles until the answer fits inside the box. `work_units` is
+the sum over the rounds. `tests/data/relax_rounds.mps` needs four rounds.
+The search stops after `RELAX_BOX_ROUNDS` widenings, or when a round passes
+`RELAX_ROUND_WORK` times the first round's work
+(`bench/measurements/02-297/`). It then tries to prove from the equality
+rows that no box holds an integer point. When it can, the message adds
+"none in any box" and names the reason (`bench/measurements/02-362/`). The
+tool says on stderr how wide the last box was and exits 5.
 
-The copy carries the whole model: the integer marks, the SOS sets, the
-semi-continuous columns and the indicator rows. One bound is left out. A
-semi-continuous column's lower bound is the floor it must clear when it is
-not zero, and the elastic form frees the column, which would remove the
-floor rather than move it, so that bound never moves. The column's upper
-bound moves like any other.
-
-Over the columns the copy frees every column, and a free integer column
-would give the branch and bound an unbounded space to search. So a freed
-integer column is held in a box instead, its own bounds widened by `M` on
-each freed side, and the box grows: the copy is solved once with the
-integer marks dropped, which gives a lower bound on the answer and sets
-`M` to twice it, at least 1, rounded up. When the total comes out at or
-below `M` it is the answer for the free box too, because any cheaper
-point would hold a column more than `M` outside its own bounds, and that
-alone costs more than `M`. Otherwise, or when the box holds no integer
-point, `M` doubles and the copy is solved again. Every round ends, so
-`--work-limit` bounds the whole search, and `work_units` is the sum over
-the rounds. A model with no integer column keeps the free box and its
-single solve. `tests/data/relax_rounds.mps` needs four rounds.
-
-What the box does not settle is a model whose rows plus integrality admit
-no point at all: no box is ever wide enough. The search stops after
-`RELAX_BOX_ROUNDS` widenings, or when a round after the first passes
-`RELAX_ROUND_WORK` times the first round's work (since 2026-09-22;
-before, only `--work-limit` stopped it). The tool then says on stderr
-how wide the last box was and exits 5. `tests/data/relax_runaway.mps`,
-three rows of such a model, ends that way after 8 rounds
-(`bench/measurements/02-297/`).
-
-Since 2026-10-08 the search then tries to prove that no box holds a
-point. It takes the equality rows, eliminates the continuous columns with
-exact whole numbers, and checks whether the integer columns can meet what
-is left. When they cannot, the message adds "none in any box" and names
-the reason. `relax_runaway` ends that way: its rows ask
-`6 x1 + 4 x4 = -19`, and no pair of integers gives an odd sum from even
-terms (`bench/measurements/02-362/`).
-
-Exit 0 with an answer. Exit 5 when the model has no relaxation at all -- a
-lower bound above its upper is a contradiction between two of the file's
-own numbers on one row, and no amount of moving that row's two ends
-together opens it -- or when the copy did not finish.
+Exit 0 with an answer. Exit 5 when the copy did not finish, or when the
+model has no relaxation at all: a row or column whose lower bound is above
+its upper bound cannot be opened by moving its two ends.
 
 ## `verify`
 
 `verify FILE` solves the model and runs whatever exact arithmetic the
-answer allows. When the answer is optimal, it proves, or refuses to prove,
-that the published basis certifies it, in exact
-arithmetic with no tolerance anywhere. The basis is rebuilt over the
-integers and eliminated exactly; the verdict is `optimal` when every basic
-value lies inside its bounds and every reduced cost points into the model.
-A quadratic objective is refused by name and exits 5. The proof is about a
-linear cost, and a QP answer carries no basis. A MIP is refused the same
-way, together with SOS sets and semi-continuous columns: the basis behind
-a MIP answer is the last node's, so the proof would judge a linear program
-the file does not hold.
-The refusal comes before the solve: the tool asks
-`jaos_model_has_integer` as soon as the file is read, so no tree runs to
-be told the command does not apply. An optimum of a model with
-second-order cones or quadratic rows is refused as well: the tool prints
-the status line and exits 5. `--basis` refuses such a model the same way,
-with no solve.
+answer allows. When the answer is optimal, it proves or refuses to prove,
+in exact arithmetic with no tolerance, that the published basis certifies
+it. The verdict is `optimal` when every basic value lies inside its bounds
+and every reduced cost points into the model.
 
-`--work-limit N` stops the solve after N deterministic work units. There is
-then no answer to prove, so the tool prints its status line and exits 5.
-With `--basis` there is no solve, so the option does nothing.
+A MIP (integer columns, SOS sets or semi-continuous columns, as
+`jaos_model_has_integer` says) is refused before the solve with exit 5,
+because the basis behind its answer is the last node's. A quadratic
+objective, cones and quadratic rows are refused after the solve: the tool
+prints the status line and exits 5. `--basis` refuses all of them with no
+solve.
+
+`--work-limit N` stops the solve after N work units. There is then no
+answer to prove, so the tool prints its status line and exits 5. With
+`--basis` there is no solve, so the option does nothing.
 
 ```
 status optimal
@@ -901,21 +756,22 @@ bytes_held 0
 terms 10
 ```
 
-- `proof` is `optimal`, `broken` or `refused`. `refused` is not a failure.
-  It is the answer when the numbers the proof would hold do not fit in the
-  arithmetic; `bound_bits` is what the proof needs and `capacity_bits` what
-  the arithmetic holds.
+- `proof` is `optimal`, `broken` or `refused`. `refused` means a number
+  outgrew the arithmetic's limb budget. `bound_bits` is a worst-case
+  estimate of the size the proof needs, reported only, and `capacity_bits`
+  is the size the arithmetic holds.
 - `stage` says which check a `broken` verdict came from: `rank`, `primal`
   or `dual`. It is `none` otherwise.
 - On `broken`, `at_row` or `at_col` gives the 0-based index of the row or
-  column that breaks the proof, when one does, and `violation` says how
-  far out it is.
+  column that breaks the proof, when one does, and `violation` says how far
+  out it is.
 - `blocks`, `largest_block`, `bytes_held` and `terms` describe the work.
+  The work is reported and not billed to the work counter. A block of `k`
+  rows costs about `k` cubed products of large integers
+  (`bench/measurements/02-275/`).
 
-**When the answer is infeasible there is no optimum to prove, and `verify`
-derives the Farkas multipliers exactly instead**. The basis a
-refusal stops on is a basis like any other, and the system is the same one
-at a different right-hand side, so the same exact machinery runs:
+When the answer is infeasible, `verify` derives the Farkas multipliers
+exactly from the basis the solve stopped on:
 
 ```
 status infeasible
@@ -929,40 +785,31 @@ bytes_held 3168
 terms 46
 ```
 
-- `certificate` is `exact` or `refused`, and `refused` is not a failure —
-  it is the answer when `bound_bits` exceeds `capacity_bits`, read before
-  any of the work is attempted. Exit 0 derived, 4 refused.
+- `certificate` is `exact` or `refused`. `refused` means a number outgrew
+  the limb budget.
 - `at_row` is the 0-based index of the row whose own logical the ray
-  leaves the basis on, or is absent when a structural column holds that
+  leaves the basis on. It is absent when a structural column holds that
   position.
-- `--proof PATH` then writes the derived multipliers. When the derivation
-  was refused, it writes the published doubles if they pass the exact
-  check. When they do not, nothing is written and the tool exits 5. No
-  `proof_file` line is printed here.
 - `--values` prints the derived multipliers as `multiplier NAME V`.
+- `--proof PATH` writes them. When the derivation was refused, it writes
+  the published doubles if they pass the exact check, and otherwise writes
+  nothing and exits 5. No `proof_file` line is printed here.
 
-**When the answer is unbounded the direction is derived the same way**
-, from the same basis and by the primal system rather than the
-transpose one. It prints `ray exact` or `ray refused` and the same cost
-lines, `--values` prints `direction NAME V` per column, and `--proof`
-writes the derived direction, with the same fallback to the published
-doubles.
+When the answer is unbounded, the direction is derived the same way. It
+prints `ray exact` or `ray refused` and the same cost lines. `--values`
+prints `direction NAME V` per column, and `--proof` writes the direction,
+with the same fallback.
 
-**Deriving is not judging.** This command produces the multipliers or the
-direction; `jaos check FILE --proof PATH` says whether they certify, from
-the model alone and with no tolerance, sharing no algorithm with the
-derivation (only the exact arithmetic). Over the 29 reference infeasibilities the exact ray takes the
-proof file from 18 of 29 certifying to 25 of 29, and every derivation that
-fits the budget certifies.
+`jaos check FILE --proof PATH` says whether derived multipliers or a
+derived direction certify. It shares only the exact arithmetic with the
+derivation.
 
-`--values` prints, after a `proof optimal`, what the proof proved:
-one `x NAME VALUE` line per column, one `y NAME DUAL` line per row, then
-`objective_exact VALUE`, every value an exact rational -- `4`, `1/3`,
-`-7/2` -- with no rounding anywhere. A basic column's value is what the
-exact elimination solved, a nonbasic one's is the bound its status names,
-and the objective is summed from those. The `objective_exact` line is
-absent when that sum outgrew the arithmetic on a model whose values fitted.
-Nothing is printed for a `broken` or `refused` proof.
+After a `proof optimal`, `--values` prints one `x NAME VALUE` line per
+column, one `y NAME DUAL` line per row, then `objective_exact VALUE`. Every
+value is an exact rational, such as `4`, `1/3` or `-7/2`. The
+`objective_exact` line is absent when the objective outgrew the arithmetic
+while the values fitted. Nothing is printed for a `broken` or `refused`
+proof.
 
 ```
 x X1 4
@@ -974,40 +821,21 @@ y CAP2 -1
 objective_exact 29
 ```
 
-The exit code is the verdict: 0 proved, 1 broken, 3 refused. An infeasible
-or unbounded model gets its exact certificate or ray instead, as described
-above: 0 when it is derived, 4 when it is refused. A model whose solve
-stopped on a limit has nothing to prove; the tool prints its status line,
-says so on stderr, and exits 5.
+`--proof PATH` writes the proof to a file only when the verdict is
+`optimal`, and then prints `proof_file PATH`. On `broken` or `refused` it
+says so on stderr. `docs/format-support.md` describes the file.
 
-The cost is stated, not billed to the work counter, and it is not small.
-Eliminating a block of `k` rows forms about `k` cubed products of large
-integers, so on a model with a big block the proof takes seconds where the
-solve took milliseconds. Over the 110 gate bases it proves 30, refuses 74
-at the 128-limb budget and finds 6 broken, bases whose answers are right
-but which miss an exact condition by five orders below the tolerance
-(`bench/measurements/02-275/`, 2026-09-21). The output is reproducible
-bit for bit.
-
-**`--proof PATH` writes the proof to a file** instead of printing it.
-It writes one only when the verdict is `optimal`, and then prints
-`proof_file PATH`. On `broken` or `refused` it says so on stderr and the
-exit code is the verdict's.
-`jaos check FILE --proof PATH` is what judges it back, and
-`docs/format-support.md` describes the file.
+The exit code is the verdict: 0 proved, 1 broken, 3 refused. For an
+infeasible or unbounded model it is 0 when the certificate or ray is
+derived and 4 when it is refused. A solve that stopped on a limit has
+nothing to prove: the tool prints its status line, says so on stderr, and
+exits 5.
 
 ### `verify FILE --basis BAS`
 
-**`--basis BAS` proves the basis in an MPS basis file instead, and the
-model is never solved**. Everything the proof does is a statement
-about a model and a basis, and none of it reads a number a solve
-produced, so a basis that arrives in a file is a basis it can prove.
-
-That is what makes JAOS a checker of somebody else's answer. `BAS` may be
-the file another solver wrote -- the format is the one the field
-exchanges a basis in -- and what comes back is, over the rationals
-and with no tolerance anywhere, whether that basis is an optimal basis of
-`FILE`.
+`--basis BAS` proves the basis in an MPS basis file instead, and the model
+is never solved. `BAS` may come from another solver, and the answer says,
+over the rationals, whether that basis is an optimal basis of `FILE`.
 
 ```
 $ jaos verify model.mps --basis other-solver.bas
@@ -1021,25 +849,18 @@ bytes_held 10560
 terms 221
 ```
 
-There is no `status` line, because nothing was solved. The three verdicts
-and the exit codes are the same as above, and `broken` names the first
-basic value outside its bounds or the first reduced cost pointing out of
-the model, which is what a wrong answer from elsewhere looks like from
-here. `--values` and `--proof` work off it, so the chain runs to the end:
-another solver's basis in, an exact proof file out, judged by `jaos check
-FILE --proof PATH`, which shares no algorithm with the prover (only the
-exact arithmetic).
-
-A file whose names or basic count do not fit the model is refused with
-the library's message and exit 5.
+There is no `status` line, because nothing was solved. The verdicts and the
+exit codes are the same as above, and `--values` and `--proof` work the
+same way. A file whose names or basic count do not fit the model is refused
+with the library's message and exit 5.
 
 ## `ranging`
 
 `ranging FILE` solves the model. When the answer is optimal, it prints how
 far every cost, every row bound and every column bound may move, everything
 else held, before the basis behind the optimum stops being optimal. Every
-interval contains the number's current value; an end that is not limited
-reads `inf` or `-inf`.
+interval contains the number's current value. An end with no limit reads
+`inf` or `-inf`.
 
 ```
 status optimal
@@ -1061,54 +882,40 @@ bound X3 -inf 3 3 inf
 - `bound NAME LOWER_LO LOWER_HI UPPER_LO UPPER_HI`: the same for the two
   bounds of column `NAME`.
 
-Rows and columns come in index order, each under its name.
+Rows and columns come in index order. The intervals are about the basis.
+Another optimal basis may carry the same optimum further, and that union is
+not computed. A degenerate basis can report an interval of zero width.
 
-The intervals are about the basis, not about the answer. A model with more
-than one optimal basis may carry the same optimum further along another
-basis, and that union is not computed. A degenerate basis reports an
-interval of zero width on the side a tie closes, which is the true answer
-for that basis.
-
-Exit 0 when the intervals were printed. A model whose solve is not optimal
-has no basis to range; the tool prints its status line, says so on stderr,
-and exits 5. A quadratic objective is refused the same way. Ranging is
-about a linear cost, and a QP optimum is not a vertex, so it carries no
-basis.
-
-`--work-limit N` stops the solve after N deterministic work units. There is
-then no optimal basis to range, so the tool prints its status line and
-exits 5.
-
-A MIP is refused too, and so is a model with SOS sets or semi-continuous
-columns. The basis behind a MIP answer belongs to the last node of the
-tree and carries that node's branching bounds. An interval read off it is
-about that node's linear program. The refusal comes before the solve,
-from `jaos_model_has_integer`, so no tree runs to be told the command does
-not apply. On `max 5x + 4y` over `6x + 4y <= 24`
-and `x + 2y <= 6` with both columns integer, the answer is `x = 4, y = 0`
-and the interval for the cost of `x` came out `[-inf, 6]`; drop that cost
-to 4 and the optimum moves to `x = 3, y = 1`.
+Exit 0 when the intervals were printed. A solve that is not optimal has no
+basis to range: the tool prints its status line, says so on stderr, and
+exits 5. `--work-limit N` stops the solve after N work units, with the same
+result. A quadratic objective is refused the same way, because a QP
+optimum carries no basis. A MIP is refused before the solve, from
+`jaos_model_has_integer`, because the basis behind its answer is the last
+node's and carries that node's branching bounds.
 
 ## `STUB -AMPL`
 
 `jaos STUB -AMPL [NAME=VALUE]...` is how AMPL, Pyomo's `asl:` interface
-and JuMP's AmplNLWriter call a solver. The tool reads `STUB.nl` (a
-`STUB` given with its `.nl` is the same stub), solves it and writes
-`STUB.sol` for the caller to read back. It prints nothing.
+and JuMP's AmplNLWriter call a solver. The tool reads `STUB.nl` (a `STUB`
+given with its `.nl` is the same stub), solves it and writes `STUB.sol`. It
+prints nothing.
 
-The options come first from the environment variable `jaos_options`,
-then from the words after `-AMPL`, so the command line wins. Each is a
-name and a value, joined by `=` or white space; the names are those
-`jaos options` prints, in any case: `work_limit=1e9`, `MIP_GAP 1e-4`.
+The options come first from the environment variable `jaos_options`, then
+from the words after `-AMPL`, so the command line wins. Each is a name and
+a value, joined by `=` or white space. The names are those `jaos options`
+prints, in any case: `work_limit=1e9`, `MIP_GAP 1e-4`. JuMP passes options
+on the command line and Pyomo through `jaos_options`
+(`bench/measurements/02-257/`).
 
-`STUB.sol` holds a message, a blank line, `Options` and the option
-values of `STUB.nl`'s first line, the counts of rows, of row duals,
-of columns and of column values, the duals, the values, and a last line
-`objno 0 CODE`. The message is `JAOS 0.5.0: optimal; objective -7` or
-the like, or the reason the solve did not run. The duals are there for
-a continuous optimum, in the signs `solve --solution` prints; the
-values are there for an optimum, or for a limit or a callback stop that
-left a point. `CODE` is AMPL's:
+`STUB.sol` holds a message, a blank line, `Options` and the option values
+of `STUB.nl`'s first line, the counts of rows, of row duals, of columns and
+of column values, the duals, the values, and a last line `objno 0 CODE`.
+The message is `JAOS 0.5.0: optimal; objective -7` or the like, or the
+reason the solve did not run. The duals are there for a continuous optimum,
+in the signs `solve --solution` prints. The values are there for an
+optimum, or for a limit or a callback stop that left a point. `CODE` is
+AMPL's:
 
 | CODE | |
 |---|---|
@@ -1119,48 +926,35 @@ left a point. `CODE` is AMPL's:
 | 401 | stopped the same way, with none |
 | 500 | failed: a numerical error, a file the `.nl` reader refuses, an unknown option |
 
-The exit code is 0 whenever `STUB.sol` was written, because AMPL reads
-the file only after a 0, and 5 when it could not be written. The `.nl`
-reader takes bodies of degree two or less (since 2026-09-22), so a
-quadratic objective from Pyomo reads and solves. A body of any other
-kind ends with code 500 and the reader's message.
-`bench/measurements/02-257/` runs Pyomo and JuMP against it. JuMP gives
-its options on the command line after `-AMPL`, Pyomo through
-`jaos_options`.
+The exit code is 0 whenever `STUB.sol` was written, because AMPL reads the
+file only after a 0, and 5 when it could not be written. The `.nl` reader
+takes bodies of degree two or less. A body of any other kind ends with
+code 500 and the reader's message.
 
 ## Which reader is used
 
-The reader is chosen by the input file's name. A name ending in `.lp` or
-`.lp.gz` goes to the LP reader, one ending in `.nl` or `.nl.gz` to the
-nl reader (AMPL's format, the text form, degree two at most), `.qplib` to the
-QPLIB reader, `.osil` to the OSiL reader and `.cbf` to the CBF reader,
-each with or without `.gz` after it. Every other
-name goes to the MPS reader,
-because an MPS file has been called `.mps`, `.MPS`, `.sif` and nothing at
-all. The comparison is case-sensitive.
+The input file's name chooses the reader. A name ending in `.lp`, `.nl`,
+`.qplib`, `.osil` or `.cbf`, with or without `.gz` after it, goes to that
+format's reader. Every other name goes to the MPS reader, because MPS files
+come as `.mps`, `.MPS`, `.sif` or with no extension. The comparison is
+case-sensitive.
 
-Compression is not decided by the name. Every reader looks at the first two
-bytes of the file and inflates a gzip file itself, so `model.mps.gz` and
-`model.mps` read the same way. `docs/format-support.md`, "Compressed input",
-has the rule.
+Every reader looks at the first two bytes of the file and inflates a gzip
+file itself, so `model.mps.gz` and `model.mps` read the same way. Writing
+goes by the name: a path ending in `.gz` is compressed and one that does
+not is not. `docs/format-support.md`, "Compressed input", has the rule.
 
-**Writing is the other way round**, because a file that does not exist yet
-has no first two bytes to look at. A path ending in `.gz` is compressed and
-one that does not is not.
-
-A file that cannot be read is reported on stderr with the library's message,
-which names the offending line, and the tool exits 5.
+A file that cannot be read is reported on stderr with the library's
+message, which names the offending line, and the tool exits 5.
 
 ## `help`
 
-`jaos --help` prints the whole usage text and `jaos help COMMAND` prints
-one command's: its synopsis lines, its own description and the footer.
-The whole text is over two hundred lines and most of it is about
-a command the reader is not using. `jaos help` and `jaos -h` are the same
-command as `jaos --help`, and `jaos version` is the same as
-`jaos --version`. `jaos --commit` prints the git commit the library was
-built from, 12 hex digits, or an empty line when the build ran outside a
-git checkout.
+`jaos --help` prints the whole usage text, and `jaos help COMMAND` prints
+one command's synopsis lines, its own description and the footer.
+`jaos help` and `jaos -h` are the same command as `jaos --help`, and
+`jaos version` is the same as `jaos --version`. `jaos --commit` prints the
+git commit the library was built from, 12 hex digits, or an empty line when
+the build ran outside a git checkout.
 
 ```
 $ jaos help convert
@@ -1195,14 +989,11 @@ otherwise. `STUB -AMPL` exits 0 whenever it wrote `STUB.sol`, whose last
 line carries the verdict, and 5 otherwise.
 
 Every command exits 5 on a usage error, an unreadable input, an unwritable
-output, a refused write, or a refused solution file. The three commands
-that solve first (`iis`, `verify`, `ranging`) also exit 5 when that solve
-does not finish, that is, when it ends `work_limit`, `interrupted` or
-`numerical_error`,
-because a solve that stopped decides nothing about the model and no verdict
-code fits. `ranging` exits 5 as well on a model whose solve is infeasible
-or unbounded, since it needs an optimum.
+output, a refused write, or a refused solution file. `iis`, `verify` and
+`ranging` also exit 5 when their solve ends `work_limit`, `interrupted` or
+`numerical_error`, because such a solve decides nothing about the model.
+`ranging` also exits 5 when its solve is infeasible or unbounded.
 
-The three analysis commands that solve first print the status line and
-nothing else before the report, so the output of two runs of the same file
-is byte-identical: none of them prints a time.
+These three commands print the status line and nothing else before the
+report, and none of them prints a time, so two runs of the same file give
+byte-identical output.
