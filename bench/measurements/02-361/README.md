@@ -18,8 +18,9 @@ MIPLIB 3 all solved, the 2017 set 5 solved, 28 incumbents, gap sum 13.48.
 | `r4c1` | `mip_reliability=4`, `mip_probe_cap=1` | 24 | 1.256x | 1.147x | 15.86 | |
 | `r2c1` | `mip_reliability=2`, `mip_probe_cap=1` | 24 | 1.223x | 1.114x | 15.92 | |
 
-None lands. Conflict analysis changes no tree on either set: no answer,
-node count or bound moves. Probing runs `bell5` out of memory, as in 02-325
+None lands. The `bcf` arm re-reads the default: conflict analysis is on
+since `MIP_CONFLICTS` landed, so its records match the base to the bit
+(`misc07` finds 152 conflicts over 530 binaries either way). Probing runs `bell5` out of memory, as in 02-325
 and 02-335. Strong branching at reliability 4 halves or better the work on
 `bell5` (0.446x), `blend2` (0.357x), `gt2` (0.467x) and `misc07` (0.523x)
 but takes `p0033` to 4.661x, `p0201` to 4.490x and `misc03` to 3.059x, and
