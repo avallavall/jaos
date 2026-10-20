@@ -281,7 +281,10 @@ infeasibility certificate the checker refuses is searched again before it
 is given up. The coordinate climb makes at most `CONIC_CERT_CALLS` checker
 calls. The tilt ladder before it makes at most 130 calls per outer round,
 for two rounds. Each checker call charges one pass over the model,
-`nnz + cols + rows + 1`.
+`nnz + cols + rows + 1`. When a model with quadratic rows still has no
+certificate, a conic program over the multipliers (`cm_cert_solve`) charges
+one per entry it gathers, adds the work of its solve, and charges one
+checker call.
 
 **Ranging** (`src/ranging.c`) refactors the published basis and bills the
 factorisation and its solves at the LU's rates, plus one unit per entry of

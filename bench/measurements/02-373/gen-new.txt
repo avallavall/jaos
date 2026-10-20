@@ -1,0 +1,51 @@
+== seed 1
+unbounded 244 rays 244 failed 0
+infeasible 200 certified 200 without 0
+ball: certified 109 without 0; capped cone: certified 91 without 0
+status failures 0
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 2.220e-16
+worst row violation 2.220e-16
+worst rotated-form gap 1.938e-10
+work units 152952150
+iterations 11172
+longest 36
+failed models 0
+digest 77438d2b93ecb3e1
+== seed 2
+unbounded 247 rays 247 failed 0
+infeasible 200 certified 200 without 0
+ball: certified 103 without 0; capped cone: certified 97 without 0
+status failures 0
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 1.862e-16
+worst row violation 8.188e-13
+worst rotated-form gap 1.365e-10
+work units 155724435
+iterations 11327
+longest 35
+failed models 0
+digest 45ffa857ca90fb4e
+== seed 3
+unbounded 230 rays 230 failed 0
+infeasible 200 certified 200 without 0
+ball: certified 102 without 0; capped cone: certified 98 without 0
+status failures 0
+checker failures 0
+copy failures 0
+mps failures 0
+rotated-form failures 0
+worst dual violation 1.820e-16
+worst row violation 1.589e-13
+worst rotated-form gap 5.636e-10
+work units 150451695
+iterations 11096
+longest 34
+failed models 0
+digest 71d98d7c05410cb3

@@ -2940,6 +2940,212 @@ static jaos_status cm_cert_trim(jaos_model *m, double big, double tol)
     return JAOS_OK;
 }
 
+static int64_t cm_new_col(double *cost, double *lo, double *hi, int64_t *k,
+                          double c, double l, double h)
+{
+    cost[*k] = c;
+    lo[*k] = l;
+    hi[*k] = h;
+    return (*k)++;
+}
+
+static void cm_trip_put(cm_trip *tr, int64_t *kt, int64_t row, int64_t col,
+                        double v)
+{
+    if (col >= 0 && v != 0.0)
+        tr[(*kt)++] = (cm_trip){row, col, v};
+}
+
+static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
+                                 jaos_certificate_report *cr, bool *found)
+{
+    const int64_t n = m->num_col, nr = m->num_row, nk = m->num_cone;
+    const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
+    const int64_t nv = 2 * nr + members + 3 * n;
+    const int64_t nt = 2 * m->a_start[n] + members + 2 * m->rq_nz +
+                       2 * nr + 7 * n + 1;
+    *found = false;
+    int64_t *at = jm_alloc_array(2 * nr + members + 4 * n + 1, sizeof *at);
+    cm_trip *tr = jm_alloc_array(nt, sizeof *tr);
+    double *cost = jm_alloc_array(nv > 0 ? nv : 1, sizeof *cost);
+    double *lo = jm_alloc_array(nv > 0 ? nv : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nv > 0 ? nv : 1, sizeof *hi);
+    double *rl = jm_alloc_array(2 * n + 1, sizeof *rl);
+    double *ru = jm_alloc_array(2 * n + 1, sizeof *ru);
+    int64_t *cs = jm_calloc_array(nv + 1, sizeof *cs);
+    int64_t *ri = jm_alloc_array(nt, sizeof *ri);
+    double *rv = jm_alloc_array(nt, sizeof *rv);
+    double *x = jm_alloc_array(nv > 0 ? nv : 1, sizeof *x);
+    jaos_model *q = nullptr;
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (at == nullptr || tr == nullptr || cost == nullptr || lo == nullptr ||
+        hi == nullptr || rl == nullptr || ru == nullptr || cs == nullptr ||
+        ri == nullptr || rv == nullptr || x == nullptr)
+        goto out;
+    int64_t *pc = at, *nc = pc + nr, *zc = nc + nr, *c1 = zc + members;
+    int64_t *c2 = c1 + n, *c3 = c2 + n, *wr = c3 + n;
+    int64_t k = 0, kt = 0, nq = n;
+    for (int64_t j = 0; j < n; j++)
+        wr[j] = -1;
+    for (int64_t i = 0; i < nr; i++) {
+        bool up = isfinite(m->row_lower[i]), dn = isfinite(m->row_upper[i]);
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            if (m->rq_i[p] != m->rq_j[p])
+                up = dn = false;
+            if (m->rq_v[p] > 0.0)
+                up = false;
+            if (m->rq_v[p] < 0.0)
+                dn = false;
+        }
+        pc[i] = up ? cm_new_col(cost, lo, hi, &k, 1.0, 0.0, INFINITY) : -1;
+        nc[i] = dn ? cm_new_col(cost, lo, hi, &k, 1.0, 0.0, INFINITY) : -1;
+        for (int64_t p = m->rq_start[i]; (up || dn) && p < m->rq_start[i + 1];
+             p++)
+            if (m->rq_v[p] != 0.0 && wr[m->rq_i[p]] < 0)
+                wr[m->rq_i[p]] = nq++;
+    }
+    for (int64_t c = 0; c < nk; c++) {
+        const int64_t b = m->cone_start[c];
+        const bool rot = m->cone_type[c] == JAOS_CONE_ROTATED;
+        for (int64_t t = b; t < m->cone_start[c + 1]; t++)
+            zc[t] = cm_new_col(cost, lo, hi, &k,
+                               t == b || (rot && t == b + 1) ? 1.0 : 0.0,
+                               -INFINITY, INFINITY);
+    }
+    for (int64_t j = 0; j < n; j++) {
+        if (wr[j] >= 0) {
+            c1[j] = cm_new_col(cost, lo, hi, &k, 0.0, 0.0, INFINITY);
+            c2[j] = cm_new_col(cost, lo, hi, &k, 0.0, 0.0, INFINITY);
+            c3[j] = cm_new_col(cost, lo, hi, &k, 0.0, -INFINITY, INFINITY);
+        } else {
+            c1[j] = isfinite(m->col_upper[j])
+                        ? cm_new_col(cost, lo, hi, &k, 0.0, 0.0, INFINITY)
+                        : -1;
+            c2[j] = isfinite(m->col_lower[j])
+                        ? cm_new_col(cost, lo, hi, &k, 0.0, 0.0, INFINITY)
+                        : -1;
+            c3[j] = -1;
+        }
+    }
+    for (int64_t r = 0; r < nq; r++)
+        rl[r] = ru[r] = 0.0;
+    rl[nq] = 1.0;
+    ru[nq] = INFINITY;
+    for (int64_t j = 0; j < n; j++) {
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            cm_trip_put(tr, &kt, j, pc[m->a_index[p]], m->a_value[p]);
+            cm_trip_put(tr, &kt, j, nc[m->a_index[p]], -m->a_value[p]);
+        }
+        if (wr[j] >= 0) {
+            cm_trip_put(tr, &kt, j, c3[j], -1.0);
+            cm_trip_put(tr, &kt, wr[j], c2[j], 1.0);
+            cm_trip_put(tr, &kt, nq, c1[j], -1.0);
+        } else {
+            cm_trip_put(tr, &kt, j, c1[j], -1.0);
+            cm_trip_put(tr, &kt, j, c2[j], 1.0);
+            cm_trip_put(tr, &kt, nq, c1[j], -m->col_upper[j]);
+            cm_trip_put(tr, &kt, nq, c2[j], m->col_lower[j]);
+        }
+    }
+    for (int64_t t = 0; t < members; t++)
+        cm_trip_put(tr, &kt, m->cone_col[t], zc[t], 1.0);
+    for (int64_t i = 0; i < nr; i++) {
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            const int64_t j = m->rq_i[p];
+            if (wr[j] < 0)
+                continue;
+            cm_trip_put(tr, &kt, wr[j], pc[i], m->rq_v[p]);
+            cm_trip_put(tr, &kt, wr[j], nc[i], -m->rq_v[p]);
+        }
+        if (pc[i] >= 0)
+            cm_trip_put(tr, &kt, nq, pc[i], m->row_lower[i]);
+        if (nc[i] >= 0)
+            cm_trip_put(tr, &kt, nq, nc[i], -m->row_upper[i]);
+    }
+    qsort(tr, (size_t)kt, sizeof *tr, cm_trip_order);
+    int64_t nz = 0;
+    for (int64_t p = 0; p < kt; p++) {
+        if (nz > 0 && p > 0 && tr[p - 1].col == tr[p].col &&
+            tr[p - 1].row == tr[p].row) {
+            rv[nz - 1] += tr[p].v;
+            continue;
+        }
+        ri[nz] = tr[p].row;
+        rv[nz++] = tr[p].v;
+        cs[tr[p].col + 1]++;
+    }
+    for (int64_t j = 0; j < k; j++)
+        cs[j + 1] += cs[j];
+    *spent += kt * JM_WORK_NONZERO;
+    if (k == 0) {
+        st = JAOS_OK;
+        goto out;
+    }
+    st = jaos_model_new(&q);
+    if (st != JAOS_OK)
+        goto out;
+    st = jaos_load_lp(q, k, nq + 1, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru,
+                      nz, cs, ri, rv);
+    for (int64_t c = 0; c < nk && st == JAOS_OK; c++)
+        st = jaos_add_cone(q, m->cone_type[c],
+                           m->cone_start[c + 1] - m->cone_start[c],
+                           zc + m->cone_start[c]);
+    for (int64_t j = 0; j < n && st == JAOS_OK; j++)
+        if (wr[j] >= 0)
+            st = jaos_add_cone(q, JAOS_CONE_ROTATED, 3,
+                               (int64_t[]){c1[j], c2[j], c3[j]});
+    if (st != JAOS_OK)
+        goto out;
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - m->solve_work - *spent;
+        q->cfg.work_limit = left > 0 ? left : 1;
+    }
+    q->cfg.primal_tol = m->cfg.primal_tol;
+    q->cfg.dual_tol = m->cfg.dual_tol;
+    st = jaos_solve(q);
+    *spent += jaos_work_units(q);
+    if (st != JAOS_OK)
+        goto out;
+    if (jaos_status_of(q) != JAOS_SOLVE_OPTIMAL)
+        goto report;
+    st = jaos_solution(q, x, nullptr, nullptr, nullptr);
+    if (st != JAOS_OK)
+        goto out;
+    double big = 0.0;
+    for (int64_t i = 0; i < nr; i++) {
+        m->sol_farkas[i] = (pc[i] >= 0 ? x[pc[i]] : 0.0) -
+                           (nc[i] >= 0 ? x[nc[i]] : 0.0);
+        if (fabs(m->sol_farkas[i]) > big)
+            big = fabs(m->sol_farkas[i]);
+    }
+    for (int64_t t = 0; t < members; t++) {
+        m->sol_cone[t] = x[zc[t]];
+        if (fabs(m->sol_cone[t]) > big)
+            big = fabs(m->sol_cone[t]);
+    }
+    for (int64_t i = 0; i < nr; i++)
+        if (fabs(m->sol_farkas[i]) <= CONIC_RAY_ZERO * big)
+            m->sol_farkas[i] = 0.0;
+    for (int64_t t = 0; t < members; t++)
+        if (fabs(m->sol_cone[t]) <= CONIC_RAY_ZERO * big)
+            m->sol_cone[t] = 0.0;
+    *spent += m->num_nz + n + nr + 1;
+    *found = jaos_check_conic_certificate(m, m->sol_farkas,
+                                          nk > 0 ? m->sol_cone : nullptr, tol,
+                                          cr) == JAOS_OK &&
+             cr->certified;
+report:
+    jm_log(m, JAOS_LOG_SUMMARY, "conic: a solve over the certificate's "
+           "multipliers ends %s; the certificate checker %s its point",
+           jaos_solve_status_str(jaos_status_of(q)),
+           *found ? "takes" : "does not take");
+out:
+    jaos_model_free(q);
+    free(at); free(tr); free(cost); free(lo); free(hi); free(rl); free(ru);
+    free(cs); free(ri); free(rv); free(x);
+    return st;
+}
+
 static int64_t cm_alone(const jaos_model *m, uint8_t *used, double *val)
 {
     const int64_t n = m->num_col;
@@ -3930,6 +4136,15 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                                                members, &cr, &calls);
             }
             free(keep);
+            if (!certified && !m->cfg.node_solve && !m->cfg.no_cert_solve &&
+                m->rq_nz > 0) {
+                int64_t spent = 0;
+                st = cm_cert_solve(m, jm_primal_tolerance(m), &spent, &cr,
+                                   &certified);
+                m->solve_work += spent;
+                if (st != JAOS_OK)
+                    goto done;
+            }
         }
         m->solve_work += calls * (m->num_nz + m->num_col + m->num_row + 1);
         if (certified) {

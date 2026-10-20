@@ -11,17 +11,6 @@ refuses, or models with an answer that end with none. Tiers 3 and 4 are the
 performance gaps, largest first. Tier 5 is the features SPECS still lists.
 Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
-## Tier 1: defects
-
-J3. **A ball infeasibility with no certificate.** A free column with no
-curvature needs its certificate coefficient to be exactly zero. The
-certificate search moves one multiplier at a time, so it cannot hold that
-equation. One of 02-253's seed-2 ball models ends with no certificate
-inside the generator (`bench/measurements/02-270/`). Next: a solve over the
-multipliers, as a second-order cone program (`a²/(-2h) ≤ t` is a rotated
-cone in `(t, -h, a)`). Verify with 02-253's `conic.sh` on seed 2 and
-`make cblib`.
-
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

@@ -1134,6 +1134,24 @@ static void test_quadratic_programs_on_the_ball_rows_finish_a_walk(void)
     }
 }
 
+static void test_a_certificate_comes_from_a_solve_over_its_multipliers(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qc_cert_free.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    double y[5], z[6];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 1, z + 3));
+    jaos_certificate_report cr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_certificate(m, y, z, 1e-7,
+                                                                &cr));
+    TEST_ASSERT_TRUE(cr.certified);
+    jaos_model_free(m);
+}
+
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
 {
     jaos_model *m = badly_scaled_box(true);
@@ -1400,6 +1418,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_walk);
+    RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);

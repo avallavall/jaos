@@ -377,6 +377,7 @@ static jaos_status ct_fixed(const jaos_model *m, const double *x, int64_t work,
     jaos_model *fin = ct_relaxation(m);
     if (fin == nullptr)
         return JAOS_ERR_OUT_OF_MEMORY;
+    fin->cfg.no_cert_solve = true;
     jaos_status st = JAOS_OK;
     for (int64_t k = 0; st == JAOS_OK && k < m->num_sos; k++)
         for (int64_t t = m->sos_start[k];
@@ -569,6 +570,7 @@ static jaos_status ct_feasible(const jaos_model *m, const jaos_model *at,
     f->cfg.log_cb = nullptr;
     f->cfg.progress_cb = nullptr;
     f->cfg.incumbent_cb = nullptr;
+    f->cfg.no_cert_solve = true;
     jaos_status st = jaos_set_quadratic(f, 0, nullptr, nullptr, nullptr);
     for (int64_t j = 0; j < m->num_col && st == JAOS_OK; j++) {
         st = jaos_set_col_cost(f, j, 0.0);

@@ -36,6 +36,7 @@ typedef struct {
     bool primal_devex;
     bool node_solve;
     bool node_no_presolve;
+    bool no_cert_solve;
     bool cut_resolve;
     bool no_aggregate;
 
