@@ -267,7 +267,11 @@ written. The Newton finish charges `(CONIC_REFINE + 2) * u` per step,
 where `u` is the entries of its system, whatever number of refinement
 passes ran. It runs up to `CONIC_NEWTON_ROUNDS` times. When the checker
 refuses its point, the settle step runs the same system for a projection
-and a dual refit, up to twice, at the same rate. The scan for rows that
+and a dual refit, up to twice, at the same rate. A QCQP that the settle
+leaves refused, or whose walk ends with no answer once the feasibility walk
+has a point, takes up to `CONIC_SQP_ROUNDS` quadratic programs (`cm_sqp`).
+Each round charges one per entry it gathers for the program's `Q` and rows,
+and adds the work of the program's solve. The scan for rows that
 hold at every point of their columns' boxes charges one per nonzero when
 it drops any. The ray polish charges `(it + 2) * (2 * at + n + nrow)` for
 its conjugate gradients. The ray probe is a full LP solve, and the

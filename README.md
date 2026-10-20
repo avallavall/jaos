@@ -81,6 +81,8 @@ the barrier, whose point is finished by a push onto its active set.
 Second-order cones, rotated or not, and convex quadratic rows are solved by
 a homogeneous self-dual interior point with Nesterov-Todd scaling and a
 Newton finish, and the checker judges the answer with the cones' duals.
+When the checker refuses a QCQP's answer, quadratic programs on its rows'
+linearisation finish it.
 Integer columns beside a quadratic objective go to the branch and bound
 below, over barrier relaxations; beside cones or quadratic rows they go to
 a branch and bound of its own, which can take its open nodes in rounds

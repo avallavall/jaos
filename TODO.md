@@ -13,19 +13,14 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 ## Tier 1: defects
 
-J3. **Conic models with no accepted optimum.** QPLIB_2456, QPLIB_3105 and
-QPLIB_2468 end `NUMERICAL_ERROR`: the walk's point is exact on the primal
-side, and its duals miss by 3.5e-6 to 3.6e-5. Some ball rows sit 2e-5 to
-4e-5 off their side with duals over 1e-7, and neither settle rule picks an
-active set that holds (`bench/measurements/02-319/`, `02-327/`). Small
-cases of the same failure: `bench/measurements/02-371/qcgen.py`, 48 of 150
-models of 80 columns end `NUMERICAL_ERROR`. Next: a finish that moves the
-columns and the duals together while the active set changes, such as a
-semismooth Newton step on the KKT system, read first on those small
-models. Also: a
-certificate for an infeasibility whose free column with no curvature needs
-its coefficient to vanish exactly. Verify with `make cblib` and 02-319's
-`conread.sh`.
+J3. **A ball infeasibility with no certificate.** A free column with no
+curvature needs its certificate coefficient to be exactly zero. The
+certificate search moves one multiplier at a time, so it cannot hold that
+equation. One of 02-253's seed-2 ball models ends with no certificate
+inside the generator (`bench/measurements/02-270/`). Next: a solve over the
+multipliers, as a second-order cone program (`a²/(-2h) ≤ t` is a rotated
+cone in `(t, -h, a)`). Verify with 02-253's `conic.sh` on seed 2 and
+`make cblib`.
 
 ## Tier 3: the largest performance gaps
 
@@ -68,6 +63,8 @@ J9. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
 nested dissection (about 45 GB). Next: a solve that does not factor the
 whole system, or one that uses the time steps' structure. 13 of 17 convex
 MIQPs and 37 of CBLIB's 80 mixed-integer instances stop at the work limit.
+QPLIB_3312, a continuous QCQP, stops at 1e11 work units
+(`bench/measurements/02-372/`).
 
 ## Tier 4: the other performance rows
 

@@ -1094,6 +1094,46 @@ static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void
     }
 }
 
+static void catch_sqp(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "linearisation; the checker passes the last one") !=
+        nullptr)
+        (*(int *)user)++;
+}
+
+static void test_quadratic_programs_on_the_ball_rows_finish_a_walk(void)
+{
+    const char *path[2] = {"tests/data/qc_sqp_refused.mps",
+                           "tests/data/qc_sqp_stalled.mps"};
+    for (int k = 0; k < 2; k++) {
+        int finished = 0;
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_sqp,
+                                                             &finished));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                      path[k]);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(1, finished, path[k]);
+        const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+        double *x = jm_alloc_array(nc, sizeof *x);
+        double *y = jm_alloc_array(nr, sizeof *y);
+        TEST_ASSERT_NOT_NULL(x);
+        TEST_ASSERT_NOT_NULL(y);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_solution(m, x, y, nullptr,
+                                                                 1e-7, &rep));
+        TEST_ASSERT_TRUE_MESSAGE(rep.primal_feasible, path[k]);
+        TEST_ASSERT_TRUE_MESSAGE(rep.dual_feasible, path[k]);
+        free(x);
+        free(y);
+        jaos_model_free(m);
+    }
+}
+
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
 {
     jaos_model *m = badly_scaled_box(true);
@@ -1359,6 +1399,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
+    RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_walk);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);

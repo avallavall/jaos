@@ -444,6 +444,8 @@ below, 8 fail, and CBLIB gives 26 optima, all taken by the checker.
 | `CONIC_RAY_ACTIVE` | 1e-6 | A refused ray is projected, by conjugate gradients, onto the rows it moves by less than this times the row's traffic; this took seed 2 from 24 failures to 3. 1e-8 and 1e-4 read the same |
 | `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Steps of that projection and its stop. Not swept |
 | `CONIC_NEWTON_ROUNDS` | 4 | Runs of the Newton finish, each dropping the columns whose reduced cost pushes them off their bound. 3 or more solve CBLIB's three `sched_*_orig` at the same work; 1 solves none (`bench/measurements/02-273/`) |
+| `CONIC_SQP_ROUNDS` | 8 | Quadratic programs on the quadratic rows' linearisation, for a QCQP whose optimum the checker refuses or whose walk ends with no answer. On 02-371's 450 models, 58 take them: from a refused optimum 1 to 4, from the feasibility walk's point 5 to 7 (`bench/measurements/02-372/`). Not swept |
+| `CONIC_SQP_PROX` | 1e-4 | The proximal term `ρ/2·‖x − x_k‖²` in each of those programs. From 1e-5 to 1e-4 all 58 and QPLIB_2456 pass; at 1e-6 QPLIB_2456's program does not converge; at 1e-3 one of the 58 fails, at 1e-2 21, at 1 46 (`bench/measurements/02-372/`) |
 | `CONIC_LOOSE_MARGIN` | 1e-9 | Outside a tree node, a linear row whose box activity stays inside its sides by this times `1 + Σ\|a_ij bound_j\|` leaves the walk (`tests/data/g_cone_badbox.mps`, `bench/measurements/02-322/`). Not swept |
 | `CONIC_CERT_TILT` | 32 | The ladder width, `2^-32` to `2^32` of the step, when a refused certificate is re-weighted. 32 or wider fixes 11 of 12 ball models; 12 and 24 fix 10 (`bench/measurements/02-270/`) |
 | `CONIC_CERT_SWEEPS` | 1 | Passes over the rows of that search. 2, 3 and 6 fix the same 11 |
