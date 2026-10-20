@@ -1559,7 +1559,31 @@ jaos_status jaos_set_row_quadratic(jaos_model *m, int64_t row, int64_t num_nz,
         if (m->rq_start == nullptr)
             st = JAOS_ERR_OUT_OF_MEMORY;
     }
-    if (st == JAOS_OK) {
+    if (st == JAOS_OK && m->rq_start[row] == m->rq_nz) {
+        const int64_t total = m->rq_nz + n;
+        int64_t *ni = jm_realloc_array(m->rq_i, total, sizeof *ni);
+        if (ni != nullptr)
+            m->rq_i = ni;
+        int64_t *nj = jm_realloc_array(m->rq_j, total, sizeof *nj);
+        if (nj != nullptr)
+            m->rq_j = nj;
+        double *nv = jm_realloc_array(m->rq_v, total, sizeof *nv);
+        if (nv != nullptr)
+            m->rq_v = nv;
+        if (ni == nullptr || nj == nullptr || nv == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+        } else {
+            for (int64_t t = 0; t < n; t++) {
+                ni[m->rq_nz + t] = ti[t];
+                nj[m->rq_nz + t] = tj[t];
+                nv[m->rq_nz + t] = tv[t];
+            }
+            for (int64_t i = row + 1; i <= m->num_row; i++)
+                m->rq_start[i] = total;
+            m->rq_nz = total;
+            model_answer_is_stale(m);
+        }
+    } else if (st == JAOS_OK) {
         const int64_t old = m->rq_start[row + 1] - m->rq_start[row];
         const int64_t total = m->rq_nz - old + n;
         int64_t *ni = jm_alloc_array(total > 0 ? total : 1, sizeof *ni);

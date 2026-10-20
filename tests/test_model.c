@@ -1514,6 +1514,56 @@ static void test_the_model_name_is_jaos_until_given(void)
     jaos_model_free(m);
 }
 
+static void assert_row_quadratic(const jaos_model *m, int64_t row, int64_t nz,
+                                 const int64_t *want_i, const double *want_v)
+{
+    int64_t qi[2], qj[2];
+    double qv[2];
+    TEST_ASSERT_EQUAL_INT64(nz, jaos_row_quadratic_nz(m, row));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(m, row, qi, qj, qv));
+    for (int64_t k = 0; k < nz; k++) {
+        TEST_ASSERT_EQUAL_INT64(want_i[k], qi[k]);
+        TEST_ASSERT_EQUAL_INT64(want_i[k], qj[k]);
+        TEST_ASSERT_EQUAL_DOUBLE(want_v[k], qv[k]);
+    }
+}
+
+static void test_quadratic_rows_set_in_any_order_read_back(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[3] = {0.0, 0.0, 0.0}, lo[3] = {-1.0, -1.0, -1.0};
+    const double hi[3] = {1.0, 1.0, 1.0};
+    const double rl[4] = {-INFINITY, -INFINITY, -INFINITY, -INFINITY};
+    const double ru[4] = {1.0, 1.0, 1.0, 1.0};
+    const int64_t cs[4] = {0, 0, 0, 0}, ri[1] = {0};
+    const double rv[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 3, 4, JAOS_MINIMIZE, 0.0, c,
+                                                lo, hi, rl, ru, 0, cs, ri, rv));
+    const int64_t a[2] = {0, 1}, b[2] = {0, 2}, two[1] = {2}, one[1] = {1};
+    const double va[2] = {1.0, 2.0}, vb[2] = {3.0, 4.0}, vc[1] = {5.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 1, 2, a, a, va));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 3, 2, b, b, vb));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 0, 1, two, two,
+                                                          vc));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 1, 2, b, b, vb));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 3, 0, nullptr,
+                                                          nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 2, 1, one, one,
+                                                          vc));
+    jaos_model *copy = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(m, &copy));
+    const jaos_model *both[2] = {m, copy};
+    for (int k = 0; k < 2; k++) {
+        assert_row_quadratic(both[k], 0, 1, two, vc);
+        assert_row_quadratic(both[k], 1, 2, b, vb);
+        assert_row_quadratic(both[k], 2, 1, one, vc);
+        assert_row_quadratic(both[k], 3, 0, nullptr, nullptr);
+    }
+    jaos_model_free(copy);
+    jaos_model_free(m);
+}
+
 static void test_a_quadratic_term_follows_its_column_through_copy_add_and_delete(void)
 {
     jaos_model *m = nullptr;
@@ -1775,6 +1825,7 @@ int main(void)
     RUN_TEST(test_names_ride_with_their_rows_and_columns);
     RUN_TEST(test_a_copy_is_the_same_problem_and_not_the_same_answer);
     RUN_TEST(test_a_quadratic_term_follows_its_column_through_copy_add_and_delete);
+    RUN_TEST(test_quadratic_rows_set_in_any_order_read_back);
     RUN_TEST(test_deleting_an_indicator_s_switch_is_refused);
     RUN_TEST(test_taking_the_integer_mark_off_an_indicator_s_switch);
     RUN_TEST(test_a_column_beside_an_indicator_still_deletes);

@@ -603,7 +603,10 @@ side.
 Replaces the quadratic part of row `row` with `num_nz` triplets and clears
 the last answer. `num_nz = 0` removes the part. The call fails when `row` or
 a column index is out of range, a value is not finite, or one pair appears
-twice.
+twice. When no row from `row` onward has a quadratic part, the call costs
+its entries and the rows after `row`. Any other call rebuilds every row's
+quadratic part, so a model with many quadratic rows is cheapest to build
+in increasing row order.
 
 **`jaos_row_quadratic_nz`**\
 `int64_t jaos_row_quadratic_nz(const jaos_model *m, int64_t row)`\
