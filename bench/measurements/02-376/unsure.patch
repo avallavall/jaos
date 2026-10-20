@@ -1,0 +1,35 @@
+--- a/bench/measurements/02-255/misocp.c
++++ b/bench/measurements/02-255/misocp.c
+@@ -111,7 +111,24 @@
+         b->solves++;
+         if (jaos_solve(c) != JAOS_OK) {
+             b->unsure++;
++            static int un = 0;
++            char nm[64];
++            snprintf(nm, sizeof nm, "/home/vall/uns/e%d.mps", un++);
++            printf("UNSURE solve error %s: %s\n", nm, jaos_model_error(c));
++            if (jaos_write_mps(c, nm) != JAOS_OK)
++                printf("write failed\n");
+         } else {
++            const jaos_solve_status s0 = jaos_status_of(c);
++            if (s0 != JAOS_SOLVE_UNBOUNDED && s0 != JAOS_SOLVE_OPTIMAL &&
++                s0 != JAOS_SOLVE_INFEASIBLE) {
++                static int us = 0;
++                char nm[64];
++                snprintf(nm, sizeof nm, "/home/vall/uns/s%d.mps", us++);
++                printf("UNSURE status %s %s: %s\n", jaos_solve_status_str(s0),
++                       nm, jaos_model_error(c));
++                if (jaos_write_mps(c, nm) != JAOS_OK)
++                    printf("write failed\n");
++            }
+             const jaos_solve_status s = jaos_status_of(c);
+             double obj = 0.0;
+             if (s == JAOS_SOLVE_UNBOUNDED) {
+@@ -360,6 +377,7 @@
+             total_nodes += rep.nodes;
+         bool bad = false;
+         if (b.unsure > 0) {
++            printf("m%05" PRId64 ": brute force unsure\n", r);
+             unsure++;
+         } else if (st != JAOS_OK) {
+             printf("m%05" PRId64 ": solve returned %d: %s\n", r, (int)st,

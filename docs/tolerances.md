@@ -439,7 +439,7 @@ below, 8 fail, and CBLIB gives 26 optima, all taken by the checker.
 | `CONIC_NEWTON_STEPS` | 2 | Newton steps of the finish; a step that does not lower the KKT residual is undone. One step fails 15; four read like two for 1.5% more work |
 | `CONIC_NEWTON_WIDE` | 64 | A boundary cone wider than this enters the finish as a diagonal plus a rank-one term, since CBLIB's widest cones made the dense form too large. 16 and 256 read the same (`bench/measurements/02-254/`) |
 | `CONIC_PSD_TOL` | 1e-10 | A quadratic row's pivoted Cholesky stops at a pivot below this times the largest; a nonzero remainder refuses the row as not convex. Not swept |
-| `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's dense `Q` may touch. Not swept |
+| `CONIC_QC_DENSE` | 3000 | The most columns a quadratic row's dense `Q` may touch. A column fixed at 0 that has no linear entry and is in no cone is left out of the factor first (`bench/measurements/02-376/`). Not swept |
 | `CONIC_RAY_ZERO` | 1e-7 | Ray parts and certificate multipliers below this times the largest are zeroed before the checker sees them; it also bounds a narrower cleanup tried first (`bench/measurements/02-263/`). 1e-9 fails 91; 1e-5 reads like 1e-7 |
 | `CONIC_RAY_ACTIVE` | 1e-6 | A refused ray is projected, by conjugate gradients, onto the rows it moves by less than this times the row's traffic; this took seed 2 from 24 failures to 3. 1e-8 and 1e-4 read the same |
 | `CONIC_RAY_ITERS`, `CONIC_RAY_TOL` | 100, 1e-24 | Steps of that projection and its stop. Not swept |

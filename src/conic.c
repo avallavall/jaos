@@ -1184,9 +1184,24 @@ static int cmp_i64(const void *a, const void *b)
     return (x > y) - (x < y);
 }
 
+static int64_t cm_col_at(const int64_t *cols, int64_t k, int64_t c)
+{
+    for (int64_t lo = 0, hi = k - 1; lo <= hi;) {
+        const int64_t mid = lo + (hi - lo) / 2;
+        if (cols[mid] == c)
+            return mid;
+        if (cols[mid] < c)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return -1;
+}
+
 jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i, int sgn,
-                                    int64_t *k_out, int64_t *r_out,
-                                    int64_t **cols_out, double **f_out)
+                                    const uint8_t *spare, int64_t *k_out,
+                                    int64_t *r_out, int64_t **cols_out,
+                                    double **f_out)
 {
     *k_out = *r_out = 0;
     *cols_out = nullptr;
@@ -1204,7 +1219,8 @@ jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i, int sgn,
     qsort(cols, (size_t)k, sizeof *cols, cmp_i64);
     int64_t u = 0;
     for (int64_t t = 0; t < k; t++)
-        if (u == 0 || cols[u - 1] != cols[t])
+        if ((u == 0 || cols[u - 1] != cols[t]) &&
+            (spare == nullptr || !spare[cols[t]]))
             cols[u++] = cols[t];
     k = u;
     if (k > CONIC_QC_DENSE) {
@@ -1222,17 +1238,10 @@ jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i, int sgn,
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     for (int64_t p = b; p < e; p++) {
-        int64_t ri = 0, ci = 0;
-        for (int64_t lo = 0, hi = k - 1; lo <= hi;) {
-            const int64_t mid = lo + (hi - lo) / 2;
-            if (cols[mid] == m->rq_i[p]) { ri = mid; break; }
-            if (cols[mid] < m->rq_i[p]) lo = mid + 1; else hi = mid - 1;
-        }
-        for (int64_t lo = 0, hi = k - 1; lo <= hi;) {
-            const int64_t mid = lo + (hi - lo) / 2;
-            if (cols[mid] == m->rq_j[p]) { ci = mid; break; }
-            if (cols[mid] < m->rq_j[p]) lo = mid + 1; else hi = mid - 1;
-        }
+        const int64_t ri = cm_col_at(cols, k, m->rq_i[p]);
+        const int64_t ci = cm_col_at(cols, k, m->rq_j[p]);
+        if (ri < 0 || ci < 0)
+            continue;
         const double v = sgn * m->rq_v[p];
         a[ri * k + ci] += v;
         if (ri != ci)
@@ -3550,6 +3559,7 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
     uint8_t *dead = jm_calloc_array(m->num_cone > 0 ? m->num_cone : 1,
                                     sizeof *dead);
     uint8_t *flag = jm_calloc_array(n > 0 ? n : 1, sizeof *flag);
+    uint8_t *spare = nullptr;
     jm_work work = {work0};
     const double started = jm_monotonic_seconds();
     if (qc == nullptr || slot_lo == nullptr || slot_up == nullptr ||
@@ -3624,8 +3634,21 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             continue;
         qc[i].sgn = isfinite(hi) ? 1 : -1;
         qc[i].u = isfinite(hi) ? hi : -lo;
-        st = jm_row_quadratic_factor(m, i, qc[i].sgn, &qc[i].k, &qc[i].r,
-                                     &qc[i].cols, &qc[i].f);
+        if (spare == nullptr) {
+            spare = jm_alloc_array(n > 0 ? n : 1, sizeof *spare);
+            if (spare == nullptr) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+            for (int64_t j = 0; j < n; j++)
+                spare[j] = m->col_lower[j] == 0.0 && m->col_upper[j] == 0.0 &&
+                           m->a_start[j + 1] == m->a_start[j];
+            for (int64_t t = 0; m->num_cone > 0 &&
+                                t < m->cone_start[m->num_cone]; t++)
+                spare[m->cone_col[t]] = 0;
+        }
+        st = jm_row_quadratic_factor(m, i, qc[i].sgn, spare, &qc[i].k,
+                                     &qc[i].r, &qc[i].cols, &qc[i].f);
         if (st == JAOS_ERR_INVALID_INPUT && m->err[0] == '\0')
             jm_set_err(m, "row %lld has a quadratic part that is not convex "
                           "on its %s side", (long long)i,
@@ -4267,7 +4290,7 @@ done:
     cm_free_rows(&lr);
     cm_free_rows(&sr);
     free(soc_dim); free(slot_lo); free(slot_up); free(slot_eq); free(qc_at);
-    free(cone_at); free(dead); free(flag);
+    free(cone_at); free(dead); free(flag); free(spare);
     free(ps); free(pi); free(pv); free(as); free(ai); free(av);
     free(q); free(b); free(x); free(s); free(z); free(feas);
     return st;

@@ -1,0 +1,15 @@
+QPLIB_10001 cols=485   int=426   work_limit   obj=                     ref=-25766.8199999999997090 check=    work=100002864953 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10002 cols=485   int=426   work_limit   obj=                     ref=-21931.5699999999997090 check=    work=100000951645 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10003 cols=1058  int=999   work_limit   obj=                     ref=-21944.8699999999989814 check=    work=100009697561 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10004 cols=400   int=150   work_limit   obj=                     ref=-2588.2100000000000364 check=    work=100000262712 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10005 cols=2000  int=1000  work_limit   obj=                     ref=-9820.9099999999998545 check=    work=102452553314 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10006 cols=3125  int=1875  work_limit   obj=                     ref=-12527.2000000000007276 check=    work=102964898211 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10007 cols=4375  int=2625  work_limit   obj=                     ref=-17869.7200000000011642 check=    work=102896342792 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10008 cols=845   int=713   work_limit   obj=                     ref=-23176.1899999999986903 check=    work=100019727680 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10009 cols=605   int=473   work_limit   obj=                     ref=-23176.1899999999986903 check=    work=100003797286 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10010 cols=269   int=262   work_limit   obj=                     ref=-23003.3100000000013097 check=    work=100000184252 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10011 cols=1390  int=1258  work_limit   obj=                     ref=-23176.1899999999986903 check=    work=100186366360 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_10012 cols=967   int=835   work_limit   obj=                     ref=-23176.1899999999986903 check=    work=100018495632 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_3678  cols=600   int=200   work_limit   obj=                     ref=-0.1100882335000000  check=    work=100005476743 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+QPLIB_7579  cols=300   int=100   work_limit   obj=                     ref=-0.1026336752000000  check=    work=100000345585 jaos: nothing to check: the solve ended work limit reached, and the checker judges an optimum
+done

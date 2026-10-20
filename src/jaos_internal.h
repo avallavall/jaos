@@ -668,7 +668,9 @@ bool jm_model_has_conic(const jaos_model *m);
 int64_t jm_row_quadratic_count(const jaos_model *m, int64_t i);
 
 JAOS_NODISCARD jaos_status jm_row_quadratic_factor(jaos_model *m, int64_t i,
-                                                   int sgn, int64_t *k_out,
+                                                   int sgn,
+                                                   const uint8_t *spare,
+                                                   int64_t *k_out,
                                                    int64_t *r_out,
                                                    int64_t **cols_out,
                                                    double **f_out);

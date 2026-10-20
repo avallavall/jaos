@@ -1134,6 +1134,29 @@ static void test_quadratic_programs_on_the_ball_rows_finish_a_walk(void)
     }
 }
 
+static void test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero(void)
+{
+    jaos_model *m = fresh();
+    const double cost[2] = {1.0, 0.0}, lo[2] = {-5.0, 0.0};
+    const double hi[2] = {5.0, 0.0}, rl[1] = {-INFINITY}, ru[1] = {1.0};
+    const int64_t cs[3] = {0, 0, 0}, ri[1] = {0};
+    const double rv[1] = {0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0,
+                                                cost, lo, hi, rl, ru, 0, cs,
+                                                ri, rv));
+    const int64_t qi[2] = {0, 1};
+    const double qv[2] = {2.0, -2.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 0, 2, qi, qi, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -1.0, x[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, x[1]);
+    jaos_model_free(m);
+}
+
 static void test_a_certificate_comes_from_a_solve_over_its_multipliers(void)
 {
     jaos_model *m = fresh();
@@ -1419,6 +1442,7 @@ int main(void)
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_walk);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
+    RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);

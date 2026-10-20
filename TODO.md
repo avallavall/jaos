@@ -11,6 +11,18 @@ refuses, or models with an answer that end with none. Tiers 3 and 4 are the
 performance gaps, largest first. Tier 5 is the features SPECS still lists.
 Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
+## Tier 1: defects
+
+J20. **Cone models whose infeasibility ends `NUMERICAL_ERROR`.** On
+02-255's seed 2, 46 of the brute-force solves (continuous cone models with
+the integer columns fixed) end `numerical_error`: the walk reaches an
+infeasibility certificate the checker refuses, and with no quadratic row
+the checker's test is exact. 4 more stop after 206 iterations with no
+direction the ray checker takes (`bench/measurements/02-376/`). Next: the
+conic program over the multipliers of 02-373, which today runs only with
+quadratic rows, on these models. Verify with 02-255's `misocp.c` and
+02-376's `unsure.patch`.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
@@ -78,8 +90,10 @@ depend on the machine.
 ## Tier 5: the features SPECS still lists
 
 J13. **Cones and quadratic rows.** Cuts and warm starts in the conic tree;
-a quadratic row over more than `CONIC_QC_DENSE` columns; QPLIB's
-mixed-integer QCQPs.
+a quadratic row over more than `CONIC_QC_DENSE` columns that matter;
+QPLIB's mixed-integer QCQPs, where all 14 stop at 1e11 work units with no
+incumbent (`bench/measurements/02-376/`). Next for them: a first point
+that does not wait for the root and a dive of full solves.
 
 J14. **The barrier, PDLP and the concurrent solve.** A rule for an LP to
 choose the augmented system; a crossover cheaper than a crash; for PDLP, a
