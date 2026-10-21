@@ -18,5 +18,7 @@ for arm in pre new; do
   L=$([ $arm = pre ] && echo $HOME/jaos-pre410/build/release/libjaos.a || echo $R/build/release/libjaos.a)
   gcc-14 -std=c23 -O2 -ffp-contract=off -Wall -Wextra -I$R/include -o $O/edge-$arm $R/bench/measurements/02-410/edge.c $L -lm -pthread || exit 1
   for s in 1 2 3; do echo "== seed $s"; $O/edge-$arm 3000 $s; done > $O/edge-$arm.txt 2>&1
+  gcc-14 -std=c23 -O2 -ffp-contract=off -Wall -Wextra -I$R/include -o $O/edgeqp-$arm $R/bench/measurements/02-410/edgeqp.c $L -lm -pthread || exit 1
+  for s in 1 2 3; do echo "== seed $s"; $O/edgeqp-$arm 3000 $s; done > $O/edgeqp-$arm.txt 2>&1
 done
 echo done > $O/done

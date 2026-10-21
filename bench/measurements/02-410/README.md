@@ -21,3 +21,8 @@ Seeds 1 to 3, 3000 models each, give 11768 edge models
 c1ecd23's parent (`edge-pre.txt`) the one model 02-409 found, seed 2's
 model 1156 under the rows' scope, ends infeasible under all five
 algorithms, since they share presolve; every other edge model passes.
+
+`edgeqp.c` solves the same 11768 edge models as convex QPs, minimising
+with a diagonal curvature of 0 to 3 on each column, by the barrier and
+its push (`edgeqp-new.txt`, `edgeqp-pre.txt`). Each ends optimal and
+checked on both trees; presolve does not run on a QP.
