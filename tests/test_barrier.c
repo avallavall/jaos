@@ -291,6 +291,23 @@ static void test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed(void)
     jaos_model_free(m);
 }
 
+static void test_a_settled_push_is_put_to_the_checker(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_push_checked.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void catch_plain(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -802,5 +819,6 @@ int main(void)
     RUN_TEST(test_a_circulation_with_tiny_curvatures_passes_the_checker);
     RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
     RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
+    RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     return UNITY_END();
 }

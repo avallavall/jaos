@@ -2041,6 +2041,11 @@ static bool bx_passes(jaos_model *m, jaos_check_report *ck)
            ck->primal_feasible && ck->dual_feasible;
 }
 
+static bool bx_holds(jaos_model *m, jaos_check_report *ck, bool pushed)
+{
+    return bx_passes(m, ck) || (pushed && ck->primal_feasible);
+}
+
 static double bx_polish_rows(bx *s, const double *zt, const double *row_tol,
                              const bool *dec, double *r)
 {
@@ -2852,9 +2857,10 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         st = bx_publish(&s, outcome, p);
 
     jaos_check_report ck = {};
+    const bool pushed = s.pushed;
     bool refused = st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
-                   s.quadratic && !s.pushed && !m->cfg.barrier_no_crossover &&
-                   m->sol_col != nullptr && !bx_passes(m, &ck);
+                   s.quadratic && !m->cfg.barrier_no_crossover &&
+                   m->sol_col != nullptr && !bx_holds(m, &ck, pushed);
     bool reduced = false;
 #if !defined(JAOS_NO_PRESOLVE)
     reduced = p->outcome == JM_PRESOLVE_REDUCED;
@@ -2871,7 +2877,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         }
         if (st == JAOS_OK && done) {
             st = bx_publish(&s, outcome, p);
-            refused = st == JAOS_OK && !bx_passes(m, &ck);
+            refused = st == JAOS_OK && !bx_holds(m, &ck, pushed);
             jm_log(m, JAOS_LOG_SUMMARY,
                    "the checker refused the barrier's point; polished, %s "
                    "(columns off by %.3g, rows by %.3g of their traffic, "
