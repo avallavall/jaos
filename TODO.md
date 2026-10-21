@@ -44,7 +44,9 @@ in 20 s. Open, largest first:
   (`cycle-cuts-two-potentials`). Next: a separation that aims at the
   cycle's rounding gap.
 - `beasleyC3`: HiGHS's presolve removes 597 of its 1750 rows, JAOS's 161.
-  Next: the MIP presolve's other reductions.
+  HiGHS drops 398 whole arcs (flow, binary, capacity row) and 199 node
+  rows; no node forces its arcs to zero (`bench/measurements/02-387/`).
+  Next: read which arcs go and why.
 - Node cost: on `neos-911970` a JAOS node takes about 200 LP iterations
   against HiGHS's 72, and a strong-branching probe is a full LP solve.
   Next: probes as a few dual steps on the node's factors.
