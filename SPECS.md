@@ -113,7 +113,7 @@ there is a row here that is not done.
 | Feasibility relaxation | **partial** | `jaos_feasrelax` and the CLI's `relax`, over the rows, the columns or both, carrying SOS sets, semi-continuous marks and indicator rows. Over the columns a freed integer column is held in a box that grows, under caps; when the caps stop the search, a Hermite normal form over the equality rows, or the gcd of one ranged row over integer columns, may prove that no box holds a point (`bench/measurements/02-230/`, `02-297/`, `02-362/`, `02-369/`). Missing: a proof where several inequality rows together leave no integer point |
 | Prove a basis another solver produced | **done** | `jaos_verify_basis`, `jaos verify FILE --basis BAS`; `broken` names the stage and the first row or column that breaks it (`bench/measurements/02-238/`) |
 | Check a point another solver produced | **done** | `jaos_read_point`, `jaos_read_duals`, `jaos check FILE --point POINT [--duals DUALS]`, with the solution shapes of Gurobi, MIPLIB, SCIP, HiGHS and CPLEX (`bench/measurements/02-239/`) |
-| Exact solving with no tolerances | **partial** | LPs: `jaos_set_exact`, the option `exact`, `jaos solve --exact`. The floating-point answer is proved over the rationals and repaired by exact pivots where the proof breaks; data infeasible over the rationals end `infeasible` with an exact certificate (`bench/measurements/02-358/`). Missing: MIPs, QPs and cones; data read as exact decimals; numbers past the limb budget without a wider build |
+| Exact solving with no tolerances | **partial** | LPs: `jaos_set_exact`, the option `exact`, `jaos solve --exact`. The floating-point answer is proved over the rationals and repaired by exact pivots where the proof breaks; data infeasible over the rationals end `infeasible` with an exact certificate (`bench/measurements/02-358/`). `jaos_set_exact_decimal` (`--exact-decimal`) reads each number as the shortest decimal that rounds to it, in the solve, `jaos_verify` and the proof file (`bench/measurements/02-418/`). Missing: MIPs, QPs and cones; numbers past the limb budget without a wider build |
 
 ## 7. Input and output
 
@@ -137,7 +137,7 @@ there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| C API, one header | **done** | `include/jaos.h`, 206 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
+| C API, one header | **done** | `include/jaos.h`, 207 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
 | Command-line tool | **done** | `docs/cli.md` |
 | Python: ctypes wrapper and modeling layer | **done** | `python/jaos/`, standard library only: `Model` over every C call and `Problem` on top, which edits the model in place and re-solves warm |
 | Python package installable with pip | **done** | `pyproject.toml` and `setup.py`; a tag builds the wheels and the sdist into a GitHub Release, and the PyPI upload is off until the project is registered (`docs/build.md`) |
@@ -158,7 +158,7 @@ there is a row here that is not done.
 | Logging with levels | **done** | `jaos_set_log_callback`, `jaos_set_log_level` (`off`, `summary`, `progress`, `detail`), `--log`, `--quiet` (`bench/measurements/02-243/`) |
 | Progress callback that can stop | **done** | `jaos_set_progress_callback`: iterations, work, primal infeasibility, and for a MIP nodes, bound and incumbent; a `STOP` ends the solve `INTERRUPTED` and the next solve continues (`bench/measurements/02-232/`) |
 | Choose the algorithm | **done** | `jaos_set_algorithm`, `--algorithm dual|primal|barrier|pdlp|concurrent` |
-| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 61 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
+| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 62 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
 | Steering callbacks: user cuts, lazy constraints, branching, solutions | **done** | `jaos_set_node_callback`: rows through `jaos_node_add_row`, the branching column, and points through `jaos_node_add_solution` |
 | Thread count | **done** | `jaos_set_threads`, `--threads N`; 0 means every core; the answer is the same at every count |
 | Sensitivity and ranging | **done** | `jaos_cost_ranging`, `jaos_rhs_ranging`, `jaos_bound_ranging`, the CLI's `ranging`; a QP and a MIP are refused by name |

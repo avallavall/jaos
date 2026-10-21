@@ -771,6 +771,14 @@ class Model:
         rows."""
         self._check(_lib.jaos_set_exact(self._handle(), bool(on)))
 
+    def set_exact_decimal(self, on=True):
+        """Whether the exact arithmetic reads each number of the model as
+        the shortest decimal that rounds to it: 0.1 as 1/10, not as the
+        double nearest 0.1. It covers the exact solve, verify() and the
+        proof file, which then says `data decimal`. Changing it drops the
+        exact values the model holds."""
+        self._check(_lib.jaos_set_exact_decimal(self._handle(), bool(on)))
+
     def set_mip_cut_rounds(self, rounds):
         """Rounds of Gomory cuts at the root (D289): 0 for none, a
         negative value for the default of 1."""

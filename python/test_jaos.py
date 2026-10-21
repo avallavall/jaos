@@ -1309,6 +1309,20 @@ class TestVerify(unittest.TestCase):
         q.set_exact(False)
         self.assertIs(q.solve(), jaos.SolveStatus.OPTIMAL)
 
+    def test_exact_decimal_solving_reads_the_decimals_written(self):
+        p = jaos.Problem()
+        x = p.add_var(ub=4, name="x")
+        y = p.add_var(ub=4, name="y")
+        p.add(x + 2 * y <= 3.5)
+        p.add(3 * x + y <= 5.1)
+        p.maximize(x + y)
+        p.set_exact(True)
+        p.set_exact_decimal(True)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        want = (fractions.Fraction("5.1") + 7) / 5
+        self.assertEqual(fractions.Fraction(p.exact_objective()), want)
+        self.assertEqual(want, fractions.Fraction(121, 50))
+
     def test_a_small_optimum_is_proved(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

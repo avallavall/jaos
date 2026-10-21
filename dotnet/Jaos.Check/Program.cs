@@ -210,6 +210,7 @@ using (var m = new Model())
     m.SetMipMirAggregate(3); Is("mip_mir_aggregate", "3");
     Flip("mip_dive", on => m.SetMipDive(on));
     Flip("exact", on => m.SetExact(on));
+    Flip("exact_decimal", on => m.SetExactDecimal(on));
     m.SetMipDiveBacktrack(2); Is("mip_dive_backtrack", "2");
     m.SetMipDiveGap(0.25); Is("mip_dive_gap", "0.25");
     m.SetMipDiveHeuristic(7); Is("mip_dive_heuristic", "7");

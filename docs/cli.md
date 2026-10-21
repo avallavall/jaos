@@ -16,7 +16,7 @@ jaos solve FILE [--solution OUT] [--start SOLUTION] [--work-limit N]
                 [--cutoff V]
                 [--basis BAS] [--write-basis BAS]
                 [--write-point PT] [--write-duals D] [--pool-out PRE]
-                [--proof PATH] [--exact]
+                [--proof PATH] [--exact] [--exact-decimal]
                 [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]
                 [--threads N]
                 [--cut-rounds N] [--cover-rounds N] [--cut-depth D]
@@ -63,7 +63,7 @@ jaos iis FILE [--write OUT] [--positional] [--work-limit N]
 jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]
              [--work-limit N]
 jaos verify FILE [--values] [--proof PATH] [--basis BAS]
-             [--work-limit N]
+             [--exact-decimal] [--work-limit N]
 jaos ranging FILE [--work-limit N]
 jaos STUB -AMPL [NAME=VALUE]...
 jaos --version
@@ -175,6 +175,7 @@ not change an answer.
 | `--check` | runs the independent checker on an optimum and prints the eighteen-field report of `check FILE SOLUTION`, then a `check_ok` line. `check_ok` is `yes` when the point is primal feasible and the duals are feasible or were not checked. On a model with cones, `max_cone_violation` follows the eighteen fields. The tolerance is always 1e-7, whatever `--primal-tol` says. The exit code stays the solve's. For any other outcome stderr says there is nothing to check. |
 | `--proof PATH` | writes the answer's exact proof to `PATH`, always as plain text, and prints `proof_file PATH`. For an optimum the tool runs `jaos verify` first and writes nothing unless the verdict is `optimal`. Where `jaos verify` refuses the model (an optimal MIP, a quadratic objective, cones or quadratic rows), the tool exits 5 after printing its report. For an infeasible or unbounded answer the tool derives the exact ray. When it cannot, it writes the published doubles if they pass the exact check. Otherwise it writes nothing, says so on stderr and exits 5. `jaos check FILE --proof PATH` judges the file. |
 | `--exact` | proves an LP's answer over the rationals and repairs a basis the proof breaks by exact pivots (`jaos_set_exact` in `docs/api.md`; measured in `bench/measurements/02-358/`). A proved optimum prints `objective_exact`, and its published values are the exact ones rounded to the nearest double. A model that turns out infeasible over the rationals ends `infeasible` with an exact certificate. An answer that cannot be proved ends `numerical_error` with the reason. A MIP, a quadratic objective or a model with cones is a usage error. |
+| `--exact-decimal` | the exact arithmetic of `--exact`, `--proof` and `verify` reads each number of the model as the shortest decimal that rounds to it, as `exact_decimal` (`jaos_set_exact_decimal` in `docs/api.md`; measured in `bench/measurements/02-418/`). An MPS value of 0.1 is then 1/10, not the double nearest 0.1, so a model whose rows hold only in decimal, such as `x = 0.1`, `y = 0.2`, `x + y = 0.3`, is optimal instead of infeasible. A proof file written this way carries `data decimal`. |
 | `--work-limit N` | stops the solve after `N` deterministic work units, as `work_limit`. `N` must be a positive integer. In a MIP every sub-solve runs under what is left of `N`. |
 | `--time-limit SECONDS` | stops the solve after that many wall-clock seconds, as `time_limit`. Must be positive; fractions are fine. It is the one input that breaks bit-identity. |
 | `--primal-tol T` | how far a variable may sit outside its bounds and still count as feasible. Default 1e-7. |
@@ -183,7 +184,7 @@ not change an answer.
 | `--threads N` | the thread count, `1` by default; `0` takes every core. More threads speed up `--algorithm concurrent`, the barrier's Cholesky factor, and a tree under a `--tree-batch` above 1. The answer, the tree and the `work_units` line are the same at any count, and only `time` changes (`bench/measurements/02-264/`, `bench/measurements/02-288/`). `docs/api.md`, "Threads", has the details. A negative count is a usage error. |
 | `--log LEVEL` | prints the solver's log on stderr. `LEVEL` is `off`, `summary`, `progress` or `detail`. Default `off`. |
 | `--quiet` | prints the `status` line and none of the rest of the solve's report. The lines of `--check`, `--pool-out` and `--proof` still print. |
-| `--opt NAME=VALUE` | any option by name, repeatable; the same setters the flags above reach. Names: `work_limit`, `time_limit`, `threads`, `primal_tolerance`, `dual_tolerance`, `algorithm`, `log_level`, `mip_gap`, `mip_node_limit`, `mip_tree_batch`, `mip_branching`, `mip_reliability`, `mip_probe_cap`, `mip_probe_depth`, `mip_cut_rounds`, `mip_cut_depth`, `mip_cut_drop`, `mip_node_cut_cap`, `mip_cover_rounds`, `mip_cut_stall`, `mip_node_cut_stall`, `mip_root_cut_drop`, `mip_cover_lift`, `mip_mir_rounds`, `mip_node_mir`, `mip_mir_aggregate`, `mip_dive`, `mip_dive_child`, `mip_dive_backtrack`, `mip_dive_gap`, `mip_dive_degrade`, `mip_dive_heuristic`, `mip_dive_heuristic_depth`, `mip_rins`, `mip_feaspump`, `mip_pump_general`, `mip_pump_obj`, `mip_pump_always`, `mip_rcfix`, `mip_tighten`, `mip_presolve`, `mip_probing`, `mip_probing_cap`, `mip_clique_fix`, `mip_conflicts`, `mip_symmetry`, `mip_orbital`, `mip_propagate`, `mip_propagate_depth`, `mip_heuristics`, `mip_pool_size`, `mip_cutoff`, `mip_clique_rounds`, `mip_zero_half_rounds`, `mip_flow_cover_rounds`, `mip_local_branching`, `mip_node_select`, `mip_restart`, `mip_gap_rule`, `mip_hull_rounds`, `exact`. A name matches in any case. Booleans take `true`/`false`, `on`/`off`, `yes`/`no` or `1`/`0`, also in any case. `mip_node_select` takes an integer: 0 for `bound`, 1 for `estimate`. `mip_gap` is the gap at which a branch and bound stops as optimal; it has no flag of its own, its default is 1e-6, and 0 means zero. `mip_gap_rule` takes `shifted`, the default, which measures the gap against `1 + |incumbent|`, or `relative`, which measures it against `|incumbent|` as SCIP and HiGHS do. `log_level` takes effect only through `--log`: set by `--opt` or `--params` it prints nothing, because the tool installs its log callback only for `--log`. An unknown name or a value of the wrong kind is a usage error. |
+| `--opt NAME=VALUE` | any option by name, repeatable; the same setters the flags above reach. Names: `work_limit`, `time_limit`, `threads`, `primal_tolerance`, `dual_tolerance`, `algorithm`, `log_level`, `mip_gap`, `mip_node_limit`, `mip_tree_batch`, `mip_branching`, `mip_reliability`, `mip_probe_cap`, `mip_probe_depth`, `mip_cut_rounds`, `mip_cut_depth`, `mip_cut_drop`, `mip_node_cut_cap`, `mip_cover_rounds`, `mip_cut_stall`, `mip_node_cut_stall`, `mip_root_cut_drop`, `mip_cover_lift`, `mip_mir_rounds`, `mip_node_mir`, `mip_mir_aggregate`, `mip_dive`, `mip_dive_child`, `mip_dive_backtrack`, `mip_dive_gap`, `mip_dive_degrade`, `mip_dive_heuristic`, `mip_dive_heuristic_depth`, `mip_rins`, `mip_feaspump`, `mip_pump_general`, `mip_pump_obj`, `mip_pump_always`, `mip_rcfix`, `mip_tighten`, `mip_presolve`, `mip_probing`, `mip_probing_cap`, `mip_clique_fix`, `mip_conflicts`, `mip_symmetry`, `mip_orbital`, `mip_propagate`, `mip_propagate_depth`, `mip_heuristics`, `mip_pool_size`, `mip_cutoff`, `mip_clique_rounds`, `mip_zero_half_rounds`, `mip_flow_cover_rounds`, `mip_local_branching`, `mip_node_select`, `mip_restart`, `mip_gap_rule`, `mip_hull_rounds`, `exact`, `exact_decimal`. A name matches in any case. Booleans take `true`/`false`, `on`/`off`, `yes`/`no` or `1`/`0`, also in any case. `mip_node_select` takes an integer: 0 for `bound`, 1 for `estimate`. `mip_gap` is the gap at which a branch and bound stops as optimal; it has no flag of its own, its default is 1e-6, and 0 means zero. `mip_gap_rule` takes `shifted`, the default, which measures the gap against `1 + |incumbent|`, or `relative`, which measures it against `|incumbent|` as SCIP and HiGHS do. `log_level` takes effect only through `--log`: set by `--opt` or `--params` it prints nothing, because the tool installs its log callback only for `--log`. An unknown name or a value of the wrong kind is a usage error. |
 | `--params FILE` | options from a file: one `name value`, `name = value` or `name: value` per line, `#` to end of line a comment. Read before the `--opt` flags, so `--opt` overrides the file. Every other flag overrides both, except `--threads`, `--work-limit`, `--time-limit` and `--reliability`: the tool applies those four first, so the file and `--opt` override them. |
 
 Both tolerances act in the scaled space the solver works in;
@@ -747,6 +748,10 @@ solve.
 `--work-limit N` stops the solve after N work units. There is then no
 answer to prove, so the tool prints its status line and exits 5. With
 `--basis` there is no solve, so the option does nothing.
+
+`--exact-decimal` makes the proof read each number of the model as the
+shortest decimal that rounds to it, as `solve --exact-decimal` does. The
+proof file `--proof` writes then carries `data decimal`.
 
 ```
 status optimal

@@ -958,6 +958,12 @@ class Problem:
         self._m.set_exact(on)
         return self
 
+    def set_exact_decimal(self, on=True):
+        """Read each number as the shortest decimal that rounds to it in
+        the exact arithmetic; see `Model.set_exact_decimal`."""
+        self._m.set_exact_decimal(on)
+        return self
+
     def exact_objective(self):
         return self._m.exact_objective()
 

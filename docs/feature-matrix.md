@@ -242,8 +242,10 @@ cells here are rows `SPECS.md` marks out of scope.
   whose numbers outgrow the limb budget gets none
   (`bench/measurements/02-358/`).
 - *Exact solving*: `jaos solve --exact` proves an LP's answer over the
-  rationals and repairs its basis by exact pivots. MIPs, QPs, cones and
-  numbers past the limb budget are not covered (`SPECS.md` §6).
+  rationals and repairs its basis by exact pivots. `--exact-decimal` reads
+  each number as the decimal a file wrote rather than as its double. MIPs,
+  QPs, cones and numbers past the limb budget are not covered
+  (`SPECS.md` §6).
 - *Machine-checkable certificate*: `jaos_write_proof` writes an exact proof
   of an optimum, an infeasibility or a ray, and `jaos_check_proof` judges
   it from the model alone. SoPlex writes rational values and checks them

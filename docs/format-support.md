@@ -755,6 +755,13 @@ row c3 0
 end
 ```
 
+A `data decimal` line after `rows` says the proof reads each number of
+the model as the shortest decimal that rounds to it (0.1 as 1/10), as
+`jaos_set_exact_decimal` makes the exact arithmetic do. `jaos_check_proof`
+then reads the model the same way. Without the line, or with
+`data binary`, each number is its double exactly. Any other word after
+`data` is refused with the line number.
+
 Every number in it is an integer or a ratio of two integers, in decimal,
 with no exponent and no decimal point. That is what `jm_rational_decimal`
 writes and `jm_rational_from_decimal` reads, so the reader and the writer

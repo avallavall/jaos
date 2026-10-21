@@ -867,6 +867,84 @@ static void test_the_proof_checker_rejects_what_is_not_optimal(void)
     return m;
 }
 
+static void test_a_double_reads_as_its_shortest_decimal(void)
+{
+    const struct { double d; const char *want; } cases[] = {
+        { 0.1, "1/10" },
+        { 0.3, "3/10" },
+        { -2.5, "-5/2" },
+        { 4.35, "87/20" },
+        { 1.0 / 3.0, "3333333333333333/10000000000000000" },
+        { 1e23, "100000000000000000000000" },
+        { 9.5367431640625e-07, "1/1048576" },
+        { 123456789.0, "123456789" },
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+        jm_rational r;
+        TEST_ASSERT_TRUE(jm_rational_from_double_decimal(&r, cases[k].d));
+        char *s = jm_rational_decimal(&r);
+        TEST_ASSERT_NOT_NULL(s);
+        TEST_ASSERT_EQUAL_STRING(cases[k].want, s);
+        free(s);
+    }
+    jm_rational r;
+    TEST_ASSERT_TRUE(jm_rational_from_double_decimal(&r, 0.0));
+    TEST_ASSERT_TRUE(jm_rational_is_zero(&r));
+    TEST_ASSERT_FALSE(jm_rational_from_double_decimal(&r, INFINITY));
+}
+
+static jaos_model *model_tenths(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double cost[2] = { 1.0, 1.0 };
+    const double cl[2] = { 0.1, 0.2 }, cu[2] = { 0.1, 0.2 };
+    const double rl[1] = { 0.3 }, ru[1] = { 0.3 };
+    const int64_t start[3] = { 0, 1, 2 }, index[2] = { 0, 0 };
+    const double value[2] = { 1.0, 1.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     2, start, index, value));
+    return m;
+}
+
+static void test_exact_decimal_solving_reads_a_tenth_as_one_tenth(void)
+{
+    jaos_model *m = model_tenths();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact_decimal(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  jaos_model_error(m));
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_value(m, 0, &v));
+    TEST_ASSERT_EQUAL_STRING("1/10", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_objective(m, &v));
+    TEST_ASSERT_EQUAL_STRING("3/10", v);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    FILE *f = fopen(TMP_PROOF, "rb");
+    TEST_ASSERT_NOT_NULL(f);
+    char text[4096];
+    const size_t got = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[got] = '\0';
+    TEST_ASSERT_NOT_NULL(strstr(text, "\ndata decimal\n"));
+
+    jaos_model *plain = model_tenths();
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(plain, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact_decimal(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_exact_objective(m, &v));
+    jaos_model_free(plain);
+    jaos_model_free(m);
+}
+
 static jaos_model *model_thirds(void)
 {
     jaos_model *m = nullptr;
@@ -1412,6 +1490,8 @@ int main(void)
     RUN_TEST(test_refuses_a_mip_by_name);
     RUN_TEST(test_a_proof_file_is_not_judged_against_a_mip);
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
+    RUN_TEST(test_a_double_reads_as_its_shortest_decimal);
+    RUN_TEST(test_exact_decimal_solving_reads_a_tenth_as_one_tenth);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
     RUN_TEST(test_a_written_proof_is_one_its_own_checker_takes);

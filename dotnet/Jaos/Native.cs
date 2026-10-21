@@ -427,6 +427,7 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_set_mip_flow_cover_rounds(ModelHandle m, long rounds);
     [DllImport(Lib)] internal static extern int jaos_set_mip_hull_rounds(ModelHandle m, long rounds);
     [DllImport(Lib)] internal static extern int jaos_set_exact(ModelHandle m, [MarshalAs(UnmanagedType.U1)] bool on);
+    [DllImport(Lib)] internal static extern int jaos_set_exact_decimal(ModelHandle m, [MarshalAs(UnmanagedType.U1)] bool on);
     [DllImport(Lib)] internal static extern int jaos_set_mip_cut_stall(ModelHandle m, double fraction);
     [DllImport(Lib)] internal static extern int jaos_set_mip_node_cut_stall(ModelHandle m, double fraction);
     [DllImport(Lib)] internal static extern int jaos_set_mip_root_cut_drop(ModelHandle m, int on);

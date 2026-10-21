@@ -1904,6 +1904,16 @@ jaos_status jaos_set_exact(jaos_model *m, bool on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_exact_decimal(jaos_model *m, bool on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    if (m->cfg.exact_decimal != on)
+        jm_model_drop_exact(m);
+    m->cfg.exact_decimal = on;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_hull_rounds(jaos_model *m, int64_t rounds)
 {
     if (m == nullptr)

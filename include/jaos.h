@@ -235,6 +235,9 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_hull_rounds(jaos_model *m,
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_exact(jaos_model *m, bool on);
 
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_exact_decimal(jaos_model *m,
+                                                           bool on);
+
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_cut_stall(jaos_model *m,
                                                   double fraction);
 

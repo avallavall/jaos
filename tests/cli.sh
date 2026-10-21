@@ -288,6 +288,26 @@ expect_exit 5 "--exact refuses a MIP" \
 "$JAOS" options | grep -q '^exact ' \
     && pass "jaos options lists exact" \
     || flunk "jaos options does not list exact"
+if [ "$faulty" -eq 0 ]; then
+    expect_exit 1 "--exact finds 0.1 + 0.2 = 0.3 infeasible in binary" \
+        "$JAOS" solve "$DATA/lp_tenths.mps" --exact
+    expect_exit 0 "--exact-decimal proves it" \
+        "$JAOS" solve "$DATA/lp_tenths.mps" --exact --exact-decimal
+    [ "$(line_of objective_exact)" = "objective_exact 3/10" ] \
+        && pass "at 3/10" \
+        || flunk "--exact-decimal: $(line_of objective_exact)"
+    expect_exit 0 "verify --exact-decimal writes a proof" \
+        "$JAOS" verify "$DATA/lp_tenths.mps" --exact-decimal \
+        --proof "$tmp/tenths.proof"
+    grep -qx 'data decimal' "$tmp/tenths.proof" \
+        && pass "that says data decimal" \
+        || flunk "the decimal proof does not say data decimal"
+    expect_exit 0 "check reads the model as the proof says" \
+        "$JAOS" check "$DATA/lp_tenths.mps" --proof "$tmp/tenths.proof"
+fi
+"$JAOS" options | grep -q '^exact_decimal ' \
+    && pass "jaos options lists exact_decimal" \
+    || flunk "jaos options does not list exact_decimal"
 expect_exit 5 "--zero-half-rounds refuses a negative" \
     "$JAOS" solve "$DATA/nl_int.lp" --zero-half-rounds -1
 "$JAOS" options | grep -q '^mip_zero_half_rounds ' \

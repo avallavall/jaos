@@ -27,7 +27,7 @@ static const char U_SYNOPSIS[] =
     "                  [--cutoff V]\n"
     "                  [--basis BAS] [--write-basis BAS]\n"
     "                  [--write-point PT] [--write-duals D] [--pool-out PRE]\n"
-    "                  [--proof PATH] [--exact]\n"
+    "                  [--proof PATH] [--exact] [--exact-decimal]\n"
     "                  [--time-limit SECONDS] [--primal-tol T] [--dual-tol T]\n"
     "                  [--threads N]\n"
     "                  [--cut-rounds N] [--cover-rounds N] [--cut-depth D]\n"
@@ -74,7 +74,7 @@ static const char U_SYNOPSIS[] =
     "  jaos relax FILE [--rows | --cols] [--apply OUT] [--positional]\n"
     "               [--work-limit N]\n"
     "  jaos verify FILE [--values] [--proof PATH] [--basis BAS]\n"
-    "               [--work-limit N]\n"
+    "               [--exact-decimal] [--work-limit N]\n"
     "  jaos ranging FILE [--work-limit N]\n"
     "  jaos STUB -AMPL [NAME=VALUE]...\n"
     "  jaos --version\n"
@@ -267,6 +267,9 @@ static const char U_SOLVE_E[] =
     "  --exact          prove an LP's answer over the rationals, pivoting in\n"
     "                   exact arithmetic where the basis fails; prints\n"
     "                   objective_exact, or ends numerical_error\n"
+    "  --exact-decimal  the exact arithmetic reads each number as the shortest\n"
+    "                   decimal that rounds to it: 0.1 as 1/10, not as the\n"
+    "                   double nearest 0.1\n"
     "  --node-limit N   stop a MIP before its N-th node past the limit (N > 0)\n"
     "  --branching RULE which column a MIP branches on: pseudocost (default)\n"
     "                   or most-fractional\n"
@@ -386,6 +389,9 @@ static const char U_VERIFY[] =
     "                   in -- another solver's, say -- and about nothing\n"
     "                   JAOS did. Same three verdicts, same exit codes,\n"
     "                   and --values and --proof work off it\n"
+    "  --exact-decimal  read each number of the model as the shortest\n"
+    "                   decimal that rounds to it; the proof file then says\n"
+    "                   `data decimal`, and check reads the model that way\n"
     "  --work-limit N   stop the solve after N deterministic work units\n"
     "                   (N > 0); with --basis there is no solve to stop\n";
 
@@ -916,7 +922,7 @@ struct solve_options {
     int64_t probe_depth;
     int64_t pool_size;
     bool no_cut_drop;
-    bool dive, no_heuristics, exact;
+    bool dive, no_heuristics, exact, exact_decimal;
 
     bool has_primal_tol, has_dual_tol;
     double primal_tol, dual_tol;
@@ -1106,6 +1112,10 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--exact") == 0) {
             o->exact = true;
+            continue;
+        }
+        if (strcmp(a, "--exact-decimal") == 0) {
+            o->exact_decimal = true;
             continue;
         }
 
@@ -1648,6 +1658,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.exact && jaos_set_exact(m, true) != JAOS_OK) {
         rc = library_error("set exact solving for", o.file, m);
+        goto out;
+    }
+    if (o.exact_decimal && jaos_set_exact_decimal(m, true) != JAOS_OK) {
+        rc = library_error("set decimal exact data for", o.file, m);
         goto out;
     }
     if (o.no_heuristics && jaos_set_mip_heuristics(m, false) != JAOS_OK) {
@@ -2540,11 +2554,13 @@ static const char *stage_word(jaos_proof_stage s)
 static int cmd_verify(int argc, char **argv)
 {
     const char *file = nullptr, *proof = nullptr, *basis = nullptr;
-    bool values = false;
+    bool values = false, decimal = false;
     int64_t work_limit = 0;
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--values") == 0) {
             values = true;
+        } else if (strcmp(argv[i], "--exact-decimal") == 0) {
+            decimal = true;
         } else if (strcmp(argv[i], "--work-limit") == 0) {
             const int e = take_work_limit(argc, argv, &i, &work_limit);
             if (e >= 0)
@@ -2577,6 +2593,10 @@ static int cmd_verify(int argc, char **argv)
     rc = set_work_limit(m, file, work_limit);
     if (rc >= 0)
         goto out;
+    if (decimal && jaos_set_exact_decimal(m, true) != JAOS_OK) {
+        rc = library_error("set decimal exact data for", file, m);
+        goto out;
+    }
     if (jaos_model_has_integer(m)) {
         fprintf(stderr, "jaos: cannot verify %s: the exact proof is about "
                 "the basis behind an answer, and this model is a MIP: the "

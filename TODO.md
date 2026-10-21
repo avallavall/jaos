@@ -203,6 +203,6 @@ rows' case and the single ranged row's case are proved
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**
 
-J19. **Exact solving with no tolerances.** Numbers past the limbs, MIPs (an
-exact branch and bound), and data read as exact decimals
-(`bench/measurements/02-358/`).
+J19. **Exact solving with no tolerances.** Numbers past the limbs, and MIPs
+(an exact branch and bound). With decimal data, 20 of Netlib's 94 still
+outgrow the limbs (`bench/measurements/02-358/`, `02-418/`).

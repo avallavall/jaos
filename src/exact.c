@@ -604,6 +604,118 @@ int jm_rational_cmp(const jm_rational *a, const jm_rational *c)
     return r;
 }
 
+static bool rational_ten_power(jm_rational *r, int64_t k)
+{
+    jm_nat p, base, t, one;
+    jm_nat_set_u64(&p, 1);
+    jm_nat_set_u64(&base, 10);
+    jm_nat_set_u64(&one, 1);
+    for (int64_t n = k < 0 ? -k : k; n > 0; n /= 2) {
+        if (n % 2 == 1) {
+            if (!jm_nat_mul(&t, &p, &base))
+                return false;
+            p = t;
+        }
+        if (n > 1) {
+            if (!jm_nat_mul(&t, &base, &base))
+                return false;
+            base = t;
+        }
+    }
+    r->num.mag = k < 0 ? one : p;
+    r->num.sign = 1;
+    r->den = k < 0 ? p : one;
+    return true;
+}
+
+static bool rational_half_gap(jm_rational *r, double gap)
+{
+    jm_rational half;
+    jm_rational_set_i64(&half, 1);
+    jm_nat_set_u64(&half.den, 2);
+    return jm_rational_from_double(r, gap) && jm_rational_mul(r, r, &half);
+}
+
+bool jm_rational_from_double_decimal(jm_rational *r, double d)
+{
+    if (!isfinite(d))
+        return false;
+    if (d == 0.0) {
+        jm_rational_set_zero(r);
+        return true;
+    }
+    const double a = fabs(d);
+    const double below = nextafter(a, 0.0), above = nextafter(a, HUGE_VAL);
+    uint64_t bits = 0;
+    memcpy(&bits, &a, sizeof bits);
+    const bool closed = (bits & 1u) == 0;
+
+    jm_rational v, lo, hi, gap, p10, x, cand, scaled;
+    if (!jm_rational_from_double(&v, a) || !rational_half_gap(&gap, a - below) ||
+        !jm_rational_sub(&lo, &v, &gap) ||
+        !rational_half_gap(&gap, isfinite(above) ? above - a : a - below) ||
+        !jm_rational_add(&hi, &v, &gap))
+        return false;
+
+    int e2 = 0;
+    (void)frexp(a, &e2);
+    const int64_t t = (int64_t)(e2 - 1) * 78913;
+    int64_t e10 = t >= 0 ? t / 262144 : -((-t + 262143) / 262144);
+    int c = 0;
+    for (;;) {
+        if (!rational_ten_power(&p10, e10 + 1) || !jm_rational_cmp_checked(&v, &p10, &c))
+            return false;
+        if (c < 0)
+            break;
+        e10++;
+    }
+    for (;;) {
+        if (!rational_ten_power(&p10, e10) || !jm_rational_cmp_checked(&v, &p10, &c))
+            return false;
+        if (c >= 0)
+            break;
+        e10--;
+    }
+
+    for (int64_t digits = 1; digits <= 17; digits++) {
+        if (!rational_ten_power(&p10, digits - 1 - e10) ||
+            !jm_rational_mul(&x, &v, &p10))
+            return false;
+        jm_nat q, rem, twice, one;
+        if (!jm_nat_divmod(&q, &rem, &x.num.mag, &x.den) ||
+            !jm_nat_shl(&twice, &rem, 1))
+            return false;
+        const int up = jm_nat_cmp(&twice, &x.den);
+        if (up > 0 || (up == 0 && nat_bit(&q, 0))) {
+            jm_nat_set_u64(&one, 1);
+            if (!jm_nat_add(&q, &q, &one))
+                return false;
+        }
+        scaled.num.mag = q;
+        int_fix_sign(&scaled.num, 1);
+        jm_nat_set_u64(&scaled.den, 1);
+        if (!jm_rational_div(&cand, &scaled, &p10))
+            return false;
+        int cl = 0, ch = 0;
+        if (!jm_rational_cmp_checked(&cand, &lo, &cl) ||
+            !jm_rational_cmp_checked(&cand, &hi, &ch))
+            return false;
+        if ((closed ? cl >= 0 : cl > 0) && (closed ? ch <= 0 : ch < 0)) {
+            *r = cand;
+            if (d < 0.0)
+                jm_rational_neg(r);
+            return true;
+        }
+    }
+    return jm_rational_from_double(r, d);
+}
+
+bool jm_rational_from_value(jm_rational *r, double d, bool decimal)
+{
+    return decimal ? jm_rational_from_double_decimal(r, d)
+                   : jm_rational_from_double(r, d);
+}
+
 double jm_rational_to_double(const jm_rational *r)
 {
     if (r->num.sign == 0)

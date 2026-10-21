@@ -17,6 +17,7 @@ typedef struct {
     jm_bigint *zval;
     int64_t   *who;
     int64_t   *shift;
+    int64_t   *five;
     int64_t   *cshift;
     int64_t    nnz;
 } vbasis;
@@ -29,6 +30,7 @@ static void vbasis_free(vbasis *b)
     free(b->zval);
     free(b->who);
     free(b->shift);
+    free(b->five);
     free(b->cshift);
     memset(b, 0, sizeof *b);
 }
@@ -80,10 +82,11 @@ static bool vbasis_build(const jaos_model *m, vbasis *b)
     b->zval  = calloc((size_t)(nnz > 0 ? nnz : 1), sizeof *b->zval);
     b->who   = calloc((size_t)(nr > 0 ? nr : 1), sizeof *b->who);
     b->shift = calloc((size_t)(nr > 0 ? nr : 1), sizeof *b->shift);
+    b->five  = calloc((size_t)(nr > 0 ? nr : 1), sizeof *b->five);
     b->cshift = calloc((size_t)(nr > 0 ? nr : 1), sizeof *b->cshift);
     if (b->start == nullptr || b->row == nullptr || b->dval == nullptr ||
         b->zval == nullptr || b->who == nullptr || b->shift == nullptr ||
-        b->cshift == nullptr) {
+        b->five == nullptr || b->cshift == nullptr) {
         vbasis_free(b);
         return false;
     }
@@ -117,33 +120,121 @@ static bool vbasis_build(const jaos_model *m, vbasis *b)
     return true;
 }
 
-static bool vbasis_scale(vbasis *b)
+static int64_t nat_twos(const jm_nat *a)
 {
-    for (int64_t i = 0; i < b->n; i++)
+    for (int64_t l = 0; l < a->n; l++)
+        if (a->w[l] != 0) {
+            int64_t t = 32 * l;
+            for (uint32_t v = a->w[l]; (v & 1u) == 0; v >>= 1)
+                t++;
+            return t;
+        }
+    return 0;
+}
+
+static bool nat_five_power(jm_nat *r, int64_t e)
+{
+    jm_nat base, t;
+    jm_nat_set_u64(r, 1);
+    jm_nat_set_u64(&base, 5);
+    for (; e > 0; e /= 2) {
+        if (e % 2 == 1) {
+            if (!jm_nat_mul(&t, r, &base))
+                return false;
+            *r = t;
+        }
+        if (e > 1) {
+            if (!jm_nat_mul(&t, &base, &base))
+                return false;
+            base = t;
+        }
+    }
+    return true;
+}
+
+static bool decimal_parts(double v, jm_bigint *num, int64_t *twos,
+                          int64_t *fives)
+{
+    jm_rational r;
+    if (!jm_rational_from_double_decimal(&r, v))
+        return false;
+    *num = r.num;
+    *twos = nat_twos(&r.den);
+    *fives = 0;
+    jm_nat d, q, rem, five, one;
+    jm_nat_shr(&d, &r.den, *twos);
+    jm_nat_set_u64(&five, 5);
+    jm_nat_set_u64(&one, 1);
+    while (jm_nat_cmp(&d, &one) != 0) {
+        if (!jm_nat_divmod(&q, &rem, &d, &five) || !jm_nat_is_zero(&rem))
+            return false;
+        d = q;
+        (*fives)++;
+    }
+    return true;
+}
+
+static bool vbasis_parts(const jaos_model *m, vbasis *b, int64_t *ex)
+{
+    if (!m->cfg.exact_decimal) {
+        for (int64_t k = 0; k < b->nnz; k++) {
+            jm_bigint_set_i64(&b->zval[k], dyadic_mantissa(b->dval[k]));
+            ex[k] = dyadic_exponent(b->dval[k]);
+        }
+        return true;
+    }
+    int64_t *fv = jm_alloc_array(b->nnz > 0 ? b->nnz : 1, sizeof *fv);
+    if (fv == nullptr)
+        return false;
+    bool ok = true;
+    for (int64_t k = 0; ok && k < b->nnz; k++) {
+        int64_t tw = 0;
+        ok = decimal_parts(b->dval[k], &b->zval[k], &tw, &fv[k]);
+        ex[k] = -tw;
+        if (ok && fv[k] > b->five[b->row[k]])
+            b->five[b->row[k]] = fv[k];
+    }
+    for (int64_t k = 0; ok && k < b->nnz; k++) {
+        jm_bigint p5 = {.sign = 1};
+        ok = nat_five_power(&p5.mag, b->five[b->row[k]] - fv[k]) &&
+             jm_bigint_mul(&b->zval[k], &b->zval[k], &p5);
+        if (!ok)
+            break;
+        const int64_t t = nat_twos(&b->zval[k].mag);
+        jm_nat_shr(&b->zval[k].mag, &b->zval[k].mag, t);
+        ex[k] += t;
+    }
+    free(fv);
+    return ok;
+}
+
+static bool vbasis_scale(const jaos_model *m, vbasis *b)
+{
+    int64_t *ex = jm_alloc_array(b->nnz > 0 ? b->nnz : 1, sizeof *ex);
+    if (ex == nullptr)
+        return false;
+    for (int64_t i = 0; i < b->n; i++) {
         b->shift[i] = 1;
-    for (int64_t k = 0; k < b->nnz; k++) {
+        b->five[i] = 0;
+    }
+    bool ok = vbasis_parts(m, b, ex);
+    for (int64_t k = 0; ok && k < b->nnz; k++) {
         const int64_t i = b->row[k];
-        const int64_t e = dyadic_exponent(b->dval[k]);
-        if (b->shift[i] == 1 || e < b->shift[i])
-            b->shift[i] = e;
+        if (b->shift[i] == 1 || ex[k] < b->shift[i])
+            b->shift[i] = ex[k];
     }
     for (int64_t i = 0; i < b->n; i++)
         if (b->shift[i] > 0)
             b->shift[i] = 0;
 
-    for (int64_t k = 0; k < b->nnz; k++) {
-        const int64_t i = b->row[k];
-        const int64_t e = dyadic_exponent(b->dval[k]) - b->shift[i];
-        jm_bigint_set_i64(&b->zval[k], dyadic_mantissa(b->dval[k]));
-        if (!jm_bigint_shl(&b->zval[k], &b->zval[k], e))
-            return false;
-    }
+    for (int64_t k = 0; ok && k < b->nnz; k++)
+        ok = jm_bigint_shl(&b->zval[k], &b->zval[k],
+                           ex[k] - b->shift[b->row[k]]);
 
-    for (int64_t c = 0; c < b->n; c++) {
+    for (int64_t c = 0; ok && c < b->n; c++) {
         int64_t g = -1;
         for (int64_t k = b->start[c]; k < b->start[c + 1]; k++) {
-            const int64_t i = b->row[k];
-            const int64_t e = dyadic_exponent(b->dval[k]) - b->shift[i];
+            const int64_t e = ex[k] - b->shift[b->row[k]];
             if (g < 0 || e < g)
                 g = e;
         }
@@ -153,7 +244,32 @@ static bool vbasis_scale(vbasis *b)
         for (int64_t k = b->start[c]; k < b->start[c + 1]; k++)
             jm_nat_shr(&b->zval[k].mag, &b->zval[k].mag, b->cshift[c]);
     }
-    return true;
+    free(ex);
+    return ok;
+}
+
+static bool rat_scale2(jm_rational *r, int64_t e)
+{
+    if (e == 0 || jm_rational_is_zero(r))
+        return true;
+    jm_rational p2;
+    jm_rational_set_i64(&p2, 1);
+    if (e > 0 ? !jm_nat_shl(&p2.num.mag, &p2.num.mag, e)
+              : !jm_nat_shl(&p2.den, &p2.den, -e))
+        return false;
+    return jm_rational_mul(r, r, &p2);
+}
+
+static bool vbasis_row_scale(const vbasis *b, int64_t i, jm_rational *r)
+{
+    if (!rat_scale2(r, -b->shift[i]))
+        return false;
+    if (b->five[i] == 0 || jm_rational_is_zero(r))
+        return true;
+    jm_rational p5;
+    jm_rational_set_i64(&p5, 1);
+    return nat_five_power(&p5.num.mag, b->five[i]) &&
+           jm_rational_mul(r, r, &p5);
 }
 
 static int64_t ceil_log2_i64(int64_t x)
@@ -735,15 +851,20 @@ static bool solve_system(vsolver *V, const jm_rational *rhs, jm_rational *sol)
     return ok;
 }
 
-static int rat_in_bounds(const jm_rational *v, double lo, double hi,
-                         double *by, bool *ok)
+static bool model_rational(const jaos_model *m, jm_rational *r, double d)
+{
+    return jm_rational_from_value(r, d, m->cfg.exact_decimal);
+}
+
+static int rat_in_bounds(const jaos_model *m, const jm_rational *v,
+                         double lo, double hi, double *by, bool *ok)
 {
     jm_rational bd, diff;
     int c = 0;
     *ok = true;
     *by = 0.0;
     if (isfinite(lo)) {
-        if (!jm_rational_from_double(&bd, lo)) { *ok = false; return 0; }
+        if (!model_rational(m, &bd, lo)) { *ok = false; return 0; }
 
         if (!jm_rational_cmp_checked(v, &bd, &c)) { *ok = false; return 0; }
         if (c < 0) {
@@ -753,7 +874,7 @@ static int rat_in_bounds(const jm_rational *v, double lo, double hi,
         }
     }
     if (isfinite(hi)) {
-        if (!jm_rational_from_double(&bd, hi)) { *ok = false; return 0; }
+        if (!model_rational(m, &bd, hi)) { *ok = false; return 0; }
         if (!jm_rational_cmp_checked(v, &bd, &c)) { *ok = false; return 0; }
         if (c > 0) {
             if (jm_rational_sub(&diff, v, &bd))
@@ -813,7 +934,7 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
         *out = rep;
         return JAOS_ERR_NUMERICAL;
     }
-    if (!vbasis_scale(&b)) {
+    if (!vbasis_scale(m, &b)) {
         jm_set_err(m, "a basis row does not scale to an integer "
                       "inside the limb budget");
         goto done;
@@ -903,12 +1024,12 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
             }
             if (at == 0.0)
                 continue;
-            if (!jm_rational_from_double(&v, at)) { okrhs = false; break; }
+            if (!model_rational(m, &v, at)) { okrhs = false; break; }
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
                 if (m->a_value[k] == 0.0)
                     continue;
                 const int64_t i = m->a_index[k];
-                if (!jm_rational_from_double(&cv, -m->a_value[k]) ||
+                if (!model_rational(m, &cv, -m->a_value[k]) ||
                     !jm_rational_mul(&t2, &cv, &v) ||
                     !jm_rational_add(&rhs[i], &rhs[i], &t2)) {
                     okrhs = false; break;
@@ -935,23 +1056,15 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
 
             if (at == 0.0)
                 continue;
-            if (!jm_rational_from_double(&v, at) ||
+            if (!model_rational(m, &v, at) ||
                 !jm_rational_add(&rhs[i], &rhs[i], &v)) { okrhs = false; break; }
         }
         if (!okrhs)
             goto done;
 
-        for (int64_t i = 0; i < b.n; i++) {
-            if (b.shift[i] == 0)
-                continue;
-            jm_rational p2;
-            jm_rational_set_i64(&p2, 1);
-            if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+        for (int64_t i = 0; i < b.n; i++)
+            if (!vbasis_row_scale(&b, i, &rhs[i]))
                 goto done;
-            p2.num.sign = 1;
-            if (!jm_rational_mul(&rhs[i], &rhs[i], &p2))
-                goto done;
-        }
     }
 
     {
@@ -996,7 +1109,7 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
         else        { lo = m->row_lower[-w - 1]; hi = m->row_upper[-w - 1]; }
         bool okb = true;
         double by = 0.0;
-        const int side = rat_in_bounds(&xs[i], lo, hi, &by, &okb);
+        const int side = rat_in_bounds(m, &xs[i], lo, hi, &by, &okb);
         if (!okb) {
 
             rep.status = JAOS_PROOF_REFUSED;
@@ -1018,7 +1131,7 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
     for (int64_t i = 0; i < b.n; i++) {
         const int64_t c = mr[i];
         const int64_t w = b.who[c];
-        if (w >= 0 && !jm_rational_from_double(&rhs[i], sigma * m->col_cost[w]))
+        if (w >= 0 && !model_rational(m, &rhs[i], sigma * m->col_cost[w]))
             goto done;
 
         const int64_t g = b.cshift[c];
@@ -1054,17 +1167,9 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
             rep.bytes_held = (int64_t)V.held;
     }
 
-    for (int64_t i = 0; i < b.n; i++) {
-        if (b.shift[i] == 0)
-            continue;
-        jm_rational p2;
-        jm_rational_set_i64(&p2, 1);
-        if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+    for (int64_t i = 0; i < b.n; i++)
+        if (!vbasis_row_scale(&b, i, &us[i]))
             goto done;
-        p2.num.sign = 1;
-        if (!jm_rational_mul(&us[i], &us[i], &p2))
-            goto done;
-    }
 
     {
         jm_rational d, t2, cv, zero;
@@ -1076,12 +1181,12 @@ static jaos_status verify_core(jaos_model *m, jaos_verify_report *out)
 
             if (m->col_lower[j] == m->col_upper[j])
                 continue;
-            if (!jm_rational_from_double(&d, sigma * m->col_cost[j]))
+            if (!model_rational(m, &d, sigma * m->col_cost[j]))
                 goto done;
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
                 if (m->a_value[k] == 0.0)
                     continue;
-                if (!jm_rational_from_double(&cv, m->a_value[k]) ||
+                if (!model_rational(m, &cv, m->a_value[k]) ||
                     !jm_rational_mul(&t2, &cv, &us[m->a_index[k]]) ||
                     !jm_rational_sub(&d, &d, &t2))
                     goto done;
@@ -1171,27 +1276,15 @@ static bool xbasis_build(const jaos_model *m, xbasis *x)
         return false;
     x->mc = jm_alloc_array(x->b.n > 0 ? x->b.n : 1, sizeof *x->mc);
     x->mr = jm_alloc_array(x->b.n > 0 ? x->b.n : 1, sizeof *x->mr);
-    return x->mc != nullptr && x->mr != nullptr && vbasis_scale(&x->b) &&
+    return x->mc != nullptr && x->mr != nullptr && vbasis_scale(m, &x->b) &&
            vrowwise_build(&x->b, &x->rw) &&
            transversal(&x->b, x->mc, x->mr) && tarjan(&x->b, x->mr, &x->s);
-}
-
-static bool rat_scale2(jm_rational *r, int64_t e)
-{
-    if (e == 0 || jm_rational_is_zero(r))
-        return true;
-    jm_rational p2;
-    jm_rational_set_i64(&p2, 1);
-    if (e > 0 ? !jm_nat_shl(&p2.num.mag, &p2.num.mag, e)
-              : !jm_nat_shl(&p2.den, &p2.den, -e))
-        return false;
-    return jm_rational_mul(r, r, &p2);
 }
 
 static bool xbasis_cols(xbasis *x, jm_rational *rhs, jm_rational *out)
 {
     for (int64_t i = 0; i < x->b.n; i++)
-        if (!rat_scale2(&rhs[i], -x->b.shift[i]))
+        if (!vbasis_row_scale(&x->b, i, &rhs[i]))
             return false;
     vsolver V = { .b = &x->b, .rw = &x->rw, .match_row = x->mr,
                   .match_col = x->mc, .s = &x->s, .transpose = false };
@@ -1213,7 +1306,7 @@ static bool xbasis_rows(xbasis *x, jm_rational *rhs, jm_rational *out)
     if (!solve_system(&V, rhs, out))
         return false;
     for (int64_t i = 0; i < x->b.n; i++)
-        if (!rat_scale2(&out[i], -x->b.shift[i]))
+        if (!vbasis_row_scale(&x->b, i, &out[i]))
             return false;
     return true;
 }
@@ -1247,7 +1340,7 @@ static bool xvar_dot(const jaos_model *m, int64_t v, const jm_rational *z,
     for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
         if (m->a_value[k] == 0.0)
             continue;
-        if (!jm_rational_from_double(&a, m->a_value[k]) ||
+        if (!model_rational(m, &a, m->a_value[k]) ||
             !jm_rational_mul(&t, &a, &z[m->a_index[k]]) ||
             !jm_rational_add(out, out, &t))
             return false;
@@ -1324,7 +1417,7 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
         if (at == 0.0)
             continue;
         jm_rational r, a, t;
-        if (!jm_rational_from_double(&r, at))
+        if (!model_rational(m, &r, at))
             goto out;
         if (v >= nc) {
             if (!jm_rational_add(&rhs[v - nc], &rhs[v - nc], &r))
@@ -1334,7 +1427,7 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
         for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++) {
             if (m->a_value[k] == 0.0)
                 continue;
-            if (!jm_rational_from_double(&a, -m->a_value[k]) ||
+            if (!model_rational(m, &a, -m->a_value[k]) ||
                 !jm_rational_mul(&t, &a, &r) ||
                 !jm_rational_add(&rhs[m->a_index[k]], &rhs[m->a_index[k]], &t))
                 goto out;
@@ -1349,8 +1442,8 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             continue;
         bool okb = true;
         double by = 0.0;
-        const int s = rat_in_bounds(&xs[pos[v]], xvar_lo(m, v), xvar_hi(m, v),
-                                    &by, &okb);
+        const int s = rat_in_bounds(m, &xs[pos[v]], xvar_lo(m, v),
+                                    xvar_hi(m, v), &by, &okb);
         if (!okb)
             goto out;
         if (s != 0) {
@@ -1406,16 +1499,16 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             m->sol_dual[i] = jm_rational_to_double(&y);
         }
         jm_rational acc, t, cj, xj;
-        bool fits = jm_rational_from_double(&acc, m->obj_offset);
+        bool fits = model_rational(m, &acc, m->obj_offset);
         for (int64_t j = 0; fits && j < nc; j++) {
             if (m->col_cost[j] == 0.0)
                 continue;
             if (pos[j] >= 0)
                 xj = xs[pos[j]];
             else
-                fits = jm_rational_from_double(
+                fits = model_rational(m, 
                     &xj, xvar_at(m, j, m->sol_col_status[j]));
-            fits = fits && jm_rational_from_double(&cj, m->col_cost[j]) &&
+            fits = fits && model_rational(m, &cj, m->col_cost[j]) &&
                    jm_rational_mul(&t, &cj, &xj) &&
                    jm_rational_add(&acc, &acc, &t);
         }
@@ -1500,7 +1593,7 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             for (int64_t k = m->a_start[enter]; k < m->a_start[enter + 1];
                  k++)
                 if (m->a_value[k] != 0.0 &&
-                    !jm_rational_from_double(&rhs[m->a_index[k]],
+                    !model_rational(m, &rhs[m->a_index[k]],
                                              m->a_value[k]))
                     goto out;
         }
@@ -1515,8 +1608,8 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
         const jaos_basis_status est = *xvar_st(m, enter);
         if (est != JAOS_BASIS_FREE && isfinite(elo) && isfinite(ehi)) {
             jm_rational l, h;
-            if (!jm_rational_from_double(&l, elo) ||
-                !jm_rational_from_double(&h, ehi) ||
+            if (!model_rational(m, &l, elo) ||
+                !model_rational(m, &h, ehi) ||
                 !jm_rational_sub(&bt, &h, &l))
                 goto out;
             best = enter;
@@ -1532,7 +1625,7 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             if (!isfinite(bd))
                 continue;
             jm_rational b, gap, t;
-            if (!jm_rational_from_double(&b, bd) ||
+            if (!model_rational(m, &b, bd) ||
                 !jm_rational_sub(&gap, &b, &xs[i]) ||
                 !rat_abs_ratio(&t, &gap, &w[i]))
                 goto out;
@@ -1580,7 +1673,7 @@ static bool exact_costs(const jaos_model *m, jm_rational *cost)
 {
     const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
     for (int64_t j = 0; j < m->num_col; j++)
-        if (!jm_rational_from_double(&cost[j], sigma * m->col_cost[j]))
+        if (!model_rational(m, &cost[j], sigma * m->col_cost[j]))
             return false;
     for (int64_t i = 0; i < m->num_row; i++)
         jm_rational_set_zero(&cost[m->num_col + i]);
@@ -1842,7 +1935,7 @@ static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
         default:                  at = 0.0;             break;
         }
         jm_rational r;
-        if (!isfinite(at) || !jm_rational_from_double(&r, at))
+        if (!isfinite(at) || !model_rational(m, &r, at))
             goto fail;
         m->exact_col[j] = jm_rational_decimal(&r);
         if (m->exact_col[j] == nullptr)
@@ -1860,12 +1953,12 @@ static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
 
     {
         jm_rational acc, t, cj, xj;
-        bool fits = jm_rational_from_double(&acc, m->obj_offset);
+        bool fits = model_rational(m, &acc, m->obj_offset);
         for (int64_t i = 0; fits && i < b->n; i++) {
             const int64_t w = b->who[mr[i]];
             if (w < 0 || m->col_cost[w] == 0.0)
                 continue;
-            fits = jm_rational_from_double(&cj, m->col_cost[w]) &&
+            fits = model_rational(m, &cj, m->col_cost[w]) &&
                    jm_rational_mul(&t, &cj, &xs[i]) &&
                    jm_rational_add(&acc, &acc, &t);
         }
@@ -1878,8 +1971,8 @@ static bool exact_store(jaos_model *m, const vbasis *b, const int64_t *mr,
                 at = m->col_lower[j];
             else if (m->sol_col_status[j] == JAOS_BASIS_AT_UPPER)
                 at = m->col_upper[j];
-            fits = jm_rational_from_double(&cj, m->col_cost[j]) &&
-                   jm_rational_from_double(&xj, at) &&
+            fits = model_rational(m, &cj, m->col_cost[j]) &&
+                   model_rational(m, &xj, at) &&
                    jm_rational_mul(&t, &cj, &xj) &&
                    jm_rational_add(&acc, &acc, &t);
         }
@@ -1977,7 +2070,7 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
         *out = rep;
         return JAOS_ERR_NUMERICAL;
     }
-    if (!vbasis_scale(&b)) {
+    if (!vbasis_scale(m, &b)) {
         jm_set_err(m, "jaos_exact_certificate: a basis row does not scale to "
                       "an integer inside the limb budget");
         goto done;
@@ -2063,7 +2156,7 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
     for (int64_t i = 0; i < b.n; i++) {
         if (mr[i] != pos)
             continue;
-        if (!jm_rational_from_double(&rhs[i], best_signed > 0.0 ? 1.0 : -1.0))
+        if (!model_rational(m, &rhs[i], best_signed > 0.0 ? 1.0 : -1.0))
             goto done;
         const int64_t g = b.cshift[pos];
         if (g != 0) {
@@ -2095,17 +2188,9 @@ jaos_status jaos_exact_certificate(jaos_model *m, jaos_exact_ray_report *out)
             rep.bytes_held = (int64_t)V.held;
     }
 
-    for (int64_t i = 0; i < b.n; i++) {
-        if (b.shift[i] == 0)
-            continue;
-        jm_rational p2;
-        jm_rational_set_i64(&p2, 1);
-        if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+    for (int64_t i = 0; i < b.n; i++)
+        if (!vbasis_row_scale(&b, i, &us[i]))
             goto done;
-        p2.num.sign = 1;
-        if (!jm_rational_mul(&us[i], &us[i], &p2))
-            goto done;
-    }
 
     m->exact_farkas = jm_calloc_array(m->num_row, sizeof(char *));
     if (m->exact_farkas == nullptr)
@@ -2181,7 +2266,7 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
         *out = rep;
         return JAOS_ERR_NUMERICAL;
     }
-    if (!vbasis_scale(&b)) {
+    if (!vbasis_scale(m, &b)) {
         jm_set_err(m, "jaos_exact_unbounded_ray: a basis row does not scale "
                       "to an integer inside the limb budget");
         goto done;
@@ -2245,29 +2330,21 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
             if (m->sol_col_status[j] == JAOS_BASIS_BASIC ||
                 m->sol_ray[j] == 0.0)
                 continue;
-            if (!jm_rational_from_double(&d, -m->sol_ray[j]))
+            if (!model_rational(m, &d, -m->sol_ray[j]))
                 goto done;
             for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
                 if (m->a_value[k] == 0.0)
                     continue;
                 const int64_t i = m->a_index[k];
-                if (!jm_rational_from_double(&v, m->a_value[k]) ||
+                if (!model_rational(m, &v, m->a_value[k]) ||
                     !jm_rational_mul(&t, &v, &d) ||
                     !jm_rational_add(&rhs[i], &rhs[i], &t))
                     goto done;
             }
         }
-        for (int64_t i = 0; i < b.n; i++) {
-            if (b.shift[i] == 0 || jm_rational_is_zero(&rhs[i]))
-                continue;
-            jm_rational p2;
-            jm_rational_set_i64(&p2, 1);
-            if (!jm_nat_shl(&p2.num.mag, &p2.num.mag, -b.shift[i]))
+        for (int64_t i = 0; i < b.n; i++)
+            if (!vbasis_row_scale(&b, i, &rhs[i]))
                 goto done;
-            p2.num.sign = 1;
-            if (!jm_rational_mul(&rhs[i], &rhs[i], &p2))
-                goto done;
-        }
     }
     {
         vsolver V = { .b = &b, .rw = &rw, .match_row = mr, .match_col = mc,
@@ -2319,7 +2396,7 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
             if (m->sol_col_status[j] == JAOS_BASIS_BASIC ||
                 m->sol_ray[j] == 0.0)
                 continue;
-            if (!jm_rational_from_double(&neg, m->sol_ray[j])) {
+            if (!model_rational(m, &neg, m->sol_ray[j])) {
                 jm_model_drop_exact(m);
                 goto done;
             }

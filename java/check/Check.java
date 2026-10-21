@@ -1172,6 +1172,7 @@ public final class Check {
             m.setMipMirAggregate(2); reads(m, wrong, "mip_mir_aggregate", "2");
             m.setMipDive(true); reads(m, wrong, "mip_dive", "true");
             m.setExact(true); reads(m, wrong, "exact", "true");
+            m.setExactDecimal(true); reads(m, wrong, "exact_decimal", "true");
             m.setMipDiveChild(DiveChild.UP); reads(m, wrong, "mip_dive_child", "up");
             m.setMipDiveBacktrack(2); reads(m, wrong, "mip_dive_backtrack", "2");
             m.setMipDiveGap(0.5); reads(m, wrong, "mip_dive_gap", "0.5");

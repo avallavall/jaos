@@ -2110,7 +2110,20 @@ certificate or direction instead. Anything that cannot be proved ends
 `JAOS_SOLVE_NUMERICAL_ERROR` with the reason in `jaos_model_error`: a
 number past the limb budget, or `EXACT_PIVOT_CAP` (1000) exact pivots.
 The model's data are its doubles: an MPS value such as 0.1 is the double
-nearest 0.1, and the proof is about those numbers.
+nearest 0.1, and the proof is about those numbers, unless
+`jaos_set_exact_decimal` is on.
+
+**`jaos_set_exact_decimal`**\
+`jaos_status jaos_set_exact_decimal(jaos_model *m, bool on)`\
+Makes the exact arithmetic read each number of the model as the shortest
+decimal that rounds to it: 0.1 as 1/10 and 4.35 as 87/20. This is the
+number an MPS or LP file wrote when it gave 17 significant digits or
+fewer. It is off by default, and the option name is `exact_decimal`. It
+covers `jaos_solve` under `jaos_set_exact`, `jaos_verify`,
+`jaos_verify_basis`, the exact certificate and direction, and the proof
+file, which then carries `data decimal`. The floating-point solve is the
+same either way. Turning it on or off drops the exact values the model
+holds, since they were about the other numbers.
 
 **`jaos_verify`**\
 `jaos_status jaos_verify(jaos_model *m, jaos_verify_report *out)`\

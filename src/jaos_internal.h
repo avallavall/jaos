@@ -72,6 +72,7 @@ typedef struct {
     int64_t mip_hull_rounds;
 
     bool exact;
+    bool exact_decimal;
 
     bool mip_cut_stall_set;
     double mip_cut_stall;
@@ -901,6 +902,9 @@ char   *jm_rational_decimal(const jm_rational *r);
 JAOS_NODISCARD bool jm_rational_from_decimal(jm_rational *r, const char *s);
 
 JAOS_NODISCARD bool jm_rational_from_double(jm_rational *r, double d);
+JAOS_NODISCARD bool jm_rational_from_double_decimal(jm_rational *r, double d);
+JAOS_NODISCARD bool jm_rational_from_value(jm_rational *r, double d,
+                                           bool decimal);
 
 JAOS_NODISCARD bool jm_rational_add(jm_rational *r, const jm_rational *a,
                                     const jm_rational *c);
