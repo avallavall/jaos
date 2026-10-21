@@ -28,6 +28,10 @@ the checker's reduced-cost test is absolute (1e-7). 02-326 seed 2's model
 620 is a smaller case with small duals: its optimum has C2 = 28434, the
 settle's refit leaves stationarity at 3.3e-8, and times columns near 2e4
 that leaves the objective gap at 5.2e-6 (`bench/measurements/02-390/`).
+The same absolute test refuses 22% of the optima of generated LPs scaled
+by powers of ten up to 1e6, all optimal to rounding, and the simplex's
+own publish test ends 5 of those solves `numerical_error`
+(`bench/measurements/02-411/`).
 Next: a dual refit on the active set in compensated arithmetic; or a
 reduced-cost test relative to its terms, which changes the checker's
 contract and is the maintainer's decision. Verify with 02-255's

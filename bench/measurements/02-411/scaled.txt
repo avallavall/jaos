@@ -1,0 +1,219 @@
+== scale 1e2 seed 1
+models 1000 (optimal 518 infeasible 459 unbounded 23) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0
+== scale 1e2 seed 2
+models 1000 (optimal 533 infeasible 452 unbounded 15) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0
+== scale 1e2 seed 3
+models 1000 (optimal 527 infeasible 453 unbounded 20) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0
+== scale 1e4 seed 1
+dual P3 m152 k=4 the checker refuses: rows 6.94e-17 duals 1.74e-07; gap certified 1, relative suboptimality 5.37e-16
+primal P3 m152 k=4 the checker refuses: rows 6.94e-17 duals 1.74e-07; gap certified 1, relative suboptimality 5.37e-16
+barrier P3 m152 k=4 the checker refuses: rows 6.94e-17 duals 1.74e-07; gap certified 1, relative suboptimality 5.37e-16
+dual P3 m229 k=4 the checker refuses: rows 5.04e-17 duals 1.08e-07; gap certified 1, relative suboptimality 1.39e-16
+primal P3 m229 k=4 the checker refuses: rows 5.04e-17 duals 1.08e-07; gap certified 1, relative suboptimality 1.39e-16
+barrier P3 m229 k=4 the checker refuses: rows 5.04e-17 duals 1.08e-07; gap certified 1, relative suboptimality 1.39e-16
+primal P3 m300 k=4 the checker refuses: rows 6.15e-17 duals 1.71e-07; gap certified 1, relative suboptimality 1.84e-14
+primal P3 m345 k=4 the checker refuses: rows 1.73e-18 duals 2.26e-07; gap certified 1, relative suboptimality 2.38e-16
+dual P3 m365 k=4 the checker refuses: rows 8.9e-17 duals 2.51e-07; gap certified 0, relative suboptimality 2.22e-15
+UNCERTIFIED dual m365: the checker refuses: rows 8.9e-17 duals 2.51e-07; gap certified 0, relative suboptimality 2.22e-15; objective gap 1.02e-15
+primal P3 m365 k=4 the checker refuses: rows 1.19e-16 duals 4.67e-07; gap certified 0, relative suboptimality 1.69e-15
+UNCERTIFIED primal m365: the checker refuses: rows 1.19e-16 duals 4.67e-07; gap certified 0, relative suboptimality 1.69e-15; objective gap 6.48e-16
+barrier P3 m365 k=4 the checker refuses: rows 8.9e-17 duals 2.51e-07; gap certified 0, relative suboptimality 2.22e-15
+UNCERTIFIED barrier m365: the checker refuses: rows 8.9e-17 duals 2.51e-07; gap certified 0, relative suboptimality 2.22e-15; objective gap 1.02e-15
+primal P3 m509 k=4 the checker refuses: rows 5.55e-17 duals 3.93e-07; gap certified 1, relative suboptimality 2.03e-16
+dual P3 m513 k=4 the checker refuses: rows 6.94e-17 duals 2.11e-07; gap certified 1, relative suboptimality 9.06e-16
+barrier P3 m513 k=4 the checker refuses: rows 6.94e-17 duals 2.11e-07; gap certified 1, relative suboptimality 9.06e-16
+dual P3 m542 k=4 the checker refuses: rows 0 duals 6.58e-07; gap certified 1, relative suboptimality 5.96e-15
+barrier P3 m542 k=4 the checker refuses: rows 0 duals 6.58e-07; gap certified 1, relative suboptimality 5.96e-15
+barrier P3 m628 k=4 the checker refuses: rows 2.17e-19 duals 2.08e-07; gap certified 1, relative suboptimality 6.51e-17
+dual P3 m754 k=4 the checker refuses: rows 3.74e-17 duals 1.39e-07; gap certified 1, relative suboptimality 8.44e-16
+models 1000 (optimal 518 infeasible 459 unbounded 23) scaled by up to 1e4
+dual     P1=0 P2=0 P3=9 of them uncertified 1
+primal   P1=0 P2=0 P3=13 of them uncertified 1
+barrier  P1=0 P2=0 P3=8 of them uncertified 1
+broken total 30
+== scale 1e4 seed 2
+dual P3 m15 k=4 the checker refuses: rows 9.53e-17 duals 1.67e-07; gap certified 1, relative suboptimality 4e-16
+primal P3 m15 k=4 the checker refuses: rows 9.53e-17 duals 1.67e-07; gap certified 1, relative suboptimality 4.93e-16
+barrier P3 m15 k=4 the checker refuses: rows 9.53e-17 duals 1.67e-07; gap certified 1, relative suboptimality 4.93e-16
+dual P3 m40 k=4 the checker refuses: rows 7.87e-17 duals 1.89e-07; gap certified 1, relative suboptimality 2.08e-15
+primal P3 m40 k=4 the checker refuses: rows 7.87e-17 duals 1.89e-07; gap certified 1, relative suboptimality 2.08e-15
+barrier P3 m40 k=4 the checker refuses: rows 7.87e-17 duals 1.89e-07; gap certified 1, relative suboptimality 2.08e-15
+dual P3 m63 k=4 the checker refuses: rows 2.04e-17 duals 1.55e-07; gap certified 1, relative suboptimality 2.64e-16
+primal P3 m140 k=4 the checker refuses: rows 5.55e-17 duals 1.72e-07; gap certified 0, relative suboptimality 1.27e-16
+UNCERTIFIED primal m140: the checker refuses: rows 5.55e-17 duals 1.72e-07; gap certified 0, relative suboptimality 1.27e-16; objective gap 4.05e-17
+primal P3 m253 k=4 the checker refuses: rows 0 duals 2.71e-07; gap certified 1, relative suboptimality 1.49e-15
+dual P3 m296 k=4 the checker refuses: rows 2.67e-17 duals 1.5e-07; gap certified 1, relative suboptimality 3.45e-16
+dual P3 m351 k=4 the checker refuses: rows 5.54e-17 duals 2.84e-07; gap certified 1, relative suboptimality 6.45e-17
+dual P3 m505 k=4 the checker refuses: rows 1.24e-16 duals 1.83e-07; gap certified 1, relative suboptimality 7.51e-15
+primal P3 m627 k=4 the checker refuses: rows 1.39e-17 duals 1.29e-07; gap certified 1, relative suboptimality 1.47e-16
+barrier P3 m627 k=4 the checker refuses: rows 1.48e-16 duals 1.3e-07; gap certified 1, relative suboptimality 1.93e-16
+primal P3 m660 k=4 the checker refuses: rows 4.53e-17 duals 2.56e-07; gap certified 1, relative suboptimality 3.27e-16
+barrier P3 m665 k=4 the checker refuses: rows 0 duals 1.01e-06; gap certified 1, relative suboptimality 4.51e-15
+barrier P3 m666 k=4 the checker refuses: rows 2.43e-17 duals 1.68e-07; gap certified 1, relative suboptimality 6.13e-15
+barrier P3 m687 k=4 the checker refuses: rows 7.39e-17 duals 1.45e-07; gap certified 1, relative suboptimality 3.56e-15
+models 1000 (optimal 533 infeasible 452 unbounded 15) scaled by up to 1e4
+dual     P1=0 P2=0 P3=12 of them uncertified 0
+primal   P1=0 P2=0 P3=14 of them uncertified 1
+barrier  P1=0 P2=0 P3=10 of them uncertified 0
+broken total 36
+== scale 1e4 seed 3
+primal P3 m3 k=4 the checker refuses: rows 0 duals 1.32e-07; gap certified 1, relative suboptimality 2.49e-16
+dual P3 m157 k=4 the checker refuses: rows 7.24e-17 duals 3.51e-07; gap certified 1, relative suboptimality 2.25e-14
+primal P3 m157 k=4 the checker refuses: rows 7.24e-17 duals 9.41e-07; gap certified 1, relative suboptimality 1.73e-14
+barrier P3 m157 k=4 the checker refuses: rows 8.61e-17 duals 3.04e-07; gap certified 1, relative suboptimality 1.83e-14
+dual P3 m192 k=4 the checker refuses: rows 3.93e-17 duals 1.8e-07; gap certified 1, relative suboptimality 3.44e-16
+primal P3 m192 k=4 the checker refuses: rows 3.93e-17 duals 1.8e-07; gap certified 1, relative suboptimality 3.44e-16
+barrier P3 m192 k=4 the checker refuses: rows 3.93e-17 duals 1.8e-07; gap certified 1, relative suboptimality 3.44e-16
+dual P3 m197 k=4 the checker refuses: rows 5.53e-17 duals 1.56e-07; gap certified 1, relative suboptimality 9.04e-16
+primal P3 m197 k=4 the checker refuses: rows 5.53e-17 duals 1.56e-07; gap certified 1, relative suboptimality 7.51e-16
+barrier P3 m197 k=4 the checker refuses: rows 5.53e-17 duals 1.56e-07; gap certified 1, relative suboptimality 7.51e-16
+dual P3 m307 k=4 the checker refuses: rows 1.14e-16 duals 1.87e-07; gap certified 1, relative suboptimality 2.45e-16
+primal P3 m307 k=4 the checker refuses: rows 1.14e-16 duals 1.87e-07; gap certified 1, relative suboptimality 2.45e-16
+barrier P3 m307 k=4 the checker refuses: rows 1.14e-16 duals 1.87e-07; gap certified 1, relative suboptimality 2.45e-16
+dual P3 m346 k=4 the checker refuses: rows 1.07e-16 duals 1.44e-07; gap certified 1, relative suboptimality 1.92e-16
+dual P3 m357 k=4 the checker refuses: rows 5.54e-17 duals 2.08e-07; gap certified 1, relative suboptimality 1.36e-16
+primal P3 m357 k=4 the checker refuses: rows 5.54e-17 duals 1.84e-07; gap certified 1, relative suboptimality 1.87e-16
+barrier P3 m357 k=4 the checker refuses: rows 5.54e-17 duals 2.08e-07; gap certified 1, relative suboptimality 1.36e-16
+barrier P3 m391 k=4 the checker refuses: rows 6.17e-17 duals 1.17e-07; gap certified 1, relative suboptimality 2.25e-16
+primal P1 m842 k=4 status numerical error, unscaled optimal: the settled point is not dual feasible: a reduced cost breaches its bound by 1.16415e-09 after settling, from a cold start; publishing that as OPTIMAL would 
+models 1000 (optimal 527 infeasible 453 unbounded 20) scaled by up to 1e4
+dual     P1=0 P2=0 P3=10 of them uncertified 0
+primal   P1=1 P2=0 P3=12 of them uncertified 0
+barrier  P1=0 P2=0 P3=11 of them uncertified 0
+broken total 34
+== scale 1e6 seed 1
+dual P1 m3 k=6 status numerical error, unscaled unbounded: the settled point is not dual feasible: a reduced cost breaches its bound by 3.72529e-09 after settling, from a cold start; publishing that as OPTIMAL woul
+barrier P1 m3 k=6 status numerical error, unscaled unbounded: the settled point is not dual feasible: a reduced cost breaches its bound by 3.72529e-09 after settling, from a cold start; publishing that as OPTIMAL woul
+dual P3 m25 k=6 the checker refuses: rows 5.71e-17 duals 1.14e-06; gap certified 1, relative suboptimality 3.94e-17
+primal P3 m25 k=6 the checker refuses: rows 0 duals 1.03e-06; gap certified 1, relative suboptimality 4.56e-17
+dual P3 m54 k=6 the checker refuses: rows 9.06e-18 duals 3.68e-06; gap certified 0, relative suboptimality 7.33e-16
+UNCERTIFIED dual m54: the checker refuses: rows 9.06e-18 duals 3.68e-06; gap certified 0, relative suboptimality 7.33e-16; objective gap 3.55e-16
+primal P3 m54 k=6 the checker refuses: rows 1.73e-18 duals 1.99e-05; gap certified 0, relative suboptimality 1.12e-15
+UNCERTIFIED primal m54: the checker refuses: rows 1.73e-18 duals 1.99e-05; gap certified 0, relative suboptimality 1.12e-15; objective gap 5.59e-16
+barrier P3 m54 k=6 the checker refuses: rows 9.06e-18 duals 3.68e-06; gap certified 0, relative suboptimality 7.33e-16
+UNCERTIFIED barrier m54: the checker refuses: rows 9.06e-18 duals 3.68e-06; gap certified 0, relative suboptimality 7.33e-16; objective gap 3.55e-16
+dual P3 m61 k=6 the checker refuses: rows 5.95e-17 duals 3.06e-06; gap certified 1, relative suboptimality 2.06e-16
+primal P3 m61 k=6 the checker refuses: rows 5.95e-17 duals 3.06e-06; gap certified 1, relative suboptimality 2.06e-16
+barrier P3 m61 k=6 the checker refuses: rows 5.95e-17 duals 3.06e-06; gap certified 1, relative suboptimality 2.06e-16
+dual P3 m68 k=6 the checker refuses: rows 0 duals 2.96e-07; gap certified 1, relative suboptimality 1.38e-16
+primal P3 m68 k=6 the checker refuses: rows 3.39e-21 duals 7.15e-07; gap certified 1, relative suboptimality 4.49e-16
+barrier P3 m68 k=6 the checker refuses: rows 0 duals 2.96e-07; gap certified 1, relative suboptimality 1.38e-16
+dual P3 m73 k=6 the checker refuses: rows 1.69e-21 duals 0.000113; gap certified 1, relative suboptimality 2.44e-17
+primal P3 m73 k=6 the checker refuses: rows 0 duals 0.000247; gap certified 1, relative suboptimality 4.76e-17
+barrier P3 m73 k=6 the checker refuses: rows 1.69e-21 duals 6.2e-05; gap certified 1, relative suboptimality 1.91e-17
+dual P3 m79 k=6 the checker refuses: rows 1.36e-20 duals 1.67e-06; gap certified 1, relative suboptimality 2.18e-17
+primal P3 m79 k=6 the checker refuses: rows 8.67e-19 duals 6.08e-07; gap certified 1, relative suboptimality 2.51e-17
+barrier P3 m79 k=6 the checker refuses: rows 1.36e-20 duals 1.67e-06; gap certified 1, relative suboptimality 5.54e-17
+UNCERTIFIED dual m86: the checker refuses: rows 5.51e-17 duals 3.73e-05; gap certified 0, relative suboptimality 7.09e-17; objective gap 2.68e-17
+barrier P3 m106 k=6 the checker refuses: rows 3.73e-17 duals 1.59e-07; gap certified 1, relative suboptimality 1.64e-15
+UNCERTIFIED dual m568: the checker refuses: rows 5.38e-17 duals 1.22e-07; gap certified 0, relative suboptimality 6.96e-16; objective gap 1.34e-16
+UNCERTIFIED primal m568: the checker refuses: rows 5.38e-17 duals 1.22e-07; gap certified 0, relative suboptimality 6.96e-16; objective gap 1.34e-16
+UNCERTIFIED barrier m568: the checker refuses: rows 5.38e-17 duals 1.22e-07; gap certified 0, relative suboptimality 6.96e-16; objective gap 1.34e-16
+UNCERTIFIED dual m778: the checker refuses: rows 1.36e-17 duals 0.000238; gap certified 0, relative suboptimality 1.38e-15; objective gap 6.19e-16
+UNCERTIFIED primal m778: the checker refuses: rows 1.63e-17 duals 0.000546; gap certified 0, relative suboptimality 4.09e-16; objective gap 2.7e-17
+UNCERTIFIED barrier m778: the checker refuses: rows 1.63e-17 duals 0.00218; gap certified 0, relative suboptimality 4.13e-16; objective gap 2.91e-17
+models 1000 (optimal 518 infeasible 459 unbounded 23) scaled by up to 1e6
+dual     P1=1 P2=0 P3=102 of them uncertified 4
+primal   P1=0 P2=0 P3=106 of them uncertified 3
+barrier  P1=1 P2=0 P3=102 of them uncertified 3
+broken total 312
+== scale 1e6 seed 2
+dual P3 m22 k=6 the checker refuses: rows 0 duals 4.76e-06; gap certified 1, relative suboptimality 1.18e-17
+primal P3 m22 k=6 the checker refuses: rows 3.7e-17 duals 5.52e-06; gap certified 1, relative suboptimality 2.3e-17
+barrier P3 m22 k=6 the checker refuses: rows 3.7e-17 duals 3.23e-06; gap certified 1, relative suboptimality 1.18e-17
+dual P3 m50 k=6 the checker refuses: rows 2.84e-17 duals 0.000626; gap certified 1, relative suboptimality 1.54e-16
+primal P3 m50 k=6 the checker refuses: rows 2.84e-17 duals 0.000626; gap certified 1, relative suboptimality 1.54e-16
+barrier P3 m50 k=6 the checker refuses: rows 2.84e-17 duals 0.000626; gap certified 1, relative suboptimality 1.54e-16
+dual P3 m56 k=6 the checker refuses: rows 2.58e-17 duals 0.00408; gap certified 1, relative suboptimality 4.76e-16
+primal P3 m56 k=6 the checker refuses: rows 2.58e-17 duals 0.00408; gap certified 1, relative suboptimality 4.76e-16
+barrier P3 m56 k=6 the checker refuses: rows 2.58e-17 duals 0.00408; gap certified 1, relative suboptimality 4.76e-16
+dual P3 m58 k=6 the checker refuses: rows 7.78e-17 duals 5.64e-06; gap certified 1, relative suboptimality 1.36e-14
+primal P3 m58 k=6 the checker refuses: rows 1.04e-16 duals 3.84e-06; gap certified 1, relative suboptimality 4.89e-15
+barrier P3 m58 k=6 the checker refuses: rows 1.04e-16 duals 3.84e-06; gap certified 1, relative suboptimality 4.89e-15
+dual P3 m80 k=6 the checker refuses: rows 1.69e-21 duals 0.00011; gap certified 1, relative suboptimality 9.01e-17
+primal P3 m80 k=6 the checker refuses: rows 3.49e-17 duals 0.000178; gap certified 1, relative suboptimality 4.02e-17
+barrier P3 m80 k=6 the checker refuses: rows 1.21e-16 duals 7e-05; gap certified 1, relative suboptimality 4.44e-17
+dual P3 m89 k=6 the checker refuses: rows 0 duals 0.000134; gap certified 1, relative suboptimality 1.12e-15
+primal P3 m89 k=6 the checker refuses: rows 3.43e-17 duals 0.00027; gap certified 1, relative suboptimality 3.14e-15
+barrier P3 m89 k=6 the checker refuses: rows 0 duals 0.000134; gap certified 1, relative suboptimality 1.12e-15
+UNCERTIFIED dual m140: the checker refuses: rows 1.11e-16 duals 0.00091; gap certified 0, relative suboptimality 1.27e-15; objective gap 5.25e-17
+UNCERTIFIED barrier m140: the checker refuses: rows 1.11e-16 duals 0.00091; gap certified 0, relative suboptimality 1.27e-15; objective gap 5.25e-17
+UNCERTIFIED dual m270: the checker refuses: rows 2.32e-17 duals 1.19e-06; gap certified 0, relative suboptimality 1.88e-16; objective gap 9.18e-17
+UNCERTIFIED primal m270: the checker refuses: rows 2.32e-17 duals 1.19e-06; gap certified 0, relative suboptimality 1.88e-16; objective gap 9.18e-17
+UNCERTIFIED barrier m270: the checker refuses: rows 2.32e-17 duals 1.19e-06; gap certified 0, relative suboptimality 1.88e-16; objective gap 9.18e-17
+UNCERTIFIED dual m294: the checker refuses: rows 6.78e-21 duals 4.87e-05; gap certified 0, relative suboptimality 1.58e-16; objective gap 4.69e-17
+UNCERTIFIED primal m294: the checker refuses: rows 5.42e-20 duals 6.21e-07; gap certified 0, relative suboptimality 6.98e-17; objective gap 1.49e-17
+UNCERTIFIED barrier m294: the checker refuses: rows 6.78e-21 duals 4.87e-05; gap certified 0, relative suboptimality 2.77e-16; objective gap 1.07e-16
+primal P1 m355 k=6 status numerical error, unscaled optimal: the settled point is not dual feasible: a reduced cost breaches its bound by 3.72529e-09 after settling, from a cold start; publishing that as OPTIMAL would 
+UNCERTIFIED dual m533: the checker refuses: rows 0 duals 5.96e-06; gap certified 0, relative suboptimality 2.46e-16; objective gap 1.02e-16
+UNCERTIFIED dual m546: the checker refuses: rows 4.53e-17 duals 1.6e-07; gap certified 0, relative suboptimality 6.12e-16; objective gap 1.67e-16
+UNCERTIFIED dual m760: the checker refuses: rows 2.54e-17 duals 2.49e-05; gap certified 0, relative suboptimality 8.32e-16; objective gap 2.72e-16
+UNCERTIFIED primal m760: the checker refuses: rows 2.54e-17 duals 2.49e-05; gap certified 0, relative suboptimality 8.32e-16; objective gap 2.72e-16
+UNCERTIFIED barrier m760: the checker refuses: rows 2.54e-17 duals 2.49e-05; gap certified 0, relative suboptimality 8.32e-16; objective gap 2.72e-16
+UNCERTIFIED dual m790: the checker refuses: rows 0 duals 1.14e-07; gap certified 0, relative suboptimality 5.56e-16; objective gap 2.78e-16
+UNCERTIFIED dual m848: the checker refuses: rows 2.96e-17 duals 0.000695; gap certified 0, relative suboptimality 4.82e-16; objective gap 1.64e-16
+UNCERTIFIED primal m848: the checker refuses: rows 2.96e-17 duals 0.000695; gap certified 0, relative suboptimality 4.82e-16; objective gap 1.64e-16
+UNCERTIFIED barrier m848: the checker refuses: rows 2.96e-17 duals 0.000695; gap certified 0, relative suboptimality 4.82e-16; objective gap 1.64e-16
+UNCERTIFIED dual m883: the checker refuses: rows 5.55e-17 duals 1.82e-07; gap certified 0, relative suboptimality 2.65e-16; objective gap 9.83e-17
+UNCERTIFIED primal m883: the checker refuses: rows 5.35e-17 duals 3.1e-07; gap certified 0, relative suboptimality 5.04e-16; objective gap 2.2e-16
+models 1000 (optimal 533 infeasible 452 unbounded 15) scaled by up to 1e6
+dual     P1=0 P2=0 P3=129 of them uncertified 9
+primal   P1=1 P2=0 P3=130 of them uncertified 5
+barrier  P1=0 P2=0 P3=126 of them uncertified 5
+broken total 386
+== scale 1e6 seed 3
+dual P3 m4 k=6 the checker refuses: rows 8.67e-19 duals 5.67e-05; gap certified 1, relative suboptimality 2.06e-16
+primal P3 m4 k=6 the checker refuses: rows 8.67e-19 duals 5.67e-05; gap certified 1, relative suboptimality 2.06e-16
+barrier P3 m4 k=6 the checker refuses: rows 8.67e-19 duals 5.67e-05; gap certified 1, relative suboptimality 2.06e-16
+primal P3 m7 k=6 the checker refuses: rows 8.47e-22 duals 6.2e-06; gap certified 1, relative suboptimality 6.05e-17
+primal P3 m12 k=6 the checker refuses: rows 0 duals 4.56e-06; gap certified 1, relative suboptimality 1.65e-16
+dual P3 m15 k=6 the checker refuses: rows 1.1e-16 duals 0.00163; gap certified 1, relative suboptimality 2.63e-15
+primal P3 m15 k=6 the checker refuses: rows 1.1e-16 duals 0.00163; gap certified 1, relative suboptimality 2.63e-15
+barrier P3 m15 k=6 the checker refuses: rows 1.1e-16 duals 0.00163; gap certified 1, relative suboptimality 2.63e-15
+dual P3 m20 k=6 the checker refuses: rows 2.82e-17 duals 5.75e-06; gap certified 0, relative suboptimality 2.12e-15
+UNCERTIFIED dual m20: the checker refuses: rows 2.82e-17 duals 5.75e-06; gap certified 0, relative suboptimality 2.12e-15; objective gap 8.26e-16
+primal P3 m20 k=6 the checker refuses: rows 7.82e-17 duals 7.25e-05; gap certified 0, relative suboptimality 5.76e-15
+UNCERTIFIED primal m20: the checker refuses: rows 7.82e-17 duals 7.25e-05; gap certified 0, relative suboptimality 5.76e-15; objective gap 2.37e-15
+barrier P3 m20 k=6 the checker refuses: rows 2.82e-17 duals 5.75e-06; gap certified 0, relative suboptimality 2.12e-15
+UNCERTIFIED barrier m20: the checker refuses: rows 2.82e-17 duals 5.75e-06; gap certified 0, relative suboptimality 2.12e-15; objective gap 8.26e-16
+dual P3 m26 k=6 the checker refuses: rows 6.42e-17 duals 1.63e-07; gap certified 1, relative suboptimality 1.15e-17
+primal P3 m26 k=6 the checker refuses: rows 0 duals 4.91e-07; gap certified 1, relative suboptimality 4.06e-17
+barrier P3 m26 k=6 the checker refuses: rows 0 duals 4.91e-07; gap certified 1, relative suboptimality 4.06e-17
+dual P3 m53 k=6 the checker refuses: rows 2.47e-17 duals 5.91e-05; gap certified 1, relative suboptimality 1.95e-15
+barrier P3 m53 k=6 the checker refuses: rows 2.47e-17 duals 5.91e-05; gap certified 1, relative suboptimality 1.95e-15
+dual P3 m56 k=6 the checker refuses: rows 6.94e-18 duals 0.000609; gap certified 1, relative suboptimality 2.16e-15
+barrier P3 m56 k=6 the checker refuses: rows 2.78e-17 duals 0.000651; gap certified 1, relative suboptimality 2.5e-15
+UNCERTIFIED dual m58: the checker refuses: rows 0 duals 0.000466; gap certified 0, relative suboptimality 9.73e-17; objective gap 4.86e-17
+UNCERTIFIED primal m58: the checker refuses: rows 0 duals 0.000233; gap certified 0, relative suboptimality 1.34e-18; objective gap 6.71e-19
+UNCERTIFIED barrier m58: the checker refuses: rows 0 duals 0.000233; gap certified 0, relative suboptimality 6.09e-19; objective gap 3.04e-19
+UNCERTIFIED dual m104: the checker refuses: rows 6.29e-17 duals 0.00173; gap certified 0, relative suboptimality 6.49e-17; objective gap 4.72e-17
+UNCERTIFIED primal m104: the checker refuses: rows 0 duals 0.00127; gap certified 0, relative suboptimality 8.57e-17; objective gap 3.04e-17
+UNCERTIFIED barrier m104: the checker refuses: rows 0 duals 0.00127; gap certified 0, relative suboptimality 8.57e-17; objective gap 3.04e-17
+UNCERTIFIED dual m189: the checker refuses: rows 4.39e-17 duals 1.69e-06; gap certified 0, relative suboptimality 3.32e-16; objective gap 9.52e-17
+UNCERTIFIED primal m189: the checker refuses: rows 4.39e-17 duals 1.69e-06; gap certified 0, relative suboptimality 3.32e-16; objective gap 9.52e-17
+UNCERTIFIED barrier m189: the checker refuses: rows 4.39e-17 duals 1.69e-06; gap certified 0, relative suboptimality 3.32e-16; objective gap 9.52e-17
+UNCERTIFIED dual m363: the checker refuses: rows 1.02e-16 duals 3.81e-06; gap certified 0, relative suboptimality 4.62e-16; objective gap 1.73e-16
+UNCERTIFIED primal m363: the checker refuses: rows 8.18e-18 duals 1.42e-05; gap certified 0, relative suboptimality 3.8e-16; objective gap 1.82e-16
+UNCERTIFIED barrier m363: the checker refuses: rows 8.18e-18 duals 1.42e-05; gap certified 0, relative suboptimality 3.8e-16; objective gap 1.82e-16
+UNCERTIFIED primal m684: the checker refuses: rows 1.33e-17 duals 1.27e-07; gap certified 0, relative suboptimality 6.43e-15; objective gap 2.85e-15
+UNCERTIFIED dual m801: the checker refuses: rows 1.08e-19 duals 2.98e-06; gap certified 0, relative suboptimality 1.65e-16; objective gap 2.67e-17
+UNCERTIFIED primal m801: the checker refuses: rows 1.69e-21 duals 4.77e-06; gap certified 0, relative suboptimality 9.01e-17; objective gap 3.8e-17
+UNCERTIFIED barrier m801: the checker refuses: rows 1.08e-19 duals 4.25e-06; gap certified 0, relative suboptimality 1.23e-16; objective gap 1.25e-17
+primal P1 m957 k=6 status numerical error, unscaled optimal: the settled point is not dual feasible: a reduced cost breaches its bound by 4.76837e-07 after settling, from a cold start; publishing that as OPTIMAL would 
+models 1000 (optimal 527 infeasible 453 unbounded 20) scaled by up to 1e6
+dual     P1=0 P2=0 P3=117 of them uncertified 6
+primal   P1=1 P2=0 P3=120 of them uncertified 7
+barrier  P1=0 P2=0 P3=114 of them uncertified 6
+broken total 352
