@@ -1,0 +1,9 @@
+== seed 1
+models 1000 optimal 538 infeasible 443 unbounded 19 other 0
+variants 49 broken total 0
+== seed 2
+models 1000 optimal 543 infeasible 431 unbounded 26 other 0
+variants 49 broken total 0
+== seed 3
+models 1000 optimal 541 infeasible 437 unbounded 22 other 0
+variants 49 broken total 0

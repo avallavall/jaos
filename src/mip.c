@@ -3105,6 +3105,7 @@ static int64_t hull_round(const jaos_model *m, jaos_model *lp, const double *x,
         aval == nullptr || rlo == nullptr || rhi == nullptr)
         goto out;
     added = 0;
+    memset(cut, 0, (size_t)lp->num_col * sizeof *cut);
     for (int64_t i = 0; i < nr; i++) {
         const int64_t p0 = lp->ar_start[i], k = lp->ar_start[i + 1] - p0;
         if (k < 2 || k > MIP_HULL_COLS)

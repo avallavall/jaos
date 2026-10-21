@@ -1,0 +1,21 @@
+== seed 1
+mip_flow_cover_rounds=0 P1 m306 status infeasible, the default's optimal
+models 1000 optimal 538 infeasible 443 unbounded 19 other 0
+mip_flow_cover_rounds=0: P1=1 P2=0
+variants 49 broken total 1
+== seed 2
+mip_flow_cover_rounds=0 P2 m105 objective 38, the default's 120, integral 1, primal 1
+mip_flow_cover_rounds=0 P1 m419 status infeasible, the default's optimal
+mip_flow_cover_rounds=0 P1 m587 status infeasible, the default's optimal
+mip_flow_cover_rounds=0 P2 m920 objective 1, the default's 15.5, integral 1, primal 1
+models 1000 optimal 543 infeasible 431 unbounded 26 other 0
+mip_flow_cover_rounds=0: P1=2 P2=2
+variants 49 broken total 4
+== seed 3
+mip_flow_cover_rounds=0 P1 m325 status infeasible, the default's optimal
+mip_flow_cover_rounds=0 P2 m347 objective 154, the default's 175.5, integral 1, primal 1
+mip_flow_cover_rounds=0 P1 m659 status infeasible, the default's optimal
+mip_flow_cover_rounds=0 P1 m806 status infeasible, the default's optimal
+models 1000 optimal 541 infeasible 437 unbounded 22 other 0
+mip_flow_cover_rounds=0: P1=3 P2=1
+variants 49 broken total 4

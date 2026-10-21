@@ -2109,6 +2109,21 @@ static void test_propagation_rounds_with_the_prune_window(void)
     jaos_model_free(m);
 }
 
+static void test_a_hull_cut_starts_from_an_empty_row(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/mip_hull_stale.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -62.0, obj);
+    jaos_model_free(m);
+}
+
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
 {
     jaos_model *m = neighbour_model();
@@ -5508,6 +5523,7 @@ int main(void)
     RUN_TEST(test_the_mip_presolve_substitutes_flow_through_a_node);
     RUN_TEST(test_a_mip_start_crosses_the_mip_presolve);
     RUN_TEST(test_propagation_rounds_with_the_prune_window);
+    RUN_TEST(test_a_hull_cut_starts_from_an_empty_row);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
