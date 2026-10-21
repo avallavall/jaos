@@ -111,7 +111,7 @@ in 20 s. Open, largest first:
   family. At 5e8 work units the default finds a point on 22 of the 34 and
   `--dive` on 16, so no switch fixes it (`bench/measurements/02-394/`).
   The root's feasibility jump finds none on the 33 even without its cap
-  (`02-399/`). Next: a heuristic whose first point satisfies such rows,
+  (`02-399/`), and the root restart never fires on them (`02-406/`). Next: a heuristic whose first point satisfies such rows,
   read on those models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
