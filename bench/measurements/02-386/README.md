@@ -35,3 +35,13 @@ which divides that multiplier by s.
 | 1e8 | `numerical_error` | 8.1e-5, primal residual 7.2e-6 |
 
 Neither the heads' balance nor R4's scale is the cause on its own.
+
+## The checker's reduced-cost test
+
+At the point the walk leaves, read with a print that is not kept, the
+row multipliers are 4.46e7 on R1 and -2.53e7 on R4. C1 sits off its
+bounds at 0.0094, and its reduced cost is -4.56, a sum of terms near
+3.7e7: 1.2e-7 of their size. The checker's test on a reduced cost is
+absolute, 1e-7 whatever the size of its terms, so this point would need
+15 to 16 exact digits. The row test, by contrast, is relative to the
+row's traffic.
