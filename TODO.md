@@ -46,11 +46,10 @@ in 20 s. Open, largest first:
 - `beasleyC3`: HiGHS's presolve removes 597 of its 1750 rows, JAOS's 161.
   HiGHS drops 398 whole arcs (flow, binary, capacity row) and 199 node
   rows: leaves with no demand, whose two arcs form a cycle of two, and the
-  leaves their removal leaves (`bench/measurements/02-387/`). Next: in the
-  MIP presolve, after a doubleton equation's substitution, drop entries
-  that cancel, fix a cost-free column whose rows all allow 0 (dual fixing,
-  D246 reopened for the MIP presolve only), then fix a binary left alone
-  with a positive cost; read on MIPLIB 2017 and MIPLIB 3.
+  leaves their removal leaves (`bench/measurements/02-387/`). JAOS on
+  HiGHS's presolved model reaches bound 745 and incumbent 851 at 1e10,
+  against 742 and 830, so presolve is not what keeps it open. Next: the
+  root bound and the incumbent.
 - Node cost: on `neos-911970` a JAOS node takes about 200 LP iterations
   against HiGHS's 72, and a strong-branching probe is a full LP solve.
   Next: probes as a few dual steps on the node's factors.

@@ -60,3 +60,17 @@ flow, with no cost and only `x - u·y ≤ 0` rows left, is fixed at 0 by dual
 fixing (D246, refused for the LP presolve in `bench/refusals.txt`); each
 binary is then alone in a row that always holds, with a positive cost, and
 is fixed at 0.
+
+## What the smaller model buys
+
+JAOS on HiGHS's presolved model, the same problem with 597 rows fewer, at
+1e10 work units (`bc3solve.sh`):
+
+| | nodes | bound | incumbent |
+|---|---|---|---|
+| beasleyC3 | 5461 | 742 | 830 |
+| HiGHS's presolved model | 4042 | 745 | 851 |
+
+The optimum is 754. The smaller model moves the bound by 3 and the
+incumbent the wrong way, so these reductions would not close the gap on
+their own; the root's bound and the incumbent are what keep it open.
