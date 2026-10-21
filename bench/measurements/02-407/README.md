@@ -55,4 +55,7 @@ it. `tests/data/mip_noinc_propagate.mps` is `biggeneral` seed 482: with
 the rule its first point comes at node 2097, without it at 14914, so at a
 node limit of 3000 only the default has one. 02-397's option sweep reads
 no broken variant, HEAD or the tree, and `make miplib J=2` is
-byte-identical.
+byte-identical. Taken after the commit, on 8dcb600: `make netlib
+netlib-infeas J=12` and `make netlib-kennington J=2` leave their results
+files byte-identical too, and those cover 02-397's change to `mip.c` as
+well.
