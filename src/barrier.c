@@ -2115,6 +2115,59 @@ static int64_t bx_free_broken_rows(bx *s, double *zt, int8_t *pin)
     return freed;
 }
 
+static bool bx_drop_dual_shift(bx *s)
+{
+    const int64_t nv = s->nvar, nr = s->nrow;
+    if (s->augmented || nr == 0)
+        return false;
+    double *v = jm_alloc_array(nr, sizeof *v);
+    double *t = jm_alloc_array(nv > 0 ? nv : 1, sizeof *t);
+    if (v == nullptr || t == nullptr) {
+        free(v);
+        free(t);
+        return false;
+    }
+    for (int64_t j = 0; j < nv; j++)
+        s->theta[j] = s->kind[j] == FIXED ? 0.0 : 1.0;
+    const double delta = s->delta;
+    const int8_t *pin = s->pin;
+    bool *dec = s->dec;
+    s->pin = nullptr;
+    s->dec = nullptr;
+    s->delta = QP_PUSH_DELTA;
+    bool dropped = false;
+    if (form_normal(s) == JAOS_OK) {
+        memcpy(v, s->y, (size_t)nr * sizeof *v);
+        for (int k = 0; k < 3; k++) {
+            solve_normal(s, v);
+            for (int64_t i = 0; i < nr; i++)
+                v[i] *= QP_PUSH_DELTA;
+        }
+        mul_et(s, v, t);
+        double worst = 0.0, big = 0.0;
+        for (int64_t j = 0; j < s->ncol; j++)
+            if (s->kind[j] != FIXED && fabs(t[j]) > worst)
+                worst = fabs(t[j]);
+        for (int64_t i = 0; i < nr; i++) {
+            if (s->kind[s->ncol + i] != FIXED && fabs(v[i]) > worst)
+                worst = fabs(v[i]);
+            if (fabs(v[i]) > big)
+                big = fabs(v[i]);
+        }
+        dropped = big > 0.0 && worst <= QP_PUSH_TOL * big;
+        if (dropped)
+            for (int64_t i = 0; i < nr; i++)
+                s->y[i] -= v[i];
+        jm_work_add(&s->work, (4 * nr + nv) * JM_WORK_NONZERO);
+    }
+    s->delta = delta;
+    s->pin = pin;
+    s->dec = dec;
+    free(v);
+    free(t);
+    return dropped;
+}
+
 static jaos_status bx_polish(bx *s, bool free_rows, bool *done)
 {
     const jaos_model *m = s->m;
@@ -2342,12 +2395,15 @@ static jaos_status qp_push(bx *s)
     }
     bool idle = false;
     if (s->push_free) {
+        const bool shifted = bx_drop_dual_shift(s);
+        if (shifted)
+            memcpy(yn, s->y, (size_t)nr * sizeof *yn);
         for (int64_t j = 0; j < nv; j++)
             s->dw[j] = pin[j] == PUSH_LOWER ? s->lo[j]
                      : pin[j] == PUSH_UPPER ? s->up[j] : s->z[j];
         const int64_t got = bx_free_broken_rows(s, s->dw, pin);
         pinned -= got;
-        idle = got == 0;
+        idle = got == 0 && !shifted;
     }
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
     int64_t last_wrong = INT64_MAX;
@@ -2704,8 +2760,8 @@ static jaos_status qp_push(bx *s)
                round == 1 ? "" : "s", (long long)freed);
     } else if (st == JAOS_OK && idle) {
         jm_log(s->m, JAOS_LOG_SUMMARY,
-               "push: no row has all its columns pinned and broken; the "
-               "barrier's point stands");
+               "push: no row has all its columns pinned and broken, and "
+               "the duals carry no shift; the barrier's point stands");
     } else if (st == JAOS_OK && stuck) {
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: the step of round %lld left %lld rows unsatisfied; "
@@ -2934,20 +2990,11 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                "the push from the variables the barrier reads at a bound "
                "alone %s", s.pushed ? "settled" : "did not settle either");
     }
-    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
-        !s.pushed && !m->cfg.barrier_no_crossover) {
-        s.push_free = true;
-        st = qp_push(&s);
-        s.push_free = false;
-        jm_log(m, JAOS_LOG_SUMMARY,
-               "the push with a pin freed in each row its pins break %s",
-               s.pushed ? "settled" : "did not settle either");
-    }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);
 
     jaos_check_report ck = {};
-    const bool pushed = s.pushed;
+    bool pushed = s.pushed;
     bool refused = st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
                    s.quadratic && !m->cfg.barrier_no_crossover &&
                    m->sol_col != nullptr && !bx_holds(m, &ck, pushed);
@@ -2964,6 +3011,26 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
             memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
         }
         for (int pass = 0; pass < 2 && st == JAOS_OK && refused; pass++) {
+            if (pass == 1 && !s.pushed) {
+                s.push_free = true;
+                st = qp_push(&s);
+                s.push_free = false;
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the push with the duals' shift dropped and a pin "
+                       "freed in each row its pins break %s",
+                       s.pushed ? "settled" : "did not settle either");
+                if (st == JAOS_OK && s.pushed) {
+                    pushed = true;
+                    st = bx_publish(&s, outcome, p);
+                    refused = st == JAOS_OK && !bx_holds(m, &ck, pushed);
+                    if (st != JAOS_OK || !refused)
+                        break;
+                    memcpy(keep, s.z, (size_t)s.nvar * sizeof *keep);
+                    memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
+                }
+                if (st != JAOS_OK)
+                    break;
+            }
             bool done = false;
             st = bx_polish(&s, pass == 1, &done);
             if (st != JAOS_OK || !done)

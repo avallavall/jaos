@@ -326,6 +326,28 @@ static void test_a_row_its_held_columns_break_frees_one(void)
     jaos_model_free(m);
 }
 
+static void test_the_third_push_drops_the_duals_shift(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_dual_shift.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    double big = 0.0;
+    for (int i = 0; i < 12; i++)
+        if (fabs(y[i]) > big)
+            big = fabs(y[i]);
+    TEST_ASSERT_TRUE(big < 1e6);
+    jaos_model_free(m);
+}
+
 static void catch_plain(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -839,5 +861,6 @@ int main(void)
     RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
+    RUN_TEST(test_the_third_push_drops_the_duals_shift);
     return UNITY_END();
 }

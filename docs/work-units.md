@@ -235,9 +235,13 @@ polish by conjugate gradients charges `6 * nr` per step, plus a product
 pair with the rows and a solve with their factor per step, for up to
 `QP_PUSH_CG` steps. The early hand-off at `BARRIER_MU_DEAD`, and the walk
 that goes on after a push that does not settle, bill onto the same counter
-as the walk. Before the third push and the second polish of a refused
-point, the search for rows whose pinned columns break them charges
-`3 * nnz + 2 * nrow` per round, up to one round per row.
+as the walk. Before the third push and the second polish, which run only
+on a point the checker refuses after a first polish, the search for rows
+whose pinned columns break them charges
+`3 * nnz + 2 * nrow` per round, up to one round per row. Before the third
+push, finding the duals' shift factors the rows' normal matrix and solves
+with it three times at the LDL's rates, and charges `4 * nrow + nvar`
+more.
 
 *The crossover* charges the sort of the basis guess at one per variable
 per pass of a comparison sort, `nvar * (2 + floor(log2 nvar))`, then the

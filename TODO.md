@@ -50,19 +50,18 @@ decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can sit at 1e6 to 1e15. 15 of seeds 1 to 400 and 9 of
-seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 3 of seeds 1 to
-120 and 2 of seeds 1001 to 1200 at 40 nodes (`bench/measurements/02-391/`). The barrier converges; the push then
-cannot bring the reduced costs of the free columns with tiny curvature to
-zero, and the conic walk reports a ray the checker refuses. On seed 1018
-the barrier reaches -4.38565e11 and HiGHS 1.15.1 calls -4.38364e11
-optimal; JAOS's second polish closes the rows, and the checker refuses
-x23, held at its upper bound 0 with a reduced cost of +0.513. The rows
-sum to zero, so the duals share a free shift, and the barrier leaves them
-all near 1.68e9: each reduced cost is a difference at about 2e-7
-precision. Next: remove that shift before the push; a push whose solve stays
-accurate when the curvatures span 1e-11 to 2, for example with those
-columns scaled. Verify with `netqp_read.py` on the same seeds.
+so their optimum can sit at 1e6 to 1e15. 14 of seeds 1 to 400 and 7 of
+seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 2 of seeds 1 to
+120 and 2 of seeds 1001 to 1200 at 40 nodes (`bench/measurements/02-391/`,
+`02-392/`). Of the eight left from 02-391's sweep, six stop in the
+barrier after 35 to 211 iterations, before any push (seed 1104's
+objective reaches -1.19e15 with the gap at 3e-4); on seed 1308 and on
+40-node seed 1076 the barrier converges and all three pushes fail, with the
+reduced costs of the free columns with tiny curvature off zero, and the
+conic walk then reports a ray the checker refuses. Next: a barrier that
+reaches such an optimum; a push whose solve stays accurate when the
+curvatures span 1e-11 to 2, for example with those columns scaled. Verify
+with `netqp_read.py` on the same seeds.
 
 ## Tier 3: the largest performance gaps
 
