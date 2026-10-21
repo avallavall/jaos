@@ -1,0 +1,25 @@
+=== misocp 7: brute force unsure 0 failed models 0 
+=== misocp 8: brute force unsure 0 failed models 0 
+=== misocp 9: brute force unsure 0 failed models 0 
+=== misocp 10: brute force unsure 0 failed models 0 
+=== misocp 11: m00381: brute force unsure brute force unsure 1 failed models 0 
+=== misocp 12: brute force unsure 0 failed models 0 
+=== conic 7: infeasible 200 certified 200 without 0 ball: certified 99 without 0; capped cone: certified 101 without 0 failed models 0 
+=== conic 8: infeasible 200 certified 200 without 0 ball: certified 104 without 0; capped cone: certified 96 without 0 failed models 0 
+=== conic 9: infeasible 200 certified 200 without 0 ball: certified 103 without 0; capped cone: certified 97 without 0 failed models 0 
+=== discrete 14: brute force unsure 0 failed models 0 
+=== discrete 15: brute force unsure 0 failed models 0 
+=== discrete 16: brute force unsure 0 failed models 0 
+=== fcnet 14: models 1000 with z 204 with cuts 461 optimal 611 infeasible 389 unsure 0 failed 0 brute solves 617288 digest db61d13641d53b73
+=== fcnet 15: models 1000 with z 194 with cuts 457 optimal 617 infeasible 383 unsure 0 failed 0 brute solves 661352 digest 7d9871485b866a64
+=== fcnet 16: models 1000 with z 189 with cuts 450 optimal 597 infeasible 403 unsure 0 failed 0 brute solves 643736 digest 7dab2424e5f093a1
+=== certs 24: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+=== iissub 24: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+=== certs 25: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+=== iissub 25: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+=== certs 26: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+=== iissub 26: broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+=== push 13: P1 not optimal 0 ;P2 wrong value 0 (worst;P3 primal refused 0, dual;P4 models with a strict;P5 models off the one;
+=== push 14: P1 not optimal 0 ;P2 wrong value 0 (worst;P3 primal refused 0, dual;P4 models with a strict;P5 models off the one;
+=== push 15: P1 not optimal 0 ;P2 wrong value 0 (worst;P3 primal refused 0, dual;P4 models with a strict;P5 models off the one;
+done

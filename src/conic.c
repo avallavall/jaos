@@ -2623,6 +2623,23 @@ static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto out;
     }
+    for (int64_t j = 0; j < nc; j++)
+        idx[j] = -1;
+    for (int64_t j = 0; m->q_start != nullptr && j < nc; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++)
+            idx[j] = idx[m->q_index[p]] = nr;
+    for (int64_t j = 0; m->col_quad != nullptr && j < nc; j++)
+        if (m->col_quad[j] != 0.0 && idx[j] != nr)
+            lo[j] = hi[j] = 0.0;
+    for (int64_t i = 0; m->rq_start != nullptr && i < nr; i++) {
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+            if (m->rq_i[p] != m->rq_j[p])
+                idx[m->rq_i[p]] = idx[m->rq_j[p]] = i;
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
+            if (m->rq_i[p] == m->rq_j[p] && m->rq_v[p] != 0.0 &&
+                idx[m->rq_i[p]] != i)
+                lo[m->rq_i[p]] = hi[m->rq_i[p]] = 0.0;
+    }
     for (int64_t k = 0; k < m->num_cone; k++) {
         const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
         const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e;

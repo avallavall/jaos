@@ -1218,17 +1218,21 @@ static void test_fixed_columns_leave_the_walks_quadratic_objective(void)
 
 static void test_a_cone_held_flat_leaves_the_direction_solve(void)
 {
-    jaos_model *m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_read_mps(m, "tests/data/cone_flat_ray.mps"));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
-    double d[8];
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
-    jaos_ray_report rr;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rr));
-    TEST_ASSERT_TRUE(rr.certified);
-    jaos_model_free(m);
+    const char *path[2] = {"tests/data/cone_flat_ray.mps",
+                           "tests/data/cone_quad_ray.mps"};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m),
+                                      path[k]);
+        double d[8];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_unbounded_ray(m, d));
+        jaos_ray_report rr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_ray(m, d, 1e-7, &rr));
+        TEST_ASSERT_TRUE_MESSAGE(rr.certified, path[k]);
+        jaos_model_free(m);
+    }
 }
 
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
