@@ -57,7 +57,11 @@ carry cycles of arcs bounded only above, with curvatures down to 1e-11,
 so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400,
 6 of seeds 1001 to 1400 and 15 of seeds 1401 to 1800 at 12 nodes end
 `numerical_error`, and 1 of seeds 1 to 120 and 1 of seeds 1001 to 1200
-at 40 nodes (`bench/measurements/02-400/`, `02-413/`). HiGHS calls seven of them optimal at
+at 40 nodes (`bench/measurements/02-400/`, `02-413/`). Of those 33, 16
+stop on the barrier's growth stop, 3 at its iteration cap, and 14
+converge but no push gives a point the checker passes; the conic walk
+then reports, on 32, an improving direction the ray checker refuses
+(`02-414/`). HiGHS calls seven of them optimal at
 points from which the objective still falls along a cycle, so it cannot
 judge this family (`02-398/`). The six of seeds 1001 to 1400 stop in the
 barrier on `BARRIER_DIVERGE_QP`. With that stop lifted, seed 1156's walk
