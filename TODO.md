@@ -61,12 +61,19 @@ is within 1e-5 by iteration 40; then a set of rows closed off by arcs at
 their bounds keeps a residual near 1, and the walk drives those rows'
 duals to 1e13. On seed 1282 the walk then converges and the push stalls,
 because its proximal term, `QP_PUSH_REG`, is larger than the curvatures
-of the free columns near 1e-9 (`02-400/`). Seven barrier switches each
-finish seed 1340 or 1357 and no other (`barrier-far-qp-switches`). Next:
-a push whose proximal term follows each column's curvature; then a walk
-that lifts an arc off its bound when a closed set of rows keeps a
-residual. Verify with `netqp_read.py` on the same seeds and 02-398's
-`read.sh`.
+of the free columns near 1e-9 (`02-400/`). A proximal term that follows
+each column's curvature solves four more and breaks two
+(`push-reg-by-curvature`); with it, seed 1380 reaches the conic walk,
+which publishes a ray the checker takes, though every arc's curvature is
+positive and the model is bounded: the ray test reads 1e-11 as zero
+(`02-401/`). Seven barrier switches each finish seed 1340 or 1357 and no
+other (`barrier-far-qp-switches`). Next: a push solve that keeps the rows
+exact when its weights span 1e-6 to 1e10, for example on the KKT system
+instead of the normal matrix; then a walk that lifts an arc off its bound
+when a closed set of rows keeps a residual. A ray test that weighs a
+ray's curvature against its slope changes the checker's contract and is
+the maintainer's decision. Verify with `netqp_read.py` on the same seeds
+and 02-398's `read.sh`.
 
 ## Tier 3: the largest performance gaps
 
