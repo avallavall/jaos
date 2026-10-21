@@ -1,0 +1,24 @@
+air03 same
+bell3a same
+bell5 same
+blend2 same
+dcmulti UNREAD jaos: cannot read /home/vall/lpr/miplib/dcmulti.lp: line 14: a label cannot start with a digit or a '.'
+egout UNREAD jaos: cannot read /home/vall/lpr/miplib/egout.lp: line 8: '...:' is not a number, and an LP name cannot start with a dig
+enigma same
+flugpl same
+gen same
+gt2 same
+khb05250 UNREAD jaos: cannot read /home/vall/lpr/miplib/khb05250.lp: line 39: '...:' is not a number, and an LP name cannot start with a
+l152lav same
+lseu same
+misc03 same
+misc06 same
+misc07 same
+mod008 same
+mod010 same
+p0033 same
+p0201 same
+p0282 same
+rgn UNREAD jaos: cannot read /home/vall/lpr/miplib/rgn.lp: line 6: a label cannot start with a digit or a '.'
+stein27 UNREAD jaos: cannot read /home/vall/lpr/miplib/stein27.lp: line 3: two numbers in a row, the second '0001'; an LP name cannot s
+stein45 UNREAD jaos: cannot read /home/vall/lpr/miplib/stein45.lp: line 3: two numbers in a row, the second '0001'; an LP name cannot s

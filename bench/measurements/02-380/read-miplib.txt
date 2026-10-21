@@ -1,0 +1,24 @@
+air03 read
+bell3a read
+bell5 read
+blend2 read
+dcmulti line 14: a label cannot start with a digit or a '.'
+egout line 8: '...:' is not a number, and an LP name cannot start with a digit or a '.'
+enigma read
+flugpl read
+gen read
+gt2 read
+khb05250 line 39: '...:' is not a number, and an LP name cannot start with a digit or a '.'
+l152lav read
+lseu read
+misc03 read
+misc06 read
+misc07 read
+mod008 read
+mod010 read
+p0033 read
+p0201 read
+p0282 read
+rgn line 6: a label cannot start with a digit or a '.'
+stein27 line 3: two numbers in a row, the second '0001'; an LP name cannot start with a digit or a '.'
+stein45 line 3: two numbers in a row, the second '0001'; an LP name cannot start with a digit or a '.'

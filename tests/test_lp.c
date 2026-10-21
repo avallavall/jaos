@@ -252,6 +252,13 @@ static void test_rejection_reasons_are_specific(void)
     expect_reject("tests/data/el_bounddir.lp", "same way");
     expect_reject("tests/data/el_badchar.lp", "unexpected character");
     expect_reject("tests/data/el_noend.lp", "End");
+    expect_reject("tests/data/el_digitname.lp", "two numbers in a row, the "
+                                                "second '5'");
+    expect_reject("tests/data/el_dotname.lp", "'...100' is not a number");
+    expect_reject("tests/data/el_digitlabel.lp", "a label cannot start");
+    expect_reject("tests/data/el_digitlabel2.lp", "a label cannot start");
+    expect_reject("tests/data/el_digitquad.lp", "in the quadratic term, the "
+                                                "second '57'");
 }
 
 static void test_rejections_carry_line_numbers(void)
@@ -260,6 +267,9 @@ static void test_rejections_carry_line_numbers(void)
 
     expect_reject("tests/data/el_bounddir.lp", "line 8");
     expect_reject("tests/data/el_badchar.lp", "line 4");
+    expect_reject("tests/data/el_digitname.lp", "line 3");
+    expect_reject("tests/data/el_dotname.lp", "line 3");
+    expect_reject("tests/data/el_digitlabel.lp", "line 5");
 }
 
 static void test_a_variable_met_first_in_a_later_section_is_a_column(void)

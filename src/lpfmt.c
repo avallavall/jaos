@@ -208,7 +208,16 @@ static jaos_status lx_next(lp *p)
         p->tok.text[n] = '\0';
         char *end;
         p->tok.num = strtod(p->tok.text, &end);
-        if (end == p->tok.text || *end != '\0' || !isfinite(p->tok.num))
+        if (end == p->tok.text || *end != '\0') {
+            int64_t e = s;
+            while (e < p->len && e - s < 40 &&
+                   !isspace((unsigned char)p->buf[e]))
+                e++;
+            FAIL("line %" PRId64 ": '%.*s' is not a number, and an LP name "
+                 "cannot start with a digit or a '.'", p->line, (int)(e - s),
+                 p->buf + s);
+        }
+        if (!isfinite(p->tok.num))
             FAIL("line %" PRId64 ": bad number '%s'", p->line, p->tok.text);
         p->tok.t = T_NUM;
         return JAOS_OK;
@@ -325,6 +334,10 @@ static jaos_status parse_quadratic(lp *p, double sign, int64_t row)
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
         }
+        if (p->tok.t == T_NUM)
+            FAIL("line %" PRId64 ": two numbers in a row in the quadratic "
+                 "term, the second '%s'; an LP name cannot start with a "
+                 "digit or a '.'", p->tok.line, p->tok.text);
         if (p->tok.t != T_NAME || is_reserved(p->tok.text))
             FAIL("line %" PRId64 ": expected a variable in the quadratic "
                  "term", p->tok.line);
@@ -484,6 +497,13 @@ static jaos_status parse_expr(lp *p, int64_t row, double *konst)
             have_num = true;
             if ((st = lx_next(p)) != JAOS_OK)
                 goto done;
+            if (p->tok.t == T_NUM)
+                FAIL("line %" PRId64 ": two numbers in a row, the second "
+                     "'%s'; an LP name cannot start with a digit or a '.'",
+                     p->tok.line, p->tok.text);
+            if (p->tok.t == T_COLON)
+                FAIL("line %" PRId64 ": a label cannot start with a digit "
+                     "or a '.'", p->tok.line);
         }
         if (p->tok.t == T_STAR || p->tok.t == T_CARET ||
             p->tok.t == T_SLASH || p->tok.t == T_RBRACK)
@@ -887,6 +907,9 @@ static jaos_status parse(lp *p)
         toktype rel = p->tok.t;
 
         const int64_t rel_line = p->tok.line;
+        if (rel == T_COLON)
+            FAIL("line %" PRId64 ": a label cannot start with a digit or a "
+                 "'.'", p->tok.line);
         if (rel != T_LE && rel != T_GE && rel != T_EQ)
             FAIL("line %" PRId64 ": expected <=, >= or = after the "
                  "constraint expression", p->tok.line);

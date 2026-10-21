@@ -1,0 +1,138 @@
+aug2d read
+aug2dc read
+aug2dcqp read
+aug2dqp read
+aug3d read
+aug3dc read
+aug3dcqp read
+aug3dqp read
+boyd1 read
+boyd2 read
+cont-050 read
+cont-100 read
+cont-101 read
+cont-200 read
+cont-201 read
+cont-300 read
+cvxqp1_l read
+cvxqp1_m read
+cvxqp1_s read
+cvxqp2_l read
+cvxqp2_m read
+cvxqp2_s read
+cvxqp3_l read
+cvxqp3_m read
+cvxqp3_s read
+dpklo1 line 3: two numbers in a row in the quadratic term, the second '57'; an LP name cannot start with a digit or a '.'
+dtoc3 read
+dual1 read
+dual2 read
+dual3 read
+dual4 read
+dualc1 read
+dualc2 read
+dualc5 read
+dualc8 read
+exdata read
+genhs28 read
+gouldqp2 read
+gouldqp3 read
+hs118 read
+hs21 read
+hs268 read
+hs35 read
+hs35mod read
+hs51 read
+hs52 read
+hs53 read
+hs76 read
+hues-mod read
+huestis read
+ksip read
+laser read
+liswet1 read
+liswet10 read
+liswet11 read
+liswet12 read
+liswet2 read
+liswet3 read
+liswet4 read
+liswet5 read
+liswet6 read
+liswet7 read
+liswet8 read
+liswet9 read
+lotschd read
+mosarqp1 read
+mosarqp2 read
+powell20 read
+primal1 read
+primal2 read
+primal3 read
+primal4 read
+primalc1 read
+primalc2 read
+primalc5 read
+primalc8 read
+q25fv47 line 3: two numbers in a row, the second '5'; an LP name cannot start with a digit or a '.'
+qadlittl line 3: '...100' is not a number, and an LP name cannot start with a digit or a '.'
+qafiro read
+qbandm line 9: '....3:' is not a number, and an LP name cannot start with a digit or a '.'
+qbeaconf line 3: two numbers in a row, the second '10022'; an LP name cannot start with a digit or a '.'
+qbore3d read
+qbrandy line 3: two numbers in a row, the second '100001'; an LP name cannot start with a digit or a '.'
+qcapri read
+qe226 line 3: '.ETHSD' is not a number, and an LP name cannot start with a digit or a '.'
+qetamacr read
+qfffff80 line 105: '..P.NE:' is not a number, and an LP name cannot start with a digit or a '.'
+qforplan read
+qgfrdxpn read
+qgrow15 read
+qgrow22 read
+qgrow7 read
+qisrael read
+qpcblend read
+qpcboei1 read
+qpcboei2 read
+qpcstair read
+qpilotno read
+qptest read
+qrecipe read
+qsc205 read
+qscagr25 read
+qscagr7 read
+qscfxm1 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+qscfxm2 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+qscfxm3 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+qscorpio read
+qscrs8 read
+qscsd1 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+qscsd6 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+qscsd8 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+qsctap1 read
+qsctap2 read
+qsctap3 read
+qseba line 3: two numbers in a row, the second '10018000'; an LP name cannot start with a digit or a '.'
+qshare1b line 7: a label cannot start with a digit or a '.'
+qshare2b line 3: two numbers in a row, the second '010106'; an LP name cannot start with a digit or a '.'
+qshell line 1222: a label cannot start with a digit or a '.'
+qship04l read
+qship04s read
+qship08l read
+qship08s read
+qship12l read
+qship12s read
+qsierra line 55: a label cannot start with a digit or a '.'
+qstair read
+qstandat read
+s268 read
+stadat1 read
+stadat2 read
+stadat3 read
+stcqp1 read
+stcqp2 read
+tame read
+ubh1 read
+values read
+yao read
+zecevic2 read

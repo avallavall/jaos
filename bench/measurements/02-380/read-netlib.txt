@@ -1,0 +1,94 @@
+25fv47 line 3: two numbers in a row, the second '5'; an LP name cannot start with a digit or a '.'
+80bau3b read
+adlittle line 3: '...100' is not a number, and an LP name cannot start with a digit or a '.'
+afiro read
+agg read
+agg2 read
+agg3 read
+bandm line 8: '....3:' is not a number, and an LP name cannot start with a digit or a '.'
+beaconfd line 3: two numbers in a row, the second '10022'; an LP name cannot start with a digit or a '.'
+blend line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+bnl1 read
+bnl2 read
+boeing1 read
+boeing2 read
+bore3d read
+brandy line 3: two numbers in a row, the second '100001'; an LP name cannot start with a digit or a '.'
+capri read
+cycle read
+czprob line 3: '.B5..1' is not a number, and an LP name cannot start with a digit or a '.'
+d2q06c read
+d6cube line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+degen2 read
+degen3 read
+dfl001 read
+e226 line 3: '.ETHSD' is not a number, and an LP name cannot start with a digit or a '.'
+etamacro read
+fffff800 line 33: '..P.NE:' is not a number, and an LP name cannot start with a digit or a '.'
+finnis line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+fit1d read
+fit1p read
+fit2d read
+fit2p read
+forplan read
+ganges read
+gfrd-pnc read
+greenbea read
+greenbeb read
+grow15 read
+grow22 read
+grow7 read
+israel read
+kb2 read
+lotfi line 5: a label cannot start with a digit or a '.'
+maros-r7 read
+maros read
+modszk1 read
+nesm read
+perold read
+pilot-ja read
+pilot-we read
+pilot read
+pilot4 read
+pilot87 read
+pilotnov read
+recipe read
+sc105 read
+sc205 read
+sc50a read
+sc50b read
+scagr25 read
+scagr7 read
+scfxm1 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+scfxm2 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+scfxm3 line 3: two numbers in a row, the second '1'; an LP name cannot start with a digit or a '.'
+scorpion read
+scrs8 read
+scsd1 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+scsd6 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+scsd8 line 3: two numbers in a row, the second '30001002'; an LP name cannot start with a digit or a '.'
+sctap1 read
+sctap2 read
+sctap3 read
+seba line 3: two numbers in a row, the second '10018000'; an LP name cannot start with a digit or a '.'
+share1b line 5: a label cannot start with a digit or a '.'
+share2b line 3: two numbers in a row, the second '010106'; an LP name cannot start with a digit or a '.'
+shell line 33: a label cannot start with a digit or a '.'
+ship04l read
+ship04s read
+ship08l read
+ship08s read
+ship12l read
+ship12s read
+sierra line 50: a label cannot start with a digit or a '.'
+stair read
+standata read
+standmps read
+stocfor1 read
+stocfor2 read
+stocfor3 read
+truss read
+tuff read
+vtp-base read
+wood1p read
+woodw read
