@@ -38,3 +38,8 @@ own arm; `tests/test_concurrent.c` now sets that flag to state its premise.
 | `algos.c`, seeds 1 to 3 (1577 optimal, 1358 infeasible, 65 unbounded) | the primal fails 196, 218 and 232; the other three none (`head.txt`) | none fail (`new.txt`) |
 | `make netlib netlib-infeas J=12`, `make netlib-kennington J=2` | | 0 regressed, the same results files |
 | `make primal barrier pdlp concurrent warm J=12` | | the same results files |
+
+A MIP was not affected: its tree handles a node's failed solve itself. 300
+of 02-394's models outside the two general-integer families, solved with
+`--algorithm primal`, end as the default does on 297, and reach the work
+limit on 3 larger knapsacks, on HEAD as with the change.
