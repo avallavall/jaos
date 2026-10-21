@@ -58,8 +58,10 @@ barrier after 35 to 211 iterations, before any push (seed 1104's
 objective reaches -1.19e15 with the gap at 3e-4); on seed 1308 and on
 40-node seed 1076 the barrier converges and all three pushes fail, with the
 reduced costs of the free columns with tiny curvature off zero, and the
-conic walk then reports a ray the checker refuses. Next: a barrier that
-reaches such an optimum; a push whose solve stays accurate when the
+conic walk then reports a ray the checker refuses. The six stop on
+`BARRIER_DIVERGE_QP`; at 1e13 or 1e16 instead of 1e10 the walk goes on and
+still fails, at twice the work. Next: a barrier that reaches such an
+optimum; a push whose solve stays accurate when the
 curvatures span 1e-11 to 2, for example with those columns scaled. Verify
 with `netqp_read.py` on the same seeds.
 

@@ -50,4 +50,9 @@ row. `tests/data/qp_dual_shift.mps` is seed 1374.
 25 circulations still end `numerical_error` (TODO row J24). Of the eight
 left from 02-391's sweep, six stop in the barrier itself after 35 to 211
 iterations, before any push; seed 1308 and 40-node seed 1076 reach the
-push and it fails.
+push and it fails. The six stop on `BARRIER_DIVERGE_QP` (1e10): on seed
+1156 the iterate reaches 2.96e7 and 3.88e10 times the data at iteration
+25, with the objective at -2.77e17 and still falling. With the limit at
+1e13 or 1e16 the walk goes on, all six still end `numerical_error`, and
+five of them spend about twice the work. The message of that stop printed
+the LP's limit, 1e6, for a QP; it now prints the limit it applies.

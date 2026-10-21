@@ -1228,7 +1228,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
                               "dual %.3e): the model may be infeasible or "
                               "unbounded, which the barrier does not "
                               "certify; the dual simplex does",
-                           BARRIER_DIVERGE, (long long)s->iters, pgrow, dgrow);
+                           far, (long long)s->iters, pgrow, dgrow);
                 s->handoff = true;
                 *out = JAOS_SOLVE_NUMERICAL_ERROR;
                 return JAOS_OK;
