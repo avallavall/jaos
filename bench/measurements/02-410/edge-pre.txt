@@ -1,0 +1,29 @@
+== seed 1
+edge models 3898
+dual       P1=0 P2=0
+primal     P1=0 P2=0
+barrier    P1=0 P2=0
+pdlp       P1=0 P2=0
+concurrent P1=0 P2=0
+broken total 0
+== seed 2
+dual P1 m1156 scope 1 status infeasible: 
+primal P1 m1156 scope 1 status infeasible: 
+barrier P1 m1156 scope 1 status infeasible: 
+pdlp P1 m1156 scope 1 status infeasible: 
+concurrent P1 m1156 scope 1 status infeasible: 
+edge models 4044
+dual       P1=1 P2=0
+primal     P1=1 P2=0
+barrier    P1=1 P2=0
+pdlp       P1=1 P2=0
+concurrent P1=1 P2=0
+broken total 5
+== seed 3
+edge models 3826
+dual       P1=0 P2=0
+primal     P1=0 P2=0
+barrier    P1=0 P2=0
+pdlp       P1=0 P2=0
+concurrent P1=0 P2=0
+broken total 0
