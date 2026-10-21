@@ -5787,20 +5787,55 @@ static void phase_to(bb_phases *p, int64_t work, int next)
     p->phase = next;
 }
 
-static void root_certificate(jaos_model *m, const jaos_model *lp)
+static bool root_certifies(jaos_model *m, const jaos_model *lp)
 {
     if (!lp->farkas_ok || lp->sol_farkas == nullptr ||
         lp->num_row != m->num_row)
-        return;
+        return false;
     jaos_certificate_report cr;
     if (jaos_check_certificate(m, lp->sol_farkas, jm_primal_tolerance(m),
                                &cr) != JAOS_OK || !cr.certified)
-        return;
+        return false;
     if (jm_model_ensure_solution_arrays(m) != JAOS_OK)
-        return;
+        return false;
     memcpy(m->sol_farkas, lp->sol_farkas,
            (size_t)m->num_row * sizeof *m->sol_farkas);
     m->farkas_ok = true;
+    return true;
+}
+
+static void root_certificate(jaos_model *m, const jaos_model *lp,
+                             int64_t *work)
+{
+    bool plain = m->num_sos == 0 && m->row_ind_col == nullptr;
+    for (int64_t j = 0; plain && m->col_semi != nullptr && j < m->num_col; j++)
+        plain = !m->col_semi[j];
+    jaos_model *r = nullptr;
+    if (plain && jaos_model_copy(m, &r) == JAOS_OK) {
+        r->cfg.log_cb = nullptr;
+        r->cfg.progress_cb = nullptr;
+        r->cfg.incumbent_cb = nullptr;
+        jaos_status st = JAOS_OK;
+        for (int64_t j = 0; j < m->num_col && st == JAOS_OK; j++)
+            st = jaos_set_col_integer(r, j, false);
+        budget(r, m, *work);
+        if (st == JAOS_OK)
+            st = jaos_solve(r);
+        if (st == JAOS_OK) {
+            *work += jaos_work_units(r);
+            if (jaos_status_of(r) == JAOS_SOLVE_INFEASIBLE &&
+                root_certifies(m, r)) {
+                jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: the "
+                       "relaxation as loaded is infeasible, and its ray is "
+                       "published");
+                jaos_model_free(r);
+                return;
+            }
+        }
+        jaos_model_free(r);
+    }
+    if (lp != nullptr)
+        (void)root_certifies(m, lp);
 }
 
 typedef struct {
@@ -6027,6 +6062,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t rp_rk_cap = 0, rp_nrm_n = 0, rp_dropped = 0, rp_back = 0;
 
     int64_t work = 0, iters = 0;
+    bool root_cert_tried = false;
     bb_phases ph = {0};
     double best_bound = -INFINITY;
     int64_t parked = 0;
@@ -6450,9 +6486,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             goto done;
         }
         jaos_solve_status ns = jaos_status_of(lp);
+        if (nodes == 1)
+            root_cert_tried = true;
         if (ns == JAOS_SOLVE_INFEASIBLE) {
             if (nodes == 1)
-                root_certificate(m, lp);
+                root_certificate(m, lp, &work);
             if (conflicts_on && nodes > 1) {
                 phase_to(&ph, work, PH_PROP);
                 if (cacol == nullptr) {
@@ -8175,6 +8213,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             jm_set_err(m, "%s", parked_why);
         }
     }
+    if (outcome == JAOS_SOLVE_INFEASIBLE && !m->farkas_ok && !root_cert_tried)
+        root_certificate(m, nullptr, &work);
     rc = JAOS_OK;
     m->solve_status = outcome;
 

@@ -1,0 +1,20 @@
+lto-wrapper: warning: using serial compilation of 12 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+== seed 1
+models 2000 optimal 1036 infeasible 925 unbounded 39 other 0 exact-derived 431 exact-refused 494 mip-with-certificate 616 mip-without 3
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== seed 2
+models 2000 optimal 1046 infeasible 925 unbounded 29 other 0 exact-derived 442 exact-refused 483 mip-with-certificate 614 mip-without 2
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== seed 3
+models 2000 optimal 1008 infeasible 936 unbounded 56 other 0 exact-derived 451 exact-refused 485 mip-with-certificate 620 mip-without 4
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== seed 4
+models 2000 optimal 1074 infeasible 890 unbounded 36 other 0 exact-derived 428 exact-refused 462 mip-with-certificate 603 mip-without 3
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== seed 5
+models 2000 optimal 1048 infeasible 910 unbounded 42 other 0 exact-derived 440 exact-refused 470 mip-with-certificate 591 mip-without 4
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== seed 6
+models 2000 optimal 995 infeasible 969 unbounded 36 other 0 exact-derived 487 exact-refused 482 mip-with-certificate 640 mip-without 5
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0

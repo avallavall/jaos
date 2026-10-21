@@ -2074,6 +2074,24 @@ static void test_an_infeasible_relaxation_is_the_mips_certificate(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
                           jaos_certificate(parity, none));
     jaos_model_free(parity);
+
+    jaos_model *early = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(early, "tests/data/mip_parity_root.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(early));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(early));
+    jaos_mip_report er;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(early, &er));
+    TEST_ASSERT_EQUAL_INT64(0, er.nodes);
+    const int64_t enr = jaos_num_row(early);
+    double *ey = malloc((size_t)enr * sizeof *ey);
+    TEST_ASSERT_NOT_NULL(ey);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(early, ey));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(early, ey, 1e-9,
+                                                          &cr));
+    TEST_ASSERT_TRUE(cr.certified);
+    free(ey);
+    jaos_model_free(early);
 }
 
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)

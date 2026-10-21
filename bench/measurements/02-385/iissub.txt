@@ -1,0 +1,20 @@
+lto-wrapper: warning: using serial compilation of 12 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+== seed 1
+models 1000 infeasible 465 subsystems 465 members 4849 drops 4849 from-certificate 465 mips-read 314 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== seed 2
+models 1000 infeasible 452 subsystems 452 members 5011 drops 5011 from-certificate 452 mips-read 296 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== seed 3
+models 1000 infeasible 463 subsystems 463 members 5127 drops 5127 from-certificate 463 mips-read 302 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== seed 4
+models 1000 infeasible 466 subsystems 466 members 5089 drops 5089 from-certificate 466 mips-read 325 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== seed 5
+models 1000 infeasible 456 subsystems 456 members 4938 drops 4938 from-certificate 456 mips-read 293 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== seed 6
+models 1000 infeasible 472 subsystems 472 members 5299 drops 5299 from-certificate 472 mips-read 299 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
