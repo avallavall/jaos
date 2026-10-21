@@ -46,3 +46,9 @@ HiGHS proved, by default and with `--dive`, at 5e8 work units
 find one, `--dive`'s is better on 9, the same on 2 and worse on 1, and
 `--dive` proves 2 optimal (seeds 174 and 314). No switch fixes the family; it goes to TODO
 row J7.
+
+RENS, tried from outside the tool (`rens.py`): solve the relaxation, fix
+each integer column whose value is integral, box the others between floor
+and ceil, and solve that MIP at 1e8 work units. On all 33 general-integer
+models the sub-MIP is infeasible at its root; on `bigknap` seed 446 it
+finds 2286, where the tree already has 2332.
