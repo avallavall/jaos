@@ -129,6 +129,8 @@ typedef struct {
     bool *dec;
     double push_delta, push_scale;
     bool push_plain, push_free, push_margin;
+    double *walk_point;
+    bool walk_kept;
 } bx;
 
 static void bx_free(bx *s)
@@ -153,6 +155,7 @@ static void bx_free(bx *s)
     free(s->aug_start); free(s->aug_index); free(s->aug_value);
     free(s->aug_rhs);   free(s->aug_of);    free(s->aug_sign);
     free(s->inv);
+    free(s->walk_point);
     jm_chol_free(&s->chol);
     jm_chol_free(&s->aug);
     memset(s, 0, sizeof *s);
@@ -2319,10 +2322,34 @@ out:
     return st;
 }
 
+static void bx_walk_point(bx *s, bool save)
+{
+    const int64_t nv = s->nvar, nr = s->nrow;
+    double *const v[5] = {s->z, s->w, s->v, s->zl, s->zu};
+    for (int k = 0; k < 5; k++) {
+        if (save)
+            memcpy(s->walk_point + k * nv, v[k], (size_t)nv * sizeof *v[k]);
+        else
+            memcpy(v[k], s->walk_point + k * nv, (size_t)nv * sizeof *v[k]);
+    }
+    if (save)
+        memcpy(s->walk_point + 5 * nv, s->y, (size_t)nr * sizeof *s->y);
+    else
+        memcpy(s->y, s->walk_point + 5 * nv, (size_t)nr * sizeof *s->y);
+}
+
 static jaos_status qp_push(bx *s)
 {
     const jaos_model *m = s->m;
     const int64_t nv = s->nvar, nr = s->nrow;
+    if (!s->pushed) {
+        if (s->walk_point == nullptr)
+            s->walk_point = jm_alloc_array(5 * nv + nr + 1, sizeof *s->walk_point);
+        if (s->walk_point != nullptr) {
+            bx_walk_point(s, true);
+            s->walk_kept = true;
+        }
+    }
     int8_t *pin = jm_alloc_array(nv > 0 ? nv : 1, sizeof *pin);
     double *zn = jm_alloc_array(nv > 0 ? nv : 1, sizeof *zn);
     double *yn = jm_alloc_array(nr > 0 ? nr : 1, sizeof *yn);
@@ -3021,10 +3048,15 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         }
         for (int pass = 0; pass < 3 && st == JAOS_OK && refused; pass++) {
             if (pass == 2) {
-                if (s.pushed)
+                if (s.pushed && !s.walk_kept)
                     break;
-                memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
-                memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
+                if (s.pushed) {
+                    bx_walk_point(&s, false);
+                    s.pushed = false;
+                } else {
+                    memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
+                    memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
+                }
                 s.push_plain = true;
                 s.push_margin = true;
                 st = qp_push(&s);
@@ -3034,6 +3066,10 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                        "the push that pins only the variables whose dual is "
                        "%g times their slack %s", QP_PUSH_MARGIN,
                        s.pushed ? "settled" : "did not settle either");
+                if (st == JAOS_OK && !s.pushed) {
+                    memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
+                    memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
+                }
                 if (st != JAOS_OK || !s.pushed)
                     break;
                 pushed = true;

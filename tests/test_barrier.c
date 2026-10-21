@@ -434,6 +434,30 @@ static void test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins(voi
     jaos_model_free(m);
 }
 
+static void test_the_last_push_starts_from_the_walk_after_a_refused_push(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_far_walk_point.mps"));
+    int settled = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_margin, &settled));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, settled);
+    double x[30], y[12], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_TRUE(obj < -1e16);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 typedef struct {
     long long stopped, handed;
 } barrier_work;
@@ -951,6 +975,7 @@ int main(void)
     RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
     RUN_TEST(test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins);
     RUN_TEST(test_a_refused_barrier_point_hands_on_all_its_work);
+    RUN_TEST(test_the_last_push_starts_from_the_walk_after_a_refused_push);
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_the_third_push_drops_the_duals_shift);
