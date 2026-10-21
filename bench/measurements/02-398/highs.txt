@@ -1,0 +1,7 @@
+1104 highs objective -4.269733e+13; cycle ['x19', 'x4'] slope -2.888711e+03 curvature 3.628459e-09, the objective falls by 1.149889e+15 more
+1156 highs objective -2.338817e+15; cycle ['x13', 'x5'] slope -7.761356e+03 curvature 1.561524e-10, the objective falls by 1.928842e+17 more
+1163 highs objective -3.617170e+13; cycle ['x29', 'x28'] slope -2.259198e+03 curvature 1.669567e-07, the objective falls by 1.528533e+13 more
+1282 highs objective -3.576456e+13; cycle ['x23', 'x20'] slope -2.648638e+03 curvature 7.571176e-09, the objective falls by 4.632888e+14 more
+1340 highs objective -8.065292e+12; cycle ['x26', 'x14'] slope -4.511148e+02 curvature 2.506736e-06, the objective falls by 4.059155e+10 more
+1357 highs objective -1.290050e+13; cycle ['x28', 'x0'] slope -1.602134e+03 curvature 2.064058e-09, the objective falls by 6.217929e+14 more
+1308 highs objective -2.111669e+13; cycle ['x18', 'x8', 'x7'] slope -1.869858e+03 curvature 4.871278e-07, the objective falls by 3.588760e+12 more

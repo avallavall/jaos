@@ -1,0 +1,655 @@
+presolve: skipped, the objective has a quadratic term
+row scale factors from 2^-1 to 2^0
+column scale factors from 2^-1 to 2^0
+barrier: 12 rows, 30 columns, 60 nonzeros, tolerance 1e-08, 0 dense columns left out of the normal matrix
+barrier 0: primal 5.574e-01 dual 1.415e+01 gap 2.259e+00 mu 1.993e+09 objective 6.007854726e+10, 5860 work units
+  iterate 6.968e-02/3.010e+00 of the data
+  step 7.486e-01/4.860e-01, sigma 6.088e-02
+barrier 1: primal 1.401e-01 dual 4.071e+00 gap 6.830e+00 mu 6.781e+08 objective 2546179151, 11637 work units
+  iterate 2.331e-01/3.337e+00 of the data
+  step 6.186e-01/1.319e-01, sigma 2.714e-01
+barrier 2: primal 5.343e-02 dual 3.287e+00 gap 9.316e-01 mu 5.709e+08 objective -1.303905674e+11, 17414 work units
+  iterate 4.457e+00/3.886e+00 of the data
+  step 8.483e-01/5.666e-02, sigma 9.478e-02
+barrier 3: primal 8.108e-03 dual 4.024e+00 gap 9.997e-01 mu 4.714e+08 objective -3.498650133e+13, 23191 work units
+  iterate 1.167e+03/4.027e+00 of the data
+  step 5.838e-03/5.390e-03, sigma 8.416e-02
+barrier 4: primal 8.061e-03 dual 3.985e+00 gap 2.449e-01 mu 2.565e+16 objective -1.74513301e+17, 28968 work units
+  iterate 1.307e+07/6.460e+00 of the data
+  step 1.589e-07/8.054e-07, sigma 2.012e-02
+barrier 5: primal 8.061e-03 dual 6.324e+00 gap 2.449e-01 mu 2.565e+16 objective -1.745133006e+17, 34745 work units
+  iterate 1.307e+07/1.105e+02 of the data
+  step 1.644e-06/8.969e-06, sigma 1.931e-02
+barrier 6: primal 8.061e-03 dual 2.252e+01 gap 2.449e-01 mu 2.565e+16 objective -1.745132985e+17, 40522 work units
+  iterate 1.307e+07/1.082e+03 of the data
+  step 2.945e-05/1.769e-05, sigma 1.929e-02
+barrier 7: primal 8.060e-03 dual 1.643e+01 gap 2.449e-01 mu 2.565e+16 objective -1.745132504e+17, 46299 work units
+  iterate 1.307e+07/2.950e+03 of the data
+barrier 7: no progress over 5 iterations; one step length for both sides from here
+  step 1.399e-06/1.399e-06, sigma 5.000e-01
+barrier 8: primal 8.060e-03 dual 1.643e+01 gap 2.449e-01 mu 2.565e+16 objective -1.745131516e+17, 52076 work units
+  iterate 1.307e+07/6.752e+03 of the data
+  step 8.981e-06/8.981e-06, sigma 5.000e-01
+barrier 9: primal 8.060e-03 dual 1.643e+01 gap 2.449e-01 mu 2.565e+16 objective -1.745121832e+17, 57853 work units
+  iterate 1.307e+07/3.096e+04 of the data
+  step 1.254e-05/1.254e-05, sigma 5.000e-01
+barrier 10: primal 8.060e-03 dual 1.643e+01 gap 2.449e-01 mu 2.565e+16 objective -1.74511239e+17, 63630 work units
+  iterate 1.307e+07/6.979e+04 of the data
+  step 9.216e-05/9.216e-05, sigma 5.000e-01
+barrier 11: primal 8.060e-03 dual 1.643e+01 gap 2.451e-01 mu 2.565e+16 objective -1.74500788e+17, 69407 work units
+  iterate 1.307e+07/3.159e+05 of the data
+  step 4.404e-04/4.404e-04, sigma 5.000e-01
+barrier 12: primal 8.056e-03 dual 1.642e+01 gap 2.458e-01 mu 2.564e+16 objective -1.74454272e+17, 75184 work units
+  iterate 1.307e+07/1.505e+06 of the data
+  step 7.380e-04/7.380e-04, sigma 5.000e-01
+barrier 13: primal 8.050e-03 dual 1.641e+01 gap 2.468e-01 mu 2.564e+16 objective -1.743952141e+17, 80961 work units
+  iterate 1.307e+07/3.510e+06 of the data
+  step 5.052e-03/5.052e-03, sigma 5.000e-01
+barrier 14: primal 8.009e-03 dual 1.633e+01 gap 2.556e-01 mu 2.558e+16 objective -1.738141716e+17, 86738 work units
+  iterate 1.307e+07/1.705e+07 of the data
+  step 8.800e-03/8.800e-03, sigma 5.000e-01
+barrier 15: primal 7.939e-03 dual 1.619e+01 gap 2.671e-01 mu 2.547e+16 objective -1.731202751e+17, 92515 work units
+  iterate 1.307e+07/4.182e+07 of the data
+  step 5.204e-02/5.204e-02, sigma 5.000e-01
+barrier 16: primal 7.526e-03 dual 1.534e+01 gap 3.547e-01 mu 2.488e+16 objective -1.676973461e+17, 98292 work units
+  iterate 1.309e+07/1.823e+08 of the data
+  step 8.496e-02/8.496e-02, sigma 5.000e-01
+barrier 17: primal 6.886e-03 dual 1.404e+01 gap 4.567e-01 mu 2.378e+16 objective -1.622211543e+17, 104069 work units
+  iterate 1.312e+07/4.064e+08 of the data
+  step 3.509e-01/3.509e-01, sigma 5.000e-01
+barrier 18: primal 4.470e-03 dual 9.114e+00 gap 9.079e-01 mu 1.910e+16 objective -1.415653289e+17, 109846 work units
+  iterate 1.329e+07/1.312e+09 of the data
+  step 4.070e-01/4.070e-01, sigma 5.000e-01
+barrier 19: primal 3.479e-03 dual 5.405e+00 gap 9.170e-01 mu 1.422e+16 objective -1.435062182e+17, 115623 work units
+  iterate 1.376e+07/2.418e+09 of the data
+  step 6.443e-01/6.443e-01, sigma 5.000e-01
+barrier 20: primal 2.921e-03 dual 1.922e+00 gap 5.412e-01 mu 8.231e+15 objective -1.663012789e+17, 121400 work units
+  iterate 1.553e+07/3.989e+09 of the data
+  step 6.347e-01/6.347e-01, sigma 5.000e-01
+barrier 21: primal 1.863e-03 dual 7.023e-01 gap 1.968e-01 mu 4.838e+15 objective -1.907778161e+17, 127177 work units
+  iterate 1.713e+07/6.357e+09 of the data
+  step 6.234e-01/6.234e-01, sigma 5.000e-01
+barrier 22: primal 1.194e-03 dual 3.476e-01 gap 2.786e-02 mu 2.935e+15 objective -2.131272537e+17, 132954 work units
+  iterate 1.907e+07/9.313e+09 of the data
+  step 6.633e-01/6.633e-01, sigma 5.000e-01
+barrier 23: primal 7.326e-04 dual 2.829e-01 gap 1.795e-01 mu 1.766e+15 objective -2.401605247e+17, 138731 work units
+  iterate 2.267e+07/1.487e+10 of the data
+  step 6.401e-01/6.401e-01, sigma 5.000e-01
+barrier 24: primal 4.521e-04 dual 2.267e-01 gap 2.379e-01 mu 1.098e+15 objective -2.60473386e+17, 144508 work units
+  iterate 2.615e+07/2.386e+10 of the data
+  step 6.552e-01/6.552e-01, sigma 5.000e-01
+barrier 25: primal 2.824e-04 dual 1.800e-01 gap 2.517e-01 mu 6.747e+14 objective -2.765246834e+17, 150285 work units
+  iterate 2.961e+07/3.877e+10 of the data
+  step 6.639e-01/6.639e-01, sigma 5.000e-01
+barrier 26: primal 1.730e-04 dual 1.463e-01 gap 2.449e-01 mu 4.111e+14 objective -2.87161816e+17, 156062 work units
+  iterate 3.240e+07/6.471e+10 of the data
+  step 7.221e-01/7.221e-01, sigma 5.000e-01
+barrier 27: primal 1.018e-04 dual 1.181e-01 gap 2.261e-01 mu 2.396e+14 objective -2.952519173e+17, 161839 work units
+  iterate 3.501e+07/1.017e+11 of the data
+  step 8.972e-01/8.972e-01, sigma 5.000e-01
+barrier 28: primal 5.033e-05 dual 8.950e-02 gap 1.934e-01 mu 1.195e+14 objective -3.021291126e+17, 167616 work units
+  iterate 3.786e+07/1.371e+11 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 29: primal 2.362e-05 dual 1.871e-01 gap 1.506e-01 mu 5.535e+13 objective -3.06942399e+17, 173393 work units
+  iterate 4.059e+07/1.152e+11 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 30: primal 1.211e-05 dual 4.459e-02 gap 1.129e-01 mu 2.587e+13 objective -3.094084746e+17, 179170 work units
+  iterate 4.259e+07/6.038e+10 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 31: primal 6.931e-06 dual 2.635e-02 gap 7.025e-02 mu 1.208e+13 objective -3.109743844e+17, 184947 work units
+  iterate 4.455e+07/2.837e+10 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 32: primal 7.854e-06 dual 1.249e-02 gap 3.431e-02 mu 5.638e+12 objective -3.116312218e+17, 190724 work units
+  iterate 4.604e+07/1.341e+10 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 33: primal 8.748e-06 dual 3.817e-03 gap 1.035e-02 mu 2.629e+12 objective -3.118097479e+17, 196501 work units
+  iterate 4.698e+07/6.421e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 34: primal 9.234e-06 dual 4.474e-04 gap 7.512e-04 mu 1.224e+12 objective -3.118328703e+17, 202278 work units
+  iterate 4.734e+07/3.409e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 35: primal 9.483e-06 dual 4.284e-06 gap 4.786e-04 mu 5.701e+11 objective -3.118360942e+17, 208055 work units
+  iterate 4.739e+07/3.041e+09 of the data
+  the rows hold the walk; their regularisation drops to 1.0e-13
+  1 pivots replaced with the rows' regularisation dropped; it goes back to 1.0e-10 for good
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 36: primal 9.613e-06 dual 2.253e-07 gap 4.621e-04 mu 2.653e+11 objective -3.118375036e+17, 218253 work units
+  iterate 4.739e+07/3.021e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 37: primal 9.679e-06 dual 6.038e-07 gap 4.483e-04 mu 1.234e+11 objective -3.118381681e+17, 224030 work units
+  iterate 4.739e+07/3.007e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 38: primal 9.711e-06 dual 8.124e-07 gap 4.411e-04 mu 5.737e+10 objective -3.118384811e+17, 229807 work units
+  iterate 4.739e+07/2.995e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 39: primal 9.727e-06 dual 8.124e-07 gap 4.370e-04 mu 2.664e+10 objective -3.118386281e+17, 235584 work units
+  iterate 4.739e+07/2.985e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 40: primal 9.734e-06 dual 8.124e-07 gap 4.344e-04 mu 1.236e+10 objective -3.11838697e+17, 241361 work units
+  iterate 4.739e+07/2.975e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 41: primal 9.738e-06 dual 4.062e-07 gap 4.324e-04 mu 5.727e+09 objective -3.118387294e+17, 247138 work units
+  iterate 4.739e+07/2.965e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 42: primal 9.739e-06 dual 4.062e-07 gap 4.307e-04 mu 2.653e+09 objective -3.118387446e+17, 252915 work units
+  iterate 4.739e+07/2.955e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 43: primal 9.740e-06 dual 2.031e-07 gap 4.291e-04 mu 1.228e+09 objective -3.118387519e+17, 258692 work units
+  iterate 4.739e+07/2.945e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 44: primal 9.741e-06 dual 4.062e-07 gap 4.276e-04 mu 5.687e+08 objective -3.118387554e+17, 264469 work units
+  iterate 4.739e+07/2.935e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 45: primal 9.741e-06 dual 4.062e-07 gap 4.261e-04 mu 2.632e+08 objective -3.118387571e+17, 270246 work units
+  iterate 4.739e+07/2.926e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 46: primal 9.741e-06 dual 4.062e-07 gap 4.247e-04 mu 1.219e+08 objective -3.118387579e+17, 276023 work units
+  iterate 4.739e+07/2.916e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 47: primal 9.741e-06 dual 4.607e-07 gap 4.232e-04 mu 5.655e+07 objective -3.118387583e+17, 281800 work units
+  iterate 4.739e+07/2.906e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 48: primal 9.741e-06 dual 8.124e-07 gap 4.218e-04 mu 2.639e+07 objective -3.118387584e+17, 287577 work units
+  iterate 4.739e+07/2.897e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 49: primal 9.741e-06 dual 4.062e-07 gap 4.204e-04 mu 1.243e+07 objective -3.118387585e+17, 293354 work units
+  iterate 4.739e+07/2.887e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 50: primal 9.741e-06 dual 4.062e-07 gap 4.189e-04 mu 5.908e+06 objective -3.118387586e+17, 299131 work units
+  iterate 4.739e+07/2.877e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 51: primal 9.741e-06 dual 4.062e-07 gap 4.175e-04 mu 2.833e+06 objective -3.118387586e+17, 304908 work units
+  iterate 4.739e+07/2.868e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 52: primal 9.741e-06 dual 4.062e-07 gap 4.160e-04 mu 1.368e+06 objective -3.118387586e+17, 310685 work units
+  iterate 4.739e+07/2.858e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 53: primal 9.741e-06 dual 3.480e-07 gap 4.146e-04 mu 6.643e+05 objective -3.118387586e+17, 316462 work units
+  iterate 4.739e+07/2.848e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 54: primal 9.741e-06 dual 4.062e-07 gap 4.131e-04 mu 3.238e+05 objective -3.118387586e+17, 322239 work units
+  iterate 4.739e+07/2.838e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 55: primal 9.741e-06 dual 4.062e-07 gap 4.117e-04 mu 1.582e+05 objective -3.118387586e+17, 328016 work units
+  iterate 4.739e+07/2.829e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 56: primal 9.741e-06 dual 3.817e-07 gap 4.103e-04 mu 7.740e+04 objective -3.118387586e+17, 333793 work units
+  iterate 4.739e+07/2.819e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 57: primal 9.741e-06 dual 4.062e-07 gap 4.088e-04 mu 3.792e+04 objective -3.118387586e+17, 339570 work units
+  iterate 4.739e+07/2.809e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 58: primal 9.741e-06 dual 4.062e-07 gap 4.074e-04 mu 1.860e+04 objective -3.118387586e+17, 345347 work units
+  iterate 4.739e+07/2.800e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 59: primal 9.741e-06 dual 2.651e-07 gap 4.059e-04 mu 9.134e+03 objective -3.118387586e+17, 351124 work units
+  iterate 4.739e+07/2.790e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 60: primal 9.741e-06 dual 4.062e-07 gap 4.045e-04 mu 4.492e+03 objective -3.118387586e+17, 356901 work units
+  iterate 4.739e+07/2.780e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 61: primal 9.741e-06 dual 4.062e-07 gap 4.031e-04 mu 2.211e+03 objective -3.118387586e+17, 362678 work units
+  iterate 4.739e+07/2.771e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 62: primal 9.741e-06 dual 2.031e-07 gap 4.016e-04 mu 1.090e+03 objective -3.118387586e+17, 368455 work units
+  iterate 4.739e+07/2.761e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 63: primal 9.741e-06 dual 8.124e-07 gap 4.002e-04 mu 5.372e+02 objective -3.118387586e+17, 374232 work units
+  iterate 4.739e+07/2.751e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 64: primal 9.741e-06 dual 4.062e-07 gap 3.987e-04 mu 2.650e+02 objective -3.118387586e+17, 380009 work units
+  iterate 4.739e+07/2.742e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 65: primal 9.741e-06 dual 8.124e-07 gap 3.973e-04 mu 1.307e+02 objective -3.118387586e+17, 385786 work units
+  iterate 4.739e+07/2.732e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 66: primal 9.741e-06 dual 4.062e-07 gap 3.958e-04 mu 6.448e+01 objective -3.118387586e+17, 391563 work units
+  iterate 4.739e+07/2.722e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 67: primal 9.741e-06 dual 4.062e-07 gap 3.944e-04 mu 3.181e+01 objective -3.118387586e+17, 397340 work units
+  iterate 4.739e+07/2.712e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 68: primal 9.741e-06 dual 4.062e-07 gap 3.930e-04 mu 1.569e+01 objective -3.118387586e+17, 403117 work units
+  iterate 4.739e+07/2.703e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 69: primal 9.741e-06 dual 4.062e-07 gap 3.915e-04 mu 7.743e+00 objective -3.118387586e+17, 408894 work units
+  iterate 4.739e+07/2.693e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 70: primal 9.741e-06 dual 4.062e-07 gap 3.901e-04 mu 3.820e+00 objective -3.118387586e+17, 414671 work units
+  iterate 4.739e+07/2.683e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 71: primal 9.741e-06 dual 4.062e-07 gap 3.886e-04 mu 1.885e+00 objective -3.118387586e+17, 420448 work units
+  iterate 4.739e+07/2.674e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 72: primal 9.741e-06 dual 5.088e-07 gap 3.872e-04 mu 9.299e-01 objective -3.118387586e+17, 426225 work units
+  iterate 4.739e+07/2.664e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 73: primal 9.741e-06 dual 2.031e-07 gap 3.858e-04 mu 4.588e-01 objective -3.118387586e+17, 432002 work units
+  iterate 4.739e+07/2.654e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 74: primal 9.741e-06 dual 4.062e-07 gap 3.843e-04 mu 2.264e-01 objective -3.118387586e+17, 437779 work units
+  iterate 4.739e+07/2.645e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 75: primal 9.741e-06 dual 8.124e-07 gap 3.829e-04 mu 1.117e-01 objective -3.118387586e+17, 443556 work units
+  iterate 4.739e+07/2.635e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 76: primal 9.741e-06 dual 4.062e-07 gap 3.814e-04 mu 5.510e-02 objective -3.118387586e+17, 449333 work units
+  iterate 4.739e+07/2.625e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 77: primal 9.741e-06 dual 4.062e-07 gap 3.800e-04 mu 2.719e-02 objective -3.118387586e+17, 455110 work units
+  iterate 4.739e+07/2.615e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 78: primal 9.741e-06 dual 4.062e-07 gap 3.785e-04 mu 1.342e-02 objective -3.118387586e+17, 460887 work units
+  iterate 4.739e+07/2.606e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 79: primal 9.741e-06 dual 4.062e-07 gap 3.771e-04 mu 6.621e-03 objective -3.118387586e+17, 466664 work units
+  iterate 4.739e+07/2.596e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 80: primal 9.741e-06 dual 4.062e-07 gap 3.757e-04 mu 3.269e-03 objective -3.118387586e+17, 472441 work units
+  iterate 4.739e+07/2.589e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 81: primal 9.741e-06 dual 7.601e-07 gap 3.742e-04 mu 1.615e-03 objective -3.118387586e+17, 478218 work units
+  iterate 4.739e+07/2.589e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 82: primal 9.741e-06 dual 4.062e-07 gap 3.728e-04 mu 7.986e-04 objective -3.118387586e+17, 483995 work units
+  iterate 4.739e+07/2.589e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 83: primal 9.741e-06 dual 4.062e-07 gap 3.713e-04 mu 3.956e-04 objective -3.118387586e+17, 489772 work units
+  iterate 4.739e+07/2.588e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 84: primal 9.741e-06 dual 8.187e-07 gap 3.699e-04 mu 1.964e-04 objective -3.118387586e+17, 495549 work units
+  iterate 4.739e+07/2.588e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 85: primal 9.741e-06 dual 4.062e-07 gap 3.685e-04 mu 9.768e-05 objective -3.118387586e+17, 501326 work units
+  iterate 4.739e+07/2.588e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 86: primal 9.741e-06 dual 4.062e-07 gap 3.670e-04 mu 4.867e-05 objective -3.118387586e+17, 507103 work units
+  iterate 4.739e+07/2.588e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 87: primal 9.741e-06 dual 4.062e-07 gap 3.656e-04 mu 2.428e-05 objective -3.118387586e+17, 512880 work units
+  iterate 4.739e+07/2.587e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 88: primal 9.741e-06 dual 4.062e-07 gap 3.641e-04 mu 1.212e-05 objective -3.118387586e+17, 518657 work units
+  iterate 4.739e+07/2.587e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 89: primal 9.741e-06 dual 4.062e-07 gap 3.627e-04 mu 6.053e-06 objective -3.118387586e+17, 524434 work units
+  iterate 4.739e+07/2.587e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 90: primal 9.741e-06 dual 2.031e-07 gap 3.612e-04 mu 3.024e-06 objective -3.118387586e+17, 530211 work units
+  iterate 4.739e+07/2.587e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 91: primal 9.741e-06 dual 4.063e-07 gap 3.598e-04 mu 1.510e-06 objective -3.118387586e+17, 535988 work units
+  iterate 4.739e+07/2.586e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 92: primal 9.741e-06 dual 4.062e-07 gap 3.584e-04 mu 7.546e-07 objective -3.118387586e+17, 541765 work units
+  iterate 4.739e+07/2.586e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 93: primal 9.741e-06 dual 2.031e-07 gap 3.569e-04 mu 3.770e-07 objective -3.118387586e+17, 547542 work units
+  iterate 4.739e+07/2.586e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 94: primal 9.741e-06 dual 4.062e-07 gap 3.555e-04 mu 1.884e-07 objective -3.118387586e+17, 553319 work units
+  iterate 4.739e+07/2.585e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 95: primal 9.741e-06 dual 4.062e-07 gap 3.540e-04 mu 9.411e-08 objective -3.118387586e+17, 559096 work units
+  iterate 4.739e+07/2.585e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 96: primal 9.741e-06 dual 4.062e-07 gap 3.526e-04 mu 4.702e-08 objective -3.118387586e+17, 564873 work units
+  iterate 4.739e+07/2.585e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 97: primal 9.741e-06 dual 2.031e-07 gap 3.512e-04 mu 2.349e-08 objective -3.118387586e+17, 570650 work units
+  iterate 4.739e+07/2.585e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 98: primal 9.741e-06 dual 4.062e-07 gap 3.497e-04 mu 1.174e-08 objective -3.118387586e+17, 576427 work units
+  iterate 4.739e+07/2.584e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 99: primal 9.741e-06 dual 4.062e-07 gap 3.483e-04 mu 5.863e-09 objective -3.118387586e+17, 582204 work units
+  iterate 4.739e+07/2.584e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 100: primal 9.741e-06 dual 4.062e-07 gap 3.468e-04 mu 2.929e-09 objective -3.118387586e+17, 587981 work units
+  iterate 4.739e+07/2.584e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 101: primal 9.741e-06 dual 4.062e-07 gap 3.454e-04 mu 1.463e-09 objective -3.118387586e+17, 593758 work units
+  iterate 4.739e+07/2.584e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 102: primal 9.741e-06 dual 2.031e-07 gap 3.439e-04 mu 7.310e-10 objective -3.118387586e+17, 599535 work units
+  iterate 4.739e+07/2.583e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 103: primal 9.741e-06 dual 2.031e-07 gap 3.425e-04 mu 3.652e-10 objective -3.118387586e+17, 605312 work units
+  iterate 4.739e+07/2.583e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 104: primal 9.741e-06 dual 4.062e-07 gap 3.411e-04 mu 1.824e-10 objective -3.118387586e+17, 611089 work units
+  iterate 4.739e+07/2.583e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 105: primal 9.741e-06 dual 4.062e-07 gap 3.396e-04 mu 9.114e-11 objective -3.118387586e+17, 616866 work units
+  iterate 4.739e+07/2.583e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 106: primal 9.741e-06 dual 4.062e-07 gap 3.382e-04 mu 4.553e-11 objective -3.118387586e+17, 622643 work units
+  iterate 4.739e+07/2.582e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 107: primal 9.741e-06 dual 4.062e-07 gap 3.367e-04 mu 2.275e-11 objective -3.118387586e+17, 628420 work units
+  iterate 4.739e+07/2.582e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 108: primal 9.741e-06 dual 4.062e-07 gap 3.353e-04 mu 1.136e-11 objective -3.118387586e+17, 634197 work units
+  iterate 4.739e+07/2.582e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 109: primal 9.741e-06 dual 1.016e-07 gap 3.339e-04 mu 5.676e-12 objective -3.118387586e+17, 639974 work units
+  iterate 4.739e+07/2.582e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 110: primal 9.741e-06 dual 4.062e-07 gap 3.324e-04 mu 2.835e-12 objective -3.118387586e+17, 645751 work units
+  iterate 4.739e+07/2.581e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 111: primal 9.741e-06 dual 4.062e-07 gap 3.310e-04 mu 1.416e-12 objective -3.118387586e+17, 651528 work units
+  iterate 4.739e+07/2.581e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 112: primal 9.741e-06 dual 4.062e-07 gap 3.295e-04 mu 7.075e-13 objective -3.118387586e+17, 657305 work units
+  iterate 4.739e+07/2.581e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 113: primal 9.741e-06 dual 4.062e-07 gap 3.281e-04 mu 3.534e-13 objective -3.118387586e+17, 663082 work units
+  iterate 4.739e+07/2.581e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 114: primal 9.741e-06 dual 1.016e-07 gap 3.266e-04 mu 1.765e-13 objective -3.118387586e+17, 668859 work units
+  iterate 4.739e+07/2.580e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 115: primal 9.741e-06 dual 1.016e-07 gap 3.252e-04 mu 8.818e-14 objective -3.118387586e+17, 674636 work units
+  iterate 4.739e+07/2.580e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 116: primal 9.741e-06 dual 2.031e-07 gap 3.238e-04 mu 4.404e-14 objective -3.118387586e+17, 680413 work units
+  iterate 4.739e+07/2.580e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 117: primal 9.741e-06 dual 1.016e-07 gap 3.223e-04 mu 2.200e-14 objective -3.118387586e+17, 686190 work units
+  iterate 4.739e+07/2.580e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 118: primal 9.741e-06 dual 1.016e-07 gap 3.209e-04 mu 1.099e-14 objective -3.118387586e+17, 691967 work units
+  iterate 4.739e+07/2.579e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 119: primal 9.741e-06 dual 1.016e-07 gap 3.194e-04 mu 5.488e-15 objective -3.118387586e+17, 697744 work units
+  iterate 4.739e+07/2.579e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 120: primal 9.741e-06 dual 1.016e-07 gap 3.180e-04 mu 2.741e-15 objective -3.118387586e+17, 703521 work units
+  iterate 4.739e+07/2.579e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 121: primal 9.741e-06 dual 4.062e-07 gap 3.166e-04 mu 1.369e-15 objective -3.118387586e+17, 709298 work units
+  iterate 4.739e+07/2.579e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 122: primal 9.741e-06 dual 1.016e-07 gap 3.151e-04 mu 6.838e-16 objective -3.118387586e+17, 715075 work units
+  iterate 4.739e+07/2.578e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 123: primal 9.741e-06 dual 4.062e-07 gap 3.137e-04 mu 3.415e-16 objective -3.118387586e+17, 720852 work units
+  iterate 4.739e+07/2.578e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 124: primal 9.741e-06 dual 1.016e-07 gap 3.122e-04 mu 1.706e-16 objective -3.118387586e+17, 726629 work units
+  iterate 4.739e+07/2.578e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 125: primal 9.741e-06 dual 4.062e-07 gap 3.108e-04 mu 8.518e-17 objective -3.118387586e+17, 732406 work units
+  iterate 4.739e+07/2.578e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 126: primal 9.741e-06 dual 4.062e-07 gap 3.093e-04 mu 4.254e-17 objective -3.118387586e+17, 738183 work units
+  iterate 4.739e+07/2.577e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 127: primal 9.741e-06 dual 4.062e-07 gap 3.079e-04 mu 2.124e-17 objective -3.118387586e+17, 743960 work units
+  iterate 4.739e+07/2.577e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 128: primal 9.741e-06 dual 1.016e-07 gap 3.065e-04 mu 1.061e-17 objective -3.118387586e+17, 749737 work units
+  iterate 4.739e+07/2.577e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 129: primal 9.741e-06 dual 4.062e-07 gap 3.050e-04 mu 5.298e-18 objective -3.118387586e+17, 755514 work units
+  iterate 4.739e+07/2.577e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 130: primal 9.741e-06 dual 4.062e-07 gap 3.036e-04 mu 2.645e-18 objective -3.118387586e+17, 761291 work units
+  iterate 4.739e+07/2.576e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 131: primal 9.741e-06 dual 4.062e-07 gap 3.021e-04 mu 1.321e-18 objective -3.118387586e+17, 767068 work units
+  iterate 4.739e+07/2.576e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 132: primal 9.741e-06 dual 4.062e-07 gap 3.007e-04 mu 6.596e-19 objective -3.118387586e+17, 772845 work units
+  iterate 4.739e+07/2.576e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 133: primal 9.741e-06 dual 4.062e-07 gap 2.993e-04 mu 3.293e-19 objective -3.118387586e+17, 778622 work units
+  iterate 4.739e+07/2.575e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 134: primal 9.741e-06 dual 1.016e-07 gap 2.978e-04 mu 1.644e-19 objective -3.118387586e+17, 784399 work units
+  iterate 4.739e+07/2.575e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 135: primal 9.741e-06 dual 4.062e-07 gap 2.964e-04 mu 8.210e-20 objective -3.118387586e+17, 790176 work units
+  iterate 4.739e+07/2.575e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 136: primal 9.741e-06 dual 4.062e-07 gap 2.949e-04 mu 4.099e-20 objective -3.118387586e+17, 795953 work units
+  iterate 4.739e+07/2.575e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 137: primal 9.741e-06 dual 1.016e-07 gap 2.935e-04 mu 2.046e-20 objective -3.118387586e+17, 801730 work units
+  iterate 4.739e+07/2.574e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 138: primal 9.741e-06 dual 4.062e-07 gap 2.920e-04 mu 1.022e-20 objective -3.118387586e+17, 807507 work units
+  iterate 4.739e+07/2.574e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 139: primal 9.741e-06 dual 4.062e-07 gap 2.906e-04 mu 5.100e-21 objective -3.118387586e+17, 813284 work units
+  iterate 4.739e+07/2.574e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 140: primal 9.741e-06 dual 4.062e-07 gap 2.892e-04 mu 2.546e-21 objective -3.118387586e+17, 819061 work units
+  iterate 4.739e+07/2.574e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 141: primal 9.741e-06 dual 1.016e-07 gap 2.877e-04 mu 1.271e-21 objective -3.118387586e+17, 824838 work units
+  iterate 4.739e+07/2.573e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 142: primal 9.741e-06 dual 4.062e-07 gap 2.863e-04 mu 6.342e-22 objective -3.118387586e+17, 830615 work units
+  iterate 4.739e+07/2.573e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 143: primal 9.741e-06 dual 4.062e-07 gap 2.848e-04 mu 3.165e-22 objective -3.118387586e+17, 836392 work units
+  iterate 4.739e+07/2.573e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 144: primal 9.741e-06 dual 4.062e-07 gap 2.834e-04 mu 1.580e-22 objective -3.118387586e+17, 842169 work units
+  iterate 4.739e+07/2.573e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 145: primal 9.741e-06 dual 4.062e-07 gap 2.820e-04 mu 7.883e-23 objective -3.118387586e+17, 847946 work units
+  iterate 4.739e+07/2.572e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 146: primal 9.741e-06 dual 1.016e-07 gap 2.805e-04 mu 3.934e-23 objective -3.118387586e+17, 853723 work units
+  iterate 4.739e+07/2.572e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 147: primal 9.741e-06 dual 4.062e-07 gap 2.791e-04 mu 1.963e-23 objective -3.118387586e+17, 859500 work units
+  iterate 4.739e+07/2.572e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 148: primal 9.741e-06 dual 4.062e-07 gap 2.776e-04 mu 9.791e-24 objective -3.118387586e+17, 865277 work units
+  iterate 4.739e+07/2.572e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 149: primal 9.741e-06 dual 4.062e-07 gap 2.762e-04 mu 4.884e-24 objective -3.118387586e+17, 871054 work units
+  iterate 4.739e+07/2.571e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 150: primal 9.741e-06 dual 4.062e-07 gap 2.747e-04 mu 2.436e-24 objective -3.118387586e+17, 876831 work units
+  iterate 4.739e+07/2.571e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 151: primal 9.741e-06 dual 4.062e-07 gap 2.733e-04 mu 1.215e-24 objective -3.118387586e+17, 882608 work units
+  iterate 4.739e+07/2.571e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 152: primal 9.741e-06 dual 4.062e-07 gap 2.719e-04 mu 6.058e-25 objective -3.118387586e+17, 888385 work units
+  iterate 4.739e+07/2.571e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 153: primal 9.741e-06 dual 1.016e-07 gap 2.704e-04 mu 3.020e-25 objective -3.118387586e+17, 894162 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 154: primal 9.741e-06 dual 4.062e-07 gap 2.690e-04 mu 1.505e-25 objective -3.118387586e+17, 899939 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 155: primal 9.741e-06 dual 4.062e-07 gap 2.675e-04 mu 7.500e-26 objective -3.118387586e+17, 905716 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 156: primal 9.741e-06 dual 4.062e-07 gap 2.661e-04 mu 3.736e-26 objective -3.118387586e+17, 911493 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 157: primal 9.741e-06 dual 4.062e-07 gap 2.647e-04 mu 1.860e-26 objective -3.118387586e+17, 917270 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 158: primal 9.741e-06 dual 4.062e-07 gap 2.632e-04 mu 9.254e-27 objective -3.118387586e+17, 923047 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 159: primal 9.741e-06 dual 2.031e-07 gap 2.618e-04 mu 4.600e-27 objective -3.118387586e+17, 928824 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 160: primal 9.741e-06 dual 2.031e-07 gap 2.603e-04 mu 2.283e-27 objective -3.118387586e+17, 934601 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 161: primal 9.741e-06 dual 2.031e-07 gap 2.589e-04 mu 1.123e-27 objective -3.118387586e+17, 940378 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 2.534e-01/2.534e-01, sigma 5.000e-01
+barrier 162: primal 9.741e-06 dual 1.016e-07 gap 2.585e-04 mu 9.681e-28 objective -3.118387586e+17, 946155 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 1.267e-05/1.267e-05, sigma 5.000e-01
+barrier 163: primal 9.741e-06 dual 2.031e-07 gap 2.585e-04 mu 9.681e-28 objective -3.118387586e+17, 951932 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 6.335e-10/6.335e-10, sigma 5.000e-01
+barrier 164: primal 9.741e-06 dual 2.031e-07 gap 2.585e-04 mu 1.864e-27 objective -3.118387586e+17, 957709 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 2.046e-02/2.046e-02, sigma 5.000e-01
+barrier 165: primal 1.041e-03 dual 1.619e+02 gap 3.306e-04 mu 1.767e+14 objective -3.118387586e+17, 963486 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 6.356e-26/6.356e-26, sigma 5.000e-01
+barrier 166: primal 1.041e-03 dual 2.568e+09 gap 3.111e-04 mu 1.767e+14 objective -3.118387586e+17, 969263 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 1.797e-10/1.797e-10, sigma 9.997e-01
+barrier 167: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.01411746e+19, 975040 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 4.999e-13/4.999e-13, sigma 9.282e-01
+barrier 168: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 980817 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 6.650e-13/6.650e-13, sigma 9.579e-01
+barrier 169: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 986594 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 4.510e-12/4.510e-12, sigma 9.806e-01
+barrier 170: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 992371 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 1.082e-11/1.082e-11, sigma 9.954e-01
+barrier 171: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 998148 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 3.482e-11/3.482e-11, sigma 9.978e-01
+barrier 172: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 1003925 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 1.020e-10/1.020e-10, sigma 9.987e-01
+barrier 173: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117462e+19, 1009702 work units
+  iterate 4.739e+07/2.568e+09 of the data
+  step 3.082e-10/3.082e-10, sigma 9.988e-01
+barrier 174: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117461e+19, 1015479 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 9.229e-10/9.229e-10, sigma 9.985e-01
+barrier 175: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117459e+19, 1021256 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 2.775e-09/2.775e-09, sigma 9.968e-01
+barrier 176: primal 1.040e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117454e+19, 1027033 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 8.342e-09/8.342e-09, sigma 9.946e-01
+barrier 177: primal 1.040e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117438e+19, 1032810 work units
+  iterate 4.739e+07/2.569e+09 of the data
+  step 2.504e-08/2.504e-08, sigma 9.942e-01
+barrier 178: primal 1.039e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117393e+19, 1038587 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 7.533e-08/7.533e-08, sigma 9.914e-01
+barrier 179: primal 1.037e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014117257e+19, 1044364 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 2.285e-07/2.285e-07, sigma 9.803e-01
+barrier 180: primal 1.037e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014116843e+19, 1050141 work units
+  iterate 4.739e+07/2.570e+09 of the data
+  step 7.102e-07/7.102e-07, sigma 9.464e-01
+barrier 181: primal 1.038e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014115527e+19, 1055918 work units
+  iterate 4.739e+07/2.838e+09 of the data
+  step 2.363e-06/2.363e-06, sigma 8.532e-01
+barrier 182: primal 1.041e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014110972e+19, 1061695 work units
+  iterate 4.739e+07/7.524e+09 of the data
+  step 9.584e-06/9.584e-06, sigma 6.312e-01
+barrier 183: primal 1.047e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014090915e+19, 1067472 work units
+  iterate 4.739e+07/2.120e+10 of the data
+  step 3.629e-05/3.629e-05, sigma 5.000e-01
+barrier 184: primal 1.056e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.014011431e+19, 1073249 work units
+  iterate 4.739e+07/6.261e+10 of the data
+  step 1.089e-04/1.089e-04, sigma 5.000e-01
+barrier 185: primal 1.072e-03 dual 2.567e+09 gap 2.031e+00 mu 1.049e+18 objective 2.013772935e+19, 1079026 work units
+  iterate 4.739e+07/1.865e+11 of the data
+  step 3.267e-04/3.267e-04, sigma 5.000e-01
+barrier 186: primal 1.097e-03 dual 2.566e+09 gap 2.031e+00 mu 1.049e+18 objective 2.013057465e+19, 1084803 work units
+  iterate 4.740e+07/5.584e+11 of the data
+  step 9.801e-04/9.801e-04, sigma 5.000e-01
+barrier 187: primal 1.145e-03 dual 2.564e+09 gap 2.032e+00 mu 1.048e+18 objective 2.010911913e+19, 1090580 work units
+  iterate 4.741e+07/1.673e+12 of the data
+  step 2.941e-03/2.941e-03, sigma 5.000e-01
+barrier 188: primal 1.264e-03 dual 2.556e+09 gap 2.033e+00 mu 1.046e+18 objective 2.004484056e+19, 1096357 work units
+  iterate 4.747e+07/5.015e+12 of the data
+  step 8.834e-03/8.834e-03, sigma 5.000e-01
+barrier 189: primal 2.195e-03 dual 2.534e+09 gap 2.038e+00 mu 1.039e+18 objective 1.985281256e+19, 1102134 work units
+  iterate 4.763e+07/1.500e+13 of the data
+  step 2.659e-02/2.659e-02, sigma 5.000e-01
+barrier 190: primal 5.208e-03 dual 2.466e+09 gap 2.053e+00 mu 1.021e+18 objective 1.928398697e+19, 1107911 work units
+  iterate 4.809e+07/4.460e+13 of the data
+  step 8.051e-02/8.051e-02, sigma 5.000e-01
+barrier 191: primal 1.094e-02 dual 2.268e+09 gap 2.100e+00 mu 9.666e+17 objective 1.764193231e+19, 1113688 work units
+  iterate 4.940e+07/1.302e+14 of the data
+  step 2.482e-01/2.482e-01, sigma 5.000e-01
+barrier 192: primal 1.928e-02 dual 1.705e+09 gap 2.282e+00 mu 8.221e+17 objective 1.327302317e+19, 1119465 work units
+  iterate 5.276e+07/3.583e+14 of the data
+  step 8.029e-01/8.029e-01, sigma 5.000e-01
+barrier 193: primal 2.249e-02 dual 3.360e+08 gap 3.611e+00 mu 5.141e+17 objective 4.62710772e+18, 1125242 work units
+  iterate 5.982e+07/7.871e+14 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 194: primal 1.014e-02 dual 1.680e+04 gap 6.554e+00 mu 2.477e+17 objective 1.223572014e+18, 1131019 work units
+  iterate 6.252e+07/5.581e+14 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 195: primal 5.043e-03 dual 8.386e-01 gap 1.184e+01 mu 1.146e+17 objective 3.185478717e+17, 1136796 work units
+  iterate 6.240e+07/2.688e+14 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 196: primal 2.338e-03 dual 2.346e-01 gap 7.745e+01 mu 5.270e+16 objective -2.370895874e+16, 1142573 work units
+  iterate 6.128e+07/1.244e+14 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 197: primal 1.083e-03 dual 1.939e-01 gap 5.327e+00 mu 2.430e+16 objective -1.746859047e+17, 1148350 work units
+  iterate 5.995e+07/5.721e+13 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 198: primal 5.026e-04 dual 1.471e-01 gap 2.043e+00 mu 1.123e+16 objective -2.442789873e+17, 1154127 work units
+  iterate 5.869e+07/2.638e+13 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 199: primal 2.347e-04 dual 1.286e-01 gap 1.044e+00 mu 5.202e+15 objective -2.767802599e+17, 1159904 work units
+  iterate 5.760e+07/1.219e+13 of the data
+  step 1.000e+00/1.000e+00, sigma 5.000e-01
+barrier 200: primal 1.108e-04 dual 1.101e-01 gap 6.303e-01 mu 2.414e+15 objective -2.921795362e+17, 1165681 work units
+  iterate 5.666e+07/5.650e+12 of the data
+barrier stopped after 200 iterations, 1165819 work units: the barrier did not converge in 200 iterations (primal 1.108e-04, dual 1.101e-01, gap 6.303e-01): the model may be infeasible or unbounded, which the barrier does not certify; the dual simplex does; the dual simplex decides feasibility over the same rows and bounds, which the quadratic term does not change
+dual simplex: 12 rows, 30 columns, 60 nonzeros, primal tol 1e-07, dual tol 1e-09
+starting from the slack basis
+iter 0: best infeasibility 61821.8, work 1170088
+the rows and bounds are feasible and the ray LP found no certified direction along which the quadratic term is zero and the objective improves, so the barrier's stop stands; 120 work units for the ray
+numerical error after 13 iterations, 1176939 work units; 2 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1
+the barrier ended without an answer after 213 iterations and 1177059 work units; the conic interior point solves the model again
+conic interior point: 30 columns, 51 rows in 12 equalities, 39 inequalities and 0 second-order cones
+conic   0: pobj +0.0000000000e+00 dobj -5.6064865159e+09 pres 1.00e+00 dres 1.00e+00 gap 5.61e+09 mu 1.00e+00 tau 1.00e+00 kappa 1.00e+00
+conic   1: pobj -1.6171639260e+05 dobj -5.6065490263e+09 pres 1.00e+00 dres 2.05e-01 gap 3.47e+04 mu 2.11e-01 tau 2.11e-01 kappa 1.00e+00
+conic   2: pobj -1.3724510125e+06 dobj -5.6068797672e+09 pres 1.00e+00 dres 2.71e-02 gap 4.08e+03 mu 3.39e-02 tau 3.39e-02 kappa 1.00e+00
+conic   3: pobj -3.9968500503e+07 dobj -5.6155805607e+09 pres 9.85e-01 dres 8.69e-04 gap 1.40e+02 mu 1.14e-03 tau 1.12e-03 kappa 1.00e+00
+conic   4: pobj +2.2226472456e+08 dobj -6.4300792330e+09 pres 7.66e-01 dres 4.25e-05 gap 3.28e+01 mu 7.10e-05 tau 6.02e-05 kappa 9.89e-01
+conic   5: pobj -1.6360495824e+08 dobj -4.9267928408e+09 pres 4.22e-01 dres 2.64e-05 gap 4.02e+01 mu 3.66e-05 tau 4.55e-05 kappa 6.76e-01
+conic   6: pobj -4.7576659473e+09 dobj -9.6032441959e+09 pres 3.10e-01 dres 1.40e-05 gap 2.70e+00 mu 1.84e-05 tau 2.31e-05 kappa 5.94e-01
+conic   7: pobj -7.1116124108e+10 dobj -1.4140220176e+11 pres 4.01e-02 dres 1.47e-06 gap 3.48e+00 mu 2.43e-06 tau 1.92e-06 kappa 5.40e-01
+conic   8: pobj -5.3438347540e+11 dobj -2.0380608676e+12 pres 2.80e-03 dres 1.24e-07 gap 7.18e+00 mu 3.01e-07 tau 1.72e-07 kappa 4.82e-01
+conic   9: pobj -4.7905595057e+12 dobj -2.2888467428e+13 pres 2.34e-05 dres 1.03e-08 gap 9.81e+00 mu 3.65e-08 tau 1.72e-08 kappa 3.65e-01
+conic  10: pobj -4.9540853432e+13 dobj -7.1532246941e+13 pres 4.14e-07 dres 1.94e-09 gap 2.64e+00 mu 4.64e-09 tau 3.67e-09 kappa 2.07e-01
+conic  11: pobj +9.5143629399e+13 dobj -1.2906268921e+15 pres 5.94e-08 dres 2.02e-10 gap 2.61e+01 mu 9.01e-10 tau 3.71e-10 kappa 1.90e-01
+conic  12: pobj -1.4286790301e+15 dobj -1.6098338410e+15 pres 2.63e-09 dres 6.84e-11 gap 1.93e+00 mu 1.40e-10 tau 1.38e-10 kappa 8.36e-02
+conic  13: pobj +7.5237726092e+16 dobj -1.3709987550e+17 pres 4.79e-10 dres 2.94e-12 gap 3.44e+00 mu 3.19e-11 tau 6.84e-12 kappa 9.00e-02
+conic: an improving ray; looking for a feasible point first
+conic   0: pobj +0.0000000000e+00 dobj -5.7752776978e+05 pres 1.00e+00 dres 5.00e-01 gap 5.78e+05 mu 1.00e+00 tau 1.00e+00 kappa 1.00e+00
+conic   1: pobj +0.0000000000e+00 dobj -5.7751808910e+05 pres 1.00e+00 dres 5.36e-02 gap 5.78e+05 mu 2.28e-01 tau 2.28e-01 kappa 1.00e+00
+conic   2: pobj +0.0000000000e+00 dobj -5.7742709217e+05 pres 1.00e+00 dres 6.03e-03 gap 5.77e+05 mu 3.44e-02 tau 3.44e-02 kappa 1.00e+00
+conic   3: pobj +0.0000000000e+00 dobj -5.7553363195e+05 pres 9.92e-01 dres 4.02e-04 gap 5.76e+05 mu 2.37e-03 tau 2.37e-03 kappa 1.00e+00
+conic   4: pobj +0.0000000000e+00 dobj -5.1470840975e+05 pres 7.88e-01 dres 1.20e-05 gap 5.15e+05 mu 7.09e-05 tau 7.76e-05 kappa 9.94e-01
+conic   5: pobj +0.0000000000e+00 dobj -3.3459521518e+05 pres 4.13e-01 dres 4.89e-06 gap 5.40e+05 mu 2.65e-05 tau 4.37e-05 kappa 6.95e-01
+conic   6: pobj +0.0000000000e+00 dobj -8.1447442686e+04 pres 7.68e-02 dres 1.11e-06 gap 1.66e+05 mu 5.14e-06 tau 3.49e-05 kappa 1.30e-01
+conic   7: pobj +0.0000000000e+00 dobj -6.5219636621e+03 pres 5.59e-03 dres 1.14e-07 gap 1.19e+04 mu 4.34e-07 tau 3.81e-05 kappa 2.17e-03
+conic   8: pobj +0.0000000000e+00 dobj -9.7877399135e+01 pres 8.41e-05 dres 2.18e-09 gap 1.64e+02 mu 7.12e-09 tau 4.16e-05 kappa 4.63e-05
+conic   9: pobj +0.0000000000e+00 dobj -9.9180103079e-01 pres 8.52e-07 dres 2.27e-11 gap 1.66e+00 mu 7.25e-11 tau 4.16e-05 kappa 4.72e-07
+conic  10: pobj +0.0000000000e+00 dobj -9.9179903140e-03 pres 8.52e-09 dres 2.27e-13 gap 1.66e-02 mu 7.25e-13 tau 4.16e-05 kappa 4.72e-09
+conic  11: pobj +0.0000000000e+00 dobj -9.9179899163e-05 pres 8.52e-11 dres 2.27e-15 gap 1.66e-04 mu 7.25e-15 tau 4.16e-05 kappa 4.72e-11
+conic  12: pobj +0.0000000000e+00 dobj -9.9179900908e-07 pres 8.52e-13 dres 2.27e-17 gap 1.66e-06 mu 7.25e-17 tau 4.16e-05 kappa 4.72e-13
+conic  13: pobj +0.0000000000e+00 dobj -9.9179901013e-09 pres 8.46e-15 dres 2.28e-19 gap 1.66e-08 mu 7.25e-19 tau 4.16e-05 kappa 4.72e-15
+conic  14: pobj +0.0000000000e+00 dobj -9.9179901025e-11 pres 1.49e-16 dres 5.57e-21 gap 1.66e-10 mu 7.25e-21 tau 4.16e-05 kappa 4.72e-17
+conic  15: pobj +0.0000000000e+00 dobj -9.9179901027e-13 pres 9.28e-18 dres 3.27e-21 gap 1.66e-12 mu 7.25e-23 tau 4.16e-05 kappa 4.72e-19
+conic: the direction solve ends optimal, its direction rated 0, past a column bound 0, past a row side 0, curvature 0
+numerical error after 28 conic iterations, 1903553 work units
+jaos: n1156.mps ends numerical_error: the conic interior point found an improving direction that the ray checker does not confirm: rate -1.07, push past a column bound 3.81e-06, past a row side 1.91e-05
+status numerical_error
+iterations 241
+work_units 1903553
+time 0.000573

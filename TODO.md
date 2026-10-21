@@ -50,20 +50,23 @@ decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can sit at 1e6 to 1e15. 14 of seeds 1 to 400 and 7 of
-seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 2 of seeds 1 to
-120 and 2 of seeds 1001 to 1200 at 40 nodes (`bench/measurements/02-391/`,
-`02-392/`). Of the eight left from 02-391's sweep, six stop in the
-barrier after 35 to 211 iterations, before any push (seed 1104's
-objective reaches -1.19e15 with the gap at 3e-4); on seed 1308 and on
-40-node seed 1076 the barrier converges and all three pushes fail, with the
-reduced costs of the free columns with tiny curvature off zero, and the
-conic walk then reports a ray the checker refuses. The six stop on
-`BARRIER_DIVERGE_QP`; at 1e13 or 1e16 instead of 1e10 the walk goes on and
-still fails, at twice the work. Next: a barrier that reaches such an
-optimum; a push whose solve stays accurate when the
-curvatures span 1e-11 to 2, for example with those columns scaled. Verify
-with `netqp_read.py` on the same seeds.
+so their optimum can carry flows of 1e11 to 1e13. 14 of seeds 1 to 400
+and 7 of seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 2 of
+seeds 1 to 120 and 2 of seeds 1001 to 1200 at 40 nodes
+(`bench/measurements/02-391/`, `02-392/`). HiGHS calls those seven of
+seeds 1001 to 1400 optimal at points from which the objective still falls
+along a cycle, so it cannot judge this family (`02-398/`). Six of the seven
+stop in the barrier on `BARRIER_DIVERGE_QP`. With that stop lifted, seed
+1156's walk is within 1e-5 by iteration 40; then a set of rows closed off
+by arcs at their bounds keeps a residual near 1, and the walk drives those
+rows' duals to 1e13. On seed 1308, and on 1282 with the stop lifted, the
+walk converges and the push fails. Seven barrier switches each finish
+seed 1340 or 1357 and no other (`barrier-far-qp-switches`). Next: a push
+that holds when the curvatures span 1e-11 to 2, for example an active-set
+step on the push's set with an exact factor of its system; then a walk
+that lifts an arc off its bound when a closed set of rows keeps a
+residual. Verify with `netqp_read.py` on the same seeds and 02-398's
+`read.sh`.
 
 ## Tier 3: the largest performance gaps
 

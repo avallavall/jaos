@@ -1,0 +1,32 @@
+== 1104
+J24 stalled push at 40, worst 5.283e-04
+barrier 40: within 1.0e-06 of converged with mu below 1.0e-30; the push did not settle, and the walk goes on
+status numerical_error
+== 1156
+J24 stalled push at 41, worst 4.324e-04
+barrier 41: within 1.0e-06 of converged with mu below 1.0e-30; the push did not settle, and the walk goes on
+status numerical_error
+== 1163
+status numerical_error
+== 1282
+J24 stalled push at 58, worst 1.031e-08
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 6 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+the push with the duals' shift dropped and a pin freed in each row its pins break did not settle either
+status numerical_error
+== 1340
+J24 stalled push at 70, worst 2.786e-10
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 13 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+the push with the duals' shift dropped and a pin freed in each row its pins break settled
+status optimal
+== 1357
+J24 stalled push at 54, worst 1.265e-08
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 7 more iterations and the push settled
+status optimal
+== 1308
+J24 stalled push at 44, worst 8.035e-09
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 9 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+the push with the duals' shift dropped and a pin freed in each row its pins break did not settle either
+status numerical_error
