@@ -1,0 +1,9 @@
+== seed 1
+models 3000 optimal 1612 infeasible 1335 unbounded 53; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
+== seed 2
+models 3000 optimal 1547 infeasible 1379 unbounded 74; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
+== seed 3
+models 3000 optimal 1633 infeasible 1306 unbounded 61; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
