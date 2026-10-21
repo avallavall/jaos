@@ -20,8 +20,9 @@ about 1100 and the objective to 3.19e5, the walk's tau ends at 1.3e-7, its
 direction turns non-finite at iteration 25, and the checker refuses the
 point (rows 7.6e-7, duals 4.56). The model is
 `bench/measurements/02-382/seed4-533.mps`. 02-372's quadratic-program
-finish skips models with cones. Next: a finish that keeps the cones, or a
-rescaling of the walk when tau falls that far. Verify with 02-255's
+finish with the cones kept was refused: its own program fails the same way
+(`conic-sqp-with-cones`). Next: a rescaling of the walk when tau falls that
+far. Verify with 02-255's
 `misocp.c` on seed 4 and 02-376's `unsure.patch`.
 
 ## Tier 3: the largest performance gaps
