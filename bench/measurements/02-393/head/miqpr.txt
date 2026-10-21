@@ -1,0 +1,45 @@
+== miqp-round 1
+m00980: the tree answered infeasible, brute force optimal
+models 1000
+optimal 706
+infeasible 221
+unbounded 38
+brute force unsure 30
+tree numerical errors 0
+worst objective gap 3.917e-09
+worst violation 6.436e-09
+nodes 2479
+work units 246059844
+brute force solves 20998
+failed models 5
+digest 2996aba693ad035d
+== miqp-round 2
+m00980: the tree answered infeasible, brute force optimal
+models 1000
+optimal 719
+infeasible 222
+unbounded 35
+brute force unsure 20
+tree numerical errors 0
+worst objective gap 5.131e-11
+worst violation 1.574e-08
+nodes 2407
+work units 249843385
+brute force solves 17666
+failed models 4
+digest a9ed36368e7b41dd
+== miqp-round 3
+m00815: the tree answered infeasible, brute force optimal
+models 1000
+optimal 726
+infeasible 218
+unbounded 31
+brute force unsure 23
+tree numerical errors 0
+worst objective gap 1.497e-14
+worst violation 6.977e-09
+nodes 2506
+work units 223298826
+brute force solves 19592
+failed models 2
+digest 98f1d8b51711241f

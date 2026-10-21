@@ -1,0 +1,42 @@
+== misocp 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.150e-16
+nodes 2396
+work units 380821330
+brute force solves 16252
+failed models 0
+digest 24106d1e3a9fc356
+== misocp 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2391
+work units 392832218
+brute force solves 15642
+failed models 0
+digest 4782d66901e719b3
+== misocp 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.216e-16
+nodes 2458
+work units 395190325
+brute force solves 15730
+failed models 0
+digest 8315d08b9891f267

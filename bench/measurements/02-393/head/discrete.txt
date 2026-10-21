@@ -1,0 +1,45 @@
+== discrete 1
+with an SOS set 344
+with an indicator row 279
+optimal 629
+infeasible 115
+unbounded 256
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.460e-11
+worst violation 1.092e-14
+nodes 2404
+work units 409412129
+brute force solves 9871
+failed models 0
+digest a6d5b1d17e016a51
+== discrete 2
+with an SOS set 343
+with an indicator row 260
+optimal 642
+infeasible 120
+unbounded 236
+brute force unsure 2
+tree numerical errors 0
+worst objective gap 1.696e-16
+worst violation 2.061e-16
+nodes 2465
+work units 421280846
+brute force solves 9726
+failed models 0
+digest 392d7d56fe80de49
+== discrete 3
+with an SOS set 333
+with an indicator row 282
+optimal 659
+infeasible 115
+unbounded 226
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 6.699e-13
+worst violation 2.518e-13
+nodes 2334
+work units 375389156
+brute force solves 9396
+failed models 0
+digest 8c7230dfa24fbd50

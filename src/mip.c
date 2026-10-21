@@ -2040,6 +2040,11 @@ static jaos_status probe_root(jaos_model *m, jaos_model *lp, const double *x,
     return JAOS_OK;
 }
 
+static double prop_window(double side, double rest, double a)
+{
+    return MIP_PROP_INFEAS * (1.0 + fabs(side) + fabs(rest)) / fabs(a);
+}
+
 static bool implied_move(double cand, double old, bool up)
 {
     if (!isfinite(cand))
@@ -2098,26 +2103,38 @@ static void implied_box(const jaos_model *m, const jaos_model *lp,
                 const bool rmax_ok = isinf(f) ? nmax == 1 : nmax == 0;
                 const double rmin = isinf(e) ? smin : smin - a * e;
                 const double rmax = isinf(f) ? smax : smax - a * f;
-                double ub = INFINITY, lb = -INFINITY;
+                double ub = INFINITY, lb = -INFINITY, ubs = 0.0, lbs = 0.0;
                 if (rmin_ok && rhi < INFINITY) {
                     const double t = (rhi - rmin) / a;
-                    if (a > 0.0)
+                    const double s = prop_window(rhi, rmin, a);
+                    if (a > 0.0) {
                         ub = t;
-                    else
+                        ubs = s;
+                    } else {
                         lb = t;
+                        lbs = s;
+                    }
                 }
                 if (rmax_ok && rlo > -INFINITY) {
                     const double t = (rlo - rmax) / a;
-                    if (a > 0.0)
-                        lb = t > lb ? t : lb;
-                    else
-                        ub = t < ub ? t : ub;
+                    const double s = prop_window(rlo, rmax, a);
+                    if (a > 0.0) {
+                        if (t > lb) {
+                            lb = t;
+                            lbs = s;
+                        }
+                    } else if (t < ub) {
+                        ub = t;
+                        ubs = s;
+                    }
                 }
                 if (m->col_integer[j]) {
                     if (isfinite(ub))
-                        ub = floor(ub + MIP_PROP_SLACK * (1.0 + fabs(ub)));
+                        ub = floor(ub + fmax(MIP_PROP_SLACK * (1.0 + fabs(ub)),
+                                             ubs));
                     if (isfinite(lb))
-                        lb = ceil(lb - MIP_PROP_SLACK * (1.0 + fabs(lb)));
+                        lb = ceil(lb - fmax(MIP_PROP_SLACK * (1.0 + fabs(lb)),
+                                            lbs));
                 } else {
                     ub += tol * (1.0 + fabs(ub));
                     lb -= tol * (1.0 + fabs(lb));
@@ -5560,27 +5577,35 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
                 const bool rmax_ok = isinf(f) ? nmax == 1 : nmax == 0;
                 const double rmin = isinf(e) ? smin : smin - a * e;
                 const double rmax = isinf(f) ? smax : smax - a * f;
-                double ub = INFINITY, lb = -INFINITY;
+                double ub = INFINITY, lb = -INFINITY, ubs = 0.0, lbs = 0.0;
                 if (rmin_ok && rhi < INFINITY) {
                     const double t = (rhi - rmin) / a;
-                    if (a > 0.0)
+                    const double s = prop_window(rhi, rmin, a);
+                    if (a > 0.0) {
                         ub = t;
-                    else
+                        ubs = s;
+                    } else {
                         lb = t;
+                        lbs = s;
+                    }
                 }
                 if (rmax_ok && rlo > -INFINITY) {
                     const double t = (rlo - rmax) / a;
+                    const double s = prop_window(rlo, rmax, a);
                     if (a > 0.0) {
-                        if (t > lb)
+                        if (t > lb) {
                             lb = t;
+                            lbs = s;
+                        }
                     } else if (t < ub) {
                         ub = t;
+                        ubs = s;
                     }
                 }
 
                 if (ub < INFINITY) {
                     const double nh =
-                        floor(ub + MIP_PROP_SLACK * (1.0 + fabs(ub)));
+                        floor(ub + fmax(MIP_PROP_SLACK * (1.0 + fabs(ub)), ubs));
                     if (nh < phi[j] - MIP_PROP_MOVE) {
                         phi[j] = nh;
                         moved_here++;
@@ -5588,7 +5613,7 @@ static int64_t propagate_bounds(jaos_model *m, double *plo, double *phi,
                 }
                 if (lb > -INFINITY) {
                     const double nl =
-                        ceil(lb - MIP_PROP_SLACK * (1.0 + fabs(lb)));
+                        ceil(lb - fmax(MIP_PROP_SLACK * (1.0 + fabs(lb)), lbs));
                     if (nl > plo[j] + MIP_PROP_MOVE) {
                         plo[j] = nl;
                         moved_here++;

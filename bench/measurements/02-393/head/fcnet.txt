@@ -1,0 +1,6 @@
+== fcnet 1
+models 1000 with z 213 with cuts 453 optimal 602 infeasible 398 unsure 0 failed 0 brute solves 662544 digest 0f60b6cfdc6363a8
+== fcnet 2
+models 1000 with z 209 with cuts 437 optimal 591 infeasible 409 unsure 0 failed 0 brute solves 584664 digest b4e8d71f50db5273
+== fcnet 3
+models 1000 with z 199 with cuts 436 optimal 586 infeasible 414 unsure 0 failed 0 brute solves 646936 digest 902dc08f1c8acb30

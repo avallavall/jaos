@@ -2094,6 +2094,21 @@ static void test_an_infeasible_relaxation_is_the_mips_certificate(void)
     jaos_model_free(early);
 }
 
+static void test_propagation_rounds_with_the_prune_window(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/mip_prop_window.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[3];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr,
+                                                 nullptr));
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, x[0]);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, x[2]);
+    jaos_model_free(m);
+}
+
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
 {
     jaos_model *m = neighbour_model();
@@ -5492,6 +5507,7 @@ int main(void)
     RUN_TEST(test_parity_rows_that_contradict_end_infeasible);
     RUN_TEST(test_the_mip_presolve_substitutes_flow_through_a_node);
     RUN_TEST(test_a_mip_start_crosses_the_mip_presolve);
+    RUN_TEST(test_propagation_rounds_with_the_prune_window);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);
