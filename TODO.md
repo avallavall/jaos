@@ -45,8 +45,12 @@ in 20 s. Open, largest first:
   cycle's rounding gap.
 - `beasleyC3`: HiGHS's presolve removes 597 of its 1750 rows, JAOS's 161.
   HiGHS drops 398 whole arcs (flow, binary, capacity row) and 199 node
-  rows; no node forces its arcs to zero (`bench/measurements/02-387/`).
-  Next: read which arcs go and why.
+  rows: leaves with no demand, whose two arcs form a cycle of two, and the
+  leaves their removal leaves (`bench/measurements/02-387/`). Next: in the
+  MIP presolve, after a doubleton equation's substitution, drop entries
+  that cancel, fix a cost-free column whose rows all allow 0 (dual fixing,
+  D246 reopened for the MIP presolve only), then fix a binary left alone
+  with a positive cost; read on MIPLIB 2017 and MIPLIB 3.
 - Node cost: on `neos-911970` a JAOS node takes about 200 LP iterations
   against HiGHS's 72, and a strong-branching probe is a full LP solve.
   Next: probes as a few dual steps on the node's factors.

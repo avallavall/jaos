@@ -29,5 +29,34 @@ What the structure rules out:
   JAOS's presolve substitutes 161 such rows, one flow column each, and
   keeps both arcs' binaries and capacity rows.
 
-The 398 arcs HiGHS drops whole are the next thing to read: which arcs,
-and what in the model lets both their columns go.
+## The arcs that go
+
+`arcs.py` sets the presolved model's names against the model's. Every
+arc has a reverse arc, so the network is an undirected graph with an arc
+each way. Of the 398 arcs that go, 314 touch a node with one edge (two
+arcs, degree 2 in the table), and the rest touch nodes that became such
+leaves once the first ones went:
+
+| degrees of the gone arc's two nodes | arcs |
+|---|---|
+| 2 and 6 | 102 |
+| 2 and 8 | 82 |
+| 2 and 10 | 54 |
+| 2 and 4 | 40 |
+| 2 and 12 | 24 |
+| 2 and 16 | 12 |
+| 4 and 8 | 16 |
+| 4 and 6 | 12 |
+
+At a leaf with no demand, 134 of them at the start, the node row reads
+`x_uv - x_vu = 0`: the two arcs form a cycle of two, and flow around it
+only pays fixed charges. So both flows can be 0, both binaries 0, and the
+leaf, its two arcs and their capacity rows go; the neighbour may become a
+leaf in turn.
+
+As presolve steps this is: substitute the doubleton equation (JAOS does);
+the substituted flow's two entries in the neighbour's row cancel; the
+flow, with no cost and only `x - u·y ≤ 0` rows left, is fixed at 0 by dual
+fixing (D246, refused for the LP presolve in `bench/refusals.txt`); each
+binary is then alone in a row that always holds, with a positive cost, and
+is fixed at 0.
