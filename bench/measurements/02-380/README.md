@@ -54,4 +54,23 @@ The messages pointed elsewhere. 25fv47's name `5C0ST` gave "expected
 `read-*.txt` lists every file's read result with the new messages. Five
 new files under `tests/data/el_*.lp` hold one case each.
 
+## The MPS reader, the same way
+
+`mpssweep.sh` and `mpssolve.sh` repeat the sweep with HiGHS writing MPS
+(`mps-diff-*.txt`, `mps-solve-*.txt`).
+
+| set | `jaos diff` identical | same answer |
+|---|---|---|
+| Netlib | 94 of 94 | 94 of 94 |
+| Maros-Meszaros | 132 of 138 | 137 of 138 |
+| MIPLIB 3 | 24 of 24 | not solved |
+
+Of the 6 Maros-Meszaros files that differ, `exdata`'s diff ran past its
+120 s timeout, and `hues-mod`, `huestis`, `ksip` and `laser` lack entries
+HiGHS drops as tiny when it reads; all 5 solve to the same answer.
+`dpklo1` is the one answer that differs. Its fixed-format RHS lines read
+`1  2  0.0`: set `1`, row `2`, value 0. HiGHS took them as row `1`, value
+`2`, and wrote that model. JAOS's answer on the original,
+0.37009621711426854, is the library's published optimum.
+
 `make test` and `make sanitize` pass.
