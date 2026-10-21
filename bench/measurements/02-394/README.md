@@ -38,4 +38,11 @@ and the pump find nothing. From node 1000 the tree dives
 point until node 311489. With `--dive` from the start the first point
 comes at node 9948, and the optimum -105 is found; with
 `--dive-backtrack` 16, 100 or 1000 at nodes 18577, 41120 and 61420. Both
-use the same child rule, the nearer side first. That goes to TODO row J7.
+use the same child rule, the nearer side first.
+
+Seed 24 is the outlier. `dive.sh` runs the 34 models JAOS left at 2e9 and
+HiGHS proved, by default and with `--dive`, at 5e8 work units
+(`dive.txt`): the default finds a point on 22, `--dive` on 16. Where both
+find one, `--dive`'s is better on 9, the same on 2 and worse on 1, and
+`--dive` proves 2 optimal (seeds 174 and 314). No switch fixes the family; it goes to TODO
+row J7.

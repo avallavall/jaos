@@ -96,10 +96,10 @@ in 20 s. Open, largest first:
   Gomory family is JAOS's weakest (`bench/measurements/02-351/`, `02-364/`).
 - General integers with equality rows: of 02-394's 700 generated MILPs,
   JAOS stops at 2e9 work units on 34 that HiGHS proves, 33 of them in that
-  family. On `general` seed 24 the first point comes at node 311489 though
-  the tree dives from node 1000, and at node 9948 with `--dive` from the
-  start (`bench/measurements/02-394/`). Next: a first point that satisfies
-  such rows, read on those models and on MIPLIB.
+  family. At 5e8 work units the default finds a point on 22 of the 34 and
+  `--dive` on 16, so no switch fixes it (`bench/measurements/02-394/`).
+  Next: a heuristic whose first point satisfies such rows, read on those
+  models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
