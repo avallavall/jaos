@@ -21,8 +21,9 @@ direction turns non-finite at iteration 25, and the checker refuses the
 point (rows 7.6e-7, duals 4.56). The model is
 `bench/measurements/02-382/seed4-533.mps`. 02-372's quadratic-program
 finish with the cones kept was refused: its own program fails the same way
-(`conic-sqp-with-cones`). Next: a rescaling of the walk when tau falls that
-far. Verify with 02-255's
+(`conic-sqp-with-cones`). Balancing the cone's heads and scaling R4 by hand
+do not help either (`bench/measurements/02-386/`). Next: read the walk's
+last iterations on this model, where the direction turns non-finite. Verify with 02-255's
 `misocp.c` on seed 4 and 02-376's `unsure.patch`.
 
 ## Tier 3: the largest performance gaps
