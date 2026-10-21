@@ -1,0 +1,54 @@
+== seed 1
+seed 1: 1000 models, 1000 checked, 817 with one optimum, 3803 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 1.903e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 8.861e-08)
+  work 59271325
+  push settled in rounds: 1:997 2:2; did not settle 0, factorisation failed 0, pinned 6056 variables, 0 settled after a freeing
+== seed 2
+seed 2: 1000 models, 1000 checked, 836 with one optimum, 3790 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 2.140e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.339e-07)
+  work 58593005
+  push settled in rounds: 1:998 2:1; did not settle 0, factorisation failed 0, pinned 6088 variables, 0 settled after a freeing
+== seed 3
+seed 3: 1000 models, 1000 checked, 833 with one optimum, 3711 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 1.547e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.948e-07)
+  work 59500218
+  push settled in rounds: 1:999; did not settle 0, factorisation failed 0, pinned 5941 variables, 0 settled after a freeing
+== seed 4
+seed 4: 1000 models, 1000 checked, 849 with one optimum, 3698 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 2.100e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 2.377e-07)
+  work 59616712
+  push settled in rounds: 1:996 2:3; did not settle 0, factorisation failed 0, pinned 5890 variables, 0 settled after a freeing
+== seed 5
+seed 5: 1000 models, 1000 checked, 822 with one optimum, 3758 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 4.537e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 2.476e-07)
+  work 59906823
+  push settled in rounds: 1:996 2:3; did not settle 0, factorisation failed 0, pinned 5967 variables, 1 settled after a freeing
+== seed 6
+seed 6: 1000 models, 1000 checked, 846 with one optimum, 3714 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 4.156e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 2.054e-07)
+  work 58633683
+  push settled in rounds: 1:997 2:2; did not settle 0, factorisation failed 0, pinned 5849 variables, 0 settled after a freeing

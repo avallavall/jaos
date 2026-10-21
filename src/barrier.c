@@ -54,6 +54,7 @@ constexpr double  QP_PUSH_DENSE_THETA = 1e-30;
 constexpr double  QP_PUSH_DELTA  = 1e-8;
 constexpr int64_t QP_PUSH_REFINE = 8;
 constexpr double  QP_PUSH_NEAR   = 1e-7;
+constexpr double  QP_PUSH_MARGIN = 1000.0;
 constexpr double  QP_PUSH_USER_TOL = 1e-7;
 constexpr double  QP_PUSH_ROUND  = 1e-13;
 constexpr int64_t QP_PUSH_ROUNDS = 40;
@@ -127,7 +128,7 @@ typedef struct {
     const int8_t *pin;
     bool *dec;
     double push_delta, push_scale;
-    bool push_plain, push_free;
+    bool push_plain, push_free, push_margin;
 } bx;
 
 static void bx_free(bx *s)
@@ -2363,12 +2364,13 @@ static jaos_status qp_push(bx *s)
             continue;
         const double near = s->push_plain
             ? -1.0 : QP_PUSH_NEAR * (1.0 + s->norm_b);
+        const double margin = s->push_margin ? QP_PUSH_MARGIN : 1.0;
         const bool at_lo = (k & HAS_LO) &&
-                           (s->w[j] < s->zl[j] ||
+                           (s->w[j] * margin < s->zl[j] ||
                             (s->w[j] <= near &&
                              s->zl[j] >= QP_PUSH_NEAR * s->w[j]));
         const bool at_up = (k & HAS_UP) &&
-                           (s->v[j] < s->zu[j] ||
+                           (s->v[j] * margin < s->zu[j] ||
                             (s->v[j] <= near &&
                              s->zu[j] >= QP_PUSH_NEAR * s->v[j]));
         if (at_lo && (!at_up || s->w[j] <= s->v[j]))
@@ -3017,7 +3019,31 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
             memcpy(keep, s.z, (size_t)s.nvar * sizeof *keep);
             memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
         }
-        for (int pass = 0; pass < 2 && st == JAOS_OK && refused; pass++) {
+        for (int pass = 0; pass < 3 && st == JAOS_OK && refused; pass++) {
+            if (pass == 2) {
+                if (s.pushed)
+                    break;
+                memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
+                memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
+                s.push_plain = true;
+                s.push_margin = true;
+                st = qp_push(&s);
+                s.push_plain = false;
+                s.push_margin = false;
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the push that pins only the variables whose dual is "
+                       "%g times their slack %s", QP_PUSH_MARGIN,
+                       s.pushed ? "settled" : "did not settle either");
+                if (st != JAOS_OK || !s.pushed)
+                    break;
+                pushed = true;
+                st = bx_publish(&s, outcome, p);
+                refused = st == JAOS_OK && !bx_holds(m, &ck, pushed);
+                if (st != JAOS_OK || !refused)
+                    break;
+                memcpy(keep, s.z, (size_t)s.nvar * sizeof *keep);
+                memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
+            }
             if (pass == 1 && !s.pushed) {
                 s.push_free = true;
                 st = qp_push(&s);
@@ -3039,7 +3065,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                     break;
             }
             bool done = false;
-            st = bx_polish(&s, pass == 1, &done);
+            st = bx_polish(&s, pass >= 1, &done);
             if (st != JAOS_OK || !done)
                 continue;
             st = bx_publish(&s, outcome, p);

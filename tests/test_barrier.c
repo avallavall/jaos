@@ -402,6 +402,37 @@ static void test_a_push_that_cycles_is_tried_again_from_the_plain_set(void)
     jaos_model_free(m);
 }
 
+static void catch_margin(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "times their slack settled") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_circ_pins.mps"));
+    int settled = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_margin, &settled));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(1, settled);
+    double x[30], y[12], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7 * 7.7317304e9, -7.7317304e9, obj);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_the_barrier_does_not_call_an_infeasible_lp_optimal(void)
 {
     jaos_model *m = nullptr;
@@ -884,6 +915,7 @@ int main(void)
     RUN_TEST(test_a_circulation_with_tiny_curvatures_passes_the_checker);
     RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
     RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
+    RUN_TEST(test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins);
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_the_third_push_drops_the_duals_shift);

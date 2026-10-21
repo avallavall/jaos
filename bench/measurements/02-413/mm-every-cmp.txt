@@ -1,0 +1,11 @@
+liswet10 175943212 51940890 0.295
+liswet11 171954594 55146762 0.321
+liswet3 26078110 19011768 0.729
+liswet6 45659718 19011768 0.416
+liswet8 105654264 59159534 0.56
+status qgfrdxpn ('optimal', 7562132, 'objective=ok checker=ok') ('numerical', 77356726, '')
+qscagr25 1292918 2089996 1.616
+qseba 7402741 13319751 1.799
+qshare1b 2728506 3575964 1.311
+qshell 32371928 62027841 1.916
+work, same status: 136 instances, geometric mean 0.9862x, 12 cheaper, 19 dearer

@@ -54,10 +54,10 @@ decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can carry flows of 1e11 to 1e13. 13 of seeds 1 to 400
-and 6 of seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 2 of
-seeds 1 to 120 and 2 of seeds 1001 to 1200 at 40 nodes
-(`bench/measurements/02-400/`). HiGHS calls seven of them optimal at
+so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400,
+6 of seeds 1001 to 1400 and 15 of seeds 1401 to 1800 at 12 nodes end
+`numerical_error`, and 1 of seeds 1 to 120 and 1 of seeds 1001 to 1200
+at 40 nodes (`bench/measurements/02-400/`, `02-413/`). HiGHS calls seven of them optimal at
 points from which the objective still falls along a cycle, so it cannot
 judge this family (`02-398/`). The six of seeds 1001 to 1400 stop in the
 barrier on `BARRIER_DIVERGE_QP`. With that stop lifted, seed 1156's walk
@@ -80,17 +80,6 @@ to 1e10. A ray test that weighs a
 ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
-
-J25. **A bounded circulation whose push pins break its rows.** 02-366's
-`netqpb.py` at 12 nodes, seed 1420, ends `numerical_error`; it had solved
-every earlier seed. The barrier converges, and every push cycles: the
-full step leaves ten rows off by 8.2e4 times their tolerance, rows whose
-columns are all pinned, then it frees ten pins and pins them back at a
-step of 0, for 40 rounds; the third push and the conic walk fail too
-(`bench/measurements/02-412/`). HiGHS finds -7.7317304e9. Next: find
-which pins break those rows and why the third push's freeing does not
-clear them. Verify with `python3 netqpb.py 12 30 1420 out.mps` and
-`netqpb_read.py` on seeds 1 to 400 and 1001 to 1800.
 
 ## Tier 3: the largest performance gaps
 

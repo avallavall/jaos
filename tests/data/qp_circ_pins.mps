@@ -1,0 +1,185 @@
+NAME netqp
+ROWS
+ N obj
+ E n0
+ E n1
+ E n2
+ E n3
+ E n4
+ E n5
+ E n6
+ E n7
+ E n8
+ E n9
+ E n10
+ E n11
+COLUMNS
+    x0 obj 7282.08866857
+    x0 n0 -1
+    x0 n1 1
+    x1 obj -1535.70804251
+    x1 n1 -1
+    x1 n2 1
+    x2 obj -5645.1367966
+    x2 n2 -1
+    x2 n3 1
+    x3 n3 -1
+    x3 n4 1
+    x4 n4 -1
+    x4 n5 1
+    x5 n5 -1
+    x5 n6 1
+    x6 n6 -1
+    x6 n7 1
+    x7 obj 9046.66017887
+    x7 n7 -1
+    x7 n8 1
+    x8 n8 -1
+    x8 n9 1
+    x9 n9 -1
+    x9 n10 1
+    x10 n10 -1
+    x10 n11 1
+    x11 n11 -1
+    x11 n0 1
+    x12 n11 -1
+    x12 n6 1
+    x13 n5 -1
+    x13 n0 1
+    x14 obj -4842.11102214
+    x14 n8 -1
+    x14 n1 1
+    x15 obj 9490.43107649
+    x15 n2 -1
+    x15 n11 1
+    x16 obj 8725.93126796
+    x16 n4 -1
+    x16 n2 1
+    x17 n7 -1
+    x17 n3 1
+    x18 n9 -1
+    x18 n8 1
+    x19 obj 2783.97347011
+    x19 n9 -1
+    x19 n7 1
+    x20 obj 2058.370243
+    x20 n9 -1
+    x20 n5 1
+    x21 obj -4533.93848957
+    x21 n3 -1
+    x21 n10 1
+    x22 n4 -1
+    x22 n8 1
+    x23 n6 -1
+    x23 n4 1
+    x24 obj 7947.19141084
+    x24 n9 -1
+    x24 n8 1
+    x25 obj 9313.78203976
+    x25 n8 -1
+    x25 n11 1
+    x26 n7 -1
+    x26 n9 1
+    x27 obj 2385.37987568
+    x27 n2 -1
+    x27 n9 1
+    x28 obj -8958.909642
+    x28 n11 -1
+    x28 n0 1
+    x29 obj 3857.55200404
+    x29 n5 -1
+    x29 n3 1
+RHS
+BOUNDS
+ LO BND x0 0.00779369655785
+ UP BND x0 0.238035591388
+ LO BND x1 0.0132088202234
+ UP BND x1 0.0865857483324
+ LO BND x2 -1e6
+ UP BND x2 0
+ LO BND x3 -1e6
+ UP BND x3 0
+ LO BND x4 -1e6
+ UP BND x4 0
+ LO BND x5 -1e6
+ UP BND x5 0
+ LO BND x6 0.0593320887977
+ UP BND x6 6.62212959755
+ LO BND x7 -1e6
+ UP BND x7 0
+ LO BND x8 -1e6
+ UP BND x8 0
+ LO BND x9 -1e6
+ UP BND x9 0
+ LO BND x10 -1e6
+ UP BND x10 0
+ LO BND x11 -1e6
+ UP BND x11 0
+ LO BND x12 0.02274596301
+ UP BND x12 0.176634776598
+ LO BND x13 456.527600421
+ UP BND x13 7350.9595898
+ LO BND x14 -1e6
+ UP BND x14 0
+ LO BND x15 0.0092477806544
+ UP BND x15 0.0702506873886
+ LO BND x16 971.598793934
+ UP BND x16 25342.9511259
+ LO BND x17 -1e6
+ UP BND x17 0
+ LO BND x18 -1e6
+ UP BND x18 0
+ LO BND x19 649.056052584
+ UP BND x19 5035.48256044
+ LO BND x20 2580.6431911
+ UP BND x20 7381.87184112
+ LO BND x21 0.00839969846542
+ UP BND x21 1.65167853258
+ LO BND x22 -1e6
+ UP BND x22 0
+ LO BND x23 -1e6
+ UP BND x23 0
+ LO BND x24 -1e6
+ UP BND x24 0
+ LO BND x25 -1e6
+ UP BND x25 0
+ LO BND x26 2245.7910985
+ UP BND x26 66676.4436164
+ LO BND x27 903.321058754
+ UP BND x27 56261.0500682
+ LO BND x28 -1e6
+ UP BND x28 0
+ LO BND x29 0.0107083145189
+ UP BND x29 0.0652901868082
+QUADOBJ
+    x0 x0 2
+    x1 x1 6.35102895884e-05
+    x2 x2 2
+    x3 x3 2
+    x4 x4 7.31307683032e-09
+    x5 x5 3.76837486849e-10
+    x6 x6 7.76474441887e-08
+    x7 x7 2
+    x8 x8 0.000386527348918
+    x9 x9 2
+    x10 x10 1.16376602406e-05
+    x11 x11 2.32757355119e-10
+    x12 x12 0.00385534406418
+    x13 x13 2
+    x14 x14 2
+    x15 x15 2
+    x16 x16 0.258178205272
+    x17 x17 4.1084222262e-06
+    x18 x18 0.00869693956568
+    x19 x19 2
+    x20 x20 2
+    x21 x21 1.13273443148e-05
+    x22 x22 2
+    x23 x23 0.0170956877068
+    x24 x24 3.72022633626e-05
+    x25 x25 2
+    x26 x26 4.00637819619e-08
+    x27 x27 2
+    x28 x28 2
+    x29 x29 0.0121575049133
+ENDATA
