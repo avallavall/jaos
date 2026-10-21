@@ -11,6 +11,19 @@ refuses, or models with an answer that end with none. Tiers 3 and 4 are the
 performance gaps, largest first. Tier 5 is the features SPECS still lists.
 Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
+## Tier 1: defects
+
+J21. **A cone model with quadratic rows whose optimum sits at a large
+scale.** On 02-255's seed 4, two brute-force solves of model 533 end
+`numerical_error`: a rotated cone and a quadratic row push one column to
+about 1100 and the objective to 3.19e5, the walk's tau ends at 1.3e-7, its
+direction turns non-finite at iteration 25, and the checker refuses the
+point (rows 7.6e-7, duals 4.56). The model is
+`bench/measurements/02-382/seed4-533.mps`. 02-372's quadratic-program
+finish skips models with cones. Next: a finish that keeps the cones, or a
+rescaling of the walk when tau falls that far. Verify with 02-255's
+`misocp.c` on seed 4 and 02-376's `unsure.patch`.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

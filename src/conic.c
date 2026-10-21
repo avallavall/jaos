@@ -2601,6 +2601,7 @@ static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     jaos_model *r = nullptr;
+    uint8_t *flat = nullptr;
     double *cost = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cost);
     double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
     double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
@@ -2616,6 +2617,27 @@ static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
         cost[j] = sigma * m->col_cost[j];
         lo[j] = isfinite(m->col_lower[j]) ? 0.0 : -1.0;
         hi[j] = isfinite(m->col_upper[j]) ? 0.0 : 1.0;
+    }
+    flat = jm_calloc_array(m->num_cone > 0 ? m->num_cone : 1, sizeof *flat);
+    if (flat == nullptr) {
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto out;
+    }
+    for (int64_t k = 0; k < m->num_cone; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e;
+        const int64_t h[2] = {m->cone_col[b], m->cone_col[rot ? b + 1 : b]};
+        if (hi[h[0]] > 0.0 && hi[h[1]] > 0.0)
+            continue;
+        flat[k] = 1;
+        for (int64_t t = rot ? b + 2 : b + 1; t < e; t++)
+            lo[m->cone_col[t]] = hi[m->cone_col[t]] = 0.0;
+        for (int s = 0; s < 2; s++) {
+            if (hi[h[s]] <= 0.0)
+                hi[h[s]] = 0.0;
+            if (lo[h[s]] < 0.0)
+                lo[h[s]] = 0.0;
+        }
     }
     st = jaos_model_new(&r);
     if (st != JAOS_OK)
@@ -2682,9 +2704,10 @@ static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
             touched[m->rq_i[p]] = touched[m->rq_j[p]] = 0;
     }
     for (int64_t k = 0; k < m->num_cone && st == JAOS_OK; k++)
-        st = jaos_add_cone(r, m->cone_type[k],
-                           m->cone_start[k + 1] - m->cone_start[k],
-                           m->cone_col + m->cone_start[k]);
+        if (!flat[k])
+            st = jaos_add_cone(r, m->cone_type[k],
+                               m->cone_start[k + 1] - m->cone_start[k],
+                               m->cone_col + m->cone_start[k]);
     if (st != JAOS_OK)
         goto out;
     r->cfg.log_cb = nullptr;
@@ -2726,7 +2749,7 @@ static jaos_status cm_ray_probe(jaos_model *m, jm_work *work, bool *found)
 out:
     jaos_model_free(r);
     free(cost); free(lo); free(hi); free(d); free(qrow); free(touched);
-    free(idx);
+    free(idx); free(flat);
     return st;
 }
 
