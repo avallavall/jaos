@@ -10,7 +10,9 @@ models (`sweep/a.txt`, `b.txt`, `c.txt`): every check passes. 02-366's
 bounded circulations on seeds 1001 to 1400 and 02-371's QCQPs on seeds
 1001 to 1150 at three sizes (`sweep/nqb.txt`, `qc.txt`): all optimal and
 taken by the checker. 02-365's circulations (`sweep/nq.txt`): 12 of 400
-at 12 nodes and 2 of 100 at 40 nodes end `numerical_error`.
+at 12 nodes and 2 of 100 at 40 nodes end `numerical_error`. `fcnet.sh`,
+taken later on de89dcc: 02-328's fixed-charge networks on seeds 2 to 7,
+6000 models, none unsure and none failed (`sweep/fcnet.txt`).
 
 ## Seed 1019
 

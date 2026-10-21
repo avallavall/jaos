@@ -1,0 +1,12 @@
+== seed 2
+models 1000 with z 209 with cuts 437 optimal 591 infeasible 409 unsure 0 failed 0 brute solves 584664 digest b4e8d71f50db5273
+== seed 3
+models 1000 with z 199 with cuts 436 optimal 586 infeasible 414 unsure 0 failed 0 brute solves 646936 digest 902dc08f1c8acb30
+== seed 4
+models 1000 with z 215 with cuts 449 optimal 594 infeasible 406 unsure 0 failed 0 brute solves 636312 digest 75fc520ffae9ad75
+== seed 5
+models 1000 with z 182 with cuts 460 optimal 610 infeasible 390 unsure 0 failed 0 brute solves 606288 digest 531719f671a6c176
+== seed 6
+models 1000 with z 205 with cuts 479 optimal 635 infeasible 365 unsure 0 failed 0 brute solves 660792 digest 6a12592eff702463
+== seed 7
+models 1000 with z 181 with cuts 436 optimal 600 infeasible 400 unsure 0 failed 0 brute solves 606224 digest 0275e9f2dc193cfe
