@@ -38,3 +38,14 @@ So these points lie off the optimum's active set by a few columns, and the
 certified gap is small only next to objectives of 2.5e12 to 4.2e16. A
 reduced-cost test relative to its terms, TODO row J21's question, would
 refuse them too.
+
+## A push from the reduced costs, refused
+
+`dualpush.py GAP` adds one more push after 02-413's last push, when that
+one does not settle. It starts from the refused point and pins a variable
+when its reduced cost there, `c + Qz - E'y`, points at a bound and the
+reduced cost times the distance to that bound is at most GAP times
+`1 + |objective|`. With GAP at 1e-11, 1e-9 and 1e-7, it runs on 10 of
+the 12 converged circulations of 02-414 and settles on none. On 25 and
+1504 it does not run, because the margin push settled there. So the pins are not what keeps these pushes from settling
+(`bench/refusals.txt`: `push-from-reduced-costs`).
