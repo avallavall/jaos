@@ -55,6 +55,7 @@ constexpr double  QP_PUSH_DELTA  = 1e-8;
 constexpr int64_t QP_PUSH_REFINE = 8;
 constexpr double  QP_PUSH_NEAR   = 1e-7;
 constexpr double  QP_PUSH_USER_TOL = 1e-7;
+constexpr double  QP_PUSH_ROUND  = 1e-13;
 constexpr int64_t QP_PUSH_ROUNDS = 40;
 constexpr int64_t QP_PUSH_FREE_ROUNDS = 8;
 constexpr int64_t QP_PUSH_FREEINGS = 3;
@@ -2212,8 +2213,11 @@ static jaos_status bx_polish(bx *s, bool free_rows, bool *done)
             row_tol[m->a_index[q]] += fabs(m->a_value[q]) * xj;
     }
     for (int64_t i = 0; i < nr; i++) {
-        const double user = QP_PUSH_USER_TOL * m->row_scale[i] * row_tol[i];
+        const double traffic = m->row_scale[i] * row_tol[i];
+        const double user = QP_PUSH_USER_TOL * traffic;
         row_tol[i] = user < tol_p ? user : tol_p;
+        if (row_tol[i] < QP_PUSH_ROUND * traffic)
+            row_tol[i] = QP_PUSH_ROUND * traffic;
     }
     if (free_rows && bx_free_broken_rows(s, zt, held) == 0) {
         st = JAOS_OK;
@@ -2384,8 +2388,11 @@ static jaos_status qp_push(bx *s)
             row_tol[m->a_index[p]] += fabs(m->a_value[p]) * xj;
     }
     for (int64_t i = 0; i < nr; i++) {
-        const double user = QP_PUSH_USER_TOL * m->row_scale[i] * row_tol[i];
+        const double traffic = m->row_scale[i] * row_tol[i];
+        const double user = QP_PUSH_USER_TOL * traffic;
         row_tol[i] = user < tol_p ? user : tol_p;
+        if (row_tol[i] < QP_PUSH_ROUND * traffic)
+            row_tol[i] = QP_PUSH_ROUND * traffic;
     }
     jm_work_add(&s->work, (m->num_nz + nr) * JM_WORK_NONZERO);
     for (int64_t j = 0; j < nv; j++) {

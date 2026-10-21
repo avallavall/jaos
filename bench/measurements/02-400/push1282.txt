@@ -1,0 +1,65 @@
+  push round 1: full step, 12 rows or values off, the rows by up to 6.187e+01 against 6.365e-06, 11 pins released
+  push round 2: step 0.000e+00, 9 more pinned, 15 pinned in all
+  push round 3: step 0.000e+00, 1 more pinned, 16 pinned in all
+  push round 4: step 9.936e-01, 1 more pinned, 17 pinned in all
+  push round 5: full step, 17 pinned, 3 with the wrong sign, 7 free with a reduced cost, a gap of 3.797e-10 of the objective on the free ones
+  push round 6: step 0.000e+00, 1 more pinned, 15 pinned in all
+  push round 7: step 5.011e-07, 1 more pinned, 16 pinned in all
+  push round 8: step 6.890e-01, 1 more pinned, 17 pinned in all
+  push round 9: full step, 17 pinned, 0 with the wrong sign, 8 free with a reduced cost, a gap of 2.440e-10 of the objective on the free ones
+  push round 10: the proximal step stalls on a flat face, so the step goes 2.642e+02 times further along the rows' null space (the line minimum 2.642e+02 further, the first bound 2.174e+12)
+  push round 10: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 11: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 12: the proximal step stalls on a flat face, so the step goes 4.948e+01 times further along the rows' null space (the line minimum 4.948e+01 further, the first bound 5.165e+16)
+  push round 12: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 13: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 14: the proximal step stalls on a flat face, so the step goes 1.086e+02 times further along the rows' null space (the line minimum 1.086e+02 further, the first bound 6.536e+13)
+  push round 14: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 15: full step, 17 pinned, 0 with the wrong sign, 10 free with a reduced cost, a gap of 3.053e-10 of the objective on the free ones
+  push round 16: the proximal step stalls on a flat face, so the step goes 1.824e+02 times further along the rows' null space (the line minimum 1.824e+02 further, the first bound 6.504e+13)
+  push round 16: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 17: full step, 17 pinned, 0 with the wrong sign, 3 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 18: the proximal step stalls on a flat face, so the step goes 2.163e+01 times further along the rows' null space (the line minimum 2.163e+01 further, the first bound 1.781e+16)
+  push round 18: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 19: full step, 17 pinned, 0 with the wrong sign, 8 free with a reduced cost, a gap of 3.053e-10 of the objective on the free ones
+  push round 20: the proximal step stalls on a flat face, so the step goes 7.215e+02 times further along the rows' null space (the line minimum 7.215e+02 further, the first bound 1.519e+14)
+  push round 20: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 21: full step, 17 pinned, 0 with the wrong sign, 8 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 22: the proximal step stalls on a flat face, so the step goes 2.161e+02 times further along the rows' null space (the line minimum 2.161e+02 further, the first bound 9.077e+13)
+  push round 22: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 23: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 24: the proximal step stalls on a flat face, so the step goes 2.093e+01 times further along the rows' null space (the line minimum 2.093e+01 further, the first bound 1.512e+16)
+  push round 24: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 25: full step, 17 pinned, 0 with the wrong sign, 5 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 26: the proximal step stalls on a flat face, so the step goes 2.910e+02 times further along the rows' null space (the line minimum 2.910e+02 further, the first bound 1.520e+14)
+  push round 26: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 27: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 28: the proximal step stalls on a flat face, so the step goes 1.333e+02 times further along the rows' null space (the line minimum 1.333e+02 further, the first bound 6.505e+13)
+  push round 28: full step, 17 pinned, 0 with the wrong sign, 11 free with a reduced cost, a gap of 3.053e-10 of the objective on the free ones
+  push round 29: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 30: the proximal step stalls on a flat face, so the step goes 3.337e+01 times further along the rows' null space (the line minimum 3.337e+01 further, the first bound 1.721e+15)
+  push round 30: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 31: full step, 17 pinned, 0 with the wrong sign, 5 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 32: the proximal step stalls on a flat face, so the step goes 2.547e+02 times further along the rows' null space (the line minimum 2.547e+02 further, the first bound 9.143e+13)
+  push round 32: full step, 17 pinned, 0 with the wrong sign, 5 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 33: full step, 17 pinned, 0 with the wrong sign, 7 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 34: the proximal step stalls on a flat face, so the step goes 1.126e+02 times further along the rows' null space (the line minimum 1.126e+02 further, the first bound 6.505e+13)
+  push round 34: full step, 17 pinned, 0 with the wrong sign, 4 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 35: full step, 17 pinned, 0 with the wrong sign, 5 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 36: the proximal step stalls on a flat face, so the step goes 1.887e+01 times further along the rows' null space (the line minimum 1.887e+01 further, the first bound 2.298e+16)
+  push round 36: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 37: full step, 17 pinned, 0 with the wrong sign, 9 free with a reduced cost, a gap of 3.053e-10 of the objective on the free ones
+  push round 38: the proximal step stalls on a flat face, so the step goes 3.557e+02 times further along the rows' null space (the line minimum 3.557e+02 further, the first bound 9.144e+13)
+  push round 38: full step, 17 pinned, 0 with the wrong sign, 6 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 39: full step, 17 pinned, 0 with the wrong sign, 5 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+  push round 40: the proximal step stalls on a flat face, so the step goes 1.336e+02 times further along the rows' null space (the line minimum 1.336e+02 further, the first bound 9.078e+13)
+  push round 40: full step, 17 pinned, 0 with the wrong sign, 4 free with a reduced cost, a gap of 4.166e-11 of the objective on the free ones
+push: the rows stayed unsatisfied after 40 rounds and 11 pins released; the barrier's point stands
+J24 stalled push at 58, worst 1.031e-08
+  push round 1: full step, 16 pinned, 0 with the wrong sign, 14 free with a reduced cost, a gap of 4.320e-10 of the objective on the free ones
+  push round 2: step 9.376e-01, 1 more pinned, 17 pinned in all
+  push round 3: full step, 17 pinned, 0 with the wrong sign, 0 free with a reduced cost, a gap of 6.787e-12 of the objective on the free ones
+  push round 3: conjugate gradients take the rows from 2.028e-01 to 3.640e+17 of their tolerance in 100 steps, 0 wrong signs and 0 free reduced costs after, refused
+push: 17 of 42 variables pinned on a bound, settled in 3 rounds, 0 freed
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 6 more iterations and the push settled
+status numerical_error

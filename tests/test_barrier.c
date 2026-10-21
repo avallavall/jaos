@@ -348,6 +348,31 @@ static void test_the_third_push_drops_the_duals_shift(void)
     jaos_model_free(m);
 }
 
+static void test_a_push_row_holds_at_its_rounding_level(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_far_rows.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * 2.4705451080836574e13,
+                              -2.4705451080836574e13, obj);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    double far = 0.0;
+    for (int j = 0; j < 30; j++)
+        if (fabs(x[j]) > far)
+            far = fabs(x[j]);
+    TEST_ASSERT_TRUE(far > 1e9);
+    jaos_model_free(m);
+}
+
 static void catch_plain(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -862,5 +887,6 @@ int main(void)
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_the_third_push_drops_the_duals_shift);
+    RUN_TEST(test_a_push_row_holds_at_its_rounding_level);
     return UNITY_END();
 }
