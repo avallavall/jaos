@@ -5379,6 +5379,9 @@ static void test_special_ordered_sets_branch_to_their_optimum(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 2, dup, w));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 2, cols, dw));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 3, 2, cols, w));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "type 1 or 2, not 3"));
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_add_sos(m, 1, 0, cols, w));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "at least one member"));
     TEST_ASSERT_EQUAL_INT64(0, jaos_num_sos(m));
     double x[3] = {1.0, 0.0, 1.0}, y[1] = {0.0};
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_sos(m, 1, 3, cols, w));

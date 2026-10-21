@@ -1575,6 +1575,8 @@ static void test_a_quadratic_term_follows_its_column_through_copy_add_and_delete
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_col_quadratic(m, 3, 1.0));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
                           jaos_set_col_quadratic(m, 1, INFINITY));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m),
+                                "quadratic term of column 1 must be finite"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 1, 3.0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 1, &q));
     TEST_ASSERT_EQUAL_DOUBLE(3.0, q);

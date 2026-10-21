@@ -961,8 +961,13 @@ jaos_status jaos_col_integer(const jaos_model *m, int64_t j, bool *is_integer)
 
 jaos_status jaos_set_col_quadratic(jaos_model *m, int64_t j, double q)
 {
-    if (m == nullptr || j < 0 || j >= m->num_col || !isfinite(q))
+    if (m == nullptr || j < 0 || j >= m->num_col)
         return JAOS_ERR_INVALID_INPUT;
+    if (!isfinite(q)) {
+        jm_set_err(m, "the quadratic term of column %lld must be finite",
+                   (long long)j);
+        return JAOS_ERR_INVALID_INPUT;
+    }
     if (m->col_quad == nullptr) {
         if (q == 0.0)
             return JAOS_OK;
@@ -1215,9 +1220,16 @@ jaos_status jaos_col_semicontinuous(const jaos_model *m, int64_t j,
 jaos_status jaos_add_sos(jaos_model *m, int type, int64_t n,
                          const int64_t *cols, const double *weights)
 {
-    if (m == nullptr || (type != 1 && type != 2) || n < 1 ||
-        cols == nullptr || weights == nullptr)
+    if (m == nullptr || cols == nullptr || weights == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    if (type != 1 && type != 2) {
+        jm_set_err(m, "an SOS set is of type 1 or 2, not %d", type);
+        return JAOS_ERR_INVALID_INPUT;
+    }
+    if (n < 1) {
+        jm_set_err(m, "an SOS set needs at least one member");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     for (int64_t k = 0; k < n; k++) {
         if (cols[k] < 0 || cols[k] >= m->num_col) {
             jm_set_err(m, "SOS member %lld is not a column of the model",
