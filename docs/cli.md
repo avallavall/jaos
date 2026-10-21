@@ -253,7 +253,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
 | `--conflicts` | at an infeasible node whose proof needs at most 32 binaries fixed on the path, adds a row that forbids that combination. On by default; `--no-conflicts` turns it off. |
 | `--symmetry` | detects the model's symmetries at the root, under a work cap of `MIP_SYMMETRY_WORK` (250) times the model's size. Off by default. `--orbital`, which is on by default, runs the same search, so this switch matters only with `--no-orbital`. |
 | `--orbital` | orbital branching and fixing with the root's symmetries. On by default; `--no-orbital` turns it off. |
-| `--propagate N` | passes of bound propagation at each node before its relaxation is solved. Default 0, and 4 on a model with a quadratic objective (`MIP_QUAD_PROPAGATE`). `jaos options` prints the unset value as -1. |
+| `--propagate N` | passes of bound propagation at each node before its relaxation is solved. Default 0, and 4 on a model with a quadratic objective (`MIP_QUAD_PROPAGATE`); a linear tree with no incumbent also propagates 4 passes at each node from node 1000 (`MIP_NOINC_PROPAGATE`). A value given here replaces both. `jaos options` prints the unset value as -1. |
 | `--propagate-depth D` | the deepest node at which propagation runs, the root being 0. Negative, the default, is every node. |
 | `--restart` | starts the tree again from the root when the root's reduced costs fix at least `MIP_RESTART_FRAC` of the integer columns. Off by default and on in network mode (`bench/measurements/02-345/`); `--no-restart` turns it off. |
 | `--branching RULE` | `pseudocost`, the default, scores each column by the gain its branches have shown so far; `most-fractional` takes the column farthest from an integer. |

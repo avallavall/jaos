@@ -192,6 +192,7 @@ constexpr double MIP_NODE_PRESOLVE_ITERS = 20.0;
 
 constexpr int64_t MIP_NOINC_DIVE_AFTER = 1000;
 constexpr int64_t MIP_NOINC_DIVE_BACKTRACKS = 100;
+constexpr int64_t MIP_NOINC_PROPAGATE = 4;
 
 constexpr double MIP_PROBE_CAP = 0.0;
 
@@ -5960,6 +5961,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         : (quadratic ? MIP_QUAD_PROPAGATE : MIP_PROPAGATE);
     const int64_t propagate_depth = m->cfg.mip_propagate_depth_set
         ? m->cfg.mip_propagate_depth : MIP_PROPAGATE_DEPTH;
+    const int64_t noinc_propagate = quadratic || m->cfg.mip_propagate_set
+        ? 0 : MIP_NOINC_PROPAGATE;
 
     const double cut_key = m->cfg.mip_cutoff_set
         ? sigma * m->cfg.mip_cutoff : INFINITY;
@@ -6154,7 +6157,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     pc_n = calloc((size_t)(nc > 0 ? 2 * nc : 1), sizeof *pc_n);
     cand = jm_alloc_array(MIP_STRONG_CANDIDATES, sizeof *cand);
     pcs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pcs);
-    if (propagate > 0) {
+    if (propagate > 0 || noinc_propagate > 0) {
         plo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *plo);
         phi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *phi);
         if (plo == nullptr || phi == nullptr)
@@ -6439,9 +6442,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             clique_fixed += got;
         }
 
-        if (propagate > 0 &&
+        const int64_t passes = propagate > 0 ? propagate
+                             : !inc.have && nodes >= MIP_NOINC_DIVE_AFTER
+                                   ? noinc_propagate : 0;
+        if (passes > 0 &&
             (propagate_depth < 0 || depth_here <= propagate_depth)) {
-            const int64_t got = propagate_node(m, lp, plo, phi, propagate,
+            const int64_t got = propagate_node(m, lp, plo, phi, passes,
                                                &work);
             if (got == -2)
                 goto done;

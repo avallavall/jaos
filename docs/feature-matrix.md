@@ -167,8 +167,9 @@ cells here are rows `SPECS.md` marks out of scope.
   measurement (`SPECS.md` §4). HiGHS documents no coefficient tightening.
 - *Propagation and reduced-cost fixing*: reduced-cost fixing is on. Node
   propagation is off on a linear MIP by measurement
-  (`bench/measurements/02-335/`). Hexaly names "propagation methods" and no
-  reduced-cost fixing.
+  (`bench/measurements/02-335/`), except from node 1000 while the tree has
+  no incumbent (`bench/measurements/02-407/`). Hexaly names "propagation
+  methods" and no reduced-cost fixing.
 - *Primal heuristics*: rounding, dives, the feasibility pump, lock
   rounding, a feasibility jump, RINS and RENS run by default. Local
   branching is off by measurement (`bench/measurements/02-325/`).

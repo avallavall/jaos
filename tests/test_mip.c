@@ -2124,6 +2124,32 @@ static void test_a_hull_cut_starts_from_an_empty_row(void)
     jaos_model_free(m);
 }
 
+static void test_a_tree_with_no_incumbent_propagates_from_node_1000(void)
+{
+    for (int set = 0; set < 2; set++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_read_mps(m, "tests/data/mip_noinc_propagate.mps"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 3000));
+        if (set == 1)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        if (set == 0) {
+            TEST_ASSERT_TRUE(rep.has_incumbent);
+            TEST_ASSERT_TRUE(rep.first_incumbent_node > 1000);
+            TEST_ASSERT_TRUE(rep.tightened > 0);
+        } else {
+            TEST_ASSERT_FALSE(rep.has_incumbent);
+            TEST_ASSERT_EQUAL_INT64(0, rep.tightened);
+        }
+        jaos_model_free(m);
+    }
+}
+
 static void test_a_node_limit_stops_with_the_incumbent_the_callback_saw(void)
 {
     jaos_model *m = neighbour_model();
@@ -5524,6 +5550,7 @@ int main(void)
     RUN_TEST(test_a_mip_start_crosses_the_mip_presolve);
     RUN_TEST(test_propagation_rounds_with_the_prune_window);
     RUN_TEST(test_a_hull_cut_starts_from_an_empty_row);
+    RUN_TEST(test_a_tree_with_no_incumbent_propagates_from_node_1000);
     RUN_TEST(test_a_node_limit_stops_with_the_incumbent_the_callback_saw);
     RUN_TEST(test_an_infeasible_relaxation_is_the_mips_certificate);
     RUN_TEST(test_a_trees_progress_calls_carry_the_running_total);

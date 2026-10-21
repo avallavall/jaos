@@ -111,8 +111,10 @@ in 20 s. Open, largest first:
   family. At 5e8 work units the default finds a point on 22 of the 34 and
   `--dive` on 16, so no switch fixes it (`bench/measurements/02-394/`).
   The root's feasibility jump finds none on the 33 even without its cap
-  (`02-399/`), and the root restart never fires on them (`02-406/`). Next: a heuristic whose first point satisfies such rows,
-  read on those models and on MIPLIB.
+  (`02-399/`), and the root restart never fires on them (`02-406/`).
+  Node propagation from node 1000 while no incumbent is known brings the
+  34 from 23 points to 27 at 5e8 (`02-407/`). Next: a heuristic whose
+  first point satisfies such rows, read on those models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
@@ -147,8 +149,9 @@ remedies are refused; read `bench/refusals.txt` first.
 J11. **MIP switches that are off by measurement**: strong branching,
 zero-half and lifted cover cuts, local branching, restarts outside network
 mode, bound propagation and probing. The last reading had none land
-(`bench/measurements/02-361/`). Each needs a form that pays on MIPLIB 3 and
-the 2017 set.
+(`bench/measurements/02-361/`); propagation runs only in a tree with no
+incumbent past node 1000 (`02-407/`). Each needs a form that pays on
+MIPLIB 3 and the 2017 set.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).

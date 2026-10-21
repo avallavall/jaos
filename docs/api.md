@@ -167,7 +167,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_conflicts` | `mip_conflicts` | boolean | true |
 | `jaos_set_mip_symmetry` | `mip_symmetry` | boolean | false |
 | `jaos_set_mip_orbital` | `mip_orbital` | boolean | true |
-| `jaos_set_mip_propagate` | `mip_propagate` | integer | -1, the tree's own choice: 4 on a quadratic objective, 0 otherwise |
+| `jaos_set_mip_propagate` | `mip_propagate` | integer | -1, the tree's own choice: 4 on a quadratic objective, 0 otherwise but 4 from node 1000 while no incumbent is known |
 | `jaos_set_mip_propagate_depth` | `mip_propagate_depth` | integer | -1, every node |
 | `jaos_set_mip_heuristics` | `mip_heuristics` | boolean | true |
 | `jaos_set_mip_pool_size` | `mip_pool_size` | integer | 1 |
@@ -1054,9 +1054,10 @@ Sets the passes of bound propagation at each node before its relaxation is
 solved. A pass reads the rows over the node's bounds and closes the node
 when a row admits no point. It also tightens the integer bounds that the
 rows imply. A negative value, and the default, leave the choice to the
-tree: 4 passes on a model with a quadratic objective, 0 otherwise.
-`jaos_get_option` reads this unset value back as -1, so a replayed option
-file keeps the tree's choice.
+tree: 4 passes on a model with a quadratic objective; otherwise none, but
+4 at each node from node 1000 for as long as the tree has no incumbent.
+A value of 0 or more replaces both. `jaos_get_option` reads this unset
+value back as -1, so a replayed option file keeps the tree's choice.
 
 **`jaos_set_mip_propagate_depth`**\
 `jaos_status jaos_set_mip_propagate_depth(jaos_model *m, int64_t depth)`\
