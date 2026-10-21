@@ -2997,8 +2997,10 @@ static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
     for (int64_t j = 0; j < n; j++)
         wr[j] = -1;
     for (int64_t i = 0; i < nr; i++) {
+        const int64_t qb = m->rq_start != nullptr ? m->rq_start[i] : 0;
+        const int64_t qe = m->rq_start != nullptr ? m->rq_start[i + 1] : 0;
         bool up = isfinite(m->row_lower[i]), dn = isfinite(m->row_upper[i]);
-        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+        for (int64_t p = qb; p < qe; p++) {
             if (m->rq_i[p] != m->rq_j[p])
                 up = dn = false;
             if (m->rq_v[p] > 0.0)
@@ -3008,8 +3010,7 @@ static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
         }
         pc[i] = up ? cm_new_col(cost, lo, hi, &k, 1.0, 0.0, INFINITY) : -1;
         nc[i] = dn ? cm_new_col(cost, lo, hi, &k, 1.0, 0.0, INFINITY) : -1;
-        for (int64_t p = m->rq_start[i]; (up || dn) && p < m->rq_start[i + 1];
-             p++)
+        for (int64_t p = qb; (up || dn) && p < qe; p++)
             if (m->rq_v[p] != 0.0 && wr[m->rq_i[p]] < 0)
                 wr[m->rq_i[p]] = nq++;
     }
@@ -3059,7 +3060,8 @@ static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
     for (int64_t t = 0; t < members; t++)
         cm_trip_put(tr, &kt, m->cone_col[t], zc[t], 1.0);
     for (int64_t i = 0; i < nr; i++) {
-        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+        for (int64_t p = m->rq_start != nullptr ? m->rq_start[i] : 0;
+             m->rq_start != nullptr && p < m->rq_start[i + 1]; p++) {
             const int64_t j = m->rq_i[p];
             if (wr[j] < 0)
                 continue;
@@ -3111,6 +3113,7 @@ static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
     }
     q->cfg.primal_tol = m->cfg.primal_tol;
     q->cfg.dual_tol = m->cfg.dual_tol;
+    q->cfg.no_cert_solve = true;
     st = jaos_solve(q);
     *spent += jaos_work_units(q);
     if (st != JAOS_OK)
@@ -4159,8 +4162,8 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                                                members, &cr, &calls);
             }
             free(keep);
-            if (!certified && !m->cfg.node_solve && !m->cfg.no_cert_solve &&
-                m->rq_nz > 0) {
+            if (!certified && !m->cfg.no_cert_solve &&
+                (!m->cfg.node_solve || m->rq_nz == 0 || res.relaxed)) {
                 int64_t spent = 0;
                 st = cm_cert_solve(m, jm_primal_tolerance(m), &spent, &cr,
                                    &certified);

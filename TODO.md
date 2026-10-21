@@ -13,15 +13,12 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 ## Tier 1: defects
 
-J20. **Cone models whose infeasibility ends `NUMERICAL_ERROR`.** On
-02-255's seed 2, 46 of the brute-force solves (continuous cone models with
-the integer columns fixed) end `numerical_error`: the walk reaches an
-infeasibility certificate the checker refuses, and with no quadratic row
-the checker's test is exact. 4 more stop after 206 iterations with no
-direction the ray checker takes (`bench/measurements/02-376/`). Next: the
-conic program over the multipliers of 02-373, which today runs only with
-quadratic rows, on these models. Verify with 02-255's `misocp.c` and
-02-376's `unsure.patch`.
+J20. **Cone models whose walk stalls.** On 02-255's seed 2, 4 brute-force
+solves of model 698 (continuous cone models with the integer columns
+fixed) stop after 206 iterations with no answer and no direction the ray
+checker takes (`bench/measurements/02-377/`). Next: write one out with
+02-376's `unsure.patch` and read where the walk stops. Verify with
+02-255's `misocp.c` and that patch.
 
 ## Tier 3: the largest performance gaps
 

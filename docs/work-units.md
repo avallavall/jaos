@@ -281,8 +281,9 @@ infeasibility certificate the checker refuses is searched again before it
 is given up. The coordinate climb makes at most `CONIC_CERT_CALLS` checker
 calls. The tilt ladder before it makes at most 130 calls per outer round,
 for two rounds. Each checker call charges one pass over the model,
-`nnz + cols + rows + 1`. When a model with quadratic rows still has no
-certificate, a conic program over the multipliers (`cm_cert_solve`) charges
+`nnz + cols + rows + 1`. When a model still has no certificate, a conic
+program over the multipliers (`cm_cert_solve`) runs; at a tree node it
+runs only when the node's status depends on it. It charges
 one per entry it gathers, adds the work of its solve, and charges one
 checker call.
 
