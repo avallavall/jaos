@@ -1,0 +1,30 @@
+== mipopts 4
+models 1000 optimal 537 infeasible 447 unbounded 16 other 0
+variants 49 broken total 0
+== mipopts 5
+models 1000 optimal 533 infeasible 449 unbounded 18 other 0
+variants 49 broken total 0
+== mipopts 6
+models 1000 optimal 524 infeasible 459 unbounded 17 other 0
+variants 49 broken total 0
+== algos 4
+models 1000 optimal 515 infeasible 448 unbounded 37
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0
+== algos 5
+models 1000 optimal 539 infeasible 432 unbounded 29
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0
+== algos 6
+models 1000 optimal 523 infeasible 461 unbounded 16
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0

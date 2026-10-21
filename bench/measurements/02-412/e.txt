@@ -1,0 +1,30 @@
+== warmmod 4 lp dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 4 lp primal
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 4 mip dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 5 lp dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 5 lp primal
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 5 mip dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 6 lp dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 6 lp primal
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmmod 6 mip dual
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 4 qp
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 4 miqp
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 5 qp
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 5 miqp
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 6 qp
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== warmqp 6 miqp
+P1=0 P2=0 P3=0 P4=0 broken total 0

@@ -1,0 +1,3 @@
+12x30 balls 1: ok 150 bad 0
+12x30 balls 3: ok 150 bad 0
+30x80 balls 3: ok 150 bad 0

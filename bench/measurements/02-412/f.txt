@@ -1,0 +1,87 @@
+== structedit 4
+kinds delete-col=5087 delete-two-cols=4602 delete-row=5194 add-col=5246 add-row=5422 add-sos=4796 delete-cone=2088 add-cone=4440 indicator=5281 row-quadratic=5270 objective-q=5463 diagonal-q=5488 integer=5383 semi=5436 coefficient=5441 box=5363
+mps    trips 8000 refused 0 broken 0
+lp     trips 4015 refused 3985 broken 0
+nl     trips 114 refused 7886 broken 0
+qplib  trips 460 refused 7540 broken 0
+cbf    trips 187 refused 7813 broken 0
+osil   trips 701 refused 7299 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== structedit 5
+kinds delete-col=5013 delete-two-cols=4696 delete-row=5302 add-col=5365 add-row=5334 add-sos=4815 delete-cone=2176 add-cone=4557 indicator=5324 row-quadratic=5382 objective-q=5272 diagonal-q=5499 integer=5364 semi=5325 coefficient=5271 box=5305
+mps    trips 8000 refused 0 broken 0
+lp     trips 3980 refused 4020 broken 0
+nl     trips 97 refused 7903 broken 0
+qplib  trips 440 refused 7560 broken 0
+cbf    trips 148 refused 7852 broken 0
+osil   trips 650 refused 7350 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== structedit 6
+kinds delete-col=4827 delete-two-cols=4631 delete-row=5120 add-col=5371 add-row=5290 add-sos=4843 delete-cone=2163 add-cone=4590 indicator=5438 row-quadratic=5448 objective-q=5391 diagonal-q=5308 integer=5349 semi=5412 coefficient=5289 box=5530
+mps    trips 8000 refused 0 broken 0
+lp     trips 3969 refused 4031 broken 0
+nl     trips 114 refused 7886 broken 0
+qplib  trips 471 refused 7529 broken 0
+cbf    trips 187 refused 7813 broken 0
+osil   trips 668 refused 7332 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== answers 4
+models 3000 optimal 1538 infeasible 1402 unbounded 60; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
+== answers 5
+models 3000 optimal 1555 infeasible 1373 unbounded 72; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
+== answers 6
+models 3000 optimal 1598 infeasible 1354 unbounded 48; warm starts that pivoted 0, iterations 0
+P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 broken total 0
+== iis 4
+infeasible 1402 of 3000, members 15148, drops 15148, relaxations 4102
+P1=0 P2=0 P3=0 P4=0 P5=0 broken total 0
+== iis 5
+infeasible 1373 of 3000, members 14989, drops 14989, relaxations 4003
+P1=0 P2=0 P3=0 P4=0 P5=0 broken total 0
+== iis 6
+infeasible 1354 of 3000, members 14399, drops 14399, relaxations 3935
+P1=0 P2=0 P3=0 P4=0 P5=0 broken total 0
+== edge 4
+edge models 4102
+dual       P1=0 P2=0
+primal     P1=0 P2=0
+barrier    P1=0 P2=0
+pdlp       P1=0 P2=0
+concurrent P1=0 P2=0
+broken total 0
+== edge 5
+edge models 4003
+dual       P1=0 P2=0
+primal     P1=0 P2=0
+barrier    P1=0 P2=0
+pdlp       P1=0 P2=0
+concurrent P1=0 P2=0
+broken total 0
+== edge 6
+edge models 3935
+dual       P1=0 P2=0
+primal     P1=0 P2=0
+barrier    P1=0 P2=0
+pdlp       P1=0 P2=0
+concurrent P1=0 P2=0
+broken total 0
+== scaled 4
+models 1000 (optimal 524 infeasible 452 unbounded 24) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0
+== scaled 5
+models 1000 (optimal 531 infeasible 439 unbounded 30) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0
+== scaled 6
+models 1000 (optimal 518 infeasible 451 unbounded 31) scaled by up to 1e2
+dual     P1=0 P2=0 P3=0 of them uncertified 0
+primal   P1=0 P2=0 P3=0 of them uncertified 0
+barrier  P1=0 P2=0 P3=0 of them uncertified 0
+broken total 0

@@ -81,6 +81,17 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
+J25. **A bounded circulation whose push pins break its rows.** 02-366's
+`netqpb.py` at 12 nodes, seed 1420, ends `numerical_error`; it had solved
+every earlier seed. The barrier converges, and every push cycles: the
+full step leaves ten rows off by 8.2e4 times their tolerance, rows whose
+columns are all pinned, then it frees ten pins and pins them back at a
+step of 0, for 40 rounds; the third push and the conic walk fail too
+(`bench/measurements/02-412/`). HiGHS finds -7.7317304e9. Next: find
+which pins break those rows and why the third push's freeing does not
+clear them. Verify with `python3 netqpb.py 12 30 1420 out.mps` and
+`netqpb_read.py` on seeds 1 to 400 and 1001 to 1800.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

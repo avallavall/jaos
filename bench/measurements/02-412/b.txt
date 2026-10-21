@@ -1,0 +1,42 @@
+== basis 13
+models 1000 optimal 1000 s2_differs 72 s3_differs 18 sources_proved 3000 sources_refused 0 eq_flips 966 proofs 2000 dumped 20
+judged 10961 optimal 4978 rank 1224 primal 4302 dual 457 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== basis 14
+models 1000 optimal 1000 s2_differs 86 s3_differs 22 sources_proved 3000 sources_refused 0 eq_flips 967 proofs 2000 dumped 20
+judged 10961 optimal 4985 rank 1221 primal 4300 dual 455 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== basis 15
+models 1000 optimal 1000 s2_differs 80 s3_differs 21 sources_proved 3000 sources_refused 0 eq_flips 968 proofs 2000 dumped 20
+judged 10957 optimal 4981 rank 1228 primal 4291 dual 457 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== basis 16
+models 1000 optimal 1000 s2_differs 90 s3_differs 22 sources_proved 3000 sources_refused 0 eq_flips 968 proofs 2000 dumped 20
+judged 10962 optimal 4986 rank 1243 primal 4240 dual 493 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== basis 17
+models 1000 optimal 1000 s2_differs 69 s3_differs 11 sources_proved 3000 sources_refused 0 eq_flips 982 proofs 2000 dumped 20
+judged 10976 optimal 4989 rank 1252 primal 4265 dual 470 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== basis 18
+models 1000 optimal 1000 s2_differs 74 s3_differs 22 sources_proved 3000 sources_refused 0 eq_flips 969 proofs 2000 dumped 20
+judged 10955 optimal 4982 rank 1257 primal 4263 dual 453 refused 0 ambiguous 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 13
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1986 flipped_duals 999 refused 999 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 14
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1974 flipped_duals 999 refused 998 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 15
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1984 flipped_duals 1000 refused 1000 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 16
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1980 flipped_duals 1000 refused 999 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 17
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1982 flipped_duals 1000 refused 1000 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== point 18
+models 1000 optimal 1000 shapes_read 5000 foreign_points 2000 refused 1980 flipped_duals 998 refused 998 ambiguous 0 dumped 20
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
