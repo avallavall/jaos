@@ -1,0 +1,30 @@
+== 195 DBG refused: col 0 row 0.000726 rowrel 1.63e-08 dual 0.0241 gap 2.19e-17 cert 1 sub 5.87e-16 rsub 2.52e-16 pushed 0 obj -4.249035242e+16
+x26 x=-7.5492e-11 lo=-inf up=0 slack_lo=inf slack_up=7.55e-11 c=-4454 Qx=-1.51e-10 Ay=5250 d=-9704
+x24 x=0.429818 lo=0.429818 up=1.12128 slack_lo=8.05e-11 slack_up=0.691 c=8092 Qx=7.84e-10 Ay=-1006 d=9098
+x9 x=-9.15802e-11 lo=-inf up=0 slack_lo=inf slack_up=9.16e-11 c=-6184 Qx=-1.463e-13 Ay=1815 d=-7999
+x17 x=196.505 lo=196.505 up=5535.21 slack_lo=1.27e-10 slack_up=5.34e+03 c=7310 Qx=393 Ay=1951 d=5752
+== 201 DBG refused: col 0 row 2.22e-06 rowrel 4.67e-09 dual 1.89e+04 gap 3.7e-14 cert 1 sub 1.71e-17 rsub 7.13e-15 pushed 0 obj -4.887906922e+15
+x14 x=87.7718 lo=87.7718 up=205.494 slack_lo=3.87e-05 slack_up=118 c=7532 Qx=2.681e-06 Ay=-1.132e+04 d=1.885e+04
+x4 x=-7.17129e-05 lo=-inf up=0 slack_lo=inf slack_up=7.17e-05 c=502.4 Qx=-0.0001434 Ay=1.068e+04 d=-1.018e+04
+x1 x=-7.25169e-05 lo=-inf up=0 slack_lo=inf slack_up=7.25e-05 c=0 Qx=-0.000145 Ay=1.006e+04 d=-1.006e+04
+x18 x=-7.38954e-05 lo=-inf up=0 slack_lo=inf slack_up=7.39e-05 c=0 Qx=-0.0001478 Ay=9875 d=-9875
+== 1450 DBG refused: col 0 row 6.17e-08 rowrel 5.24e-08 dual 1.14e+04 gap 2.3e-10 cert 1 sub 2.99e-15 rsub 5.85e-10 pushed 0 obj -2.540490868e+12
+x21 x=0.0470769 lo=0.0469238 up=2.25081 slack_lo=0.000153 slack_up=2.2 c=5621 Qx=4.465e-05 Ay=-5818 d=1.144e+04
+x3 x=-0.000177192 lo=-inf up=0 slack_lo=inf slack_up=0.000177 c=-5006 Qx=-0.0003544 Ay=5014 d=-1.002e+04
+x26 x=-0.000217634 lo=-inf up=0 slack_lo=inf slack_up=0.000218 c=-2367 Qx=-2.148e-08 Ay=5762 d=-8129
+x12 x=-0.000224608 lo=-inf up=0 slack_lo=inf slack_up=0.000225 c=-2120 Qx=-0.0004492 Ay=5760 d=-7880
+== 1596 DBG refused: col 0 row 9.89e-05 rowrel 6.8e-11 dual 1.08e+04 gap 1.41e-09 cert 1 sub 0 rsub 1.31e-09 pushed 0 obj -7.049735321e+15
+x24 x=434.371 lo=354.473 up=33723.2 slack_lo=79.9 slack_up=3.33e+04 c=6377 Qx=0.0003703 Ay=-4436 d=1.081e+04
+x1 x=641.667 lo=561.833 up=4140.04 slack_lo=79.8 slack_up=3.5e+03 c=6912 Qx=1283 Ay=-913.6 d=9109
+x17 x=-187.097 lo=-inf up=0 slack_lo=inf slack_up=187 c=-9539 Qx=-0.2642 Ay=-4056 d=-5483
+x23 x=-160.621 lo=-inf up=0 slack_lo=inf slack_up=161 c=0 Qx=-321.2 Ay=4436 d=-4757
+== 1611 DBG refused: col 0 row 1.56e-05 rowrel 1.11e-10 dual 1.27e+04 gap 2.51e-11 cert 1 sub 0 rsub 3.27e-11 pushed 0 obj -1.12364812e+15
+x27 x=-0.144107 lo=-inf up=0 slack_lo=inf slack_up=0.144 c=-3918 Qx=-2.329e-08 Ay=8815 d=-1.273e+04
+x29 x=-0.16472 lo=-inf up=0 slack_lo=inf slack_up=0.165 c=0 Qx=-0.3294 Ay=1.115e+04 d=-1.115e+04
+x6 x=481.321 lo=481.147 up=6474.04 slack_lo=0.174 slack_up=5.99e+03 c=0 Qx=1.556e-08 Ay=-1.051e+04 d=1.051e+04
+x2 x=-0.183517 lo=-inf up=0 slack_lo=inf slack_up=0.184 c=0 Qx=-0.367 Ay=9942 d=-9942
+== 1624 DBG refused: col 0 row 0.000404 rowrel 2.2e-11 dual 5.45e+04 gap 1.34e-12 cert 1 sub 0 rsub 1.73e-12 pushed 0 obj -3.60947052e+16
+x13 x=24065.5 lo=24065.4 up=54405.5 slack_lo=0.0629 slack_up=3.03e+04 c=6161 Qx=4.813e+04 Ay=-187.1 d=5.448e+04
+x21 x=24719.6 lo=24719.5 up=35816.8 slack_lo=0.0686 slack_up=1.11e+04 c=-3166 Qx=4.944e+04 Ay=-3706 d=4.998e+04
+x4 x=14442.7 lo=14442.5 up=440755 slack_lo=0.126 slack_up=4.26e+05 c=0 Qx=2.889e+04 Ay=1763 d=2.712e+04
+x17 x=17650 lo=17649.7 up=1.83887e+06 slack_lo=0.263 slack_up=1.82e+06 c=-1341 Qx=8928 Ay=-5469 d=1.306e+04

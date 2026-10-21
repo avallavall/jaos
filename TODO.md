@@ -61,7 +61,10 @@ at 40 nodes (`bench/measurements/02-400/`, `02-413/`, `02-416/`). Of
 those 31, 16 stop on the barrier's growth stop, 3 at its iteration cap,
 and 12 converge but no push gives a point the checker passes; the conic
 walk then reports, on 30, an improving direction the ray checker refuses
-(`02-414/`). HiGHS calls seven of them optimal at
+(`02-414/`). On six of the 12, only the reduced-cost test refuses a
+point whose gap is certified. On five of those, a column sits 4e-5 to 80
+off a bound with a reduced cost of 1e4 to 5e4 toward it, as large as its
+terms, so a relative test would refuse them too (`02-417/`). HiGHS calls seven of them optimal at
 points from which the objective still falls along a cycle, so it cannot
 judge this family (`02-398/`). The six of seeds 1001 to 1400 stop in the
 barrier on `BARRIER_DIVERGE_QP`. With that stop lifted, seed 1156's walk

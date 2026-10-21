@@ -1,0 +1,84 @@
+== miqp 7
+models 1000
+optimal 761
+infeasible 200
+unbounded 39
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.965e-07
+worst violation 1.643e-14
+nodes 2417
+work units 207543568
+brute force solves 18474
+failed models 0
+digest 85bf43386f66ee7b
+== miqp 8
+models 1000
+optimal 755
+infeasible 200
+unbounded 45
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.227e-14
+worst violation 5.531e-15
+nodes 2485
+work units 227976501
+brute force solves 19080
+failed models 0
+digest 61912ad357c655c7
+== miqp 9
+models 1000
+optimal 771
+infeasible 200
+unbounded 29
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 7.155e-12
+worst violation 1.954e-14
+nodes 2445
+work units 212423172
+brute force solves 18120
+failed models 0
+digest 68c98f6e775c0dd6
+== miqp 10
+models 1000
+optimal 775
+infeasible 200
+unbounded 25
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 6.424e-15
+worst violation 8.932e-13
+nodes 2570
+work units 217741146
+brute force solves 19588
+failed models 0
+digest c731e684b71a0f08
+== miqp 11
+models 1000
+optimal 763
+infeasible 200
+unbounded 37
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.377e-14
+worst violation 6.528e-15
+nodes 2404
+work units 200574439
+brute force solves 20128
+failed models 0
+digest 4c0fb97b13726af5
+== miqp 12
+models 1000
+optimal 768
+infeasible 200
+unbounded 32
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 5.438e-14
+worst violation 6.847e-15
+nodes 2536
+work units 216289786
+brute force solves 18512
+failed models 0
+digest e79567f7ffd27c3e
