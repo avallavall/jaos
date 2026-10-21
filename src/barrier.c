@@ -2043,7 +2043,11 @@ static bool bx_passes(jaos_model *m, jaos_check_report *ck)
 
 static bool bx_holds(jaos_model *m, jaos_check_report *ck, bool pushed)
 {
-    return bx_passes(m, ck) || (pushed && ck->primal_feasible);
+    *ck = (jaos_check_report){};
+    if (jaos_check_solution(m, m->sol_col, m->sol_dual,
+                            jm_primal_tolerance(m), ck) != JAOS_OK)
+        return false;
+    return ck->primal_feasible && (ck->dual_feasible || pushed);
 }
 
 static double bx_polish_rows(bx *s, const double *zt, const double *row_tol,
