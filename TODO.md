@@ -94,6 +94,12 @@ in 20 s. Open, largest first:
   (`node-pool-scan`, `bench/measurements/02-340/`).
 - MIPLIB 3: `l152lav` and `bell3a` trees are far larger than HiGHS's; the
   Gomory family is JAOS's weakest (`bench/measurements/02-351/`, `02-364/`).
+- General integers with equality rows: of 02-394's 700 generated MILPs,
+  JAOS stops at 2e9 work units on 34 that HiGHS proves, 33 of them in that
+  family. On `general` seed 24 the first point comes at node 311489 though
+  the tree dives from node 1000, and at node 9948 with `--dive` from the
+  start (`bench/measurements/02-394/`). Next: a first point that satisfies
+  such rows, read on those models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
