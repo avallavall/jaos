@@ -1,0 +1,8 @@
+== formats 7
+built=3000 round_trips=9527 refused=5473 skipped=0 bad=0 (nodes only 0) node_checked=2285 of_those_used_the_tree=2265
+== formats 8
+built=3000 round_trips=9519 refused=5481 skipped=0 bad=0 (nodes only 0) node_checked=2408 of_those_used_the_tree=2364
+== formats 9
+built=3000 round_trips=9466 refused=5534 skipped=0 bad=0 (nodes only 0) node_checked=2465 of_those_used_the_tree=2421
+== formats 10
+built=3000 round_trips=9577 refused=5423 skipped=0 bad=0 (nodes only 0) node_checked=2553 of_those_used_the_tree=2529

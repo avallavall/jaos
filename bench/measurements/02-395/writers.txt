@@ -1,0 +1,28 @@
+== writers 3
+models 1000: 1000 written, 0 refused by a writer
+TIMEOUT m00527.mps (qp-pairs): jaos optimal -26.275762379227057
+TIMEOUT m00527.lp (qp-pairs): jaos optimal -26.275762379227057
+TIMEOUT m00993.mps (qp-diag): jaos optimal 197.95455151600223
+TIMEOUT m00993.lp (qp-diag): jaos optimal 197.95455151600223
+models 1000 seed 3: 0 refused by a writer; files 1977 agree, 15 where a third reading sides with JAOS, 8 where HiGHS ran out of its 20 s, 0 differ
+  highs-alone.lp.lp 2
+  highs-alone.qp-diag.lp 6
+  highs-alone.qp-diag.mps 6
+  highs-alone.mip.lp 1
+optimal models: 713
+    541 lp;    344 mip;     58 qp-diag;     57 qp-pairs;
+done
+== writers 4
+models 1000: 1000 written, 0 refused by a writer
+TIMEOUT m00015.lp (qp-diag): jaos unbounded 0
+TIMEOUT m00134.mps (qp-diag): jaos optimal -31.75
+TIMEOUT m00134.lp (qp-diag): jaos optimal -31.75
+TIMEOUT m00356.mps (qp-diag): jaos unbounded 0
+TIMEOUT m00356.lp (qp-diag): jaos unbounded 0
+models 1000 seed 4: 0 refused by a writer; files 1984 agree, 10 where a third reading sides with JAOS, 6 where HiGHS ran out of its 20 s, 0 differ
+  highs-alone.lp.lp 6
+  highs-alone.qp-pairs.mps 2
+  highs-alone.qp-pairs.lp 2
+optimal models: 719
+    555 lp;    321 mip;     64 qp-diag;     60 qp-pairs;
+done
