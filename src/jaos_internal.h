@@ -40,6 +40,7 @@ typedef struct {
     bool no_cert_solve;
     bool cut_resolve;
     bool no_aggregate;
+    bool no_presolve;
 
     double mip_gap;
     bool mip_gap_set;

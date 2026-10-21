@@ -178,6 +178,25 @@ static void test_the_primal_hands_an_infeasible_model_to_the_dual(void)
     jaos_model_free(m);
 }
 
+static void test_a_presolve_verdict_its_certificate_refuses_is_solved_again(void)
+{
+    for (int a = 0; a < 4; a++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_read_mps(m, "tests/data/lp_presolve_edge.mps"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, (jaos_algorithm)a));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double x[10], y[13];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        jaos_check_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+        TEST_ASSERT_TRUE(rep.primal_feasible);
+        TEST_ASSERT_TRUE(rep.dual_feasible);
+        jaos_model_free(m);
+    }
+}
+
 static void test_three_by_three(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -3569,6 +3588,7 @@ int main(void)
     RUN_TEST(test_objective_offset_is_carried);
     RUN_TEST(test_infeasible_model_is_reported);
     RUN_TEST(test_the_primal_hands_an_infeasible_model_to_the_dual);
+    RUN_TEST(test_a_presolve_verdict_its_certificate_refuses_is_solved_again);
     RUN_TEST(test_three_by_three);
     RUN_TEST(test_solving_a_model_read_from_mps);
     RUN_TEST(test_unbounded_model_is_reported);

@@ -16,6 +16,7 @@ constexpr double PIVOT_MARGIN  = 1.0;
 
 constexpr double PRIMAL_HARRIS_DELTA = 0.5;
 constexpr double PROBE_CERT_TOL = 1e-6;
+constexpr double PRESOLVE_CERT_TOL = 1e-9;
 
 constexpr double DUAL_TOL      = 1e-9;
 
@@ -4537,9 +4538,11 @@ static jaos_status restart_without_early_perturb(sx *s, jaos_model *m,
 }
 
 static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
-                                     int64_t *units, int64_t *iters)
+                                     bool *by_presolve, int64_t *units,
+                                     int64_t *iters)
 {
     *aggregated = false;
+    *by_presolve = false;
     *units = 0;
     *iters = 0;
     jm_presolve p;
@@ -4626,14 +4629,14 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         const bool node_skip = m->cfg.node_solve && m->cfg.node_no_presolve &&
                                m->start_col_status != nullptr &&
                                m->start_row_status != nullptr;
-        jaos_status pst = quadratic || node_skip
+        jaos_status pst = quadratic || node_skip || m->cfg.no_presolve
                               ? JAOS_OK
                               : jm_presolve_run(m, &p, &pre_work);
         if (pst != JAOS_OK) {
             jm_presolve_free(&p);
             return pst;
         }
-        if (node_skip && !quadratic)
+        if ((node_skip || m->cfg.no_presolve) && !quadratic)
             p.outcome = JM_PRESOLVE_NONE;
         if (quadratic) {
             p.outcome = JM_PRESOLVE_NONE;
@@ -4713,6 +4716,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                 ? JAOS_SOLVE_INFEASIBLE : JAOS_SOLVE_UNBOUNDED;
             jaos_status st = jm_postsolve_infeasible_or_unbounded(&p, status);
             jm_presolve_free(&p);
+            *by_presolve = true;
             return st;
         }
 
@@ -5068,12 +5072,71 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     return st;
 }
 
+static bool presolve_answer_certified(jaos_model *m)
+{
+    if (m->solve_status == JAOS_SOLVE_INFEASIBLE) {
+        jaos_certificate_report rep = {0};
+        return m->farkas_ok &&
+               jaos_check_certificate(m, m->sol_farkas, PRESOLVE_CERT_TOL,
+                                      &rep) == JAOS_OK &&
+               rep.certified;
+    }
+    if (m->solve_status == JAOS_SOLVE_UNBOUNDED) {
+        jaos_ray_report rep = {0};
+        return m->ray_ok &&
+               jaos_check_ray(m, m->sol_ray, PRESOLVE_CERT_TOL, &rep) ==
+                   JAOS_OK &&
+               rep.certified;
+    }
+    return true;
+}
+
+static jaos_status solve_without_presolve(jaos_model *m, double t0,
+                                          int64_t units, int64_t iters)
+{
+    const jm_config saved = m->cfg;
+    if (saved.work_limit > 0) {
+        if (units >= saved.work_limit)
+            return JAOS_OK;
+        m->cfg.work_limit = saved.work_limit - units;
+    }
+    if (saved.time_limit > 0.0) {
+        const double left = saved.time_limit - (jm_monotonic_seconds() - t0);
+        if (!(left > 0.0))
+            return JAOS_OK;
+        m->cfg.time_limit = left;
+    }
+    const bool infeasible = m->solve_status == JAOS_SOLVE_INFEASIBLE;
+    jm_log(m, JAOS_LOG_SUMMARY,
+           "presolve called the model %s, but its %s does not certify it; "
+           "the simplex decides without presolve",
+           infeasible ? "infeasible" : "unbounded",
+           infeasible ? "certificate" : "ray");
+    m->err[0] = '\0';
+    m->cfg.no_presolve = true;
+    bool aggregated = false, by_presolve = false;
+    int64_t units2 = 0, iters2 = 0;
+    const jaos_status st = dual_simplex_once(m, &aggregated, &by_presolve,
+                                             &units2, &iters2);
+    m->cfg = saved;
+    if (m->parked != nullptr) {
+        jm_parked *pk = m->parked;
+        pk->cfg = saved;
+    }
+    m->solve_work += units;
+    m->solve_iters += iters;
+    return st;
+}
+
 jaos_status jm_dual_simplex(jaos_model *m)
 {
-    bool aggregated = false;
+    bool aggregated = false, by_presolve = false;
     int64_t units = 0, iters = 0;
     const double t0 = jm_monotonic_seconds();
-    jaos_status st = dual_simplex_once(m, &aggregated, &units, &iters);
+    jaos_status st = dual_simplex_once(m, &aggregated, &by_presolve, &units,
+                                       &iters);
+    if (st == JAOS_OK && by_presolve && !presolve_answer_certified(m))
+        return solve_without_presolve(m, t0, units, iters);
     const bool failed = st == JAOS_ERR_NUMERICAL ||
                         (st == JAOS_OK &&
                          m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR);
@@ -5111,9 +5174,9 @@ jaos_status jm_dual_simplex(jaos_model *m)
            handed ? "its last basis" : "the start it had");
     m->err[0] = '\0';
     m->cfg.no_aggregate = true;
-    bool again = false;
+    bool again = false, again_presolved = false;
     int64_t units2 = 0, iters2 = 0;
-    st = dual_simplex_once(m, &again, &units2, &iters2);
+    st = dual_simplex_once(m, &again, &again_presolved, &units2, &iters2);
     if (handed) {
         if (st == JAOS_OK && m->sol_basis_ok) {
             free(start_col);

@@ -88,6 +88,13 @@ attempt ends with a complete basis, postsolve maps it to the model and the
 second solve starts from it. The caller's own start comes back if the
 second solve publishes no basis.
 
+**A presolve verdict the checker refuses.** When presolve alone calls an
+LP infeasible or unbounded and the certificate or ray it publishes does
+not certify at `PRESOLVE_CERT_TOL`, the model is solved again without
+presolve, under what is left of the work and time limits, and presolve's
+work is added to the answer's. The check itself is not billed, as for
+the QP's verdict on its rows and bounds.
+
 **Restarts inside the dual simplex** keep their work. A warm start that
 reaches no answer restarts cold. A solve whose early cost perturbation is
 followed by a full stall restarts from the same start without it. In both

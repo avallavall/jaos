@@ -1,0 +1,10 @@
+== seed 1
+infeasible 1335 of 3000, members 14250, drops 14250, relaxations 3898
+P1=0 P2=0 P3=0 P4=0 P5=0 broken total 0
+== seed 2
+P4 m1156 scope 1: the moved model solves 2
+infeasible 1379 of 3000, members 15078, drops 15078, relaxations 4044
+P1=0 P2=0 P3=0 P4=1 P5=0 broken total 1
+== seed 3
+infeasible 1306 of 3000, members 14309, drops 14309, relaxations 3826
+P1=0 P2=0 P3=0 P4=0 P5=0 broken total 0
