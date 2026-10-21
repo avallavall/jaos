@@ -4,6 +4,7 @@
 #include "unity.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -430,6 +431,39 @@ static void test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins(voi
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
+typedef struct {
+    long long stopped, handed;
+} barrier_work;
+
+static void catch_work(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    barrier_work *w = user;
+    long long iters = 0, units = 0;
+    if (sscanf(line, "numerical error after %lld barrier iterations, %lld work units",
+               &iters, &units) == 2)
+        w->stopped = units;
+    if (sscanf(line, "the barrier ended without an answer after %lld iterations and "
+                     "%lld work units", &iters, &units) == 2)
+        w->handed = units;
+}
+
+static void test_a_refused_barrier_point_hands_on_all_its_work(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_far_refused.mps"));
+    barrier_work w = {-1, -1};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_work, &w));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_TRUE(w.stopped > 0);
+    TEST_ASSERT_EQUAL_INT64(w.stopped, w.handed);
+    TEST_ASSERT_TRUE(jaos_work_units(m) >= w.stopped);
     jaos_model_free(m);
 }
 
@@ -916,6 +950,7 @@ int main(void)
     RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
     RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
     RUN_TEST(test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins);
+    RUN_TEST(test_a_refused_barrier_point_hands_on_all_its_work);
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_the_third_push_drops_the_duals_shift);

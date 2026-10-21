@@ -140,8 +140,10 @@ byte-identical or re-based.
 J9. **The large QPs and MIQPs.** 7 of QPLIB's 8 largest convex QPs reach
 1e11 work units, and QPLIB_9008's factor does not fit in memory even with
 nested dissection (about 45 GB). Next: a solve that does not factor the
-whole system, or one that uses the time steps' structure. 13 of 17 convex
-MIQPs and 37 of CBLIB's 80 mixed-integer instances stop at the work limit.
+whole system, or one that uses the time steps' structure. 15 of 17 convex
+MIQPs and 37 of CBLIB's 80 mixed-integer instances stop at the work limit,
+and `QPLIB_5543` ends `numerical_error` at its root
+(`bench/measurements/02-415/`).
 QPLIB_3312, a continuous QCQP, stops at 1e11 work units: its factor takes
 7.5 times nql90's operations at a similar size, because of its 12-entry
 rows; the disc rows and dense nodes are ruled out

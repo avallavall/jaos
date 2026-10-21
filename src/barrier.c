@@ -3091,6 +3091,8 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     if (st == JAOS_OK && refused) {
         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
         m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
+        m->solve_work = s.work.units;
+        m->solve_time = jm_monotonic_seconds() - s.started;
         jm_set_err(m, "the barrier stopped near an optimum that the checker "
                       "does not pass (columns off by %.3g, rows by %.3g, "
                       "%.3g of their traffic, duals by %.3g)",
