@@ -37,7 +37,8 @@ the narrower rule that model is optimal again.
 - QPLIB's 14 mixed-integer QCQPs at 1e10 (`miqcqp-*.txt`): QPLIB_10006
   and QPLIB_10007 reach the work limit where they ended with an error.
   The other 12 reach it as before. At 1e11 (`miqcqp-new-1e11.txt`) all 14
-  stop at the work limit with no incumbent.
+  stop at the work limit. That file prints no incumbent for a work-limit
+  status; 02-379 reads them, and 5 of the 14 have one.
 - QPLIB_10005's continuous relaxation alone: 9.90e10 work units in 22
   iterations on HEAD, 1.38e10 in 23 on the tree.
 
@@ -58,6 +59,6 @@ That is TODO row J20.
 
 ## What is left
 
-No incumbent on any of the 14 at 1e11. The tree's first point comes from
+No incumbent on 9 of the 14 at 1e11 (02-379). The tree's first point comes from
 rounding the root relaxation and a dive of up to 50 solves. On
 QPLIB_10005 one solve costs about 1.4e10.

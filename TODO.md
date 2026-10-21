@@ -79,9 +79,11 @@ depend on the machine.
 
 J13. **Cones and quadratic rows.** Cuts and warm starts in the conic tree;
 a quadratic row over more than `CONIC_QC_DENSE` columns that matter;
-QPLIB's mixed-integer QCQPs, where all 14 stop at 1e11 work units with no
-incumbent (`bench/measurements/02-376/`). Next for them: a first point
-that does not wait for the root and a dive of full solves.
+QPLIB's mixed-integer QCQPs, where all 14 stop at 1e11 work units and 9
+have no incumbent (`bench/measurements/02-376/`, `02-379/`). A bound point
+at the root was refused (`conic-tree-bound-point`). Next for them: a first
+point that keeps a cardinality row such as QPLIB_10010's, and a dive that
+does not cost a full solve per step.
 
 J14. **The barrier, PDLP and the concurrent solve.** A rule for an LP to
 choose the augmented system; a crossover cheaper than a crash; for PDLP, a

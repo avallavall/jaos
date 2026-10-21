@@ -1,0 +1,42 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.150e-16
+nodes 2396
+work units 428961205
+brute force solves 16252
+failed models 0
+digest 0eb86ae7b0fcaffa
+== seed 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2387
+work units 442170630
+brute force solves 15642
+failed models 0
+digest 5f29f5fab1cab141
+== seed 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.216e-16
+nodes 2453
+work units 441631094
+brute force solves 15730
+failed models 0
+digest 65102655b89af1e6

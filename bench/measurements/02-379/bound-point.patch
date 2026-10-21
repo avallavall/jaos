@@ -1,0 +1,48 @@
+diff --git a/src/conictree.c b/src/conictree.c
+index 3a6bf04..7119885 100644
+--- a/src/conictree.c
++++ b/src/conictree.c
+@@ -1155,6 +1155,43 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
+                     break;
+                 }
+             }
++            int r = 0;
++            for (int side = 0; side < 2 && nodes == 1 && r == 0 &&
++                               inc.model == nullptr &&
++                               !m->cfg.mip_no_heuristics;
++                 side++) {
++                for (int64_t j = 0; j < nc; j++) {
++                    xd[j] = x[j];
++                    if (!m->col_integer[j])
++                        continue;
++                    const double lo = m->col_lower[j], hi = m->col_upper[j];
++                    double v = side == 0 ? lo : hi;
++                    if (!isfinite(v))
++                        v = 0.0 < lo ? lo : 0.0 > hi ? hi : 0.0;
++                    xd[j] = v;
++                }
++                jaos_model *fin = nullptr;
++                st = ct_fixed(m, xd, work, &fin);
++                if (st != JAOS_OK) {
++                    rc = st;
++                    goto done;
++                }
++                solves++;
++                work += jaos_work_units(fin);
++                iters += jaos_iterations(fin);
++                double fobj = 0.0;
++                if (ct_answer(m, fin, &fobj))
++                    r = ct_offer(m, &inc, fin, fobj, nodes, sigma * best_bound,
++                                 true, sv, &sn, &heap, xc);
++                else
++                    jaos_model_free(fin);
++            }
++            if (r < 0)
++                goto done;
++            if (r > 0) {
++                outcome = JAOS_SOLVE_INTERRUPTED;
++                break;
++            }
+             if (ct_closed(&inc, key, gap, gap_shift))
+                 continue;
+ 
