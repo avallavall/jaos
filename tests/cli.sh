@@ -677,6 +677,10 @@ expect_exit 5 "--opt refuses an unknown option" \
     "$JAOS" solve "$DATA/g_int.lp" --opt nonsense=1
 expect_exit 5 "--opt refuses a value of the wrong kind" \
     "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds=many
+expect_exit 5 "--opt refuses a node selection rule out of range" \
+    "$JAOS" options --opt mip_node_select=4
+printf '%s\n' "$err" | grep -q "node selection rule must be 0" && pass "and says why" \
+    || flunk "mip_node_select=4: $err"
 expect_exit 5 "--opt wants NAME=VALUE" \
     "$JAOS" solve "$DATA/g_int.lp" --opt mip_cut_rounds
 printf 'mip_cut_rounds 0\n# a comment\nalgorithm = primal\n' > "$tmp/opts.txt"

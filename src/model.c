@@ -2026,8 +2026,14 @@ jaos_status jaos_set_mip_restart(jaos_model *m, int on)
 
 jaos_status jaos_set_mip_node_select(jaos_model *m, int64_t rule)
 {
-    if (m == nullptr || rule > 1)
+    if (m == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    if (rule > 1) {
+        jm_set_err(m, "the node selection rule must be 0 (bound) or 1 "
+                      "(estimate), or negative for the default; got %lld",
+                   (long long)rule);
+        return JAOS_ERR_INVALID_INPUT;
+    }
     m->cfg.mip_node_select_set = rule >= 0;
     m->cfg.mip_node_select = rule >= 0 ? rule : 0;
     return JAOS_OK;

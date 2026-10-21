@@ -3560,6 +3560,7 @@ static void test_estimate_order_keeps_the_optimum_and_repeats(void)
 
     jaos_model *m = knapsack();
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_node_select(m, 2));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "node selection rule"));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_select(m, 1));
     TEST_ASSERT_TRUE(m->cfg.mip_node_select_set);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_select(m, -1));
