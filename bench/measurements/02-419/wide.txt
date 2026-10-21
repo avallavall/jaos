@@ -1,0 +1,40 @@
+1024 25fv47 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+1024 d2q06c exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2
+1024 dfl001 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 7
+1024 greenbea exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1
+1024 greenbeb exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1
+1024 grow15 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 263
+1024 grow22  secs 326
+1024 grow7 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 18
+1024 maros-r7  secs 325
+1024 modszk1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 86
+1024 nesm  secs 323
+1024 perold exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+1024 pilot exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2
+1024 pilot-ja exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1
+1024 pilot-we exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+1024 pilot4  secs 326
+1024 pilot87 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 5
+1024 pilotnov exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+1024 scsd8 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 45
+1024 stair  secs 324
+512 25fv47  secs 318
+512 d2q06c exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1
+512 dfl001 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 8
+512 greenbea  secs 318
+512 greenbeb exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 1
+512 grow15 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 260
+512 grow22  secs 318
+512 grow7 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 19
+512 maros-r7 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 180
+512 modszk1 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 93
+512 nesm  secs 320
+512 perold  secs 323
+512 pilot exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 2
+512 pilot-ja exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+512 pilot-we exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 0
+512 pilot4  secs 321
+512 pilot87 exact solving: a number in the proof outgrew the limb budget status numerical_error  secs 7
+512 pilotnov  secs 323
+512 scsd8 exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts status optimal  secs 47
+512 stair  secs 323

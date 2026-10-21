@@ -205,4 +205,6 @@ vertex from a right one.**
 
 J19. **Exact solving with no tolerances.** Numbers past the limbs, and MIPs
 (an exact branch and bound). With decimal data, 20 of Netlib's 94 still
-outgrow the limbs (`bench/measurements/02-358/`, `02-418/`).
+outgrow the limbs; builds with 512 or 1024 limbs prove four of them
+(`bench/measurements/02-358/`, `02-418/`, `02-419/`). Next: numbers whose
+storage follows their size.
