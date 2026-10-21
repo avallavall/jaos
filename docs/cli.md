@@ -304,6 +304,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
   direction the ray checker takes. `infeasible` comes with a certificate
   the checker takes, except on a model with a quadratic row. A cone whose
   head is fixed at 0, or one that can never bind, is left out of the walk.
+  A cone member fixed at 0 is left out of its cone.
   When every cone is left out and no row is quadratic, the model is solved
   as if it had no cones.
 - With integer columns as well, the conic branch and bound

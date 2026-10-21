@@ -1,0 +1,119 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.195e-16
+nodes 2396
+work units 370787777
+brute force solves 16252
+failed models 0
+digest 163e015b09789662
+== seed 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2391
+work units 379853464
+brute force solves 15642
+failed models 0
+digest f02a66f09ad84be0
+== seed 3
+UNSURE status numerical error : the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00308: brute force unsure
+models 1000
+optimal 602
+infeasible 200
+unbounded 197
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.141e-16
+nodes 2458
+work units 384962453
+brute force solves 15730
+failed models 0
+digest 761e83299ddf2cdc
+== seed 4
+UNSURE status numerical error : the conic interior point ended at a point the checker does not pass as an optimum (columns off by 3.11e-15, rows by 6.23e-07, 4.1e-08 of their traffic, cones by 0, duals by 11.8)
+UNSURE status numerical error : the conic interior point ended at a point the checker does not pass as an optimum (columns off by 2.14e-13, rows by 2.1e-08, 1.33e-09 of their traffic, cones by 0, duals by 0.39)
+m00533: brute force unsure
+models 1000
+optimal 587
+infeasible 200
+unbounded 212
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.865e-16
+worst violation 2.416e-16
+nodes 2429
+work units 382724450
+brute force solves 16932
+failed models 0
+digest 456d71ee37b86e46
+== seed 13
+models 1000
+optimal 584
+infeasible 200
+unbounded 216
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 4.199e-16
+worst violation 2.218e-16
+nodes 2340
+work units 368225695
+brute force solves 16400
+failed models 0
+digest 589c434cd56ef778
+== seed 16
+UNSURE status numerical error : the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00748: brute force unsure
+models 1000
+optimal 582
+infeasible 200
+unbounded 217
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 1.695e-15
+worst violation 1.046e-15
+nodes 2343
+work units 378657355
+brute force solves 16804
+failed models 0
+digest 246b2d08f2b6c454
+== seed 17
+models 1000
+optimal 606
+infeasible 200
+unbounded 194
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 7.335e-08
+worst violation 2.565e-16
+nodes 2448
+work units 379537459
+brute force solves 16858
+failed models 0
+digest 7f1c2423bed348b3
+== seed 29
+models 1000
+optimal 585
+infeasible 200
+unbounded 215
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.600e-16
+worst violation 2.220e-16
+nodes 2287
+work units 372377175
+brute force solves 16618
+failed models 0
+digest 6a90791f659bb8b1

@@ -1,0 +1,33 @@
+--- a/bench/measurements/02-326/discrete.c	2026-10-21 09:00:59.807863832 +0200
++++ b/bench/measurements/02-326/discrete.c	2026-10-21 09:00:59.815913695 +0200
+@@ -163,8 +163,22 @@
+                 b->solves++;
+                 if (jaos_solve(c) != JAOS_OK) {
+                     b->unsure++;
++                    static int un = 0;
++                    char nm[64];
++                    snprintf(nm, sizeof nm, "/home/vall/uns/e%d.mps", un++);
++                    printf("UNSURE solve error %s: %s\n", nm, jaos_model_error(c));
++                    jaos_write_mps(c, nm);
+                 } else {
+                     const jaos_solve_status st = jaos_status_of(c);
++                    if (st != JAOS_SOLVE_UNBOUNDED && st != JAOS_SOLVE_OPTIMAL &&
++                        st != JAOS_SOLVE_INFEASIBLE) {
++                        static int us = 0;
++                        char nm[64];
++                        snprintf(nm, sizeof nm, "/home/vall/uns/s%d.mps", us++);
++                        printf("UNSURE status %s %s: %s\n", jaos_solve_status_str(st),
++                               nm, jaos_model_error(c));
++                        jaos_write_mps(c, nm);
++                    }
+                     double obj = 0.0;
+                     if (st == JAOS_SOLVE_UNBOUNDED) {
+                         b->verdict = JAOS_SOLVE_UNBOUNDED;
+@@ -479,6 +493,7 @@
+             total_nodes += rep.nodes;
+         bool bad = false;
+         if (b.unsure > 0) {
++            printf("m%05" PRId64 ": brute force unsure\n", r);
+             unsure++;
+         } else if (st != JAOS_OK) {
+             printf("m%05" PRId64 ": solve returned %d: %s\n", r, (int)st,

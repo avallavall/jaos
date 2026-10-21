@@ -263,7 +263,10 @@ iterate charges one per entry (twelve per variable and row for the step's
 bookkeeping), and each pass of iterative refinement one per entry of the
 system. The product with a cone's scaling block (`mul_h`) inside that
 refinement charges two per row of the cone block, one read and one
-written. The Newton finish charges `(CONIC_REFINE + 2) * u` per step,
+written. The walk's objective leaves out the curvature of fixed columns;
+at an optimum, giving it back to their reduced costs charges one per
+column and per objective entry. The Newton finish charges
+`(CONIC_REFINE + 2) * u` per step,
 where `u` is the entries of its system, whatever number of refinement
 passes ran. It runs up to `CONIC_NEWTON_ROUNDS` times. When the checker
 refuses its point, the settle step runs the same system for a projection

@@ -2399,6 +2399,11 @@ static bool cm_fixed_at(const jaos_model *m, const uint8_t *flag, int64_t j,
            m->col_lower[j] == m->col_upper[j];
 }
 
+static bool cm_at_zero(const jaos_model *m, int64_t j)
+{
+    return m->col_lower[j] == 0.0 && m->col_upper[j] == 0.0;
+}
+
 static void cm_obj_curve(const jaos_model *m, const double *x, double *g)
 {
     for (int64_t j = 0; j < m->num_col; j++)
@@ -3794,22 +3799,20 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         if (dead[k])
             continue;
         cone_at[k] = sr.nb;
-        if (m->cone_type[k] == JAOS_CONE_ROTATED) {
+        const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
+        if (rot) {
             const int64_t c0 = m->cone_col[bb], c1 = m->cone_col[bb + 1];
             if (!cm_put(&sr, c0, -RT) || !cm_put(&sr, c1, -RT) ||
                 !cm_end(&sr, 0.0) ||
                 !cm_put(&sr, c0, -RT) || !cm_put(&sr, c1, RT) ||
                 !cm_end(&sr, 0.0))
                 st = JAOS_ERR_OUT_OF_MEMORY;
-            for (int64_t t = bb + 2; t < ee && st == JAOS_OK; t++)
-                if (!cm_put(&sr, m->cone_col[t], -1.0) || !cm_end(&sr, 0.0))
-                    st = JAOS_ERR_OUT_OF_MEMORY;
-        } else {
-            for (int64_t t = bb; t < ee && st == JAOS_OK; t++)
-                if (!cm_put(&sr, m->cone_col[t], -1.0) || !cm_end(&sr, 0.0))
-                    st = JAOS_ERR_OUT_OF_MEMORY;
         }
-        soc_dim[nsoc++] = ee - bb;
+        for (int64_t t = rot ? bb + 2 : bb; t < ee && st == JAOS_OK; t++)
+            if ((t == bb || !cm_at_zero(m, m->cone_col[t])) &&
+                (!cm_put(&sr, m->cone_col[t], -1.0) || !cm_end(&sr, 0.0)))
+                st = JAOS_ERR_OUT_OF_MEMORY;
+        soc_dim[nsoc++] = sr.nb - cone_at[k];
     }
     for (int64_t i = 0; i < nr && st == JAOS_OK; i++) {
         if (qc[i].sgn == 0)
@@ -4058,15 +4061,14 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             const int64_t bb = m->cone_start[k], ee = m->cone_start[k + 1];
             const double *zk = zs + cone_at[k];
             double *out = m->sol_cone + bb;
-            if (m->cone_type[k] == JAOS_CONE_ROTATED) {
+            const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
+            if (rot) {
                 out[0] = yscale * (zk[0] + zk[1]) * RT;
                 out[1] = yscale * (zk[0] - zk[1]) * RT;
-                for (int64_t t = 2; t < ee - bb; t++)
-                    out[t] = yscale * zk[t];
-            } else {
-                for (int64_t t = 0; t < ee - bb; t++)
-                    out[t] = yscale * zk[t];
             }
+            for (int64_t t = rot ? 2 : 0, at = t; t < ee - bb; t++)
+                if (t == 0 || !cm_at_zero(m, m->cone_col[bb + t]))
+                    out[t] = yscale * zk[at++];
         }
         m->cone_ok = m->num_cone > 0;
     }

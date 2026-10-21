@@ -24,26 +24,29 @@ finish with the cones kept was refused: its own program fails the same way
 (`conic-sqp-with-cones`). Balancing the cone's heads and scaling R4 by hand
 do not help either (`bench/measurements/02-386/`). The multipliers reach
 4.5e7, and the refused reduced cost is -4.56 over terms near 3.7e7, while
-the checker's reduced-cost test is absolute (1e-7). Next: a dual refit on
-the active set in compensated arithmetic; or a reduced-cost test relative
-to its terms, which changes the checker's contract and is the
-maintainer's decision. Verify with 02-255's
-`misocp.c` on seed 4 and 02-376's `unsure.patch`.
+the checker's reduced-cost test is absolute (1e-7). 02-326 seed 2's model
+620 is a smaller case with small duals: its optimum has C2 = 28434, the
+settle's refit leaves stationarity at 3.3e-8, and times columns near 2e4
+that leaves the objective gap at 5.2e-6 (`bench/measurements/02-390/`).
+Next: a dual refit on the active set in compensated arithmetic; or a
+reduced-cost test relative to its terms, which changes the checker's
+contract and is the maintainer's decision. Verify with 02-255's
+`misocp.c` on seed 4 and 02-376's `unsure.patch`, and 02-326's
+`discrete.c` on seed 2 and 02-390's `unsure.patch`.
 
-J22. **No certificate through a quadratic row with cross terms.** The
-checker reads a quadratic row's curvature only when the row is diagonal,
-so a model infeasible only through such a row ends `numerical_error` when
-its walk stalls (02-255 seed 17's model 451; seed 16's model 69, whose
-tree fails at a node of its search for a feasible point;
-`bench/measurements/02-389/`). Next: a certificate test for rows whose
-`Σ y_i Q_i` is negative semidefinite, through a factorisation of it. That
-changes the checker's contract and is the maintainer's decision.
-
-J23. **Generated models left unsure.** 02-255 seed 13's model 456 (three
-solves stop after 208 iterations), seed 17's model 245 (an optimum
-refused, duals off by 8.6e-6), and one model each on 02-326's seeds 22,
-24 and 25, not read yet (`bench/measurements/02-389/`). Next: read each
-as 02-378 and 02-382 did, with 02-376's `unsure.patch`.
+J22. **No certificate through a quadratic row with cross terms or a
+fixed column.** The checker reads a quadratic row's curvature only when
+the row is diagonal, and it bounds a curved column by its maximum over
+all values even when the column is fixed. A model infeasible only through
+such a row ends `numerical_error` when its walk stalls (02-255 seed 17's
+model 451; seed 16's model 69, whose tree fails at a node of its search
+for a feasible point, `bench/measurements/02-389/`; 02-326 seed 2's model
+240, seed 22's model 162 and seed 25's model 357,
+`bench/measurements/02-390/`). Next: a
+certificate test for rows whose `Σ y_i Q_i` is negative semidefinite,
+through a factorisation of it, with each fixed column's terms read at its
+value. That changes the checker's contract and is the maintainer's
+decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
 
 ## Tier 3: the largest performance gaps
 

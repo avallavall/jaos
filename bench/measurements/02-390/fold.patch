@@ -1,0 +1,156 @@
+--- a/src/conic.c	2026-10-21 09:10:02.504368300 +0200
++++ b/src/conic.c	2026-10-21 09:10:02.517873900 +0200
+@@ -1140,6 +1140,9 @@
+     int64_t n, cap;
+     double *b;
+     int64_t nb, bcap;
++    cm_trip *f;
++    int64_t nf, fcap;
++    double shift;
+ } cm_rows;
+ 
+ static bool cm_put(cm_rows *r, int64_t col, double v)
+@@ -1154,7 +1157,8 @@
+ {
+     if (!JM_GROW(r->b, r->bcap, r->nb + 1))
+         return false;
+-    r->b[r->nb++] = b;
++    r->b[r->nb++] = b - r->shift;
++    r->shift = 0.0;
+     return true;
+ }
+ 
+@@ -1994,6 +1998,7 @@
+ {
+     free(r->t);
+     free(r->b);
++    free(r->f);
+     memset(r, 0, sizeof *r);
+ }
+ 
+@@ -2404,6 +2409,19 @@
+     return m->col_lower[j] == 0.0 && m->col_upper[j] == 0.0;
+ }
+ 
++static bool cm_take(cm_rows *r, const jaos_model *m, const uint8_t *flag,
++                    int64_t col, double v)
++{
++    double fv = 0.0;
++    if (!cm_fixed_at(m, flag, col, &fv))
++        return cm_put(r, col, v);
++    if (!JM_GROW(r->f, r->fcap, r->nf + 1))
++        return false;
++    r->f[r->nf++] = (cm_trip){r->nb, col, v};
++    r->shift += v * fv;
++    return true;
++}
++
+ static void cm_obj_curve(const jaos_model *m, const double *x, double *g)
+ {
+     for (int64_t j = 0; j < m->num_col; j++)
+@@ -3734,7 +3752,7 @@
+         if (isfinite(lo) && lo == hi) {
+             slot_eq[i] = zr.nb;
+             for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+-                if (!cm_put(&zr, m->ar_index[p], m->ar_value[p]))
++                if (!cm_take(&zr, m, flag, m->ar_index[p], m->ar_value[p]))
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+             if (!cm_end(&zr, hi))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+@@ -3743,7 +3761,7 @@
+         if (isfinite(hi)) {
+             slot_up[i] = lr.nb;
+             for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+-                if (!cm_put(&lr, m->ar_index[p], m->ar_value[p]))
++                if (!cm_take(&lr, m, flag, m->ar_index[p], m->ar_value[p]))
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+             if (!cm_end(&lr, hi))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+@@ -3751,7 +3769,7 @@
+         if (isfinite(lo)) {
+             slot_lo[i] = lr.nb;
+             for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+-                if (!cm_put(&lr, m->ar_index[p], -m->ar_value[p]))
++                if (!cm_take(&lr, m, flag, m->ar_index[p], -m->ar_value[p]))
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+             if (!cm_end(&lr, -lo))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+@@ -3802,15 +3820,16 @@
+         const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
+         if (rot) {
+             const int64_t c0 = m->cone_col[bb], c1 = m->cone_col[bb + 1];
+-            if (!cm_put(&sr, c0, -RT) || !cm_put(&sr, c1, -RT) ||
+-                !cm_end(&sr, 0.0) ||
+-                !cm_put(&sr, c0, -RT) || !cm_put(&sr, c1, RT) ||
+-                !cm_end(&sr, 0.0))
++            if (!cm_take(&sr, m, flag, c0, -RT) ||
++                !cm_take(&sr, m, flag, c1, -RT) || !cm_end(&sr, 0.0) ||
++                !cm_take(&sr, m, flag, c0, -RT) ||
++                !cm_take(&sr, m, flag, c1, RT) || !cm_end(&sr, 0.0))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+         }
+         for (int64_t t = rot ? bb + 2 : bb; t < ee && st == JAOS_OK; t++)
+             if ((t == bb || !cm_at_zero(m, m->cone_col[t])) &&
+-                (!cm_put(&sr, m->cone_col[t], -1.0) || !cm_end(&sr, 0.0)))
++                (!cm_take(&sr, m, flag, m->cone_col[t], -1.0) ||
++                 !cm_end(&sr, 0.0)))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+         soc_dim[nsoc++] = sr.nb - cone_at[k];
+     }
+@@ -3821,7 +3840,8 @@
+         qc_at[i] = sr.nb;
+         for (int half = 0; half < 2 && st == JAOS_OK; half++) {
+             for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+-                if (!cm_put(&sr, m->ar_index[p], sg * m->ar_value[p] * RT))
++                if (!cm_take(&sr, m, flag, m->ar_index[p],
++                             sg * m->ar_value[p] * RT))
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+             if (!cm_end(&sr, (half == 0 ? u + 1.0 : u - 1.0) * RT))
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+@@ -3829,7 +3849,7 @@
+         for (int64_t t = 0; t < qc[i].r && st == JAOS_OK; t++) {
+             for (int64_t c = 0; c < qc[i].k; c++) {
+                 const double f = qc[i].f[t * qc[i].k + c];
+-                if (f != 0.0 && !cm_put(&sr, qc[i].cols[c], -f))
++                if (f != 0.0 && !cm_take(&sr, m, flag, qc[i].cols[c], -f))
+                     st = JAOS_ERR_OUT_OF_MEMORY;
+             }
+             if (!cm_end(&sr, 0.0))
+@@ -4086,11 +4106,29 @@
+             cm_obj_curve(m, x, g);
+             jm_work_add(&work, (n + m->q_nz) * JM_WORK_NONZERO);
+         }
++        double *fold = nullptr;
++        if (zr.nf + lr.nf + sr.nf > 0) {
++            fold = jm_calloc_array(n > 0 ? n : 1, sizeof *fold);
++            if (fold == nullptr) {
++                free(g);
++                st = JAOS_ERR_OUT_OF_MEMORY;
++                goto done;
++            }
++            for (int64_t t = 0; t < zr.nf; t++)
++                fold[zr.f[t].col] += zr.f[t].v * zz[zr.f[t].row];
++            for (int64_t t = 0; t < lr.nf; t++)
++                fold[lr.f[t].col] += lr.f[t].v * zl[lr.f[t].row];
++            for (int64_t t = 0; t < sr.nf; t++)
++                fold[sr.f[t].col] += sr.f[t].v * zs[sr.f[t].row];
++            jm_work_add(&work, (zr.nf + lr.nf + sr.nf) * JM_WORK_NONZERO);
++        }
+         for (int64_t j = 0; j < n; j++) {
+             m->sol_col[j] = x[j] == 0.0 ? 0.0 : x[j];
+             double d = 0.0, v = 0.0;
+             if (g != nullptr && cm_fixed_at(m, flag, j, &v))
+                 d += sigma * g[j];
++            if (fold != nullptr)
++                d += fold[j];
+             if (slot_eq[nr + j] >= 0)
+                 d -= zz[slot_eq[nr + j]];
+             if (slot_lo[nr + j] >= 0)
+@@ -4100,6 +4138,7 @@
+             m->sol_redcost[j] = sigma * d == 0.0 ? 0.0 : sigma * d;
+         }
+         free(g);
++        free(fold);
+         if (ndead > 0) {
+             st = cm_dead_duals(m, dead, flag, sigma);
+             if (st != JAOS_OK)
