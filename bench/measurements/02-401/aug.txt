@@ -1,0 +1,14 @@
+12-30-25 | base numerical_error 2048517  | aug numerical_error 1989449  | aug+pr numerical_error 1989449  | pr numerical_error 1960125 
+12-30-102 | base optimal 132994  | aug optimal 187913  | aug+pr optimal 229245  | pr optimal 108182 
+12-30-163 | base optimal 487439  | aug optimal 1294496  | aug+pr optimal 1262137  | pr numerical_error 6379522 
+12-30-201 | base numerical_error 2692465  | aug numerical_error 2032162  | aug+pr numerical_error 2032162  | pr optimal 707346 
+12-30-1380 | base optimal 319585  | aug unbounded 2056225  | aug+pr unbounded 2056225  | pr unbounded 1354392 
+12-30-1104 | base numerical_error 3418751  | aug numerical_error 3518110  | aug+pr numerical_error 3518110  | pr numerical_error 3418751 
+12-30-1156 | base numerical_error 888157  | aug numerical_error 1998861  | aug+pr numerical_error 1998861  | pr numerical_error 888157 
+12-30-1163 | base numerical_error 764195  | aug numerical_error 785314  | aug+pr numerical_error 785314  | pr numerical_error 764195 
+12-30-1282 | base numerical_error 988615  | aug numerical_error 2103081  | aug+pr numerical_error 2103081  | pr numerical_error 988615 
+12-30-1308 | base optimal 244812  | aug optimal 586537  | aug+pr numerical_error 1551177  | pr optimal 279600 
+12-30-1340 | base numerical_error 894706  | aug numerical_error 916659  | aug+pr numerical_error 916659  | pr numerical_error 894706 
+12-30-1357 | base numerical_error 951473  | aug numerical_error 2045348  | aug+pr numerical_error 2045348  | pr numerical_error 951473 
+40-100-9 | base numerical_error 6482705  | aug numerical_error 5415109  | aug+pr numerical_error 5415109  | pr optimal 1325056 
+40-100-1076 | base numerical_error 6382065  | aug numerical_error 5463777  | aug+pr numerical_error 5463777  | pr optimal 386837 

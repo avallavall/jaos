@@ -67,10 +67,12 @@ each column's curvature solves four more and breaks two
 which publishes a ray the checker takes, though every arc's curvature is
 positive and the model is bounded: the ray test reads 1e-11 as zero
 (`02-401/`). Seven barrier switches each finish seed 1340 or 1357 and no
-other (`barrier-far-qp-switches`). Next: a push solve that keeps the rows
-exact when its weights span 1e-6 to 1e10, for example on the KKT system
-instead of the normal matrix; then a walk that lifts an arc off its bound
-when a closed set of rows keeps a residual. A ray test that weighs a
+other (`barrier-far-qp-switches`), and the augmented system solves none
+(`02-401/`). Next: a walk that lifts an arc off its bound when a closed
+set of rows keeps a residual, since all six stop in the walk before any
+push;
+then a push solve that keeps the rows exact when its weights span 1e-6
+to 1e10. A ray test that weighs a
 ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.

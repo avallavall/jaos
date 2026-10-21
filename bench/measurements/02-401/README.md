@@ -40,3 +40,15 @@ curvature as zero.
 
 The stall-triggered form changes almost nothing and costs 0.3% to 0.8%.
 Neither lands (`push-reg-by-curvature`).
+
+## The augmented system
+
+On the augmented system a small curvature is a small pivot, not a large
+weight in a sum, so the push's rows might keep their accuracy there.
+`aug.py` makes the barrier take the augmented system for a QP, the walk
+and the push both; `aug.sh` reads the 14 circulations above under the
+tree, the augmented system, the augmented system with the always-on term
+at K = 0.1, and that term alone (`aug.txt`). The augmented system solves
+none of the failing seeds, takes up to 2.7x the work on the others, and
+sends seed 1380 to the same false `unbounded`. With the always-on term it
+keeps seed 163, which the term alone breaks, but breaks seed 1308.
