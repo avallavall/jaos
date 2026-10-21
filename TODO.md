@@ -37,7 +37,9 @@ incumbent** (`bench/results/miplib2017.txt`); HiGHS and SCIP solve 8 each
 in 20 s. Open, largest first:
 
 - No incumbent: `ic97_potential` and `csched008`. HiGHS finds
-  `csched008`'s first point by a sub-MIP at node 533.
+  `csched008`'s first point by a sub-MIP at node 533; JAOS reaches 57
+  nodes in 1e10, its root's ten LP solves in the cut loop taking 2.7e9 of
+  it, so the node cost below decides it.
 - Weak roots on the timetabling models: `timtab1` 427178 against HiGHS's
   569441, `ic97_potential` 3868 against SCIP's 3896. Their cuts come from
   rows summed around cycles of the event graph; the simple form was refused
