@@ -11,15 +11,6 @@ refuses, or models with an answer that end with none. Tiers 3 and 4 are the
 performance gaps, largest first. Tier 5 is the features SPECS still lists.
 Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
-## Tier 1: defects
-
-J20. **Cone models whose walk stalls.** On 02-255's seed 2, 4 brute-force
-solves of model 698 (continuous cone models with the integer columns
-fixed) stop after 206 iterations with no answer and no direction the ray
-checker takes (`bench/measurements/02-377/`). Next: write one out with
-02-376's `unsure.patch` and read where the walk stops. Verify with
-02-255's `misocp.c` and that patch.
-
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

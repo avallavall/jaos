@@ -1,0 +1,47 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.188e-16
+nodes 2396
+work units 381554867
+brute force solves 16252
+failed models 0
+digest c7a454029fbbec25
+== seed 2
+UNSURE status numerical error : the conic interior point stopped after 206 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+UNSURE status numerical error : the conic interior point stopped after 206 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+UNSURE status numerical error : the conic interior point stopped after 206 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+UNSURE status numerical error : the conic interior point stopped after 206 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+m00698: brute force unsure
+models 1000
+optimal 598
+infeasible 200
+unbounded 201
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2391
+work units 393326998
+brute force solves 15642
+failed models 0
+digest b2c5f49eeccc6a4f
+== seed 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.220e-16
+nodes 2458
+work units 395907505
+brute force solves 15730
+failed models 0
+digest a23115f75e7bac09

@@ -1193,6 +1193,29 @@ static void test_a_cone_model_takes_its_certificate_from_a_solve(void)
     jaos_model_free(m);
 }
 
+static void test_fixed_columns_leave_the_walks_quadratic_objective(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qc_fixed_quad.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_TRUE(jaos_iterations(m) < 50);
+    double x[8], y[1], d[8];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, d));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_solution(m, x, y, nullptr,
+                                                             1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    double c = 0.0, q = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(m, 0, &c));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_quadratic(m, 0, &q));
+    TEST_ASSERT_EQUAL_DOUBLE(2.0, x[0]);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, c + q * x[0], d[0]);
+    jaos_model_free(m);
+}
+
 static void test_a_refused_certificate_is_no_verdict_without_quadratic_rows(void)
 {
     jaos_model *m = badly_scaled_box(true);
@@ -1462,6 +1485,7 @@ int main(void)
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);
+    RUN_TEST(test_fixed_columns_leave_the_walks_quadratic_objective);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);

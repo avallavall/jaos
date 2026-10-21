@@ -2391,6 +2391,25 @@ enum { CM_ZERO = 1, CM_HEAD = 2, CM_FREE = 4, CM_ONCE = 8, CM_TWICE = 16,
        CM_QUAD = 32 };
 enum { CM_DEAD = 1, CM_IDLE = 2 };
 
+static bool cm_fixed_at(const jaos_model *m, const uint8_t *flag, int64_t j,
+                        double *v)
+{
+    *v = m->col_lower[j];
+    return !(flag[j] & (CM_ZERO | CM_FREE)) && isfinite(m->col_lower[j]) &&
+           m->col_lower[j] == m->col_upper[j];
+}
+
+static void cm_obj_curve(const jaos_model *m, const double *x, double *g)
+{
+    for (int64_t j = 0; j < m->num_col; j++)
+        g[j] = m->col_quad != nullptr ? m->col_quad[j] * x[j] : 0.0;
+    for (int64_t k = 0; m->q_start != nullptr && k < m->num_col; k++)
+        for (int64_t p = m->q_start[k]; p < m->q_start[k + 1]; p++) {
+            g[k] += m->q_value[p] * x[m->q_index[p]];
+            g[m->q_index[p]] += m->q_value[p] * x[k];
+        }
+}
+
 static int64_t cm_drop_cones(const jaos_model *m, uint8_t *drop,
                              uint8_t *flag)
 {
@@ -3834,20 +3853,31 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             st = JAOS_ERR_OUT_OF_MEMORY;
             goto done;
         }
+        for (int64_t j = 0; j < n; j++)
+            q[j] = sigma * m->col_cost[j];
         int64_t at = 0;
         for (int64_t j = 0; j < n; j++) {
-            q[j] = sigma * m->col_cost[j];
-            if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            double vj = 0.0;
+            const bool fj = cm_fixed_at(m, flag, j, &vj);
+            if (m->col_quad != nullptr && m->col_quad[j] != 0.0 && !fj)
                 pt[at++] = (cm_trip){j, j, sigma * m->col_quad[j]};
             if (m->q_start != nullptr)
                 for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
                     const int64_t i = m->q_index[p];
+                    double vi = 0.0;
+                    const bool fi = cm_fixed_at(m, flag, i, &vi);
+                    if (fi && !fj)
+                        q[j] += sigma * m->q_value[p] * vi;
+                    else if (fj && !fi)
+                        q[i] += sigma * m->q_value[p] * vj;
+                    if (fi || fj)
+                        continue;
                     pt[at++] = (cm_trip){i > j ? i : j, i > j ? j : i,
                                          sigma * m->q_value[p]};
                 }
         }
-        qsort(pt, (size_t)pn, sizeof *pt, cmp_trip);
-        for (int64_t t = 0; t < pn; t++) {
+        qsort(pt, (size_t)at, sizeof *pt, cmp_trip);
+        for (int64_t t = 0; t < at; t++) {
             ps[pt[t].col + 1]++;
             pi[t] = pt[t].row;
             pv[t] = pt[t].v;
@@ -3998,9 +4028,24 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
         m->cone_ok = m->num_cone > 0;
     }
     if (res.status == JAOS_SOLVE_OPTIMAL) {
+        double *g = nullptr, fv = 0.0;
+        bool fixed = false;
+        for (int64_t j = 0; j < n && !fixed; j++)
+            fixed = cm_fixed_at(m, flag, j, &fv);
+        if (fixed && (m->col_quad != nullptr || m->q_start != nullptr)) {
+            g = jm_alloc_array(n > 0 ? n : 1, sizeof *g);
+            if (g == nullptr) {
+                st = JAOS_ERR_OUT_OF_MEMORY;
+                goto done;
+            }
+            cm_obj_curve(m, x, g);
+            jm_work_add(&work, (n + m->q_nz) * JM_WORK_NONZERO);
+        }
         for (int64_t j = 0; j < n; j++) {
             m->sol_col[j] = x[j] == 0.0 ? 0.0 : x[j];
-            double d = 0.0;
+            double d = 0.0, v = 0.0;
+            if (g != nullptr && cm_fixed_at(m, flag, j, &v))
+                d += sigma * g[j];
             if (slot_eq[nr + j] >= 0)
                 d -= zz[slot_eq[nr + j]];
             if (slot_lo[nr + j] >= 0)
@@ -4009,6 +4054,7 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                 d -= zl[slot_up[nr + j]];
             m->sol_redcost[j] = sigma * d == 0.0 ? 0.0 : sigma * d;
         }
+        free(g);
         if (ndead > 0) {
             st = cm_dead_duals(m, dead, flag, sigma);
             if (st != JAOS_OK)
