@@ -269,8 +269,10 @@ again: `bench/refusals.txt` says what would reopen each one, and
 `jaos_solve` in `docs/api.md` gives the same rules for the library.
 
 - `dual`, the default, and `primal` are the two simplex methods, and they
-  give the same answer. A MIP's relaxations run on the primal under
-  `primal` and on the dual under every other setting.
+  give the same answer. When the primal reaches no answer, as its phase 1
+  does on an infeasible model, the dual decides the model from the slack
+  basis. A MIP's relaxations run on the primal under `primal` and on the
+  dual under every other setting.
 - `barrier` is Mehrotra's predictor-corrector with a sparse Cholesky
   factor (`src/chol.c`), then a crossover to a basis that the primal or the
   dual simplex finishes. It certifies neither infeasibility nor

@@ -261,10 +261,22 @@ static void test_an_arm_that_gives_up_does_not_end_the_solve(void)
                      10, as, ai, av));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_set_algorithm(p, JAOS_ALGORITHM_PRIMAL));
+    p->cfg.concurrent_arm = true;
     TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_ERR_NUMERICAL, jaos_solve(p),
-        "this model is the one the primal gives up on; if it stops doing "
-        "that, the test below no longer says what it means to say");
+        "this model is the one the primal arm gives up on; if it stops "
+        "doing that, the test below no longer says what it means to say");
     jaos_model_free(p);
+
+    jaos_model *alone = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(alone, 3, 5, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     10, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_algorithm(alone, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(alone),
+        "the primal alone hands what it gives up on to the dual");
+    const jaos_solve_status alone_st = jaos_status_of(alone);
+    jaos_model_free(alone);
 
     jaos_model *d = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
@@ -273,6 +285,7 @@ static void test_an_arm_that_gives_up_does_not_end_the_solve(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(d));
     const jaos_solve_status want = jaos_status_of(d);
     jaos_model_free(d);
+    TEST_ASSERT_EQUAL_INT(want, alone_st);
 
     for (int n = 1; n <= 3; n += 2) {
         jaos_model *m = fresh();

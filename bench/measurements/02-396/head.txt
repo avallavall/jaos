@@ -1,0 +1,36 @@
+== seed 1
+primal P1 m0 solve failed: the primal phase 1 cannot reduce a total bound violation of 98 any further, on a freshly computed point; reading that as an infeasible model need
+primal P1 m6 solve failed: the primal phase 1 cannot reduce a total bound violation of 43.3269 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m7 solve failed: the primal phase 1 cannot reduce a total bound violation of 0.727273 any further, on a freshly computed point; reading that as an infeasible mode
+primal P1 m10 solve failed: the primal phase 1 cannot reduce a total bound violation of 37.1429 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m12 solve failed: the primal phase 1 cannot reduce a total bound violation of 78.675 any further, on a freshly computed point; reading that as an infeasible model 
+models 1000 optimal 550 infeasible 435 unbounded 15
+primal     P1=196 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 196
+== seed 2
+primal P1 m22 solve failed: the primal phase 1 cannot reduce a total bound violation of 14.8869 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m24 solve failed: the primal phase 1 cannot reduce a total bound violation of 96.0675 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m29 solve failed: the primal phase 1 cannot reduce a total bound violation of 157.008 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m33 solve failed: the primal phase 1 cannot reduce a total bound violation of 14.5204 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m35 solve failed: the primal phase 1 cannot reduce a total bound violation of 34.3224 any further, on a freshly computed point; reading that as an infeasible model
+models 1000 optimal 496 infeasible 475 unbounded 29
+primal     P1=218 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 218
+== seed 3
+primal P1 m2 solve failed: the primal phase 1 cannot reduce a total bound violation of 48.25 any further, on a freshly computed point; reading that as an infeasible model n
+primal P1 m4 solve failed: the primal phase 1 cannot reduce a total bound violation of 57.0436 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m7 solve failed: the primal phase 1 cannot reduce a total bound violation of 32.1689 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m11 solve failed: the primal phase 1 cannot reduce a total bound violation of 40.2304 any further, on a freshly computed point; reading that as an infeasible model
+primal P1 m13 solve failed: the primal phase 1 cannot reduce a total bound violation of 19.3113 any further, on a freshly computed point; reading that as an infeasible model
+models 1000 optimal 531 infeasible 448 unbounded 21
+primal     P1=232 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 232

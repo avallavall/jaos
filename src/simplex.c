@@ -4819,6 +4819,34 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             allow_warm = false;
             continue;
         }
+        if (st == JAOS_ERR_NUMERICAL && s.primal_run && m->cfg.force_primal &&
+            !m->cfg.concurrent_arm) {
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "the primal simplex reached no answer (%s); the dual "
+                   "simplex decides the model from the slack basis after "
+                   "%lld iterations", target->err, (long long)s.iters);
+            const jm_work carried = s.work;
+            const double t0 = s.started;
+            const int64_t done_iters = s.iters;
+            const int64_t done_primal = s.n_primal_iters;
+            const int64_t done_phase1 = s.n_phase1_iters;
+            sx_free(&s);
+            st = sx_init(&s, target);
+            if (st != JAOS_OK) {
+                jm_presolve_free(&p);
+                return st;
+            }
+            s.work = carried;
+            s.started = t0;
+            s.iters = done_iters;
+            s.n_primal_iters = done_primal;
+            s.n_phase1_iters = done_phase1;
+            s.primal_run = false;
+            target->err[0] = '\0';
+            m->err[0] = '\0';
+            allow_warm = false;
+            continue;
+        }
         if (st != JAOS_OK || outcome != JAOS_SOLVE_OPTIMAL)
             break;
 

@@ -1,0 +1,21 @@
+== seed 1
+models 1000 optimal 550 infeasible 435 unbounded 15
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0
+== seed 2
+models 1000 optimal 496 infeasible 475 unbounded 29
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0
+== seed 3
+models 1000 optimal 531 infeasible 448 unbounded 21
+primal     P1=0 P2=0 P3=0 P4=0
+barrier    P1=0 P2=0 P3=0 P4=0
+pdlp       P1=0 P2=0 P3=0 P4=0
+concurrent P1=0 P2=0 P3=0 P4=0
+dual failed solves 0 broken total 0

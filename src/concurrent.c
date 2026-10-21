@@ -162,6 +162,7 @@ jaos_status jm_solve_concurrent(jaos_model *m)
             goto out;
         }
         arm[k].m->cfg.concurrent = false;
+        arm[k].m->cfg.concurrent_arm = true;
         arm[k].m->cfg.threads = 1;
         if (m->cfg.log_level < JAOS_LOG_DETAIL || parallel)
             arm[k].m->cfg.log_cb = nullptr;

@@ -155,6 +155,29 @@ static void test_infeasible_model_is_reported(void)
     jaos_model_free(m);
 }
 
+static void test_the_primal_hands_an_infeasible_model_to_the_dual(void)
+{
+    const double c[] = {1.0, 1.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {INFINITY, INFINITY};
+    const double rl[] = {-INFINITY, 2.0}, ru[] = {1.0, INFINITY};
+    const int64_t as[] = {0, 2, 4}, ai[] = {0, 1, 0, 1};
+    const double av[] = {1.0, 1.0, 1.0, 1.0};
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     4, as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    double y[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+    jaos_certificate_report cr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-9, &cr));
+    TEST_ASSERT_TRUE(cr.certified);
+    jaos_model_free(m);
+}
+
 static void test_three_by_three(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -3545,6 +3568,7 @@ int main(void)
     RUN_TEST(test_ranged_row);
     RUN_TEST(test_objective_offset_is_carried);
     RUN_TEST(test_infeasible_model_is_reported);
+    RUN_TEST(test_the_primal_hands_an_infeasible_model_to_the_dual);
     RUN_TEST(test_three_by_three);
     RUN_TEST(test_solving_a_model_read_from_mps);
     RUN_TEST(test_unbounded_model_is_reported);

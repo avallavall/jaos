@@ -30,6 +30,7 @@ typedef struct {
     bool barrier;
     bool pdlp;
     bool concurrent;
+    bool concurrent_arm;
     bool barrier_no_crossover;
     bool barrier_augmented;
     bool primal_dantzig;
