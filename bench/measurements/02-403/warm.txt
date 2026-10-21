@@ -1,0 +1,36 @@
+== lp dual seed 1
+models 1000 edits 8000: optimal 3491 infeasible 4379 unbounded 130
+kinds cost=866 bounds=900 sides=969 coefficient=844 add-row=858 add-col=900 delete-row=881 delete-col=876 sense=906
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== lp dual seed 2
+models 1000 edits 8000: optimal 3695 infeasible 4116 unbounded 189
+kinds cost=916 bounds=854 sides=892 coefficient=899 add-row=894 add-col=877 delete-row=855 delete-col=897 sense=916
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== lp dual seed 3
+models 1000 edits 8000: optimal 3390 infeasible 4411 unbounded 199
+kinds cost=890 bounds=905 sides=858 coefficient=900 add-row=898 add-col=920 delete-row=899 delete-col=864 sense=866
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== lp primal seed 1
+models 1000 edits 8000: optimal 3489 infeasible 4381 unbounded 130
+kinds cost=866 bounds=900 sides=969 coefficient=844 add-row=858 add-col=900 delete-row=881 delete-col=876 sense=906
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== lp primal seed 2
+models 1000 edits 8000: optimal 3700 infeasible 4111 unbounded 189
+kinds cost=916 bounds=854 sides=892 coefficient=899 add-row=894 add-col=877 delete-row=855 delete-col=897 sense=916
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== lp primal seed 3
+models 1000 edits 8000: optimal 3390 infeasible 4411 unbounded 199
+kinds cost=890 bounds=905 sides=858 coefficient=900 add-row=898 add-col=920 delete-row=899 delete-col=864 sense=866
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== mip dual seed 1
+models 1000 edits 8000: optimal 3441 infeasible 4374 unbounded 185
+kinds cost=880 bounds=873 sides=875 coefficient=931 add-row=833 add-col=858 delete-row=955 delete-col=891 sense=904
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== mip dual seed 2
+models 1000 edits 8000: optimal 3449 infeasible 4357 unbounded 194
+kinds cost=882 bounds=857 sides=899 coefficient=921 add-row=887 add-col=902 delete-row=969 delete-col=822 sense=861
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== mip dual seed 3
+models 1000 edits 8000: optimal 3611 infeasible 4190 unbounded 199
+kinds cost=909 bounds=871 sides=890 coefficient=927 add-row=848 add-col=867 delete-row=943 delete-col=895 sense=850
+P1=0 P2=0 P3=0 P4=0 broken total 0
