@@ -1,0 +1,30 @@
+== seed 1
+models 2000 edits 80000 checks 80000 copies 8000 MPS trips 13401 writes refused 34599 calls refused 0
+kinds delete-col=4961 delete-two-cols=4634 delete-row=5159 add-col=5333 add-row=5337 add-sos=4843 delete-cone=2213 add-cone=4631 indicator=5387 row-quadratic=5419 objective-q=5327 diagonal-q=5435 integer=5239 semi=5312 coefficient=5387 box=5383
+mps    trips 8000 refused 0 broken 0
+lp     trips 3922 refused 4078 broken 0
+nl     trips 128 refused 7872 broken 0
+qplib  trips 487 refused 7513 broken 0
+cbf    trips 173 refused 7827 broken 0
+osil   trips 691 refused 7309 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== seed 2
+models 2000 edits 80000 checks 80000 copies 8000 MPS trips 13347 writes refused 34653 calls refused 0
+kinds delete-col=5071 delete-two-cols=4641 delete-row=5139 add-col=5322 add-row=5235 add-sos=4715 delete-cone=2218 add-cone=4596 indicator=5393 row-quadratic=5412 objective-q=5399 diagonal-q=5340 integer=5450 semi=5423 coefficient=5256 box=5390
+mps    trips 8000 refused 0 broken 0
+lp     trips 3940 refused 4060 broken 0
+nl     trips 116 refused 7884 broken 0
+qplib  trips 472 refused 7528 broken 0
+cbf    trips 164 refused 7836 broken 0
+osil   trips 655 refused 7345 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== seed 3
+models 2000 edits 80000 checks 80000 copies 8000 MPS trips 13493 writes refused 34507 calls refused 0
+kinds delete-col=4998 delete-two-cols=4737 delete-row=5115 add-col=5357 add-row=5408 add-sos=4745 delete-cone=2168 add-cone=4533 indicator=5438 row-quadratic=5373 objective-q=5382 diagonal-q=5388 integer=5372 semi=5329 coefficient=5460 box=5197
+mps    trips 8000 refused 0 broken 0
+lp     trips 4057 refused 3943 broken 0
+nl     trips 139 refused 7861 broken 0
+qplib  trips 461 refused 7539 broken 0
+cbf    trips 200 refused 7800 broken 0
+osil   trips 636 refused 7364 broken 0
+P1=0 P2=0 P3=0 P4=0 broken total 0
