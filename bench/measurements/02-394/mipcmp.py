@@ -206,7 +206,7 @@ def main():
     opts = out + "/highs.opt"
     with open(opts, "w") as f:
         f.write("mip_rel_gap = 0\nmip_abs_gap = 0\ntime_limit = 300\n"
-                "threads = 1\n")
+                "threads = 1\nlog_file = %s/Highs.log\n" % out)
     counts = {}
     for seed in range(int(first), int(last) + 1):
         rng = random.Random(seed)
