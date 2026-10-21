@@ -3024,8 +3024,9 @@ static void cm_trip_put(cm_trip *tr, int64_t *kt, int64_t row, int64_t col,
         tr[(*kt)++] = (cm_trip){row, col, v};
 }
 
-static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
-                                 jaos_certificate_report *cr, bool *found)
+static jaos_status cm_cert_solve(jaos_model *m, double tol, bool plain,
+                                 int64_t *spent, jaos_certificate_report *cr,
+                                 bool *found)
 {
     const int64_t n = m->num_col, nr = m->num_row, nk = m->num_cone;
     const int64_t members = nk > 0 ? m->cone_start[nk] : 0;
@@ -3059,6 +3060,8 @@ static jaos_status cm_cert_solve(jaos_model *m, double tol, int64_t *spent,
         const int64_t qb = m->rq_start != nullptr ? m->rq_start[i] : 0;
         const int64_t qe = m->rq_start != nullptr ? m->rq_start[i + 1] : 0;
         bool up = isfinite(m->row_lower[i]), dn = isfinite(m->row_upper[i]);
+        if (plain && qe > qb)
+            up = dn = false;
         for (int64_t p = qb; p < qe; p++) {
             if (m->rq_i[p] != m->rq_j[p])
                 up = dn = false;
@@ -4251,8 +4254,11 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             if (!certified && !m->cfg.no_cert_solve &&
                 (!m->cfg.node_solve || m->rq_nz == 0 || res.relaxed)) {
                 int64_t spent = 0;
-                st = cm_cert_solve(m, jm_primal_tolerance(m), &spent, &cr,
-                                   &certified);
+                st = cm_cert_solve(m, jm_primal_tolerance(m), false, &spent,
+                                   &cr, &certified);
+                if (st == JAOS_OK && !certified && m->rq_nz > 0)
+                    st = cm_cert_solve(m, jm_primal_tolerance(m), true,
+                                       &spent, &cr, &certified);
                 m->solve_work += spent;
                 if (st != JAOS_OK)
                     goto done;

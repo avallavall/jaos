@@ -1,0 +1,126 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.150e-16
+nodes 2396
+work units 381527627
+brute force solves 16252
+failed models 0
+digest 0eb86ae7b0fcaffa
+== seed 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2391
+work units 393431019
+brute force solves 15642
+failed models 0
+digest 5f29f5fab1cab141
+== seed 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.216e-16
+nodes 2458
+work units 396257530
+brute force solves 15730
+failed models 0
+digest 65102655b89af1e6
+== seed 4
+UNSURE status numerical error : the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 7.57e-07, 3.62e-07 of their traffic, cones by 0, duals by 4.56)
+UNSURE status numerical error : the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 1.42e-08, 2.27e-09 of their traffic, cones by 4.3e-12, duals by 0.0478)
+m00533: brute force unsure
+models 1000
+optimal 587
+infeasible 200
+unbounded 212
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.865e-16
+worst violation 2.893e-16
+nodes 2429
+work units 393958995
+brute force solves 16932
+failed models 0
+digest ea37476bfa270b6e
+== seed 13
+UNSURE status numerical error : the conic interior point stopped after 208 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+UNSURE status numerical error : the conic interior point stopped after 208 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+UNSURE status numerical error : the conic interior point stopped after 208 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+m00456: brute force unsure
+models 1000
+optimal 583
+infeasible 200
+unbounded 216
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 4.199e-16
+worst violation 2.220e-16
+nodes 2340
+work units 380511562
+brute force solves 16400
+failed models 0
+digest 60db64b0e3d03b53
+== seed 16
+m00069: numerical error: the relaxation is unbounded, and the search for an integer point ends as a numerical error: node 36: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+models 1000
+optimal 582
+infeasible 199
+unbounded 218
+brute force unsure 0
+tree numerical errors 1
+worst objective gap 1.695e-15
+worst violation 1.046e-15
+nodes 2343
+work units 391119093
+brute force solves 16804
+failed models 1
+digest 9f09e582426fbb25
+== seed 17
+UNSURE status numerical error : the conic interior point ended at a point the checker does not pass as an optimum (columns off by 3.7e-43, rows by 0, 0 of their traffic, cones by 0, duals by 8.61e-06)
+m00245: brute force unsure
+UNSURE status numerical error : the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00451: brute force unsure
+models 1000
+optimal 604
+infeasible 200
+unbounded 194
+brute force unsure 2
+tree numerical errors 0
+worst objective gap 7.335e-08
+worst violation 2.565e-16
+nodes 2448
+work units 391793419
+brute force solves 16858
+failed models 0
+digest bfc1e9f9609bbd79
+== seed 29
+UNSURE status numerical error : the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00903: brute force unsure
+models 1000
+optimal 585
+infeasible 200
+unbounded 214
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 1.728e-16
+worst violation 2.220e-16
+nodes 2287
+work units 383743884
+brute force solves 16618
+failed models 0
+digest a1b02e5ab2866a4f

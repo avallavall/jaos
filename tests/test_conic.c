@@ -1177,20 +1177,30 @@ static void test_a_certificate_comes_from_a_solve_over_its_multipliers(void)
 
 static void test_a_cone_model_takes_its_certificate_from_a_solve(void)
 {
-    jaos_model *m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_read_mps(m, "tests/data/cone_cert_exact.mps"));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
-    double y[3], z[5];
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 0, z));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, 1, z + 3));
-    jaos_certificate_report cr;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_certificate(m, y, z, 1e-7,
-                                                                &cr));
-    TEST_ASSERT_TRUE(cr.certified);
-    jaos_model_free(m);
+    const char *path[2] = {"tests/data/cone_cert_exact.mps",
+                           "tests/data/cone_cert_plain.mps"};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INFEASIBLE,
+                                      jaos_status_of(m), path[k]);
+        double y[8], z[8];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, y));
+        int64_t at = 0;
+        for (int64_t c = 0; c < jaos_num_cones(m); c++) {
+            int64_t len = 0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(m, c, nullptr, &len,
+                                                     nullptr));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, c, z + at));
+            at += len;
+        }
+        jaos_certificate_report cr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_conic_certificate(m, y, z,
+                                                                    1e-7, &cr));
+        TEST_ASSERT_TRUE_MESSAGE(cr.certified, path[k]);
+        jaos_model_free(m);
+    }
 }
 
 static void test_fixed_columns_leave_the_walks_quadratic_objective(void)

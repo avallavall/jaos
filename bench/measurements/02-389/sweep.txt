@@ -1,0 +1,42 @@
+=== misocp 13: m00456: brute force unsure brute force unsure 1 failed models 0 
+=== misocp 14: brute force unsure 0 failed models 0 
+=== misocp 15: brute force unsure 0 failed models 0 
+=== misocp 16: m00069: numerical error: the relaxation is unbounded, and the search for an integer point ends as a numerical error: node 36: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm brute force unsure 0 failed models 1 
+=== misocp 17: m00245: brute force unsure m00451: brute force unsure brute force unsure 2 failed models 0 
+=== misocp 18: brute force unsure 0 failed models 0 
+=== misocp 19: brute force unsure 0 failed models 0 
+=== misocp 20: brute force unsure 0 failed models 0 
+=== misocp 21: brute force unsure 0 failed models 0 
+=== misocp 22: brute force unsure 0 failed models 0 
+=== misocp 23: brute force unsure 0 failed models 0 
+=== misocp 24: brute force unsure 0 failed models 0 
+=== misocp 25: brute force unsure 0 failed models 0 
+=== misocp 26: brute force unsure 0 failed models 0 
+=== misocp 27: brute force unsure 0 failed models 0 
+=== misocp 28: brute force unsure 0 failed models 0 
+=== misocp 29: m00903: brute force unsure brute force unsure 1 failed models 0 
+=== misocp 30: brute force unsure 0 failed models 0 
+=== conic 10: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 11: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 12: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 13: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 14: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 15: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 16: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 17: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 18: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 19: infeasible 200 certified 200 without 0 failed models 0 
+=== conic 20: infeasible 200 certified 200 without 0 failed models 0 
+=== discrete 17: brute force unsure 0 failed models 0 
+=== discrete 18: brute force unsure 0 failed models 0 
+=== discrete 19: brute force unsure 0 failed models 0 
+=== discrete 20: brute force unsure 0 failed models 0 
+=== discrete 21: brute force unsure 0 failed models 0 
+=== discrete 22: brute force unsure 1 failed models 0 
+=== discrete 23: brute force unsure 0 failed models 0 
+=== discrete 24: brute force unsure 1 failed models 0 
+=== discrete 25: brute force unsure 1 failed models 0 
+s0.mps
+s1.mps
+s2.mps
+done

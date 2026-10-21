@@ -30,6 +30,21 @@ to its terms, which changes the checker's contract and is the
 maintainer's decision. Verify with 02-255's
 `misocp.c` on seed 4 and 02-376's `unsure.patch`.
 
+J22. **No certificate through a quadratic row with cross terms.** The
+checker reads a quadratic row's curvature only when the row is diagonal,
+so a model infeasible only through such a row ends `numerical_error` when
+its walk stalls (02-255 seed 17's model 451; seed 16's model 69, whose
+tree fails at a node of its search for a feasible point;
+`bench/measurements/02-389/`). Next: a certificate test for rows whose
+`Σ y_i Q_i` is negative semidefinite, through a factorisation of it. That
+changes the checker's contract and is the maintainer's decision.
+
+J23. **Generated models left unsure.** 02-255 seed 13's model 456 (three
+solves stop after 208 iterations), seed 17's model 245 (an optimum
+refused, duals off by 8.6e-6), and one model each on 02-326's seeds 22,
+24 and 25, not read yet (`bench/measurements/02-389/`). Next: read each
+as 02-378 and 02-382 did, with 02-376's `unsure.patch`.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
