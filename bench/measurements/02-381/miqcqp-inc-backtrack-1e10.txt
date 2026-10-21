@@ -1,0 +1,15 @@
+QPLIB_10001 work_limit inc= bound=-25799.323382524664 ref=-25766.8199999999997090 first=0 nodes=2
+QPLIB_10002 work_limit inc= bound=-22501.573943113701 ref=-21931.5699999999997090 first=0 nodes=55
+QPLIB_10003 work_limit inc= bound=-22529.894447656174 ref=-21944.8699999999989814 first=0 nodes=1
+QPLIB_10004 work_limit inc= bound=-2620.5308183137977 ref=-2588.2100000000000364 first=0 nodes=108
+QPLIB_10005 work_limit inc= bound=-inf ref=-9820.9099999999998545 first=0 nodes=1
+QPLIB_10006 work_limit inc= bound=-inf ref=-12527.2000000000007276 first=0 nodes=1
+QPLIB_10007 work_limit inc= bound=-inf ref=-17869.7200000000011642 first=0 nodes=1
+QPLIB_10008 work_limit inc= bound=-23443.403848446698 ref=-23176.1899999999986903 first=0 nodes=1
+QPLIB_10009 work_limit inc= bound=-23443.403848446698 ref=-23176.1899999999986903 first=0 nodes=43
+QPLIB_10010 work_limit inc= bound=-23301.342648369835 ref=-23003.3100000000013097 first=0 nodes=190
+QPLIB_10011 work_limit inc= bound=-23464.989933732591 ref=-23176.1899999999986903 first=0 nodes=1
+QPLIB_10012 work_limit inc= bound=-23464.989933732591 ref=-23176.1899999999986903 first=0 nodes=1
+QPLIB_3678 work_limit inc=-0.10018801095173663 bound=-0.12462920943440847 ref=-0.1100882335000000 first=1 nodes=11
+QPLIB_7579 work_limit inc=-0.09495420158827024 bound=-0.11054315238555339 ref=-0.1026336752000000 first=1 nodes=125
+done

@@ -81,7 +81,8 @@ J13. **Cones and quadratic rows.** Cuts and warm starts in the conic tree;
 a quadratic row over more than `CONIC_QC_DENSE` columns that matter;
 QPLIB's mixed-integer QCQPs, where all 14 stop at 1e11 work units and 9
 have no incumbent (`bench/measurements/02-376/`, `02-379/`). A bound point
-at the root was refused (`conic-tree-bound-point`). Next for them: a first
+at the root and a backtracking dive were refused (`conic-tree-bound-point`,
+`conic-dive-backtrack`). Next for them: a first
 point that keeps a cardinality row such as QPLIB_10010's, and a dive that
 does not cost a full solve per step.
 
