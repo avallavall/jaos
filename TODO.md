@@ -48,6 +48,17 @@ through a factorisation of it, with each fixed column's terms read at its
 value. That changes the checker's contract and is the maintainer's
 decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
 
+J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
+carry cycles of arcs bounded only above, with curvatures down to 1e-11,
+so their optimum can sit at 1e6 to 1e15. 15 of seeds 1 to 400 and 9 of
+seeds 1001 to 1400 at 12 nodes end `numerical_error`, and 3 of seeds 1 to
+120 and 2 of seeds 1001 to 1200 at 40 nodes (`bench/measurements/02-391/`). The barrier converges; the push then
+cannot bring the reduced costs of the free columns with tiny curvature to
+zero, and the conic walk reports a ray the checker refuses. HiGHS 1.15.1
+solves seed 1018 (|x| up to 2.5e8). Next: a push whose solve stays
+accurate when the curvatures span 1e-11 to 2, for example with those
+columns scaled. Verify with `netqp_read.py` on the same seeds.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

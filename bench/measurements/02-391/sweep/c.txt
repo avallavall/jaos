@@ -1,0 +1,126 @@
+== tol 7
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 0.001 worst_violation 7.11e-15 worst_objective_gap 0
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== tol 8
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 0.001 worst_violation 7.11e-15 worst_objective_gap 0
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== tol 9
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 0.001 worst_violation 7.11e-15 worst_objective_gap 0
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== tol 10
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 7.11e-15 worst_objective_gap 0
+primal_tol 0.001 worst_violation 0.000487 worst_objective_gap 0.00546
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== tol 11
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 1.07e-14 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 1.07e-14 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 1.07e-14 worst_objective_gap 0
+primal_tol 0.001 worst_violation 0.000279 worst_objective_gap 0.00101
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== tol 12
+models 1000 optimal 1000 dual_1e-7_differs 0 contradictions taken 2000 refused 2000 odd 0 dumped 20
+primal_tol 1e-09 worst_violation 2.58e-14 worst_objective_gap 0
+primal_tol 1e-07 worst_violation 2.58e-14 worst_objective_gap 0
+primal_tol 1e-05 worst_violation 2.58e-14 worst_objective_gap 0
+primal_tol 0.001 worst_violation 0.000282 worst_objective_gap 5.85e-05
+dual_tol 1e-11 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-09 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-07 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 1e-05 worst_violation_ratio 0 worst_objective_gap 0
+dual_tol 0.001 worst_violation_ratio 0 worst_objective_gap 0
+broken P1=0 P2=0 P3=0 P4=0 total=0
+== push 7
+seed 7: 1000 models, 1000 checked, 853 with one optimum, 3788 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 3.156e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.373e-07)
+  work 59762645
+  push settled in rounds: 1:984 2:13 3:1; did not settle 0, factorisation failed 0, pinned 6809 variables, 14 settled after a freeing
+== push 8
+seed 8: 1000 models, 1000 checked, 818 with one optimum, 3744 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 2.148e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.108e-07)
+  work 59614054
+  push settled in rounds: 1:986 2:13 3:1; did not settle 0, factorisation failed 0, pinned 6708 variables, 13 settled after a freeing
+== push 9
+seed 9: 1000 models, 1000 checked, 819 with one optimum, 3749 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 2.887e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.373e-07)
+  work 60220755
+  push settled in rounds: 1:985 2:14; did not settle 0, factorisation failed 0, pinned 6639 variables, 14 settled after a freeing
+== push 10
+seed 10: 1000 models, 1000 checked, 825 with one optimum, 3748 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 5.277e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 1.231e-07)
+  work 59191465
+  push settled in rounds: 1:979 2:20 3:1; did not settle 0, factorisation failed 0, pinned 6672 variables, 20 settled after a freeing
+== push 11
+seed 11: 1000 models, 1000 checked, 847 with one optimum, 3731 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 4.390e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 2.188e-07)
+  work 59128007
+  push settled in rounds: 1:992 2:7 3:1; did not settle 0, factorisation failed 0, pinned 6698 variables, 8 settled after a freeing
+== push 12
+seed 12: 1000 models, 1000 checked, 816 with one optimum, 3774 strict columns
+  P1 not optimal 0
+  P2 wrong value 0 (worst 3.373e-12)
+  P3 primal refused 0, dual refused 0 (worst dual 0.000e+00)
+  P4 models with a strict column off its bound 0 (worst 0.000e+00)
+  P5 models off the one optimum 0 (worst 9.885e-08)
+  work 58703852
+  push settled in rounds: 1:991 2:9; did not settle 0, factorisation failed 0, pinned 6696 variables, 9 settled after a freeing

@@ -56,6 +56,7 @@ constexpr int64_t QP_PUSH_REFINE = 8;
 constexpr double  QP_PUSH_NEAR   = 1e-7;
 constexpr double  QP_PUSH_USER_TOL = 1e-7;
 constexpr int64_t QP_PUSH_ROUNDS = 40;
+constexpr int64_t QP_PUSH_FREE_ROUNDS = 8;
 constexpr int64_t QP_PUSH_FREEINGS = 3;
 constexpr double  QP_PUSH_EXTRAPOLATE = 1e6;
 constexpr int64_t QP_PUSH_CG = 100;
@@ -125,7 +126,7 @@ typedef struct {
     const int8_t *pin;
     bool *dec;
     double push_delta, push_scale;
-    bool push_plain;
+    bool push_plain, push_free;
 } bx;
 
 static void bx_free(bx *s)
@@ -2063,7 +2064,58 @@ static double bx_polish_rows(bx *s, const double *zt, const double *row_tol,
     return worst;
 }
 
-static jaos_status bx_polish(bx *s, bool *done)
+static int64_t bx_free_broken_rows(bx *s, double *zt, int8_t *pin)
+{
+    const jaos_model *m = s->m;
+    int64_t freed = 0;
+    for (int64_t round = 0; round < s->nrow; round++) {
+        mul_e(s, zt, s->rp);
+        int64_t now = 0;
+        for (int64_t i = 0; i < s->nrow; i++) {
+            const int64_t sl = s->ncol + i;
+            if (s->kind[sl] != FIXED && pin[sl] == PUSH_FREE)
+                continue;
+            double traffic = 1.0;
+            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
+                const int64_t j = m->ar_index[p];
+                traffic += fabs(m->ar_value[p] * m->col_scale[j] * zt[j]);
+            }
+            if (!(fabs(s->rp[i]) >
+                  QP_PUSH_USER_TOL * m->row_scale[i] * traffic))
+                continue;
+            int64_t pick = -1;
+            double far = 0.0;
+            if (s->kind[sl] != FIXED && fabs(zt[sl] - s->z[sl]) > far) {
+                far = fabs(zt[sl] - s->z[sl]);
+                pick = sl;
+            }
+            bool open = false;
+            for (int64_t p = m->ar_start[i]; !open && p < m->ar_start[i + 1];
+                 p++) {
+                const int64_t j = m->ar_index[p];
+                if (s->kind[j] == FIXED)
+                    continue;
+                open = pin[j] == PUSH_FREE;
+                if (!open && fabs(zt[j] - s->z[j]) > far) {
+                    far = fabs(zt[j] - s->z[j]);
+                    pick = j;
+                }
+            }
+            if (open || pick < 0)
+                continue;
+            pin[pick] = PUSH_FREE;
+            zt[pick] = s->z[pick];
+            now++;
+        }
+        jm_work_add(&s->work, (2 * m->num_nz + s->nrow) * JM_WORK_NONZERO);
+        freed += now;
+        if (now == 0)
+            break;
+    }
+    return freed;
+}
+
+static jaos_status bx_polish(bx *s, bool free_rows, bool *done)
 {
     const jaos_model *m = s->m;
     const int64_t nv = s->nvar, nr = s->nrow;
@@ -2075,7 +2127,7 @@ static jaos_status bx_polish(bx *s, bool *done)
     double *r = jm_alloc_array(nr > 0 ? nr : 1, sizeof *r);
     double *row_tol = jm_alloc_array(nr > 0 ? nr : 1, sizeof *row_tol);
     bool *dec = jm_calloc_array(nr > 0 ? nr : 1, sizeof *dec);
-    bool *held = jm_calloc_array(nv > 0 ? nv : 1, sizeof *held);
+    int8_t *held = jm_calloc_array(nv > 0 ? nv : 1, sizeof *held);
     double *ys = jm_alloc_array(nr > 0 ? nr : 1, sizeof *ys);
     const double delta = s->delta;
     int64_t nheld = 0;
@@ -2086,28 +2138,17 @@ static jaos_status bx_polish(bx *s, bool *done)
     for (int64_t j = 0; j < nv; j++) {
         const uint8_t k = s->kind[j];
         zt[j] = s->z[j];
-        if (k == FIXED) {
-            s->theta[j] = 0.0;
+        if (k == FIXED)
             continue;
-        }
         const bool at_lo = (k & HAS_LO) && s->w[j] < s->zl[j];
         const bool at_up = (k & HAS_UP) && s->v[j] < s->zu[j];
         if (at_lo && (!at_up || s->w[j] <= s->v[j])) {
             zt[j] = s->lo[j];
-            held[j] = true;
+            held[j] = PUSH_LOWER;
         } else if (at_up) {
             zt[j] = s->up[j];
-            held[j] = true;
+            held[j] = PUSH_UPPER;
         }
-        if (held[j]) {
-            nheld++;
-            s->theta[j] = s->dense[j] ? QP_PUSH_DENSE_THETA : 0.0;
-            continue;
-        }
-        double inv = s->quad[j] + QP_PUSH_REG;
-        if (k & HAS_LO) inv += s->zl[j] / s->w[j];
-        if (k & HAS_UP) inv += s->zu[j] / s->v[j];
-        s->theta[j] = 1.0 / inv;
     }
     const double tol_p = QP_PUSH_TOL * (1.0 + s->norm_b);
     for (int64_t i = 0; i < nr; i++)
@@ -2120,6 +2161,28 @@ static jaos_status bx_polish(bx *s, bool *done)
     for (int64_t i = 0; i < nr; i++) {
         const double user = QP_PUSH_USER_TOL * m->row_scale[i] * row_tol[i];
         row_tol[i] = user < tol_p ? user : tol_p;
+    }
+    if (free_rows && bx_free_broken_rows(s, zt, held) == 0) {
+        st = JAOS_OK;
+        goto out;
+    }
+    for (int64_t j = 0; j < nv; j++) {
+        const uint8_t k = s->kind[j];
+        if (k == FIXED) {
+            s->theta[j] = 0.0;
+            continue;
+        }
+        if (held[j]) {
+            nheld++;
+            s->theta[j] = s->dense[j] ? QP_PUSH_DENSE_THETA : 0.0;
+            continue;
+        }
+        double inv = s->quad[j] + QP_PUSH_REG;
+        if (k & HAS_LO) inv += s->zl[j] / s->w[j];
+        if (k & HAS_UP) inv += s->zu[j] / s->v[j];
+        s->theta[j] = 1.0 / inv;
+    }
+    for (int64_t i = 0; i < nr; i++) {
         bool any = s->kind[s->ncol + i] != FIXED && !held[s->ncol + i];
         for (int64_t q = m->ar_start[i]; !any && q < m->ar_start[i + 1]; q++) {
             const int64_t j = m->ar_index[q];
@@ -2277,6 +2340,15 @@ static jaos_status qp_push(bx *s)
                                         : QP_PUSH_USER_TOL * m->row_scale[j - s->ncol];
         col_tol[j] = user < tol_p ? user : tol_p;
     }
+    bool idle = false;
+    if (s->push_free) {
+        for (int64_t j = 0; j < nv; j++)
+            s->dw[j] = pin[j] == PUSH_LOWER ? s->lo[j]
+                     : pin[j] == PUSH_UPPER ? s->up[j] : s->z[j];
+        const int64_t got = bx_free_broken_rows(s, s->dw, pin);
+        pinned -= got;
+        idle = got == 0;
+    }
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
     int64_t last_wrong = INT64_MAX;
     bool stuck = false;
@@ -2287,7 +2359,8 @@ static jaos_status qp_push(bx *s)
     s->push_delta = QP_PUSH_DELTA;
     const double *gamma = m->col_scale, *rho = m->row_scale;
     double alpha = 1.0;
-    for (round = 1; round <= QP_PUSH_ROUNDS; round++) {
+    const int64_t rounds = s->push_free ? QP_PUSH_FREE_ROUNDS : QP_PUSH_ROUNDS;
+    for (round = 1; !idle && round <= rounds; round++) {
         for (int64_t j = 0; j < nv; j++) {
             const uint8_t k = s->kind[j];
             zt[j] = pin[j] == PUSH_LOWER ? s->lo[j]
@@ -2565,7 +2638,7 @@ static jaos_status qp_push(bx *s)
                (long long)round, (long long)pinned, (long long)wrong,
                (long long)loose, gap);
         if (wrong == 0 && loose == 0 && gap > QP_PUSH_GAP &&
-            gap < 0.5 * last_gap && round < QP_PUSH_ROUNDS) {
+            gap < 0.5 * last_gap && round < rounds) {
             last_gap = gap;
             stagnant = false;
             continue;
@@ -2629,16 +2702,20 @@ static jaos_status qp_push(bx *s)
                "%lld round%s, %lld freed",
                (long long)pinned, (long long)nv, (long long)round,
                round == 1 ? "" : "s", (long long)freed);
+    } else if (st == JAOS_OK && idle) {
+        jm_log(s->m, JAOS_LOG_SUMMARY,
+               "push: no row has all its columns pinned and broken; the "
+               "barrier's point stands");
     } else if (st == JAOS_OK && stuck) {
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: the step of round %lld left %lld rows unsatisfied; "
                "the barrier's point stands",
                (long long)round, (long long)wrong);
-    } else if (st == JAOS_OK && releases > 0 && !settled && round > QP_PUSH_ROUNDS) {
+    } else if (st == JAOS_OK && releases > 0 && !settled && round > rounds) {
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: the rows stayed unsatisfied after %lld rounds and %lld "
                "pins released; the barrier's point stands",
-               (long long)QP_PUSH_ROUNDS, (long long)releases);
+               (long long)rounds, (long long)releases);
     } else if (st == JAOS_OK && wrong > 0) {
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: %lld pinned variables have a reduced cost of the wrong "
@@ -2649,7 +2726,7 @@ static jaos_status qp_push(bx *s)
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: the active set did not settle in %lld rounds, %lld "
                "pinned; the barrier's point stands",
-               (long long)QP_PUSH_ROUNDS, (long long)pinned);
+               (long long)rounds, (long long)pinned);
     } else {
         jm_log(s->m, JAOS_LOG_SUMMARY,
                "push: the factorisation failed in round %lld (%s); the "
@@ -2857,6 +2934,15 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                "the push from the variables the barrier reads at a bound "
                "alone %s", s.pushed ? "settled" : "did not settle either");
     }
+    if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && s.quadratic &&
+        !s.pushed && !m->cfg.barrier_no_crossover) {
+        s.push_free = true;
+        st = qp_push(&s);
+        s.push_free = false;
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "the push with a pin freed in each row its pins break %s",
+               s.pushed ? "settled" : "did not settle either");
+    }
     if (st == JAOS_OK)
         st = bx_publish(&s, outcome, p);
 
@@ -2871,15 +2957,17 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
 #endif
     if (refused && !reduced) {
         double *keep = jm_alloc_array(s.nvar + s.nrow, sizeof *keep);
-        bool done = false;
         if (keep == nullptr)
             st = JAOS_ERR_OUT_OF_MEMORY;
         if (st == JAOS_OK) {
             memcpy(keep, s.z, (size_t)s.nvar * sizeof *keep);
             memcpy(keep + s.nvar, s.y, (size_t)s.nrow * sizeof *keep);
-            st = bx_polish(&s, &done);
         }
-        if (st == JAOS_OK && done) {
+        for (int pass = 0; pass < 2 && st == JAOS_OK && refused; pass++) {
+            bool done = false;
+            st = bx_polish(&s, pass == 1, &done);
+            if (st != JAOS_OK || !done)
+                continue;
             st = bx_publish(&s, outcome, p);
             refused = st == JAOS_OK && !bx_holds(m, &ck, pushed);
             jm_log(m, JAOS_LOG_SUMMARY,

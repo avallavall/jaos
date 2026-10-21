@@ -1,0 +1,6 @@
+1397 optimal/checked optimal/checked - 69953 69953
+1398 optimal/checked optimal/checked - 81469 81469
+1399 optimal/checked optimal/checked - 68899 68899
+1400 optimal/checked optimal/checked - 74477 74477
+count 400 base optimal/checked new optimal/checked not polished
+work, optimal in both: 400 models, geometric mean 1.0000x, 0 cheaper, 0 dearer

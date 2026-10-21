@@ -1,0 +1,12 @@
+1399 optimal/checked optimal/checked - 51679 51679
+1400 optimal/checked optimal/checked - 68709 68709
+count 12 base numerical_error new numerical_error not polished
+count 387 base optimal/checked new optimal/checked not polished
+count 1 base optimal/checked new optimal/checked polished
+work, optimal in both: 388 models, geometric mean 1.0000x, 0 cheaper, 0 dearer
+1099 optimal/checked optimal/checked - 150345 150345
+1100 optimal/checked optimal/checked - 484160 484160
+count 2 base numerical_error new numerical_error not polished
+count 97 base optimal/checked new optimal/checked not polished
+count 1 base optimal/checked new optimal/checked polished
+work, optimal in both: 98 models, geometric mean 1.0000x, 0 cheaper, 0 dearer

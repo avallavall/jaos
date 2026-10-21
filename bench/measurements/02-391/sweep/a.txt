@@ -1,0 +1,54 @@
+== certs 7
+models 2000 optimal 1037 infeasible 923 unbounded 40 other 0 exact-derived 451 exact-refused 472 mip-with-certificate 632 mip-without 6
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== certs 8
+models 2000 optimal 1078 infeasible 884 unbounded 38 other 0 exact-derived 404 exact-refused 480 mip-with-certificate 551 mip-without 6
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== certs 9
+models 2000 optimal 1041 infeasible 916 unbounded 43 other 0 exact-derived 430 exact-refused 486 mip-with-certificate 605 mip-without 1
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== certs 10
+models 2000 optimal 1067 infeasible 886 unbounded 47 other 0 exact-derived 423 exact-refused 463 mip-with-certificate 590 mip-without 4
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== certs 11
+models 2000 optimal 1083 infeasible 871 unbounded 46 other 0 exact-derived 414 exact-refused 457 mip-with-certificate 572 mip-without 3
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== certs 12
+models 2000 optimal 1048 infeasible 899 unbounded 53 other 0 exact-derived 430 exact-refused 469 mip-with-certificate 612 mip-without 8
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 P8=0 total=0
+== iissub 7
+models 1000 infeasible 443 subsystems 443 members 5023 drops 5023 from-certificate 443 mips-read 290 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== iissub 8
+models 1000 infeasible 454 subsystems 454 members 4960 drops 4960 from-certificate 454 mips-read 283 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== iissub 9
+models 1000 infeasible 487 subsystems 487 members 5224 drops 5224 from-certificate 487 mips-read 304 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== iissub 10
+models 1000 infeasible 441 subsystems 441 members 4524 drops 4524 from-certificate 441 mips-read 299 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== iissub 11
+models 1000 infeasible 440 subsystems 440 members 4800 drops 4800 from-certificate 440 mips-read 289 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== iissub 12
+models 1000 infeasible 439 subsystems 439 members 5006 drops 5006 from-certificate 439 mips-read 303 mips-refused 0
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 P7=0 total=0
+== exact 7
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 737223
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== exact 8
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 756092
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== exact 9
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 775980
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== exact 10
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 725506
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== exact 11
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 713347
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
+== exact 12
+models 1000 optimal 1000 proved 1000 refused 0 broken 0 terms 738149
+broken P1=0 P2=0 P3=0 P4=0 P5=0 P6=0 total=0
