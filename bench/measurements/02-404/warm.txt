@@ -1,0 +1,24 @@
+== qp seed 1
+models 1000 edits 8000: optimal 3839 infeasible 4109 unbounded 52
+kinds cost=912 bounds=882 sides=870 coefficient=911 add-row=859 add-col=864 delete-row=905 delete-col=915 curvature=882
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== qp seed 2
+models 1000 edits 8000: optimal 3883 infeasible 4084 unbounded 33
+kinds cost=882 bounds=877 sides=915 coefficient=901 add-row=934 add-col=862 delete-row=880 delete-col=887 curvature=862
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== qp seed 3
+models 1000 edits 8000: optimal 3649 infeasible 4325 unbounded 26
+kinds cost=958 bounds=885 sides=852 coefficient=911 add-row=893 add-col=839 delete-row=860 delete-col=893 curvature=909
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== miqp seed 1
+models 1000 edits 8000: optimal 3674 infeasible 4256 unbounded 70
+kinds cost=925 bounds=887 sides=875 coefficient=914 add-row=903 add-col=824 delete-row=915 delete-col=874 curvature=883
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== miqp seed 2
+models 1000 edits 8000: optimal 3545 infeasible 4426 unbounded 28
+kinds cost=866 bounds=880 sides=962 coefficient=898 add-row=848 add-col=921 delete-row=881 delete-col=862 curvature=882
+P1=0 P2=0 P3=0 P4=0 broken total 0
+== miqp seed 3
+models 1000 edits 8000: optimal 3613 infeasible 4325 unbounded 62
+kinds cost=902 bounds=869 sides=900 coefficient=925 add-row=887 add-col=869 delete-row=892 delete-col=878 curvature=878
+P1=0 P2=0 P3=0 P4=0 broken total 0
