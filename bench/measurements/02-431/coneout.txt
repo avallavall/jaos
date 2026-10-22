@@ -1,0 +1,10 @@
+c25a.mps     cones 0 | as is: optimal 7.664935194e-08 | all moved out: optimal 0.02828427125
+c25b.mps     cones 0 | as is: numerical error 0 | all moved out: optimal 0.02828427125
+c1905a.mps   cones 2 | as is: numerical error 0 | all moved out: optimal -0.0697820323
+c1905b.mps   cones 2 | as is: optimal -1.676625762e-07 | all moved out: optimal -0.0697820323
+c2123a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -22.043205
+c2123b.mps   cones 1 | as is: optimal -22.00000072 | all moved out: optimal -22.043205
+c2939a.mps   cones 2 | as is: numerical error 0 | all moved out: numerical error 0
+c2939b.mps   cones 2 | as is: optimal -11.99998935 | all moved out: numerical error 0
+c3431a.mps   cones 2 | as is: optimal 24.3923051 | all moved out: optimal 24.45051403
+c3431b.mps   cones 2 | as is: numerical error 0 | all moved out: optimal 24.45051403

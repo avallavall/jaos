@@ -239,6 +239,118 @@ static jaos_status ct_apply(jaos_model *rel, const jaos_model *m,
     return ct_indicators(rel, m);
 }
 
+static int64_t ct_semi_open(const jaos_model *m, const jaos_model *rel)
+{
+    for (int64_t j = 0; j < m->num_col; j++)
+        if (ct_semi(m, j) && rel->col_upper[j] > 0.0 &&
+            rel->col_lower[j] < m->col_lower[j])
+            return j;
+    return -1;
+}
+
+static int64_t ct_sos_open(const jaos_model *m, const jaos_model *rel,
+                           int64_t *first, int64_t *last)
+{
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+        int64_t f = -1, l = -1;
+        for (int64_t t = b; t < e; t++) {
+            const int64_t c = m->sos_col[t];
+            if (rel->col_lower[c] < 0.0 || rel->col_upper[c] > 0.0) {
+                if (f < 0)
+                    f = t - b;
+                l = t - b;
+            }
+        }
+        if (f >= 0 && (m->sos_type[k] == 1 ? l > f : l > f + 1)) {
+            *first = f;
+            *last = l;
+            return k;
+        }
+    }
+    return -1;
+}
+
+static int ct_push_pair(ct_heap *h, const ct_node *cur, int64_t *next_id,
+                        int64_t nd, const int64_t *dc, const double *dl,
+                        const double *dh, int64_t nu, const int64_t *uc,
+                        const double *ul, const double *uh)
+{
+    bool down_ok = true, up_ok = true;
+    for (int64_t k = 0; k < nd; k++)
+        down_ok = down_ok && dl[k] <= dh[k];
+    for (int64_t k = 0; k < nu; k++)
+        up_ok = up_ok && ul[k] <= uh[k];
+    ct_node *down = down_ok ? ct_child(cur, (*next_id)++, nd, dc, dl, dh,
+                                       cur->key)
+                            : nullptr;
+    ct_node *up = up_ok ? ct_child(cur, (*next_id)++, nu, uc, ul, uh, cur->key)
+                        : nullptr;
+    if ((down_ok && down == nullptr) || (up_ok && up == nullptr) ||
+        (down != nullptr && !ct_push(h, down))) {
+        ct_node_free(down);
+        ct_node_free(up);
+        return -1;
+    }
+    if (up != nullptr && !ct_push(h, up)) {
+        ct_node_free(up);
+        return -1;
+    }
+    return 1;
+}
+
+static int ct_split_pieces(ct_heap *h, const ct_node *cur, const jaos_model *rel,
+                           const jaos_model *m, int64_t *next_id)
+{
+    const int64_t j = ct_semi_open(m, rel);
+    if (j >= 0) {
+        const double lo = rel->col_lower[j], hi = rel->col_upper[j];
+        const double zero = 0.0;
+        const double up_lo = fmax(lo, m->col_integer[j] ? ceil(m->col_lower[j])
+                                                        : m->col_lower[j]);
+        return ct_push_pair(h, cur, next_id, 1, &j, &lo, &zero, 1, &j, &up_lo,
+                            &hi);
+    }
+    int64_t f = 0, l = 0;
+    const int64_t k = ct_sos_open(m, rel, &f, &l);
+    if (k < 0)
+        return 0;
+    const int64_t b = m->sos_start[k], n = m->sos_start[k + 1] - b;
+    const bool one = m->sos_type[k] == 1;
+    const int64_t r = one ? f + (l - f - 1) / 2 : f + (l - f) / 2;
+    int64_t *col = jm_alloc_array(2 * n, sizeof *col);
+    double *lo = jm_alloc_array(2 * n, sizeof *lo);
+    double *hi = jm_alloc_array(2 * n, sizeof *hi);
+    if (col == nullptr || lo == nullptr || hi == nullptr) {
+        free(col);
+        free(lo);
+        free(hi);
+        return -1;
+    }
+    int64_t nd = 0, nu = 0;
+    for (int64_t t = 0; t < n; t++) {
+        const int64_t c = m->sos_col[b + t];
+        const double zlo = fmax(0.0, rel->col_lower[c]);
+        const double zhi = fmin(0.0, rel->col_upper[c]);
+        if (t > r) {
+            col[nd] = c;
+            lo[nd] = zlo;
+            hi[nd++] = zhi;
+        }
+        if (one ? t <= r : t < r) {
+            col[n + nu] = c;
+            lo[n + nu] = zlo;
+            hi[n + nu++] = zhi;
+        }
+    }
+    const int rc = ct_push_pair(h, cur, next_id, nd, col, lo, hi, nu, col + n,
+                                lo + n, hi + n);
+    free(col);
+    free(lo);
+    free(hi);
+    return rc;
+}
+
 static int ct_split(ct_heap *h, const ct_node *cur, const jaos_model *rel,
                     const jaos_model *m, int64_t *next_id)
 {
@@ -254,7 +366,7 @@ static int ct_split(ct_heap *h, const ct_node *cur, const jaos_model *rel,
         }
     }
     if (best < 0)
-        return 0;
+        return ct_split_pieces(h, cur, rel, m, next_id);
     const double lo = rel->col_lower[best], hi = rel->col_upper[best];
     const double mid = isfinite(lo) && isfinite(hi) ? floor(0.5 * (lo + hi))
                      : isfinite(lo)                 ? lo
@@ -275,12 +387,13 @@ static int ct_split(ct_heap *h, const ct_node *cur, const jaos_model *rel,
     return 1;
 }
 
-static bool ct_box_fixed(const jaos_model *m, const jaos_model *rel)
+static bool ct_settled(const jaos_model *m, const jaos_model *rel)
 {
     for (int64_t j = 0; j < m->num_col; j++)
         if (m->col_integer[j] && rel->col_upper[j] > rel->col_lower[j])
             return false;
-    return true;
+    int64_t f = 0, l = 0;
+    return ct_semi_open(m, rel) < 0 && ct_sos_open(m, rel, &f, &l) < 0;
 }
 
 static jaos_model *ct_relaxation(const jaos_model *m)
@@ -409,14 +522,39 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
     double *d = jm_alloc_array(nc > 0 ? nc : 1, sizeof *d);
     double *dc = jm_calloc_array(nc > 0 ? nc : 1, sizeof *dc);
     double *h = jm_calloc_array(nc > 0 ? nc : 1, sizeof *h);
+    double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
+    jaos_status st = JAOS_OK;
     if (w == nullptr || y == nullptr || d == nullptr || dc == nullptr ||
-        h == nullptr) {
-        free(w);
-        free(y);
-        free(d);
-        free(dc);
-        free(h);
-        return JAOS_ERR_OUT_OF_MEMORY;
+        h == nullptr || lo == nullptr || hi == nullptr) {
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto out;
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        lo[j] = rel->col_lower[j];
+        hi[j] = rel->col_upper[j];
+    }
+    if (rel->rq_nz == 0 && rel->row_ind_col == nullptr) {
+        st = jm_implied_bounds(rel, lo, hi);
+        if (st != JAOS_OK)
+            goto out;
+    }
+    for (int64_t k = 0; k < rel->num_cone; k++) {
+        const int64_t b = rel->cone_start[k], e = rel->cone_start[k + 1];
+        const int64_t heads =
+            rel->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e ? 2 : 1;
+        for (int64_t t = b; t < b + heads; t++)
+            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], 0.0);
+        double r = hi[rel->cone_col[b]];
+        if (heads == 2)
+            r = sqrt(2.0 * r * hi[rel->cone_col[b + 1]]);
+        if (!isfinite(r))
+            continue;
+        r = nextafter(nextafter(r, INFINITY), INFINITY);
+        for (int64_t t = b + heads; t < e; t++) {
+            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], -r);
+            hi[rel->cone_col[t]] = fmin(hi[rel->cone_col[t]], r);
+        }
     }
     double sum = sigma * rel->obj_offset, sumc = 0.0;
     for (int64_t i = 0; i < nr; i++) {
@@ -463,8 +601,7 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
         }
         const double r = d[j] + dc[j];
         if (h[j] != 0.0) {
-            const double piece = ct_piece_min(r, h[j], rel->col_lower[j],
-                                              rel->col_upper[j]);
+            const double piece = ct_piece_min(r, h[j], lo[j], hi[j]);
             if (isfinite(piece))
                 jm_obj_add(&sum, &sumc, piece);
             else
@@ -473,7 +610,7 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
         }
         if (r == 0.0)
             continue;
-        const double at = r > 0.0 ? rel->col_lower[j] : rel->col_upper[j];
+        const double at = r > 0.0 ? lo[j] : hi[j];
         if (!isfinite(at)) {
             bounded = false;
             continue;
@@ -486,11 +623,33 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
     }
     if (bounded && isfinite(sum + sumc))
         *bound = sum + sumc;
+out:
     free(w);
     free(y);
     free(d);
     free(dc);
     free(h);
+    free(lo);
+    free(hi);
+    return st;
+}
+
+static jaos_status ct_node_full(const jaos_model *rel, const jaos_model *m,
+                                int64_t work, jaos_model **out)
+{
+    *out = nullptr;
+    jaos_model *f = nullptr;
+    if (jaos_model_copy(rel, &f) != JAOS_OK)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    f->cfg.node_solve = false;
+    f->cfg.no_cert_solve = m->rq_nz > 0;
+    ct_budget(f, m, work);
+    const jaos_status st = jaos_solve(f);
+    if (st != JAOS_OK) {
+        jaos_model_free(f);
+        return st;
+    }
+    *out = f;
     return JAOS_OK;
 }
 
@@ -1231,8 +1390,13 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
             const bool rounding = !leaf && nodes == 1 &&
                                   !m->cfg.mip_no_heuristics;
             if (leaf || rounding) {
+                const bool pieces = nsemi > 0 || m->num_sos > 0 || nind > 0;
+                const bool boxed = leaf && ct_settled(m, rel);
+                const bool own = boxed && pieces && rel->conic_rough;
+                const bool whole = boxed && (!pieces || own);
                 jaos_model *fin = nullptr;
-                st = ct_fixed(m, x, work, &fin);
+                st = own ? ct_node_full(rel, m, work, &fin)
+                         : ct_fixed(m, x, work, &fin);
                 if (st != JAOS_OK) {
                     rc = st;
                     goto done;
@@ -1243,8 +1407,6 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                 double fobj = 0.0;
                 const bool solved = ct_answer(m, fin, &fobj);
                 const jaos_solve_status fs = jaos_status_of(fin);
-                const bool whole = leaf && nsemi == 0 && m->num_sos == 0 &&
-                                   nind == 0 && ct_box_fixed(m, rel);
                 bool closed = leaf && fs == JAOS_SOLVE_OPTIMAL &&
                               (!rel->conic_rough || whole);
                 if (whole && fs == JAOS_SOLVE_INFEASIBLE)

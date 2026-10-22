@@ -666,20 +666,30 @@ after the cone duals are projected into their cones and a row dual whose
 side is infinite is taken as 0. That second bound holds for any duals.
 With diagonal quadratic rows or a diagonal quadratic objective, a column
 adds instead the smallest value of `d·x + h·x²/2` over its box, where `h`
-is its objective weight less the row duals times its row weights. There
-is no such bound when a column the sum needs is unbounded, or when the
-objective or a row with a nonzero dual has a term across two columns.
+is its objective weight less the row duals times its row weights. The
+sum reads each column's bounds tightened by the ones the rows imply (as
+the checker computes them, when the model has no quadratic or indicator
+rows) and by the cones: a head is at least 0, and a member lies within
+the head's upper bound, or within `sqrt(2·a·b)` of a rotated cone's
+heads `a` and `b`. There is no such bound when a column the sum needs is
+still unbounded, or when the objective or a row with a nonzero dual has
+a term across two columns.
 
-A node whose point is integral solves the model with its integer columns
-fixed at that point. A fixed model that ends optimal closes the node when
-the node's relaxation passed the checker, or when the node's box fixes
-every integer column and the model has no SOS sets, semi-continuous
-columns or indicator rows. In that second case a fixed model that ends
-infeasible closes the node too, and one that fails bounds it through its
-own duals. Otherwise the node closes only when its bound reaches the
-incumbent; if not, it is split, or set aside when every integer column is
-fixed. A fixed solve that ends `numerical_error` at a point the checker
-passes as primal feasible, cones and integrality included, still gives an
+A node is settled when its box fixes every integer column, holds every
+semi-continuous column on one side of its gap, and leaves every SOS set
+only its own pattern. A node whose point is integral solves the model
+with its integer columns fixed at that point; a settled node whose
+relaxation stopped short of its tolerances in a model with SOS sets,
+semi-continuous columns or indicator rows solves its own relaxation in
+full instead, which is then the node itself. That solve closes the node
+when it ends optimal and the node's relaxation passed the checker, or
+when the node is settled and the solve is the node: then an infeasible
+end closes it too, and a failed one bounds it through its own duals.
+Otherwise the node closes only when its bound reaches the incumbent; if
+not, it is split on an integer column, else on a semi-continuous column
+or SOS set the box leaves open, and set aside when it is settled. A
+solve that ends `numerical_error` at a point the checker passes as
+primal feasible, cones and integrality included, still gives an
 incumbent.
 
 **`jaos_set_mip_gap`**\

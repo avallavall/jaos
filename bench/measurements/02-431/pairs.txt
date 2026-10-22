@@ -1,0 +1,21 @@
+== seed 1
+pairs with the same history and the same answer 2394
+2 HEAD work limit reached work limit reached -> change optimal optimal
+    model 88 edit 3: 0 -> -235.85158475259553 (delete-col 1)
+    model 88 edit 4: 0 -> -235.85158475259553 (add-cone rotated over 4)
+2 HEAD infeasible infeasible -> change optimal optimal
+    model 88 edit 5: 0 -> -230.26615157639787 (add-row with 6 entries)
+    model 88 edit 6: 0 -> -247.70018726587656 (delete-row 0)
+== seed 2
+pairs with the same history and the same answer 2399
+1 HEAD work limit reached work limit reached -> change optimal optimal
+    model 270 edit 8: 0 -> -27.92208227166298 (add-cone rotated over 4)
+== seed 3
+pairs with the same history and the same answer 149
+2 HEAD infeasible infeasible -> change optimal optimal
+    model 144 edit 1: 0 -> 4.9343245538895819e-17 (delete-cone 0)
+    model 208 edit 1: 0 -> -56.5 (delete-cone 1)
+1 HEAD work limit reached work limit reached -> change optimal optimal
+    model 18 edit 4: 0 -> 14 (bounds 6 -1 3)
+1 HEAD optimal optimal -> change infeasible infeasible
+    model 231 edit 1: -71.641025641025649 -> 0 (delete-col 1)

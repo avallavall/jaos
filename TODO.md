@@ -94,7 +94,16 @@ J27. **A quadratic row that only touches the other constraints.** On
 to 35. On the eight with one quadratic row, the row's smallest value
 over the other rows and bounds equals its side, so no point lies
 strictly inside it and finite duals need not exist. Moving each quadratic
-side out by 1e-4 solves all 16 (`bench/measurements/02-427/`). Next:
+side out by 1e-4 solves all 16 (`bench/measurements/02-427/`). In
+02-431's permutation reading, 168 of 200,000 continuous models and 45 of
+198,286 mixed ones end with an answer in one order and `numerical_error`
+in the other. Of seed 1's first five continuous ones, four have a
+quadratic row or cone with no point strictly inside, and with each side
+or head moved out by 1e-4 both orders agree. The fifth has the dual's
+form of the same defect: its optimum is a limit that no point reaches.
+On such a row a point within tolerance moves the objective by about the
+square root of the tolerance, so two orders can also end at optima 9e-5
+apart (`bench/measurements/02-431/`). Next:
 duals of small violation and large size from the walk's last iterates,
 since the checker's dual test is absolute; an optimum with no finite
 duals changes the checker's contract and is the maintainer's decision.

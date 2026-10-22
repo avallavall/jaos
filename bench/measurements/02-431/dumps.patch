@@ -1,0 +1,19 @@
+--- a/warmcone.c	2026-10-22 09:44:05.114817705 +0200
++++ b/warmcone.c	2026-10-22 09:44:05.114817705 +0200
+@@ -371,6 +371,16 @@
+                 printf("PAIR %lld %lld %s %s %.17g | %s\n", (long long)r,
+                        (long long)s, jaos_solve_status_str(jaos_status_of(m)),
+                        jaos_solve_status_str(jaos_status_of(c)), po, how);
++                const char *dl = getenv("DUMPS");
++                char key[48];
++                snprintf(key, sizeof key, " %lld-%lld ", (long long)r, (long long)s);
++                if (dl && strstr(dl, key)) {
++                    char path[96];
++                    snprintf(path, sizeof path, "pair-%lld-%lld.mps", (long long)r,
++                             (long long)s);
++                    if (jaos_write_mps(c, path) != JAOS_OK)
++                        return 3;
++                }
+             }
+             keep_point(m);
+             if (ws == JAOS_OK && cs == JAOS_OK &&

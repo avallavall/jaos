@@ -1,0 +1,18 @@
+seed 1 pair-88-3.mps (same model) from head run | HEAD lib: status work_limit | new lib: status optimal objective -235.85158475259553 
+seed 1 pair-88-3.mps (same model) from new run | HEAD lib: status work_limit | new lib: status optimal objective -235.85158475259553 
+seed 1 pair-88-4.mps (same model) from head run | HEAD lib: status work_limit | new lib: status optimal objective -235.85158475259553 
+seed 1 pair-88-4.mps (same model) from new run | HEAD lib: status work_limit | new lib: status optimal objective -235.85158475259553 
+seed 1 pair-88-5.mps (other model) from head run | HEAD lib: status infeasible | new lib: status infeasible 
+seed 1 pair-88-5.mps (other model) from new run | HEAD lib: status work_limit | new lib: status optimal objective -230.26615157639787 
+seed 1 pair-88-6.mps (other model) from head run | HEAD lib: status infeasible | new lib: status infeasible 
+seed 1 pair-88-6.mps (other model) from new run | HEAD lib: status optimal objective -247.70018726587656 | new lib: status optimal objective -247.70018726587656 
+seed 2 pair-270-8.mps (same model) from head run | HEAD lib: status work_limit | new lib: status optimal objective -27.92208227166298 
+seed 2 pair-270-8.mps (same model) from new run | HEAD lib: status work_limit | new lib: status optimal objective -27.92208227166298 
+seed 3 pair-144-1.mps (other model) from head run | HEAD lib: status infeasible | new lib: status infeasible 
+seed 3 pair-144-1.mps (other model) from new run | HEAD lib: status optimal objective 4.9343245538895819e-17 | new lib: status optimal objective 4.9343245538895819e-17 
+seed 3 pair-18-4.mps (same model) from head run | HEAD lib: status work_limit | new lib: status optimal objective 14 
+seed 3 pair-18-4.mps (same model) from new run | HEAD lib: status work_limit | new lib: status optimal objective 14 
+seed 3 pair-208-1.mps (other model) from head run | HEAD lib: status infeasible | new lib: status infeasible 
+seed 3 pair-208-1.mps (other model) from new run | HEAD lib: status optimal objective -56.5 | new lib: status optimal objective -56.5 
+seed 3 pair-231-1.mps (other model) from head run | HEAD lib: status optimal objective -71.641025641025649 | new lib: status optimal objective -71.641025641025649 
+seed 3 pair-231-1.mps (other model) from new run | HEAD lib: status infeasible | new lib: status infeasible 

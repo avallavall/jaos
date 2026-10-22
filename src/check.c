@@ -282,6 +282,22 @@ static void implied_bounds(const jaos_model *m, double *cl, double *cu,
 #endif
 }
 
+jaos_status jm_implied_bounds(const jaos_model *m, double *cl, double *cu)
+{
+    const int64_t nr = m->num_row > 0 ? m->num_row : 1;
+    double *s = jm_alloc_array(4 * nr, sizeof *s);
+    int64_t *n = jm_alloc_array(2 * nr, sizeof *n);
+    if (s == nullptr || n == nullptr) {
+        free(s);
+        free(n);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    implied_bounds(m, cl, cu, s, s + nr, s + 2 * nr, s + 3 * nr, n, n + nr);
+    free(s);
+    free(n);
+    return JAOS_OK;
+}
+
 static double sign_condition(double v, double lo, double hi, double w,
                              double q, double tol, double scale, dual_acc *a,
                              bool lo_implied, bool hi_implied)
