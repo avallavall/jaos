@@ -3608,6 +3608,43 @@ static void test_devex_and_dantzig_pricing_reach_the_same_optimum(void)
 #endif
 }
 
+static void test_a_mirrored_column_starts_at_the_mirrored_bound(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test, skipped under either fault build");
+#else
+    const double cost[4] = {2.0, 3.0, 4.0, 0.0};
+    const double rl[3] = {10.0, -INFINITY, -INFINITY};
+    const double ru[3] = {INFINITY, 4.0, 8.0};
+    const int64_t as[5] = {0, 2, 4, 6, 9};
+    const int64_t ai[9] = {0, 1, 0, 2, 1, 2, 0, 1, 2};
+    double obj[2] = {0.0, 0.0};
+    int64_t iters[2] = {0, 0}, work[2] = {0, 0};
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = pass == 0 ? 1.0 : -1.0;
+        const double cl[4] = {0.0, 0.0, 0.0, pass == 0 ? 0.0 : -6.0};
+        const double cu[4] = {100.0, 100.0, 100.0, pass == 0 ? 6.0 : 0.0};
+        const double av[9] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, z, -z, z};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_load_lp(m, 4, 3, JAOS_MINIMIZE, 0.0,
+                                                    cost, cl, cu, rl, ru,
+                                                    9, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        iters[pass] = jaos_iterations(m);
+        work[pass] = jaos_work_units(m);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 8.0, obj[0]);
+    TEST_ASSERT_TRUE(obj[0] == obj[1]);
+    TEST_ASSERT_EQUAL_INT64(iters[0], iters[1]);
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(work[0], work[1],
+        "a zero-cost column starts at the bound nearer zero, so its mirror "
+        "starts at the mirrored bound and the two take the same path");
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -3744,5 +3781,6 @@ int main(void)
     RUN_TEST(test_devex_and_dantzig_pricing_reach_the_same_optimum);
     RUN_TEST(test_an_objective_that_overflows_is_not_an_optimum);
     RUN_TEST(test_a_row_activity_that_overflows_is_not_an_optimum);
+    RUN_TEST(test_a_mirrored_column_starts_at_the_mirrored_bound);
     return UNITY_END();
 }

@@ -90,7 +90,7 @@ stocfor2     overrun   dual=1618/11987155 pdlp=3108+0/119882597 verdict=optimal/
 stocfor3     overrun   dual=12977/430668173 pdlp=13952+353/4306688415 verdict=optimal/work limit reached obj=-39976.783943649592/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 truss        ok        dual=17667/1116104628 pdlp=29568+17667/4745084993 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/pdlp:ok 
 tuff         overrun   dual=177/705787 pdlp=545+0/7063560 verdict=optimal/work limit reached obj=0.29214776509361279/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-vtp-base     overrun   dual=46/41312 pdlp=299+0/414247 verdict=optimal/work limit reached obj=129831.46246136137/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+vtp-base     overrun   dual=45/39552 pdlp=286+0/396723 verdict=optimal/work limit reached obj=129831.46246136137/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 wood1p       overrun   dual=573/42858792 pdlp=3925+0/428606204 verdict=optimal/work limit reached obj=1.4429024115734093/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 woodw        overrun   dual=1186/38855518 pdlp=5047+0/388579572 verdict=optimal/work limit reached obj=1.3044763330842295/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 

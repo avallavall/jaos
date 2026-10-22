@@ -641,6 +641,17 @@ static void pr_turn(sx *s, int64_t v, bool basic)
                 (m->a_start[v + 1] - m->a_start[v]) * JM_WORK_NONZERO);
 }
 
+static jm_var_status bound_status(const sx *s, int64_t v)
+{
+    const bool has_lo = isfinite(s->lo[v]);
+    const bool has_up = isfinite(s->up[v]);
+    if (has_lo && has_up)
+        return fabs(s->up[v]) < fabs(s->lo[v]) ? JM_AT_UPPER : JM_AT_LOWER;
+    if (has_lo)
+        return JM_AT_LOWER;
+    return has_up ? JM_AT_UPPER : JM_FREE;
+}
+
 static void build_initial_basis(sx *s)
 {
     s->pviol_ok = false;
@@ -662,12 +673,10 @@ static void build_initial_basis(sx *s)
         if (s->no_loans) {
             if (s->cost[j] < 0.0 && has_up)
                 s->status[j] = JM_AT_UPPER;
-            else if (has_lo)
+            else if (s->cost[j] > 0.0 && has_lo)
                 s->status[j] = JM_AT_LOWER;
-            else if (has_up)
-                s->status[j] = JM_AT_UPPER;
             else
-                s->status[j] = JM_FREE;
+                s->status[j] = bound_status(s, j);
         } else if (s->cost[j] > 0.0) {
             if (!has_lo) {
                 s->lo[j] = -ARTIFICIAL_BOUND;
@@ -680,12 +689,8 @@ static void build_initial_basis(sx *s)
                 s->fake[j] = FAKE_UP;
             }
             s->status[j] = JM_AT_UPPER;
-        } else if (has_lo) {
-            s->status[j] = JM_AT_LOWER;
-        } else if (has_up) {
-            s->status[j] = JM_AT_UPPER;
         } else {
-            s->status[j] = JM_FREE;
+            s->status[j] = bound_status(s, j);
         }
     }
 

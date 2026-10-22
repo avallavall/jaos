@@ -90,17 +90,17 @@ stocfor2     ok        dual=1618/11987155 primal=1926/53850664 split=p1:1282/p2:
 stocfor3     ok        dual=12977/430668173 primal=15580/3142213832 split=p1:10469/p2:5111/dual:0 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/primal:ok 
 truss        ok        dual=17667/1116104628 primal=5742/514293816 split=p1:2357/p2:3385/dual:0 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/primal:ok 
 tuff         ok        dual=177/705787 primal=176/2496131 split=p1:151/p2:25/dual:0 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361284 checker=dual:ok/primal:ok 
-vtp-base     ok        dual=46/41312 primal=89/162161 split=p1:75/p2:14/dual:0 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/primal:ok 
+vtp-base     ok        dual=45/39552 primal=72/157635 split=p1:65/p2:7/dual:0 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/primal:ok 
 wood1p       ok        dual=573/42858792 primal=621/122314858 split=p1:415/p2:206/dual:0 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734093 checker=dual:ok/primal:ok 
 woodw        ok        dual=1186/38855518 primal=1346/64207783 split=p1:604/p2:742/dual:0 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/primal:ok 
 
 -- primal against dual --
 measured 88, skipped 0, unreached 0, unbounded? 0, overrun 6, disagreed 0, rejected 0, errors 0
-iterations by method: phase 1 111435 (40.2%), phase 2 154252 (55.6%), dual re-entry 11671 (4.2%)
+iterations by method: phase 1 111425 (40.2%), phase 2 154245 (55.6%), dual re-entry 11671 (4.2%)
   that is a sum over the set (D46): dfl001 carries 38.3% of it and pilot87 9.8%. Median per-instance phase-1 share 64.9% over 94 instance(s).
   6 of 94 did not finish inside 10x the dual's work; they are listed in TODO.md, each with what makes it slow.
-iterations (primal+1)/(dual+1), geometric mean: 1.1864
-work units primal/dual, geometric mean:         2.6632
+iterations (primal+1)/(dual+1), geometric mean: 1.1838
+work units primal/dual, geometric mean:         2.6637
 work ratio, best  grow7 at 0.2519
 work ratio, worst maros-r7 at 9.5902
 took more iterations primal than dual:          61 of 88

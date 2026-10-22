@@ -90,14 +90,14 @@ stocfor2     ok        branch=x5<=16 warm=1/178139 cold=1593/11363917 verdict=op
 stocfor3     ok        branch=x5<=18 warm=2/1406909 cold=13351/430830196 verdict=optimal obj=-39974.713358389534/-39974.713358389534 before=-39976.783943649592 moved=yes checker=warm:ok/cold:ok 
 truss        ok        branch=x2<=29 warm=2/262888 cold=15866/994821617 verdict=optimal obj=458816.81146059383/458816.81146059383 before=458815.84718561673 moved=yes checker=warm:ok/cold:ok 
 tuff         ok        branch=x10<=15 warm=1/51420 cold=178/712778 verdict=optimal obj=0.29214776509361284/0.29214776509361279 before=0.29214776509361279 moved=yes checker=warm:ok/cold:ok 
-vtp-base     ok        branch=x0<=102730 warm=1/11874 cold=51/64814 verdict=optimal obj=129831.67323971359/129831.67323971361 before=129831.46246136137 moved=yes checker=warm:ok/cold:ok 
+vtp-base     ok        branch=x0<=102730 warm=1/11874 cold=49/60636 verdict=optimal obj=129831.67323971359/129831.67323971361 before=129831.46246136137 moved=yes checker=warm:ok/cold:ok 
 wood1p       ok        branch=x1944<=0 warm=273/41738700 cold=273/14969011 verdict=optimal obj=1.9768685485278927/1.9768685485278927 before=1.4429024115734093 moved=yes checker=warm:ok/cold:ok 
 woodw        ok        branch=x11<=0 warm=1047/32822462 cold=1047/32845625 verdict=optimal obj=1.3088124471865625/1.3088124471865625 before=1.3044763330842295 moved=yes checker=warm:ok/cold:ok 
 
 -- warm against cold --
 measured 92, skipped 2, disagreed 0, rejected 0, errors 0
 iterations (warm+1)/(cold+1), geometric mean: 0.0130
-work units warm/cold, geometric mean:         0.0535
+work units warm/cold, geometric mean:         0.0536
 work ratio, best  truss at 0.0003
 work ratio, worst wood1p at 2.7883
 reached the optimum in no iterations at all:  5 of 92

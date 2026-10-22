@@ -90,14 +90,14 @@ stocfor2     ok        dual=1618/11987155 barrier=18+525/62462792 verdict=optima
 stocfor3     ok        dual=12977/430668173 barrier=200+12977/2909280172 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/barrier:ok 
 truss        ok        dual=17667/1116104628 barrier=17+303/348575605 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/barrier:ok 
 tuff         ok        dual=177/705787 barrier=13+19/6883494 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361284 checker=dual:ok/barrier:ok 
-vtp-base     ok        dual=46/41312 barrier=16+1/301236 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/barrier:ok 
+vtp-base     ok        dual=45/39552 barrier=16+1/301236 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/barrier:ok 
 wood1p       ok        dual=573/42858792 barrier=25+416/138950621 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734097 checker=dual:ok/barrier:ok 
 woodw        ok        dual=1186/38855518 barrier=30+1790/205531220 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/barrier:ok 
 
 -- barrier against dual --
 agreed 80 (checker accepts 80, interior 0), skipped 0, overrun 14, failed 0, disagreed 0, rejected 0, errors 0
-work units barrier/dual, geometric mean:        3.2861
-iterations (barrier+1)/(dual+1), geometric mean: 0.2567
+work units barrier/dual, geometric mean:        3.2879
+iterations (barrier+1)/(dual+1), geometric mean: 0.2568
 work ratio, best  truss at 0.3123
 work ratio, worst tuff at 9.7529
 most barrier iterations: pilot87 at 23064

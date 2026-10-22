@@ -90,7 +90,7 @@ stocfor2     ok        dual=1618/11987155 concurrent=0+1618/11987155 verdict=opt
 stocfor3     ok        dual=12977/430668173 concurrent=0+12977/705909523 verdict=optimal/optimal obj=-39976.783943649592/-39976.783943649592 checker=dual:ok/concurrent:ok 
 truss        ok        dual=17667/1116104628 concurrent=0+5742/1900919860 verdict=optimal/optimal obj=458815.84718561673/458815.84718561673 checker=dual:ok/concurrent:ok 
 tuff         ok        dual=177/705787 concurrent=0+177/705787 verdict=optimal/optimal obj=0.29214776509361279/0.29214776509361279 checker=dual:ok/concurrent:ok 
-vtp-base     ok        dual=46/41312 concurrent=0+46/41312 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/concurrent:ok 
+vtp-base     ok        dual=45/39552 concurrent=0+45/39552 verdict=optimal/optimal obj=129831.46246136137/129831.46246136137 checker=dual:ok/concurrent:ok 
 wood1p       ok        dual=573/42858792 concurrent=0+573/42858792 verdict=optimal/optimal obj=1.4429024115734093/1.4429024115734093 checker=dual:ok/concurrent:ok 
 woodw        ok        dual=1186/38855518 concurrent=0+1186/38855518 verdict=optimal/optimal obj=1.3044763330842295/1.3044763330842295 checker=dual:ok/concurrent:ok 
 
