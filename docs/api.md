@@ -1683,8 +1683,7 @@ refuses a non-convex quadratic objective or quadratic row, and a quadratic
 row with two finite bounds. It refuses a quadratic objective, a cone or a
 quadratic row under the primal simplex, PDLP or the concurrent solve. It
 refuses a model with cones or quadratic rows and integer structure when
-that model also has SOS sets, semi-continuous columns, indicator rows or a
-node callback.
+that model also has a node callback.
 It returns `JAOS_ERR_OUT_OF_MEMORY` when memory runs out, and
 `JAOS_ERR_NUMERICAL` when a method fails in a way it cannot record as an
 outcome.
