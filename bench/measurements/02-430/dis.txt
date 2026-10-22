@@ -1,0 +1,153 @@
+== seed 1
+models 1000
+with a cone or a quadratic row 841
+with a semi-continuous column 431
+with an SOS set 344
+with an indicator row 279
+optimal 629
+infeasible 115
+unbounded 256
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.460e-11
+worst violation 1.092e-14
+nodes 2433
+work units 427939227
+brute force solves 9871
+failed models 0
+digest a6d5b1d17e016a51
+== seed 2
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00240: brute force unsure
+UNSURE status numerical error /home/vall/uns/s1.mps: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 5.81e-32, rows by 0, 0 of their traffic, cones by 0, duals by 0.002)
+m00620: brute force unsure
+models 1000
+with a cone or a quadratic row 841
+with a semi-continuous column 433
+with an SOS set 343
+with an indicator row 260
+optimal 642
+infeasible 120
+unbounded 236
+brute force unsure 2
+tree numerical errors 0
+worst objective gap 1.696e-16
+worst violation 2.061e-16
+nodes 2507
+work units 433466075
+brute force solves 9726
+failed models 0
+digest 87de5e4ce9d54e43
+== seed 3
+models 1000
+with a cone or a quadratic row 828
+with a semi-continuous column 421
+with an SOS set 333
+with an indicator row 282
+optimal 659
+infeasible 115
+unbounded 226
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 6.699e-13
+worst violation 2.518e-13
+nodes 2362
+work units 389184140
+brute force solves 9396
+failed models 0
+digest 8c7230dfa24fbd50
+== seed 4
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+UNSURE status numerical error /home/vall/uns/s1.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00403: brute force unsure
+models 1000
+with a cone or a quadratic row 846
+with a semi-continuous column 429
+with an SOS set 336
+with an indicator row 292
+optimal 604
+infeasible 126
+unbounded 269
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.570e-11
+worst violation 2.113e-16
+nodes 2442
+work units 419498449
+brute force solves 9915
+failed models 0
+digest 8353eaa44b8da0f7
+== seed 30
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00288: brute force unsure
+models 1000
+with a cone or a quadratic row 858
+with a semi-continuous column 456
+with an SOS set 326
+with an indicator row 261
+optimal 625
+infeasible 123
+unbounded 251
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 1.736e-16
+worst violation 2.717e-16
+nodes 2437
+work units 413722102
+brute force solves 9443
+failed models 0
+digest 3739c9f4dcb06866
+== seed 31
+models 1000
+with a cone or a quadratic row 853
+with a semi-continuous column 416
+with an SOS set 322
+with an indicator row 274
+optimal 629
+infeasible 130
+unbounded 241
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.595e-16
+worst violation 2.220e-16
+nodes 2461
+work units 413755901
+brute force solves 9645
+failed models 0
+digest 1f724e074491ba4c
+== seed 32
+models 1000
+with a cone or a quadratic row 852
+with a semi-continuous column 442
+with an SOS set 341
+with an indicator row 302
+optimal 638
+infeasible 128
+unbounded 234
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.351e-16
+worst violation 6.389e-16
+nodes 2462
+work units 423000185
+brute force solves 9556
+failed models 0
+digest 493f767560aae792
+== seed 33
+models 1000
+with a cone or a quadratic row 865
+with a semi-continuous column 435
+with an SOS set 326
+with an indicator row 292
+optimal 621
+infeasible 126
+unbounded 253
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 6.037e-15
+worst violation 4.564e-15
+nodes 2457
+work units 418292790
+brute force solves 9456
+failed models 0
+digest 6a11945e23b28a1f

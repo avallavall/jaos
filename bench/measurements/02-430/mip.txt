@@ -1,0 +1,115 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.150e-16
+nodes 2407
+work units 382568240
+brute force solves 16252
+failed models 0
+digest 24106d1e3a9fc356
+== seed 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2383
+work units 391562489
+brute force solves 15642
+failed models 0
+digest 4782d66901e719b3
+== seed 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.216e-16
+nodes 2456
+work units 394824213
+brute force solves 15730
+failed models 0
+digest 8315d08b9891f267
+== seed 4
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 7.57e-07, 3.62e-07 of their traffic, cones by 0, duals by 4.56)
+UNSURE status numerical error /home/vall/uns/s1.mps: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 1.42e-08, 2.27e-09 of their traffic, cones by 4.3e-12, duals by 0.0478)
+m00533: brute force unsure
+models 1000
+optimal 587
+infeasible 200
+unbounded 212
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.865e-16
+worst violation 2.893e-16
+nodes 2430
+work units 393078483
+brute force solves 16932
+failed models 0
+digest ac147bc1ab70f067
+== seed 30
+models 1000
+optimal 580
+infeasible 200
+unbounded 220
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 5.102e-15
+worst violation 3.961e-15
+nodes 2365
+work units 377471741
+brute force solves 17102
+failed models 0
+digest e74159e5781455ce
+== seed 31
+models 1000
+optimal 585
+infeasible 200
+unbounded 215
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.511e-16
+worst violation 2.779e-16
+nodes 2369
+work units 389166895
+brute force solves 16072
+failed models 0
+digest f00506d6379b6e4e
+== seed 32
+models 1000
+optimal 580
+infeasible 200
+unbounded 220
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.847e-16
+worst violation 2.220e-16
+nodes 2279
+work units 359414090
+brute force solves 15678
+failed models 0
+digest 05435e0ce3e929f1
+== seed 33
+models 1000
+optimal 568
+infeasible 200
+unbounded 232
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.902e-15
+worst violation 1.086e-14
+nodes 2258
+work units 367638785
+brute force solves 16772
+failed models 0
+digest ae9b93be9b3b44fe
