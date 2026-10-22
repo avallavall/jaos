@@ -1,0 +1,224 @@
+== seed 30
+models 1000
+optimal 580
+infeasible 200
+unbounded 220
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 5.102e-15
+worst violation 3.961e-15
+nodes 2352
+work units 375453353
+brute force solves 17102
+failed models 0
+digest e74159e5781455ce
+== seed 31
+models 1000
+optimal 585
+infeasible 200
+unbounded 215
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.511e-16
+worst violation 2.779e-16
+nodes 2364
+work units 388963886
+brute force solves 16072
+failed models 0
+digest f00506d6379b6e4e
+== seed 32
+models 1000
+optimal 580
+infeasible 200
+unbounded 220
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.847e-16
+worst violation 2.220e-16
+nodes 2272
+work units 359473693
+brute force solves 15678
+failed models 0
+digest 05435e0ce3e929f1
+== seed 33
+models 1000
+optimal 568
+infeasible 200
+unbounded 232
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.902e-15
+worst violation 1.086e-14
+nodes 2242
+work units 365206607
+brute force solves 16772
+failed models 0
+digest ae9b93be9b3b44fe
+== seed 34
+models 1000
+optimal 578
+infeasible 200
+unbounded 222
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.003e-16
+worst violation 2.961e-16
+nodes 2291
+work units 383254742
+brute force solves 15798
+failed models 0
+digest a9da53c82d5dc713
+== seed 35
+models 1000
+optimal 595
+infeasible 200
+unbounded 205
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 7.167e-16
+worst violation 6.860e-15
+nodes 2440
+work units 394127718
+brute force solves 17138
+failed models 0
+digest 3562e612c8763e58
+== seed 36
+models 1000
+optimal 586
+infeasible 200
+unbounded 214
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.622e-16
+worst violation 2.220e-16
+nodes 2351
+work units 395047528
+brute force solves 16990
+failed models 0
+digest 7233a1c5af3ff0ca
+== seed 37
+models 1000
+optimal 590
+infeasible 200
+unbounded 210
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 4.157e-15
+worst violation 4.016e-15
+nodes 2357
+work units 380462585
+brute force solves 16502
+failed models 0
+digest 81ba3a6b7e616b21
+== seed 38
+models 1000
+optimal 580
+infeasible 200
+unbounded 220
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.720e-16
+worst violation 2.154e-16
+nodes 2370
+work units 380280466
+brute force solves 17106
+failed models 0
+digest 9cdbdd01b417c64a
+== seed 39
+models 1000
+optimal 578
+infeasible 200
+unbounded 222
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.067e-16
+worst violation 2.220e-16
+nodes 2297
+work units 380055466
+brute force solves 14952
+failed models 0
+digest c1044a2ee9623828
+== seed 40
+models 1000
+optimal 571
+infeasible 200
+unbounded 229
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 5.656e-16
+worst violation 9.714e-16
+nodes 2349
+work units 389040198
+brute force solves 16292
+failed models 0
+digest 814f07d00dfa6429
+== seed 41
+models 1000
+optimal 591
+infeasible 200
+unbounded 209
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.660e-16
+worst violation 9.714e-16
+nodes 2304
+work units 375256702
+brute force solves 15964
+failed models 0
+digest 620960c23970264a
+== seed 42
+models 1000
+optimal 581
+infeasible 200
+unbounded 219
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.858e-16
+worst violation 4.239e-16
+nodes 2348
+work units 390320937
+brute force solves 17010
+failed models 0
+digest 40623ab0c41ffed0
+== seed 43
+models 1000
+optimal 573
+infeasible 200
+unbounded 227
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.920e-16
+worst violation 3.229e-16
+nodes 2346
+work units 387056804
+brute force solves 16842
+failed models 0
+digest 326df0e79a7c7c92
+== seed 44
+models 1000
+optimal 566
+infeasible 200
+unbounded 234
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.787e-16
+worst violation 2.540e-16
+nodes 2273
+work units 369499983
+brute force solves 16428
+failed models 0
+digest 145f1001990776b8
+== seed 45
+models 1000
+optimal 585
+infeasible 200
+unbounded 215
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.021e-16
+worst violation 2.316e-16
+nodes 2305
+work units 376708352
+brute force solves 15560
+failed models 0
+digest 4210c1c4d015e16e

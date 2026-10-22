@@ -1,0 +1,290 @@
+== seed 30
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00288: brute force unsure
+models 1000
+with a cone or a quadratic row 858
+with a semi-continuous column 456
+with an SOS set 326
+with an indicator row 261
+optimal 625
+infeasible 123
+unbounded 251
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 1.736e-16
+worst violation 2.717e-16
+nodes 2378
+work units 397876031
+brute force solves 9443
+failed models 0
+digest 3739c9f4dcb06866
+== seed 31
+models 1000
+with a cone or a quadratic row 853
+with a semi-continuous column 416
+with an SOS set 322
+with an indicator row 274
+optimal 629
+infeasible 130
+unbounded 241
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.595e-16
+worst violation 2.220e-16
+nodes 2415
+work units 400029582
+brute force solves 9645
+failed models 0
+digest 1f724e074491ba4c
+== seed 32
+models 1000
+with a cone or a quadratic row 852
+with a semi-continuous column 442
+with an SOS set 341
+with an indicator row 302
+optimal 638
+infeasible 128
+unbounded 234
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.351e-16
+worst violation 6.389e-16
+nodes 2437
+work units 411227974
+brute force solves 9556
+failed models 0
+digest c55f9ceecd19b1f9
+== seed 33
+models 1000
+with a cone or a quadratic row 865
+with a semi-continuous column 435
+with an SOS set 326
+with an indicator row 292
+optimal 621
+infeasible 126
+unbounded 253
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 6.037e-15
+worst violation 4.564e-15
+nodes 2403
+work units 400088315
+brute force solves 9456
+failed models 0
+digest 6a11945e23b28a1f
+== seed 34
+models 1000
+with a cone or a quadratic row 829
+with a semi-continuous column 447
+with an SOS set 343
+with an indicator row 272
+optimal 606
+infeasible 128
+unbounded 266
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.769e-16
+worst violation 2.566e-15
+nodes 2437
+work units 401807089
+brute force solves 9547
+failed models 0
+digest 27f49186e9c57be1
+== seed 35
+models 1000
+with a cone or a quadratic row 844
+with a semi-continuous column 454
+with an SOS set 343
+with an indicator row 267
+optimal 629
+infeasible 124
+unbounded 247
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.998e-12
+worst violation 1.329e-15
+nodes 2383
+work units 398131337
+brute force solves 10583
+failed models 0
+digest 46d2f59c2eaadbbb
+== seed 36
+models 1000
+with a cone or a quadratic row 825
+with a semi-continuous column 441
+with an SOS set 383
+with an indicator row 294
+optimal 578
+infeasible 128
+unbounded 294
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 4.332e-16
+worst violation 1.887e-15
+nodes 2489
+work units 393336415
+brute force solves 9997
+failed models 0
+digest 2f1042435beb2564
+== seed 37
+models 1000
+with a cone or a quadratic row 832
+with a semi-continuous column 443
+with an SOS set 343
+with an indicator row 255
+optimal 633
+infeasible 117
+unbounded 250
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 3.172e-16
+worst violation 2.841e-16
+nodes 2459
+work units 397703419
+brute force solves 9989
+failed models 0
+digest 69c99d8ba995f208
+== seed 38
+models 1000
+with a cone or a quadratic row 836
+with a semi-continuous column 433
+with an SOS set 337
+with an indicator row 296
+optimal 615
+infeasible 117
+unbounded 268
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 5.082e-12
+worst violation 2.475e-16
+nodes 2485
+work units 399422728
+brute force solves 10023
+failed models 0
+digest b690621e91f495d9
+== seed 39
+models 1000
+with a cone or a quadratic row 867
+with a semi-continuous column 463
+with an SOS set 312
+with an indicator row 304
+optimal 626
+infeasible 130
+unbounded 244
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 4.150e-16
+worst violation 1.667e-15
+nodes 2491
+work units 411119352
+brute force solves 9717
+failed models 0
+digest d5c13376997cea9d
+== seed 40
+models 1000
+with a cone or a quadratic row 839
+with a semi-continuous column 434
+with an SOS set 328
+with an indicator row 272
+optimal 611
+infeasible 127
+unbounded 262
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.590e-16
+worst violation 3.380e-16
+nodes 2450
+work units 401073298
+brute force solves 9786
+failed models 0
+digest 1c7cce39217b7bba
+== seed 41
+models 1000
+with a cone or a quadratic row 828
+with a semi-continuous column 432
+with an SOS set 334
+with an indicator row 284
+optimal 620
+infeasible 121
+unbounded 259
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.557e-16
+worst violation 2.824e-16
+nodes 2493
+work units 405145956
+brute force solves 9472
+failed models 0
+digest 9775db6b7912997c
+== seed 42
+models 1000
+with a cone or a quadratic row 825
+with a semi-continuous column 436
+with an SOS set 343
+with an indicator row 290
+optimal 618
+infeasible 113
+unbounded 269
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 9.941e-13
+worst violation 2.663e-16
+nodes 2321
+work units 386441032
+brute force solves 9906
+failed models 0
+digest 2ca6b8b327f3ab4e
+== seed 43
+models 1000
+with a cone or a quadratic row 851
+with a semi-continuous column 435
+with an SOS set 362
+with an indicator row 275
+optimal 632
+infeasible 123
+unbounded 245
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.158e-15
+worst violation 6.040e-15
+nodes 2510
+work units 428705856
+brute force solves 9038
+failed models 0
+digest 804c7338a08f7e58
+== seed 44
+models 1000
+with a cone or a quadratic row 836
+with a semi-continuous column 426
+with an SOS set 344
+with an indicator row 275
+optimal 623
+infeasible 123
+unbounded 254
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.969e-16
+worst violation 2.585e-16
+nodes 2391
+work units 386891639
+brute force solves 9652
+failed models 0
+digest 3176f6e06429deec
+== seed 45
+models 1000
+with a cone or a quadratic row 847
+with a semi-continuous column 449
+with an SOS set 329
+with an indicator row 286
+optimal 622
+infeasible 127
+unbounded 251
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.826e-16
+worst violation 1.467e-15
+nodes 2376
+work units 403088994
+brute force solves 9598
+failed models 0
+digest 93840b0a9a8f1eeb
