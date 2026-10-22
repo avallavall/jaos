@@ -197,9 +197,11 @@ rows.** With columns mirrored (x is -x) and rows negated, 45 of 94 Netlib
 LPs take another path to the same optimum. `pilot` takes 31,170
 iterations against 5,636, 8.5 times the work; `bell5` is still open
 after 171,028 nodes where the model as it is ends at 20,089
-(`bench/measurements/02-440/`). Next: diff the mirrored pair's detailed
-logs on `afiro`, the smallest LP that parts (same iterations, other
-work), to find the rule that reads a sign. Verify with 02-440's
+(`bench/measurements/02-440/`). On `afiro`, the smallest LP that parts,
+the two take the same 16 iterations and the work already differs at
+iteration 0 (4,687 against 4,696), so a step before the first pivot
+reads a sign: scaling, the starting basis or its factorisation. Next:
+count the work of each of those steps on that pair. Verify with 02-440's
 `read.sh`: fewer `path` lines on Netlib, `pilot` under 2e9 both ways.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
