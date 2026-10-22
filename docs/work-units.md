@@ -93,7 +93,11 @@ LP infeasible or unbounded and the certificate or ray it publishes does
 not certify at `PRESOLVE_CERT_TOL`, the model is solved again without
 presolve, under what is left of the work and time limits, and presolve's
 work is added to the answer's. The check itself is not billed, as for
-the QP's verdict on its rows and bounds.
+the QP's verdict on its rows and bounds. Under `jaos_set_exact`, an
+infeasible or unbounded answer from a model that presolve decided,
+reduced or aggregated is solved again the same way with the aggregator
+off as well, so that the exact certificate comes from a basis of the
+model as loaded.
 
 **Restarts inside the dual simplex** keep their work. A warm start that
 reaches no answer restarts cold. A solve whose early cost perturbation is

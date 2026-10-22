@@ -945,6 +945,56 @@ static void test_exact_decimal_solving_reads_a_tenth_as_one_tenth(void)
     jaos_model_free(m);
 }
 
+static void solve_exact_and_prove_infeasible(const char *path)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m),
+                                  jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_INFEASIBLE, pr.kind);
+    jaos_model_free(m);
+}
+
+static void test_an_exact_solve_finds_a_basis_behind_a_presolve_verdict(void)
+{
+    solve_exact_and_prove_infeasible("tests/data/lp_exact_presolve_infeasible.mps");
+}
+
+static void test_an_exact_solve_certifies_an_infeasible_reduced_model(void)
+{
+    solve_exact_and_prove_infeasible("tests/data/lp_exact_reduced_infeasible.mps");
+}
+
+static void test_an_exact_ray_takes_back_its_column_scale(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/lp_exact_scaled_ray.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_exact(m, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m),
+                                  jaos_model_error(m));
+    const char *v = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_direction(m, 1, &v));
+    TEST_ASSERT_EQUAL_STRING("2", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_exact_col_direction(m, 12, &v));
+    TEST_ASSERT_EQUAL_STRING("1", v);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_proof(m, TMP_PROOF));
+    jaos_proof_report pr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_proof(m, TMP_PROOF, &pr));
+    TEST_ASSERT_TRUE(pr.certified);
+    TEST_ASSERT_EQUAL_INT(JAOS_PROOF_FILE_UNBOUNDED, pr.kind);
+    jaos_model_free(m);
+}
+
 static jaos_model *model_thirds(void)
 {
     jaos_model *m = nullptr;
@@ -1492,6 +1542,9 @@ int main(void)
     RUN_TEST(test_a_proved_basis_gives_its_values_exactly);
     RUN_TEST(test_a_double_reads_as_its_shortest_decimal);
     RUN_TEST(test_exact_decimal_solving_reads_a_tenth_as_one_tenth);
+    RUN_TEST(test_an_exact_solve_finds_a_basis_behind_a_presolve_verdict);
+    RUN_TEST(test_an_exact_solve_certifies_an_infeasible_reduced_model);
+    RUN_TEST(test_an_exact_ray_takes_back_its_column_scale);
     RUN_TEST(test_a_proof_file_round_trips_and_is_checked_exactly);
     RUN_TEST(test_the_proof_checker_rejects_what_is_not_optimal);
     RUN_TEST(test_a_written_proof_is_one_its_own_checker_takes);

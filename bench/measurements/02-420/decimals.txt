@@ -1,0 +1,17 @@
+== seed 1
+models 1000 (optimal 526 infeasible 449 unbounded 25) binary exact with another status 7 (infeasible 7, numerical_error 0)
+P1=0 P2=0 P3=0 P4=0
+broken total 0
+== seed 2
+P0 m224 binary exact: exact solving: the exact certificate derived from the basis does not prove the model infeasible
+P0 m295 binary exact: exact solving: the exact certificate derived from the basis does not prove the model infeasible
+P0 m525 binary exact: exact solving: the exact certificate derived from the basis does not prove the model infeasible
+models 1000 (optimal 524 infeasible 459 unbounded 17) binary exact with another status 14 (infeasible 11, numerical_error 3)
+P1=0 P2=0 P3=0 P4=0
+broken total 0
+== seed 3
+P0 m774 binary exact: exact solving: the exact certificate derived from the basis does not prove the model infeasible
+P0 m887 binary exact: exact solving: the exact ray derived from the basis does not prove the model unbounded
+models 1000 (optimal 540 infeasible 436 unbounded 24) binary exact with another status 11 (infeasible 9, numerical_error 2)
+P1=0 P2=0 P3=0 P4=0
+broken total 0

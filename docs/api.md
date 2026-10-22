@@ -2106,7 +2106,10 @@ rationals. When a dual step finds no entering column, the model as loaded
 is infeasible: the status becomes `JAOS_SOLVE_INFEASIBLE` and
 `jaos_exact_certificate` holds the exact multipliers. An answer that
 ends infeasible or unbounded in floating point takes the exact
-certificate or direction instead. Anything that cannot be proved ends
+certificate or direction instead. It comes from a basis of the model as
+loaded: when presolve decided, reduced or aggregated the model, it is
+solved again with both off. The certificate or direction is judged by the
+proof file's exact test before the answer stands. Anything that cannot be proved ends
 `JAOS_SOLVE_NUMERICAL_ERROR` with the reason in `jaos_model_error`: a
 number past the limb budget, or `EXACT_PIVOT_CAP` (1000) exact pivots.
 The model's data are its doubles: an MPS value such as 0.1 is the double

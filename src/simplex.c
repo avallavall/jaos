@@ -5092,7 +5092,8 @@ static bool presolve_answer_certified(jaos_model *m)
 }
 
 static jaos_status solve_without_presolve(jaos_model *m, double t0,
-                                          int64_t units, int64_t iters)
+                                          int64_t units, int64_t iters,
+                                          bool for_basis)
 {
     const jm_config saved = m->cfg;
     if (saved.work_limit > 0) {
@@ -5107,13 +5108,23 @@ static jaos_status solve_without_presolve(jaos_model *m, double t0,
         m->cfg.time_limit = left;
     }
     const bool infeasible = m->solve_status == JAOS_SOLVE_INFEASIBLE;
-    jm_log(m, JAOS_LOG_SUMMARY,
-           "presolve called the model %s, but its %s does not certify it; "
-           "the simplex decides without presolve",
-           infeasible ? "infeasible" : "unbounded",
-           infeasible ? "certificate" : "ray");
+    if (for_basis)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "the model is %s, and the exact %s comes from a basis of the "
+               "model as loaded; the simplex decides again without presolve "
+               "or the aggregator",
+               infeasible ? "infeasible" : "unbounded",
+               infeasible ? "certificate" : "ray");
+    else
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "presolve called the model %s, but its %s does not certify "
+               "it; the simplex decides without presolve",
+               infeasible ? "infeasible" : "unbounded",
+               infeasible ? "certificate" : "ray");
     m->err[0] = '\0';
     m->cfg.no_presolve = true;
+    if (for_basis)
+        m->cfg.no_aggregate = true;
     bool aggregated = false, by_presolve = false;
     int64_t units2 = 0, iters2 = 0;
     const jaos_status st = dual_simplex_once(m, &aggregated, &by_presolve,
@@ -5136,7 +5147,14 @@ jaos_status jm_dual_simplex(jaos_model *m)
     jaos_status st = dual_simplex_once(m, &aggregated, &by_presolve, &units,
                                        &iters);
     if (st == JAOS_OK && by_presolve && !presolve_answer_certified(m))
-        return solve_without_presolve(m, t0, units, iters);
+        return solve_without_presolve(m, t0, units, iters, false);
+    const bool reduced = by_presolve || aggregated ||
+                         m->presolve_num_row != m->num_row ||
+                         m->presolve_num_col != m->num_col;
+    if (st == JAOS_OK && m->cfg.exact && !m->cfg.node_solve && reduced &&
+        (m->solve_status == JAOS_SOLVE_INFEASIBLE ||
+         m->solve_status == JAOS_SOLVE_UNBOUNDED))
+        return solve_without_presolve(m, t0, units, iters, true);
     const bool failed = st == JAOS_ERR_NUMERICAL ||
                         (st == JAOS_OK &&
                          m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR);

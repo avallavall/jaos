@@ -1704,18 +1704,26 @@ jaos_status jm_exact_finish(jaos_model *m)
 {
     if (m->solve_status == JAOS_SOLVE_INFEASIBLE) {
         jaos_exact_ray_report r;
+        bool holds = false;
         if (jaos_exact_certificate(m, &r) != JAOS_OK || !r.derived)
             return exact_fail(m, "no exact certificate of infeasibility "
                                  "came from the ray the solve published");
+        if (jm_exact_judge(m, &holds) != JAOS_OK || !holds)
+            return exact_fail(m, "the exact certificate derived from the "
+                                 "basis does not prove the model infeasible");
         jm_log(m, JAOS_LOG_SUMMARY, "exact: infeasibility proved over the "
                "rationals");
         return JAOS_OK;
     }
     if (m->solve_status == JAOS_SOLVE_UNBOUNDED) {
         jaos_exact_ray_report r;
+        bool holds = false;
         if (jaos_exact_unbounded_ray(m, &r) != JAOS_OK || !r.derived)
             return exact_fail(m, "no exact unbounded ray came from the one "
                                  "the solve published");
+        if (jm_exact_judge(m, &holds) != JAOS_OK || !holds)
+            return exact_fail(m, "the exact ray derived from the basis does "
+                                 "not prove the model unbounded");
         jm_log(m, JAOS_LOG_SUMMARY, "exact: unboundedness proved over the "
                "rationals");
         return JAOS_OK;
@@ -2365,6 +2373,9 @@ jaos_status jaos_exact_unbounded_ray(jaos_model *m, jaos_exact_ray_report *out)
         if ((int64_t)V.held > rep.bytes_held)
             rep.bytes_held = (int64_t)V.held;
     }
+    for (int64_t i = 0; i < b.n; i++)
+        if (!rat_scale2(&xs[i], -b.cshift[mr[i]]))
+            goto done;
 
     m->exact_uray = jm_calloc_array(m->num_col, sizeof(char *));
     if (m->exact_uray == nullptr)
