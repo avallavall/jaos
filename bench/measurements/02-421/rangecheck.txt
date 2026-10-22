@@ -1,0 +1,13 @@
+== seed 1
+models 1000 optimal 550 ranging refused 0 intervals probed 7089
+P1=0 P2=0
+broken total 0
+== seed 2
+models 1000 optimal 551 ranging refused 0 intervals probed 7085
+P1=0 P2=0
+broken total 0
+== seed 3
+P1 m426 cost 10 at 4.33672879e+16 in [-21.7777778, 9.76780719e+16] (now 4): numerical error
+models 1000 optimal 538 ranging refused 0 intervals probed 6915
+P1=1 P2=0
+broken total 1
