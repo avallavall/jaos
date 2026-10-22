@@ -1,0 +1,20 @@
+== continuous seed 1
+built=20000 compared=20000 skipped=0 bad=0 optimal=4968 infeasible=13640 unbounded=1327 other=65
+== continuous seed 2
+built=20000 compared=20000 skipped=0 bad=0 optimal=4998 infeasible=13595 unbounded=1315 other=92
+== continuous seed 3
+built=20000 compared=20000 skipped=0 bad=0 optimal=4909 infeasible=13718 unbounded=1299 other=74
+== continuous seed 4
+built=20000 compared=20000 skipped=0 bad=0 optimal=5066 infeasible=13536 unbounded=1336 other=62
+== continuous seed 5
+built=20000 compared=20000 skipped=0 bad=0 optimal=4899 infeasible=13656 unbounded=1354 other=91
+== continuous seed 6
+built=20000 compared=20000 skipped=0 bad=0 optimal=4932 infeasible=13673 unbounded=1324 other=71
+== continuous seed 7
+built=20000 compared=20000 skipped=0 bad=0 optimal=4796 infeasible=13777 unbounded=1355 other=72
+== continuous seed 8
+built=20000 compared=20000 skipped=0 bad=0 optimal=4933 infeasible=13649 unbounded=1345 other=73
+== continuous seed 9
+built=20000 compared=20000 skipped=0 bad=0 optimal=4859 infeasible=13766 unbounded=1310 other=65
+== continuous seed 10
+built=20000 compared=20000 skipped=0 bad=0 optimal=4871 infeasible=13676 unbounded=1380 other=73

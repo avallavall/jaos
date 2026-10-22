@@ -1,0 +1,62 @@
+== mixed seed 1
+STATUS t=6231 a=numerical error b=optimal
+built=20000 compared=19850 skipped=150 bad=1 optimal=4963 infeasible=13290 unbounded=1545 other=52
+== mixed seed 2
+STATUS t=332 a=numerical error b=optimal
+STATUS t=1446 a=numerical error b=optimal
+STATUS t=14745 a=numerical error b=optimal
+STATUS t=17559 a=numerical error b=optimal
+built=20000 compared=19829 skipped=171 bad=4 optimal=4972 infeasible=13254 unbounded=1527 other=76
+== mixed seed 3
+STATUS t=3224 a=numerical error b=optimal
+STATUS t=5792 a=numerical error b=optimal
+STATUS t=18120 a=optimal b=numerical error
+OBJ t=18947 a=-4.0000165546240849 b=4
+STATUS t=19558 a=optimal b=numerical error
+built=20000 compared=19844 skipped=156 bad=5 optimal=4838 infeasible=13441 unbounded=1501 other=64
+== mixed seed 4
+STATUS t=4052 a=numerical error b=optimal
+STATUS t=6838 a=optimal b=numerical error
+STATUS t=16521 a=optimal b=numerical error
+STATUS t=17809 a=optimal b=numerical error
+built=20000 compared=19826 skipped=174 bad=4 optimal=4994 infeasible=13201 unbounded=1563 other=68
+== mixed seed 5
+STATUS t=2650 a=optimal b=numerical error
+STATUS t=5062 a=numerical error b=optimal
+STATUS t=5929 a=optimal b=numerical error
+STATUS t=19213 a=numerical error b=optimal
+built=20000 compared=19820 skipped=180 bad=4 optimal=4926 infeasible=13257 unbounded=1567 other=70
+== mixed seed 6
+STATUS t=991 a=optimal b=numerical error
+STATUS t=1871 a=numerical error b=optimal
+STATUS t=6022 a=optimal b=numerical error
+STATUS t=6593 a=numerical error b=optimal
+STATUS t=8030 a=numerical error b=optimal
+STATUS t=19611 a=numerical error b=optimal
+built=20000 compared=19851 skipped=149 bad=6 optimal=4888 infeasible=13380 unbounded=1514 other=69
+== mixed seed 7
+STATUS t=8981 a=optimal b=numerical error
+STATUS t=13369 a=numerical error b=optimal
+STATUS t=13622 a=numerical error b=optimal
+STATUS t=16404 a=optimal b=numerical error
+STATUS t=18831 a=numerical error b=optimal
+STATUS t=18999 a=numerical error b=optimal
+built=20000 compared=19842 skipped=158 bad=6 optimal=4870 infeasible=13353 unbounded=1562 other=57
+== mixed seed 8
+STATUS t=1879 a=optimal b=numerical error
+STATUS t=7289 a=optimal b=numerical error
+STATUS t=9822 a=optimal b=numerical error
+STATUS t=10273 a=optimal b=numerical error
+STATUS t=17835 a=numerical error b=optimal
+built=20000 compared=19837 skipped=163 bad=5 optimal=4916 infeasible=13331 unbounded=1530 other=60
+== mixed seed 9
+STATUS t=6175 a=numerical error b=optimal
+built=20000 compared=19836 skipped=164 bad=1 optimal=4868 infeasible=13395 unbounded=1509 other=64
+== mixed seed 10
+STATUS t=6315 a=optimal b=numerical error
+STATUS t=7335 a=numerical error b=optimal
+STATUS t=8973 a=numerical error b=optimal
+STATUS t=10841 a=optimal b=numerical error
+STATUS t=16167 a=numerical error b=optimal
+STATUS t=19824 a=numerical error b=optimal
+built=20000 compared=19841 skipped=159 bad=6 optimal=4841 infeasible=13332 unbounded=1611 other=57

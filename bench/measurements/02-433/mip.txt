@@ -1,0 +1,118 @@
+== seed 1
+models 1000
+optimal 582
+infeasible 200
+unbounded 218
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.613e-16
+worst violation 2.150e-16
+nodes 2396
+work units 377538009
+brute force solves 16252
+failed models 0
+digest 24106d1e3a9fc356
+== seed 2
+models 1000
+optimal 599
+infeasible 200
+unbounded 201
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.778e-16
+worst violation 2.220e-16
+nodes 2391
+work units 389017198
+brute force solves 15642
+failed models 0
+digest 4782d66901e719b3
+== seed 3
+models 1000
+optimal 603
+infeasible 200
+unbounded 197
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 2.477e-16
+worst violation 2.216e-16
+nodes 2458
+work units 391801847
+brute force solves 15730
+failed models 0
+digest 8315d08b9891f267
+== seed 4
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 7.57e-07, 3.62e-07 of their traffic, cones by 0, duals by 4.56)
+UNSURE status numerical error /home/vall/uns/s1.mps: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 1.42e-08, 2.27e-09 of their traffic, cones by 4.3e-12, duals by 0.0478)
+m00533: brute force unsure
+models 1000
+optimal 587
+infeasible 200
+unbounded 212
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 2.865e-16
+worst violation 2.893e-16
+nodes 2429
+work units 389540136
+brute force solves 16932
+failed models 0
+digest ac147bc1ab70f067
+== seed 13
+models 1000
+optimal 584
+infeasible 200
+unbounded 216
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 4.199e-16
+worst violation 2.220e-16
+nodes 2340
+work units 375364232
+brute force solves 16400
+failed models 0
+digest eeac8d07f3819fd8
+== seed 16
+m00069: numerical error: the relaxation is unbounded, and the search for an integer point ends as a numerical error: node 36: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+models 1000
+optimal 582
+infeasible 199
+unbounded 218
+brute force unsure 0
+tree numerical errors 1
+worst objective gap 1.695e-15
+worst violation 1.046e-15
+nodes 2343
+work units 386456123
+brute force solves 16804
+failed models 1
+digest af6e2676e5c18db7
+== seed 17
+UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point stalled next to an infeasibility certificate that the certificate checker does not confirm
+m00451: brute force unsure
+models 1000
+optimal 605
+infeasible 200
+unbounded 194
+brute force unsure 1
+tree numerical errors 0
+worst objective gap 7.335e-08
+worst violation 2.565e-16
+nodes 2448
+work units 387245567
+brute force solves 16858
+failed models 0
+digest d4b487853d4f70b1
+== seed 29
+models 1000
+optimal 585
+infeasible 200
+unbounded 215
+brute force unsure 0
+tree numerical errors 0
+worst objective gap 1.728e-16
+worst violation 2.220e-16
+nodes 2287
+work units 379931928
+brute force solves 16618
+failed models 0
+digest 42a28dc188e6c764

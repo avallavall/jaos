@@ -95,9 +95,9 @@ to 35. On the eight with one quadratic row, the row's smallest value
 over the other rows and bounds equals its side, so no point lies
 strictly inside it and finite duals need not exist. Moving each quadratic
 side out by 1e-4 solves all 16 (`bench/measurements/02-427/`). In
-02-431's permutation reading, 168 of 200,000 continuous models end with
-an answer in one order and `numerical_error` in the other, and 37 of
-198,371 mixed ones after 02-432. Of seed 1's first five continuous ones,
+02-431's permutation reading, 155 of 200,000 continuous models end with
+an answer in one order and `numerical_error` in the other, and 22 of
+198,380 mixed ones, after 02-432 and 02-433. Of seed 1's first five continuous ones,
 four have a quadratic row or cone with no point strictly inside, and
 with each side or head moved out by 1e-4 both orders agree. The fifth
 has the dual's form of the same defect: its optimum is a limit that no

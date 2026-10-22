@@ -2161,7 +2161,8 @@ static double cm_sqp_weight(const jaos_model *m, const double *y, int64_t i)
 }
 
 static jaos_status cm_sqp_round(jaos_model *m, jm_work *work, double *x,
-                                double *y, double *qx, bool *solved)
+                                double *y, double *qx, double sigma,
+                                bool *solved)
 {
     const int64_t n = m->num_col, nr = m->num_row;
     *solved = false;
@@ -2186,13 +2187,13 @@ static jaos_status cm_sqp_round(jaos_model *m, jm_work *work, double *x,
         goto out;
     int64_t kh = 0, ka = 0;
     for (int64_t j = 0; j < n; j++) {
-        lin[j] = m->col_cost[j] - CONIC_SQP_PROX * x[j];
+        lin[j] = sigma * m->col_cost[j] - CONIC_SQP_PROX * x[j];
         h[kh++] = (cm_trip){j, j, CONIC_SQP_PROX};
         if (m->col_quad != nullptr && m->col_quad[j] != 0.0)
-            h[kh++] = (cm_trip){j, j, m->col_quad[j]};
+            h[kh++] = (cm_trip){j, j, sigma * m->col_quad[j]};
         for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
              m->q_start != nullptr && p < m->q_start[j + 1]; p++)
-            h[kh++] = (cm_trip){m->q_index[p], j, m->q_value[p]};
+            h[kh++] = (cm_trip){m->q_index[p], j, sigma * m->q_value[p]};
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
             a[ka++] = (cm_trip){m->a_index[p], j, m->a_value[p]};
     }
@@ -2275,18 +2276,18 @@ out:
     return st;
 }
 
-static void cm_sqp_redcost(jaos_model *m)
+static void cm_sqp_redcost(jaos_model *m, const double *y, double sigma)
 {
     const int64_t n = m->num_col;
-    const double *x = m->sol_col, *y = m->sol_dual;
+    const double *x = m->sol_col;
     double *d = m->sol_redcost;
     for (int64_t j = 0; j < n; j++)
-        d[j] = m->col_cost[j] +
-               (m->col_quad != nullptr ? m->col_quad[j] * x[j] : 0.0);
+        d[j] = sigma * m->col_cost[j] +
+               (m->col_quad != nullptr ? sigma * m->col_quad[j] * x[j] : 0.0);
     for (int64_t j = 0; m->q_start != nullptr && j < n; j++)
         for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
-            d[j] += m->q_value[p] * x[m->q_index[p]];
-            d[m->q_index[p]] += m->q_value[p] * x[j];
+            d[j] += sigma * m->q_value[p] * x[m->q_index[p]];
+            d[m->q_index[p]] += sigma * m->q_value[p] * x[j];
         }
     for (int64_t j = 0; j < n; j++)
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
@@ -2298,19 +2299,20 @@ static void cm_sqp_redcost(jaos_model *m)
             if (r != c)
                 d[c] -= y[i] * m->rq_v[p] * x[r];
         }
-    for (int64_t j = 0; j < n; j++)
-        if (d[j] == 0.0)
-            d[j] = 0.0;
+    for (int64_t j = 0; j < n; j++) {
+        const double v = sigma * d[j];
+        d[j] = v == 0.0 ? 0.0 : v;
+    }
 }
 
 static jaos_status cm_sqp(jaos_model *m, jm_work *work, jaos_check_report *ck,
                           bool *refused, const char *from)
 {
     const int64_t n = m->num_col, nr = m->num_row;
-    if (m->rq_nz == 0 || m->num_cone > 0 || m->sense != JAOS_MINIMIZE ||
-        jm_model_has_integer(m) || m->row_ind_col != nullptr ||
-        m->num_sos > 0)
+    if (m->rq_nz == 0 || m->num_cone > 0 || jm_model_has_integer(m) ||
+        m->row_ind_col != nullptr || m->num_sos > 0)
         return JAOS_OK;
+    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     double *x = jm_alloc_array(n > 0 ? n : 1, sizeof *x);
     double *y = jm_alloc_array(nr > 0 ? nr : 1, sizeof *y);
     double *qx = jm_calloc_array(n > 0 ? n : 1, sizeof *qx);
@@ -2324,19 +2326,22 @@ static jaos_status cm_sqp(jaos_model *m, jm_work *work, jaos_check_report *ck,
     memcpy(ky, m->sol_dual, (size_t)nr * sizeof *ky);
     memcpy(kr, m->sol_row, (size_t)nr * sizeof *kr);
     memcpy(x, m->sol_col, (size_t)n * sizeof *x);
-    memcpy(y, m->sol_dual, (size_t)nr * sizeof *y);
+    for (int64_t i = 0; i < nr; i++)
+        y[i] = sigma * m->sol_dual[i];
     st = JAOS_OK;
     int64_t round = 0;
     while (round < CONIC_SQP_ROUNDS && *refused) {
         bool solved = false;
-        st = cm_sqp_round(m, work, x, y, qx, &solved);
+        st = cm_sqp_round(m, work, x, y, qx, sigma, &solved);
         if (st != JAOS_OK || !solved)
             break;
         round++;
         for (int64_t j = 0; j < n; j++)
             m->sol_col[j] = x[j] == 0.0 ? 0.0 : x[j];
-        for (int64_t i = 0; i < nr; i++)
-            m->sol_dual[i] = y[i] == 0.0 ? 0.0 : y[i];
+        for (int64_t i = 0; i < nr; i++) {
+            const double v = sigma * y[i];
+            m->sol_dual[i] = v == 0.0 ? 0.0 : v;
+        }
         cm_row_activity(m);
         *refused = cm_refused(m, ck);
     }
@@ -2352,7 +2357,7 @@ static jaos_status cm_sqp(jaos_model *m, jm_work *work, jaos_check_report *ck,
         memcpy(m->sol_row, kr, (size_t)nr * sizeof *kr);
         *refused = cm_refused(m, ck);
     } else {
-        cm_sqp_redcost(m);
+        cm_sqp_redcost(m, y, sigma);
     }
 out:
     free(x); free(y); free(qx); free(keep);
@@ -4133,7 +4138,7 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             }
             int64_t wrong = 0;
             for (int64_t j = 0; moved && j < n; j++) {
-                const double w = m->sol_redcost[j];
+                const double w = sigma * m->sol_redcost[j];
                 if (loose[j] || w == 0.0 ||
                     m->col_lower[j] == m->col_upper[j])
                     continue;

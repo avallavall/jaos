@@ -1,0 +1,20 @@
+== mixed seed 1
+built=20000 compared=19852 skipped=148 bad=0 optimal=4966 infeasible=13290 unbounded=1545 other=51
+== mixed seed 2
+built=20000 compared=19831 skipped=169 bad=0 optimal=4978 infeasible=13254 unbounded=1527 other=72
+== mixed seed 3
+built=20000 compared=19846 skipped=154 bad=0 optimal=4842 infeasible=13441 unbounded=1501 other=62
+== mixed seed 4
+built=20000 compared=19827 skipped=173 bad=0 optimal=4996 infeasible=13201 unbounded=1563 other=67
+== mixed seed 5
+built=20000 compared=19824 skipped=176 bad=0 optimal=4930 infeasible=13257 unbounded=1567 other=70
+== mixed seed 6
+built=20000 compared=19852 skipped=148 bad=0 optimal=4893 infeasible=13380 unbounded=1514 other=65
+== mixed seed 7
+built=20000 compared=19843 skipped=157 bad=0 optimal=4875 infeasible=13353 unbounded=1562 other=53
+== mixed seed 8
+built=20000 compared=19838 skipped=162 bad=0 optimal=4917 infeasible=13331 unbounded=1530 other=60
+== mixed seed 9
+built=20000 compared=19838 skipped=162 bad=0 optimal=4871 infeasible=13395 unbounded=1509 other=63
+== mixed seed 10
+built=20000 compared=19842 skipped=158 bad=0 optimal=4846 infeasible=13332 unbounded=1611 other=53

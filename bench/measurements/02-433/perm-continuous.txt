@@ -1,0 +1,175 @@
+== continuous seed 1
+STATUS t=25 a=optimal b=numerical error
+STATUS t=1905 a=numerical error b=optimal
+STATUS t=2123 a=numerical error b=optimal
+STATUS t=2939 a=numerical error b=optimal
+STATUS t=3956 a=optimal b=numerical error
+STATUS t=4028 a=numerical error b=optimal
+STATUS t=5589 a=numerical error b=optimal
+STATUS t=6285 a=optimal b=numerical error
+STATUS t=7636 a=optimal b=numerical error
+STATUS t=9388 a=numerical error b=optimal
+STATUS t=9749 a=optimal b=numerical error
+STATUS t=10976 a=optimal b=numerical error
+STATUS t=13745 a=numerical error b=optimal
+STATUS t=14020 a=numerical error b=optimal
+STATUS t=15361 a=optimal b=numerical error
+STATUS t=16958 a=numerical error b=optimal
+STATUS t=19322 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=17 optimal=4968 infeasible=13640 unbounded=1327 other=65
+== continuous seed 2
+STATUS t=701 a=optimal b=numerical error
+STATUS t=1320 a=optimal b=numerical error
+STATUS t=4670 a=numerical error b=optimal
+STATUS t=4850 a=numerical error b=optimal
+STATUS t=6510 a=optimal b=numerical error
+STATUS t=8312 a=optimal b=numerical error
+STATUS t=8453 a=optimal b=numerical error
+STATUS t=8555 a=numerical error b=optimal
+STATUS t=8773 a=numerical error b=optimal
+STATUS t=9005 a=optimal b=numerical error
+STATUS t=12901 a=numerical error b=optimal
+STATUS t=13083 a=optimal b=numerical error
+STATUS t=13869 a=numerical error b=optimal
+STATUS t=15050 a=optimal b=numerical error
+STATUS t=17028 a=optimal b=numerical error
+STATUS t=18069 a=numerical error b=optimal
+STATUS t=18693 a=optimal b=numerical error
+STATUS t=19058 a=numerical error b=optimal
+built=20000 compared=20000 skipped=0 bad=18 optimal=4998 infeasible=13595 unbounded=1315 other=92
+== continuous seed 3
+STATUS t=647 a=optimal b=numerical error
+STATUS t=3290 a=optimal b=numerical error
+STATUS t=3813 a=numerical error b=optimal
+STATUS t=4202 a=optimal b=numerical error
+STATUS t=4224 a=numerical error b=infeasible
+STATUS t=4754 a=optimal b=numerical error
+STATUS t=4941 a=numerical error b=optimal
+STATUS t=5219 a=optimal b=numerical error
+STATUS t=5449 a=optimal b=numerical error
+STATUS t=5565 a=numerical error b=optimal
+STATUS t=5884 a=numerical error b=unbounded
+STATUS t=6070 a=optimal b=numerical error
+STATUS t=7334 a=optimal b=numerical error
+STATUS t=10789 a=optimal b=numerical error
+STATUS t=10868 a=optimal b=numerical error
+STATUS t=11615 a=optimal b=numerical error
+STATUS t=13699 a=numerical error b=optimal
+STATUS t=14001 a=numerical error b=optimal
+STATUS t=16460 a=numerical error b=optimal
+STATUS t=16470 a=optimal b=numerical error
+STATUS t=19451 a=numerical error b=optimal
+STATUS t=19460 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=22 optimal=4909 infeasible=13718 unbounded=1299 other=74
+== continuous seed 4
+STATUS t=3302 a=optimal b=numerical error
+STATUS t=4498 a=optimal b=numerical error
+STATUS t=5409 a=optimal b=numerical error
+STATUS t=6758 a=optimal b=numerical error
+STATUS t=9994 a=optimal b=numerical error
+STATUS t=10304 a=optimal b=numerical error
+STATUS t=11841 a=numerical error b=optimal
+STATUS t=12248 a=numerical error b=optimal
+STATUS t=13522 a=optimal b=numerical error
+STATUS t=13833 a=optimal b=numerical error
+STATUS t=16886 a=numerical error b=optimal
+STATUS t=17173 a=optimal b=numerical error
+STATUS t=18291 a=optimal b=numerical error
+STATUS t=19365 a=optimal b=numerical error
+STATUS t=19862 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=15 optimal=5066 infeasible=13536 unbounded=1336 other=62
+== continuous seed 5
+STATUS t=1094 a=optimal b=numerical error
+STATUS t=1228 a=numerical error b=optimal
+STATUS t=1358 a=optimal b=numerical error
+STATUS t=2312 a=numerical error b=optimal
+STATUS t=2529 a=numerical error b=optimal
+STATUS t=5470 a=numerical error b=optimal
+STATUS t=7147 a=numerical error b=optimal
+STATUS t=7333 a=numerical error b=optimal
+STATUS t=7865 a=numerical error b=optimal
+STATUS t=9172 a=optimal b=numerical error
+STATUS t=10351 a=optimal b=numerical error
+STATUS t=10693 a=numerical error b=optimal
+STATUS t=11148 a=numerical error b=optimal
+STATUS t=12146 a=optimal b=numerical error
+STATUS t=14798 a=optimal b=numerical error
+STATUS t=16033 a=numerical error b=optimal
+STATUS t=17371 a=optimal b=numerical error
+STATUS t=19343 a=numerical error b=optimal
+built=20000 compared=20000 skipped=0 bad=18 optimal=4899 infeasible=13656 unbounded=1354 other=91
+== continuous seed 6
+STATUS t=272 a=numerical error b=optimal
+STATUS t=1020 a=numerical error b=optimal
+STATUS t=3090 a=numerical error b=optimal
+STATUS t=6098 a=optimal b=numerical error
+STATUS t=8030 a=optimal b=numerical error
+STATUS t=11013 a=numerical error b=optimal
+STATUS t=11184 a=infeasible b=numerical error
+STATUS t=11306 a=optimal b=numerical error
+STATUS t=15369 a=optimal b=numerical error
+STATUS t=18805 a=optimal b=numerical error
+STATUS t=19422 a=numerical error b=optimal
+built=20000 compared=20000 skipped=0 bad=11 optimal=4932 infeasible=13673 unbounded=1324 other=71
+== continuous seed 7
+STATUS t=1457 a=optimal b=numerical error
+STATUS t=3044 a=numerical error b=optimal
+STATUS t=4751 a=numerical error b=optimal
+STATUS t=6173 a=optimal b=numerical error
+STATUS t=9173 a=optimal b=numerical error
+STATUS t=10907 a=infeasible b=numerical error
+STATUS t=10966 a=numerical error b=optimal
+STATUS t=11703 a=optimal b=numerical error
+STATUS t=14615 a=numerical error b=optimal
+STATUS t=16971 a=numerical error b=optimal
+STATUS t=17685 a=numerical error b=optimal
+STATUS t=18491 a=optimal b=numerical error
+STATUS t=18592 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=13 optimal=4796 infeasible=13777 unbounded=1355 other=72
+== continuous seed 8
+STATUS t=579 a=optimal b=numerical error
+STATUS t=782 a=numerical error b=optimal
+STATUS t=1879 a=numerical error b=optimal
+STATUS t=5956 a=optimal b=numerical error
+STATUS t=6027 a=optimal b=numerical error
+STATUS t=8395 a=numerical error b=optimal
+STATUS t=8500 a=numerical error b=optimal
+STATUS t=9673 a=numerical error b=optimal
+STATUS t=11682 a=optimal b=numerical error
+STATUS t=11918 a=optimal b=numerical error
+STATUS t=12572 a=optimal b=numerical error
+STATUS t=13223 a=numerical error b=optimal
+STATUS t=13385 a=optimal b=numerical error
+STATUS t=15472 a=numerical error b=optimal
+STATUS t=16261 a=numerical error b=optimal
+STATUS t=17477 a=numerical error b=optimal
+STATUS t=17571 a=numerical error b=optimal
+STATUS t=18175 a=optimal b=numerical error
+STATUS t=18535 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=19 optimal=4933 infeasible=13649 unbounded=1345 other=73
+== continuous seed 9
+STATUS t=3738 a=infeasible b=numerical error
+STATUS t=4559 a=optimal b=numerical error
+STATUS t=6240 a=numerical error b=optimal
+STATUS t=6706 a=numerical error b=optimal
+STATUS t=7057 a=optimal b=numerical error
+STATUS t=12186 a=optimal b=numerical error
+STATUS t=13034 a=optimal b=numerical error
+STATUS t=13293 a=numerical error b=optimal
+STATUS t=15336 a=numerical error b=optimal
+STATUS t=17509 a=numerical error b=optimal
+built=20000 compared=20000 skipped=0 bad=10 optimal=4859 infeasible=13766 unbounded=1310 other=65
+== continuous seed 10
+STATUS t=1018 a=optimal b=numerical error
+STATUS t=1649 a=optimal b=numerical error
+STATUS t=3261 a=optimal b=numerical error
+STATUS t=3340 a=optimal b=numerical error
+STATUS t=3734 a=optimal b=numerical error
+STATUS t=6621 a=optimal b=numerical error
+STATUS t=6661 a=numerical error b=optimal
+STATUS t=7436 a=numerical error b=optimal
+STATUS t=9033 a=numerical error b=optimal
+STATUS t=10895 a=optimal b=numerical error
+STATUS t=19215 a=numerical error b=optimal
+STATUS t=19435 a=optimal b=numerical error
+built=20000 compared=20000 skipped=0 bad=12 optimal=4871 infeasible=13676 unbounded=1380 other=73

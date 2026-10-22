@@ -1386,6 +1386,46 @@ static void test_a_failed_leaf_its_cone_leaves_empty_is_closed(void)
     jaos_model_free(m);
 }
 
+static void test_a_maximisation_ends_where_its_negated_minimisation_does(void)
+{
+    const char *path[2] = {"tests/data/qc_max_polish.mps",
+                           "tests/data/qc_max_sqp.mps"};
+    const double want[2] = {40.000000419175734, 14.000000031784593};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *a = fresh(), *b = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(a, path[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(a, &b));
+        const int64_t n = jaos_num_col(a);
+        TEST_ASSERT_TRUE(n <= 8);
+        for (int64_t j = 0; j < n; j++) {
+            double c = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(a, j, &c));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(b, j, -c));
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_objective_sense(b, JAOS_MINIMIZE));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(a),
+                                      path[k]);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(b),
+                                      path[k]);
+        double oa = 0.0, ob = 0.0, xa[8], xb[8];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, want[k], oa);
+        TEST_ASSERT_TRUE(oa == -ob);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(a, xa, nullptr, nullptr, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(b, xb, nullptr, nullptr, nullptr));
+        for (int64_t j = 0; j < n; j++)
+            TEST_ASSERT_TRUE(xa[j] == xb[j]);
+        jaos_model_free(a);
+        jaos_model_free(b);
+    }
+}
+
 static void test_a_cone_held_flat_leaves_the_direction_solve(void)
 {
     const char *path[2] = {"tests/data/cone_flat_ray.mps",
@@ -1682,6 +1722,7 @@ int main(void)
     RUN_TEST(test_a_rough_node_beside_quadratic_rows_is_bounded);
     RUN_TEST(test_a_rough_leaf_beside_a_semi_continuous_column_is_solved);
     RUN_TEST(test_a_failed_leaf_its_cone_leaves_empty_is_closed);
+    RUN_TEST(test_a_maximisation_ends_where_its_negated_minimisation_does);
     RUN_TEST(test_a_cone_held_flat_leaves_the_direction_solve);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
