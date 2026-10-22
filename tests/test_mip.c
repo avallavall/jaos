@@ -5433,6 +5433,43 @@ static void test_a_node_whose_tableau_cannot_be_read_skips_its_cuts(void)
     jaos_model_free(m);
 }
 
+static void test_a_maximisation_pumps_like_its_negated_minimisation(void)
+{
+    jaos_model *a = fresh(), *b = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(a, "tests/data/miqp_max_pump.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(a, &b));
+    const int64_t n = jaos_num_col(a), nq = jaos_quadratic_nz(a);
+    TEST_ASSERT_TRUE(n <= 8 && nq <= 8);
+    for (int64_t j = 0; j < n; j++) {
+        double c = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_cost(a, j, &c));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_cost(b, j, -c));
+    }
+    int64_t qr[8], qc[8];
+    double qv[8];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_quadratic(a, qr, qc, qv));
+    for (int64_t p = 0; p < nq; p++)
+        qv[p] = -qv[p];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(b, nq, qr, qc, qv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_objective_sense(b, JAOS_MINIMIZE));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(b));
+    double oa = 0.0, ob = 0.0, xa[8], xb[8];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 1.5, oa);
+    TEST_ASSERT_TRUE(oa == -ob);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(a, xa, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(b, xb, nullptr, nullptr, nullptr));
+    for (int64_t j = 0; j < n; j++)
+        TEST_ASSERT_TRUE(xa[j] == xb[j]);
+    jaos_model_free(a);
+    jaos_model_free(b);
+}
+
 static void test_a_node_row_that_cuts_nothing_off_leaves_the_answer(void)
 {
     {
@@ -5646,5 +5683,6 @@ int main(void)
     RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);
     RUN_TEST(test_a_node_whose_tableau_cannot_be_read_skips_its_cuts);
     RUN_TEST(test_a_node_row_that_cuts_nothing_off_leaves_the_answer);
+    RUN_TEST(test_a_maximisation_pumps_like_its_negated_minimisation);
     return UNITY_END();
 }

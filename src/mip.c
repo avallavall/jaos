@@ -4764,6 +4764,26 @@ static inline bool pump_general_col(const jaos_model *m, int64_t j)
            m->col_upper[j] - m->col_lower[j] > 1.0 + MIP_INT_TOL;
 }
 
+static jaos_status pump_negate_quadratic(jaos_model *pv)
+{
+    const int64_t nq = jaos_quadratic_nz(pv);
+    int64_t *r = jm_alloc_array(nq > 0 ? nq : 1, sizeof *r);
+    int64_t *c = jm_alloc_array(nq > 0 ? nq : 1, sizeof *c);
+    double *v = jm_alloc_array(nq > 0 ? nq : 1, sizeof *v);
+    jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+    if (r != nullptr && c != nullptr && v != nullptr)
+        st = jaos_quadratic(pv, r, c, v);
+    if (st == JAOS_OK) {
+        for (int64_t p = 0; p < nq; p++)
+            v[p] = -v[p];
+        st = jaos_set_quadratic(pv, nq, r, c, v);
+    }
+    free(r);
+    free(c);
+    free(v);
+    return st;
+}
+
 static int pump_for_point(const jaos_model *m, const jaos_model *lp,
                           const double *x, int64_t rounds, bool general,
                           double obj_decay, double *out, double *rnd,
@@ -4782,6 +4802,11 @@ static int pump_for_point(const jaos_model *m, const jaos_model *lp,
     if (jaos_set_objective_sense(pv, JAOS_MINIMIZE) != JAOS_OK ||
         jaos_set_objective_offset(pv, 0.0) != JAOS_OK)
         goto out_free;
+    if (m->sense == JAOS_MAXIMIZE && jm_model_has_quadratic(pv) &&
+        pump_negate_quadratic(pv) != JAOS_OK) {
+        rc = -1;
+        goto out_free;
+    }
     if (general) {
         *work += nc;
         for (int64_t j = 0; j < nc; j++)
