@@ -349,6 +349,25 @@ static void test_the_third_push_drops_the_duals_shift(void)
     jaos_model_free(m);
 }
 
+static void test_a_push_release_undone_at_once_frees_one_pin(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_push_undone.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[6], y[5], obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, 18.5, obj);
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_push_row_holds_at_its_rounding_level(void)
 {
     jaos_model *m = nullptr;
@@ -374,26 +393,34 @@ static void test_a_push_row_holds_at_its_rounding_level(void)
     jaos_model_free(m);
 }
 
-static void catch_plain(void *user, jaos_log_level level, const char *line)
+typedef struct {
+    int settled, failed;
+} push_count;
+
+static void catch_settle(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
-    if (strstr(line, "at a bound alone settled") != nullptr)
-        (*(int *)user)++;
+    push_count *c = user;
+    if (strstr(line, "pinned on a bound, settled in") != nullptr)
+        c->settled++;
+    if (strstr(line, "did not settle") != nullptr ||
+        strstr(line, "the barrier's point stands") != nullptr)
+        c->failed++;
 }
 
-static void test_a_push_that_cycles_is_tried_again_from_the_plain_set(void)
+static void test_a_push_that_cycled_settles_freeing_one_pin_a_round(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_mps(m, "tests/data/qp_plain_push.mps"));
-    int settled = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                          jaos_set_log_callback(m, catch_plain, &settled));
+    push_count c = {0, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_settle, &c));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    TEST_ASSERT_EQUAL_INT(1, settled);
+    TEST_ASSERT_EQUAL_INT(1, c.settled);
+    TEST_ASSERT_EQUAL_INT(0, c.failed);
     double x[30], y[12];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
     jaos_check_report rep;
@@ -972,7 +999,7 @@ int main(void)
     RUN_TEST(test_the_augmented_system_is_bit_identical_across_runs);
     RUN_TEST(test_a_circulation_with_tiny_curvatures_passes_the_checker);
     RUN_TEST(test_a_pin_whose_small_wrong_sign_spans_a_wide_box_is_freed);
-    RUN_TEST(test_a_push_that_cycles_is_tried_again_from_the_plain_set);
+    RUN_TEST(test_a_push_that_cycled_settles_freeing_one_pin_a_round);
     RUN_TEST(test_a_push_whose_pins_break_rows_is_tried_again_with_fewer_pins);
     RUN_TEST(test_a_refused_barrier_point_hands_on_all_its_work);
     RUN_TEST(test_the_last_push_starts_from_the_walk_after_a_refused_push);
@@ -980,5 +1007,6 @@ int main(void)
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_the_third_push_drops_the_duals_shift);
     RUN_TEST(test_a_push_row_holds_at_its_rounding_level);
+    RUN_TEST(test_a_push_release_undone_at_once_frees_one_pin);
     return UNITY_END();
 }

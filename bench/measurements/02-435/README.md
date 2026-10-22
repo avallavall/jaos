@@ -64,7 +64,8 @@ activity, the widening its continuous columns' bounds carry,
 `|a|·tol·(1 + |bound|)` each. A tightening whose new coefficient is no
 larger than that sum is skipped, because it cannot be told apart from 0.
 Skipping a tightening is always valid. `tests/data/miqp_tighten_dust.mps`
-is model 4764; it now ends optimal at -11. Model 5180 is TODO J28.
+is model 4764; it now ends optimal at -11. Model 5180 is taken up in
+02-436.
 
 ## The reading on the change
 

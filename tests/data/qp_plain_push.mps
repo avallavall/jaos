@@ -1,8 +1,8 @@
 * A circulation on 12 nodes and 30 arcs, every arc bounded below by -1e6
 * (bench/measurements/02-367/, netqpb.py seed 163). The push's start pins
-* every variable within a window scaled by the largest bound, the rows
-* cannot then be met, and it cycles; a push from the variables the
-* barrier reads at a bound settles.
+* every variable within a window scaled by the largest bound, and the
+* rows cannot then be met. Once a release is undone by the next step,
+* the push frees one pin a round, and it settles (02-436).
 NAME netqp
 ROWS
  N obj

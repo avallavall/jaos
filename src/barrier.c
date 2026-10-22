@@ -2361,10 +2361,12 @@ static jaos_status qp_push(bx *s)
     double *dy2 = jm_alloc_array(nr > 0 ? nr : 1, sizeof *dy2);
     double *row_tol = jm_alloc_array(nr > 0 ? nr : 1, sizeof *row_tol);
     double *col_tol = jm_alloc_array(nv > 0 ? nv : 1, sizeof *col_tol);
+    int8_t *once = jm_calloc_array(nv > 0 ? nv : 1, sizeof *once);
     if (pin == nullptr || zn == nullptr || yn == nullptr || d == nullptr ||
         dec == nullptr || rt2 == nullptr || rp2 == nullptr ||
         dz2 == nullptr || dy2 == nullptr || row_tol == nullptr ||
-        col_tol == nullptr) {
+        col_tol == nullptr || once == nullptr) {
+        free(once);
         free(pin);
         free(zn);
         free(yn);
@@ -2442,8 +2444,8 @@ static jaos_status qp_push(bx *s)
         idle = got == 0 && !shifted;
     }
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
-    int64_t last_wrong = INT64_MAX;
-    bool stuck = false;
+    int64_t last_wrong = INT64_MAX, freed_at = -2;
+    bool stuck = false, undone = false;
     double worst_sign = 0.0, gap = 0.0, last_gap = HUGE_VAL;
     double *zt = s->dw;
     bool settled = false, fresh = true, stagnant = false;
@@ -2652,6 +2654,13 @@ static jaos_status qp_push(bx *s)
                 stuck = true;
                 break;
             }
+            if (round == freed_at + 1) {
+                if (undone) {
+                    stuck = true;
+                    break;
+                }
+                undone = true;
+            }
             fresh = true;
             continue;
         }
@@ -2674,14 +2683,18 @@ static jaos_status qp_push(bx *s)
         if (wrong > 0) {
             int64_t released = 0;
             if (isfinite(pres)) {
+                int64_t one = -1, one_new = -1;
+                double one_sl = HUGE_VAL, one_new_sl = HUGE_VAL;
                 for (int64_t i = 0; i < nr; i++) {
                     if (!(fabs(s->rp[i]) > row_tol[i]))
                         continue;
                     int64_t best = -1;
                     double slack = HUGE_VAL;
-                    for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1];
+                    const int64_t sj = s->ncol + i;
+                    for (int64_t p = m->ar_start[i]; p <= m->ar_start[i + 1];
                          p++) {
-                        const int64_t j = m->ar_index[p];
+                        const int64_t j = p < m->ar_start[i + 1]
+                                              ? m->ar_index[p] : sj;
                         if (s->kind[j] == FIXED || pin[j] == PUSH_FREE)
                             continue;
                         const double sl = pin[j] == PUSH_LOWER ? s->zl[j]
@@ -2690,22 +2703,31 @@ static jaos_status qp_push(bx *s)
                             slack = sl;
                             best = j;
                         }
-                    }
-                    const int64_t sj = s->ncol + i;
-                    if (s->kind[sj] != FIXED && pin[sj] != PUSH_FREE) {
-                        const double sl = pin[sj] == PUSH_LOWER ? s->zl[sj]
-                                                                : s->zu[sj];
-                        if (sl < slack) {
-                            slack = sl;
-                            best = sj;
+                        if (sl < one_sl) {
+                            one_sl = sl;
+                            one = j;
+                        }
+                        if (!once[j] && sl < one_new_sl) {
+                            one_new_sl = sl;
+                            one_new = j;
                         }
                     }
-                    if (best >= 0) {
+                    if (!undone && best >= 0) {
                         pin[best] = PUSH_FREE;
                         pinned--;
                         released++;
                     }
                 }
+                if (undone) {
+                    const int64_t j = one_new >= 0 ? one_new : one;
+                    if (j >= 0) {
+                        pin[j] = PUSH_FREE;
+                        once[j] = 1;
+                        pinned--;
+                        released++;
+                    }
+                }
+                freed_at = round;
                 jm_work_add(&s->work, (nr + m->num_nz) * JM_WORK_NONZERO);
             }
             jm_log(s->m, JAOS_LOG_DETAIL,
@@ -2839,6 +2861,7 @@ static jaos_status qp_push(bx *s)
     free(dy2);
     free(row_tol);
     free(col_tol);
+    free(once);
     return st;
 }
 
