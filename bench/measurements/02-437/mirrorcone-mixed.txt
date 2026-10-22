@@ -1,0 +1,37 @@
+== mixed seed 1
+STATUS t=10869 a=numerical error b=optimal
+STATUS t=11169 a=numerical error b=optimal
+built=20000 compared=19852 skipped=148 bad=2 optimal=4966 infeasible=13290 unbounded=1545 other=51
+== mixed seed 2
+STATUS t=11994 a=optimal b=numerical error
+built=20000 compared=19826 skipped=174 bad=1 optimal=4975 infeasible=13253 unbounded=1527 other=71
+== mixed seed 3
+STATUS t=3535 a=numerical error b=optimal
+STATUS t=14749 a=numerical error b=optimal
+STATUS t=19589 a=numerical error b=optimal
+built=20000 compared=19845 skipped=155 bad=3 optimal=4842 infeasible=13440 unbounded=1501 other=62
+== mixed seed 4
+STATUS t=7706 a=numerical error b=optimal
+STATUS t=17809 a=optimal b=numerical error
+built=20000 compared=19826 skipped=174 bad=2 optimal=4996 infeasible=13201 unbounded=1563 other=66
+== mixed seed 5
+STATUS t=5853 a=optimal b=numerical error
+STATUS t=15068 a=optimal b=numerical error
+built=20000 compared=19820 skipped=180 bad=2 optimal=4926 infeasible=13257 unbounded=1567 other=70
+== mixed seed 6
+STATUS t=8030 a=optimal b=numerical error
+STATUS t=11155 a=optimal b=numerical error
+STATUS t=14164 a=optimal b=numerical error
+built=20000 compared=19852 skipped=148 bad=3 optimal=4893 infeasible=13380 unbounded=1514 other=65
+== mixed seed 7
+STATUS t=3044 a=numerical error b=optimal
+built=20000 compared=19842 skipped=158 bad=1 optimal=4874 infeasible=13353 unbounded=1562 other=53
+== mixed seed 8
+STATUS t=987 a=numerical error b=optimal
+built=20000 compared=19838 skipped=162 bad=1 optimal=4917 infeasible=13331 unbounded=1530 other=60
+== mixed seed 9
+built=20000 compared=19837 skipped=163 bad=0 optimal=4871 infeasible=13394 unbounded=1509 other=63
+== mixed seed 10
+OBJ t=8215 a=-10.001646756688764 b=-10.001475695629036
+STATUS t=8468 a=optimal b=numerical error
+built=20000 compared=19842 skipped=158 bad=2 optimal=4846 infeasible=13332 unbounded=1611 other=53

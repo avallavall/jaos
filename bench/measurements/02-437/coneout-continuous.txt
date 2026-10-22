@@ -1,0 +1,144 @@
+== seed 1 t25
+t25a.mps     cones 0 | as is: optimal 7.664935194e-08 | all moved out: optimal 0.02828427125
+t25b.mps     cones 0 | as is: numerical error 0 | all moved out: optimal 0.02828427125
+== seed 1 t446
+t446a.mps    cones 0 | as is: optimal 40.00000042 | all moved out: optimal 40.04320494
+t446b.mps    cones 0 | as is: numerical error 0 | all moved out: optimal 40.04320494
+== seed 1 t1769
+t1769a.mps   cones 0 | as is: optimal 5.000000108 | all moved out: optimal 5.04472136
+t1769b.mps   cones 0 | as is: numerical error 0 | all moved out: optimal 5.04472136
+== seed 1 t1905
+t1905a.mps   cones 2 | as is: numerical error 0 | all moved out: optimal -0.0697820323
+t1905b.mps   cones 2 | as is: optimal -3.000335859e-07 | all moved out: optimal -0.0697820323
+== seed 1 t2123
+t2123a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -22.043205
+t2123b.mps   cones 1 | as is: optimal -22.00000064 | all moved out: optimal -22.04320502
+== seed 1 t2683
+t2683a.mps   cones 1 | as is: optimal -1.941198844e-07 | all moved out: optimal -0.05
+t2683b.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -0.05
+== seed 1 t3491
+t3491a.mps   cones 2 | as is: numerical error 0 | all moved out: optimal 19.39454872
+t3491b.mps   cones 2 | as is: optimal 19.39444872 | all moved out: optimal 19.39454872
+== seed 1 t4028
+t4028a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal 15.04242641
+t4028b.mps   cones 1 | as is: optimal 15.00000007 | all moved out: optimal 15.04242641
+== seed 1 t6285
+t6285a.mps   cones 0 | as is: optimal -1.548525444e-08 | all moved out: optimal -0.05972157622
+t6285b.mps   cones 0 | as is: numerical error 0 | all moved out: optimal -0.05972157622
+== seed 1 t7248
+t7248a.mps   cones 2 | as is: optimal 3.333333333 | all moved out: optimal 3.333333333
+t7248b.mps   cones 2 | as is: numerical error 0 | all moved out: optimal 3.333333333
+== seed 1 t7608
+t7608a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -0.08791260837
+t7608b.mps   cones 1 | as is: optimal -3.405592274e-07 | all moved out: optimal -0.08791260837
+== seed 1 t7992
+t7992a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal 2.02
+t7992b.mps   cones 1 | as is: optimal 2.000000068 | all moved out: optimal 2.02
+== seed 1 t9388
+t9388a.mps   cones 1 | as is: numerical error 0 | all moved out: numerical error 0
+t9388b.mps   cones 1 | as is: optimal -7.999986102 | all moved out: optimal -8.000386099
+== seed 1 t13146
+t13146a.mps  cones 0 | as is: optimal -10 | all moved out: optimal -9.924999999
+t13146b.mps  cones 0 | as is: numerical error 0 | all moved out: optimal -9.925000008
+== seed 1 t13358
+t13358a.mps  cones 0 | as is: optimal 4.000001761 | all moved out: optimal 4.070710678
+t13358b.mps  cones 0 | as is: numerical error 0 | all moved out: optimal 4.070710677
+== seed 1 t13745
+t13745a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal 5.074944034
+t13745b.mps  cones 1 | as is: optimal 5.000000784 | all moved out: optimal 5.074944034
+== seed 1 t14020
+t14020a.mps  cones 2 | as is: numerical error 0 | all moved out: optimal 6.292557431
+t14020b.mps  cones 2 | as is: optimal 6.125002041 | all moved out: optimal 6.292557431
+== seed 1 t15361
+t15361a.mps  cones 2 | as is: optimal 0.9999999286 | all moved out: optimal 0.9712150217
+t15361b.mps  cones 2 | as is: numerical error 0 | all moved out: optimal 0.9712150217
+== seed 1 t15381
+t15381a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -18.62000133
+t15381b.mps  cones 1 | as is: optimal -18.5 | all moved out: optimal -18.62000133
+== seed 1 t16958
+t16958a.mps  cones 2 | as is: numerical error 0 | all moved out: optimal -12.80104187
+t16958b.mps  cones 2 | as is: optimal -12.99999876 | all moved out: optimal -12.80104187
+== seed 1 t17871
+t17871a.mps  cones 2 | as is: numerical error 0 | all moved out: numerical error 0
+t17871b.mps  cones 2 | as is: optimal 10.99998121 | all moved out: numerical error 0
+== seed 1 t19322
+t19322a.mps  cones 2 | as is: optimal -2.000000773 | all moved out: optimal -2.282856854
+t19322b.mps  cones 2 | as is: numerical error 0 | all moved out: optimal -2.282856854
+== seed 2 t646
+t646a.mps    cones 1 | as is: numerical error 0 | all moved out: optimal 7.040824829
+t646b.mps    cones 1 | as is: optimal 7.000000077 | all moved out: optimal 7.040824829
+== seed 2 t761
+t761a.mps    cones 1 | as is: numerical error 0 | all moved out: optimal -8.0004
+t761b.mps    cones 1 | as is: optimal -8 | all moved out: optimal -8.0004
+== seed 2 t1320
+t1320a.mps   cones 1 | as is: optimal 2.992484629e-07 | all moved out: optimal 0.1000025
+t1320b.mps   cones 1 | as is: numerical error 0 | all moved out: optimal 0.1000025
+== seed 2 t2910
+t2910a.mps   cones 0 | as is: optimal -9.999999616 | all moved out: optimal -9.96
+t2910b.mps   cones 0 | as is: numerical error 0 | all moved out: optimal -9.96
+== seed 2 t3741
+t3741a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -2.167166652
+t3741b.mps   cones 1 | as is: optimal -2.166666667 | all moved out: optimal -2.167166652
+== seed 2 t4561
+t4561a.mps   cones 0 | as is: numerical error 0 | all moved out: optimal -0.02160246899
+t4561b.mps   cones 0 | as is: optimal -9.271199012e-08 | all moved out: optimal -0.02160246899
+== seed 2 t4598
+t4598a.mps   cones 1 | as is: optimal 14.94427191 | all moved out: optimal 14.94473154
+t4598b.mps   cones 1 | as is: numerical error 0 | all moved out: optimal 14.94473154
+== seed 2 t4670
+t4670a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -42.00015
+t4670b.mps   cones 1 | as is: optimal -42 | all moved out: optimal -42.00015
+== seed 2 t8519
+t8519a.mps   cones 1 | as is: optimal -1.333333998 | all moved out: optimal -1.413334333
+t8519b.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -1.413334333
+== seed 2 t8671
+t8671a.mps   cones 0 | as is: numerical error 0 | all moved out: optimal -8.08660253
+t8671b.mps   cones 0 | as is: optimal -8.000000116 | all moved out: optimal -8.086602538
+== seed 2 t8773
+t8773a.mps   cones 1 | as is: numerical error 0 | all moved out: optimal -0.04082482905
+t8773b.mps   cones 1 | as is: optimal -1.584272466e-07 | all moved out: optimal -0.04082482904
+== seed 2 t10068
+t10068a.mps  cones 1 | as is: optimal -3 | all moved out: optimal -2.929287554
+t10068b.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -2.929287554
+== seed 2 t10081
+t10081a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -9.000349987
+t10081b.mps  cones 1 | as is: optimal -9 | all moved out: optimal -9.000349987
+== seed 2 t11349
+t11349a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal 0.929289322
+t11349b.mps  cones 1 | as is: optimal 0.9999995343 | all moved out: optimal 0.9292893219
+== seed 2 t11562
+t11562a.mps  cones 0 | as is: numerical error 0 | all moved out: optimal -0.05681853937
+t11562b.mps  cones 0 | as is: optimal -1.669494147e-07 | all moved out: optimal -0.05681853937
+== seed 2 t11845
+t11845a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal 1.070712446
+t11845b.mps  cones 1 | as is: optimal 1.000000324 | all moved out: optimal 1.070712446
+== seed 2 t12795
+t12795a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal 10.40404578
+t12795b.mps  cones 1 | as is: optimal 10.33333396 | all moved out: optimal 10.40404578
+== seed 2 t13383
+t13383a.mps  cones 1 | as is: numerical error 0 | all moved out: optimal 9.538080769
+t13383b.mps  cones 1 | as is: optimal 9.500000074 | all moved out: optimal 9.538080769
+== seed 2 t13869
+t13869a.mps  cones 2 | as is: numerical error 0 | all moved out: optimal -3.550229418
+t13869b.mps  cones 2 | as is: optimal -3.649109743 | all moved out: optimal -3.550229418
+== seed 2 t14829
+t14829a.mps  cones 2 | as is: optimal 1.000000283 | all moved out: optimal 1.056468542
+t14829b.mps  cones 2 | as is: numerical error 0 | all moved out: optimal 1.056468542
+== seed 2 t15050
+t15050a.mps  cones 1 | as is: optimal -1.863196993e-07 | all moved out: optimal -0.05061705098
+t15050b.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -0.05061705098
+== seed 2 t15620
+t15620a.mps  cones 0 | as is: numerical error 0 | all moved out: optimal -0.03
+t15620b.mps  cones 0 | as is: optimal -1.082012669e-07 | all moved out: optimal -0.02999999996
+== seed 2 t16539
+t16539a.mps  cones 1 | as is: optimal -7.309475019 | all moved out: optimal -7.309552478
+t16539b.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -7.309552478
+== seed 2 t18069
+t18069a.mps  cones 0 | as is: numerical error 0 | all moved out: optimal 8.043204938
+t18069b.mps  cones 0 | as is: optimal 8.000000443 | all moved out: optimal 8.043204938
+== seed 2 t18693
+t18693a.mps  cones 1 | as is: optimal -4.948679453e-08 | all moved out: optimal -0.01
+t18693b.mps  cones 1 | as is: numerical error 0 | all moved out: optimal -0.01
+== seed 2 t19058
+t19058a.mps  cones 0 | as is: numerical error 0 | all moved out: optimal 0.04
+t19058b.mps  cones 0 | as is: optimal 1.630579903e-07 | all moved out: optimal 0.04

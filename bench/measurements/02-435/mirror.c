@@ -299,7 +299,7 @@ int main(int argc, char **argv)
 
         ms = 0x9e3779b97f4a7c15ULL ^ ((uint64_t)t * 0xbf58476d1ce4e5b9ULL) ^
              (strtoull(argv[2], nullptr, 10) << 1);
-        double one[MAXC], sc[MAXC], sr[MAXR];
+        double one[MAXC] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, sc[MAXC], sr[MAXR];
         bool keep[MAXC] = {false};
         for (int64_t k = 0; k < g.sos_n; k++)
             keep[g.sos_col[k]] = true;
