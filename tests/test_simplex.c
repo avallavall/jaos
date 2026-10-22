@@ -1398,6 +1398,36 @@ static void test_a_stopped_solve_resumes_the_walk_it_left(void)
     jaos_model_free(ref);
 }
 
+static jaos_model *primal_from(const char *path)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    return m;
+}
+
+static void test_a_stop_inside_the_settling_reentry_resumes_its_round(void)
+{
+    const char *path = "tests/data/lp_resume_reentry.mps";
+    jaos_model *ref = primal_from(path);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(ref));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(ref));
+    const int64_t full = jaos_work_units(ref), iters = jaos_iterations(ref);
+
+    jaos_model *m = primal_from(path);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 14839));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT64(full, jaos_work_units(m));
+    TEST_ASSERT_EQUAL_INT64(iters, jaos_iterations(m));
+    jaos_model_free(m);
+    jaos_model_free(ref);
+}
+
 static void test_work_limit_stops_and_reports(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -3645,6 +3675,7 @@ int main(void)
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_a_stopped_solve_resumes_the_walk_it_left);
+    RUN_TEST(test_a_stop_inside_the_settling_reentry_resumes_its_round);
     RUN_TEST(test_budgets_survive_a_reload);
     RUN_TEST(test_a_tolerance_must_be_a_tolerance);
     RUN_TEST(test_an_untouched_model_carries_no_tolerance_of_its_own);

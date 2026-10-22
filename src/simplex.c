@@ -190,6 +190,10 @@ typedef struct {
     double bst_dviol;
     bool bst_valid;
 
+    int64_t settle_round;
+    jm_work settle_work;
+    int64_t settle_iters, settle_primal_iters, settle_phase1_iters;
+
     double started;
     int64_t iters;
     bool needs_refactor;
@@ -2798,17 +2802,25 @@ static jaos_status primal_cleanup(sx *s, int64_t *pivots)
     return JAOS_OK;
 }
 
-static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped)
+static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped,
+                                          bool resume)
 {
-
-    s->bst_valid = false;
-    if (!save_best(s))
-        return JAOS_ERR_OUT_OF_MEMORY;
+    if (!resume) {
+        s->bst_valid = false;
+        if (!save_best(s))
+            return JAOS_ERR_OUT_OF_MEMORY;
+        s->settle_round = 0;
+    }
 
     const int64_t rounds = s->primal_run ? SETTLE_ROUNDS_PRIMAL
                                          : SETTLE_ROUNDS;
 
-    for (int64_t round = 0; round < rounds; round++) {
+    for (int64_t round = s->settle_round; round < rounds; round++) {
+        s->settle_round = round;
+        s->settle_work = s->work;
+        s->settle_iters = s->iters;
+        s->settle_primal_iters = s->n_primal_iters;
+        s->settle_phase1_iters = s->n_phase1_iters;
 
         if (!anything_to_move(s)) {
 
@@ -4783,8 +4795,14 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                    warm ? "the basis on the model" : "the slack basis");
         }
 
+        bool settle_resume = false;
         if (at_settle) {
             at_settle = false;
+            settle_resume = true;
+            s.work = s.settle_work;
+            s.iters = s.settle_iters;
+            s.n_primal_iters = s.settle_primal_iters;
+            s.n_phase1_iters = s.settle_phase1_iters;
             st = JAOS_OK;
             outcome = JAOS_SOLVE_OPTIMAL;
         } else {
@@ -4856,7 +4874,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
 
         settle_shifts(&s);
         jaos_solve_status stopped = JAOS_SOLVE_NOT_RUN;
-        st = reenter_after_settling(&s, &stopped);
+        st = reenter_after_settling(&s, &stopped, settle_resume);
         if (st == JAOS_ERR_NUMERICAL && s.early_stalled) {
             st = restart_without_early_perturb(&s, m, target);
             if (st != JAOS_OK) {

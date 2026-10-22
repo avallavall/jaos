@@ -1,0 +1,36 @@
+== seed 1
+models 1000 dual (optimal 550 infeasible 435 unbounded 15) primal (optimal 550 infeasible 435 unbounded 15) stops 3043
+P1=0 P2=0 P3=0
+broken total 0
+== seed 2
+models 1000 dual (optimal 496 infeasible 475 unbounded 29) primal (optimal 496 infeasible 475 unbounded 29) stops 2972
+P1=0 P2=0 P3=0
+broken total 0
+== seed 3
+models 1000 dual (optimal 531 infeasible 448 unbounded 21) primal (optimal 531 infeasible 448 unbounded 21) stops 3136
+P1=0 P2=0 P3=0
+broken total 0
+== seed 4
+models 1000 dual (optimal 515 infeasible 448 unbounded 37) primal (optimal 515 infeasible 448 unbounded 37) stops 3076
+P1=0 P2=0 P3=0
+broken total 0
+== seed 5
+models 1000 dual (optimal 539 infeasible 432 unbounded 29) primal (optimal 539 infeasible 432 unbounded 29) stops 3104
+P1=0 P2=0 P3=0
+broken total 0
+== seed 6
+models 1000 dual (optimal 523 infeasible 461 unbounded 16) primal (optimal 523 infeasible 461 unbounded 16) stops 3016
+P1=0 P2=0 P3=0
+broken total 0
+== seed 7
+models 1000 dual (optimal 537 infeasible 443 unbounded 20) primal (optimal 537 infeasible 443 unbounded 20) stops 2948
+P1=0 P2=0 P3=0
+broken total 0
+== seed 8
+models 1000 dual (optimal 547 infeasible 425 unbounded 28) primal (optimal 547 infeasible 425 unbounded 28) stops 3148
+P1=0 P2=0 P3=0
+broken total 0
+== seed 9
+models 1000 dual (optimal 550 infeasible 441 unbounded 9) primal (optimal 550 infeasible 441 unbounded 9) stops 3164
+P1=0 P2=0 P3=0
+broken total 0

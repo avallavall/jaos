@@ -1,0 +1,42 @@
+lto-wrapper: warning: using serial compilation of 12 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information
+== seed 1
+models 1000 mips 324
+dual optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+primal optimal 1000 stops 3000 exact 3000 chains 1000 timed 1000 interrupted 1000 edited 1000
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 2
+models 1000 mips 323
+dual optimal 1000 stops 2998 exact 2998 chains 999 timed 1000 interrupted 1000 edited 999
+primal optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 3
+models 1000 mips 338
+dual optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+primal optimal 1000 stops 3000 exact 3000 chains 1000 timed 1000 interrupted 1000 edited 1000
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 4
+models 1000 mips 328
+dual optimal 1000 stops 2998 exact 2998 chains 998 timed 1000 interrupted 1000 edited 998
+primal optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 5
+models 1000 mips 344
+dual optimal 1000 stops 3000 exact 3000 chains 1000 timed 1000 interrupted 1000 edited 1000
+primal optimal 1000 stops 3000 exact 3000 chains 1000 timed 1000 interrupted 1000 edited 1000
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 6
+models 1000 mips 337
+dual optimal 1000 stops 2997 exact 2997 chains 999 timed 999 interrupted 999 edited 999
+primal optimal 1000 stops 2997 exact 2997 chains 999 timed 999 interrupted 999 edited 999
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 7
+models 1000 mips 328
+dual optimal 1000 stops 2998 exact 2998 chains 998 timed 1000 interrupted 1000 edited 998
+primal optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
+== seed 8
+models 1000 mips 339
+dual optimal 1000 stops 2998 exact 2998 chains 998 timed 1000 interrupted 1000 edited 998
+primal optimal 1000 stops 2999 exact 2999 chains 999 timed 1000 interrupted 1000 edited 999
+broken P1=0 P2=0 P3=0 P4=0 P5=0 total=0
