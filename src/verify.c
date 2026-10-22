@@ -1506,8 +1506,8 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             if (pos[j] >= 0)
                 xj = xs[pos[j]];
             else
-                fits = model_rational(m, 
-                    &xj, xvar_at(m, j, m->sol_col_status[j]));
+                fits = model_rational(m, &xj,
+                                      xvar_at(m, j, m->sol_col_status[j]));
             fits = fits && model_rational(m, &cj, m->col_cost[j]) &&
                    jm_rational_mul(&t, &cj, &xj) &&
                    jm_rational_add(&acc, &acc, &t);
@@ -1593,8 +1593,7 @@ static xstep exact_step(jaos_model *m, jm_rational *cost, bool publish,
             for (int64_t k = m->a_start[enter]; k < m->a_start[enter + 1];
                  k++)
                 if (m->a_value[k] != 0.0 &&
-                    !model_rational(m, &rhs[m->a_index[k]],
-                                             m->a_value[k]))
+                    !model_rational(m, &rhs[m->a_index[k]], m->a_value[k]))
                     goto out;
         }
         jm_rational *w = us;
@@ -1687,7 +1686,9 @@ static jaos_status exact_infeasible(jaos_model *m, int64_t pivots)
     m->ray_ok = false;
     for (int pass = 0; pass < 2; pass++) {
         jaos_exact_ray_report r;
-        if (jaos_exact_certificate(m, &r) == JAOS_OK && r.derived) {
+        bool holds = false;
+        if (jaos_exact_certificate(m, &r) == JAOS_OK && r.derived &&
+            jm_exact_judge(m, &holds) == JAOS_OK && holds) {
             jm_log(m, JAOS_LOG_SUMMARY, "exact: the floating-point optimum "
                    "is infeasible over the rationals, shown after %lld exact "
                    "pivots, with an exact certificate", (long long)pivots);
