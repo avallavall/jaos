@@ -1547,8 +1547,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
            "refused were branched on, %lld of them under a bound from their "
            "own duals above their parent's, %lld nodes the relaxation "
            "failed on were split, and %lld with every integer column fixed "
-           "were set aside with their bound, after %lld more were closed by "
-           "their fixed model's infeasibility or its duals' bound",
+           "were set aside with their bound; %lld leaves their fixed solve "
+           "did not settle were closed by their bound against the incumbent",
            jaos_solve_status_str(outcome), (long long)nodes, (long long)solves,
            (long long)work, (long long)roughs, (long long)lifted,
            (long long)splits, (long long)parked, (long long)settled);
