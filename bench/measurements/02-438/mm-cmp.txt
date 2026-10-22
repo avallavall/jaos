@@ -1,0 +1,2 @@
+liswet10 175943212 114409134 0.65
+work, same status: 137 instances, geometric mean 0.9962x, 2 cheaper, 0 dearer

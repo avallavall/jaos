@@ -39,9 +39,24 @@ than on 8458cbd (1220: 183,443 against 747,981) and 40-100-1118 more
 (1,498,112 against 1,282,240). 02-436's model, its two test models and
 liswet10 and liswet11 keep 02-436's answers and work.
 
+## The reading on 403079f
+
+| set | against 8458cbd |
+|---|---|
+| 02-365, 12 nodes, seeds 1 to 400 and 1001 to 1800 (`nq-12*.txt`) | no status moves; 10 and 19 still `numerical_error`; work 0.88x and 0.95x |
+| 02-365, 40 nodes, seeds 1 to 120 and 1001 to 1200 (`nq-40*.txt`) | no status moves; 1 and 1 still `numerical_error`; work 0.87x and 0.87x |
+| 02-366, 12 nodes, 1,200 seeds (`nqb-12*.txt`) | all optimal and checked on both; work 0.86x and 0.90x |
+| 02-248's 6,000 generated QPs (`gen-*.txt`) | the same lines |
+| Maros-Meszaros (`mm-cmp.txt`) | the same statuses; liswet10 and liswet11 cheaper (0.65x on liswet10), the rest the same |
+| QPLIB's 11 convex QPs (`cqp-*.txt`) | the same lines |
+| QPLIB's 17 convex MIQPs at 1e10 (`miqp-*.txt`) | the same statuses; QPLIB_4270 stops at the limit with an incumbent 1.6e-9 apart, and QPLIB_5543 still ends `numerical_error` |
+
+The work is the geometric mean over the models optimal on both trees.
+02-434's `flip.c` and 02-435's `mirror.c` on 403079f (`flip-*.txt`,
+`mirror-*.txt`) have 0 disagreements in every mode.
+
 ## The gate
 
 `make test` and `make sanitize` pass. `make maros-meszaros` shows 0
 regressed and gives 2ba1ad3's lines, liswet10 and liswet11 included.
-`make barrier` gives the same lines. The whole reading on this change
-follows in the next commit.
+`make barrier` gives the same lines.
