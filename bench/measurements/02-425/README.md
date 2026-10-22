@@ -105,4 +105,5 @@ C7, C17 and C14 has C1 = 1 and C7 = 2, so it holds C17² + C14² <= 4. The
 smallest C17² + C14² over the leaf's rows and bounds is 4, at C17 = 2 and
 C14 = 0. So the cone meets the other constraints at one point only, no
 feasible point lies strictly inside the cone, and the walk ends with
-`tau` and `kappa` both near 0. This is TODO's J26.
+`tau` and `kappa` both near 0. This was TODO's J26, which
+`bench/measurements/02-426/` closes.

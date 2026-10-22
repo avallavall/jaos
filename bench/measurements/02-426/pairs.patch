@@ -1,0 +1,44 @@
+--- a/warmcone.c
++++ b/warmcone.c
+@@ -365,11 +365,23 @@
+                         jaos_set_work_limit(c, 200000000) != JAOS_OK))
+                 return 1;
+             const jaos_status ws = jaos_solve(m), cs = jaos_solve(c);
++            {
++                double po = 0.0;
++                (void)jaos_objective(c, &po);
++                printf("PAIR %lld %lld %s %s %.17g | %s\n", (long long)r,
++                       (long long)s, jaos_solve_status_str(jaos_status_of(m)),
++                       jaos_solve_status_str(jaos_status_of(c)), po, how);
++            }
+             keep_point(m);
+             if (ws == JAOS_OK && cs == JAOS_OK &&
+                 (jaos_status_of(m) == JAOS_SOLVE_WORK_LIMIT ||
+                  jaos_status_of(c) == JAOS_SOLVE_WORK_LIMIT)) {
+                 capped++;
++                printf("CAPPED model %lld edit %lld warm %s cold %s (%s)\n",
++                       (long long)r, (long long)s,
++                       jaos_solve_status_str(jaos_status_of(m)),
++                       jaos_solve_status_str(jaos_status_of(c)), how);
++                fflush(stdout);
+                 jaos_model_free(c);
+                 continue;
+             }
+@@ -386,6 +398,17 @@
+             if (cst == JAOS_SOLVE_OPTIMAL) verdicts[0]++;
+             else if (cst == JAOS_SOLVE_INFEASIBLE) verdicts[1]++;
+             else if (cst == JAOS_SOLVE_UNBOUNDED) verdicts[2]++;
++            else {
++                char path[96];
++                snprintf(path, sizeof path, "other-%lld-%lld.mps", (long long)r,
++                         (long long)s);
++                printf("OTHER model %lld edit %lld warm %s cold %s: %s / %s (%s) %s\n",
++                       (long long)r, (long long)s, jaos_solve_status_str(wst),
++                       jaos_solve_status_str(cst), jaos_model_error(m),
++                       jaos_model_error(c), how,
++                       jaos_write_mps(c, path) == JAOS_OK ? path : "unwritten");
++                fflush(stdout);
++            }
+             if (wst != cst) {
+                 snprintf(what, sizeof what, "warm %s, cold %s: %s / %s",
+                          jaos_solve_status_str(wst), jaos_solve_status_str(cst),

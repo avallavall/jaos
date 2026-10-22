@@ -666,6 +666,7 @@ JAOS_NODISCARD jaos_status jm_cone_solve(const jm_cone_problem *pb,
 JAOS_NODISCARD jaos_status jm_conic(jaos_model *m);
 JAOS_NODISCARD jaos_status jm_conic_after_barrier(jaos_model *m);
 JAOS_NODISCARD jaos_status jm_conic_branch_and_bound(jaos_model *m);
+void jm_cone_project(const jaos_model *m, double *v);
 
 bool jm_model_has_conic(const jaos_model *m);
 

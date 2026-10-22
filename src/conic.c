@@ -2852,20 +2852,20 @@ static bool cm_cert_signs(jaos_model *m)
     return moved;
 }
 
-static void cm_cert_project(jaos_model *m)
+void jm_cone_project(const jaos_model *m, double *v)
 {
     constexpr double RT = 0.70710678118654752440;
     for (int64_t k = 0; k < m->num_cone; k++) {
         const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
         const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e;
-        double head = m->sol_cone[b], second = 0.0, rest = 0.0;
+        double head = v[b], second = 0.0, rest = 0.0;
         if (rot) {
-            head = (m->sol_cone[b] + m->sol_cone[b + 1]) * RT;
-            second = (m->sol_cone[b] - m->sol_cone[b + 1]) * RT;
+            head = (v[b] + v[b + 1]) * RT;
+            second = (v[b] - v[b + 1]) * RT;
             rest = second * second;
         }
         for (int64_t t = rot ? b + 2 : b + 1; t < e; t++)
-            rest += m->sol_cone[t] * m->sol_cone[t];
+            rest += v[t] * v[t];
         const double norm = sqrt(rest);
         if (norm <= head)
             continue;
@@ -2873,13 +2873,13 @@ static void cm_cert_project(jaos_model *m)
         const double h = norm <= -head ? 0.0 : 0.5 * (head + norm);
         if (rot) {
             const double u = second * s;
-            m->sol_cone[b] = (h + u) * RT;
-            m->sol_cone[b + 1] = (h - u) * RT;
+            v[b] = (h + u) * RT;
+            v[b + 1] = (h - u) * RT;
         } else {
-            m->sol_cone[b] = h;
+            v[b] = h;
         }
         for (int64_t t = rot ? b + 2 : b + 1; t < e; t++)
-            m->sol_cone[t] *= s;
+            v[t] *= s;
     }
 }
 
@@ -2957,7 +2957,7 @@ static bool cm_cert_search(jaos_model *m, double tol, int64_t members,
     if (cm_cert_signs(m) && cm_cert_climb(m, tol, cr, calls))
         return true;
     if (members > 0) {
-        cm_cert_project(m);
+        jm_cone_project(m, m->sol_cone);
         if (cm_cert_climb(m, tol, cr, calls))
             return true;
     }
