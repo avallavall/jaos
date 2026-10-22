@@ -1,0 +1,3 @@
+presolve: 1441 rows, 3652 columns, 43167 nonzeros -> 1369 rows, 3348 columns, 40711 nonzeros; fixed_col=267 empty_row=1 empty_col=0 singleton_row=19 singleton_col=14 free_col_singleton=0 aggregated_col=23 rounds=7
+dual simplex: 1441 rows, 3652 columns, 43167 nonzeros, primal tol 1e-07, dual tol 1e-09
+optimal after 5636 iterations, 888832160 work units; 92 refactorizations, 49 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1

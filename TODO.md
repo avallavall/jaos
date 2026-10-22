@@ -192,6 +192,16 @@ mode, bound propagation and probing. The last reading had none land
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
+J28. **The dual simplex's path depends on the signs of columns and
+rows.** With columns mirrored (x is -x) and rows negated, 45 of 94 Netlib
+LPs take another path to the same optimum. `pilot` takes 31,170
+iterations against 5,636, 8.5 times the work; `bell5` is still open
+after 171,028 nodes where the model as it is ends at 20,089
+(`bench/measurements/02-440/`). Next: diff the mirrored pair's detailed
+logs on `afiro`, the smallest LP that parts (same iterations, other
+work), to find the rule that reads a sign. Verify with 02-440's
+`read.sh`: fewer `path` lines on Netlib, `pilot` under 2e9 both ways.
+
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).
 The round size cannot follow the thread count, because the answer must not
