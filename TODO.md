@@ -88,6 +88,18 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
+J27. **A quadratic row that only touches the other constraints.** On
+02-427's continuous reading, 16 of 64,000 edited models end
+`numerical_error`: the point passes the checker, its duals miss by 0.07
+to 35. On the eight with one quadratic row, the row's smallest value
+over the other rows and bounds equals its side, so no point lies
+strictly inside it and finite duals need not exist. Moving each quadratic
+side out by 1e-4 solves all 16 (`bench/measurements/02-427/`). Next:
+duals of small violation and large size from the walk's last iterates,
+since the checker's dual test is absolute; an optimum with no finite
+duals changes the checker's contract and is the maintainer's decision.
+Verify with 02-427's `warmqc.c` in qcp mode on seeds 1 to 8.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

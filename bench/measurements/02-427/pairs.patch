@@ -1,0 +1,16 @@
+--- a/warmqc.c
++++ b/warmqc.c
+@@ -399,6 +399,13 @@
+                         jaos_set_work_limit(c, 200000000) != JAOS_OK))
+                 return 1;
+             const jaos_status ws = jaos_solve(m), cs = jaos_solve(c);
++            {
++                double po = 0.0;
++                (void)jaos_objective(c, &po);
++                printf("PAIR %lld %lld %s %s %.17g | %s\n", (long long)r,
++                       (long long)s, jaos_solve_status_str(jaos_status_of(m)),
++                       jaos_solve_status_str(jaos_status_of(c)), po, how);
++            }
+             keep_point(m);
+             if (ws == JAOS_OK && cs == JAOS_OK &&
+                 (jaos_status_of(m) == JAOS_SOLVE_WORK_LIMIT ||

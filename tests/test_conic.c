@@ -1328,6 +1328,25 @@ static void test_a_failed_leaf_with_a_feasible_point_gives_the_incumbent(void)
     jaos_model_free(m);
 }
 
+static void test_a_rough_node_beside_quadratic_rows_is_bounded(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qc_rough_leaf.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1000000000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -15.500009337761226, obj);
+    double x[14];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, nullptr, 1e-6, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_cone_held_flat_leaves_the_direction_solve(void)
 {
     const char *path[2] = {"tests/data/cone_flat_ray.mps",
@@ -1621,6 +1640,7 @@ int main(void)
     RUN_TEST(test_a_rough_node_point_outside_its_box_still_splits_it);
     RUN_TEST(test_a_rough_node_is_bounded_by_its_own_duals);
     RUN_TEST(test_a_failed_leaf_with_a_feasible_point_gives_the_incumbent);
+    RUN_TEST(test_a_rough_node_beside_quadratic_rows_is_bounded);
     RUN_TEST(test_a_cone_held_flat_leaves_the_direction_solve);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);

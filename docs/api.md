@@ -663,9 +663,12 @@ point outside the box, still branches into smaller boxes. Such a node's
 bound is the larger of its parent's and the one its own row and cone
 duals give: `Σ y·side + Σ min(d·lower, d·upper)` with `d = c - Aᵀy - z`,
 after the cone duals are projected into their cones and a row dual whose
-side is infinite is taken as 0. That second bound holds for any duals,
-and it is used only when every column the sum needs is bounded and the
-model has no quadratic objective or rows.
+side is infinite is taken as 0. That second bound holds for any duals.
+With diagonal quadratic rows or a diagonal quadratic objective, a column
+adds instead the smallest value of `d·x + h·x²/2` over its box, where `h`
+is its objective weight less the row duals times its row weights. There
+is no such bound when a column the sum needs is unbounded, or when the
+objective or a row with a nonzero dual has a term across two columns.
 
 A node whose point is integral solves the model with its integer columns
 fixed at that point. A fixed model that ends optimal closes the node when

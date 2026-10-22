@@ -378,6 +378,22 @@ static void ct_learn(ct_pcost *pc, int64_t nc, const ct_node *n, double key)
     pc->cnt[k]++;
 }
 
+static double ct_piece_min(double d, double h, double lo, double hi)
+{
+    if (h > 0.0) {
+        double x = -d / h;
+        if (x < lo)
+            x = lo;
+        if (x > hi)
+            x = hi;
+        return d * x + 0.5 * h * x * x;
+    }
+    if (!isfinite(lo) || !isfinite(hi))
+        return -INFINITY;
+    const double a = d * lo + 0.5 * h * lo * lo, b = d * hi + 0.5 * h * hi * hi;
+    return a < b ? a : b;
+}
+
 static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
                                  double *bound)
 {
@@ -385,19 +401,21 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
     const int64_t nc = rel->num_col, nr = rel->num_row;
     const int64_t members =
         rel->num_cone > 0 ? rel->cone_start[rel->num_cone] : 0;
-    if (jm_model_has_quadratic(rel) || rel->rq_nz > 0 ||
-        (nr > 0 && rel->sol_dual == nullptr) ||
+    if (rel->q_nz > 0 || (nr > 0 && rel->sol_dual == nullptr) ||
         (members > 0 && rel->sol_cone == nullptr))
         return JAOS_OK;
     double *w = jm_alloc_array(members > 0 ? members : 1, sizeof *w);
     double *y = jm_alloc_array(nr > 0 ? nr : 1, sizeof *y);
     double *d = jm_alloc_array(nc > 0 ? nc : 1, sizeof *d);
     double *dc = jm_calloc_array(nc > 0 ? nc : 1, sizeof *dc);
-    if (w == nullptr || y == nullptr || d == nullptr || dc == nullptr) {
+    double *h = jm_calloc_array(nc > 0 ? nc : 1, sizeof *h);
+    if (w == nullptr || y == nullptr || d == nullptr || dc == nullptr ||
+        h == nullptr) {
         free(w);
         free(y);
         free(d);
         free(dc);
+        free(h);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     double sum = sigma * rel->obj_offset, sumc = 0.0;
@@ -421,6 +439,17 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
     for (int64_t t = 0; t < members; t++)
         jm_obj_add(&d[rel->cone_col[t]], &dc[rel->cone_col[t]], -w[t]);
     bool bounded = true;
+    for (int64_t i = 0; bounded && rel->rq_start != nullptr && i < nr; i++)
+        for (int64_t p = rel->rq_start[i];
+             y[i] != 0.0 && p < rel->rq_start[i + 1]; p++) {
+            if (rel->rq_i[p] != rel->rq_j[p]) {
+                bounded = false;
+                break;
+            }
+            h[rel->rq_i[p]] -= y[i] * rel->rq_v[p];
+        }
+    for (int64_t j = 0; rel->col_quad != nullptr && j < nc; j++)
+        h[j] += sigma * rel->col_quad[j];
     for (int64_t j = 0; bounded && j < nc; j++) {
         for (int64_t k = rel->a_start[j]; k < rel->a_start[j + 1]; k++) {
             const double v = y[rel->a_index[k]];
@@ -433,6 +462,15 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
                 jm_obj_add(&d[j], &dc[j], -e);
         }
         const double r = d[j] + dc[j];
+        if (h[j] != 0.0) {
+            const double piece = ct_piece_min(r, h[j], rel->col_lower[j],
+                                              rel->col_upper[j]);
+            if (isfinite(piece))
+                jm_obj_add(&sum, &sumc, piece);
+            else
+                bounded = false;
+            continue;
+        }
         if (r == 0.0)
             continue;
         const double at = r > 0.0 ? rel->col_lower[j] : rel->col_upper[j];
@@ -452,6 +490,7 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
     free(y);
     free(d);
     free(dc);
+    free(h);
     return JAOS_OK;
 }
 

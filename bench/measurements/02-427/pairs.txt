@@ -1,0 +1,29 @@
+== seed 1
+pairs with the same history and the same answer 8000
+== seed 2
+pairs with the same history and the same answer 8000
+== seed 3
+pairs with the same history and the same answer 7998
+2 HEAD work limit reached work limit reached -> change optimal optimal
+    model 206 edit 1: 0 -> -0.2366331392271058 (bounds 5 -1 4)
+    model 412 edit 1: 0 -> -77 (coefficient 6 5 1)
+== seed 4
+pairs with the same history and the same answer 7992
+== seed 5
+pairs with the same history and the same answer 1768
+2 HEAD work limit reached work limit reached -> change optimal optimal
+    model 20 edit 3: 0 -> -88.737179383392728 (cost 18 -4)
+    model 221 edit 2: 0 -> -39.271004296165003 (add-col with 5 entries)
+== seed 6
+pairs with the same history and the same answer 7999
+1 HEAD work limit reached work limit reached -> change numerical error numerical error
+    model 708 edit 2: 0 -> 0 (delete-col 9)
+== seed 7
+pairs with the same history and the same answer 8000
+== seed 8
+pairs with the same history and the same answer 7996
+2 HEAD numerical error numerical error -> change optimal optimal
+    model 95 edit 1: 0 -> -15.500009337761226 (bounds 0 4 inf)
+    model 496 edit 1: 0 -> 21.33333247392029 (add-qrow concave over 2 with 3 linear, side -9)
+1 HEAD work limit reached work limit reached -> change optimal optimal
+    model 522 edit 7: 0 -> -79.501644748320956 (add-qrow convex over 1 with 2 linear, side -19)
