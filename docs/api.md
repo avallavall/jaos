@@ -671,7 +671,8 @@ sum reads each column's bounds tightened by the ones the rows imply (as
 the checker computes them, when the model has no quadratic or indicator
 rows) and by the cones: a head is at least 0, and a member lies within
 the head's upper bound, or within `sqrt(2·a·b)` of a rotated cone's
-heads `a` and `b`. There is no such bound when a column the sum needs is
+heads `a` and `b` (0 when either head's upper bound is 0, whatever the
+other's). There is no such bound when a column the sum needs is
 still unbounded, or when the objective or a row with a nonzero dual has
 a term across two columns.
 
@@ -685,12 +686,16 @@ full instead, which is then the node itself. That solve closes the node
 when it ends optimal and the node's relaxation passed the checker, or
 when the node is settled and the solve is the node: then an infeasible
 end closes it too, and a failed one bounds it through its own duals.
-Otherwise the node closes only when its bound reaches the incumbent; if
-not, it is split on an integer column, else on a semi-continuous column
-or SOS set the box leaves open, and set aside when it is settled. A
-solve that ends `numerical_error` at a point the checker passes as
-primal feasible, cones and integrality included, still gives an
-incumbent.
+A node whose relaxation fails, or a settled node whose own solve fails,
+also closes when those cone bounds leave its box empty. For example, a
+node that fixes a rotated cone's head at 0 and keeps a member away from
+0 holds no point. Points come arbitrarily close to it, so no solve can
+certify that. Otherwise the node closes only when its bound reaches the
+incumbent; if not, it is split on an integer column, else on a
+semi-continuous column or SOS set the box leaves open, and set aside
+when it is settled. A solve that ends `numerical_error` at a point the
+checker passes as primal feasible, cones and integrality included, still
+gives an incumbent.
 
 **`jaos_set_mip_gap`**\
 `jaos_status jaos_set_mip_gap(jaos_model *m, double gap)`\

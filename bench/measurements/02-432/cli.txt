@@ -1,0 +1,45 @@
+seed 1 t1171 | a: status optimal objective 1.000000017154117 | b: status numerical_error 
+seed 1 t11169 | a: status numerical_error | b: status optimal objective 3 
+seed 1 t14354 | a: status optimal objective -4.7320508075688776 | b: status optimal objective -4.7320508075688776 
+seed 1 t15275 | a: status optimal objective 9.0000000495006081 | b: status numerical_error 
+seed 1 t16792 | a: status optimal objective 1.0000000169276433 | b: status numerical_error 
+seed 2 t7775 | a: status numerical_error | b: status optimal objective 10.000000085499343 
+seed 2 t13147 | a: status optimal objective -7.5 | b: status optimal objective -7.5 
+seed 2 t14745 | a: status numerical_error | b: status optimal objective 25 
+seed 3 t9368 | a: status optimal objective 0 | b: status optimal objective 0 
+seed 3 t10316 | a: status numerical_error | b: status optimal objective -0.66666705662756653 
+seed 3 t12440 | a: status optimal objective -4 | b: status numerical_error 
+seed 3 t16790 | a: status optimal objective 9.5278640450004204 | b: status numerical_error 
+seed 3 t19146 | a: status optimal objective 13.138071187457697 | b: status numerical_error 
+seed 4 t1422 | a: status optimal objective 22.628788673958013 | b: status numerical_error 
+seed 4 t6278 | a: status optimal objective 18.000000379431963 | b: status numerical_error 
+seed 4 t7706 | a: status numerical_error | b: status optimal objective 18 
+seed 4 t14588 | a: status optimal objective -12.168241335490983 | b: status numerical_error 
+seed 5 t1984 | a: status numerical_error | b: status optimal objective -9 
+seed 5 t3021 | a: status optimal objective 0 | b: status optimal objective 0 
+seed 5 t8140 | a: status numerical_error | b: status optimal objective 0.49999963961352867 
+seed 5 t14807 | a: status optimal objective -1.630952380952382 | b: status optimal objective -1.630952380952382 
+seed 5 t19213 | a: status numerical_error | b: status optimal objective 13.000000046805967 
+seed 6 t1871 | a: status numerical_error | b: status optimal objective -2.999999825257222 
+seed 6 t1964 | a: status optimal objective 2.8213672050459184 | b: status numerical_error 
+seed 6 t11937 | a: status numerical_error | b: status optimal objective 10.000000332671979 
+seed 6 t15651 | a: status optimal objective 18 | b: status optimal objective 18 
+seed 6 t19611 | a: status numerical_error | b: status optimal objective 8.16227766016838 
+seed 7 t3044 | a: status numerical_error | b: status optimal objective -15.11110083933454 
+seed 7 t13369 | a: status numerical_error | b: status optimal objective 2 
+seed 7 t13424 | a: status optimal objective -6.2360679774997898 | b: status numerical_error 
+seed 7 t16175 | a: status optimal objective 1.9309521329881627 | b: status numerical_error 
+seed 7 t17573 | a: status optimal objective 25 | b: status numerical_error 
+seed 8 t987 | a: status numerical_error | b: status optimal objective 10 
+seed 8 t16370 | a: status optimal objective 12.151494856026865 | b: status optimal objective 12.151494856026865 
+seed 8 t17477 | a: status numerical_error | b: status optimal objective -39.70690632574555 
+seed 8 t17835 | a: status numerical_error | b: status optimal objective 16.000000182458194 
+seed 9 t6057 | a: status optimal objective 15.610869954228036 | b: status optimal objective 15.610869954228036 
+seed 9 t13034 | a: status optimal objective -24 | b: status numerical_error 
+seed 9 t15336 | a: status numerical_error | b: status optimal objective 0 
+seed 10 t1487 | a: status optimal objective 14.999968418834904 | b: status numerical_error 
+seed 10 t1797 | a: status numerical_error | b: status optimal objective -11.164968527354995 
+seed 10 t7335 | a: status numerical_error | b: status optimal objective 4.0000001440367088 
+seed 10 t8468 | a: status optimal objective 3.2246036386492618e-07 | b: status optimal objective 1.1047461062035633e-07 
+seed 10 t8973 | a: status numerical_error | b: status optimal objective 13.000000164357916 
+seed 10 t16167 | a: status numerical_error | b: status optimal objective 27.00000028590231 

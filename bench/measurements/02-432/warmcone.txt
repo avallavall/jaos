@@ -1,0 +1,12 @@
+== misocp seed 1
+models 300 edits 2400: optimal 849 infeasible 1490 unbounded 60 capped 1
+kinds cost=250 bounds=245 sides=261 coefficient=254 add-row=242 add-col=231 delete-row=246 delete-col=196 add-cone=245 delete-cone=230
+P1=0 P2=0 P3=0 broken total 0
+== misocp seed 2
+models 300 edits 2400: optimal 866 infeasible 1445 unbounded 75 capped 14
+kinds cost=234 bounds=224 sides=221 coefficient=265 add-row=257 add-col=321 delete-row=225 delete-col=187 add-cone=237 delete-cone=229
+P1=0 P2=0 P3=0 broken total 0
+== misocp seed 3
+models 300 edits 2400: optimal 802 infeasible 1542 unbounded 42 capped 14
+kinds cost=249 bounds=261 sides=243 coefficient=266 add-row=223 add-col=261 delete-row=274 delete-col=182 add-cone=236 delete-cone=205
+P1=0 P2=0 P3=0 broken total 0

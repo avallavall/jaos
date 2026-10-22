@@ -507,6 +507,52 @@ static double ct_piece_min(double d, double h, double lo, double hi)
     return a < b ? a : b;
 }
 
+static void ct_cone_bounds(const jaos_model *rel, double *lo, double *hi)
+{
+    for (int64_t k = 0; k < rel->num_cone; k++) {
+        const int64_t b = rel->cone_start[k], e = rel->cone_start[k + 1];
+        const int64_t heads =
+            rel->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e ? 2 : 1;
+        for (int64_t t = b; t < b + heads; t++)
+            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], 0.0);
+        double r = hi[rel->cone_col[b]];
+        if (heads == 2) {
+            const double s = hi[rel->cone_col[b + 1]];
+            r = r <= 0.0 || s <= 0.0 ? 0.0 : sqrt(2.0 * r * s);
+        }
+        if (!isfinite(r))
+            continue;
+        r = nextafter(nextafter(r, INFINITY), INFINITY);
+        for (int64_t t = b + heads; t < e; t++) {
+            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], -r);
+            hi[rel->cone_col[t]] = fmin(hi[rel->cone_col[t]], r);
+        }
+    }
+}
+
+static jaos_status ct_cone_empty(const jaos_model *rel, bool *empty)
+{
+    *empty = false;
+    const int64_t nc = rel->num_col;
+    double *lo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lo);
+    double *hi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *hi);
+    if (lo == nullptr || hi == nullptr) {
+        free(lo);
+        free(hi);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        lo[j] = rel->col_lower[j];
+        hi[j] = rel->col_upper[j];
+    }
+    ct_cone_bounds(rel, lo, hi);
+    for (int64_t j = 0; j < nc && !*empty; j++)
+        *empty = lo[j] > hi[j];
+    free(lo);
+    free(hi);
+    return JAOS_OK;
+}
+
 static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
                                  double *bound)
 {
@@ -539,23 +585,7 @@ static jaos_status ct_dual_bound(const jaos_model *rel, double sigma,
         if (st != JAOS_OK)
             goto out;
     }
-    for (int64_t k = 0; k < rel->num_cone; k++) {
-        const int64_t b = rel->cone_start[k], e = rel->cone_start[k + 1];
-        const int64_t heads =
-            rel->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < e ? 2 : 1;
-        for (int64_t t = b; t < b + heads; t++)
-            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], 0.0);
-        double r = hi[rel->cone_col[b]];
-        if (heads == 2)
-            r = sqrt(2.0 * r * hi[rel->cone_col[b + 1]]);
-        if (!isfinite(r))
-            continue;
-        r = nextafter(nextafter(r, INFINITY), INFINITY);
-        for (int64_t t = b + heads; t < e; t++) {
-            lo[rel->cone_col[t]] = fmax(lo[rel->cone_col[t]], -r);
-            hi[rel->cone_col[t]] = fmin(hi[rel->cone_col[t]], r);
-        }
-    }
+    ct_cone_bounds(rel, lo, hi);
     double sum = sigma * rel->obj_offset, sumc = 0.0;
     for (int64_t i = 0; i < nr; i++) {
         const double v = sigma * rel->sol_dual[i];
@@ -1036,6 +1066,7 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
     int64_t work = 0, iters = 0, nodes = 0, solves = 0, next_id = 1;
     int64_t roughs = 0, lifted = 0, splits = 0, parked = 0, settled = 0;
+    int64_t emptied = 0;
     int64_t open_splits = 0;
     double parked_key = INFINITY, stopped_key = INFINITY;
     char why[sizeof m->err] = "";
@@ -1319,6 +1350,16 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                 break;
             }
             if (ns == JAOS_SOLVE_NUMERICAL_ERROR) {
+                bool empty = false;
+                st = ct_cone_empty(rel, &empty);
+                if (st != JAOS_OK) {
+                    rc = st;
+                    goto done;
+                }
+                if (empty) {
+                    emptied++;
+                    continue;
+                }
                 const int split = ct_split(&heap, cur, rel, m, &next_id);
                 if (split < 0)
                     goto done;
@@ -1411,6 +1452,15 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
                               (!rel->conic_rough || whole);
                 if (whole && fs == JAOS_SOLVE_INFEASIBLE)
                     closed = true;
+                if (whole && !closed) {
+                    st = ct_cone_empty(rel, &closed);
+                    if (st != JAOS_OK) {
+                        jaos_model_free(fin);
+                        rc = st;
+                        goto done;
+                    }
+                    emptied += closed;
+                }
                 if (whole && !closed) {
                     double lb = -INFINITY;
                     st = ct_dual_bound(fin, sigma, &lb);
@@ -1714,6 +1764,11 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
            jaos_solve_status_str(outcome), (long long)nodes, (long long)solves,
            (long long)work, (long long)roughs, (long long)lifted,
            (long long)splits, (long long)parked, (long long)settled);
+    if (emptied > 0)
+        jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %lld nodes whose "
+               "solve failed were closed because the bounds their cones imply "
+               "leave their box empty",
+               (long long)emptied);
     if (open_splits > 0)
         jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %lld nodes with "
                "an unbounded relaxation were split on an SOS set or an "

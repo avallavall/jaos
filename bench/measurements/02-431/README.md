@@ -24,9 +24,9 @@ discrete shapes and the continuous mode takes them off. Seeds 1 to 10,
 
 | mode | tree | compared | disagree | no answer either way |
 |---|---|---|---|---|
-| mixed | ee5b4c7 | 198,250 | 97 | 810 |
-| mixed | the change | 198,286 | 49 | 697 |
-| continuous | ee5b4c7 | 200,000 | 168 | 847 |
+| mixed | ee5b4c7 | 198,250 | 97 | 760 |
+| mixed | the change | 198,286 | 49 | 672 |
+| continuous | ee5b4c7 | 200,000 | 168 | 766 |
 | continuous | the change | the same lines | | |
 
 Every disagreement but six is one order optimal (or infeasible or
