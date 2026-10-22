@@ -128,7 +128,7 @@ typedef struct {
     const int8_t *pin;
     bool *dec;
     double push_delta, push_scale;
-    bool push_plain, push_free, push_margin;
+    bool push_plain, push_free, push_margin, push_lone;
     double *walk_point;
     bool walk_kept;
 } bx;
@@ -2446,6 +2446,7 @@ static jaos_status qp_push(bx *s)
     int64_t round = 0, moved = -1, wrong = 0, freed = 0, releases = 0;
     int64_t last_wrong = INT64_MAX, freed_at = -2;
     bool stuck = false, undone = false;
+    const bool lone = !s->push_free && !s->push_plain && !s->push_margin;
     double worst_sign = 0.0, gap = 0.0, last_gap = HUGE_VAL;
     double *zt = s->dw;
     bool settled = false, fresh = true, stagnant = false;
@@ -2654,7 +2655,7 @@ static jaos_status qp_push(bx *s)
                 stuck = true;
                 break;
             }
-            if (round == freed_at + 1) {
+            if (lone && round == freed_at + 1) {
                 if (undone) {
                     stuck = true;
                     break;
@@ -2800,6 +2801,7 @@ static jaos_status qp_push(bx *s)
     }
     if (st == JAOS_OK && settled) {
         s->pushed = true;
+        s->push_lone = undone;
         memcpy(s->z, zn, (size_t)nv * sizeof *zn);
         memcpy(s->y, yn, (size_t)nr * sizeof *yn);
         for (int64_t j = 0; j < nv; j++) {
@@ -3053,7 +3055,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
         st = bx_publish(&s, outcome, p);
 
     jaos_check_report ck = {};
-    bool pushed = s.pushed;
+    bool pushed = s.pushed && !s.push_lone;
     bool refused = st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL &&
                    s.quadratic && !m->cfg.barrier_no_crossover &&
                    m->sol_col != nullptr && !bx_holds(m, &ck, pushed);
