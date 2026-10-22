@@ -124,8 +124,10 @@ in 20 s. Open, largest first:
   The root's feasibility jump finds none on the 33 even without its cap
   (`02-399/`), and the root restart never fires on them (`02-406/`).
   Node propagation from node 1000 while no incumbent is known brings the
-  34 from 23 points to 27 at 5e8 (`02-407/`). Next: a heuristic whose
-  first point satisfies such rows, read on those models and on MIPLIB.
+  34 from 23 points to 27 at 5e8 (`02-407/`). Rounding on the lattice of
+  the all-integer equality rows finds none (`02-422/`): the rows that block
+  a first point carry continuous columns. Next: a heuristic whose first
+  point satisfies such rows, read on those models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.

@@ -1,0 +1,7 @@
+general-24 none after 60 LPs (pure rows 1, lattice 20)
+biggeneral-27 none after 60 LPs (pure rows 8, lattice 40)
+biggeneral-34 none after 60 LPs (pure rows 6, lattice 31)
+biggeneral-48 none after 60 LPs (pure rows 3, lattice 40)
+biggeneral-76 none after 60 LPs (pure rows 1, lattice 30)
+biggeneral-83 none after 60 LPs (pure rows 6, lattice 34)
+biggeneral-97 none after 60 LPs (pure rows 2, lattice 25)
