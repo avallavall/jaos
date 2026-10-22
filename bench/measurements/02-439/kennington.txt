@@ -1,0 +1,16 @@
+cre-a.mps                same   optimal/optimal obj 23595407.060971607/23595407.060971607 inc nan/-nan iters 2351/2351 work 18412795/18412795 nodes 0/0
+cre-b.mps                same   optimal/optimal obj 23129639.886832364/23129639.886832364 inc nan/-nan iters 7813/7813 work 473948354/473948354 nodes 0/0
+cre-c.mps                same   optimal/optimal obj 25275116.140880216/25275116.140880216 inc nan/-nan iters 2270/2270 work 21184291/21184291 nodes 0/0
+cre-d.mps                same   optimal/optimal obj 24454969.764549248/24454969.764549248 inc nan/-nan iters 6967/6967 work 309772035/309772035 nodes 0/0
+ken-07.mps               same   optimal/optimal obj -679520443.38168705/-679520443.38168705 inc nan/-nan iters 1612/1612 work 4667487/4667487 nodes 0/0
+ken-11.mps               same   optimal/optimal obj -6972382262.5199709/-6972382262.5199709 inc nan/-nan iters 8529/8529 work 100254441/100254441 nodes 0/0
+ken-13.mps               same   optimal/optimal obj -10257394789.482431/-10257394789.482431 inc nan/-nan iters 16370/16370 work 389803200/389803200 nodes 0/0
+ken-18.mps               same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 34047/34047 work 2000040653/2000040653 nodes 0/0
+osa-07.mps               same   optimal/optimal obj 535722.51729935105/535722.51729935105 inc nan/-nan iters 600/600 work 49536187/49536187 nodes 0/0
+osa-14.mps               same   optimal/optimal obj 1106462.8447362548/1106462.8447362548 inc nan/-nan iters 1294/1294 work 236985658/236985658 nodes 0/0
+osa-30.mps               same   optimal/optimal obj 2142139.8732097577/2142139.8732097577 inc nan/-nan iters 2645/2645 work 984652806/984652806 nodes 0/0
+osa-60.mps               same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 1338/1338 work 2001009407/2001009407 nodes 0/0
+pds-02.mps               same   optimal/optimal obj 28857862010/28857862010 inc nan/-nan iters 942/942 work 4590479/4590479 nodes 0/0
+pds-06.mps               same   optimal/optimal obj 27761037600/27761037600 inc nan/-nan iters 5573/5573 work 114743723/114743723 nodes 0/0
+pds-10.mps               same   optimal/optimal obj 26727094976/26727094976 inc nan/-nan iters 10977/10977 work 370745627/370745627 nodes 0/0
+pds-20.mps               same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 27321/27321 work 2000039840/2000039840 nodes 0/0

@@ -5470,6 +5470,65 @@ static void test_a_maximisation_pumps_like_its_negated_minimisation(void)
     jaos_model_free(b);
 }
 
+static void test_a_maximisation_searches_the_symmetry_as_its_minimisation(void)
+{
+    constexpr int64_t N = 21;
+    const int64_t size[4] = {6, 3, 6, 6};
+    const double gc[4] = {7.0, 5.0, 11.0, 12.0}, gu[4] = {1.0, 3.0, 1.0, 3.0};
+    const double g0[4] = {1.0, 9.0, 7.0, 1.0}, g1[4] = {9.0, 1.0, 3.0, 7.0};
+    double cost[N], neg[N], lo[N], hi[N], av[2 * N];
+    int64_t as[N + 1], ai[2 * N];
+    int64_t j = 0;
+    for (int64_t k = 0; k < 4; k++)
+        for (int64_t t = 0; t < size[k]; t++, j++) {
+            cost[j] = gc[k];
+            neg[j] = -gc[k];
+            lo[j] = 0.0;
+            hi[j] = gu[k];
+            as[j] = 2 * j;
+            ai[2 * j] = 0;
+            ai[2 * j + 1] = 1;
+            av[2 * j] = g0[k];
+            av[2 * j + 1] = g1[k];
+        }
+    as[N] = 2 * N;
+    const double rl[2] = {36.0, 41.0}, ru[2] = {INFINITY, INFINITY};
+
+    jaos_model *a = fresh(), *b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(a, N, 2, JAOS_MINIMIZE, 0.0, cost, lo, hi, rl, ru, 2 * N,
+                     as, ai, av));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(b, N, 2, JAOS_MAXIMIZE, 0.0, neg, lo, hi, rl, ru, 2 * N,
+                     as, ai, av));
+    for (j = 0; j < N; j++) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(a, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(b, j, true));
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(b));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(a));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(b));
+    double oa = 0.0, ob = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(a, &oa));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(b, &ob));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 53.0, oa);
+    TEST_ASSERT_TRUE(oa == -ob);
+    jaos_mip_report ra, rb;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(a, &ra));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(b, &rb));
+    TEST_ASSERT_TRUE(ra.symmetry_generators > 0);
+    TEST_ASSERT_EQUAL_INT64(ra.symmetry_generators, rb.symmetry_generators);
+    TEST_ASSERT_EQUAL_INT64(ra.nodes, rb.nodes);
+    TEST_ASSERT_EQUAL_INT64(jaos_iterations(a), jaos_iterations(b));
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(jaos_work_units(a), jaos_work_units(b),
+        "the symmetry search colours columns by their cost in the "
+        "minimisation's sign, so a model and its negated maximisation take "
+        "the same search");
+    jaos_model_free(a);
+    jaos_model_free(b);
+}
+
 static void test_tightening_leaves_no_coefficient_its_slack_hides(void)
 {
     jaos_model *m = fresh();
@@ -5697,6 +5756,7 @@ int main(void)
     RUN_TEST(test_a_node_whose_tableau_cannot_be_read_skips_its_cuts);
     RUN_TEST(test_a_node_row_that_cuts_nothing_off_leaves_the_answer);
     RUN_TEST(test_a_maximisation_pumps_like_its_negated_minimisation);
+    RUN_TEST(test_a_maximisation_searches_the_symmetry_as_its_minimisation);
     RUN_TEST(test_tightening_leaves_no_coefficient_its_slack_hides);
     return UNITY_END();
 }

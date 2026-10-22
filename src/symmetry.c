@@ -314,6 +314,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     const int64_t qz = m->q_start != nullptr ? m->q_nz : 0;
     const int64_t ez = 2 * (nz + qz);
     const int64_t n = nc + nr;
+    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
     g->n = n;
     g->nc = nc;
     g->nr = nr;
@@ -351,8 +352,8 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
         if (nv == 0 || vals[k] != vals[nv - 1])
             vals[nv++] = vals[k];
     double *qvals = vals + nv;
-    if (qz > 0)
-        memcpy(qvals, m->q_value, (size_t)qz * sizeof *qvals);
+    for (int64_t k = 0; k < qz; k++)
+        qvals[k] = sigma * m->q_value[k];
     qsort(qvals, (size_t)qz, sizeof *qvals, dbl_cmp);
     int64_t nq = 0;
     for (int64_t k = 0; k < qz; k++)
@@ -386,7 +387,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     for (int64_t j = 0; j < nc && qz > 0; j++)
         for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
             const int64_t i = m->q_index[p];
-            const int64_t l = nv + rank_of(qvals, nq, m->q_value[p]);
+            const int64_t l = nv + rank_of(qvals, nq, sigma * m->q_value[p]);
             g->adj[g->cells[j]] = i;
             g->lab[g->cells[j]] = l;
             g->cells[j]++;
@@ -395,9 +396,10 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
             g->cells[i]++;
         }
     for (int64_t j = 0; j < nc; j++) {
-        keys[j] = (ckey){ .a = m->col_cost[j], .b = m->col_lower[j],
+        keys[j] = (ckey){ .a = sigma * m->col_cost[j], .b = m->col_lower[j],
                           .c = m->col_upper[j],
-                          .e = m->col_quad != nullptr ? m->col_quad[j] : 0.0,
+                          .e = m->col_quad != nullptr ? sigma * m->col_quad[j]
+                                                      : 0.0,
                           .d = (m->col_integer != nullptr && m->col_integer[j])
                                + 2 * (m->col_semi != nullptr && m->col_semi[j])
                                + 4 * indmark[j],

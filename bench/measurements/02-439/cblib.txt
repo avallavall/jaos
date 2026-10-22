@@ -1,0 +1,29 @@
+chainsing-1000-1.cbf.gz  same   optimal/optimal obj 30.180157479002961/30.180157479002961 inc nan/-nan iters 17/17 work 200764011/200764011 nodes 0/0
+chainsing-1000-2.cbf.gz  same   optimal/optimal obj 30.180157478990381/30.180157478990381 inc nan/-nan iters 14/14 work 154948712/154948712 nodes 0/0
+chainsing-1000-3.cbf.gz  same   optimal/optimal obj 30.180157478978082/30.180157478978082 inc nan/-nan iters 18/18 work 164848834/164848834 nodes 0/0
+chainsing-10000-1.cbf.gz same   optimal/optimal obj 302.61067833262013/302.61067833262013 inc nan/-nan iters 16/16 work 1913481982/1913481982 nodes 0/0
+chainsing-10000-2.cbf.gz same   optimal/optimal obj 302.61067835322609/302.61067835322609 inc nan/-nan iters 14/14 work 1606938060/1606938060 nodes 0/0
+chainsing-10000-3.cbf.gz same   optimal/optimal obj 302.61067836533908/302.61067836533908 inc nan/-nan iters 16/16 work 1608366196/1608366196 nodes 0/0
+chainsing-50000-1.cbf.gz same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 6/6 work 2253813228/2253813228 nodes 0/0
+chainsing-50000-2.cbf.gz same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 4/4 work 2132422913/2132422913 nodes 0/0
+chainsing-50000-3.cbf.gz same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 5/5 work 2319447693/2319447693 nodes 0/0
+nb.cbf.gz                same   optimal/optimal obj -0.050703094648358253/-0.050703094648358253 inc nan/-nan iters 21/21 work 2075198110/2075198110 nodes 0/0
+nb_L1.cbf.gz             same   optimal/optimal obj -13.012270675008486/-13.012270675008486 inc nan/-nan iters 19/19 work 2080608954/2080608954 nodes 0/0
+nb_L2.cbf.gz             same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 13/13 work 2195708833/2195708833 nodes 0/0
+nb_L2_bessel.cbf.gz      same   optimal/optimal obj -0.10256951121204307/-0.10256951121204307 inc nan/-nan iters 13/13 work 1453265174/1453265174 nodes 0/0
+nql180.cbf.gz            same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 1/1 work 5606422170/5606422170 nodes 0/0
+nql30.cbf.gz             same   optimal/optimal obj -0.94602850153183526/-0.94602850153183526 inc nan/-nan iters 23/23 work 782935303/782935303 nodes 0/0
+nql60.cbf.gz             same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 11/11 work 2208091221/2208091221 nodes 0/0
+nql90.cbf.gz             same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 4/4 work 2421563101/2421563101 nodes 0/0
+qssp180.cbf.gz           same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 1/1 work 5486276263/5486276263 nodes 0/0
+qssp30.cbf.gz            same   optimal/optimal obj -6.496675734689874/-6.496675734689874 inc nan/-nan iters 19/19 work 455161255/455161255 nodes 0/0
+qssp60.cbf.gz            same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 13/13 work 2155941162/2155941162 nodes 0/0
+qssp90.cbf.gz            same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 4/4 work 2062931657/2062931657 nodes 0/0
+sched_100_100_orig.cbf.gz same   optimal/optimal obj 717367.78614772018/717367.78614772018 inc nan/-nan iters 38/38 work 1899799059/1899799059 nodes 0/0
+sched_100_100_scaled.cbf.gz same   optimal/optimal obj 27.33078559204327/27.33078559204327 inc nan/-nan iters 40/40 work 1532790448/1532790448 nodes 0/0
+sched_100_50_orig.cbf.gz same   optimal/optimal obj 181889.93936287539/181889.93936287539 inc nan/-nan iters 40/40 work 1004222730/1004222730 nodes 0/0
+sched_100_50_scaled.cbf.gz same   optimal/optimal obj 67.165031099914685/67.165031099914685 inc nan/-nan iters 35/35 work 717608345/717608345 nodes 0/0
+sched_200_100_orig.cbf.gz same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 18/18 work 2053062672/2053062672 nodes 0/0
+sched_200_100_scaled.cbf.gz same   work limit reached/work limit reached obj nan/-nan inc nan/-nan iters 22/22 work 2031074956/2031074956 nodes 0/0
+sched_50_50_orig.cbf.gz  same   optimal/optimal obj 26673.000976807638/26673.000976807638 inc nan/-nan iters 29/29 work 306321863/306321863 nodes 0/0
+sched_50_50_scaled.cbf.gz same   optimal/optimal obj 7.8520384398579433/7.8520384398579433 inc nan/-nan iters 28/28 work 194432095/194432095 nodes 0/0
