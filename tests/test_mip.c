@@ -5470,6 +5470,19 @@ static void test_a_maximisation_pumps_like_its_negated_minimisation(void)
     jaos_model_free(b);
 }
 
+static void test_tightening_leaves_no_coefficient_its_slack_hides(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/miqp_tighten_dust.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -11.0, obj);
+    jaos_model_free(m);
+}
+
 static void test_a_node_row_that_cuts_nothing_off_leaves_the_answer(void)
 {
     {
@@ -5684,5 +5697,6 @@ int main(void)
     RUN_TEST(test_a_node_whose_tableau_cannot_be_read_skips_its_cuts);
     RUN_TEST(test_a_node_row_that_cuts_nothing_off_leaves_the_answer);
     RUN_TEST(test_a_maximisation_pumps_like_its_negated_minimisation);
+    RUN_TEST(test_tightening_leaves_no_coefficient_its_slack_hides);
     return UNITY_END();
 }

@@ -2162,6 +2162,7 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
 {
     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
         return 0;
+    const double tol = jm_primal_tolerance(m);
     int64_t tightened = 0, cost = 0;
     double *blo = jm_alloc_array(lp->num_col > 0 ? lp->num_col : 1, sizeof *blo);
     double *bhi = jm_alloc_array(lp->num_col > 0 ? lp->num_col : 1, sizeof *bhi);
@@ -2196,21 +2197,26 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
         if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
             continue;
         const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
-        double umax = 0.0, umin = 0.0;
+        double umax = 0.0, umin = 0.0, wmax = 0.0, wmin = 0.0;
         int64_t inf_max = 0, inf_min = 0;
         for (int64_t p = p0; p < p1; p++) {
             const int64_t j = lp->ar_index[p];
             const double a = lp->ar_value[p];
             const double hi = a > 0.0 ? ihi[j] : ilo[j];
             const double lo = a > 0.0 ? ilo[j] : ihi[j];
-            if (isfinite(hi))
+            const double w = m->col_integer[j] ? 0.0 : fabs(a) * tol;
+            if (isfinite(hi)) {
                 umax += a * hi;
-            else
+                wmax += w * (1.0 + fabs(hi));
+            } else {
                 inf_max++;
-            if (isfinite(lo))
+            }
+            if (isfinite(lo)) {
                 umin += a * lo;
-            else
+                wmin += w * (1.0 + fabs(lo));
+            } else {
                 inf_min++;
+            }
         }
         cost += p1 - p0;
         bool touched = false;
@@ -2225,7 +2231,8 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
                     continue;
                 const double without = a > 0.0 ? umax - a : umax + a;
                 const double d = ru - without;
-                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(ru))))
+                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(ru))) ||
+                    !(fabs(a) - d > wmax))
                     continue;
                 if (a > 0.0 && a > d) {
                     set_coefficient(lp, i, j, p, a - d, &cost);
@@ -2244,7 +2251,8 @@ static int64_t tighten_coefficients(const jaos_model *m, jaos_model *lp,
                     continue;
                 const double without = a < 0.0 ? umin - a : umin + a;
                 const double d = without - rl;
-                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(rl))))
+                if (!(d > MIP_TIGHTEN_MIN * (1.0 + fabs(rl))) ||
+                    !(fabs(a) - d > wmin))
                     continue;
                 if (a < 0.0 && -a > d) {
                     set_coefficient(lp, i, j, p, a + d, &cost);

@@ -111,6 +111,19 @@ since the checker's dual test is absolute; an optimum with no finite
 duals changes the checker's contract and is the maintainer's decision.
 Verify with 02-427's `warmqc.c` in qcp mode on seeds 1 to 8.
 
+J28. **A small QP whose optimum leaves a row just off its side.**
+`bench/measurements/02-435/qp-push-5180.mps` is the root relaxation of
+`miqp-5180.mps` there, six columns and five rows. Coefficient tightening
+made a binary's coefficient 0.50000015 where exact arithmetic gives 0.5,
+so row R4 sits 1.5e-7 off its side at the optimum. The barrier converges
+(gap 3.9e-9 at its sixth iteration), but every push takes R4 as active,
+pins the columns that make it so, cannot meet the row and cycles; the
+conic interior point's point is then refused for its duals (8.8e-6) and
+the tree ends `numerical_error`. With the coefficient at 0.5 the QP
+solves. Next: a push that leaves out a row whose slack at the iterate is
+above its tolerance. Verify with the model and 02-435's `mirror.c` in
+miqp mode on seed 5.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
