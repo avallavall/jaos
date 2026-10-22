@@ -88,6 +88,19 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
+J26. **A conic tree node whose relaxation the checker refuses gives no
+bound.** A rough node keeps its parent's bound, and a leaf whose fixed
+model ends `numerical_error` is set aside with that bound. When a cone
+meets the other constraints at one point only, the walk gives no duals
+the checker passes, and the tree ends `numerical_error` while an optimum
+exists: on 02-425's misocp seed 1, model 257's edits 1 and 2, model 138's
+edits 3, 5 and 6, and model 269's edit 2 (`bench/measurements/02-425/`).
+Next: a bound from the rough node's own duals. Any row duals and cone
+duals give one, `Σ y·side + Σ min(d·lower, d·upper)` with `d = c - Aᵀy -
+z`, once the cone duals are projected into their cones and every column
+the sum needs is bounded. Verify with 02-425's `warmcone.c` in misocp
+mode on seeds 1 to 3, and its `gate.sh`.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an

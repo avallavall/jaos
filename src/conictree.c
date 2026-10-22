@@ -1039,6 +1039,8 @@ jaos_status jm_conic_branch_and_bound(jaos_model *m)
             if (jaos_objective(rel, &obj) != JAOS_OK ||
                 jaos_solution(rel, x, nullptr, nullptr, nullptr) != JAOS_OK)
                 goto done;
+            for (int64_t t = 0; t < nc; t++)
+                x[t] = fmin(fmax(x[t], rel->col_lower[t]), rel->col_upper[t]);
             roughs += rel->conic_rough;
             const double key = rel->conic_rough ? cur->key : sigma * obj;
             if (!rel->conic_rough)

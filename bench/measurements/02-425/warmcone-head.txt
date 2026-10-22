@@ -1,0 +1,22 @@
+== socp seed 1
+models 300 edits 2400: optimal 905 infeasible 1437 unbounded 58 capped 0
+kinds cost=248 bounds=256 sides=256 coefficient=255 add-row=248 add-col=226 delete-row=266 delete-col=164 add-cone=249 delete-cone=232
+P1=0 P2=0 P3=0 broken total 0
+== socp seed 2
+models 300 edits 2400: optimal 1005 infeasible 1320 unbounded 75 capped 0
+kinds cost=265 bounds=245 sides=268 coefficient=224 add-row=242 add-col=238 delete-row=257 delete-col=177 add-cone=267 delete-cone=217
+P1=0 P2=0 P3=0 broken total 0
+== socp seed 3
+models 300 edits 2400: optimal 888 infeasible 1473 unbounded 35 capped 0
+kinds cost=260 bounds=247 sides=254 coefficient=252 add-row=260 add-col=244 delete-row=241 delete-col=171 add-cone=228 delete-cone=243
+P1=0 P2=0 P3=0 broken total 0
+== misocp seed 1
+models 300 edits 2400: optimal 824 infeasible 1499 unbounded 60 capped 12
+kinds cost=250 bounds=246 sides=261 coefficient=254 add-row=242 add-col=231 delete-row=245 delete-col=196 add-cone=245 delete-cone=230
+P1=0 P2=0 P3=0 broken total 0
+== misocp seed 2
+models 300 edits 2400: optimal 852 infeasible 1447 unbounded 75 capped 20
+kinds cost=234 bounds=224 sides=221 coefficient=265 add-row=257 add-col=321 delete-row=225 delete-col=187 add-cone=237 delete-cone=229
+P1=0 P2=0 P3=0 broken total 0
+== misocp seed 3
+Terminated

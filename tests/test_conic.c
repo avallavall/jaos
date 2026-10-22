@@ -1253,6 +1253,34 @@ static void test_a_cone_member_fixed_at_0_leaves_its_cone(void)
     jaos_model_free(m);
 }
 
+static void test_a_rough_node_point_outside_its_box_still_splits_it(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/cone_rough_branch.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 1000000000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 48.5, obj);
+    jaos_mip_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &r));
+    TEST_ASSERT_TRUE(r.nodes < 1000);
+    double x[24];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    for (int64_t j = 0; j < 24; j++) {
+        bool integer = false;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, j, &integer));
+        if (integer)
+            TEST_ASSERT_EQUAL_DOUBLE(round(x[j]), x[j]);
+    }
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, nullptr, 1e-6, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_cone_held_flat_leaves_the_direction_solve(void)
 {
     const char *path[2] = {"tests/data/cone_flat_ray.mps",
@@ -1543,6 +1571,7 @@ int main(void)
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);
     RUN_TEST(test_fixed_columns_leave_the_walks_quadratic_objective);
     RUN_TEST(test_a_cone_member_fixed_at_0_leaves_its_cone);
+    RUN_TEST(test_a_rough_node_point_outside_its_box_still_splits_it);
     RUN_TEST(test_a_cone_held_flat_leaves_the_direction_solve);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);

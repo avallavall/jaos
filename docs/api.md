@@ -657,6 +657,9 @@ The conic branch and bound of `src/conictree.c` solves a MIP with cones or
 quadratic rows. It reads only the gap and its rule, the node limit, the
 tree batch, the branching rule, the cutoff, the rounding switch, the count
 of the dive heuristic and the MIP start. Its pool holds the incumbent alone.
+A node moves its relaxation's point into the node's bounds before it
+branches. So a node solve that stops short of its tolerances, with a
+point outside the box, still branches into smaller boxes.
 
 **`jaos_set_mip_gap`**\
 `jaos_status jaos_set_mip_gap(jaos_model *m, double gap)`\
