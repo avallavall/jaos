@@ -66,17 +66,19 @@ and 02-398's `read.sh`.
 J27. **A cone with no interior, and an optimum no point reaches.** A
 quadratic row whose smallest value over the rest of the model is its
 side is now held there and the model solved again, with the duals
-published as NaN (`bench/measurements/02-446/`). Left from 02-431's
-permutation reading, where 155 of 200,000 continuous models and 22 of
-198,380 mixed ones ended with an answer in one order and
-`numerical_error` in the other: a cone with no point strictly inside, an
-optimum that is a limit no point reaches, and a node of a mixed-integer
-tree, where the held-row solve does not run. On such a row a point
-within tolerance moves the objective by about the square root of the
-tolerance, so two orders can also end at optima 9e-5 apart
-(`bench/measurements/02-431/`, `02-432/`). Next: take 02-431's reading
-again and count what is left; then the same hold for a cone, whose face
-at the probe's point is a ray. Verify with 02-431's `read.sh`.
+published as NaN (`bench/measurements/02-446/`). In 02-431's permutation
+reading 71 of 200,000 continuous models and 19 of 198,391 mixed ones
+still end with an answer in one order and `numerical_error` in the other,
+or at two optima (`bench/measurements/02-449/`). Two kinds are read:
+a model whose only point is the tip of its cones, where the solve that
+looks for the row with no interior fails itself (`c1905a.mps` of
+02-431), and an optimum that is a limit no point reaches (`c2939a.mps`).
+The held-row solve does not run at a node of a mixed-integer tree. On
+such a row a point within tolerance moves the objective by about the
+square root of the tolerance, so two orders can also end at optima 9e-5
+apart. Next: sort the 71 by kind with 02-431's `dumps.patch`; then a
+cone held on its ray, found the way a row is. Verify with 02-431's
+`read.sh`.
 
 ## Tier 3: the largest performance gaps
 
@@ -167,12 +169,16 @@ takes 20,089 nodes both ways (`bench/measurements/02-447/`). With rows
 negated, `enigma` (895 nodes against 15,642), `l152lav`, `misc03` and
 `misc07` still take another tree. On `enigma` the roots, the clique
 tables and the first 39 cuts match bit for bit, and the runs part inside
-a node's LP: the right-hand side of an FTRAN has 14 nonzeros as it is and
-15 with rows negated. The presolve's mirror does not run on a model with
+the tree's seventieth LP solve, a warm solve of a node with no cut rows.
+Both runs start it from the same bounds, costs, column statuses and
+basic rows, and then the right-hand side of an FTRAN has 14 nonzeros as
+it is and 15 with rows negated. So the dual simplex from a warm basis
+reads a row's sign somewhere; from the slack basis it does not
+(`bench/measurements/02-442/`). The presolve's mirror does not run on a model with
 a quadratic objective, cones, SOS sets, indicator rows, semi-continuous
-columns or a callback. Next: print the node LP's start basis and bounds
-on both `enigma` runs at the first FTRAN that differs (02-441's
-`trace.py`). Verify with 02-447's `modes.patch` and `MIRROR=rows`: no
+columns or a callback. Next: print each pivot of that solve on both
+runs (02-441's `trace.py` gives the work counts), starting with the side
+a nonbasic equality row is given in the warm basis. Verify with 02-447's `modes.patch` and `MIRROR=rows`: no
 node count differs on MIPLIB 3.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
