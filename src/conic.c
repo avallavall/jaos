@@ -1518,6 +1518,25 @@ static void cm_term_sizes(const jaos_model *m, const double *x, double *fs)
     for (int64_t j = 0; j < n; j++)
         if (!(fs[j] > 1.0) || !isfinite(fs[j]))
             fs[j] = 1.0;
+    double obj = m->obj_offset;
+    for (int64_t j = 0; j < n; j++) {
+        obj += m->col_cost[j] * x[j];
+        if (m->col_quad != nullptr)
+            obj += 0.5 * m->col_quad[j] * x[j] * x[j];
+    }
+    for (int64_t j = 0; m->q_start != nullptr && j < n; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++)
+            obj += m->q_value[p] * x[j] * x[m->q_index[p]];
+    const double room = 1.0 + 2.0 * fabs(obj);
+    for (int64_t j = 0; j < n && isfinite(room); j++) {
+        double far = 0.0;
+        if (isfinite(m->col_lower[j]) && fabs(x[j] - m->col_lower[j]) > far)
+            far = fabs(x[j] - m->col_lower[j]);
+        if (isfinite(m->col_upper[j]) && fabs(x[j] - m->col_upper[j]) > far)
+            far = fabs(x[j] - m->col_upper[j]);
+        if (far > 0.0 && room / far < fs[j])
+            fs[j] = room / far;
+    }
 }
 
 static jaos_status newton_polish(jaos_model *m, jm_work *work,

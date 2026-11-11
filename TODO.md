@@ -13,17 +13,15 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 ## Tier 1: defects
 
-J21. **Two cone models with quadratic rows whose optimum sits at a
-large scale.** The checker now judges a reduced cost against the size of
-its terms, and the dual refit weights each column by them
-(`bench/measurements/02-443/`). Two solves still end `numerical_error`.
-The second brute-force solve of 02-255 seed 4's model 533 passes the
-columns, rows, cones and duals and fails the gap. 02-326 seed 2's model
-620 has C2 = 28434; the settle's refit left stationarity at 3.3e-8, and
-times columns near 2e4 that left the objective gap at 5.2e-6
-(`bench/measurements/02-390/`). Next: read which gap term each one fails
-on. Verify with 02-432's `gate.sh`: no `UNSURE` line on 02-255 seed 4 and
-on 02-326 seed 2.
+J21. **A cone model with quadratic rows whose optimum sits at a large
+scale.** The second brute-force solve of 02-255 seed 4's model 533 ends
+`numerical_error`: its columns, rows, cones and duals pass the checker
+and its gap is 8e-7. The settle's projection moves the fixed column C4
+5e-9 off its value and stalls, the active rows stay 1.7e-9 to 3.2e-9 off
+their sides, and their multipliers are near 2e7
+(`bench/measurements/02-445/`). Next: a projection that holds a fixed
+column out of the system instead of as a constraint in it. Verify with
+02-432's `gate.sh`: no `UNSURE` line on 02-255 seed 4.
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
