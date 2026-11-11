@@ -3093,6 +3093,46 @@ static void test_a_maximised_empty_column_is_not_unbounded_downwards(void)
     jaos_model_free(m);
 }
 
+static void test_a_row_forcing_on_both_sides_reads_the_same_negated(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#elif defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("the record under test does not exist without presolve");
+#else
+    const double c[] = {3.0, -1.0, 1.0};
+    const double cl[] = {1.0, 1.0, 0.0}, cu[] = {1.0, 1.0, 10.0};
+    const int64_t s[] = {0, 2, 4, 5};
+    const int64_t ix[] = {0, 1, 0, 1, 1};
+    const jaos_basis_status cs[] = {JAOS_BASIS_BASIC, JAOS_BASIS_BASIC,
+                                    JAOS_BASIS_AT_LOWER};
+    const jaos_basis_status rs[] = {JAOS_BASIS_AT_LOWER, JAOS_BASIS_AT_LOWER};
+    double y[2][2];
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = pass == 0 ? 1.0 : -1.0;
+        const double rl[] = {2.0 * z, -5.0}, ru[] = {2.0 * z, INFINITY};
+        const double v[] = {z, 1.0, z, -1.0, 1.0};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         5, s, ix, v));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
+        m->cfg.node_solve = true;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, nullptr, nullptr, y[pass], nullptr));
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE_MESSAGE(y[1][0] == 0.0 - y[0][0],
+        "x1 + x2 = 2 with both columns fixed and basic at the start forces "
+        "on both sides; the side is taken with the row read at a positive "
+        "right-hand side, so the negated row takes the mirrored side");
+    TEST_ASSERT_TRUE(y[1][1] == y[0][1]);
+#endif
+}
+
 static void test_a_maximised_forcing_row_is_owed_its_multiplier(void)
 {
     const double c[]  = {1.0, 1.0};
@@ -3356,5 +3396,6 @@ int main(void)
     RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
     RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
     RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);
+    RUN_TEST(test_a_row_forcing_on_both_sides_reads_the_same_negated);
     return UNITY_END();
 }

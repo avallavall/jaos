@@ -29,11 +29,13 @@ all three as active. Verify with 02-432's `gate.sh`: no `UNSURE` line on
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400,
-6 of seeds 1001 to 1400 and 13 of seeds 1401 to 1800 at 12 nodes end
-`numerical_error`, and 1 of seeds 1 to 120 and 1 of seeds 1001 to 1200
-at 40 nodes (`bench/measurements/02-400/`, `02-413/`, `02-416/`). Of
-those 31, 16 stop on the barrier's growth stop, 3 at its iteration cap,
+so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400
+and 18 of seeds 1001 to 1800 at 12 nodes end `numerical_error`, and 1 of
+seeds 1 to 120 and 1 of seeds 1001 to 1200 at 40 nodes
+(`bench/measurements/02-448/`). Seed 1611 has ended optimal since the
+checker judges a reduced cost against its terms. Of the 31 before it
+(`02-400/`, `02-413/`, `02-416/`), 16 stop on the barrier's growth stop,
+3 at its iteration cap,
 and 12 converge but no push gives a point the checker passes; the conic
 walk then reports, on 30, an improving direction the ray checker refuses
 (`02-414/`). On six of the 12, only the reduced-cost test refuses a
@@ -161,25 +163,18 @@ mode, bound propagation and probing. The last reading had none land
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
-J29. **Four MIP trees depend on the signs of their rows.** The MIP
-presolve mirrors a column whose lower bound lies farther from zero than
-its upper bound, and the symmetry search reads each row with one sign, so
-mirrored columns leave every MIPLIB 3 node count as it was and `bell5`
-takes 20,089 nodes both ways (`bench/measurements/02-447/`). With rows
-negated, `enigma` (895 nodes against 15,642), `l152lav`, `misc03` and
-`misc07` still take another tree. On `enigma` the roots, the clique
-tables and the first 39 cuts match bit for bit, and the runs part inside
-the tree's seventieth LP solve, a warm solve of a node with no cut rows.
-Both runs start it from the same bounds, costs, column statuses and
-basic rows, and then the right-hand side of an FTRAN has 14 nonzeros as
-it is and 15 with rows negated. So the dual simplex from a warm basis
-reads a row's sign somewhere; from the slack basis it does not
-(`bench/measurements/02-442/`). The presolve's mirror does not run on a model with
-a quadratic objective, cones, SOS sets, indicator rows, semi-continuous
-columns or a callback. Next: print each pivot of that solve on both
-runs (02-441's `trace.py` gives the work counts), starting with the side
-a nonbasic equality row is given in the warm basis. Verify with 02-447's `modes.patch` and `MIRROR=rows`: no
-node count differs on MIPLIB 3.
+J29. **The trees the mirror does not reach.** With columns mirrored and
+rows negated, every MIPLIB 3 model now takes the same number of nodes
+(`bench/measurements/02-447/`, `02-450/`). Left: the MIP presolve's
+mirror does not run on a model with a quadratic objective, cones, SOS
+sets, indicator rows, semi-continuous columns or a callback; of CBLIB's
+80 mixed-integer instances, 48 take another path and one ends at the
+work limit one way only (`bench/measurements/02-442/`); and with rows
+negated `blend2` takes 124,814 iterations against 124,695 in the same
+6,972 nodes. Next: 02-440's `mirrorfile.c` on CBLIB's mixed-integer set
+with each of 02-447's modes, to see whether the conic tree reads a
+column's sign or a row's. Verify with 02-440's `read.sh`: no node count
+differs on CBLIB's mixed-integer set.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).

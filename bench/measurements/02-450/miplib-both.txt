@@ -1,0 +1,24 @@
+air03.mps                path   optimal/optimal obj 340160/340160 inc 340160/340160 iters 443/443 work 56549559/56742496 nodes 1/1
+bell3a.mps               path   optimal/optimal obj 878430.31599999999/878430.31599999999 inc 878430.31599999999/878430.31599999999 iters 253145/253145 work 1102177566/1102198705 nodes 67627/67627
+bell5.mps                path   optimal/optimal obj 8966406.4915200006/8966406.4915200006 inc 8966406.4915200006/8966406.4915200006 iters 38143/38143 work 205954598/205970528 nodes 20089/20089
+blend2.mps               path   optimal/optimal obj 7.5989849999999999/7.5989849999999999 inc 7.5989849999999999/7.5989849999999999 iters 124695/124814 work 727044590/728028834 nodes 6972/6972
+dcmulti.mps              path   optimal/optimal obj 188182/188182 inc 188182/188182 iters 18708/18708 work 137169740/137498610 nodes 480/480
+egout.mps                path   optimal/optimal obj 568.10069999999996/568.10069999999996 inc 568.10069999999996/568.10069999999996 iters 121/112 work 1179934/1324519 nodes 1/1
+enigma.mps               path   optimal/optimal obj 0/0 inc 0/0 iters 8630/8630 work 18764223/18763108 nodes 895/895
+flugpl.mps               path   optimal/optimal obj 1201500/1201500 inc 1201500/1201500 iters 1972/1972 work 10183150/10183279 nodes 1937/1937
+gen.mps                  path   optimal/optimal obj 112313.362718/112313.362718 inc 112313.362718/112313.362718 iters 568/568 work 4237775/4294633 nodes 2/2
+gt2.mps                  path   optimal/optimal obj 21166/21166 inc 21166/21166 iters 7044/7044 work 15724633/15725602 nodes 447/447
+khb05250.mps             path   optimal/optimal obj 106940226/106940226 inc 106940226/106940226 iters 1985/1985 work 29208672/29375952 nodes 93/93
+l152lav.mps              path   optimal/optimal obj 4722/4722 inc 4722/4722 iters 80571/80571 work 1976288472/1976310402 nodes 1438/1438
+lseu.mps                 path   optimal/optimal obj 1120/1120 inc 1120/1120 iters 19334/19334 work 52934613/52935348 nodes 4005/4005
+misc03.mps               path   optimal/optimal obj 3360/3360 inc 3360/3360 iters 6550/6550 work 42965044/42969219 nodes 248/248
+misc06.mps               path   optimal/optimal obj 12850.86073738254/12850.86073738254 inc 12850.86073738254/12850.86073738254 iters 1621/1621 work 41887843/43413883 nodes 90/90
+misc07.mps               path   work limit reached/work limit reached obj nan/nan inc 2810/2810 iters 156917/156915 work 2000018521/2000007294 nodes 7192/7192
+mod008.mps               path   optimal/optimal obj 307/307 inc 307/307 iters 4747/4747 work 24089929/24092740 nodes 683/683
+mod010.mps               path   optimal/optimal obj 6548/6548 inc 6548/6548 iters 822/822 work 18888362/18913569 nodes 1/1
+p0033.mps                path   optimal/optimal obj 3089/3089 inc 3089/3089 iters 227/227 work 2571744/2571989 nodes 21/21
+p0201.mps                path   optimal/optimal obj 7615/7615 inc 7615/7615 iters 8614/8614 work 60952786/60956966 nodes 351/351
+p0282.mps                path   optimal/optimal obj 258411/258411 inc 258411/258411 iters 28984/28984 work 92588723/92593178 nodes 1454/1454
+rgn.mps                  path   optimal/optimal obj 82.199999239999983/82.199999239999983 inc 82.199999239999983/82.199999239999983 iters 1832/1832 work 7447083/7544596 nodes 143/143
+stein27.mps              path   optimal/optimal obj 18/18 inc 18/18 iters 5946/5946 work 21838964/21839865 nodes 1235/1235
+stein45.mps              path   work limit reached/work limit reached obj nan/nan inc 30/30 iters 366839/366838 work 2000002897/2000001388 nodes 44767/44767

@@ -106,6 +106,27 @@ typedef struct {
     double traffic;
 } ps_range;
 
+static bool ps_row_reads_up(const jaos_model *m, const ps_rowwise *rw,
+                            int64_t i)
+{
+    const double lo = m->row_lower[i], up = m->row_upper[i];
+    if (isfinite(lo) != isfinite(up))
+        return isfinite(up);
+    if (fabs(lo) != fabs(up))
+        return fabs(up) > fabs(lo);
+    if (lo == up && up != 0.0)
+        return up > 0.0;
+    double sum = 0.0, first = 0.0;
+    for (int64_t k = rw->rs[i]; k < rw->rs[i + 1]; k++) {
+        sum += rw->rval[k];
+        if (first == 0.0)
+            first = rw->rval[k];
+    }
+    if (sum != 0.0)
+        return sum > 0.0;
+    return !(first < 0.0);
+}
+
 static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
                              const double *cl, const double *cu,
                              const bool *col_dead, int64_t skip)
@@ -709,8 +730,10 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 goto done;
             }
 
-            const bool force_hi = isfinite(ru) && min_act >= ru - rtol;
+            const bool forced_hi = isfinite(ru) && min_act >= ru - rtol;
             const bool force_lo = isfinite(rl) && max_act <= rl + rtol;
+            const bool force_hi =
+                forced_hi && (!force_lo || ps_row_reads_up(m, &rw, i));
             if (force_hi || force_lo) {
 
                 bool at_own_bounds = true;
