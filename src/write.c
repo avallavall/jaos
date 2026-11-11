@@ -31,6 +31,10 @@ static void row_name(const jaos_model *m, char *buf, int64_t i)
 
 static void wr_num(char *buf, double v)
 {
+    if (isnan(v)) {
+        snprintf(buf, NUM_LEN, "nan");
+        return;
+    }
     for (int prec = 15; prec <= 16; prec++) {
         snprintf(buf, NUM_LEN, "%.*g", prec, v);
         if (strtod(buf, nullptr) == v)
@@ -1925,6 +1929,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
     wr *w = &ww;
     char nm[NAME_LEN], a[NUM_LEN], b[NUM_LEN];
 
+    const bool none = optimal && jm_model_no_duals(m);
     if (optimal) {
         if (!isfinite(m->objective))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
@@ -1932,14 +1937,16 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
                     "write down");
         for (int64_t j = 0; w->st == JAOS_OK && j < m->num_col; j++) {
             col_name(m, nm, j);
-            if (!isfinite(m->sol_col[j]) || !isfinite(m->sol_redcost[j]))
+            if (!isfinite(m->sol_col[j]) ||
+                (!none && !isfinite(m->sol_redcost[j])))
                 wr_fail(w, JAOS_ERR_INVALID_INPUT,
                         "column '%s' has a value or a reduced cost that is "
                         "not finite", nm);
         }
         for (int64_t i = 0; w->st == JAOS_OK && i < m->num_row; i++) {
             row_name(m, nm, i);
-            if (!isfinite(m->sol_row[i]) || !isfinite(m->sol_dual[i]))
+            if (!isfinite(m->sol_row[i]) ||
+                (!none && !isfinite(m->sol_dual[i])))
                 wr_fail(w, JAOS_ERR_INVALID_INPUT,
                         "row '%s' has an activity or a dual that is not "
                         "finite", nm);
@@ -1965,7 +1972,7 @@ jaos_status jaos_write_solution(jaos_model *m, const char *path)
                        m->cone_ok && m->sol_cone != nullptr;
     for (int64_t t = 0; cones && w->st == JAOS_OK &&
                         t < m->cone_start[m->num_cone]; t++)
-        if (!isfinite(m->sol_cone[t]))
+        if (none ? !isnan(m->sol_cone[t]) : !isfinite(m->sol_cone[t]))
             wr_fail(w, JAOS_ERR_INVALID_INPUT,
                     "a cone dual is not finite");
 
@@ -2080,6 +2087,15 @@ static bool rd_num(const char *tok, double *out)
         return false;
     *out = v;
     return true;
+}
+
+static bool rd_dual(const char *tok, double *out)
+{
+    if (strcmp(tok, "nan") == 0) {
+        *out = NAN;
+        return true;
+    }
+    return rd_num(tok, out);
 }
 
 typedef struct {
@@ -2226,7 +2242,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
                         "and the file says cone %s member %s; records are in "
                         "index order", lno, want_k, want_t, tok[1], tok[2]);
             double v;
-            if (!rd_num(tok[3], &v))
+            if (!rd_dual(tok[3], &v))
                 RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
                         tok[3]);
             if (o->cone != nullptr)
@@ -2264,7 +2280,7 @@ static jaos_status read_solution_file(jaos_model *m, const char *path,
             if (!rd_num(tok[2], &v1))
                 RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
                         tok[2]);
-            if (!rd_num(tok[3], &v2))
+            if (!rd_dual(tok[3], &v2))
                 RD_FAIL("line %" PRId64 ": '%s' is not a finite number", lno,
                         tok[3]);
             if (!basis_of_word(tok[4], &bs))

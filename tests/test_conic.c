@@ -1094,6 +1094,44 @@ static void test_a_refused_direction_is_replaced_by_a_solve_over_directions(void
     }
 }
 
+static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qc_flat_row.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -42.416666666666664, obj);
+    const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+    double *x = jm_alloc_array(nc, sizeof *x);
+    double *d = jm_alloc_array(nc, sizeof *d);
+    double *y = jm_alloc_array(nr, sizeof *y);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(d);
+    TEST_ASSERT_NOT_NULL(y);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, d));
+    for (int64_t i = 0; i < nr; i++)
+        TEST_ASSERT_TRUE_MESSAGE(isnan(y[i]),
+            "a row whose smallest value is its side leaves no finite duals");
+    for (int64_t j = 0; j < nc; j++)
+        TEST_ASSERT_TRUE(isnan(d[j]));
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_FALSE_MESSAGE(r.checked_duals,
+        "duals that are all NaN are duals that do not exist");
+    y[0] = 0.0;
+    if (nr > 1)
+        TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                              jaos_check_solution(m, x, y, 1e-7, &r));
+    free(x);
+    free(d);
+    free(y);
+    jaos_model_free(m);
+}
+
 static void catch_sqp(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -1338,7 +1376,7 @@ static void test_a_rough_node_beside_quadratic_rows_is_bounded(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     double obj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -15.500009337761226, obj);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -15.5, obj);
     double x[14];
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
     jaos_check_report rep;
@@ -1711,6 +1749,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_stalled_walk);
+    RUN_TEST(test_a_quadratic_row_with_no_interior_ends_optimal_without_duals);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);

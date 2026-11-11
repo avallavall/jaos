@@ -1772,6 +1772,13 @@ each. Every output is optional. The call fails unless the last solve ended
 `JAOS_SOLVE_OPTIMAL`. For a MIP the point is the incumbent, with its integer
 columns rounded to integers.
 
+An optimum can have no finite duals. That happens when a quadratic row's
+smallest value over the rest of the model is its side, so that no point
+lies strictly inside the row. The solve then holds the row at that value,
+solves the model again, and publishes the point with every row dual,
+reduced cost and cone dual as NaN. `jaos_check_solution` judges such a
+point on its primal side alone.
+
 ## The basis
 
 A basis gives each column and each row one of four statuses:
@@ -1977,8 +1984,10 @@ it did not run, its fields stay 0 or false. When it ran:
 - `dual_feasible` is true when `max_dual_violation_relative` and
   `objective_gap` are within `tol`.
 
-The call fails when `col_value` is null on a model with columns, or when an
-input value is NaN.
+Row duals that are all NaN, with the cone duals all NaN when they are
+given, are duals that do not exist: the call judges the point as if
+`row_dual` were null. The call fails when `col_value` is null on a model
+with columns, or when another input value is NaN.
 
 **`jaos_check_conic_solution`**
 

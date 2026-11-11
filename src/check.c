@@ -427,6 +427,20 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
     for (int64_t j = 0; j < m->num_col; j++)
         if (isnan(col_value[j]))
             return JAOS_ERR_INVALID_INPUT;
+    if (row_dual != nullptr) {
+        const int64_t members =
+            cone_dual != nullptr && m->num_cone > 0 ? m->cone_start[m->num_cone]
+                                                    : 0;
+        bool none = m->num_row + members > 0;
+        for (int64_t i = 0; none && i < m->num_row; i++)
+            none = isnan(row_dual[i]);
+        for (int64_t t = 0; none && t < members; t++)
+            none = isnan(cone_dual[t]);
+        if (none) {
+            row_dual = nullptr;
+            cone_dual = nullptr;
+        }
+    }
     if (row_dual != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
             if (isnan(row_dual[i]))

@@ -2540,6 +2540,17 @@ static int64_t cm_drop_cones(const jaos_model *m, uint8_t *drop,
     return count;
 }
 
+static void cm_void_duals(jaos_model *m)
+{
+    const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
+    for (int64_t j = 0; j < m->num_col; j++)
+        m->sol_redcost[j] = NAN;
+    for (int64_t i = 0; i < m->num_row; i++)
+        m->sol_dual[i] = NAN;
+    for (int64_t t = 0; m->sol_cone != nullptr && t < members; t++)
+        m->sol_cone[t] = NAN;
+}
+
 static void cm_idle_heads(const jaos_model *m, const uint8_t *drop, double *v,
                           bool ray)
 {
@@ -3420,6 +3431,8 @@ static jaos_status cm_without_alone(jaos_model *m, const uint8_t *used,
     if (members > 0 && red->sol_cone != nullptr)
         memcpy(m->sol_cone, red->sol_cone,
                (size_t)members * sizeof *m->sol_cone);
+    if (jm_model_no_duals(red))
+        cm_void_duals(m);
     m->objective = red->objective;
     if (m->solve_status != JAOS_SOLVE_OPTIMAL && m->err[0] == '\0' &&
         jaos_model_error(red)[0] != '\0')
@@ -3552,6 +3565,8 @@ static jaos_status cm_without_rows(jaos_model *m, const uint8_t *loose,
     if (members > 0 && red->sol_cone != nullptr)
         memcpy(m->sol_cone, red->sol_cone,
                (size_t)members * sizeof *m->sol_cone);
+    if (jm_model_no_duals(red))
+        cm_void_duals(m);
     m->objective = red->objective;
     if (m->solve_status != JAOS_SOLVE_OPTIMAL && m->err[0] == '\0' &&
         jaos_model_error(red)[0] != '\0')
@@ -3644,6 +3659,8 @@ static jaos_status cm_without_cones(jaos_model *m, const uint8_t *drop,
         const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
         st = cm_dead_duals(m, drop, flag, sigma);
         m->cone_ok = st == JAOS_OK;
+        if (st == JAOS_OK && jm_model_no_duals(red))
+            cm_void_duals(m);
         if (st == JAOS_OK) {
             for (int64_t i = 0; i < nr; i++) {
                 double act = 0.0, comp = 0.0;
@@ -3673,6 +3690,214 @@ static jaos_status cm_without_cones(jaos_model *m, const uint8_t *drop,
         jm_set_err(m, "%s", jaos_model_error(red));
     jaos_model_free(red);
     return st;
+}
+
+constexpr int64_t CONIC_FLAT_ROWS = 8;
+
+static void cm_quiet(const jaos_model *m, jaos_model *c, const jm_work *work)
+{
+    c->cfg.log_cb = nullptr;
+    c->cfg.progress_cb = nullptr;
+    c->cfg.incumbent_cb = nullptr;
+    c->cfg.no_flat_rows = true;
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = m->cfg.work_limit - work->units;
+        c->cfg.work_limit = left > 0 ? left : 1;
+    }
+}
+
+static jaos_status cm_flat_probe(const jaos_model *m, int64_t i, jm_work *work,
+                                 jaos_model **out)
+{
+    const int64_t n = m->num_col;
+    const int64_t qn = m->rq_start[i + 1] - m->rq_start[i];
+    jaos_model *p = nullptr;
+    int64_t *qr = jm_alloc_array(qn, sizeof *qr);
+    int64_t *qc = jm_alloc_array(qn, sizeof *qc);
+    double *qv = jm_alloc_array(qn, sizeof *qv);
+    jaos_status st = jaos_model_copy(m, &p);
+    if (st == JAOS_OK && (qr == nullptr || qc == nullptr || qv == nullptr))
+        st = JAOS_ERR_OUT_OF_MEMORY;
+    for (int64_t j = 0; st == JAOS_OK && j < n; j++) {
+        st = jaos_set_col_cost(p, j, 0.0);
+        if (st == JAOS_OK && m->col_quad != nullptr && m->col_quad[j] != 0.0)
+            st = jaos_set_col_quadratic(p, j, 0.0);
+    }
+    if (st == JAOS_OK && m->q_nz > 0)
+        st = jaos_set_quadratic(p, 0, qr, qc, qv);
+    for (int64_t t = m->ar_start[i]; st == JAOS_OK && t < m->ar_start[i + 1];
+         t++)
+        st = jaos_set_col_cost(p, m->ar_index[t], m->ar_value[t]);
+    int64_t off = 0;
+    for (int64_t t = m->rq_start[i]; st == JAOS_OK && t < m->rq_start[i + 1];
+         t++) {
+        if (m->rq_i[t] == m->rq_j[t]) {
+            st = jaos_set_col_quadratic(p, m->rq_i[t], m->rq_v[t]);
+        } else {
+            qr[off] = m->rq_i[t];
+            qc[off] = m->rq_j[t];
+            qv[off++] = m->rq_v[t];
+        }
+    }
+    if (st == JAOS_OK && off > 0)
+        st = jaos_set_quadratic(p, off, qr, qc, qv);
+    if (st == JAOS_OK)
+        st = jaos_set_objective_offset(p, 0.0);
+    if (st == JAOS_OK)
+        st = jaos_set_objective_sense(p, isfinite(m->row_upper[i])
+                                             ? JAOS_MINIMIZE : JAOS_MAXIMIZE);
+    if (st == JAOS_OK)
+        st = jaos_set_row_quadratic(p, i, 0, qr, qc, qv);
+    if (st == JAOS_OK)
+        st = jaos_set_row_bounds(p, i, -INFINITY, INFINITY);
+    if (st == JAOS_OK) {
+        cm_quiet(m, p, work);
+        st = jaos_solve(p);
+        jm_work_add(work, jaos_work_units(p));
+    }
+    free(qr);
+    free(qc);
+    free(qv);
+    if (st != JAOS_OK) {
+        jaos_model_free(p);
+        p = nullptr;
+    }
+    *out = p;
+    return st;
+}
+
+static jaos_status cm_flat_hold(const jaos_model *m, jaos_model *red, int64_t i,
+                                const double *xs)
+{
+    const int64_t n = m->num_col;
+    const int64_t b = m->rq_start[i], e = m->rq_start[i + 1];
+    int64_t *idx = jm_alloc_array(n > 0 ? n : 1, sizeof *idx);
+    double *val = jm_alloc_array(n > 0 ? n : 1, sizeof *val);
+    uint8_t *seen = jm_calloc_array(n > 0 ? n : 1, sizeof *seen);
+    jaos_status st = idx == nullptr || val == nullptr || seen == nullptr
+                         ? JAOS_ERR_OUT_OF_MEMORY : JAOS_OK;
+    for (int64_t t = b; st == JAOS_OK && t < e; t++)
+        for (int side = 0; st == JAOS_OK && side < 2; side++) {
+            const int64_t r = side == 0 ? m->rq_i[t] : m->rq_j[t];
+            if (seen[r])
+                continue;
+            seen[r] = 1;
+            int64_t k = 0;
+            double rhs = 0.0;
+            bool cross = false;
+            for (int64_t c = 0; c < n; c++) {
+                double v = 0.0;
+                for (int64_t u = b; u < e; u++)
+                    if ((m->rq_i[u] == r && m->rq_j[u] == c) ||
+                        (m->rq_i[u] == c && m->rq_j[u] == r))
+                        v += m->rq_v[u];
+                if (v == 0.0)
+                    continue;
+                cross = cross || c != r;
+                idx[k] = c;
+                val[k++] = v;
+                rhs += v * xs[c];
+            }
+            if (k == 0)
+                continue;
+            if (cross) {
+                const int64_t start[2] = {0, k};
+                st = jaos_add_rows(red, 1, &rhs, &rhs, k, start, idx, val);
+            } else {
+                double v = xs[r];
+                if (v < m->col_lower[r])
+                    v = m->col_lower[r];
+                if (v > m->col_upper[r])
+                    v = m->col_upper[r];
+                st = jaos_set_col_bounds(red, r, v, v);
+            }
+        }
+    double lin = 0.0;
+    const bool has_lin = m->ar_start[i + 1] > m->ar_start[i];
+    for (int64_t t = m->ar_start[i]; t < m->ar_start[i + 1]; t++)
+        lin += m->ar_value[t] * xs[m->ar_index[t]];
+    if (st == JAOS_OK)
+        st = jaos_set_row_quadratic(red, i, 0, idx, idx, val);
+    if (st == JAOS_OK) {
+        const bool upper = isfinite(m->row_upper[i]);
+        st = jaos_set_row_bounds(red, i,
+                                 has_lin && !upper ? lin : -INFINITY,
+                                 has_lin && upper ? lin : INFINITY);
+    }
+    free(idx);
+    free(val);
+    free(seen);
+    return st;
+}
+
+static jaos_status cm_flat_rows(jaos_model *m, jm_work *work, bool *refused)
+{
+    const int64_t n = m->num_col, nr = m->num_row;
+    const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
+    const double ptol = jm_primal_tolerance(m), dtol = jm_dual_tolerance(m);
+    jaos_model *red = nullptr;
+    int64_t probes = 0, flat = 0, last = -1;
+    jaos_status st = jaos_model_copy(m, &red);
+    for (int64_t i = 0; st == JAOS_OK && i < nr && probes < CONIC_FLAT_ROWS;
+         i++) {
+        if (m->rq_start[i + 1] == m->rq_start[i] ||
+            isfinite(m->row_lower[i]) == isfinite(m->row_upper[i]))
+            continue;
+        const double side = isfinite(m->row_upper[i]) ? m->row_upper[i]
+                                                      : m->row_lower[i];
+        if (fabs(m->sol_row[i] - side) > ptol * (1.0 + fabs(side)))
+            continue;
+        probes++;
+        jaos_model *p = nullptr;
+        st = cm_flat_probe(m, i, work, &p);
+        if (st != JAOS_OK)
+            break;
+        if (jaos_status_of(p) == JAOS_SOLVE_OPTIMAL &&
+            fabs(p->objective - side) <= dtol * (1.0 + fabs(side))) {
+            st = cm_flat_hold(m, red, i, p->sol_col);
+            flat++;
+            last = i;
+        }
+        jaos_model_free(p);
+    }
+    if (st == JAOS_OK && flat > 0) {
+        cm_quiet(m, red, work);
+        st = jaos_solve(red);
+        jm_work_add(work, jaos_work_units(red));
+    }
+    jaos_check_report ck;
+    if (st == JAOS_OK && flat > 0 &&
+        jaos_status_of(red) == JAOS_SOLVE_OPTIMAL &&
+        jaos_check_solution(m, red->sol_col, nullptr, ptol, &ck) == JAOS_OK &&
+        ck.primal_feasible) {
+        for (int64_t j = 0; j < n; j++) {
+            m->sol_col[j] = red->sol_col[j];
+            m->sol_redcost[j] = NAN;
+        }
+        for (int64_t i = 0; i < nr; i++) {
+            double act = 0.0, comp = 0.0;
+            for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++)
+                cm_add_product(&act, &comp, m->ar_value[p],
+                               m->sol_col[m->ar_index[p]]);
+            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+                const int64_t r = m->rq_i[p], c = m->rq_j[p];
+                cm_add_product(&act, &comp, (r == c ? 0.5 : 1.0) * m->rq_v[p] *
+                                                m->sol_col[r], m->sol_col[c]);
+            }
+            m->sol_row[i] = act + comp;
+            m->sol_dual[i] = NAN;
+        }
+        for (int64_t t = 0; t < members; t++)
+            m->sol_cone[t] = NAN;
+        jm_log(m, JAOS_LOG_SUMMARY, "conic: %lld quadratic rows hold at one "
+               "value only over the rest of the model, row %lld the last; "
+               "each is held there and the model solved again. The optimum "
+               "has no finite duals, and they are published as NaN",
+               (long long)flat, (long long)last);
+        *refused = false;
+    }
+    jaos_model_free(red);
+    return st == JAOS_ERR_OUT_OF_MEMORY ? st : JAOS_OK;
 }
 
 static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
@@ -4228,6 +4453,9 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
             st = cm_settle(m, &work, &ck, &refused);
             if (st == JAOS_OK && refused)
                 st = cm_sqp(m, &work, &ck, &refused, "the refused optimum");
+            if (st == JAOS_OK && refused && m->rq_nz > 0 &&
+                !m->cfg.no_flat_rows && !jm_model_has_integer(m))
+                st = cm_flat_rows(m, &work, &refused);
             if (st != JAOS_OK)
                 goto done;
             m->solve_work = work.units;

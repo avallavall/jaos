@@ -665,6 +665,11 @@ the records back as one array, cone after cone; the count has to be the
 model's, the records in order, and all of them there. A file without the
 section reads as usual, and `jaos_read_cone_duals` refuses it.
 
+**An optimum with no finite duals writes `nan`.** When `jaos_solution`
+hands out NaN for every dual, the `col`, `row` and `cone` records carry
+`nan` in the reduced cost, dual and cone dual fields, and the reader takes
+the word back as NaN. `jaos check` then judges the point alone.
+
 **A certificate is the same file with a different status.** For an
 infeasible model the records are one `ray` per row carrying the Farkas
 multiplier `jaos_certificate` hands out; for an unbounded one, one `ray`

@@ -451,6 +451,10 @@ and `docs/tolerances.md`, "The checker's tolerance", how `tol` is applied.
 The two fields that decide are `primal_feasible` and
 `dual_feasible`. The exit code is 0 when both are `yes` and 1 otherwise.
 
+A file whose duals are all `nan` holds an optimum with no finite duals
+(`docs/api.md`, `jaos_solution`). The check then reports `checked_duals no`
+and exits 0 when the point is feasible.
+
 On a model with cones the file must carry the `cone` records that
 `solve --solution` writes, and the check reads them as the cones' duals.
 The report then ends with `max_cone_violation`. A file without the records

@@ -59,28 +59,20 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
-J27. **A quadratic row that only touches the other constraints.** On
-02-427's continuous reading, 16 of 64,000 edited models end
-`numerical_error`: the point passes the checker, its duals miss by 0.07
-to 35. On the eight with one quadratic row, the row's smallest value
-over the other rows and bounds equals its side, so no point lies
-strictly inside it and finite duals need not exist. Moving each quadratic
-side out by 1e-4 solves all 16 (`bench/measurements/02-427/`). In
-02-431's permutation reading, 155 of 200,000 continuous models end with
-an answer in one order and `numerical_error` in the other, and 22 of
-198,380 mixed ones, after 02-432 and 02-433. Of seed 1's first five continuous ones,
-four have a quadratic row or cone with no point strictly inside, and
-with each side or head moved out by 1e-4 both orders agree. The fifth
-has the dual's form of the same defect: its optimum is a limit that no
-point reaches. Of the 36 mixed ones 02-432 took apart, 35 agree once
-moved out, and one has a limit for an optimum. On such a row a point
+J27. **A cone with no interior, and an optimum no point reaches.** A
+quadratic row whose smallest value over the rest of the model is its
+side is now held there and the model solved again, with the duals
+published as NaN (`bench/measurements/02-446/`). Left from 02-431's
+permutation reading, where 155 of 200,000 continuous models and 22 of
+198,380 mixed ones ended with an answer in one order and
+`numerical_error` in the other: a cone with no point strictly inside, an
+optimum that is a limit no point reaches, and a node of a mixed-integer
+tree, where the held-row solve does not run. On such a row a point
 within tolerance moves the objective by about the square root of the
 tolerance, so two orders can also end at optima 9e-5 apart
-(`bench/measurements/02-431/`, `02-432/`). Next:
-duals of small violation and large size from the walk's last iterates,
-since the checker's dual test is absolute; an optimum with no finite
-duals changes the checker's contract and is the maintainer's decision.
-Verify with 02-427's `warmqc.c` in qcp mode on seeds 1 to 8.
+(`bench/measurements/02-431/`, `02-432/`). Next: take 02-431's reading
+again and count what is left; then the same hold for a cone, whose face
+at the probe's point is a ray. Verify with 02-431's `read.sh`.
 
 ## Tier 3: the largest performance gaps
 

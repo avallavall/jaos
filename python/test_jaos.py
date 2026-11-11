@@ -1084,6 +1084,19 @@ class TestTheChecker(unittest.TestCase):
             r = m.check_solution(m.solution().col_value)
             self.assertFalse(r.checked_duals)
 
+    def test_duals_that_do_not_exist_are_nan(self):
+        with jaos.Model() as m:
+            m.read_mps(data("qc_flat_row.mps"))
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), -42.416666666666664,
+                                   places=6)
+            s = m.solution()
+            self.assertTrue(all(v != v for v in s.row_dual))
+            self.assertTrue(all(v != v for v in s.col_dual))
+            r = m.check_solution(s.col_value, s.row_dual)
+            self.assertTrue(r.primal_feasible)
+            self.assertFalse(r.checked_duals)
+
     def test_a_reduced_cost_is_judged_against_its_terms(self):
         with jaos.Model() as m:
             m.load(num_col=1, num_row=1, col_cost=[1e12],

@@ -38,6 +38,7 @@ typedef struct {
     bool node_solve;
     bool node_no_presolve;
     bool no_cert_solve;
+    bool no_flat_rows;
     bool cut_resolve;
     bool no_aggregate;
     bool no_presolve;
@@ -508,6 +509,7 @@ JAOS_NODISCARD bool jm_model_basis_count_ok(const jaos_model *m);
 
 double jm_model_objective_at(const jaos_model *m, const double *xv);
 void jm_model_publish_objective(jaos_model *m);
+bool jm_model_no_duals(const jaos_model *m);
 
 static_assert(FLT_EVAL_METHOD == 0,
               "Dekker's split needs double arithmetic evaluated at double");

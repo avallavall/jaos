@@ -2635,6 +2635,17 @@ double jm_model_objective_at(const jaos_model *m, const double *xv)
     return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
 }
 
+bool jm_model_no_duals(const jaos_model *m)
+{
+    bool none = m->solve_status == JAOS_SOLVE_OPTIMAL &&
+                m->num_col + m->num_row > 0;
+    for (int64_t j = 0; none && j < m->num_col; j++)
+        none = m->sol_redcost != nullptr && isnan(m->sol_redcost[j]);
+    for (int64_t i = 0; none && i < m->num_row; i++)
+        none = m->sol_dual != nullptr && isnan(m->sol_dual[i]);
+    return none;
+}
+
 void jm_model_publish_objective(jaos_model *m)
 {
 
@@ -2658,13 +2669,15 @@ void jm_model_publish_objective(jaos_model *m)
     const char *what = nullptr;
     int64_t at = -1;
     double bad = 0.0;
+    const bool none = jm_model_no_duals(m);
     for (int64_t j = 0; what == nullptr && m->sol_col != nullptr &&
                         j < m->num_col; j++) {
         if (!isfinite(m->sol_col[j])) {
             what = "column value";
             bad = m->sol_col[j];
             at = j;
-        } else if (m->sol_redcost != nullptr && !isfinite(m->sol_redcost[j])) {
+        } else if (!none && m->sol_redcost != nullptr &&
+                   !isfinite(m->sol_redcost[j])) {
             what = "reduced cost";
             bad = m->sol_redcost[j];
             at = j;
@@ -2676,7 +2689,8 @@ void jm_model_publish_objective(jaos_model *m)
             what = "row activity";
             bad = m->sol_row[i];
             at = i;
-        } else if (m->sol_dual != nullptr && !isfinite(m->sol_dual[i])) {
+        } else if (!none && m->sol_dual != nullptr &&
+                   !isfinite(m->sol_dual[i])) {
             what = "row dual";
             bad = m->sol_dual[i];
             at = i;

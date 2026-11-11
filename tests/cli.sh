@@ -830,6 +830,19 @@ esac
 grep -q '^cones 1$' "$tmp/cone.sol" && grep -q '^cone 0 2 ' "$tmp/cone.sol" \
     && pass "and the solution file carries the cone records" \
     || flunk "no cone records in the solution file"
+expect_exit 0 "a quadratic row with no interior solves" \
+    "$JAOS" solve "$DATA/qc_flat_row.mps" --solution "$tmp/flat.sol" --check
+[ "$(line_of check_ok)" = "check_ok yes" ] && [ "$(line_of checked_duals)" = "checked_duals no" ] \
+    && pass "and --check judges the point alone, since no finite duals exist" \
+    || flunk "flat row --check: '$(line_of check_ok)' '$(line_of checked_duals)'"
+grep -q '^row .* nan ' "$tmp/flat.sol" \
+    && pass "and the solution file writes its duals as nan" \
+    || flunk "no nan duals in the solution file"
+expect_exit 0 "check reads that file back and passes the point" \
+    "$JAOS" check "$DATA/qc_flat_row.mps" "$tmp/flat.sol"
+[ "$(line_of checked_duals)" = "checked_duals no" ] \
+    && pass "with no dual verdict" \
+    || flunk "check of a file with nan duals printed '$(line_of checked_duals)'"
 expect_exit 0 "a cone held at its tip and an idle cone solve" \
     "$JAOS" solve "$DATA/g_cone_left_out.mps" --check --log summary
 case "$(line_of objective)" in
