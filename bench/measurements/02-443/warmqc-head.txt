@@ -1,0 +1,81 @@
+== qcp seed 1
+models 1000 edits 8000: optimal 2088 infeasible 5793 unbounded 119 capped 0 other 0; infeasible with no certificate 82
+kinds cost=867 bounds=780 sides=783 coefficient=814 add-row=777 add-col=839 delete-row=794 delete-col=836 add-qrow=806 drop-qrow=704
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 2
+other m847 edit 1 (add-col with 4 entries): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 8.43e-16, rows by 5.33e-14, 2.13e-15 of their traffic, cones by 0, duals by 1.66)
+other m847 edit 2 (sides 1 -19 inf): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 6.36e-16, rows by 3.55e-14, 1.07e-15 of their traffic, cones by 0, duals by 12)
+other m847 edit 3 (delete-row 4): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 7.22e-16, rows by 3.2e-14, 1.42e-15 of their traffic, cones by 0, duals by 2.57)
+models 1000 edits 8000: optimal 2382 infeasible 5451 unbounded 164 capped 0 other 3; infeasible with no certificate 65
+kinds cost=807 bounds=809 sides=817 coefficient=796 add-row=804 add-col=809 delete-row=809 delete-col=779 add-qrow=854 drop-qrow=716
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 3
+other m521 edit 2 (add-qrow convex over 1 with 6 linear, side 10): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 1.83e-15, rows by 4.8e-14, 3.2e-15 of their traffic, cones by 0, duals by 1.19)
+models 1000 edits 8000: optimal 2165 infeasible 5737 unbounded 97 capped 0 other 1; infeasible with no certificate 52
+kinds cost=817 bounds=798 sides=771 coefficient=842 add-row=805 add-col=850 delete-row=775 delete-col=859 add-qrow=786 drop-qrow=697
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 4
+models 1000 edits 8000: optimal 2246 infeasible 5703 unbounded 51 capped 0 other 0; infeasible with no certificate 72
+kinds cost=776 bounds=786 sides=794 coefficient=809 add-row=807 add-col=846 delete-row=812 delete-col=837 add-qrow=821 drop-qrow=712
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 5
+other m318 edit 2 (coefficient 2 11 -1): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 9.25e-16, rows by 1.78e-15, 3.78e-17 of their traffic, cones by 0, duals by 0.488)
+models 1000 edits 8000: optimal 2501 infeasible 5393 unbounded 105 capped 0 other 1; infeasible with no certificate 73
+kinds cost=739 bounds=841 sides=818 coefficient=830 add-row=832 add-col=833 delete-row=844 delete-col=775 add-qrow=807 drop-qrow=681
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 6
+other m195 edit 3 (delete-col 19): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 1.04e-15, rows by 4.26e-14, 8.2e-16 of their traffic, cones by 0, duals by 34.7)
+other m195 edit 4 (coefficient 1 5 0): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 1.04e-15, rows by 4.26e-14, 8.2e-16 of their traffic, cones by 0, duals by 34.7)
+other m195 edit 7 (sides 3 -10 -10): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 3.38e-08, 4.45e-10 of their traffic, cones by 0, duals by 4.5)
+models 1000 edits 8000: optimal 2398 infeasible 5545 unbounded 54 capped 0 other 3; infeasible with no certificate 84
+kinds cost=876 bounds=774 sides=829 coefficient=796 add-row=790 add-col=822 delete-row=812 delete-col=823 add-qrow=795 drop-qrow=683
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 7
+other m354 edit 1 (coefficient 2 4 1): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 2.61e-16, rows by 5.33e-15, 5.64e-16 of their traffic, cones by 0, duals by 5.21)
+other m727 edit 2 (add-col with 5 entries): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 4.44e-16, rows by 1.15e-14, 2.01e-16 of their traffic, cones by 0, duals by 19)
+other m727 edit 4 (add-qrow concave over 2 with 8 linear, side 2): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 3.2e-14, 2e-15 of their traffic, cones by 0, duals by 12.5)
+other m870 edit 8 (add-row with 6 entries): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 1.65e-12, rows by 3.05e-12, 1.6e-13 of their traffic, cones by 0, duals by 0.452)
+models 1000 edits 8000: optimal 2248 infeasible 5709 unbounded 39 capped 0 other 4; infeasible with no certificate 74
+kinds cost=821 bounds=786 sides=858 coefficient=805 add-row=757 add-col=842 delete-row=800 delete-col=813 add-qrow=834 drop-qrow=684
+P1=0 P2=0 P3=0 broken total 0
+== qcp seed 8
+other m144 edit 7 (cost 7 -2): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 4.74e-15, rows by 2.44e-14, 2.44e-14 of their traffic, cones by 0, duals by 0.0693)
+other m144 edit 8 (add-col with 3 entries): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 7.97e-16, rows by 2.41e-15, 2.41e-15 of their traffic, cones by 0, duals by 0.194)
+other m197 edit 2 (add-qrow convex over 1 with 3 linear, side 31): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 0, rows by 7.05e-08, 2.68e-09 of their traffic, cones by 0, duals by 7.69)
+other m197 edit 4 (add-col with 5 entries): numerical error: the conic interior point ended at a point the checker does not pass as an optimum (columns off by 5.33e-15, rows by 2.13e-14, 4.5e-16 of their traffic, cones by 0, duals by 2.02)
+models 1000 edits 8000: optimal 2122 infeasible 5774 unbounded 100 capped 0 other 4; infeasible with no certificate 86
+kinds cost=807 bounds=807 sides=802 coefficient=783 add-row=801 add-col=840 delete-row=768 delete-col=818 add-qrow=835 drop-qrow=739
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 1
+models 1000 edits 8000: optimal 2178 infeasible 5737 unbounded 78 capped 7 other 0; infeasible with no certificate 0
+kinds cost=788 bounds=810 sides=854 coefficient=812 add-row=827 add-col=860 delete-row=836 delete-col=808 add-qrow=774 drop-qrow=631
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 2
+models 1000 edits 8000: optimal 2202 infeasible 5700 unbounded 74 capped 24 other 0; infeasible with no certificate 0
+kinds cost=833 bounds=809 sides=838 coefficient=806 add-row=806 add-col=819 delete-row=778 delete-col=808 add-qrow=792 drop-qrow=711
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 3
+models 1000 edits 8000: optimal 1983 infeasible 5881 unbounded 116 capped 20 other 0; infeasible with no certificate 0
+kinds cost=795 bounds=838 sides=768 coefficient=817 add-row=821 add-col=800 delete-row=852 delete-col=787 add-qrow=793 drop-qrow=729
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 4
+models 1000 edits 8000: optimal 2217 infeasible 5575 unbounded 175 capped 33 other 0; infeasible with no certificate 0
+kinds cost=823 bounds=768 sides=842 coefficient=795 add-row=781 add-col=831 delete-row=803 delete-col=795 add-qrow=845 drop-qrow=717
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 5
+models 1000 edits 8000: optimal 2217 infeasible 5715 unbounded 63 capped 5 other 0; infeasible with no certificate 0
+kinds cost=830 bounds=807 sides=831 coefficient=779 add-row=810 add-col=818 delete-row=839 delete-col=824 add-qrow=778 drop-qrow=684
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 6
+other m708 edit 2 (delete-col 9): numerical error: node 31: the conic interior point stopped after 74 iterations without an answer, and the model's rows, bounds and cones leave open no improving direction the ray checker takes
+models 1000 edits 8000: optimal 2024 infeasible 5837 unbounded 115 capped 23 other 1; infeasible with no certificate 0
+kinds cost=826 bounds=820 sides=824 coefficient=792 add-row=815 add-col=806 delete-row=787 delete-col=841 add-qrow=757 drop-qrow=732
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 7
+models 1000 edits 8000: optimal 2190 infeasible 5752 unbounded 41 capped 17 other 0; infeasible with no certificate 0
+kinds cost=775 bounds=877 sides=775 coefficient=828 add-row=781 add-col=817 delete-row=819 delete-col=784 add-qrow=837 drop-qrow=707
+P1=0 P2=0 P3=0 broken total 0
+== miqcp seed 8
+models 1000 edits 8000: optimal 2166 infeasible 5775 unbounded 46 capped 13 other 0; infeasible with no certificate 0
+kinds cost=811 bounds=800 sides=839 coefficient=808 add-row=823 add-col=786 delete-row=845 delete-col=786 add-qrow=831 drop-qrow=671
+P1=0 P2=0 P3=0 broken total 0

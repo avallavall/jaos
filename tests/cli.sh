@@ -1106,6 +1106,7 @@ expect_exit 0 "solve --check exits with the solve's code" \
     && pass "and says the answer checks out" \
     || flunk "solve --check printed '$(line_of check_ok)'"
 [ -n "$(line_of primal_feasible)" ] && [ -n "$(line_of gap_certified)" ] \
+    && [ -n "$(line_of max_dual_violation_relative)" ] \
     && pass "and prints the checker's own report" \
     || flunk "solve --check printed no report"
 expect_exit 1 "--check on an infeasible model still exits 1" \
@@ -1412,8 +1413,8 @@ done
 [ "$(printf '%s\n' "$out" | head -n 1)" = "status optimal" ] \
     && pass "check says first what kind of answer the file holds" \
     || flunk "check began with '$(printf '%s\n' "$out" | head -n 1)'"
-[ "$(printf '%s\n' "$out" | wc -l)" -eq 19 ] \
-    && pass "check prints the status and the report's 18 fields" \
+[ "$(printf '%s\n' "$out" | wc -l)" -eq 20 ] \
+    && pass "check prints the status and the report's 19 fields" \
     || flunk "check printed $(printf '%s\n' "$out" | wc -l) lines"
 "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk1"
 "$JAOS" check "$DATA/solve1.mps" "$tmp/a.sol" > "$tmp/chk2"

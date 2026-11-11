@@ -1489,6 +1489,37 @@ static void cm_cone_grad(const jaos_model *m, int64_t k, const double *x,
     *hval = h;
 }
 
+static void cm_term_sizes(const jaos_model *m, const double *x, double *fs)
+{
+    const int64_t n = m->num_col;
+    for (int64_t j = 0; j < n; j++) {
+        fs[j] = fabs(m->col_cost[j]);
+        if (m->col_quad != nullptr)
+            fs[j] += fabs(m->col_quad[j] * x[j]);
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            fs[j] += fabs(m->a_value[p] * m->sol_dual[m->a_index[p]]);
+    }
+    for (int64_t j = 0; m->q_start != nullptr && j < n; j++)
+        for (int64_t p = m->q_start[j]; p < m->q_start[j + 1]; p++) {
+            fs[m->q_index[p]] += fabs(m->q_value[p] * x[j]);
+            fs[j] += fabs(m->q_value[p] * x[m->q_index[p]]);
+        }
+    for (int64_t i = 0; m->rq_start != nullptr && i < m->num_row; i++)
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            const int64_t r = m->rq_i[p], c = m->rq_j[p];
+            const double yv = m->sol_dual[i] * m->rq_v[p];
+            fs[r] += fabs(yv * x[c]);
+            if (r != c)
+                fs[c] += fabs(yv * x[r]);
+        }
+    for (int64_t k = 0; k < m->num_cone; k++)
+        for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
+            fs[m->cone_col[t]] += fabs(m->sol_cone[t]);
+    for (int64_t j = 0; j < n; j++)
+        if (!(fs[j] > 1.0) || !isfinite(fs[j]))
+            fs[j] = 1.0;
+}
+
 static jaos_status newton_polish(jaos_model *m, jm_work *work,
                                  const bool *skip, bool *moved, int mode,
                                  bool wide)
@@ -1519,6 +1550,7 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work,
     double *nz = jm_calloc_array(members > 0 ? members : 1, sizeof *nz);
     double *nd = jm_calloc_array(n > 0 ? n : 1, sizeof *nd);
     double *nact = jm_calloc_array(nr > 0 ? nr : 1, sizeof *nact);
+    double *fs = jm_calloc_array(n > 0 ? n : 1, sizeof *fs);
     double *lam = nullptr, *lbest = nullptr, *rhs = nullptr, *sol = nullptr;
     double *res = nullptr, *kv = nullptr;
     int64_t *ks = nullptr, *ki = nullptr;
@@ -1530,11 +1562,16 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work,
         atgt == nullptr || face == nullptr || cv == nullptr ||
         cg == nullptr || x == nullptr || best == nullptr || fr == nullptr ||
         frc == nullptr || ny == nullptr || nz == nullptr || nd == nullptr ||
-        nact == nullptr) {
+        nact == nullptr || fs == nullptr) {
         st = JAOS_ERR_OUT_OF_MEMORY;
         goto done;
     }
     memcpy(x, m->sol_col, (size_t)n * sizeof *x);
+    cm_term_sizes(m, x, fs);
+    double fsmax = 1.0;
+    for (int64_t j = 0; j < n; j++)
+        if (fs[j] > fsmax)
+            fsmax = fs[j];
     const double dtol = jm_primal_tolerance(m);
     for (int64_t i = 0; i < nr; i++) {
         if (!cm_active(m->sol_row[i], m->row_lower[i], m->row_upper[i],
@@ -1647,7 +1684,9 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work,
             double h = CONIC_REG;
             if (m->col_quad != nullptr)
                 h += sigma * m->col_quad[j];
-            ok = ent_put(&ents, j, j, mode != 0 ? 1.0 : h);
+            double wj = fs[j] / fsmax;
+            wj = wj * wj > CONIC_REG ? wj * wj : CONIC_REG;
+            ok = ent_put(&ents, j, j, mode == 2 ? wj : mode == 1 ? 1.0 : h);
             for (int64_t p = m->q_start != nullptr ? m->q_start[j] : 0;
                  ok && mode == 0 && m->q_start != nullptr &&
                  p < m->q_start[j + 1]; p++)
@@ -1746,8 +1785,9 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work,
         for (int64_t j = 0; j < n; j++) {
             const double f = mode == 1 ? 0.0 : fr[j] + frc[j];
             rhs[j] = -f;
-            if (fabs(f) > worst)
-                worst = fabs(f);
+            const double fj = mode == 2 ? fabs(f) / fs[j] : fabs(f);
+            if (fj > worst)
+                worst = fj;
         }
         jm_log(m, JAOS_LOG_DETAIL, "conic: %s step %lld on %lld active "
                "constraints, %s residual %.3e",
@@ -1873,10 +1913,12 @@ static jaos_status newton_polish(jaos_model *m, jm_work *work,
     }
     const double wb = fmax(fmax(was.max_row_violation_relative,
                                 was.max_col_violation),
-                           fmax(was.max_cone_violation, was.max_dual_violation));
+                           fmax(was.max_cone_violation,
+                                was.max_dual_violation_relative));
     const double nb = fmax(fmax(now.max_row_violation_relative,
                                 now.max_col_violation),
-                           fmax(now.max_cone_violation, now.max_dual_violation));
+                           fmax(now.max_cone_violation,
+                                now.max_dual_violation_relative));
     const bool was_ok = was.primal_feasible && was.dual_feasible;
     const bool better = now.primal_feasible && now.dual_feasible
                             ? !was_ok || nb < wb
@@ -1924,6 +1966,7 @@ done:
     free(ents.e);
     free(akind); free(aidx); free(yat); free(atgt); free(face);
     free(cv); free(cg); free(x); free(best); free(fr); free(frc); free(ny);
+    free(fs);
     free(nz); free(nd); free(nact); free(lam); free(lbest); free(rhs);
     free(sol); free(res); free(kv); free(ks); free(ki); free(sign);
     return st;
@@ -4183,7 +4226,8 @@ static jaos_status conic_solve(jaos_model *m, int64_t work0, int64_t iters0)
                               "their traffic, cones by %.3g, duals by %.3g)",
                            ck.max_col_violation, ck.max_row_violation,
                            ck.max_row_violation_relative,
-                           ck.max_cone_violation, ck.max_dual_violation);
+                           ck.max_cone_violation,
+                           ck.max_dual_violation_relative);
             }
         } else {
             jm_model_publish_objective(m);

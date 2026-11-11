@@ -128,7 +128,7 @@ public sealed record CheckReport(
     long DroppedTerms, double CertifiedSuboptimality, long UnquantifiedRays,
     double RelativeSuboptimality, bool PrimalFeasible, bool DualFeasible,
     bool CheckedDuals, bool GapCertified, double MaxIntegralityViolation,
-    double MaxConeViolation)
+    double MaxConeViolation, double MaxDualViolationRelative)
 {
     internal CheckReport(in NativeCheckReport r) : this(
         r.MaxColViolation, r.MaxRowViolation, r.MaxRowViolationRelative,
@@ -137,7 +137,7 @@ public sealed record CheckReport(
         r.DroppedTerms, r.CertifiedSuboptimality, r.UnquantifiedRays,
         r.RelativeSuboptimality, r.PrimalFeasible, r.DualFeasible,
         r.CheckedDuals, r.GapCertified, r.MaxIntegralityViolation,
-        r.MaxConeViolation) { }
+        r.MaxConeViolation, r.MaxDualViolationRelative) { }
 }
 
 /// <summary>The C <c>jaos_certificate_report</c>.</summary>

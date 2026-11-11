@@ -157,19 +157,28 @@ relative.
 minimize form:
 
 ```
-|w| <= tol            no condition                    (negligible multiplier)
+|w| <= tol · d        no condition                    (negligible multiplier)
 w > 0                 requires v <= lo + tol · s      (at its lower bound)
 w < 0                 requires v >= hi - tol · s      (at its upper bound)
 ```
 
 ```
 row i      s = max(1, sum over j of |A_ij · x_j|)     the row's own traffic
+           d = 1
 column j   s = max(1, |x_j|)
+           d = max(1, |c_j| + sum over i of |A_ij · y_i| + the magnitudes
+                   of its quadratic terms and cone duals)
 ```
 
 A multiplier that points at an infinite bound is a violation of its own
 size. Column multipliers are the reduced costs `c_j − A_j · y`, recomputed
-from the model. A row activity is a sum whose terms can cancel, so its
+from the model. A reduced cost is a sum whose terms can cancel, so its size
+is judged against the size of its terms: `dual_feasible` reads each
+column's violation divided by `d`. With terms near 1e12 an absolute 1e-7
+is below a double's rounding, and that test refused 1070 of 4734 optima of
+LPs scaled by up to 1e6 (`bench/measurements/02-411/`, `02-443/`). A
+reduced cost excused this way still adds `w · (v − bound)` to the gap when
+its bound is finite, and counts in `dropped_terms` when it is not. A row activity is a sum whose terms can cancel, so its
 distance from a bound is judged against the size of its terms. This scale
 cannot hide a wrong answer: a row excused at distance `d` still adds `w · d`
 to the gap (`bench/measurements/02-170/`).

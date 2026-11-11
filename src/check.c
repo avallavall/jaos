@@ -299,14 +299,14 @@ jaos_status jm_implied_bounds(const jaos_model *m, double *cl, double *cu)
 }
 
 static double sign_condition(double v, double lo, double hi, double w,
-                             double q, double tol, double scale, dual_acc *a,
-                             bool lo_implied, bool hi_implied)
+                             double q, double tol, double scale, double wtol,
+                             dual_acc *a, bool lo_implied, bool hi_implied)
 {
     double window = tol * scale;
     bool at_lo = isfinite(lo) && v <= lo + window;
     bool at_hi = isfinite(hi) && v >= hi - window;
 
-    bool negligible = fabs(w) <= tol;
+    bool negligible = fabs(w) <= wtol;
     const bool curved = q > 0.0 && !(v < lo) && !(v > hi);
 
     if (w > 0.0) {
@@ -604,7 +604,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
     if (row_dual != nullptr && !jm_model_has_integer(m) &&
         (m->num_cone == 0 || cone_dual != nullptr)) {
         const double sigma = (m->sense == JAOS_MAXIMIZE) ? -1.0 : 1.0;
-        double dual_viol = 0.0;
+        double dual_viol = 0.0, dual_viol_rel = 0.0;
         dual_acc a = {0};
         a.dual_obj = sigma * m->obj_offset;
 
@@ -644,21 +644,27 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                     ru_imp = true;
                 }
             }
-            dual_viol = max2(dual_viol,
+            const double yv =
                 sign_condition(act[i], rl, ru, sigma * row_dual[i], 0.0,
-                               tol, max2(1.0, traffic[i]), &a,
-                               rl_imp, ru_imp));
+                               tol, max2(1.0, traffic[i]), tol, &a,
+                               rl_imp, ru_imp);
+            dual_viol = max2(dual_viol, yv);
+            dual_viol_rel = max2(dual_viol_rel, yv);
         }
 
-        double *gq_rows = nullptr, *gq_rowsc = nullptr;
+        double *gq_rows = nullptr, *gq_rowsc = nullptr, *gq_size = nullptr;
         if (m->rq_nz > 0 || m->num_cone > 0) {
             gq_rows = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
                                       sizeof *gq_rows);
             gq_rowsc = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
                                        sizeof *gq_rowsc);
-            if (gq_rows == nullptr || gq_rowsc == nullptr) {
+            gq_size = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
+                                      sizeof *gq_size);
+            if (gq_rows == nullptr || gq_rowsc == nullptr ||
+                gq_size == nullptr) {
                 free(gq_rows);
                 free(gq_rowsc);
+                free(gq_size);
                 free(icl); free(icu); free(rlo); free(rloc); free(rup);
                 free(rupc); free(rli); free(rui);
                 free(qx); free(qxc); free(acts); free(traffics);
@@ -672,6 +678,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
             if (curv == nullptr) {
                 free(gq_rows);
                 free(gq_rowsc);
+                free(gq_size);
                 free(icl); free(icu); free(rlo); free(rloc); free(rup);
                 free(rupc); free(rli); free(rui);
                 free(qx); free(qxc); free(acts); free(traffics);
@@ -694,8 +701,11 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                 const int64_t r = m->rq_i[p], c = m->rq_j[p];
                 const double v = m->rq_v[p];
                 add_product(&gq_rows[r], &gq_rowsc[r], y * v, col_value[c]);
-                if (r != c)
+                gq_size[r] += fabs(y * v * col_value[c]);
+                if (r != c) {
                     add_product(&gq_rows[c], &gq_rowsc[c], y * v, col_value[r]);
+                    gq_size[c] += fabs(y * v * col_value[r]);
+                }
                 add_product(&xqx, &xqxc, (r == c ? 1.0 : 2.0) * v * col_value[r],
                             col_value[c]);
             }
@@ -703,22 +713,27 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                         acc_value(xqx, xqxc));
         }
         for (int64_t k = 0; k < m->num_cone; k++)
-            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
+            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++) {
                 jm_obj_add(&gq_rows[m->cone_col[t]], &gq_rowsc[m->cone_col[t]],
                            cone_dual[t]);
+                gq_size[m->cone_col[t]] += fabs(cone_dual[t]);
+            }
 
         for (int64_t j = 0; j < m->num_col; j++) {
 
             double dw = m->col_cost[j], dwc = 0.0;
+            double size = fabs(m->col_cost[j]);
             if (gq_rows != nullptr) {
                 const double g = acc_value(gq_rows[j], gq_rowsc[j]);
                 if (g != 0.0)
                     jm_obj_add(&dw, &dwc, -g);
+                size += gq_size[j];
             }
             if (qx != nullptr && qx[j] != 0.0) {
                 const double x = col_value[j];
                 const double gq = qx[j];
                 jm_obj_add(&dw, &dwc, gq);
+                size += fabs(gq);
                 const double h = -0.5 * sigma * gq;
                 const double th = h * x;
                 jm_obj_add(&a.dual_obj, &a.dual_objc, th);
@@ -734,18 +749,22 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
                 jm_obj_add(&dw, &dwc, -p);
                 if (e != 0.0)
                     jm_obj_add(&dw, &dwc, -e);
+                size += fabs(p);
             }
             const double d = acc_value(dw, dwc);
+            const double dscale = isfinite(size) ? max2(1.0, size) : 1.0;
 
-            dual_viol = max2(dual_viol,
+            const double dv =
                 sign_condition(col_value[j],
                                implied ? icl[j] : m->col_lower[j],
                                implied ? icu[j] : m->col_upper[j],
                                sigma * d, curv != nullptr ? curv[j] : 0.0,
                                tol, max2(1.0, fabs(col_value[j])),
-                               &a,
+                               tol * dscale, &a,
                                implied && !isfinite(m->col_lower[j]),
-                               implied && !isfinite(m->col_upper[j])));
+                               implied && !isfinite(m->col_upper[j]));
+            dual_viol = max2(dual_viol, dv);
+            dual_viol_rel = max2(dual_viol_rel, dv / dscale);
 
             const double w = sigma * d;
             const bool drops = (w > 0.0 && !isfinite(m->col_lower[j])) ||
@@ -753,7 +772,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
             if (drops) {
                 const double t = certified_step(m, j, w > 0.0 ? -1.0 : 1.0,
                                                 act);
-                if (isinf(t) && fabs(w) <= tol) {
+                if (isinf(t) && fabs(w) <= tol * dscale) {
 
                     a.rays++;
                 } else {
@@ -765,10 +784,12 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
         }
         free(gq_rows);
         free(gq_rowsc);
+        free(gq_size);
         free(curv);
         for (int64_t k = 0; k < m->num_cone; k++) {
-            dual_viol = max2(dual_viol,
-                             cone_distance(m, k, cone_dual, false, sigma));
+            const double kv = cone_distance(m, k, cone_dual, false, sigma);
+            dual_viol = max2(dual_viol, kv);
+            dual_viol_rel = max2(dual_viol_rel, kv);
             double t = 0.0, tc = 0.0;
             for (int64_t p = m->cone_start[k]; p < m->cone_start[k + 1]; p++)
                 add_product(&t, &tc, sigma * cone_dual[p],
@@ -789,6 +810,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
 
         out->checked_duals = true;
         out->max_dual_violation = dual_viol;
+        out->max_dual_violation_relative = dual_viol_rel;
         out->dual_objective = true_dual_obj;
         out->objective_gap = gap;
 
@@ -803,7 +825,7 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
 
         out->gap_positive = acc_value(a.pos, a.posc);
         out->gap_negative = acc_value(a.neg, a.negc);
-        out->dual_feasible = dual_viol <= tol && gap <= tol;
+        out->dual_feasible = dual_viol_rel <= tol && gap <= tol;
 
         free(icl);
         free(icu);

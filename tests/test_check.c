@@ -118,6 +118,39 @@ static void test_t1_flags_wrong_dual_sign(void)
     jaos_model_free(m);
 }
 
+static void test_a_reduced_cost_is_judged_against_its_terms(void)
+{
+    const double c[] = {1e12};
+    const double cl[] = {-INFINITY}, cu[] = {INFINITY};
+    const double rl[] = {1e12}, ru[] = {INFINITY};
+    const int64_t s[] = {0, 1}, ix[] = {0};
+    const double v[] = {1e12};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 1, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     1, s, ix, v));
+    const double x[] = {1.0};
+    const double y_rounding[] = {1.0 + 2e-9};
+    const double y_wrong[] = {1.0 + 1e-6};
+    jaos_check_report r;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_solution(m, x, y_rounding, 1e-7, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_TRUE_MESSAGE(r.dual_feasible,
+        "a reduced cost of 2000 over terms of 1e12 is 1e-9 of them");
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, r.max_dual_violation_relative);
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_check_solution(m, x, y_wrong, 1e-7, &r));
+    TEST_ASSERT_TRUE(r.primal_feasible);
+    TEST_ASSERT_FALSE_MESSAGE(r.dual_feasible,
+        "a reduced cost of 1e6 over terms of 1e12 is 5e-7 of them");
+    TEST_ASSERT_DOUBLE_WITHIN(1.0, 1e6, r.max_dual_violation);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 5e-7, r.max_dual_violation_relative);
+    jaos_model_free(m);
+}
+
 static void test_t1_flags_complementarity_break(void)
 {
     jaos_model *m = make_t1();
@@ -1365,5 +1398,6 @@ int main(void)
     RUN_TEST(test_a_wrong_ray_is_rejected);
     RUN_TEST(test_a_qp_point_is_judged_with_the_quadratic_gradient);
     RUN_TEST(test_a_row_the_checker_cannot_evaluate_is_refused);
+    RUN_TEST(test_a_reduced_cost_is_judged_against_its_terms);
     return UNITY_END();
 }

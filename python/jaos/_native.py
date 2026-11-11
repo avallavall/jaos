@@ -241,6 +241,7 @@ class _CheckReport(ctypes.Structure):
         ("gap_certified", ctypes.c_bool),
         ("max_integrality_violation", _D),
         ("max_cone_violation", _D),
+        ("max_dual_violation_relative", _D),
     ]
 
 class _PresolveReport(ctypes.Structure):

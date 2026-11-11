@@ -2535,6 +2535,28 @@ static double settled_dual_violation(const sx *s)
     return worst;
 }
 
+static double settled_violation_by_terms(const sx *s)
+{
+    const jaos_model *m = s->m;
+    double worst = 0.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        const double br = published_breach(s, v);
+        if (br == 0.0)
+            continue;
+        double size = 0.0;
+        if (v < s->ncol) {
+            size = fabs(s->cost0[v]);
+            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
+                size += fabs(s->av[k] * s->y[m->a_index[k]]);
+            size /= m->col_scale[v];
+        }
+        const double rel = br / (size > 1.0 ? size : 1.0);
+        if (rel > worst)
+            worst = rel;
+    }
+    return worst;
+}
+
 static bool better_point(double tol, double dviol_a, double obj_a,
                          double dviol_b, double obj_b)
 {
@@ -4998,13 +5020,20 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                 allow_warm = false;
                 continue;
             }
-            jm_set_err(m, "the settled point is not dual feasible: a "
-                          "reduced cost breaches its bound by %.6g after "
-                          "settling, from a %s start; publishing that as "
-                          "OPTIMAL would certify a point the reduced costs "
-                          "do not support", breach, warm ? "warm" : "cold");
-            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
-            break;
+            if (settled_violation_by_terms(&s) > s.dual_tol) {
+                jm_set_err(m, "the settled point is not dual feasible: a "
+                              "reduced cost breaches its bound by %.6g after "
+                              "settling, from a %s start; publishing that as "
+                              "OPTIMAL would certify a point the reduced "
+                              "costs do not support", breach,
+                           warm ? "warm" : "cold");
+                outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+                break;
+            }
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "a reduced cost breaches its bound by %.6g after "
+                   "settling, within %.3g of its terms; the point stands",
+                   breach, s.dual_tol);
         }
         outcome = classify_optimum(&s);
 

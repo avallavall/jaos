@@ -386,9 +386,9 @@ m <- solve1()
 jaos_solve(m)
 s <- jaos_solution(m)
 ck <- jaos_check_solution(m, s$x, s$row_dual)
-check(length(ck) == 20 && ck$primal_feasible && ck$dual_feasible &&
+check(length(ck) == 21 && ck$primal_feasible && ck$dual_feasible &&
       ck$checked_duals && near(ck$primal_objective, 29, 1e-9),
-      "the checker accepts the true answer, in a report of 20 fields")
+      "the checker accepts the true answer, in a report of 21 fields")
 ck <- jaos_check_solution(m, s$x + 100, s$row_dual)
 check(!ck$primal_feasible && max(ck$max_col_violation, ck$max_row_violation) > 1,
       "and flags a corrupted one")

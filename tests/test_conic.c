@@ -1102,7 +1102,7 @@ static void catch_sqp(void *user, jaos_log_level level, const char *line)
         (*(int *)user)++;
 }
 
-static void test_quadratic_programs_on_the_ball_rows_finish_a_walk(void)
+static void test_quadratic_programs_on_the_ball_rows_finish_a_stalled_walk(void)
 {
     const char *path[2] = {"tests/data/qc_sqp_refused.mps",
                            "tests/data/qc_sqp_stalled.mps"};
@@ -1116,7 +1116,7 @@ static void test_quadratic_programs_on_the_ball_rows_finish_a_walk(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
                                       path[k]);
-        TEST_ASSERT_EQUAL_INT_MESSAGE(1, finished, path[k]);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(k, finished, path[k]);
         const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
         double *x = jm_alloc_array(nc, sizeof *x);
         double *y = jm_alloc_array(nr, sizeof *y);
@@ -1710,7 +1710,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
-    RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_walk);
+    RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_stalled_walk);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);

@@ -327,7 +327,7 @@ static void test_a_row_its_held_columns_break_frees_one(void)
     jaos_model_free(m);
 }
 
-static void test_the_third_push_drops_the_duals_shift(void)
+static void test_a_polished_point_passes_on_the_size_of_its_terms(void)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
@@ -341,11 +341,7 @@ static void test_the_third_push_drops_the_duals_shift(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
     TEST_ASSERT_TRUE(rep.primal_feasible);
     TEST_ASSERT_TRUE(rep.dual_feasible);
-    double big = 0.0;
-    for (int i = 0; i < 12; i++)
-        if (fabs(y[i]) > big)
-            big = fabs(y[i]);
-    TEST_ASSERT_TRUE(big < 1e6);
+    TEST_ASSERT_TRUE(rep.objective_gap < 1e-9);
     jaos_model_free(m);
 }
 
@@ -1005,7 +1001,7 @@ int main(void)
     RUN_TEST(test_the_last_push_starts_from_the_walk_after_a_refused_push);
     RUN_TEST(test_a_settled_push_is_put_to_the_checker);
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
-    RUN_TEST(test_the_third_push_drops_the_duals_shift);
+    RUN_TEST(test_a_polished_point_passes_on_the_size_of_its_terms);
     RUN_TEST(test_a_push_row_holds_at_its_rounding_level);
     RUN_TEST(test_a_push_release_undone_at_once_frees_one_pin);
     return UNITY_END();

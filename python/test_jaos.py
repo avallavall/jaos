@@ -1084,6 +1084,21 @@ class TestTheChecker(unittest.TestCase):
             r = m.check_solution(m.solution().col_value)
             self.assertFalse(r.checked_duals)
 
+    def test_a_reduced_cost_is_judged_against_its_terms(self):
+        with jaos.Model() as m:
+            m.load(num_col=1, num_row=1, col_cost=[1e12],
+                   col_lower=[-jaos.INFINITY], col_upper=[jaos.INFINITY],
+                   row_lower=[1e12], row_upper=[jaos.INFINITY],
+                   a_start=[0, 1], a_index=[0], a_value=[1e12])
+            r = m.check_solution([1.0], [1.0 + 2e-9])
+            self.assertTrue(r.dual_feasible)
+            self.assertEqual(r.max_dual_violation_relative, 0.0)
+            r = m.check_solution([1.0], [1.0 + 1e-6])
+            self.assertFalse(r.dual_feasible)
+            self.assertAlmostEqual(r.max_dual_violation, 1e6, delta=1.0)
+            self.assertAlmostEqual(r.max_dual_violation_relative, 5e-7,
+                                   delta=1e-12)
+
 class TestCertificates(unittest.TestCase):
     """jaos_certificate, jaos_unbounded_ray and their two checkers through
     the binding. The numbers are the ones tests/test_check.c asserts on the

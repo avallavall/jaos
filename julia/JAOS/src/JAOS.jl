@@ -899,6 +899,7 @@ struct CheckReport
     gap_certified::Bool
     max_integrality_violation::Cdouble
     max_cone_violation::Cdouble
+    max_dual_violation_relative::Cdouble
 end
 
 """The C `jaos_certificate_report`, field by field."""

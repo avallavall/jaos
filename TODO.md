@@ -13,30 +13,17 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 ## Tier 1: defects
 
-J21. **A cone model with quadratic rows whose optimum sits at a large
-scale.** On 02-255's seed 4, two brute-force solves of model 533 end
-`numerical_error`: a rotated cone and a quadratic row push one column to
-about 1100 and the objective to 3.19e5, the walk's tau ends at 1.3e-7, its
-direction turns non-finite at iteration 25, and the checker refuses the
-point (rows 7.6e-7, duals 4.56). The model is
-`bench/measurements/02-382/seed4-533.mps`. 02-372's quadratic-program
-finish with the cones kept was refused: its own program fails the same way
-(`conic-sqp-with-cones`). Balancing the cone's heads and scaling R4 by hand
-do not help either (`bench/measurements/02-386/`). The multipliers reach
-4.5e7, and the refused reduced cost is -4.56 over terms near 3.7e7, while
-the checker's reduced-cost test is absolute (1e-7). 02-326 seed 2's model
-620 is a smaller case with small duals: its optimum has C2 = 28434, the
-settle's refit leaves stationarity at 3.3e-8, and times columns near 2e4
-that leaves the objective gap at 5.2e-6 (`bench/measurements/02-390/`).
-The same absolute test refuses 22% of the optima of generated LPs scaled
-by powers of ten up to 1e6, all optimal to rounding, and the simplex's
-own publish test ends 5 of those solves `numerical_error`
-(`bench/measurements/02-411/`).
-Next: a dual refit on the active set in compensated arithmetic; or a
-reduced-cost test relative to its terms, which changes the checker's
-contract and is the maintainer's decision. Verify with 02-255's
-`misocp.c` on seed 4 and 02-376's `unsure.patch`, and 02-326's
-`discrete.c` on seed 2 and 02-390's `unsure.patch`.
+J21. **Two cone models with quadratic rows whose optimum sits at a
+large scale.** The checker now judges a reduced cost against the size of
+its terms, and the dual refit weights each column by them
+(`bench/measurements/02-443/`). Two solves still end `numerical_error`.
+The second brute-force solve of 02-255 seed 4's model 533 passes the
+columns, rows, cones and duals and fails the gap. 02-326 seed 2's model
+620 has C2 = 28434; the settle's refit left stationarity at 3.3e-8, and
+times columns near 2e4 that left the objective gap at 5.2e-6
+(`bench/measurements/02-390/`). Next: read which gap term each one fails
+on. Verify with 02-432's `gate.sh`: no `UNSURE` line on 02-255 seed 4 and
+on 02-326 seed 2.
 
 J22. **No certificate through a quadratic row with cross terms or a
 fixed column.** The checker reads a quadratic row's curvature only when

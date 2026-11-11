@@ -1060,7 +1060,8 @@ public final class Model implements AutoCloseable {
             r.get(JAVA_DOUBLE, 64), r.get(JAVA_DOUBLE, 72), r.get(JAVA_LONG, 80),
             r.get(JAVA_DOUBLE, 88), r.get(JAVA_LONG, 96), r.get(JAVA_DOUBLE, 104),
             flag(r, 112), flag(r, 113), flag(r, 114), flag(r, 115),
-            r.get(JAVA_DOUBLE, 120), r.get(JAVA_DOUBLE, 128));
+            r.get(JAVA_DOUBLE, 120), r.get(JAVA_DOUBLE, 128),
+            r.get(JAVA_DOUBLE, 136));
     }
 
     private static CertificateReport certificateReport(MemorySegment r) {
@@ -1094,7 +1095,7 @@ public final class Model implements AutoCloseable {
         if (rowDual != null)
             need(rowDual.length, numRow(), "row_dual");
         try (Arena a = Arena.ofConfined()) {
-            MemorySegment r = a.allocate(136, 8);
+            MemorySegment r = a.allocate(144, 8);
             check(call(Native.CHECK_SOLUTION, h, doubles(a, x),
                        rowDual == null ? MemorySegment.NULL : doubles(a, rowDual), tol, r));
             return checkReport(r);
@@ -1108,7 +1109,7 @@ public final class Model implements AutoCloseable {
         if (rowDual != null)
             need(rowDual.length, numRow(), "row_dual");
         try (Arena a = Arena.ofConfined()) {
-            MemorySegment r = a.allocate(136, 8);
+            MemorySegment r = a.allocate(144, 8);
             check(call(Native.CHECK_CONIC_SOLUTION, h, doubles(a, x),
                        rowDual == null ? MemorySegment.NULL : doubles(a, rowDual),
                        coneVector(a, coneDual, "cone_dual"), tol, r));

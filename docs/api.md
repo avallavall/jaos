@@ -1951,7 +1951,11 @@ integer structure and no cones. `checked_duals` says whether it ran. When
 it did not run, its fields stay 0 or false. When it ran:
 
 - `max_dual_violation` is the largest sign violation of a row dual or a
-  reduced cost.
+  reduced cost. `max_dual_violation_relative` divides each reduced cost's
+  violation by the larger of 1 and the sum of the magnitudes of its terms:
+  the cost, each entry times its row dual, each quadratic term at the
+  point and each cone dual. A row dual's violation and a cone dual's
+  distance enter it as they are.
 - `dual_objective` is the dual objective.
 - `objective_gap` is the complementarity gap at the model's bounds, taken
   as an absolute value and divided by
@@ -1970,8 +1974,8 @@ it did not run, its fields stay 0 or false. When it ran:
   keeps the largest such product.
 - `unquantified_rays` counts those columns that no row stops and whose
   reduced cost is within `tol`.
-- `dual_feasible` is true when `max_dual_violation` and `objective_gap` are
-  within `tol`.
+- `dual_feasible` is true when `max_dual_violation_relative` and
+  `objective_gap` are within `tol`.
 
 The call fails when `col_value` is null on a model with columns, or when an
 input value is NaN.

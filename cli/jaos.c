@@ -699,6 +699,7 @@ static void print_check_report(const jaos_check_report *rep)
     print_bool("dual_feasible", rep->dual_feasible);
     print_bool("checked_duals", rep->checked_duals);
     print_bool("gap_certified", rep->gap_certified);
+    print_num("max_dual_violation_relative", rep->max_dual_violation_relative);
 }
 
 static void *zeroed(int64_t count, size_t size)

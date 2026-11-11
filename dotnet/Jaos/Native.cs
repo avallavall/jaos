@@ -129,6 +129,7 @@ internal struct NativeCheckReport
     [MarshalAs(UnmanagedType.U1)] public bool GapCertified;
     public double MaxIntegralityViolation;
     public double MaxConeViolation;
+    public double MaxDualViolationRelative;
 }
 
 [StructLayout(LayoutKind.Sequential)]

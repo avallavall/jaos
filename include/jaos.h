@@ -692,6 +692,8 @@ typedef struct jaos_check_report {
     double max_integrality_violation;
 
     double max_cone_violation;
+
+    double max_dual_violation_relative;
 } jaos_check_report;
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_check_solution(const jaos_model *m,

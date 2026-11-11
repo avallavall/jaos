@@ -3138,7 +3138,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                    refused ? "it is still refused and the point before it "
                              "stands" : "it passes",
                    ck.max_col_violation, ck.max_row_violation_relative,
-                   ck.max_dual_violation, ck.objective_gap);
+                   ck.max_dual_violation_relative, ck.objective_gap);
             if (st == JAOS_OK && refused) {
                 memcpy(s.z, keep, (size_t)s.nvar * sizeof *keep);
                 memcpy(s.y, keep + s.nvar, (size_t)s.nrow * sizeof *keep);
@@ -3158,7 +3158,8 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
                       "does not pass (columns off by %.3g, rows by %.3g, "
                       "%.3g of their traffic, duals by %.3g)",
                    ck.max_col_violation, ck.max_row_violation,
-                   ck.max_row_violation_relative, ck.max_dual_violation);
+                   ck.max_row_violation_relative,
+                   ck.max_dual_violation_relative);
     }
 
     if (target != m && target->err[0] != '\0' &&

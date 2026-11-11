@@ -1067,7 +1067,7 @@ static SEXP r_check_solution(SEXP p, SEXP x, SEXP y, SEXP z, SEXP tol)
         check(m, jaos_check_conic_solution(m, doubles(x), yd, doubles(z),
                                            asReal(tol), &c));
     }
-    record r = record_new(20);
+    record r = record_new(21);
     PUT_REAL(r, c, max_col_violation);
     PUT_REAL(r, c, max_row_violation);
     PUT_REAL(r, c, max_row_violation_relative);
@@ -1088,6 +1088,7 @@ static SEXP r_check_solution(SEXP p, SEXP x, SEXP y, SEXP z, SEXP tol)
     PUT_BOOL(r, c, gap_certified);
     PUT_REAL(r, c, max_integrality_violation);
     PUT_REAL(r, c, max_cone_violation);
+    PUT_REAL(r, c, max_dual_violation_relative);
     return record_done(&r);
 }
 

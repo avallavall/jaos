@@ -11,4 +11,5 @@ public record CheckReport(double maxColViolation, double maxRowViolation,
                           long unquantifiedRays, double relativeSuboptimality,
                           boolean primalFeasible, boolean dualFeasible,
                           boolean checkedDuals, boolean gapCertified,
-                          double maxIntegralityViolation, double maxConeViolation) {}
+                          double maxIntegralityViolation, double maxConeViolation,
+                          double maxDualViolationRelative) {}
