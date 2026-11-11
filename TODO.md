@@ -19,9 +19,13 @@ scale.** The second brute-force solve of 02-255 seed 4's model 533 ends
 and its gap is 8e-7. The settle's projection moves the fixed column C4
 5e-9 off its value and stalls, the active rows stay 1.7e-9 to 3.2e-9 off
 their sides, and their multipliers are near 2e7
-(`bench/measurements/02-445/`). Next: a projection that holds a fixed
-column out of the system instead of as a constraint in it. Verify with
-02-432's `gate.sh`: no `UNSURE` line on 02-255 seed 4.
+(`bench/measurements/02-445/`). With the fixed columns held firmly in
+the projection (their constraint rows regularised by `CONIC_PIVOT` in
+place of `CONIC_REG`), the residual of R1, R4 and the cone stays at 7e-9:
+the three do not all hold at one point to better than that. Next: read
+which of the three the optimum leaves inactive, since the settle takes
+all three as active. Verify with 02-432's `gate.sh`: no `UNSURE` line on
+02-255 seed 4.
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
@@ -155,16 +159,21 @@ mode, bound propagation and probing. The last reading had none land
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
-J29. **A MIP's tree depends on the signs of its integer columns.** With
-columns mirrored and rows negated, all 24 MIPLIB 3 models take another
-path. `bell5` mirrored is still open after 185,084 nodes at 2e9 work
-units, where the model as it is ends at 20,089. A mirrored integer
-column swaps which child is up and which is down, and a column mirrored
-apart from its twins no longer matches them in the symmetry search
-(`bench/measurements/02-440/`, `02-441/`). Next: on `bell5`, find the
-first node where the two trees part and the rule that reads a sign
-there. Verify with 02-440's `read.sh` on MIPLIB 3: `bell5` under 2e9
-work units both ways.
+J29. **Four MIP trees depend on the signs of their rows.** The MIP
+presolve mirrors a column whose lower bound lies farther from zero than
+its upper bound, and the symmetry search reads each row with one sign, so
+mirrored columns leave every MIPLIB 3 node count as it was and `bell5`
+takes 20,089 nodes both ways (`bench/measurements/02-447/`). With rows
+negated, `enigma` (895 nodes against 15,642), `l152lav`, `misc03` and
+`misc07` still take another tree. On `enigma` the roots, the clique
+tables and the first 39 cuts match bit for bit, and the runs part inside
+a node's LP: the right-hand side of an FTRAN has 14 nonzeros as it is and
+15 with rows negated. The presolve's mirror does not run on a model with
+a quadratic objective, cones, SOS sets, indicator rows, semi-continuous
+columns or a callback. Next: print the node LP's start basis and bounds
+on both `enigma` runs at the first FTRAN that differs (02-441's
+`trace.py`). Verify with 02-447's `modes.patch` and `MIRROR=rows`: no
+node count differs on MIPLIB 3.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).

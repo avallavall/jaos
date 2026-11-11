@@ -1036,9 +1036,13 @@ restores the default. Before the tree, an equality row whose only entries
 are two continuous columns with opposite coefficients and a right-hand side
 of 0 says the two columns are equal. The presolve drops the row and the
 second column, and gives its entries, cost and bounds to the first, in
-passes until no such row is left (at most `MIP_PRESOLVE_PASSES`). The tree
-then runs on the smaller model. Its answer comes back to every column: a
-dropped column takes the value of the column it was merged into, and an
+passes until no such row is left (at most `MIP_PRESOLVE_PASSES`). A column
+whose lower bound lies farther from zero than its upper bound is mirrored
+first: `x` becomes `-x`, with its bounds, cost and entries negated, so the
+tree sees a column in `[-5, 0]` as it sees one in `[0, 5]`. The tree
+then runs on that model. Its answer comes back to every column: a
+dropped column takes the value of the column it was merged into, a
+mirrored column takes its value negated, and an
 optimum is solved again on the whole model with the integer columns fixed,
 for its duals and basis. The presolve does not run on a model with a
 quadratic objective, cones, quadratic rows, SOS sets, indicator rows or
@@ -1077,7 +1081,9 @@ search.
 **`jaos_set_mip_symmetry`**\
 `jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)`\
 Runs symmetry detection at the root. `jaos_mip_result` reports the
-generators and orbits it finds. It is off by default. Orbital fixing, which
+generators and orbits it finds. The search reads each row with one sign,
+so a row and its negation, with its sides swapped, count as the same
+row. It is off by default. Orbital fixing, which
 is on by default, runs the same search, so this switch matters only with
 `jaos_set_mip_orbital` off.
 

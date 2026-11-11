@@ -247,7 +247,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
 | `--no-heuristics` | turns off the rounding heuristics: the rounding of each fractional node's point and, at the root of a linear model, lock rounding and the feasibility jump. In a model with cones or quadratic rows it turns off the root's rounding. |
 | `--rcfix` | reduced-cost fixing at the root once an incumbent exists; every node inherits the bounds. On by default (`bench/measurements/02-335/`); `--no-rcfix` turns it off. |
 | `--tighten` | coefficient tightening of binary columns in one-sided rows, and the parity step over equality rows, at the root. On by default; `--no-tighten` turns both off. |
-| `--mip-presolve` | before the tree, merges two continuous columns that an equality row makes equal. On by default; `--no-mip-presolve` turns it off. |
+| `--mip-presolve` | before the tree, merges two continuous columns that an equality row makes equal, and mirrors a column whose lower bound lies farther from zero than its upper bound. On by default; `--no-mip-presolve` turns it off. |
 | `--probing` | after the root solve, tries each fractional binary at 0 and at 1 and keeps what the propagation proves. Off by default; `--no-probing` keeps the default. |
 | `--probing-cap M` | stops probing at `M` times the work of the root solve. Default 1; `0` is no cap; a negative value is a usage error. |
 | `--clique-fix` | at each node, fixes every literal the root's clique table puts in conflict with a fixed binary. On by default (`bench/measurements/02-325/`); `--no-clique-fix` turns it off. |

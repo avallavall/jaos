@@ -308,6 +308,21 @@ static bool ckey_same(const ckey *p, const ckey *q)
            p->d == q->d;
 }
 
+static double sg_row_sign(const jaos_model *m, int64_t i, const double *sum,
+                          const double *first)
+{
+    const double lo = m->row_lower[i], up = m->row_upper[i];
+    if (isfinite(lo) != isfinite(up))
+        return isfinite(up) ? 1.0 : -1.0;
+    if (fabs(lo) != fabs(up))
+        return fabs(up) > fabs(lo) ? 1.0 : -1.0;
+    if (lo == up && up != 0.0)
+        return up > 0.0 ? 1.0 : -1.0;
+    if (sum[i] != 0.0)
+        return sum[i] > 0.0 ? 1.0 : -1.0;
+    return first[i] < 0.0 ? -1.0 : 1.0;
+}
+
 static jaos_status sg_build(sg *g, const jaos_model *m)
 {
     const int64_t nc = m->num_col, nr = m->num_row, nz = m->num_nz;
@@ -331,21 +346,35 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     double *vals = jm_alloc_array(nz + qz > 0 ? nz + qz : 1, sizeof *vals);
     ckey *keys = jm_alloc_array(n > 0 ? n : 1, sizeof *keys);
     int64_t *indmark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *indmark);
+    double *rsign = jm_calloc_array(3 * (nr > 0 ? nr : 1), sizeof *rsign);
     if (g->adj_start == nullptr || g->adj == nullptr || g->lab == nullptr ||
         g->color0 == nullptr || g->order == nullptr || g->key == nullptr ||
         g->cells == nullptr || g->inv == nullptr || g->perm == nullptr ||
         g->uf == nullptr || vals == nullptr || keys == nullptr ||
-        indmark == nullptr) {
+        indmark == nullptr || rsign == nullptr) {
         free(vals);
         free(keys);
         free(indmark);
+        free(rsign);
         return JAOS_ERR_OUT_OF_MEMORY;
     }
     if (m->row_ind_col != nullptr)
         for (int64_t i = 0; i < nr; i++)
             if (m->row_ind_col[i] >= 0)
                 indmark[m->row_ind_col[i]] = m->row_ind_col[i] + 1;
-    memcpy(vals, m->a_value, (size_t)nz * sizeof *vals);
+    double *rsum = rsign + (nr > 0 ? nr : 1), *rfirst = rsum + (nr > 0 ? nr : 1);
+    for (int64_t j = 0; j < nc; j++)
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
+            const int64_t i = m->a_index[p];
+            rsum[i] += m->a_value[p];
+            if (rfirst[i] == 0.0)
+                rfirst[i] = m->a_value[p];
+        }
+    for (int64_t i = 0; i < nr; i++)
+        rsign[i] = sg_row_sign(m, i, rsum, rfirst);
+    for (int64_t j = 0; j < nc; j++)
+        for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++)
+            vals[p] = rsign[m->a_index[p]] * m->a_value[p];
     qsort(vals, (size_t)nz, sizeof *vals, dbl_cmp);
     int64_t nv = 0;
     for (int64_t k = 0; k < nz; k++)
@@ -376,7 +405,8 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     for (int64_t j = 0; j < nc; j++)
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
             const int64_t i = nc + m->a_index[p];
-            const int64_t l = rank_of(vals, nv, m->a_value[p]);
+            const int64_t l = rank_of(vals, nv,
+                                      rsign[m->a_index[p]] * m->a_value[p]);
             g->adj[g->cells[j]] = i;
             g->lab[g->cells[j]] = l;
             g->cells[j]++;
@@ -414,7 +444,11 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     }
     const int64_t col_colors = nc > 0 ? rank + 1 : 0;
     for (int64_t i = 0; i < nr; i++)
-        keys[i] = (ckey){ .a = m->row_lower[i], .b = m->row_upper[i], .c = 0.0,
+        keys[i] = (ckey){ .a = rsign[i] > 0.0 ? m->row_lower[i]
+                                              : 0.0 - m->row_upper[i],
+                          .b = rsign[i] > 0.0 ? m->row_upper[i]
+                                              : 0.0 - m->row_lower[i],
+                          .c = 0.0,
                           .e = 0.0,
                           .d = m->row_ind_col != nullptr ? m->row_ind_col[i] : -1,
                           .who = i };
@@ -444,6 +478,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     free(vals);
     free(keys);
     free(indmark);
+    free(rsign);
     return JAOS_OK;
 }
 

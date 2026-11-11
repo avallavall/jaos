@@ -50,6 +50,34 @@ static void test_three_alike_columns_are_one_orbit(void)
     jaos_model_free(m);
 }
 
+static void test_a_negated_row_is_coloured_as_its_twin(void)
+{
+    const double c[2] = {1.0, 1.0};
+    const double cl[2] = {0.0, 0.0}, cu[2] = {1.0, 1.0};
+    const int64_t as[3] = {0, 2, 4}, ai[4] = {0, 1, 0, 1};
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = pass == 0 ? 1.0 : -1.0;
+        const double rl[2] = {-INFINITY, pass == 0 ? -INFINITY : -3.0};
+        const double ru[2] = {3.0, pass == 0 ? 3.0 : INFINITY};
+        const double av[4] = {1.0, 2.0 * z, 2.0, 1.0 * z};
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 2, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         4, as, ai, av));
+        for (int64_t j = 0; j < 2; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        jm_symmetry s;
+        int64_t work = 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, &s, &work));
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(1, s.norbit,
+            "x0 + 2 x1 <= 3 and -2 x0 - x1 >= -3 swap with their columns");
+        TEST_ASSERT_EQUAL_INT64(2, s.largest);
+        jm_symmetry_free(&s);
+        jaos_model_free(m);
+    }
+}
+
 static void test_different_costs_leave_no_symmetry(void)
 {
     const double c[3] = {1.0, 2.0, 3.0};
@@ -342,6 +370,7 @@ int main(void)
     RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
     RUN_TEST(test_an_off_diagonal_q_pair_is_an_edge);
+    RUN_TEST(test_a_negated_row_is_coloured_as_its_twin);
     RUN_TEST(test_trees_in_parallel_threads_find_what_one_thread_finds);
     return UNITY_END();
 }

@@ -8630,9 +8630,9 @@ typedef struct {
     int64_t nc, nr;
     mp_col *col;
     double *cost, *lo, *hi;
-    bool *col_gone, *row_gone, *used, *dirty;
+    bool *col_gone, *row_gone, *used, *dirty, *flip;
     mp_sub *sub;
-    int64_t nsub, sub_cap;
+    int64_t nsub, sub_cap, nflip;
 } mp_state;
 
 static void mp_free(mp_state *s)
@@ -8645,7 +8645,7 @@ static void mp_free(mp_state *s)
     free(s->col);
     free(s->cost); free(s->lo); free(s->hi);
     free(s->col_gone); free(s->row_gone);
-    free(s->used); free(s->dirty); free(s->sub);
+    free(s->used); free(s->dirty); free(s->sub); free(s->flip);
     memset(s, 0, sizeof *s);
 }
 
@@ -8724,21 +8724,26 @@ static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
     s->row_gone = jm_calloc_array(nr > 0 ? nr : 1, sizeof *s->row_gone);
     s->used = jm_calloc_array(nc > 0 ? nc : 1, sizeof *s->used);
     s->dirty = jm_calloc_array(nr > 0 ? nr : 1, sizeof *s->dirty);
+    s->flip = jm_calloc_array(nc > 0 ? nc : 1, sizeof *s->flip);
     int64_t *cnt = jm_alloc_array(nr > 0 ? nr : 1, sizeof *cnt);
     int64_t *two = jm_alloc_array(2 * (nr > 0 ? nr : 1), sizeof *two);
     int rc = -1;
     if (s->col == nullptr || s->cost == nullptr || s->lo == nullptr ||
         s->hi == nullptr || s->col_gone == nullptr || s->row_gone == nullptr ||
-        s->used == nullptr || s->dirty == nullptr || cnt == nullptr ||
-        two == nullptr)
+        s->used == nullptr || s->dirty == nullptr || s->flip == nullptr ||
+        cnt == nullptr || two == nullptr)
         goto out;
     for (int64_t j = 0; j < nc; j++) {
-        s->cost[j] = m->col_cost[j];
-        s->lo[j] = m->col_lower[j];
-        s->hi[j] = m->col_upper[j];
+        const bool flip = fabs(m->col_lower[j]) > fabs(m->col_upper[j]);
+        s->flip[j] = flip;
+        s->nflip += flip ? 1 : 0;
+        s->cost[j] = flip ? 0.0 - m->col_cost[j] : m->col_cost[j];
+        s->lo[j] = flip ? 0.0 - m->col_upper[j] : m->col_lower[j];
+        s->hi[j] = flip ? 0.0 - m->col_lower[j] : m->col_upper[j];
         for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
             if (m->a_value[k] != 0.0 &&
-                !mp_add(&s->col[j], m->a_index[k], m->a_value[k]))
+                !mp_add(&s->col[j], m->a_index[k],
+                        flip ? 0.0 - m->a_value[k] : m->a_value[k]))
                 goto out;
     }
     *work += m->num_nz + nc + nr;
@@ -8885,7 +8890,8 @@ static jaos_model *mp_build(const jaos_model *m, const mp_state *s,
         if (start == nullptr)
             goto out;
         for (int64_t k = 0; k < nc2; k++)
-            start[k] = m->mip_start[map[k]];
+            start[k] = s->flip[map[k]] ? 0.0 - m->mip_start[map[k]]
+                                       : m->mip_start[map[k]];
         if (jaos_set_mip_start(m2, start) != JAOS_OK)
             goto out;
     }
@@ -8910,6 +8916,9 @@ static void mp_postsolve(const mp_state *s, const int64_t *map, int64_t nc2,
         x[map[k]] = x2[k];
     for (int64_t t = s->nsub - 1; t >= 0; t--)
         x[s->sub[t].drop] = x[s->sub[t].keep];
+    for (int64_t j = 0; j < s->nc; j++)
+        if (s->flip[j])
+            x[j] = 0.0 - x[j];
 }
 
 static jaos_status bb_run_marked(jaos_model *m)
@@ -8935,7 +8944,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
     if (mp_contract(m, &s, &passes, &pre_work) != 0)
         goto out;
-    if (s.nsub == 0) {
+    if (s.nsub == 0 && s.nflip == 0) {
         mp_free(&s);
         st = bb_run_marked(m);
         m->solve_work += pre_work;
@@ -8952,11 +8961,18 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         m->solve_work += pre_work;
         goto out;
     }
-    jm_log(m, JAOS_LOG_SUMMARY,
-           "MIP presolve: %lld equality rows and as many continuous columns "
-           "substituted out in %lld passes, %lld rows and %lld columns left",
-           (long long)s.nsub, (long long)passes, (long long)m2->num_row,
-           (long long)m2->num_col);
+    if (s.nflip > 0)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "MIP presolve: %lld columns whose lower bound lies farther "
+               "from zero than their upper bound are mirrored",
+               (long long)s.nflip);
+    if (s.nsub > 0)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "MIP presolve: %lld equality rows and as many continuous "
+               "columns substituted out in %lld passes, %lld rows and %lld "
+               "columns left",
+               (long long)s.nsub, (long long)passes, (long long)m2->num_row,
+               (long long)m2->num_col);
     if (m->cfg.work_limit > 0)
         m2->cfg.work_limit = m->cfg.work_limit > pre_work
                                  ? m->cfg.work_limit - pre_work : 1;
