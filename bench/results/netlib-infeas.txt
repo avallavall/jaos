@@ -22,10 +22,10 @@ klein3       infeasible rows=994 cols=88 shape=ok iters=426 work=17728957 presol
 mondou2      infeasible rows=312 cols=604 shape=ok iters=194 work=196150 presolve=312/604/1208->199/407/794 expected=infeasible verdict=ok det=ok
 pang         infeasible rows=361 cols=460 shape=ok iters=361 work=1260071 presolve=361/460/2652->328/400/2411 expected=infeasible verdict=ok det=ok
 pilot4i      infeasible rows=410 cols=1000 shape=ok iters=0 work=13185 presolve=410/1000/5141->0/0/0 expected=infeasible verdict=ok det=ok
-qual         infeasible rows=323 cols=464 shape=ok iters=357 work=1456975 presolve=323/464/1646->310/312/1472 expected=infeasible verdict=ok det=ok
+qual         infeasible rows=323 cols=464 shape=ok iters=359 work=1301570 presolve=323/464/1646->310/312/1472 expected=infeasible verdict=ok det=ok
 reactor      infeasible rows=318 cols=637 shape=ok iters=0 work=1233 presolve=318/637/2420->0/0/0 expected=infeasible verdict=ok det=ok
-refinery     infeasible rows=323 cols=464 shape=ok iters=287 work=774145 presolve=323/464/1626->310/312/1454 expected=infeasible verdict=ok det=ok
-vol1         infeasible rows=323 cols=464 shape=ok iters=332 work=1170597 presolve=323/464/1646->310/312/1472 expected=infeasible verdict=ok det=ok
+refinery     infeasible rows=323 cols=464 shape=ok iters=317 work=906631 presolve=323/464/1626->310/312/1454 expected=infeasible verdict=ok det=ok
+vol1         infeasible rows=323 cols=464 shape=ok iters=335 work=1247315 presolve=323/464/1646->310/312/1472 expected=infeasible verdict=ok det=ok
 woodinfe     infeasible rows=35 cols=89 shape=ok iters=0 work=1 presolve=35/89/140->0/0/0 expected=infeasible verdict=ok det=ok
 
 29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed

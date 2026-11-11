@@ -51,7 +51,7 @@ pilot        overrun   dual=5636/888832160 split=p1:18580/p2:3133/dual:0 over 10
 pilot-ja     ok        dual=1488/42270715 primal=1989/152380448 split=p1:1150/p2:839/dual:0 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813441 checker=dual:ok/primal:ok 
 pilot-we     ok        dual=2754/73799729 primal=1643/75164161 split=p1:788/p2:855/dual:0 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/primal:ok 
 pilot4       ok        dual=832/18352099 primal=848/28880177 split=p1:466/p2:382/dual:0 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838889 checker=dual:ok/primal:ok 
-pilot87      ok        dual=9490/3159044877 primal=27259/14260167483 split=p1:12013/p2:3580/dual:11666 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/primal:ok 
+pilot87      ok        dual=9708/3432019590 primal=26411/12487421692 split=p1:11866/p2:2879/dual:11666 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/primal:ok 
 pilotnov     ok        dual=2675/87209787 primal=1223/71897754 split=p1:1021/p2:202/dual:0 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/primal:ok 
 recipe       ok        dual=42/25273 primal=36/61347 split=p1:28/p2:8/dual:0 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/primal:ok 
 sc105        ok        dual=69/64438 primal=64/188712 split=p1:1/p2:63/dual:0 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/primal:ok 
@@ -96,11 +96,11 @@ woodw        ok        dual=1186/38855518 primal=1346/64207783 split=p1:604/p2:7
 
 -- primal against dual --
 measured 88, skipped 0, unreached 0, unbounded? 0, overrun 6, disagreed 0, rejected 0, errors 0
-iterations by method: phase 1 111425 (40.2%), phase 2 154245 (55.6%), dual re-entry 11671 (4.2%)
-  that is a sum over the set (D46): dfl001 carries 38.3% of it and pilot87 9.8%. Median per-instance phase-1 share 64.9% over 94 instance(s).
+iterations by method: phase 1 111278 (40.2%), phase 2 153544 (55.5%), dual re-entry 11671 (4.2%)
+  that is a sum over the set (D46): dfl001 carries 38.4% of it and pilot87 9.6%. Median per-instance phase-1 share 64.9% over 94 instance(s).
   6 of 94 did not finish inside 10x the dual's work; they are listed in TODO.md, each with what makes it slow.
-iterations (primal+1)/(dual+1), geometric mean: 1.1838
-work units primal/dual, geometric mean:         2.6637
+iterations (primal+1)/(dual+1), geometric mean: 1.1831
+work units primal/dual, geometric mean:         2.6572
 work ratio, best  grow7 at 0.2519
 work ratio, worst maros-r7 at 9.5902
 took more iterations primal than dual:          61 of 88

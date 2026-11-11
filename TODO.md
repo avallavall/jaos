@@ -192,20 +192,6 @@ mode, bound propagation and probing. The last reading had none land
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
-J28. **A zero-cost column boxed in [-a, a] starts at -a whether or not
-it is mirrored.** With columns mirrored (x is -x) and rows negated,
-`pilot87` of Netlib and `qual`, `refinery` and `vol1` of its infeasible
-set still take another path from the first pivot. They have 9, 117, 117
-and 117 such columns. The slack basis puts a zero-cost column at the
-bound nearer zero, and these two bounds are as near, so the mirrored
-start is another point (`bench/measurements/02-441/`). The same
-lower-first rule picks the bound of a column that leaves a singular
-basis in the repair; the nearer-zero rule there slowed `bnl2`'s warm
-re-solve from 439 to 612 iterations. Next: a tie rule that the mirror
-flips, such as the bound that leaves the rows' total infeasibility
-smaller, read on Netlib and the gates. Verify with 02-440's `read.sh`:
-no `path` line on Netlib and its infeasible set.
-
 J29. **A MIP's tree depends on the signs of its integer columns.** With
 columns mirrored and rows negated, all 24 MIPLIB 3 models take another
 path. `bell5` mirrored is still open after 185,084 nodes at 2e9 work

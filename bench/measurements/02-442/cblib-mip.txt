@@ -1,0 +1,80 @@
+classical_200_1.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 74/74 work 2019955981/2019955981 nodes 1/1
+classical_200_2.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 75/75 work 2008937304/2008937304 nodes 1/1
+classical_200_3.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 74/74 work 2020492583/2020492583 nodes 1/1
+classical_50_1.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -0.094098980637202276/-0.094098980637202276 iters 2646/2619 work 2000638165/2000670894 nodes 136/136
+classical_50_2.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -0.090013930455337704/-0.089952676135969051 iters 2692/2640 work 2000528995/2000459804 nodes 126/135
+classical_50_3.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -0.085569860967006195/-0.087054467214514833 iters 2622/2639 work 2000151243/2001602133 nodes 138/139
+estein4_A.cbf.gz         path   optimal/optimal obj 0.8013654952655026/0.8013654952655026 inc 0.8013654952655026/0.8013654952655026 iters 475/481 work 40906598/41566120 nodes 31/31
+estein4_B.cbf.gz         path   optimal/optimal obj 1.1880860382563609/1.1880860382563609 inc 1.1880860382563609/1.1880860382563609 iters 487/481 work 42436519/41778630 nodes 31/31
+estein4_C.cbf.gz         path   optimal/optimal obj 1.072693688027841/1.072693688027841 inc 1.072693688027841/1.072693688027841 iters 465/453 work 40706053/39569731 nodes 31/31
+estein4_nr22.cbf.gz      path   optimal/optimal obj 0.50328617618579774/0.50328617618579774 inc 0.50328617618579774/0.50328617618579774 iters 493/496 work 41089897/41090044 nodes 31/31
+estein5_A.cbf.gz         path   work limit reached/work limit reached obj nan/nan inc 1.0453724936835429/1.0453724936835429 iters 12008/12020 work 2000013201/2000004090 nodes 832/824
+estein5_B.cbf.gz         path   optimal/optimal obj 1.1931599026681046/1.1931599026681048 inc 1.1931599026681046/1.1931599026681048 iters 7322/6787 work 1214934598/1129813389 nodes 482/451
+estein5_C.cbf.gz         path   optimal/optimal obj 1.4990779350750321/1.4990779350750321 inc 1.4990779350750321/1.4990779350750321 iters 6890/7779 work 1162815275/1306544698 nodes 457/516
+estein5_nr1.cbf.gz       path   optimal/optimal obj 1.664399321617265/1.664399321617265 inc 1.664399321617265/1.664399321617265 iters 10031/8276 work 1689256737/1371331946 nodes 655/543
+estein5_nr21.cbf.gz      path   work limit reached/work limit reached obj nan/nan inc 1.8181793068761734/1.8181793068761734 iters 11760/11711 work 2000185877/2000105928 nodes 814/804
+pp-n10-d10.cbf.gz        path   optimal/optimal obj 72.48127653570279/72.48127653570279 inc 72.48127653570279/72.48127653570279 iters 987/1218 work 41263746/51405507 nodes 63/77
+pp-n10-d10000.cbf.gz     path   optimal/optimal obj 1481.4635089131882/1481.4635089131882 inc 1481.4635089131882/1481.4635089131882 iters 367/361 work 17583536/17145912 nodes 17/17
+pp-n100-d10.cbf.gz       path   work limit reached/work limit reached obj nan/nan inc 777.28739044593362/777.28739044593362 iters 5680/5617 work 2000093352/2000629597 nodes 301/295
+pp-n100-d10000.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 19855.508235272224/19855.508235272224 iters 4827/4819 work 2000199533/2000530235 nodes 210/209
+pp-n1000-d10.cbf.gz      path   work limit reached/work limit reached obj nan/nan inc 7343.9983131966255/7343.9983131966255 iters 581/579 work 2000677734/2004499716 nodes 33/33
+pp-n1000-d10000.cbf.gz   path   work limit reached/work limit reached obj nan/nan inc 216112.96065580091/216112.96065580091 iters 472/473 work 2001513002/2002216270 nodes 19/19
+pp-n100000-d10.cbf.gz    same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 10/10 work 2088333792/2088333792 nodes 1/1
+pp-n100000-d10000.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 9/9 work 2577671924/2577671924 nodes 1/1
+robust_100_1.cbf.gz      same   work limit reached/work limit reached obj nan/nan inc -0.067432809809769539/-0.067432809809769539 iters 316/316 work 2004127441/2004127441 nodes 8/8
+robust_100_2.cbf.gz      same   work limit reached/work limit reached obj nan/nan inc -0.088518722210237169/-0.088518722210237169 iters 323/323 work 2002680798/2002680798 nodes 8/8
+robust_100_3.cbf.gz      path   work limit reached/work limit reached obj nan/nan inc -0.11379938601829549/-0.11379938601829549 iters 317/317 work 2000832789/2001147526 nodes 9/9
+robust_200_1.cbf.gz      same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 50/50 work 2060658735/2060658735 nodes 1/1
+robust_200_2.cbf.gz      same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 53/53 work 2008503047/2008503047 nodes 1/1
+robust_200_3.cbf.gz      same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 52/52 work 2021691701/2021691701 nodes 1/1
+robust_50_1.cbf.gz       DIFF   optimal/work limit reached obj -0.085694763807855553/nan inc -0.085694763807855553/-0.085694763807855553 iters 1374/1526 work 1794801744/2004496966 nodes 70/78
+robust_50_2.cbf.gz       path   work limit reached/work limit reached obj nan/nan inc -0.14365495327869685/-0.14365495327869685 iters 1550/1567 work 2000293268/2000740760 nodes 79/82
+robust_50_3.cbf.gz       path   work limit reached/work limit reached obj nan/nan inc -0.089803193555187413/-0.089750733449600148 iters 1628/1665 work 2000245182/2000247682 nodes 76/72
+shortfall_100_1.cbf.gz   path   work limit reached/work limit reached obj nan/nan inc -1.1032722218113538/-1.1032722218113538 iters 412/412 work 2003825337/2001566513 nodes 16/16
+shortfall_100_2.cbf.gz   path   work limit reached/work limit reached obj nan/nan inc -1.0990406906418762/-1.0990406906418762 iters 421/421 work 2001512780/2002338045 nodes 16/16
+shortfall_100_3.cbf.gz   path   work limit reached/work limit reached obj nan/nan inc -1.1008485090406506/-1.1008485090406506 iters 423/426 work 2008308874/2000936356 nodes 13/13
+shortfall_200_1.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 67/67 work 2000335041/2000335041 nodes 1/1
+shortfall_200_2.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 71/71 work 2070964809/2070964809 nodes 1/1
+shortfall_200_3.cbf.gz   same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 69/69 work 2009720943/2009720943 nodes 1/1
+shortfall_50_1.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -1.1010695801621349/-1.1009956736068471 iters 1941/1940 work 2000052996/2000045983 nodes 113/107
+shortfall_50_2.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -1.0940733435772094/-1.0949953984099379 iters 1954/1952 work 2000319066/2002480340 nodes 119/114
+shortfall_50_3.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc -1.0911689322220739/-1.0911689322220739 iters 1938/1949 work 2000500842/2000303836 nodes 118/117
+sssd-strong-15-4.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 328355.75246828591/328443.52163411415 iters 12199/12147 work 2000073619/2000125779 nodes 624/618
+sssd-strong-15-8.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 640589.46065840393/632145.79502517474 iters 5880/5843 work 2000085791/2000371482 nodes 285/282
+sssd-strong-20-4.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 287962.93019239424/287962.93019239424 iters 10861/10782 work 2000181722/2000191415 nodes 556/551
+sssd-strong-20-8.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 605834.80450342211/605772.08040573727 iters 5143/5189 work 2000124441/2000277659 nodes 251/257
+sssd-strong-25-4.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 311792.52916563384/311792.52916563384 iters 9670/9709 work 2000000657/2000090590 nodes 486/490
+sssd-strong-25-8.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 504261.79215573583/502741.308788825 iters 4605/4601 work 2000055943/2000312769 nodes 225/226
+sssd-strong-30-4.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 264133.69167364587/264133.69167364587 iters 8711/8677 work 2000171656/2000002644 nodes 437/446
+sssd-strong-30-8.cbf.gz  path   work limit reached/work limit reached obj nan/nan inc 532261.45511950587/535715.83324153803 iters 4120/4138 work 2000333016/2000300907 nodes 204/202
+sssd-weak-15-4.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 388341.14593572449/385407.94635388308 iters 12001/12011 work 2000004741/2000157676 nodes 581/573
+sssd-weak-15-8.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 1531916.7638655903/1784717.1126357852 iters 5928/5877 work 2000227610/2000075626 nodes 276/244
+sssd-weak-20-4.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 323307.02780993027/355905.40703531983 iters 10663/10762 work 2000227389/2000031027 nodes 517/529
+sssd-weak-20-8.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 1492283.6719979795/1739037.7545121289 iters 5304/5278 work 2000219207/2000425681 nodes 246/229
+sssd-weak-25-4.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 371147.82211061724/415393.31013218313 iters 9667/9653 work 2000193697/2000220952 nodes 461/464
+sssd-weak-25-8.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 1391873.5386724884/1008504.8402302117 iters 4681/4656 work 2000000246/2000214133 nodes 224/224
+sssd-weak-30-4.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 265055.94036190939/301472.18420588842 iters 8452/8553 work 2000153496/2000008297 nodes 452/451
+sssd-weak-30-8.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc 1636204.7633845946/1151577.9351447043 iters 4073/4216 work 2000300830/2000428951 nodes 184/200
+turbine07.cbf.gz         same   optimal/optimal obj 2/2 inc 2/2 iters 226/226 work 23486230/23486230 nodes 15/15
+turbine07GF.cbf.gz       path   optimal/optimal obj 3/3 inc 3/3 iters 436/615 work 55088485/79780099 nodes 31/43
+turbine07_aniso.cbf.gz   same   optimal/optimal obj 3/3 inc 3/3 iters 106/106 work 10891769/10891769 nodes 7/7
+turbine07_lowb.cbf.gz    path   work limit reached/work limit reached obj nan/nan inc nan/1.4957902898846971 iters 6114/6351 work 2000245904/2000047627 nodes 157/233
+turbine07_lowb_aniso.cbf.gz path   work limit reached/work limit reached obj nan/nan inc 2.2470575701539035/nan iters 6808/6457 work 2000266193/2000020551 nodes 308/270
+turbine54.cbf.gz         same   optimal/optimal obj 3/3 inc 3/3 iters 128/128 work 71315813/71315813 nodes 7/7
+turbine54GF.cbf.gz       path   optimal/optimal obj 4/4 inc 4/4 iters 400/403 work 276372018/278508199 nodes 29/29
+uflquad-nopsc-10-100.cbf.gz path   work limit reached/work limit reached obj nan/nan inc 990.08563523131727/990.08563523131727 iters 432/430 work 2001254283/2001788254 nodes 17/17
+uflquad-nopsc-10-150.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 1048.1535454938025/1048.1535454938025 iters 282/282 work 2008987346/2008987346 nodes 10/10
+uflquad-nopsc-20-100.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 1264.4088483619475/1264.4088483619475 iters 206/206 work 2007348227/2007348227 nodes 5/5
+uflquad-nopsc-20-150.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 1583.2196808063081/1583.2196808063081 iters 135/135 work 2002781979/2002781979 nodes 2/2
+uflquad-nopsc-30-100.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 135/135 work 2006487824/2006487824 nodes 1/1
+uflquad-nopsc-30-150.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 87/87 work 2023464870/2023464870 nodes 1/1
+uflquad-nopsc-30-200.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 66/66 work 2030532280/2030532280 nodes 1/1
+uflquad-nopsc-30-300.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 43/43 work 2032113592/2032113592 nodes 1/1
+uflquad-psc-10-100.cbf.gz same   optimal/optimal obj 540.28751940848906/540.28751940848906 inc 540.28751940848906/540.28751940848906 iters 190/190 work 872875038/872875038 nodes 7/7
+uflquad-psc-10-150.cbf.gz same   optimal/optimal obj 709.64757258648331/709.64757258648331 inc 709.64757258648331/709.64757258648331 iters 80/80 work 583532491/583532491 nodes 3/3
+uflquad-psc-20-100.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 403.05680328574567/403.05680328574567 iters 209/209 work 2006475851/2006475851 nodes 8/8
+uflquad-psc-20-150.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 568.71672336041263/568.71672336041263 iters 137/137 work 2006697819/2006697819 nodes 4/4
+uflquad-psc-30-100.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 355.24034169883032/355.24034169883032 iters 141/141 work 2007676040/2007676040 nodes 5/5
+uflquad-psc-30-150.cbf.gz same   optimal/optimal obj 468.15612698589626/468.15612698589626 inc 468.15612698589626/468.15612698589626 iters 53/53 work 1203478038/1203478038 nodes 1/1
+uflquad-psc-30-200.cbf.gz same   work limit reached/work limit reached obj nan/nan inc 554.91469455117635/554.91469455117635 iters 70/70 work 2015871080/2015871080 nodes 2/2
+uflquad-psc-30-300.cbf.gz same   work limit reached/work limit reached obj nan/nan inc nan/nan iters 45/45 work 2082591101/2082591101 nodes 1/1

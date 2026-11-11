@@ -51,7 +51,7 @@ pilot        ok        dual=5636/888832160 concurrent=0+5636/1199376055 verdict=
 pilot-ja     ok        dual=1488/42270715 concurrent=0+1488/42270715 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813431 checker=dual:ok/concurrent:ok 
 pilot-we     ok        dual=2754/73799729 concurrent=0+2754/73799729 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/concurrent:ok 
 pilot4       ok        dual=832/18352099 concurrent=0+832/18352099 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838885 checker=dual:ok/concurrent:ok 
-pilot87      ok        dual=9490/3159044877 concurrent=0+9490/5563246709 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/concurrent:ok 
+pilot87      ok        dual=9708/3432019590 concurrent=0+9708/5836209459 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/concurrent:ok 
 pilotnov     ok        dual=2675/87209787 concurrent=0+2675/87209787 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/concurrent:ok 
 recipe       ok        dual=42/25273 concurrent=0+42/25273 verdict=optimal/optimal obj=-266.61599999999999/-266.61599999999999 checker=dual:ok/concurrent:ok 
 sc105        ok        dual=69/64438 concurrent=0+69/64438 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/concurrent:ok 
@@ -96,7 +96,7 @@ woodw        ok        dual=1186/38855518 concurrent=0+1186/38855518 verdict=opt
 
 -- concurrent against dual --
 agreed 94 (checker accepts 94, interior 0), skipped 0, overrun 0, failed 0, disagreed 0, rejected 0, errors 0
-work units concurrent/dual, geometric mean:        1.0586
+work units concurrent/dual, geometric mean:        1.0582
 iterations (concurrent+1)/(dual+1), geometric mean: 0.9881
 work ratio, best  25fv47 at 1.0000
 work ratio, worst greenbeb at 2.7367

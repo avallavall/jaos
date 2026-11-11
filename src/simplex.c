@@ -652,6 +652,75 @@ static jm_var_status bound_status(const sx *s, int64_t v)
     return has_up ? JM_AT_UPPER : JM_FREE;
 }
 
+static bool start_tie(const sx *s, int64_t j)
+{
+    return s->cost[j] == 0.0 && s->up[j] > 0.0 && isfinite(s->up[j]) &&
+           s->lo[j] == -s->up[j];
+}
+
+static double row_excess(double r, double lo, double up)
+{
+    if (r < lo)
+        return lo - r;
+    return r > up ? r - up : 0.0;
+}
+
+static double row_room(double r, double lo, double up)
+{
+    if (r < lo || r > up)
+        return 0.0;
+    const double below = r - lo, above = up - r;
+    if (!isfinite(below))
+        return isfinite(above) ? above : 0.0;
+    return above < below ? above : below;
+}
+
+static bool tie_goes_up(sx *s, int64_t j, const double *r)
+{
+    const jaos_model *m = s->m;
+    const double a = s->up[j];
+    double out_lo = 0.0, out_up = 0.0, in_lo = 0.0, in_up = 0.0;
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        const int64_t i = m->a_index[k], v = s->ncol + i;
+        const double t = s->av[k] * a;
+        out_lo += row_excess(r[i] - t, s->lo[v], s->up[v]);
+        out_up += row_excess(r[i] + t, s->lo[v], s->up[v]);
+        in_lo += row_room(r[i] - t, s->lo[v], s->up[v]);
+        in_up += row_room(r[i] + t, s->lo[v], s->up[v]);
+    }
+    if (out_up != out_lo)
+        return out_up > out_lo;
+    return in_up < in_lo;
+}
+
+static void break_start_ties(sx *s)
+{
+    const jaos_model *m = s->m;
+    double *r = s->col;
+    memset(r, 0, (size_t)s->nrow * sizeof *r);
+    for (int64_t j = 0; j < s->ncol; j++) {
+        if (start_tie(s, j))
+            continue;
+        const double val = nonbasic_value(s, j);
+        if (val == 0.0)
+            continue;
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            r[m->a_index[k]] += s->av[k] * val;
+        jm_work_add(&s->work,
+                    (m->a_start[j + 1] - m->a_start[j]) * JM_WORK_NONZERO);
+    }
+    for (int64_t j = 0; j < s->ncol; j++) {
+        if (!start_tie(s, j))
+            continue;
+        s->status[j] = tie_goes_up(s, j, r) ? JM_AT_UPPER : JM_AT_LOWER;
+        const double val = nonbasic_value(s, j);
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            r[m->a_index[k]] += s->av[k] * val;
+        jm_work_add(&s->work, 2 * (m->a_start[j + 1] - m->a_start[j]) *
+                                  JM_WORK_NONZERO);
+    }
+}
+
 static void build_initial_basis(sx *s)
 {
     s->pviol_ok = false;
@@ -665,8 +734,10 @@ static void build_initial_basis(sx *s)
     }
     s->dual_devex = false;
     s->dual_devex_stale = false;
+    bool ties = false;
     for (int64_t j = 0; j < s->ncol; j++) {
         s->where[j] = -1;
+        ties = ties || start_tie(s, j);
         bool has_lo = isfinite(s->lo[j]);
         bool has_up = isfinite(s->up[j]);
 
@@ -693,6 +764,8 @@ static void build_initial_basis(sx *s)
             s->status[j] = bound_status(s, j);
         }
     }
+    if (ties)
+        break_start_ties(s);
 
     jm_nonbasic_build(s->nvar, s->status, s->nbmark);
     pr_rebuild(s);

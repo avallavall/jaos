@@ -1,0 +1,20 @@
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -688,9 +688,15 @@
+         in_lo += row_room(r[i] - t, s->lo[v], s->up[v]);
+         in_up += row_room(r[i] + t, s->lo[v], s->up[v]);
+     }
++    const char *e = getenv("J28V");
++    const int var = e ? atoi(e) : 0;
++    if (var == 9)
++        return false;
+     if (out_up != out_lo)
+-        return out_up > out_lo;
+-    return in_up < in_lo;
++        return (var & 1) ? out_up < out_lo : out_up > out_lo;
++    if (in_up == in_lo)
++        return false;
++    return (var & 2) ? in_up > in_lo : in_up < in_lo;
+ }
+ 
+ static void break_start_ties(sx *s)

@@ -51,7 +51,7 @@ pilot        ok        branch=x3<=1018 warm=2/4036527 cold=5824/873541671 verdic
 pilot-ja     ok        branch=x2<=4 warm=1/419361 cold=1449/39039811 verdict=optimal obj=-6113.1312252141533/-6113.1312252141533 before=-6113.1364655813431 moved=yes checker=warm:ok/cold:ok 
 pilot-we     ok        branch=x0<=58 warm=7/407792 cold=2756/73417612 verdict=optimal obj=-2719100.48946296/-2719100.48946296 before=-2720107.5328449644 moved=yes checker=warm:ok/cold:ok 
 pilot4       ok        branch=x0<=0 warm=646/14458837 cold=807/17293566 verdict=optimal obj=-2578.6069820768162/-2578.6069820768162 before=-2581.1392588838885 moved=yes checker=warm:ok/cold:ok 
-pilot87      ok        branch=x0<=8 warm=217/464180443 cold=9363/3097717529 verdict=optimal obj=301.77544556310693/301.77544556310693 before=301.71034733311052 moved=yes checker=warm:ok/cold:ok 
+pilot87      ok        branch=x0<=8 warm=222/416568661 cold=10584/4020885361 verdict=optimal obj=301.77544556310693/301.77544556310698 before=301.71034733311052 moved=yes checker=warm:ok/cold:ok 
 pilotnov     ok        branch=x2<=4 warm=1/225732 cold=1718/54017557 verdict=optimal obj=-4497.2761882188706/-4497.2761882188715 before=-4497.2761882188706 moved=NO checker=warm:ok/cold:ok 
 recipe       skipped   every column integral at the optimum
 sc105        ok        branch=x1<=10 warm=1/10244 cold=71/66652 verdict=optimal obj=-52.100751786731252/-52.100751786731252 before=-52.202061211707225 moved=yes checker=warm:ok/cold:ok 
@@ -97,7 +97,7 @@ woodw        ok        branch=x11<=0 warm=1047/32822462 cold=1047/32845625 verdi
 -- warm against cold --
 measured 92, skipped 2, disagreed 0, rejected 0, errors 0
 iterations (warm+1)/(cold+1), geometric mean: 0.0130
-work units warm/cold, geometric mean:         0.0536
+work units warm/cold, geometric mean:         0.0533
 work ratio, best  truss at 0.0003
 work ratio, worst wood1p at 2.7883
 reached the optimum in no iterations at all:  5 of 92

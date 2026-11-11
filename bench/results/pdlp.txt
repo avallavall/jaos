@@ -51,7 +51,7 @@ pilot        overrun   dual=5636/888832160 pdlp=15424+31156/8891294070 verdict=o
 pilot-ja     overrun   dual=1488/42270715 pdlp=11355+0/422712004 verdict=optimal/work limit reached obj=-6113.1364655813431/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 pilot-we     ok        dual=2754/73799729 pdlp=5696+2754/666118644 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/pdlp:ok 
 pilot4       overrun   dual=832/18352099 pdlp=10469+0/183528054 verdict=optimal/work limit reached obj=-2581.1392588838885/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
-pilot87      overrun   dual=9490/3159044877 pdlp=3328+56715/31600047397 verdict=optimal/work limit reached obj=301.71034733311052/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
+pilot87      overrun   dual=9708/3432019590 pdlp=3328+5956/34320209734 verdict=optimal/work limit reached obj=301.71034733311052/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 pilotnov     ok        dual=2675/87209787 pdlp=5952+5503/465464082 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/pdlp:ok 
 recipe       overrun   dual=42/25273 pdlp=101+0/254050 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/pdlp:n/a over 10x the dual's work
 sc105        overrun   dual=69/64438 pdlp=443+0/645588 verdict=optimal/work limit reached obj=-52.202061211707225/0 checker=dual:ok/pdlp:n/a over 10x the dual's work

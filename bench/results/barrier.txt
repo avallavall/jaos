@@ -51,7 +51,7 @@ pilot        ok        dual=5636/888832160 barrier=47+1334/3788565181 verdict=op
 pilot-ja     ok        dual=1488/42270715 barrier=29+353/230602302 verdict=optimal/optimal obj=-6113.1364655813431/-6113.1364655813431 checker=dual:ok/barrier:ok 
 pilot-we     ok        dual=2754/73799729 barrier=28+2754/428479915 verdict=optimal/optimal obj=-2720107.5328449644/-2720107.5328449644 checker=dual:ok/barrier:ok 
 pilot4       ok        dual=832/18352099 barrier=28+283/47129575 verdict=optimal/optimal obj=-2581.1392588838885/-2581.1392588838889 checker=dual:ok/barrier:ok 
-pilot87      ok        dual=9490/3159044877 barrier=44+23020/25622925479 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/barrier:ok 
+pilot87      ok        dual=9708/3432019590 barrier=44+23020/25622925479 verdict=optimal/optimal obj=301.71034733311052/301.71034733311052 checker=dual:ok/barrier:ok 
 pilotnov     ok        dual=2675/87209787 barrier=19+1581/238724179 verdict=optimal/optimal obj=-4497.2761882188706/-4497.2761882188706 checker=dual:ok/barrier:ok 
 recipe       overrun   dual=42/25273 barrier=7+0/265239 verdict=optimal/work limit reached obj=-266.61599999999999/0 checker=dual:ok/barrier:n/a over 10x the dual's work
 sc105        ok        dual=69/64438 barrier=10+3/207926 verdict=optimal/optimal obj=-52.202061211707225/-52.202061211707225 checker=dual:ok/barrier:ok 
@@ -96,8 +96,8 @@ woodw        ok        dual=1186/38855518 barrier=30+1790/205531220 verdict=opti
 
 -- barrier against dual --
 agreed 80 (checker accepts 80, interior 0), skipped 0, overrun 14, failed 0, disagreed 0, rejected 0, errors 0
-work units barrier/dual, geometric mean:        3.2879
-iterations (barrier+1)/(dual+1), geometric mean: 0.2568
+work units barrier/dual, geometric mean:        3.2845
+iterations (barrier+1)/(dual+1), geometric mean: 0.2567
 work ratio, best  truss at 0.3123
 work ratio, worst tuff at 9.7529
 most barrier iterations: pilot87 at 23064
