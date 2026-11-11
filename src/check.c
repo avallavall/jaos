@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+constexpr int64_t CHECK_CURVE_BLOCK = 3000;
+
 static double max2(double a, double b)
 {
     if (isnan(a) || isnan(b))
@@ -844,15 +846,74 @@ static jaos_status check_answer(const jaos_model *m, const double *col_value,
     return JAOS_OK;
 }
 
-static bool row_curves_its_way(const jaos_model *m, int64_t i, double y)
+typedef struct {
+    int64_t r, c, root;
+    double v;
+} curve_ent;
+
+static int64_t curve_root(int64_t *up, int64_t j)
 {
-    if (m->rq_start == nullptr || y == 0.0)
-        return true;
-    for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
-        if (m->rq_i[p] != m->rq_j[p])
-            return false;
-        if (y * m->rq_v[p] > 0.0)
-            return false;
+    while (up[j] != j) {
+        up[j] = up[up[j]];
+        j = up[j];
+    }
+    return j;
+}
+
+static int cmp_curve(const void *pa, const void *pb)
+{
+    const curve_ent *a = pa, *b = pb;
+    if (a->root != b->root)
+        return (a->root > b->root) - (a->root < b->root);
+    if (a->r != b->r)
+        return (a->r > b->r) - (a->r < b->r);
+    return (a->c > b->c) - (a->c < b->c);
+}
+
+static bool col_fixed(const jaos_model *m, int64_t j)
+{
+    return isfinite(m->col_lower[j]) && m->col_lower[j] == m->col_upper[j];
+}
+
+static bool curve_block(double *mat, double *a, double *traf, bool *used,
+                        int64_t k, double tol, double *sup, double *supc)
+{
+    double dmax = 0.0;
+    for (int64_t i = 0; i < k; i++) {
+        used[i] = false;
+        if (fabs(mat[i * k + i]) > dmax)
+            dmax = fabs(mat[i * k + i]);
+    }
+    for (int64_t s = 0; s < k; s++) {
+        int64_t p = -1;
+        for (int64_t i = 0; i < k; i++)
+            if (!used[i] && (p < 0 || mat[i * k + i] > mat[p * k + p]))
+                p = i;
+        if (p < 0 || !(mat[p * k + p] > tol * dmax))
+            break;
+        const double d = sqrt(mat[p * k + p]);
+        const double t = a[p] / d;
+        add_product(sup, supc, 0.5 * t, t);
+        used[p] = true;
+        a[p] = 0.0;
+        for (int64_t i = 0; i < k; i++) {
+            if (used[i])
+                continue;
+            const double li = mat[i * k + p] / d;
+            a[i] -= li * t;
+            traf[i] += fabs(li * t);
+            for (int64_t j = 0; j < k; j++)
+                if (!used[j])
+                    mat[i * k + j] -= li * (mat[j * k + p] / d);
+        }
+    }
+    for (int64_t i = 0; i < k; i++) {
+        if (used[i])
+            continue;
+        for (int64_t j = 0; j < k; j++)
+            if (!used[j] && (i == j ? mat[i * k + j] < -tol * dmax
+                                    : fabs(mat[i * k + j]) > tol * dmax))
+                return false;
     }
     return true;
 }
@@ -896,46 +957,72 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
         if (!isfinite(cone_ray[t]))
             return JAOS_ERR_INVALID_INPUT;
 
+    const int64_t n = m->num_col, cap = n > 0 ? n : 1;
+    const bool curved = m->rq_nz > 0;
+    jaos_status st = JAOS_OK;
     bool bounded = true;
     for (int64_t k = 0; k < ncone; k++)
         if (cone_distance(m, k, cone_ray, false, 1.0) > tol)
             bounded = false;
-    for (int64_t i = 0; i < m->num_row && bounded; i++)
-        if (!row_curves_its_way(m, i, row_ray[i]))
-            bounded = false;
-    double *extra = nullptr;
-    if (ncone > 0) {
-        extra = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
-                                sizeof *extra);
-        if (extra == nullptr)
-            return JAOS_ERR_OUT_OF_MEMORY;
-        for (int64_t k = 0; k < ncone; k++)
-            for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++)
-                extra[m->cone_col[t]] += cone_ray[t];
+
+    double *acol = jm_calloc_array(cap, sizeof *acol);
+    double *traf = jm_calloc_array(cap, sizeof *traf);
+    double *hdiag = curved ? jm_calloc_array(cap, sizeof *hdiag) : nullptr;
+    int64_t *up = curved ? jm_alloc_array(cap, sizeof *up) : nullptr;
+    int64_t *pos = curved ? jm_alloc_array(cap, sizeof *pos) : nullptr;
+    curve_ent *ent = curved ? jm_alloc_array(m->rq_nz, sizeof *ent) : nullptr;
+    double *mat = nullptr, *ba = nullptr, *bt = nullptr;
+    int64_t *bcol = nullptr;
+    bool *bused = nullptr;
+    if (acol == nullptr || traf == nullptr ||
+        (curved && (hdiag == nullptr || up == nullptr || pos == nullptr ||
+                    ent == nullptr))) {
+        st = JAOS_ERR_OUT_OF_MEMORY;
+        goto done;
     }
-    double *hdiag = nullptr;
-    if (m->rq_nz > 0 && bounded) {
-        hdiag = jm_calloc_array(m->num_col > 0 ? m->num_col : 1,
-                                sizeof *hdiag);
-        if (hdiag == nullptr) {
-            free(extra);
-            return JAOS_ERR_OUT_OF_MEMORY;
-        }
-        for (int64_t i = 0; i < m->num_row; i++) {
-            const double y = row_ray[i];
-            if (y == 0.0)
-                continue;
-            for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++)
-                hdiag[m->rq_i[p]] += y * m->rq_v[p];
-        }
-    }
+
     double sup_cols = 0.0, sup_colsc = 0.0;
-    for (int64_t j = 0; j < m->num_col && bounded; j++) {
-        double asum = 0.0, acomp = 0.0, traffic = 0.0, trafficc = 0.0;
-        if (extra != nullptr && extra[j] != 0.0) {
-            jm_obj_add(&asum, &acomp, extra[j]);
-            jm_obj_add(&traffic, &trafficc, fabs(extra[j]));
+    int64_t nent = 0;
+    for (int64_t j = 0; curved && j < n; j++) {
+        up[j] = j;
+        pos[j] = -1;
+    }
+    for (int64_t k = 0; k < ncone; k++)
+        for (int64_t t = m->cone_start[k]; t < m->cone_start[k + 1]; t++) {
+            acol[m->cone_col[t]] += cone_ray[t];
+            traf[m->cone_col[t]] += fabs(cone_ray[t]);
         }
+    for (int64_t i = 0; curved && i < m->num_row; i++) {
+        const double y = row_ray[i];
+        if (y == 0.0)
+            continue;
+        for (int64_t p = m->rq_start[i]; p < m->rq_start[i + 1]; p++) {
+            const int64_t r = m->rq_i[p], c = m->rq_j[p];
+            const double h = y * m->rq_v[p];
+            const bool fr = col_fixed(m, r), fc = col_fixed(m, c);
+            if (r == c) {
+                if (fr)
+                    add_product(&sup_cols, &sup_colsc,
+                                0.5 * h * m->col_lower[r], m->col_lower[r]);
+                else
+                    hdiag[r] += h;
+            } else if (fr && fc) {
+                add_product(&sup_cols, &sup_colsc, h * m->col_lower[r],
+                            m->col_lower[c]);
+            } else if (fr || fc) {
+                const int64_t free_col = fr ? c : r, held = fr ? r : c;
+                const double t = h * m->col_lower[held];
+                acol[free_col] += t;
+                traf[free_col] += fabs(t);
+            } else if (h != 0.0) {
+                up[curve_root(up, r)] = curve_root(up, c);
+                ent[nent++] = (curve_ent){r, c, 0, h};
+            }
+        }
+    }
+    for (int64_t j = 0; j < n; j++) {
+        double asum = acol[j], acomp = 0.0;
+        double traffic = traf[j], trafficc = 0.0;
         for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
             const double aij = m->a_value[p];
             const double y = row_ray[m->a_index[p]];
@@ -947,14 +1034,81 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
 
             jm_obj_add(&traffic, &trafficc, fabs(t));
         }
-        const double a = acc_value(asum, acomp);
-        const double traf = acc_value(traffic, trafficc);
+        acol[j] = acc_value(asum, acomp);
+        traf[j] = acc_value(traffic, trafficc);
+    }
 
-        if (fabs(a) <= tol * traf)
-            continue;
+    for (int64_t e = 0; e < nent; e++)
+        ent[e].root = curve_root(up, ent[e].r);
+    if (nent > 1)
+        qsort(ent, (size_t)nent, sizeof *ent, cmp_curve);
+    for (int64_t b = 0; b < nent && bounded;) {
+        int64_t e = b, k = 0;
+        while (e < nent && ent[e].root == ent[b].root)
+            e++;
+        for (int64_t t = b; t < e; t++) {
+            if (pos[ent[t].r] < 0)
+                pos[ent[t].r] = k++;
+            if (pos[ent[t].c] < 0)
+                pos[ent[t].c] = k++;
+        }
+        if (k > CHECK_CURVE_BLOCK) {
+            bounded = false;
+            break;
+        }
+        free(mat); free(ba); free(bt); free(bcol); free(bused);
+        mat = jm_calloc_array(k * k, sizeof *mat);
+        ba = jm_alloc_array(k, sizeof *ba);
+        bt = jm_alloc_array(k, sizeof *bt);
+        bcol = jm_alloc_array(k, sizeof *bcol);
+        bused = jm_alloc_array(k, sizeof *bused);
+        if (mat == nullptr || ba == nullptr || bt == nullptr ||
+            bcol == nullptr || bused == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto done;
+        }
+        for (int64_t t = b; t < e; t++) {
+            const int64_t r = pos[ent[t].r], c = pos[ent[t].c];
+            bcol[r] = ent[t].r;
+            bcol[c] = ent[t].c;
+            mat[r * k + c] -= ent[t].v;
+            mat[c * k + r] -= ent[t].v;
+        }
+        for (int64_t i = 0; i < k; i++) {
+            const int64_t j = bcol[i];
+            mat[i * k + i] = -hdiag[j];
+            ba[i] = fabs(acol[j]) <= tol * traf[j] ? 0.0 : acol[j];
+            bt[i] = traf[j];
+        }
+        if (!curve_block(mat, ba, bt, bused, k, tol, &sup_cols, &sup_colsc))
+            bounded = false;
+        for (int64_t i = 0; i < k; i++) {
+            const int64_t j = bcol[i];
+            acol[j] = ba[i];
+            traf[j] = bt[i];
+            hdiag[j] = 0.0;
+        }
+        b = e;
+    }
+
+    for (int64_t j = 0; j < n && bounded; j++) {
+        const double a = fabs(acol[j]) <= tol * traf[j] ? 0.0 : acol[j];
         const double h = hdiag != nullptr ? hdiag[j] : 0.0;
+        if (h > 0.0) {
+            bounded = false;
+            break;
+        }
         if (h < 0.0) {
-            add_product(&sup_cols, &sup_colsc, a, a / (-2.0 * h));
+            const double peak = a / -h;
+            const double at = peak < m->col_lower[j] ? m->col_lower[j]
+                            : peak > m->col_upper[j] ? m->col_upper[j] : peak;
+            if (at == peak) {
+                if (a != 0.0)
+                    add_product(&sup_cols, &sup_colsc, a, a / (-2.0 * h));
+            } else {
+                add_product(&sup_cols, &sup_colsc, a, at);
+                add_product(&sup_cols, &sup_colsc, 0.5 * h * at, at);
+            }
             continue;
         }
         if (a > 0.0) {
@@ -986,14 +1140,12 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
         }
     }
 
-    free(extra);
-    free(hdiag);
     if (!bounded) {
 
         out->sup_columns = INFINITY;
         out->inf_rows = -INFINITY;
         out->gap = -INFINITY;
-        return JAOS_OK;
+        goto done;
     }
 
     out->sup_columns = acc_value(sup_cols, sup_colsc);
@@ -1002,7 +1154,11 @@ static jaos_status certificate_core(const jaos_model *m, const double *row_ray,
     out->gap = acc_difference(inf_rows, inf_rowsc, sup_cols, sup_colsc);
     out->certified = out->gap >
         tol * (1.0 + fabs(out->sup_columns) + fabs(out->inf_rows));
-    return JAOS_OK;
+
+done:
+    free(acol); free(traf); free(hdiag); free(up); free(pos); free(ent);
+    free(mat); free(ba); free(bt); free(bcol); free(bused);
+    return st;
 }
 
 jaos_status jaos_check_ray(const jaos_model *m, const double *col_ray,

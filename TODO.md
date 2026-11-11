@@ -25,20 +25,6 @@ times columns near 2e4 that left the objective gap at 5.2e-6
 on. Verify with 02-432's `gate.sh`: no `UNSURE` line on 02-255 seed 4 and
 on 02-326 seed 2.
 
-J22. **No certificate through a quadratic row with cross terms or a
-fixed column.** The checker reads a quadratic row's curvature only when
-the row is diagonal, and it bounds a curved column by its maximum over
-all values even when the column is fixed. A model infeasible only through
-such a row ends `numerical_error` when its walk stalls (02-255 seed 17's
-model 451; seed 16's model 69, whose tree fails at a node of its search
-for a feasible point, `bench/measurements/02-389/`; 02-326 seed 2's model
-240, seed 22's model 162 and seed 25's model 357,
-`bench/measurements/02-390/`). Next: a
-certificate test for rows whose `Σ y_i Q_i` is negative semidefinite,
-through a factorisation of it, with each fixed column's terms read at its
-value. That changes the checker's contract and is the maintainer's
-decision. Then retry 02-390's `fold.patch` (`conic-fold-fixed-columns`).
-
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
 so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400,

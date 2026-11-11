@@ -2012,8 +2012,12 @@ infeasible.
 Judges a Farkas ray `y` over the rows. The rows combined by `y` require
 `y'Ax >= inf_rows`, and the column bounds cap `y'Ax` at `sup_columns`.
 `certified` is true when `gap = inf_rows - sup_columns` is larger than
-`tol * (1 + |sup_columns| + |inf_rows|)`. The call fails when an entry of
-`row_ray` is not finite.
+`tol * (1 + |sup_columns| + |inf_rows|)`. A quadratic row adds its
+multiplier times `½ x'Q_i x` to what the columns cap. The sum of those
+terms must curve downward, a fixed column's terms are read at its value,
+and cross terms are taken through a factorisation of the summed matrix
+(`docs/tolerances.md`, "The checker's tolerance"). The call fails when an
+entry of `row_ray` is not finite.
 
 **`jaos_check_conic_certificate`**\
 `jaos_status jaos_check_conic_certificate(const jaos_model *m, const double *row_ray, const double *cone_ray, double tol, jaos_certificate_report *out)`\

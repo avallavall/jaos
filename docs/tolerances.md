@@ -204,6 +204,22 @@ column with a diagonal `q > 0` in `Q` and nothing off the diagonal is
 charged `w²/(2q)` when that minimiser lies in its box
 (`bench/measurements/02-293/`).
 
+**Certificates through quadratic rows.** `jaos_check_certificate` bounds
+`y'Ax + ½ x'Hx` over the column bounds, with `H` the sum of the rows'
+matrices times their multipliers. A fixed column's terms are read at its
+value. A column that is alone in `H` takes the larger of its two bounds'
+values and its peak when the peak lies between them. Columns joined by
+cross terms form a block, factored densely with diagonal pivots. A pivot
+at or under `tol` times the block's largest diagonal entry ends the
+factor, and the columns left are judged by their bounds. The certificate
+is refused when what is left of the block has a diagonal entry under
+`-tol` times that largest entry or an off-diagonal one over `tol` times
+it, since `H` then curves upward somewhere, and when a block has more
+than `CHECK_CURVE_BLOCK` (3000) columns. The pivoted columns of a block
+are bounded as if they were free, so a block's bound can be loose
+(`bench/measurements/02-444/`). `CHECK_CURVE_BLOCK` is not swept: it is
+`CONIC_QC_DENSE`, the most columns the solver takes in one quadratic row.
+
 ## Presolve's tolerances
 
 Defined in `src/presolve.c` and `src/aggregate.c`. Presolve runs on the

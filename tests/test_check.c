@@ -1309,6 +1309,98 @@ static void test_an_overflowing_gap_term_does_not_poison_the_accumulator(void)
     jaos_model_free(m);
 }
 
+static jaos_model *one_quadratic_row(int64_t nc, const double *cl,
+                                     const double *cu, double ru,
+                                     int64_t lin_col, int64_t qn,
+                                     const int64_t *qr, const int64_t *qc,
+                                     const double *qv)
+{
+    const double c[2] = {0.0, 0.0};
+    const double rl[1] = {-INFINITY}, rup[1] = {ru};
+    int64_t s[3] = {0, 0, 0};
+    const int64_t ix[1] = {0};
+    const double v[1] = {1.0};
+    for (int64_t j = 0; j < nc; j++)
+        s[j + 1] = s[j] + (j == lin_col ? 1 : 0);
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, nc, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, rup,
+                     s[nc], s, ix, v));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 0, qn, qr, qc, qv));
+    return m;
+}
+
+static void solves_infeasible_with_a_certificate(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
+    double own[1] = {0.0};
+    jaos_certificate_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_certificate(m, own));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, own, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.certified);
+}
+
+static void test_a_certificate_through_a_row_with_cross_terms(void)
+{
+    const double cl[2] = {-INFINITY, -INFINITY}, cu[2] = {INFINITY, INFINITY};
+    const int64_t qr[3] = {0, 1, 1}, qc[3] = {0, 0, 1};
+    const double qv[3] = {2.0, 1.0, 2.0};
+    jaos_model *m = one_quadratic_row(2, cl, cu, -1.0, -1, 3, qr, qc, qv);
+    jaos_certificate_report rep;
+    const double y[1] = {-1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+        "x1^2 + x1 x2 + x2^2 <= -1 holds nowhere");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 0.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, 1.0, rep.inf_rows);
+    solves_infeasible_with_a_certificate(m);
+    jaos_model_free(m);
+
+    const int64_t sr[1] = {1}, sc[1] = {0};
+    const double sv[1] = {1.0};
+    m = one_quadratic_row(2, cl, cu, -1.0, -1, 1, sr, sc, sv);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_FALSE_MESSAGE(rep.certified,
+        "x1 x2 <= -1 holds at (1, -1), and its matrix has both signs");
+    jaos_model_free(m);
+}
+
+static void test_a_certificate_reads_a_fixed_column_at_its_value(void)
+{
+    const double cl[2] = {2.0, 0.0}, cu[2] = {2.0, 1.0};
+    const int64_t qr[1] = {0}, qc[1] = {0};
+    const double qv[1] = {2.0};
+    jaos_model *m = one_quadratic_row(2, cl, cu, 3.0, 1, 1, qr, qc, qv);
+    jaos_certificate_report rep;
+    const double y[1] = {-1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+        "x1 = 2 makes x1^2 + x2 <= 3 ask for x2 <= -1");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -4.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -3.0, rep.inf_rows);
+    solves_infeasible_with_a_certificate(m);
+    jaos_model_free(m);
+}
+
+static void test_a_certificate_holds_a_curved_column_at_its_bound(void)
+{
+    const double cl[1] = {1.0}, cu[1] = {2.0};
+    const int64_t qr[1] = {0}, qc[1] = {0};
+    const double qv[1] = {2.0};
+    jaos_model *m = one_quadratic_row(1, cl, cu, 0.5, -1, 1, qr, qc, qv);
+    jaos_certificate_report rep;
+    const double y[1] = {-1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_certificate(m, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE_MESSAGE(rep.certified,
+        "x >= 1 keeps x^2 at 1 or more, over 0.5");
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -1.0, rep.sup_columns);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, -0.5, rep.inf_rows);
+    solves_infeasible_with_a_certificate(m);
+    jaos_model_free(m);
+}
+
 static void test_a_ball_certificate_rests_on_the_row_curvature(void)
 {
     const double c[2] = {0.0, 0.0};
@@ -1399,5 +1491,8 @@ int main(void)
     RUN_TEST(test_a_qp_point_is_judged_with_the_quadratic_gradient);
     RUN_TEST(test_a_row_the_checker_cannot_evaluate_is_refused);
     RUN_TEST(test_a_reduced_cost_is_judged_against_its_terms);
+    RUN_TEST(test_a_certificate_through_a_row_with_cross_terms);
+    RUN_TEST(test_a_certificate_reads_a_fixed_column_at_its_value);
+    RUN_TEST(test_a_certificate_holds_a_curved_column_at_its_bound);
     return UNITY_END();
 }
