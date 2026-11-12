@@ -164,17 +164,17 @@ incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
 J29. **The trees the mirror does not reach.** With columns mirrored and
-rows negated, every MIPLIB 3 model now takes the same number of nodes
-(`bench/measurements/02-447/`, `02-450/`). Left: the MIP presolve's
-mirror does not run on a model with a quadratic objective, cones, SOS
-sets, indicator rows, semi-continuous columns or a callback; of CBLIB's
-80 mixed-integer instances, 48 take another path and one ends at the
-work limit one way only (`bench/measurements/02-442/`); and with rows
-negated `blend2` takes 124,814 iterations against 124,695 in the same
-6,972 nodes. Next: 02-440's `mirrorfile.c` on CBLIB's mixed-integer set
-with each of 02-447's modes, to see whether the conic tree reads a
-column's sign or a row's. Verify with 02-440's `read.sh`: no node count
-differs on CBLIB's mixed-integer set.
+rows negated, every MIPLIB 3 model and every one of CBLIB's 80
+mixed-integer instances now takes the same number of nodes
+(`bench/measurements/02-447/`, `02-450/`, `02-451/`). Left: the MIP
+presolve's mirror does not run on a model with a quadratic objective, SOS
+sets, indicator rows, semi-continuous columns or a callback, and the
+conic tree's leaves a cone's head, an SOS member, a semi-continuous
+column and an indicator's column as they are; and with rows negated
+`blend2` takes 124,814 iterations against 124,695 in the same 6,972
+nodes. Next: 02-447's modes on QPLIB's convex MIQPs, which the MIP tree
+solves without the mirror. Verify with 02-440's `mirrorfile.c` on that
+set: no node count differs.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).

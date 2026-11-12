@@ -1132,6 +1132,62 @@ static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(voi
     jaos_model_free(m);
 }
 
+static void catch_mirror(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "are mirrored") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_mirrored_integer_column_gives_the_same_conic_tree(void)
+{
+    const double rl[2] = {7.5, -INFINITY}, ru[2] = {INFINITY, 6.5};
+    const int64_t as[4] = {0, 0, 2, 4}, ai[4] = {0, 1, 0, 1};
+    const int64_t cone[3] = {0, 1, 2};
+    double obj[2] = {0.0, 0.0}, x[2][3];
+    int64_t nodes[2] = {0, 0}, work[2] = {0, 0};
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = pass == 0 ? 1.0 : -1.0;
+        const double cost[3] = {1.0, 0.1 * z, 0.0};
+        const double cl[3] = {0.0, pass == 0 ? 0.0 : -5.0,
+                              pass == 0 ? 0.0 : -5.0};
+        const double cu[3] = {INFINITY, pass == 0 ? 5.0 : 0.0,
+                              pass == 0 ? 5.0 : 0.0};
+        const double av[4] = {2.0 * z, 1.0 * z, 3.0 * z, 1.0 * z};
+        int seen = 0;
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         4, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, cone));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 1, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 2, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_callback(m, catch_mirror, &seen));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x[pass], nullptr, nullptr, nullptr));
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[pass] = rep.nodes;
+        work[pass] = jaos_work_units(m);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(pass, seen,
+            "an integer column in [-5, 0] is mirrored before the conic tree");
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(obj[0] == obj[1]);
+    TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+    TEST_ASSERT_TRUE(x[1][0] == x[0][0]);
+    TEST_ASSERT_TRUE(x[1][1] == 0.0 - x[0][1]);
+    TEST_ASSERT_TRUE(x[1][2] == 0.0 - x[0][2]);
+}
+
 static void catch_sqp(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -1750,6 +1806,7 @@ int main(void)
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_stalled_walk);
     RUN_TEST(test_a_quadratic_row_with_no_interior_ends_optimal_without_duals);
+    RUN_TEST(test_a_mirrored_integer_column_gives_the_same_conic_tree);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);
