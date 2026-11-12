@@ -904,5 +904,6 @@ from values the caller hands in. `jaos_write_duals` writes one `NAME VALUE`
 line per row with the last solve's duals, which is the file
 `jaos_read_duals` reads, and `jaos_write_dual_values` writes it from the
 caller's values. Each one refuses two rows or two columns of one name and
-a value no file can carry, and names the row or the column. A `.gz` name
-compresses the file.
+a value no file can carry, and names the row or the column.
+`jaos_write_duals` writes no file for an optimum with no finite duals
+(`jaos_has_duals`). A `.gz` name compresses the file.

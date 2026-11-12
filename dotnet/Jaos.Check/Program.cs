@@ -535,6 +535,19 @@ using (var m = Model.Read(D("g_quad.qplib")))
           Near(o.Objective, 4.0), "an OSiL file written here reads back and solves to 4");
 }
 
+using (var m = Model.Read(D("qc_flat_row.mps")))
+{
+    bool before = m.HasDuals;
+    m.Solve();
+    var s = m.Solution();
+    Check(!before && m.Status == SolveStatus.Optimal && !m.HasDuals &&
+          s.RowDual.All(double.IsNaN) && s.ReducedCost.All(double.IsNaN),
+          "an optimum with no finite duals says so and gives NaN duals");
+    using var lp = Model.Read(D("solve1.mps"));
+    lp.Solve();
+    Check(lp.HasDuals, "an LP optimum has duals");
+}
+
 using (var m = Model.Read(D("g_cone.mps")))
 {
     m.WriteCbf(P("cone.cbf"));

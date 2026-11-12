@@ -1003,7 +1003,7 @@ function MOI.optimize!(o::Optimizer)
         if !o.discrete
             z = [cone_dual(m, k - 1, length(c)) for (k, c) in enumerate(o.cones)]
             o.bound = o.objective
-            if all(!isnothing, z)
+            if all(!isnothing, z) && has_duals(m)
                 o.y, o.d = sigma .* y, sigma .* d
                 o.z = Vector{Float64}[sigma .* zk for zk in z]
                 o.dual = MOI.FEASIBLE_POINT

@@ -75,6 +75,7 @@
 \alias{jaos_status}
 \alias{jaos_objective}
 \alias{jaos_solution}
+\alias{jaos_has_duals}
 \alias{jaos_iterations}
 \alias{jaos_work_units}
 \alias{jaos_solve_time}
@@ -218,6 +219,7 @@ jaos_solve(model)
 jaos_status(model)
 jaos_objective(model)
 jaos_solution(model)
+jaos_has_duals(model)
 jaos_iterations(model)
 jaos_work_units(model)
 jaos_solve_time(model)
@@ -505,6 +507,9 @@ stopped by a limit resumes when \code{jaos_solve} runs again.
 \code{"infeasible"}, \code{"unbounded"}, a limit, or a failure.
 \code{jaos_objective} is the optimal objective and \code{jaos_solution} is
 \code{list(x, row_activity, row_dual, reduced_cost)} of an optimal solve.
+\code{jaos_has_duals} says whether that optimum has finite duals. When it
+is \code{FALSE} after an optimum, every dual in \code{jaos_solution} and
+\code{jaos_cone_dual} is \code{NaN}.
 \code{jaos_iterations}, \code{jaos_work_units} and \code{jaos_solve_time}
 count the last solve; the time is in seconds and changes from run to run.
 

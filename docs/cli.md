@@ -101,6 +101,8 @@ time 0.000087
   overflows a double ends `numerical_error` with that reason.
 - `objective` is printed only for an optimum, because the library gives no
   objective for any other outcome.
+- `duals none` follows `objective` when the optimum has no finite duals
+  (`docs/api.md`, `jaos_has_duals`). No other solve prints a `duals` line.
 - `objective_exact` follows `objective` under `--exact` when the optimum
   was proved over the rationals. It is an integer or a ratio of two
   integers.
@@ -170,7 +172,7 @@ not change an answer.
 | `--basis BAS` | warm-starts from the basis in `BAS`, an MPS basis file, which may come from another solver. Giving both `--basis` and `--start` is a usage error. A file whose names or count do not fit the model is refused with the library's message and exit 5. |
 | `--write-basis BAS` | writes the basis the solve stopped on to `BAS`, as an MPS basis file. An optimum, an infeasible or unbounded answer and a stop on a limit leave a basis. A solve that never ran, one that ended on a numerical error, and a verdict presolve reached without a simplex leave none. Then stderr says so and the exit code stays the answer's. |
 | `--write-point PT` | writes the optimum's point to `PT`, one `NAME VALUE` line per column, the shape `check --point` reads. Any other outcome writes no file, and stderr says why. |
-| `--write-duals D` | writes the optimum's row duals to `D` in the same shape, for `check --point P --duals D`. |
+| `--write-duals D` | writes the optimum's row duals to `D` in the same shape, for `check --point P --duals D`. An optimum with no finite duals writes no file, stderr says so, and the exit code stays the answer's. |
 | `--pool-out PRE` | writes one point file per solution pool entry, best first: `PRE-0.pt`, `PRE-1.pt`, and so on. Prints `pool_files N`, the number of files written. An LP has no pool, so nothing is written and stderr says so. The exit code does not change. |
 | `--check` | runs the independent checker on an optimum and prints the nineteen-field report of `check FILE SOLUTION`, then a `check_ok` line. `check_ok` is `yes` when the point is primal feasible and the duals are feasible or were not checked. On a model with cones, `max_cone_violation` follows the eighteen fields. The tolerance is always 1e-7, whatever `--primal-tol` says. The exit code stays the solve's. For any other outcome stderr says there is nothing to check. |
 | `--proof PATH` | writes the answer's exact proof to `PATH`, always as plain text, and prints `proof_file PATH`. For an optimum the tool runs `jaos verify` first and writes nothing unless the verdict is `optimal`. Where `jaos verify` refuses the model (an optimal MIP, a quadratic objective, cones or quadratic rows), the tool exits 5 after printing its report. For an infeasible or unbounded answer the tool derives the exact ray. When it cannot, it writes the published doubles if they pass the exact check. Otherwise it writes nothing, says so on stderr and exits 5. `jaos check FILE --proof PATH` judges the file. |

@@ -670,6 +670,14 @@ function solution(m::Model)
 end
 
 """
+    has_duals(m) -> Bool
+
+Whether the last solve ended optimal with finite duals. When it is false
+after an optimum, `solution` and `cone_dual` give NaN for every dual.
+"""
+has_duals(m::Model) = ccall((:jaos_has_duals, libjaos), Bool, (Ptr{Cvoid},), m)
+
+"""
 The dual of cone `k` (0-based), one entry per member: the optimum's, or
 the cone part of an infeasible model's certificate; `nothing` when the
 solve left neither. `n` is the cone's size, read from the model when

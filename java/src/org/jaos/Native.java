@@ -256,6 +256,7 @@ final class Native {
     static final MethodHandle STATUS_OF = fn("jaos_status_of", JAVA_INT, ADDRESS);
     static final MethodHandle OBJECTIVE = fn("jaos_objective", JAVA_INT, ADDRESS, ADDRESS);
     static final MethodHandle SOLUTION = fn("jaos_solution", JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
+    static final MethodHandle HAS_DUALS = fn("jaos_has_duals", JAVA_BOOLEAN, ADDRESS);
     static final MethodHandle BASIS = fn("jaos_basis", JAVA_INT, ADDRESS, ADDRESS, ADDRESS);
     static final MethodHandle SET_BASIS = fn("jaos_set_basis", JAVA_INT, ADDRESS, ADDRESS, ADDRESS);
     static final MethodHandle CLEAR_BASIS = fn("jaos_clear_basis", null, ADDRESS);

@@ -843,6 +843,22 @@ expect_exit 0 "check reads that file back and passes the point" \
 [ "$(line_of checked_duals)" = "checked_duals no" ] \
     && pass "with no dual verdict" \
     || flunk "check of a file with nan duals printed '$(line_of checked_duals)'"
+expect_exit 0 "that solve keeps exit 0 when asked for a duals file" \
+    "$JAOS" solve "$DATA/qc_flat_row.mps" --write-duals "$tmp/flat.du"
+[ "$(line_of duals)" = "duals none" ] \
+    && pass "and prints 'duals none'" \
+    || flunk "no 'duals none' line: '$(line_of duals)'"
+case "$err" in
+    *"no finite duals"*) pass "and stderr says that no duals exist" ;;
+    *) flunk "the duals file refusal said '$err'" ;;
+esac
+[ ! -e "$tmp/flat.du" ] \
+    && pass "and no duals file is written" \
+    || flunk "a duals file was written for an optimum with no duals"
+expect_exit 0 "an LP optimum has duals" "$JAOS" solve "$DATA/solve1.mps"
+[ -z "$(line_of duals)" ] \
+    && pass "and prints no 'duals' line" \
+    || flunk "an LP printed '$(line_of duals)'"
 expect_exit 0 "a cone held at its tip and an idle cone solve" \
     "$JAOS" solve "$DATA/g_cone_left_out.mps" --check --log summary
 case "$(line_of objective)" in

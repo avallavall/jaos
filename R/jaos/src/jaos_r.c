@@ -884,6 +884,11 @@ static SEXP r_counter(SEXP p, SEXP which)
     }
 }
 
+static SEXP r_has_duals(SEXP p)
+{
+    return ScalarLogical(jaos_has_duals(model_of(p)));
+}
+
 static SEXP r_solution(SEXP p)
 {
     jaos_model *m = model_of(p);
@@ -1673,6 +1678,7 @@ static const R_CallMethodDef calls[] = {
     CALL(r_objective, 1),
     CALL(r_counter, 2),
     CALL(r_solution, 1),
+    CALL(r_has_duals, 1),
     CALL(r_basis, 1),
     CALL(r_set_basis, 3),
     CALL(r_clear_basis, 1),

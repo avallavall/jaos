@@ -455,6 +455,7 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_status_of(ModelHandle m);
     [DllImport(Lib)] internal static extern int jaos_objective(ModelHandle m, out double value);
     [DllImport(Lib)] internal static extern int jaos_solution(ModelHandle m, double[] x, double[] act, double[] y, double[] d);
+    [DllImport(Lib)] [return: MarshalAs(UnmanagedType.U1)] internal static extern bool jaos_has_duals(ModelHandle m);
     [DllImport(Lib)] internal static extern int jaos_basis(ModelHandle m, int[] colStatus, int[] rowStatus);
     [DllImport(Lib)] internal static extern int jaos_set_basis(ModelHandle m, int[] colStatus, int[] rowStatus);
     [DllImport(Lib)] internal static extern void jaos_clear_basis(ModelHandle m);

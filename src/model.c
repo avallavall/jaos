@@ -2486,6 +2486,12 @@ jaos_status jaos_solution(const jaos_model *m, double *col_value,
     return JAOS_OK;
 }
 
+bool jaos_has_duals(const jaos_model *m)
+{
+    return m != nullptr && m->solve_status == JAOS_SOLVE_OPTIMAL &&
+           m->sol_col != nullptr && !jm_model_no_duals(m);
+}
+
 jaos_status jaos_basis(const jaos_model *m, jaos_basis_status *col_status,
     jaos_basis_status *row_status)
 {

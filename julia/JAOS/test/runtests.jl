@@ -204,9 +204,19 @@ function test_answer_files_round_trip()
         @test ray == JAOS.certificate(f)
         @test_throws JAOS.JaosError JAOS.read_solution(f, cert)
 
+        flat = JAOS.Model()
+        JAOS.read_file(flat, joinpath(DATA, "qc_flat_row.mps"))
+        @test !JAOS.has_duals(flat)
+        JAOS.solve(flat)
+        @test JAOS.status(flat) == 1 && !JAOS.has_duals(flat)
+        _, _, fy, fd = JAOS.solution(flat)
+        @test all(isnan, fy) && all(isnan, fd)
+        @test JAOS.has_duals(f) == (JAOS.status(f) == 1)
+
         c = JAOS.Model()
         JAOS.read_file(c, joinpath(DATA, "g_cone.mps"))
         JAOS.solve(c)
+        @test JAOS.has_duals(c)
         conic = joinpath(dir, "c.sol")
         JAOS.write_solution(c, conic)
         z = JAOS.read_cone_duals(c, conic)
@@ -932,6 +942,18 @@ function test_moi_start_values_reach_the_loaded_model()
     @test MOI.get(model.optimizer, MOI.RawSolver()) === inner
     MOI.optimize!(model)
     @test MOI.get(model, MOI.ObjectiveValue()) ≈ 1.0
+end
+
+function test_moi_an_optimum_with_no_finite_duals_has_no_dual_point()
+    src = MOI.FileFormats.Model(format = MOI.FileFormats.FORMAT_MPS)
+    MOI.read_from_file(src, joinpath(DATA, "qc_flat_row.mps"))
+    model = JAOS.Optimizer()
+    MOI.copy_to(model, src)
+    MOI.optimize!(model)
+    @test MOI.get(model, MOI.TerminationStatus()) == MOI.OPTIMAL
+    @test MOI.get(model, MOI.PrimalStatus()) == MOI.FEASIBLE_POINT
+    @test !JAOS.has_duals(MOI.get(model, MOI.RawSolver()))
+    @test MOI.get(model, MOI.DualStatus()) == MOI.NO_SOLUTION
 end
 
 for name in names(@__MODULE__; all = true)

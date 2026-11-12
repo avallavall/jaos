@@ -1099,11 +1099,6 @@ static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(voi
     jaos_model *m = fresh();
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
                           jaos_read_mps(m, "tests/data/qc_flat_row.mps"));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    double obj = 0.0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -42.416666666666664, obj);
     const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
     double *x = jm_alloc_array(nc, sizeof *x);
     double *d = jm_alloc_array(nc, sizeof *d);
@@ -1111,6 +1106,13 @@ static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(voi
     TEST_ASSERT_NOT_NULL(x);
     TEST_ASSERT_NOT_NULL(d);
     TEST_ASSERT_NOT_NULL(y);
+    TEST_ASSERT_FALSE(jaos_has_duals(nullptr));
+    TEST_ASSERT_FALSE_MESSAGE(jaos_has_duals(m),
+        "a model that was not solved holds no duals");
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_FALSE_MESSAGE(jaos_has_duals(m),
+        "an optimum whose duals are NaN has no duals");
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, d));
     for (int64_t i = 0; i < nr; i++)
         TEST_ASSERT_TRUE_MESSAGE(isnan(y[i]),
@@ -1126,10 +1128,24 @@ static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(voi
     if (nr > 1)
         TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
                               jaos_check_solution(m, x, y, 1e-7, &r));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -42.416666666666664, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
+                          jaos_write_duals(m, "build/no_duals.txt"));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(jaos_model_error(m), "no finite duals"),
+        "the refusal of a duals file says that no duals exist");
     free(x);
     free(d);
     free(y);
     jaos_model_free(m);
+
+    jaos_model *lp = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(lp, "tests/data/solve1.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(lp));
+    TEST_ASSERT_TRUE_MESSAGE(jaos_has_duals(lp), "an LP optimum has duals");
+    jaos_model_free(lp);
 }
 
 static void catch_mirror(void *user, jaos_log_level level, const char *line)

@@ -405,6 +405,17 @@ public final class Check {
                 check(back.solve() == OPTIMAL && near(back.objective(), 4.0), "and solves to 4");
             }
         }
+        try (Model m = Model.read(Path.of(data, "qc_flat_row.mps").toString());
+             Model lp = Model.read(Path.of(data, "solve1.mps").toString())) {
+            boolean before = m.hasDuals();
+            check(!before && m.solve() == OPTIMAL && !m.hasDuals(),
+                  "an optimum with no finite duals says so");
+            Solution s = m.solution();
+            check(Arrays.stream(s.rowDual()).allMatch(Double::isNaN) &&
+                  Arrays.stream(s.reducedCost()).allMatch(Double::isNaN),
+                  "and gives NaN duals");
+            check(lp.solve() == OPTIMAL && lp.hasDuals(), "an LP optimum has duals");
+        }
         try (Model m = Model.read(Path.of(data, "g_cone.mps").toString())) {
             Path c = tmp.resolve("cone.cbf");
             m.writeCbf(c.toString());

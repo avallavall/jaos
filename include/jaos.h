@@ -602,6 +602,8 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_solution(const jaos_model *m,
     double *col_value, double *row_activity, double *row_dual,
     double *col_dual);
 
+JAOS_NODISCARD JAOS_API bool jaos_has_duals(const jaos_model *m);
+
 typedef enum jaos_basis_status {
     JAOS_BASIS_BASIC = 0,
     JAOS_BASIS_AT_LOWER = 1,

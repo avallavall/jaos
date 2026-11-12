@@ -329,6 +329,8 @@ jaos_objective <- function(model) .Call(r_objective, model)
 
 jaos_solution <- function(model) .Call(r_solution, model)
 
+jaos_has_duals <- function(model) .Call(r_has_duals, model)
+
 jaos_iterations <- function(model) .Call(r_counter, model, 0L)
 
 jaos_work_units <- function(model) .Call(r_counter, model, 1L)

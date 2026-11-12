@@ -1784,6 +1784,8 @@ static int cmd_solve(int argc, char **argv)
         double obj = 0.0;
         if (jaos_objective(m, &obj) == JAOS_OK)
             printf("objective %.17g\n", obj);
+        if (ss == JAOS_SOLVE_OPTIMAL && !jaos_has_duals(m))
+            printf("duals none\n");
         const char *exact_obj = nullptr;
         if (o.exact && jaos_exact_objective(m, &exact_obj) == JAOS_OK)
             printf("objective_exact %s\n", exact_obj);

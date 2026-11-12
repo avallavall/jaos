@@ -943,6 +943,7 @@ _sig("jaos_status_of", ctypes.c_int, _VP)
 _sig("jaos_objective", ctypes.c_int, _VP, _P(_D))
 
 _sig("jaos_solution", ctypes.c_int, _VP, _P(_D), _P(_D), _P(_D), _P(_D))
+_sig("jaos_has_duals", ctypes.c_bool, _VP)
 
 _sig("jaos_basis", ctypes.c_int, _VP, _P(ctypes.c_int), _P(ctypes.c_int))
 

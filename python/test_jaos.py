@@ -1091,11 +1091,32 @@ class TestTheChecker(unittest.TestCase):
             self.assertAlmostEqual(m.objective(), -42.416666666666664,
                                    places=6)
             s = m.solution()
+            self.assertFalse(m.has_duals())
             self.assertTrue(all(v != v for v in s.row_dual))
             self.assertTrue(all(v != v for v in s.col_dual))
             r = m.check_solution(s.col_value, s.row_dual)
             self.assertTrue(r.primal_feasible)
             self.assertFalse(r.checked_duals)
+            with self.assertRaisesRegex(jaos.JaosError, "no finite duals"):
+                m.write_duals(os.path.join(tempfile.gettempdir(),
+                                           "jaos_no_duals.txt"))
+
+    def test_has_duals_follows_the_answer(self):
+        with jaos.Model() as m:
+            m.read_mps(data("solve1.mps"))
+            self.assertFalse(m.has_duals())
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertTrue(m.has_duals())
+        p = jaos.Problem()
+        x = p.add_var(ub=4.0)
+        y = p.add_var(ub=4.0)
+        c = p.add(x + y <= 3.0)
+        p.maximize(x + y)
+        with self.assertRaises(ValueError):
+            p.has_duals()
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertTrue(p.has_duals())
+        self.assertAlmostEqual(abs(c.dual), 1.0)
 
     def test_a_reduced_cost_is_judged_against_its_terms(self):
         with jaos.Model() as m:

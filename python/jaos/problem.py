@@ -785,6 +785,15 @@ class Problem:
     def status(self):
         return self._m.status
 
+    def has_duals(self):
+        """Whether the held optimum has finite duals; see Model.has_duals.
+        When it is False, every `dual` and `reduced_cost` reads NaN.
+        Raises while the problem is ahead of its last solve."""
+        if self._pending():
+            raise ValueError("the problem changed since the last solve; "
+                             "call solve() before reading values")
+        return self._m.has_duals()
+
     @property
     def objective_value(self):
         """The optimal objective. Raises while the problem is ahead of its

@@ -3141,6 +3141,11 @@ jaos_status jaos_write_duals(jaos_model *m, const char *path)
 {
     if (m == nullptr || path == nullptr)
         return JAOS_ERR_INVALID_INPUT;
+    if (m->solve_status == JAOS_SOLVE_OPTIMAL && jm_model_no_duals(m)) {
+        jm_set_err(m, "the optimum has no finite duals, so there are no "
+                      "multipliers to write");
+        return JAOS_ERR_INVALID_INPUT;
+    }
     double *y = jm_alloc_array(m->num_row, sizeof *y);
     if (y == nullptr) {
         jm_set_err(m, "out of memory");

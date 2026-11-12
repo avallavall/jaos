@@ -1811,7 +1811,8 @@ class Model:
 
     def solution(self):
         """Four lists: column values, row activities, row duals and reduced
-        costs. Same rule as `objective` about when it is available."""
+        costs. Same rule as `objective` about when it is available. When
+        has_duals() is False, every row dual and reduced cost is NaN."""
         nc, nr = self.num_col, self.num_row
         cv = (_D * max(nc, 1))()
         ra = (_D * max(nr, 1))()
@@ -1820,6 +1821,13 @@ class Model:
         self._check(_lib.jaos_solution(self._handle(), cv, ra, rd, cd))
         return Solution(list(cv[:nc]), list(ra[:nr]),
                         list(rd[:nr]), list(cd[:nc]))
+
+    def has_duals(self):
+        """Whether the last solve ended OPTIMAL with finite duals. False
+        for an optimum that has none: solution() then gives NaN for every
+        row dual and reduced cost, and cone_dual() gives NaN. Also False
+        when the last solve ended another way."""
+        return bool(_lib.jaos_has_duals(self._handle()))
 
     def basis(self):
         """Where each variable rests in the basis behind the answer."""

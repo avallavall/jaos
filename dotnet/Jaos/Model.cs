@@ -876,6 +876,10 @@ public sealed class Model : IDisposable
                             d[..(int)nc]);
     }
 
+    /// <summary>Whether the last solve ended optimal with finite duals. When
+    /// it is false after an optimum, every dual in Solution() is NaN.</summary>
+    public bool HasDuals => Native.jaos_has_duals(h);
+
     /// <summary>Where each variable rests in the basis behind the answer.</summary>
     public Basis Basis()
     {

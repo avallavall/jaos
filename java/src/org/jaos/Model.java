@@ -1002,6 +1002,10 @@ public final class Model implements AutoCloseable {
         }
     }
 
+    /** Whether the last solve ended optimal with finite duals. When it is
+     *  false after an optimum, every dual in solution() is NaN. */
+    public boolean hasDuals() { return (boolean) call(Native.HAS_DUALS, h); }
+
     /** Where each variable rests in the basis behind the answer. */
     public Basis basis() {
         long nc = numCol(), nr = numRow();

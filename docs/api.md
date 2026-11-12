@@ -1782,8 +1782,15 @@ An optimum can have no finite duals. That happens when a quadratic row's
 smallest value over the rest of the model is its side, so that no point
 lies strictly inside the row. The solve then holds the row at that value,
 solves the model again, and publishes the point with every row dual,
-reduced cost and cone dual as NaN. `jaos_check_solution` judges such a
-point on its primal side alone.
+reduced cost and cone dual as NaN. `jaos_has_duals` then returns false.
+`jaos_check_solution` judges such a point on its primal side alone. The
+duals are all NaN or all finite: the solve never publishes NaN beside
+finite duals.
+
+**`jaos_has_duals`**`bool jaos_has_duals(const jaos_model *m)`Returns true when the last solve ended `JAOS_SOLVE_OPTIMAL` and
+`jaos_solution` gives finite duals. It returns false when that optimum has
+no finite duals, when the last solve ended another way, and for a null
+model. Ask it before reading `row_dual`, `col_dual` or `jaos_cone_dual`.
 
 ## The basis
 
@@ -1884,7 +1891,8 @@ The call fails when a value is not finite or two columns share a name.
 `jaos_status jaos_write_duals(jaos_model *m, const char *path)`\
 Writes the optimum's row duals in the shape of a point file, one
 `NAME VALUE` line per row. The call fails unless the last solve ended
-optimal.
+optimal. It also fails, and writes no file, when the optimum has no finite
+duals (`jaos_has_duals`).
 
 **`jaos_write_dual_values`**\
 `jaos_status jaos_write_dual_values(jaos_model *m, const char *path, const double *row_dual)`\
@@ -2011,7 +2019,8 @@ has cones and `cone_dual` is null.
 **`jaos_cone_dual`**\
 `jaos_status jaos_cone_dual(const jaos_model *m, int64_t k, double *z)`\
 Copies the dual of cone `k` from the last solve, one value per member.
-After an optimum it is the cone's dual. After an infeasible answer it is the
+After an optimum it is the cone's dual, and it is NaN when the optimum has
+no finite duals (`jaos_has_duals`). After an infeasible answer it is the
 cone part of the certificate. The call fails when `k` is out of range or the
 last solve published no cone duals.
 

@@ -46,7 +46,8 @@ as no duals: it judges the primal side and leaves `checked_duals` false.
 A NaN among finite duals is still an invalid input. The solution file
 writes `nan` in the dual fields and reads it back, so `jaos check` judges
 such a file's point alone. No call is added, and the bindings hand the
-NaN through.
+NaN through. (`jaos_has_duals` was added after this reading; `docs/api.md`
+has the contract as it stands.)
 
 The point's optimality rests on the solve of the held model. The checker
 cannot confirm it, as it cannot for a mixed-integer optimum.

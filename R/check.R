@@ -261,6 +261,16 @@ b <- jaos_read(f)
 jaos_solve(b)
 check(jaos_col_name(b, 1) == "x" && near(jaos_objective(b), 4, 1e-6),
       "an OSiL file written here reads back and solves to 4")
+m <- jaos_read(file.path(data, "qc_flat_row.mps"))
+before <- jaos_has_duals(m)
+jaos_solve(m)
+s <- jaos_solution(m)
+check(!before && jaos_status(m) == "optimal" && !jaos_has_duals(m) &&
+      all(is.nan(s$row_dual)) && all(is.nan(s$reduced_cost)),
+      "an optimum with no finite duals says so and gives NaN duals")
+m <- jaos_read(file.path(data, "solve1.mps"))
+jaos_solve(m)
+check(jaos_has_duals(m), "an LP optimum has duals")
 m <- jaos_read(file.path(data, "g_cone.mps"))
 f <- tmp(".cbf")
 jaos_write(m, f, "cbf")
