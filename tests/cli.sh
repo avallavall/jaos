@@ -859,6 +859,11 @@ expect_exit 0 "an LP optimum has duals" "$JAOS" solve "$DATA/solve1.mps"
 [ -z "$(line_of duals)" ] \
     && pass "and prints no 'duals' line" \
     || flunk "an LP printed '$(line_of duals)'"
+expect_exit 0 "a cone whose points all lie on one ray solves" \
+    "$JAOS" solve "$DATA/cone_no_interior_ray.mps" --check
+[ "$(line_of duals)" = "duals none" ] && [ "$(line_of check_ok)" = "check_ok yes" ] \
+    && pass "and prints 'duals none', its point taken by --check" \
+    || flunk "cone with no interior: '$(line_of duals)' '$(line_of check_ok)'"
 expect_exit 0 "a cone held at its tip and an idle cone solve" \
     "$JAOS" solve "$DATA/g_cone_left_out.mps" --check --log summary
 case "$(line_of objective)" in

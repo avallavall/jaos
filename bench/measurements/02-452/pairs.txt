@@ -1,0 +1,71 @@
+s1/t14020a.mps | optimal 6.1250022981684067 nodual | optimal 6.125 nodual
+s1/t16958a.mps | optimal -13 nodual | optimal -12.99999943212832
+s1/t18476a.mps | optimal -2.5602478252490417e-07 | optimal 0 nodual
+s1/t1905a.mps | optimal 0 nodual | optimal -1.6766257623202441e-07
+s1/t19322a.mps | optimal -2.0000007727463265 | optimal -2 nodual
+s1/t2939a.mps | numerical_error  | optimal -11.999989347998053
+s1/t4028a.mps | optimal 15 nodual | optimal 15.000000051469405
+s1/t7608a.mps | optimal -3.8628131070620195e-71 nodual | numerical_error 
+s1/t8763a.mps | optimal 4.5065043072637546e-08 | numerical_error 
+s1/t9388a.mps | numerical_error  | optimal -7.9999969396740198
+s2/t13083a.mps | optimal -23.999987743450269 | numerical_error 
+s2/t1320a.mps | optimal 2.9924846288118867e-07 | numerical_error 
+s2/t13869a.mps | optimal -3.6491106406735181 nodual | optimal -3.6491093260747802
+s2/t17028a.mps | optimal 2.5000003265159805 | optimal 2.5000000000000009 nodual
+s2/t1714a.mps | numerical_error  | optimal -1.0000000834032756 nodual
+s2/t4670a.mps | numerical_error  | optimal -41.999999999996746
+s2/t646a.mps | optimal 7.0000001894449726 | numerical_error 
+s2/t6510a.mps | optimal 4.6601782003395291e-08 | optimal 0 nodual
+s3/t16470a.mps | optimal 5.9999998947371873 | numerical_error 
+s3/t3290a.mps | optimal 9.6034358073586622e-08 | optimal 0 nodual
+s3/t4202a.mps | optimal -2.0000009095766265 | optimal -2 nodual
+s3/t4224a.mps | numerical_error  | infeasible 
+s3/t5320a.mps | numerical_error  | optimal 6.0000407359202139
+s3/t5565a.mps | numerical_error  | optimal 6
+s3/t5884a.mps | unbounded  | unbounded 
+s3/t7334a.mps | optimal 10.00000018521993 | optimal 9.9999999999904876 nodual
+s4/t10419a.mps | numerical_error  | optimal -6.6332495807107996 nodual
+s4/t11841a.mps | optimal 0.49825132672042571 nodual | optimal 0.49825121309988035
+s4/t13522a.mps | optimal -16.686291133050339 | optimal -16.686291501015234 nodual
+s4/t17173a.mps | optimal -3.7748687332746251 | numerical_error 
+s4/t19526a.mps | numerical_error  | optimal -5.171581375828028
+s4/t3302a.mps | optimal -28.000002967830874 | optimal -28 nodual
+s4/t4529a.mps | numerical_error  | optimal 0.0091266753604906034 nodual
+s4/t8189a.mps | optimal 7.0000005806544774 nodual | optimal 7 nodual
+s5/t10351a.mps | optimal 1.0599776324292593e-07 | optimal 0 nodual
+s5/t17341a.mps | optimal -1.3291379294902763e-07 | optimal 0 nodual
+s5/t17371a.mps | optimal -21 | numerical_error 
+s6/t11013a.mps | numerical_error  | optimal 12
+s6/t11184a.mps | infeasible  | numerical_error 
+s6/t14584a.mps | optimal 1.9208256501047004e-07 nodual | optimal -4.9376028949227759e-32 nodual
+s6/t4737a.mps | optimal 1.338996257992463e-07 | numerical_error 
+s6/t6098a.mps | optimal 17.333333333333332 | numerical_error 
+s6/t9871a.mps | numerical_error  | optimal 14.999982267454412
+s7/t10832a.mps | optimal -5 nodual | optimal -4.9999999999999458 nodual
+s7/t10907a.mps | infeasible  | numerical_error 
+s7/t10966a.mps | optimal 0.89897948556635654 nodual | optimal 0.89897916297899494
+s7/t11703a.mps | optimal 33.666666666666664 | numerical_error 
+s7/t12481a.mps | optimal 1.0000000862855851 nodual | numerical_error 
+s7/t1457a.mps | optimal -40.500008068018438 | optimal -40.5 nodual
+s7/t14615a.mps | optimal 4.666666666666667 nodual | optimal 4.666665010926474
+s7/t15402a.mps | optimal -5.9999903968570445 | numerical_error 
+s7/t17685a.mps | numerical_error  | optimal 14.999993585175083
+s7/t1835a.mps | optimal -3.6055074050071201e-13 | numerical_error 
+s7/t18491a.mps | optimal -9.5386307566432773 | optimal -9.5386298013559223 nodual
+s7/t3044a.mps | numerical_error  | optimal -15.111102531227516
+s7/t4751a.mps | optimal 3.333333333333333 nodual | optimal 3.3333330941711643
+s8/t15472a.mps | optimal 0 nodual | optimal -8.5971391298726165e-08
+s8/t16507a.mps | numerical_error  | optimal 8.6666621289637877
+s8/t18175a.mps | optimal 10.741657525164559 | numerical_error 
+s8/t4925a.mps | optimal 6.0000041234764367 | numerical_error 
+s8/t5956a.mps | optimal -1.5000000000265863 | numerical_error 
+s8/t782a.mps | optimal 0 nodual | optimal 1.2707892083967188e-07
+s9/t13034a.mps | optimal -24 | numerical_error 
+s9/t3738a.mps | infeasible  | numerical_error 
+s9/t4559a.mps | optimal -2.4507124191825377e-16 | numerical_error 
+s9/t7057a.mps | optimal -10.999990017409329 | numerical_error 
+s10/t1649a.mps | optimal -1 | optimal -1 nodual
+s10/t3569a.mps | optimal 14.999983513441203 | numerical_error 
+s10/t6621a.mps | optimal 4.1297002275424035e-08 | optimal 0 nodual
+s10/t6661a.mps | optimal -2 nodual | optimal -2.0000001321928171
+s10/t7436a.mps | numerical_error  | optimal 12.999997873275229

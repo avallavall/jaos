@@ -1,0 +1,142 @@
+s1 t14020a.mps    optimal 6.125002298 | K1=optimal:-8.72e-18(tip) K2=optimal:1.4e-16(ray 3) R1=optimal:5.16e-16 R2=optimal:1
+s1 t14020b.mps    numerical error 0 | K1=optimal:4.05e-17(tip) K2=optimal:-2.48e-16(ray 3) R1=optimal:1 R2=optimal:7.01e-16
+s1 t16958a.mps    numerical error 0 | K1=optimal:6.59e-17(ray 3) K2=optimal:0.634
+s1 t16958b.mps    optimal -12.99999943 | K1=optimal:2.4e-17(ray 3) K2=optimal:0.634
+s1 t18476a.mps    optimal -2.560247825e-07 | K1=optimal:5.67e-08(tip) R1=numerical error R2=numerical error
+s1 t18476b.mps    numerical error 0 | K1=optimal:5.8e-08(tip) R2=numerical error R4=numerical error
+s1 t1905a.mps     numerical error 0 | K1=optimal:2.44e-20(tip) K2=optimal:1.92e-08(tip) R1=numerical error
+s1 t1905b.mps     optimal -1.676625762e-07 | K1=optimal:1.92e-24(tip) K2=optimal:3.01e-08(tip) R1=numerical error
+s1 t19322a.mps    optimal -2.000000773 | K1=optimal:1.21e-17(ray 0.56) K2=optimal:1 R1=optimal:1
+s1 t19322b.mps    numerical error 0 | K1=optimal:1.63e-17(ray 0.56) K2=optimal:1 R1=optimal:1
+s1 t2939a.mps     numerical error 0 | K1=optimal:1 K2=optimal:1 R1=optimal:1
+s1 t2939b.mps     optimal -11.99998935 | K1=optimal:1 K2=optimal:1 R2=optimal:1
+s1 t4028a.mps     numerical error 0 | K1=optimal:7.66e-08(tip) R1=numerical error R2=numerical error
+s1 t4028b.mps     optimal 15.00000005 | K1=optimal:3.94e-08(tip) R1=numerical error R2=numerical error
+s1 t7608a.mps     optimal -3.862813107e-71 | K1=optimal:-1.81e-37(tip) R1=optimal:0 R2=numerical error
+s1 t7608b.mps     numerical error 0 | K1=optimal:-5.24e-60(tip) R1=numerical error R2=optimal:0
+s1 t8763a.mps     optimal 4.506504307e-08 | K1=optimal:0(tip) R1=numerical error
+s1 t8763b.mps     numerical error 0 | K1=optimal:0(tip) R2=numerical error
+s1 t9388a.mps     numerical error 0 | K1=optimal:1
+s1 t9388b.mps     optimal -7.99999694 | K1=optimal:1
+s2 t13083a.mps    optimal -23.99998774 | K1=optimal:1
+s2 t13083b.mps    numerical error 0 | K1=optimal:1
+s2 t1320a.mps     optimal 2.992484629e-07 | K1=numerical error
+s2 t1320b.mps     numerical error 0 | K1=numerical error
+s2 t13869a.mps    numerical error 0 | K1=optimal:-1.32e-17(ray 1.61) K2=optimal:1 R1=optimal:1
+s2 t13869b.mps    optimal -3.649109326 | K1=optimal:-1.18e-16(ray 1.61) K2=optimal:1 R1=optimal:1
+s2 t17028a.mps    optimal 2.500000327 | K1=optimal:2.15e-16(ray 4.5) K2=optimal:1 R1=optimal:1
+s2 t17028b.mps    numerical error 0 | K1=optimal:8.07e-17(ray 4.5) K2=optimal:1 R2=optimal:1
+s2 t1714a.mps     numerical error 0 | K1=optimal:1 K2=optimal:3.48e-08(ray 0.93) R1=optimal:0
+s2 t1714b.mps     optimal -1.000000083 | K1=optimal:1 K2=optimal:3.29e-08(ray 0.856) R1=optimal:0
+s2 t4670a.mps     numerical error 0 | K1=optimal:1 R1=numerical error
+s2 t4670b.mps     optimal -42 | K1=optimal:1 R1=numerical error
+s2 t646a.mps      optimal 7.000000189 | K1=optimal:1.96e-08(tip) R1=optimal:0
+s2 t646b.mps      numerical error 0 | K1=optimal:1.45e-59(tip) R1=optimal:0
+s2 t6510a.mps     optimal 4.6601782e-08 | K1=optimal:-1.66e-19(ray 0.333)
+s2 t6510b.mps     numerical error 0 | K1=optimal:1.48e-17(ray 0.333)
+s3 t16470a.mps    optimal 5.999999895 | K1=optimal:6.64e-10(ray 1) K2=optimal:6.67e-17(tip) R1=numerical error R2=numerical error
+s3 t16470b.mps    numerical error 0 | K1=optimal:0(ray 1) K2=optimal:6.63e-17(tip) R2=optimal:1.03e-09 R3=numerical error
+s3 t3290a.mps     optimal 9.603435807e-08 | K1=optimal:0(ray 1)
+s3 t3290b.mps     numerical error 0 | K1=optimal:0(ray 1)
+s3 t4202a.mps     optimal -2.00000091 | K1=optimal:1 K2=optimal:0(ray 2) R1=optimal:1
+s3 t4202b.mps     numerical error 0 | K1=optimal:1 K2=optimal:0(ray 2) R2=optimal:1
+s3 t4224a.mps     numerical error 0 | K1=infeasible K2=infeasible R1=optimal:-5 R2=infeasible
+s3 t4224b.mps     infeasible 0 | K1=infeasible K2=infeasible R1=infeasible R2=optimal:-5
+s3 t5320a.mps     numerical error 0 | K1=optimal:1 K2=numerical error
+s3 t5320b.mps     optimal 6.000040736 | K1=optimal:1 K2=numerical error
+s3 t5565a.mps     numerical error 0 | K1=optimal:0.667 K2=optimal:1
+s3 t5565b.mps     optimal 6 | K1=optimal:0.667 K2=optimal:1
+s3 t5884a.mps     numerical error 0 | K1=optimal:1
+s3 t5884b.mps     unbounded 0 | K1=optimal:1
+s3 t7334a.mps     optimal 10.00000019 | K1=optimal:3.51e-16(ray 1.92) R1=optimal:1
+s3 t7334b.mps     numerical error 0 | K1=optimal:3.51e-16(ray 1.92) R1=optimal:1
+s4 t10419a.mps    numerical error 0 | K1=optimal:4.61e-15(ray 2.17) K2=numerical error R1=numerical error R2=optimal:1
+s4 t10419b.mps    optimal -6.633249581 | K1=optimal:-5.15e-17(ray 2.18) K2=optimal:-1.54e-13(tip) R1=optimal:0 R2=optimal:1
+s4 t11841a.mps    numerical error 0 | K1=optimal:1 K2=optimal:1.43e-16(ray 2) R1=numerical error R2=optimal:1
+s4 t11841b.mps    optimal 0.4982512131 | K1=optimal:1 K2=optimal:-7.53e-17(ray 2) R1=numerical error R2=optimal:1
+s4 t13522a.mps    optimal -16.68629113 | K1=optimal:0.477 K2=optimal:-1.43e-16(ray 2.11)
+s4 t13522b.mps    numerical error 0 | K1=optimal:0.477 K2=optimal:1.24e-16(ray 2.11)
+s4 t17173a.mps    optimal -3.774868733 | K1=numerical error K2=optimal:1 R1=optimal:1
+s4 t17173b.mps    numerical error 0 | K1=numerical error K2=optimal:1 R1=optimal:1
+s4 t19526a.mps    numerical error 0 | K1=optimal:1 R1=optimal:1
+s4 t19526b.mps    optimal -5.171581376 | K1=optimal:1 R1=optimal:1
+s4 t3302a.mps     optimal -28.00000297 | K1=numerical error
+s4 t3302b.mps     numerical error 0 | K1=optimal:7.02e-17(ray 2)
+s4 t4529a.mps     numerical error 0 | R1=optimal:-1.58e-30 R2=numerical error
+s4 t4529b.mps     optimal 0.00912667536 | R1=numerical error R2=optimal:1.58e-30
+s4 t8189a.mps     optimal 7.000000581 | K1=optimal:7.88e-24(ray 1) R1=optimal:-5.55e-17 R2=optimal:1
+s4 t8189b.mps     numerical error 0 | K1=optimal:3.7e-17(ray 1) R2=optimal:1 R3=optimal:1.11e-16
+s5 t10351a.mps    optimal 1.059977632e-07 | K1=optimal:1.45e-59(tip) R1=numerical error
+s5 t10351b.mps    numerical error 0 | K1=optimal:5.07e-08(tip) R1=numerical error
+s5 t17341a.mps    optimal -1.329137929e-07 | K1=optimal:7.79e-08(tip) R1=numerical error
+s5 t17341b.mps    numerical error 0 | K1=optimal:7.79e-08(tip) R1=numerical error
+s5 t17371a.mps    optimal -21 | K1=optimal:1 K2=optimal:1 R1=optimal:1
+s5 t17371b.mps    numerical error 0 | K1=optimal:1 K2=optimal:1 R1=optimal:1
+s6 t11013a.mps    numerical error 0 | K1=optimal:1 K2=optimal:1 R1=optimal:1
+s6 t11013b.mps    optimal 12 | K1=optimal:1 K2=optimal:1 R1=optimal:1
+s6 t11184a.mps    infeasible 0 | K1=numerical error
+s6 t11184b.mps    numerical error 0 | K1=optimal:-3.68e-07(ray 5.43e+06)
+s6 t14584a.mps    optimal 1.92082565e-07 | K1=optimal:-9.54e-19(ray 1) K2=optimal:-3.55e-17(ray 0.577) R1=optimal:1 R2=optimal:-1.14e-17
+s6 t14584b.mps    numerical error 0 | K1=optimal:1.81e-18(ray 1) K2=optimal:-1.49e-17(ray 0.577) R1=optimal:8.38e-17 R3=optimal:1
+s6 t4737a.mps     optimal 1.338996258e-07 | K1=optimal:2.5e-08(tip) R1=optimal:0 R2=numerical error
+s6 t4737b.mps     numerical error 0 | K1=optimal:3.64e-60(tip) R1=numerical error R2=optimal:0
+s6 t6098a.mps     optimal 17.33333333 | K1=optimal:0.816 K2=optimal:1 R1=optimal:1
+s6 t6098b.mps     numerical error 0 | K1=optimal:0.816 K2=optimal:1 R2=optimal:1
+s6 t9871a.mps     numerical error 0 | K1=optimal:1
+s6 t9871b.mps     optimal 14.99998227 | K1=optimal:1
+s7 t10832a.mps    numerical error 0 | K1=optimal:7.49e-23(tip) R1=numerical error
+s7 t10832b.mps    optimal -5 | K1=optimal:-4.24e-24(tip) R3=optimal:1.65e-12
+s7 t10907a.mps    infeasible 0 | K1=numerical error K2=numerical error
+s7 t10907b.mps    numerical error 0 | K1=numerical error K2=numerical error
+s7 t10966a.mps    numerical error 0 | K1=optimal:0(ray 1) K2=optimal:1 R1=optimal:1
+s7 t10966b.mps    optimal 0.898979163 | K1=optimal:0(ray 1) K2=optimal:1 R1=optimal:1
+s7 t11703a.mps    optimal 33.66666667 | K1=optimal:0.804 R1=optimal:1
+s7 t11703b.mps    numerical error 0 | K1=optimal:0.804 R1=optimal:1
+s7 t12481a.mps    optimal 1.000000086 | K1=optimal:4.59e-24(ray 1) R1=optimal:0
+s7 t12481b.mps    numerical error 0 | K1=optimal:4.59e-24(ray 1) R4=optimal:0
+s7 t1457a.mps     optimal -40.50000807 | K1=numerical error K2=optimal:-1.82e-16(ray 5.19)
+s7 t1457b.mps     numerical error 0 | K1=numerical error K2=optimal:-1.4e-16(ray 5.19)
+s7 t14615a.mps    numerical error 0 | K1=optimal:-1.69e-17(ray 3.67)
+s7 t14615b.mps    optimal 4.666665011 | K1=optimal:4.36e-17(ray 3.67)
+s7 t15402a.mps    optimal -5.999990397 | K1=optimal:1 R1=optimal:1
+s7 t15402b.mps    numerical error 0 | K1=optimal:1 R1=optimal:1
+s7 t17685a.mps    numerical error 0 | K1=optimal:1
+s7 t17685b.mps    optimal 14.99999359 | K1=optimal:1
+s7 t1835a.mps     optimal -3.605507405e-13 | K1=optimal:1 K2=optimal:1 R1=optimal:1 R2=optimal:1
+s7 t1835b.mps     numerical error 0 | K1=optimal:1 K2=optimal:1 R1=optimal:1 R2=optimal:1
+s7 t18491a.mps    optimal -9.538630757 | K1=optimal:1 K2=optimal:0(ray 2) R1=optimal:1
+s7 t18491b.mps    numerical error 0 | K1=optimal:1 K2=optimal:0(ray 2) R1=optimal:1
+s7 t3044a.mps     numerical error 0 | K1=optimal:1 R1=optimal:1
+s7 t3044b.mps     optimal -15.11110253 | K1=optimal:1 R1=optimal:1
+s7 t4751a.mps     numerical error 0 | K1=optimal:1 K2=optimal:-4.97e-17(ray 4.21)
+s7 t4751b.mps     optimal 3.333333094 | K1=optimal:1 K2=optimal:-4.58e-17(ray 4.21)
+s8 t15472a.mps    numerical error 0 | K1=optimal:0(ray 1)
+s8 t15472b.mps    optimal -8.59713913e-08 | K1=optimal:0(ray 1)
+s8 t16507a.mps    numerical error 0 | K1=numerical error R1=optimal:1 R2=optimal:1
+s8 t16507b.mps    optimal 8.666662129 | K1=numerical error R2=optimal:1 R4=optimal:1
+s8 t18175a.mps    optimal 10.74165753 | K1=optimal:1 R1=optimal:0 R2=numerical error
+s8 t18175b.mps    numerical error 0 | K1=optimal:1 R1=optimal:0 R2=numerical error
+s8 t4925a.mps     optimal 6.000004123 | K1=optimal:1 K2=optimal:0(ray 1)
+s8 t4925b.mps     numerical error 0 | K1=optimal:1 K2=optimal:0(ray 1)
+s8 t5956a.mps     optimal -1.5 | K1=optimal:1 R1=optimal:1 R2=optimal:0.5
+s8 t5956b.mps     numerical error 0 | K1=optimal:1 R1=optimal:0.5 R2=optimal:1
+s8 t782a.mps      numerical error 0 | K1=optimal:0(ray 2) R1=optimal:1
+s8 t782b.mps      optimal 1.270789208e-07 | K1=optimal:0(ray 2) R1=optimal:1
+s9 t13034a.mps    optimal -24 | K1=optimal:1 R1=optimal:1
+s9 t13034b.mps    numerical error 0 | K1=optimal:1 R1=optimal:1
+s9 t3738a.mps     infeasible 0 | K1=numerical error
+s9 t3738b.mps     numerical error 0 | K1=optimal:-1(ray 8.82e+04)
+s9 t4559a.mps     optimal -2.450712419e-16 | K1=optimal:1 K2=optimal:1
+s9 t4559b.mps     numerical error 0 | K1=optimal:1 K2=optimal:1
+s9 t7057a.mps     optimal -10.99999002 | K1=optimal:1
+s9 t7057b.mps     numerical error 0 | K1=optimal:1
+s10 t1649a.mps     optimal -1 | K1=optimal:0(ray 1) R1=optimal:1
+s10 t1649b.mps     numerical error 0 | K1=optimal:0(ray 1) R1=optimal:1
+s10 t3569a.mps     optimal 14.99998351 | K1=optimal:1
+s10 t3569b.mps     numerical error 0 | K1=optimal:1
+s10 t6621a.mps     optimal 4.129700228e-08 | K1=optimal:3.29e-08(tip) R1=numerical error R2=numerical error
+s10 t6621b.mps     numerical error 0 | K1=optimal:1.21e-08(tip) R1=numerical error R2=numerical error
+s10 t6661a.mps     numerical error 0 | K1=optimal:-6.53e-17(ray 1) R1=numerical error
+s10 t6661b.mps     optimal -2.000000132 | K1=optimal:4.71e-17(ray 1) R2=numerical error
+s10 t7436a.mps     numerical error 0 | K1=numerical error R1=numerical error
+s10 t7436b.mps     optimal 12.99999787 | K1=numerical error R4=numerical error

@@ -1148,6 +1148,54 @@ static void test_a_quadratic_row_with_no_interior_ends_optimal_without_duals(voi
     jaos_model_free(lp);
 }
 
+static void test_a_cone_with_no_interior_ends_optimal_without_duals(void)
+{
+    const struct {
+        const char *path;
+        double objective;
+        const char *what;
+    } cases[] = {
+        {"tests/data/cone_no_interior_ray.mps", 0.0,
+         "a cone whose points all lie on one ray"},
+        {"tests/data/cone_no_interior_tip.mps", 0.0,
+         "a cone whose only point is its tip"},
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, cases[c].path));
+        const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+        double *x = jm_alloc_array(nc, sizeof *x);
+        double *y = jm_alloc_array(nr > 0 ? nr : 1, sizeof *y);
+        double *z = jm_alloc_array(nc, sizeof *z);
+        TEST_ASSERT_NOT_NULL(x);
+        TEST_ASSERT_NOT_NULL(y);
+        TEST_ASSERT_NOT_NULL(z);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                      cases[c].what);
+        TEST_ASSERT_FALSE_MESSAGE(jaos_has_duals(m), cases[c].what);
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, cases[c].objective, obj,
+                                          cases[c].what);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+        for (int64_t i = 0; i < nr; i++)
+            TEST_ASSERT_TRUE(isnan(y[i]));
+        for (int64_t k = 0; k < jaos_num_cones(m); k++) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone_dual(m, k, z));
+            TEST_ASSERT_TRUE_MESSAGE(isnan(z[0]), "a cone dual is NaN too");
+        }
+        jaos_check_report r;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &r));
+        TEST_ASSERT_TRUE_MESSAGE(r.primal_feasible, cases[c].what);
+        TEST_ASSERT_FALSE(r.checked_duals);
+        free(x);
+        free(y);
+        free(z);
+        jaos_model_free(m);
+    }
+}
+
 static void catch_mirror(void *user, jaos_log_level level, const char *line)
 {
     (void)level;
@@ -1822,6 +1870,7 @@ int main(void)
     RUN_TEST(test_a_refused_direction_is_replaced_by_a_solve_over_directions);
     RUN_TEST(test_quadratic_programs_on_the_ball_rows_finish_a_stalled_walk);
     RUN_TEST(test_a_quadratic_row_with_no_interior_ends_optimal_without_duals);
+    RUN_TEST(test_a_cone_with_no_interior_ends_optimal_without_duals);
     RUN_TEST(test_a_mirrored_integer_column_gives_the_same_conic_tree);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);

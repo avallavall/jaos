@@ -1779,8 +1779,10 @@ each. Every output is optional. The call fails unless the last solve ended
 columns rounded to integers.
 
 An optimum can have no finite duals. That happens when a quadratic row's
-smallest value over the rest of the model is its side, so that no point
-lies strictly inside the row. The solve then holds the row at that value,
+smallest value over the rest of the model is its side, or a cone's points
+over the rest of the model all lie on its boundary, so that no point lies
+strictly inside the row or the cone. The solve then holds the row at that
+value and the cone on the one ray or at the tip where those points lie,
 solves the model again, and publishes the point with every row dual,
 reduced cost and cone dual as NaN. `jaos_has_duals` then returns false.
 `jaos_check_solution` judges such a point on its primal side alone. The

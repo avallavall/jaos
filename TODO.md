@@ -65,22 +65,25 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
-J27. **A cone with no interior, and an optimum no point reaches.** A
-quadratic row whose smallest value over the rest of the model is its
-side is now held there and the model solved again, with the duals
-published as NaN (`bench/measurements/02-446/`). In 02-431's permutation
-reading 71 of 200,000 continuous models and 19 of 198,391 mixed ones
-still end with an answer in one order and `numerical_error` in the other,
-or at two optima (`bench/measurements/02-449/`). Two kinds are read:
-a model whose only point is the tip of its cones, where the solve that
-looks for the row with no interior fails itself (`c1905a.mps` of
-02-431), and an optimum that is a limit no point reaches (`c2939a.mps`).
-The held-row solve does not run at a node of a mixed-integer tree. On
-such a row a point within tolerance moves the objective by about the
-square root of the tolerance, so two orders can also end at optima 9e-5
-apart. Next: sort the 71 by kind with 02-431's `dumps.patch`; then a
-cone held on its ray, found the way a row is. Verify with 02-431's
-`read.sh`.
+J27. **Models whose pieces all have room, and pieces whose probe
+fails.** A quadratic row whose smallest value over the rest of the model
+is its side, and a cone whose points all lie on one ray or at its tip,
+are held there and the model solved again, with the duals published as
+NaN (`bench/measurements/02-446/`, `02-452/`). In 02-431's permutation
+reading 49 of 200,000 continuous models and 13 of 198,391 mixed ones
+still end with an answer in one order and `numerical_error` in the
+other, and 2 mixed ones at two optima (`02-452/`). Of the 71 continuous
+disagreements before 02-452, 20 have room in every piece: on the three
+read the point passes the primal test and its duals miss by 1.4e-7 to
+1.9e-6 of their terms, or the walk ends far from any point. 11 of the
+41 with a flat cone are left: a cone whose probe fails because another
+piece has no interior, a walk that ends with no answer, and two
+infeasible models. Holding on the model with the pieces found so far,
+or from a joint probe, was refused: a held row's curved columns sit at
+the probe's point, placed only to the square root of its accuracy, and
+a cone amplifies that into wrong optima (`02-452/`). Nothing is held at
+a node of a mixed-integer tree. Next: the 20 with room, starting with
+the duals that miss by 1.4e-7. Verify with 02-452's `read.sh`.
 
 ## Tier 3: the largest performance gaps
 
