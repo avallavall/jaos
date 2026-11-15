@@ -1,0 +1,19 @@
+5c51216d 2026-10-08 mip: a MIR cut on a mixed row measures columns from their o
+    p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1365132
+1183f038b978cfee2156c9adfad71bf79e9a9e36 2026-11-15 simplex, conictree: a stop inside the re-entry resumes its 
+    p0033.mps rc=0 status=optimal nodes=21 iters=227 work=2571379
+d7680808d631858018f0b5466ddc1136e268bb89 2026-10-21 bench: models edited between solves re-solve warm correctly
+    p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1365132
+401097e3ced3f699f06ed8812458632f3acd0d7e 2026-10-22 bench: the conic tree against brute force on 32,000 new mod
+    p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1365132
+9b14bd03cbc7515708f7962a8df14bcf869eda5c 2026-10-22 TODO: J28 parts before the first pivot on afiro
+    p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1365132
+2d69b47606d53b6539d40dffabe983a93f4b5e84 2026-11-11 bench: the permutation reading on 32f2863
+    p0033.mps rc=0 status=optimal nodes=21 iters=227 work=2571744
+72e2eaa1b7b7a7899e589171ba857ee02873a520 2026-11-11 check: a certificate through quadratic rows with cross term
+    p0033.mps rc=0 status=optimal nodes=21 iters=227 work=2571744
+e368c8470d3243caf450ec2f2687b49bbcb8ccf9 2026-11-11 simplex: a zero-cost column boxed in [-a, a] starts where i
+    p0033.mps rc=0 status=optimal nodes=21 iters=227 work=2571744
+e6039051401ee4fa6a63219c90f453746a56d477 2026-10-22 simplex: a zero-cost column starts at the bound nearer zero
+    p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1365132
+first commit with another nodes: e368c8470d3243caf450ec2f2687b49bbcb8ccf9

@@ -44,7 +44,9 @@ checksummed the same way.
   goes from yes to no, when its work passes 2.0x, or when its
   suboptimality bound rises past 2.0x (a bound at or under `1e-16` never
   counts). Every regression, every verdict change and every node-count
-  change is listed in the result.
+  change is listed in the result, and the summary line counts the
+  instances at other nodes. A node count that moves is not a regression,
+  so a change that moves one says why in its measurement.
 
 For the MIP set the point must be integral, feasible to the checker, at the
 catalogue optimum, and the node count is part of the baseline.

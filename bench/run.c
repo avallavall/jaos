@@ -721,7 +721,7 @@ static bool run_one(const entry *e, const char *dir, tally *t)
 
 static int64_t compare_to_baseline(bool full_run)
 {
-    int64_t regressed = 0, improved = 0, fresh = 0;
+    int64_t regressed = 0, improved = 0, fresh = 0, other_nodes = 0;
 
     say("\n-- against baseline --\n");
 
@@ -763,10 +763,12 @@ static int64_t compare_to_baseline(bool full_run)
             regressed++;
         }
 
-        if (b->solved && g->solved && b->nodes > 0 && g->nodes != b->nodes)
+        if (b->solved && g->solved && b->nodes > 0 && g->nodes != b->nodes) {
             say("%-12s changed      nodes: %lld -> %lld (work %.2fx)\n",
                  g->name, b->nodes, g->nodes,
                  b->work > 0 ? (double)g->work / (double)b->work : 0.0);
+            other_nodes++;
+        }
 
         if (b->solved && g->solved && b->rsub >= 0.0 &&
             g->rsub > RSUB_FLOOR &&
@@ -790,8 +792,9 @@ static int64_t compare_to_baseline(bool full_run)
         }
     }
 
-    say("baseline: %lld regressed, %lld improved, %lld new\n",
-         (long long)regressed, (long long)improved, (long long)fresh);
+    say("baseline: %lld regressed, %lld improved, %lld new, %lld at other "
+        "nodes\n", (long long)regressed, (long long)improved,
+        (long long)fresh, (long long)other_nodes);
     return regressed;
 }
 

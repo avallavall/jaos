@@ -1,0 +1,31 @@
+== where the rule places a column, p0033
+      8 TIE rows 27 cols 6 node 0 j 0 box 1 UP
+      8 TIE rows 152 cols 9 node 0 j 3 box 1 UP
+      8 TIE rows 152 cols 9 node 0 j 0 box 1 UP
+      6 TIE rows 25 cols 6 node 0 j 2 box 1 UP
+      2 TIE rows 27 cols 6 node 0 j 3 box 1 UP
+      2 TIE rows 152 cols 9 node 0 j 6 box 1 UP
+      2 TIE rows 152 cols 9 node 0 j 4 box 1 UP
+      2 TIE rows 11 cols 7 node 0 j 1 box 1 UP
+      1 TIE rows 7 cols 6 node 0 j 3 box 1 UP
+      1 TIE rows 7 cols 6 node 0 j 0 box 1 UP
+      1 TIE rows 6 cols 4 node 0 j 2 box 1 UP
+      1 TIE rows 5 cols 4 node 0 j 0 box 1 UP
+      1 TIE rows 27 cols 6 node 0 j 2 box 1 UP
+      1 TIE rows 27 cols 6 node 0 j 1 box 1 UP
+      1 TIE rows 26 cols 7 node 0 j 2 box 1 UP
+      1 TIE rows 26 cols 7 node 0 j 0 box 1 UP
+      1 TIE rows 25 cols 6 node 0 j 3 box 1 UP
+      1 TIE rows 25 cols 6 node 0 j 1 box 1 UP
+      1 TIE rows 152 cols 9 node 0 j 2 box 1 UP
+      1 TIE rows 152 cols 9 node 0 j 1 box 1 UP
+      1 TIE rows 10 cols 5 node 0 j 2 box 1 UP
+      1 TIE rows 10 cols 5 node 0 j 1 box 1 UP
+== with the rule
+p0033.mps rc=0 status=optimal nodes=21 iters=227 work=2571379
+gen.mps rc=0 status=optimal nodes=2 iters=568 work=4213737
+misc03.mps rc=0 status=optimal nodes=248 iters=6640 work=42810322
+== without it
+p0033.mps rc=0 status=optimal nodes=13 iters=171 work=1364573
+gen.mps rc=0 status=optimal nodes=2 iters=541 work=3906211
+misc03.mps rc=0 status=optimal nodes=248 iters=6640 work=43118425

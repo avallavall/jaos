@@ -1,0 +1,19 @@
+5c51216d 2026-10-08 mip: a MIR cut on a mixed row measures columns from their o
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=43280922
+1183f038b978cfee2156c9adfad71bf79e9a9e36 2026-11-15 simplex, conictree: a stop inside the re-entry resumes its 
+    misc03.mps rc=0 status=optimal nodes=248 iters=6640 work=42810322
+d7680808d631858018f0b5466ddc1136e268bb89 2026-10-21 bench: models edited between solves re-solve warm correctly
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=43280922
+401097e3ced3f699f06ed8812458632f3acd0d7e 2026-10-22 bench: the conic tree against brute force on 32,000 new mod
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=43280922
+9b14bd03cbc7515708f7962a8df14bcf869eda5c 2026-10-22 TODO: J28 parts before the first pivot on afiro
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=43280922
+2d69b47606d53b6539d40dffabe983a93f4b5e84 2026-11-11 bench: the permutation reading on 32f2863
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=42965044
+bbddb405c11abc8e6161f9d780dac3aa9b61ff0d 2026-11-15 conic: a cone with no interior is held on its ray or at its
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=42965044
+f4cf5c6adc066477f0db83c45c9fdce130b12c9d 2026-11-15 mip: the presolve's mirror runs on a quadratic objective
+    misc03.mps rc=0 status=optimal nodes=248 iters=6550 work=42965044
+00e975c2697a1d353b8aa5bddc158a650fc9315d 2026-11-15 mip, conictree, simplex, presolve: every tree reads a model
+    misc03.mps rc=0 status=optimal nodes=248 iters=6640 work=42810322
+first commit with another iters: 00e975c2697a1d353b8aa5bddc158a650fc9315d
