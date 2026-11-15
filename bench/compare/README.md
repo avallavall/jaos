@@ -58,16 +58,17 @@ on. Use P0.
 
 ## The LP reading
 
-`results/P0.txt`, 2026-09-24 on tree 6c79039, geometric mean of
-per-instance ratios over the instances above a 0.05 s floor:
+`results/P0.txt`, 2026-11-15 on tree 7d748d7, geometric mean of
+per-instance ratios over the instances above a 0.05 s floor
+(`results/P0-2026-09-24.txt` is the reading before it, on 6c79039):
 
 | | vs HiGHS 1.15.1 | vs SoPlex 8.0.3 | vs Clp 1.17.11 |
 |---|---|---|---|
-| time per solve | 1.91x | 0.57x | 1.54x |
-| iterations | 1.15x | 0.48x | 1.04x |
-| time per iteration | 1.66x | 1.17x | 1.49x |
-| JAOS faster on | 0 of 16 | 14 of 17 | 4 of 14 |
-| worst instance | `stocfor3` 11.2x | `truss` 1.8x | `stocfor3` 10.0x |
+| time per solve | 1.81x | 0.60x | 1.62x |
+| iterations | 1.15x | 0.49x | 1.02x |
+| time per iteration | 1.58x | 1.23x | 1.59x |
+| JAOS faster on | 1 of 18 | 15 of 18 | 4 of 13 |
+| worst instance | `stocfor3` 12.0x | `truss` 2.4x | `stocfor3` 10.7x |
 
 `summarise.py` recomputes the same figures from the record. SoPlex's and
 Clp's objectives on `pilot87` miss the reference, so that instance counts
@@ -85,13 +86,20 @@ solved counts, the shifted geometric mean of the seconds (a shift of 1 s,
 an unsolved instance counted at the limit), and the ratio of the shifted
 means.
 
-`results/mip-miplib.txt` and `results/mip-miplib2017.txt`, 2026-09-24 on
-tree 6c79039, on an otherwise idle machine:
+`results/mip-miplib.txt` and `results/mip-miplib2017.txt`, 2026-11-15 on
+tree 7d748d7, on an otherwise idle machine (`*-2026-09-24.txt` are the
+readings before them, on 6c79039, where JAOS solved 23 and 0):
 
 | set | JAOS | HiGHS | SCIP | JAOS / HiGHS | JAOS / SCIP |
 |---|---|---|---|---|---|
-| MIPLIB 3, 24 instances | 23 solved, 0.93 s | 24, 0.64 s | 24, 0.57 s | 1.18x | 1.23x |
-| MIPLIB 2017, 30 instances | 0, 20.00 s | 8, 13.60 s | 8, 12.29 s | 1.44x | 1.58x |
+| MIPLIB 3, 24 instances | 24 solved, 0.69 s | 24, 0.65 s | 24, 0.58 s | 1.02x | 1.07x |
+| MIPLIB 2017, 30 instances | 5, 13.23 s | 8, 13.67 s | 8, 12.18 s | 0.97x | 1.08x |
+
+On MIPLIB 2017 HiGHS and SCIP solve the same eight. JAOS solves five of
+them; `beasleyC3`, `binkar10_1` and `neos-911970` are the other three.
+Six of the seven instances where JAOS's incumbent is the optimum at 1e10
+work units, `gen-ip002`, `gen-ip054`, `mas76`, `pk1`, `neos5` and
+`assign1-5-8`, none of the three closes in 20 s.
 
 ## The QP and conic readings
 

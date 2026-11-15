@@ -1,0 +1,16 @@
+32f28633 mip: a mirrored column and a negated row leave the tree as i
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+d8539186 presolve: a row that forces on both sides takes the side of 
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+28513361 conictree: a mirrored integer column leaves the conic tree a
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+cf507d1b api: jaos_has_duals says whether an optimum has duals
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+bbddb405 conic: a cone with no interior is held on its ray or at its 
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+f4cf5c6a mip: the presolve's mirror runs on a quadratic objective
+   csched008.mps rc=0 status=work limit reached nodes=57 iters=104729 work=10000008915
+00e975c2 mip, conictree, simplex, presolve: every tree reads a model 
+   csched008.mps rc=0 status=work limit reached nodes=1 iters=28555 work=10000222302
+1183f038 simplex, conictree: a stop inside the re-entry resumes its w
+   csched008.mps rc=0 status=work limit reached nodes=1 iters=28555 work=10000222302

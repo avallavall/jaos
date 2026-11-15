@@ -1,0 +1,128 @@
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -36,6 +36,7 @@
+     bool primal_dantzig;
+     bool primal_devex;
+     bool node_solve;
++    bool node_probe;
+     bool node_no_presolve;
+     bool no_cert_solve;
+     bool no_flat_rows;
+@@ -329,6 +330,9 @@
+     bool cone_ok;
+     bool conic_rough;
+ 
++    double stop_bound;
++    bool stop_bound_ok;
++
+     char **exact_col;
+     char **exact_dual;
+     char *exact_obj;
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1486,8 +1486,10 @@
+                                  (caller_limit <= 0 || cap < caller_limit);
+             if (capping)
+                 lp->cfg.work_limit = cap;
++            lp->cfg.node_probe = getenv("J7_PROBE_BOUND") != nullptr;
+             if (st == JAOS_OK)
+                 st = jaos_solve(lp);
++            lp->cfg.node_probe = false;
+             lp->cfg.work_limit = caller_limit;
+             (*solves)++;
+             (*probes)++;
+@@ -1495,9 +1497,13 @@
+             if (st == JAOS_OK && capping &&
+                 jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT)
+                 (*capped)++;
+-            if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
+-                double obj = 0.0;
+-                if (jaos_objective(lp, &obj) == JAOS_OK) {
++            const bool bounded = st == JAOS_OK && capping &&
++                                 jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT &&
++                                 lp->stop_bound_ok;
++            if (st == JAOS_OK && (jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL ||
++                                  bounded)) {
++                double obj = lp->stop_bound;
++                if (bounded || jaos_objective(lp, &obj) == JAOS_OK) {
+                     double gain = sigma * obj - key;
+                     if (gain < 0.0)
+                         gain = 0.0;
+@@ -8043,8 +8049,16 @@
+         }
+         const int64_t nrl = lp->num_row;
+ 
++        static int64_t j7_probe_work = 0;
++        if (nodes <= 1)
++            j7_probe_work = 0;
++        const double j7_share = getenv("J7_PROBE_SHARE") != nullptr
++                                    ? atof(getenv("J7_PROBE_SHARE")) : 0.0;
+         if (branch >= 0 && reliability > 0 &&
+-            (probe_depth < 0 || depth_here <= probe_depth)) {
++            (probe_depth < 0 || depth_here <= probe_depth) &&
++            (j7_share <= 0.0 ||
++             (double)j7_probe_work <= j7_share * (double)work)) {
++            const int64_t j7_before = work;
+             phase_to(&ph, work, PH_BRANCH);
+             jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
+                                                         sizeof *prs);
+@@ -8071,6 +8085,7 @@
+                 goto done;
+             }
+             branch = select_branch(m, x, rule, pc_sum, pc_n);
++            j7_probe_work += work - j7_before;
+         }
+         phase_to(&ph, work, PH_OTHER);
+ 
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -2553,6 +2553,30 @@
+     return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+ }
+ 
++static bool stop_bound(sx *s, double *out)
++{
++    if (s->needs_refactor)
++        return false;
++    double *y = s->y;
++    for (int64_t i = 0; i < s->nrow; i++)
++        y[i] = s->cost0[s->basis[i]];
++    jm_lu_btran(&s->lu, y, &s->work);
++    double sum = 0.0, comp = 0.0;
++    for (int64_t v = 0; v < s->nvar; v++) {
++        if (s->status[v] == JM_BASIC)
++            continue;
++        const double d = s->cost0[v] - price_entry(s, y, v);
++        if (d == 0.0)
++            continue;
++        const double b = d > 0.0 ? real_lower(s, v) : real_upper(s, v);
++        if (!isfinite(b))
++            return false;
++        jm_obj_add(&sum, &comp, d * b);
++    }
++    *out = sum + comp;
++    return isfinite(*out);
++}
++
+ static double settled_dual_violation(const sx *s)
+ {
+     double worst = 0.0;
+@@ -5123,6 +5147,18 @@
+         (st != JAOS_OK || outcome == JAOS_SOLVE_NUMERICAL_ERROR))
+         memcpy(m->err, target->err, sizeof m->err);
+ 
++    m->stop_bound_ok = false;
++    if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
++        (outcome == JAOS_SOLVE_WORK_LIMIT ||
++         outcome == JAOS_SOLVE_TIME_LIMIT ||
++         outcome == JAOS_SOLVE_INTERRUPTED)) {
++        double lag = 0.0;
++        if (stop_bound(&s, &lag)) {
++            const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++            m->stop_bound = sgn * lag + target->obj_offset;
++            m->stop_bound_ok = true;
++        }
++    }
+     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL)
+         polish_unscaled(&s);
+     if (st == JAOS_OK)

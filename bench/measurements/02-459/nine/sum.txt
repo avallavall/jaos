@@ -1,0 +1,8 @@
+base       solved 0 incumbents 9 primal 0.1161 dual 0.5055 sum 0.6216
+rel4       solved 0 incumbents 9 primal 0.7997 dual 0.4977 sum 1.2975
+rel4cap1   solved 0 incumbents 9 primal 0.7359 dual 0.4790 sum 1.2149
+rel4cap1b  solved 0 incumbents 9 primal 0.7346 dual 0.4513 sum 1.1859
+c1s20      solved 0 incumbents 9 primal 0.2312 dual 0.4554 sum 0.6866
+c05s20     solved 0 incumbents 9 primal 0.2580 dual 0.5216 sum 0.7797
+c1s10      solved 0 incumbents 9 primal 0.1672 dual 0.4777 sum 0.6449
+r8c05s20   solved 0 incumbents 9 primal 0.2266 dual 0.5147 sum 0.7413

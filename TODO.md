@@ -72,13 +72,17 @@ every conic gate, since it moves every conic iterate. Verify with
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
-incumbent** (`bench/results/miplib2017.txt`); HiGHS and SCIP solve 8 each
-in 20 s. Open, largest first:
+incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
+HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
+`binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
+first:
 
 - No incumbent: `ic97_potential` and `csched008`. HiGHS finds
-  `csched008`'s first point by a sub-MIP at node 533; JAOS reaches 57
-  nodes in 1e10, its root's ten LP solves in the cut loop taking 2.7e9 of
-  it, so the node cost below decides it.
+  `csched008`'s first point by a sub-MIP at node 533. Since 00e975c JAOS
+  stays at `csched008`'s root for the whole 1e10, its heuristics taking
+  72.2% of the work against 53.8% when it reached 57 nodes
+  (`bench/measurements/02-459/`). Next: the root heuristic that outruns
+  its share, then the node cost below.
 - Weak roots on the timetabling models: `timtab1` 427178 against HiGHS's
   569441, `ic97_potential` 3868 against SCIP's 3896. Their cuts come from
   rows summed around cycles of the event graph; the simple form was refused
@@ -92,8 +96,13 @@ in 20 s. Open, largest first:
   against 742 and 830, so presolve is not what keeps it open. Next: the
   root bound and the incumbent.
 - Node cost: on `neos-911970` a JAOS node takes about 200 LP iterations
-  against HiGHS's 72, and a strong-branching probe is a full LP solve.
-  Next: probes as a few dual steps on the node's factors.
+  against HiGHS's 72, and a strong-branching probe is a full LP solve. A
+  probe that learns the Lagrangian bound of its capped stop, with probes
+  held to 10% of the tree's work, gains 1.1% on the 2017 gap sum and
+  takes `misc03` to 4.2x; refused (02-459). The share was checked per
+  node, and one node's sixteen probes outran it on `beasleyC3`. Next:
+  probes that reuse the node's factors and stop after a few dual
+  iterations, under a share held probe by probe.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`).
 - MIPLIB 3: `l152lav` and `bell3a` trees are far larger than HiGHS's; the
