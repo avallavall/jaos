@@ -1514,6 +1514,62 @@ static void test_a_mirrored_column_gives_the_same_tree(void)
         TEST_ASSERT_TRUE(x[1][j] == 0.0 - x[0][j]);
 }
 
+static void test_a_mirrored_column_gives_the_same_miqp_tree(void)
+{
+    const double rl[2] = { -INFINITY, -INFINITY }, ru[2] = { 17.0, 11.0 };
+    const int64_t as[5] = { 0, 2, 4, 6, 8 };
+    const int64_t ai[8] = { 0, 1, 0, 1, 0, 1, 0, 1 };
+    const int64_t qr[7] = { 0, 1, 2, 3, 1, 3, 2 };
+    const int64_t qc[7] = { 0, 1, 2, 3, 0, 2, 0 };
+    double obj[2] = { 0.0, 0.0 }, x[2][4];
+    int64_t nodes[2] = { 0, 0 };
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = pass == 0 ? 1.0 : -1.0;
+        const double cost[4] = { -7.0 * z, -5.0, -9.0 * z, -4.0 };
+        const double cl[4] = { pass == 0 ? 0.0 : -4.0, 0.0,
+                               pass == 0 ? 0.0 : -3.0, 0.0 };
+        const double cu[4] = { pass == 0 ? 4.0 : 0.0, 5.0,
+                               pass == 0 ? 3.0 : 0.0, 6.0 };
+        const double av[8] = { 3.0 * z, 2.0 * z, 2.0, 3.0,
+                               5.0 * z, 1.0 * z, 1.0, 4.0 };
+        const double qv[7] = { 2.0, 1.0, 2.0, 1.0, 0.5 * z, 0.5 * z, 0.3 };
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                         8, as, ai, av));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 7, qr, qc, qv));
+        for (int64_t j = 0; j < 3; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        g_log[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_callback(m, capture_log, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x[pass], nullptr, nullptr, nullptr));
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[pass] = rep.nodes;
+        if (pass == 0)
+            TEST_ASSERT_NULL(strstr(g_log, "are mirrored"));
+        else
+            TEST_ASSERT_NOT_NULL_MESSAGE(
+                strstr(g_log, "MIP presolve: 2 columns"),
+                "a column in [-u, 0] of a MIQP is mirrored before the search");
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-12, obj[0], obj[1]);
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(nodes[0], nodes[1],
+        "the tree of the mirrored MIQP is the tree of the MIQP");
+    for (int j = 0; j < 4; j++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-12, j == 0 || j == 2 ? 0.0 - x[0][j]
+                                                          : x[0][j],
+                                  x[1][j]);
+}
+
 static void test_a_mip_start_crosses_the_mip_presolve(void)
 {
     jaos_model *m = pass_through_path();
@@ -5712,6 +5768,7 @@ int main(void)
     RUN_TEST(test_the_mip_presolve_substitutes_flow_through_a_node);
     RUN_TEST(test_a_mip_start_crosses_the_mip_presolve);
     RUN_TEST(test_a_mirrored_column_gives_the_same_tree);
+    RUN_TEST(test_a_mirrored_column_gives_the_same_miqp_tree);
     RUN_TEST(test_propagation_rounds_with_the_prune_window);
     RUN_TEST(test_a_hull_cut_starts_from_an_empty_row);
     RUN_TEST(test_a_tree_with_no_incumbent_propagates_from_node_1000);

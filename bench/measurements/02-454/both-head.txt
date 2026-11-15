@@ -1,0 +1,17 @@
+QPLIB_10050.qplib        path   work limit reached/work limit reached obj nan/nan inc -25.641412616821786/-25.641412616821786 iters 1302/1222 work 2000437735/2000080039 nodes 135/128
+QPLIB_10056.qplib        path   work limit reached/work limit reached obj nan/nan inc -33.851594526704808/-33.851594526704808 iters 621/615 work 2001374883/2000995153 nodes 68/67
+QPLIB_10069.qplib        same   optimal/optimal obj 0/0 inc 0/0 iters 14/14 work 378358564/378358564 nodes 1/1
+QPLIB_3547.qplib         path   work limit reached/work limit reached obj nan/nan inc -0.20067890135700026/-0.096216442432498661 iters 6/12 work 2011853216/2003110400 nodes 1/1
+QPLIB_3694.qplib         path   work limit reached/work limit reached obj nan/nan inc 932.68442706550002/932.68442706550002 iters 210/210 work 2000209720/2000089503 nodes 1/1
+QPLIB_3698.qplib         path   work limit reached/work limit reached obj nan/nan inc 772.49823597985744/772.49823597985744 iters 200/210 work 2000460547/2000202119 nodes 1/1
+QPLIB_3708.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 26/37 work 2000257703/2001926638 nodes 1/1
+QPLIB_3792.qplib         path   work limit reached/work limit reached obj nan/nan inc 1230.8465920560611/1230.8465920560611 iters 210/210 work 2000457556/2000058941 nodes 1/1
+QPLIB_3861.qplib         path   work limit reached/work limit reached obj nan/nan inc 1138.2266017728512/1138.2266017728512 iters 210/210 work 2000565717/2000431495 nodes 1/1
+QPLIB_3871.qplib         path   work limit reached/work limit reached obj nan/nan inc 250.89987245497304/250.89987245497304 iters 2606/2593 work 2000109887/2000025721 nodes 13/13
+QPLIB_3913.qplib         path   work limit reached/work limit reached obj nan/nan inc 56.924999998650001/56.924999998650001 iters 116/121 work 2002659444/2000183421 nodes 19/17
+QPLIB_3980.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 302/17 work 2003575635/2004442341 nodes 1/1
+QPLIB_4270.qplib         path   work limit reached/work limit reached obj nan/nan inc 105.88227173187082/105.88227173187082 iters 18/18 work 2000486575/2000486575 nodes 1/1
+QPLIB_5527.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 61/92 work 2632506702/2015689626 nodes 1/1
+QPLIB_5543.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 38/82 work 2077067542/2980124550 nodes 1/1
+QPLIB_5577.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 20/20 work 2037177751/2037176972 nodes 1/1
+QPLIB_5924.qplib         path   work limit reached/work limit reached obj nan/nan inc nan/nan iters 44/43 work 2529294989/2475772662 nodes 1/1

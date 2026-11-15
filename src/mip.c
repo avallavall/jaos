@@ -8695,9 +8695,8 @@ static bool mp_eligible(const jaos_model *m)
     if (m->cfg.mip_presolved ||
         !(m->cfg.mip_presolve_set ? m->cfg.mip_presolve : MIP_PRESOLVE))
         return false;
-    if (jm_model_has_quadratic(m) || jm_model_has_conic(m) ||
-        m->num_sos > 0 || m->cfg.incumbent_cb != nullptr ||
-        m->cfg.node_cb != nullptr)
+    if (jm_model_has_conic(m) || m->num_sos > 0 ||
+        m->cfg.incumbent_cb != nullptr || m->cfg.node_cb != nullptr)
         return false;
     if (m->row_ind_col != nullptr)
         for (int64_t i = 0; i < m->num_row; i++)
@@ -8748,7 +8747,8 @@ static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
     }
     *work += m->num_nz + nc + nr;
     *passes = 0;
-    for (int64_t pass = 0; pass < MIP_PRESOLVE_PASSES; pass++) {
+    const int64_t npass = jm_model_has_quadratic(m) ? 0 : MIP_PRESOLVE_PASSES;
+    for (int64_t pass = 0; pass < npass; pass++) {
         (*passes)++;
         for (int64_t i = 0; i < nr; i++) {
             cnt[i] = 0;
@@ -8836,7 +8836,9 @@ static jaos_model *mp_build(const jaos_model *m, const mp_state *s,
     double *start = nullptr;
     int64_t *aidx = nullptr;
     double *aval = nullptr;
-    int64_t nr2 = 0, nc2 = 0, nz = 0;
+    int64_t *qr = nullptr, *qc = nullptr;
+    double *qv = nullptr;
+    int64_t nr2 = 0, nc2 = 0, nz = 0, qn = 0;
     bool ok = false;
     if (newrow == nullptr || astart == nullptr || rlo == nullptr ||
         rhi == nullptr || ccost == nullptr || clo == nullptr || chi == nullptr)
@@ -8885,6 +8887,20 @@ static jaos_model *mp_build(const jaos_model *m, const mp_state *s,
         if (m->col_integer[map[k]] &&
             jaos_set_col_integer(m2, k, true) != JAOS_OK)
             goto out;
+    qn = jaos_quadratic_nz(m);
+    if (qn > 0) {
+        qr = jm_alloc_array(qn, sizeof *qr);
+        qc = jm_alloc_array(qn, sizeof *qc);
+        qv = jm_alloc_array(qn, sizeof *qv);
+        if (nc2 != nc || qr == nullptr || qc == nullptr || qv == nullptr ||
+            jaos_quadratic(m, qr, qc, qv) != JAOS_OK)
+            goto out;
+        for (int64_t t = 0; t < qn; t++)
+            if (s->flip[qr[t]] != s->flip[qc[t]])
+                qv[t] = 0.0 - qv[t];
+        if (jaos_set_quadratic(m2, qn, qr, qc, qv) != JAOS_OK)
+            goto out;
+    }
     if (m->mip_start != nullptr) {
         start = jm_alloc_array(nc2 > 0 ? nc2 : 1, sizeof *start);
         if (start == nullptr)
@@ -8903,7 +8919,7 @@ out:
     }
     free(newrow); free(astart); free(rlo); free(rhi);
     free(ccost); free(clo); free(chi); free(start);
-    free(aidx); free(aval);
+    free(aidx); free(aval); free(qr); free(qc); free(qv);
     return m2;
 }
 
@@ -8927,6 +8943,17 @@ static jaos_status bb_run_marked(jaos_model *m)
     m->cfg.mip_presolved = true;
     const jaos_status st = bb_run(m);
     m->cfg.mip_presolved = was;
+    return st;
+}
+
+static jaos_status bb_run_after(jaos_model *m, int64_t spent)
+{
+    const int64_t limit = m->cfg.work_limit;
+    if (limit > 0)
+        m->cfg.work_limit = limit > spent ? limit - spent : 1;
+    const jaos_status st = bb_run_marked(m);
+    m->cfg.work_limit = limit;
+    m->solve_work += spent;
     return st;
 }
 
@@ -8986,9 +9013,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
         outcome != JAOS_SOLVE_TIME_LIMIT &&
         outcome != JAOS_SOLVE_NODE_LIMIT &&
         outcome != JAOS_SOLVE_INTERRUPTED) {
-        const int64_t spent = m2->solve_work + pre_work;
-        st = bb_run_marked(m);
-        m->solve_work += spent;
+        st = bb_run_after(m, m2->solve_work + pre_work);
         goto out;
     }
 
@@ -9047,9 +9072,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
             goto out;
         if (!m->mip_has_incumbent ||
             !republish_at_the_incumbent(m, m->mip_inc_x, nc, nr, m, &extra)) {
-            const int64_t spent = m->solve_work + extra;
-            st = bb_run_marked(m);
-            m->solve_work += spent;
+            st = bb_run_after(m, m->solve_work + extra);
             goto out;
         }
         m->solve_work += extra;

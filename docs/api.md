@@ -1044,8 +1044,10 @@ then runs on that model. Its answer comes back to every column: a
 dropped column takes the value of the column it was merged into, a
 mirrored column takes its value negated, and an
 optimum is solved again on the whole model with the integer columns fixed,
-for its duals and basis. The presolve does not run on a model with a
-quadratic objective, cones, quadratic rows, SOS sets, indicator rows or
+for its duals and basis. On a model with a quadratic objective the
+presolve only mirrors: a term of `Q` that pairs a mirrored column with one
+that is not changes sign, and no column is merged. It does not run on a
+model with cones, quadratic rows, SOS sets, indicator rows or
 semi-continuous columns, nor under an incumbent or node callback, which see
 the model's own columns. A sub-MIP inside the tree does not presolve
 again.
