@@ -1,0 +1,48 @@
+--- a/src/conic.c
++++ b/src/conic.c
+@@ -30,6 +30,7 @@
+     int64_t start, dim;
+     double eta;
+     int64_t aux;
++    double lamdet;
+ } ck_cone;
+ 
+ typedef struct {
+@@ -211,6 +212,7 @@
+             for (int64_t t = 1; t < d; t++)
+                 wb[t] = (s[t] / ss - z[t] / zs) / (2.0 * gamma);
+             cn->eta = sqrt(sqrt(sd / zd));
++            cn->lamdet = ss * zs;
+             double *lam = c->lambda + o;
+             const double w1z1 = dot2(wb + 1, z + 1, d - 1);
+             lam[0] = cn->eta * dot2(wb, z, d);
+@@ -262,7 +264,7 @@
+                 out[o + t] = d[o + t] / lam[o + t];
+         } else {
+             const double *l = lam + o, *dd = d + o;
+-            const double x0 = lorentz(l, dd, dim) / soc_det(l, dim);
++            const double x0 = lorentz(l, dd, dim) / cn->lamdet;
+             out[o] = x0;
+             for (int64_t t = 1; t < dim; t++)
+                 out[o + t] = (dd[t] - l[t] * x0) / l[0];
+@@ -807,17 +809,17 @@
+     {
+         int64_t k = 0, at = 0;
+         if (pb->nzero > 0)
+-            c->cone[k++] = (ck_cone){CK_ZERO, at, pb->nzero, 1.0, -1};
++            c->cone[k++] = (ck_cone){CK_ZERO, at, pb->nzero, 1.0, -1, 1.0};
+         at += pb->nzero;
+         if (pb->nnonneg > 0)
+-            c->cone[k++] = (ck_cone){CK_NONNEG, at, pb->nnonneg, 1.0, -1};
++            c->cone[k++] = (ck_cone){CK_NONNEG, at, pb->nnonneg, 1.0, -1, 1.0};
+         at += pb->nnonneg;
+         for (int64_t t = 0; t < pb->nsoc; t++) {
+             if (pb->soc_dim[t] < 1) {
+                 st = JAOS_ERR_INVALID_INPUT;
+                 goto done;
+             }
+-            c->cone[k++] = (ck_cone){CK_SOC, at, pb->soc_dim[t], 1.0, -1};
++            c->cone[k++] = (ck_cone){CK_SOC, at, pb->soc_dim[t], 1.0, -1, 1.0};
+             at += pb->soc_dim[t];
+         }
+         if (at != m) {

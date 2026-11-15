@@ -1,0 +1,44 @@
+--- a/src/conic.c
++++ b/src/conic.c
+@@ -1066,19 +1066,30 @@
+         jordan_prod(c, c->tm, c->tm2, c->ds);
+         for (int64_t i = 0; i < m; i++)
+             c->ds[i] += c->kr[i] - sigma * mu * c->e[i];
+-        const double dk = c->tau * c->kappa + dta * dka - sigma * mu;
++        double dk = c->tau * c->kappa + dta * dka - sigma * mu;
+         double dkk = 0.0;
+         double *dx = c->dxa, *dz = c->dza, *dsn = c->dsa;
+-        const double dt = direction(c, c->ds, dk, 1.0 - sigma, rt, den, dx,
+-                                    dz, dsn, &dkk);
+-        double alpha = CONIC_STEP * step_to_boundary(c, dsn, dz, dt, dkk);
+-        if (alpha > 1.0)
+-            alpha = 1.0;
+-        bool finite = isfinite(dt) && isfinite(dkk);
+-        for (int64_t j = 0; j < n && finite; j++)
+-            finite = isfinite(dx[j]);
+-        for (int64_t i = 0; i < m && finite; i++)
+-            finite = isfinite(dz[i]) && isfinite(dsn[i]);
++        double dt = 0.0, alpha = 0.0;
++        bool finite = false;
++        for (int pass = 0; pass < 2; pass++) {
++            if (pass == 1) {
++                for (int64_t i = 0; i < m; i++)
++                    c->ds[i] = c->kr[i] - sigma * mu * c->e[i];
++                dk = c->tau * c->kappa - sigma * mu;
++            }
++            dt = direction(c, c->ds, dk, 1.0 - sigma, rt, den, dx, dz, dsn,
++                           &dkk);
++            alpha = CONIC_STEP * step_to_boundary(c, dsn, dz, dt, dkk);
++            if (alpha > 1.0)
++                alpha = 1.0;
++            finite = isfinite(dt) && isfinite(dkk);
++            for (int64_t j = 0; j < n && finite; j++)
++                finite = isfinite(dx[j]);
++            for (int64_t i = 0; i < m && finite; i++)
++                finite = isfinite(dz[i]) && isfinite(dsn[i]);
++            if (finite && alpha > CONIC_STALL_STEP)
++                break;
++        }
+         if (!finite || !(alpha > CONIC_STALL_STEP)) {
+             jm_log(log, JAOS_LOG_SUMMARY,
+                    "conic: the step fell to %.3e at iteration %lld%s; stopping",

@@ -1,0 +1,32 @@
+--- a/src/conic.c
++++ b/src/conic.c
+@@ -1,5 +1,6 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #include "jaos_internal.h"
++#include <stdio.h>
+ #include "jaos_sys.h"
+ 
+ #include <math.h>
+@@ -211,6 +212,14 @@
+             for (int64_t t = 1; t < d; t++)
+                 wb[t] = (s[t] / ss - z[t] / zs) / (2.0 * gamma);
+             cn->eta = sqrt(sqrt(sd / zd));
++            {
++                double wn = 0.0;
++                for (int64_t t = 0; t < d; t++)
++                    if (fabs(wb[t]) > wn)
++                        wn = fabs(wb[t]);
++                fprintf(stderr, "DBG nt k=%lld d=%lld s0=%.3e z0=%.3e sd=%.3e zd=%.3e sz=%.17g gamma=%.3e |w|=%.3e eta=%.3e\n",
++                        (long long)k, (long long)d, s[0], z[0], sd, zd, sz, gamma, wn, cn->eta);
++            }
+             double *lam = c->lambda + o;
+             const double w1z1 = dot2(wb + 1, z + 1, d - 1);
+             lam[0] = cn->eta * dot2(wb, z, d);
+@@ -263,6 +272,7 @@
+         } else {
+             const double *l = lam + o, *dd = d + o;
+             const double x0 = lorentz(l, dd, dim) / soc_det(l, dim);
++            fprintf(stderr, "DBG div k=%lld l0=%.3e detl=%.3e x0=%.3e\n", (long long)k, l[0], soc_det(l, dim), x0);
+             out[o] = x0;
+             for (int64_t t = 1; t < dim; t++)
+                 out[o + t] = (dd[t] - l[t] * x0) / l[0];

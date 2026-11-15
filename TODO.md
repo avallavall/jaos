@@ -65,25 +65,23 @@ ray's curvature against its slope changes the checker's contract and is
 the maintainer's decision. Verify with `netqp_read.py` on the same seeds
 and 02-398's `read.sh`.
 
-J27. **Models whose pieces all have room, and pieces whose probe
-fails.** A quadratic row whose smallest value over the rest of the model
-is its side, and a cone whose points all lie on one ray or at its tip,
-are held there and the model solved again, with the duals published as
-NaN (`bench/measurements/02-446/`, `02-452/`). In 02-431's permutation
-reading 49 of 200,000 continuous models and 13 of 198,391 mixed ones
-still end with an answer in one order and `numerical_error` in the
-other, and 2 mixed ones at two optima (`02-452/`). Of the 71 continuous
-disagreements before 02-452, 20 have room in every piece: on the three
-read the point passes the primal test and its duals miss by 1.4e-7 to
-1.9e-6 of their terms, or the walk ends far from any point. 11 of the
-41 with a flat cone are left: a cone whose probe fails because another
-piece has no interior, a walk that ends with no answer, and two
-infeasible models. Holding on the model with the pieces found so far,
-or from a joint probe, was refused: a held row's curved columns sit at
-the probe's point, placed only to the square root of its accuracy, and
-a cone amplifies that into wrong optima (`02-452/`). Nothing is held at
-a node of a mixed-integer tree. Next: the 20 with room, starting with
-the duals that miss by 1.4e-7. Verify with 02-452's `read.sh`.
+J27. **Walks that break at a cone's boundary, and optima no point
+reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and
+cones with no interior are held (`bench/measurements/02-446/`,
+`02-452/`). In 02-431's permutation reading 49 of 200,000 continuous
+models and 13 of 198,391 mixed ones still end with an answer in one
+order and `numerical_error` in the other, and 2 mixed ones at two optima
+(`02-452/`). Of 02-452's 71 pairs, 19 have room in every piece
+(`02-453/`): in 10 no point attains the optimum and the walk's direction
+stops being finite; 9 are walks that break near the end, because a
+cone's slack and dual both near its boundary, the NT scaling widens to
+|w| ~ 1e5, and the slack direction, recovered through W², grows past
+1e+150. 11 of the 41 pairs with a flat cone are left: a cone whose probe
+fails because another piece has no interior, a walk that ends with no
+answer, and two infeasible models. Next: the slack direction recovered
+from the linearised primal rows, read on 02-453's 8 models, then on
+every conic gate, since it moves every conic iterate. Verify with
+02-452's `read.sh`.
 
 ## Tier 3: the largest performance gaps
 
