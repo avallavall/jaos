@@ -1410,7 +1410,7 @@ static jaos_model *warm_from(const char *path, const char *basis)
     return m;
 }
 
-static void test_a_stop_inside_the_settling_reentry_resumes_its_round(void)
+static void test_a_stop_inside_the_settling_reentry_resumes_its_walk(void)
 {
     const char *path = "tests/data/lp_resume_reentry.mps";
     const char *basis = "tests/data/lp_resume_reentry.bas";
@@ -1418,17 +1418,21 @@ static void test_a_stop_inside_the_settling_reentry_resumes_its_round(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(ref));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(ref));
     const int64_t full = jaos_work_units(ref), iters = jaos_iterations(ref);
+    TEST_ASSERT_EQUAL_INT64(27641, full);
+    TEST_ASSERT_EQUAL_INT64(15, iters);
 
-    jaos_model *m = warm_from(path, basis);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 10155));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-    TEST_ASSERT_EQUAL_INT64(full, jaos_work_units(m));
-    TEST_ASSERT_EQUAL_INT64(iters, jaos_iterations(m));
-    jaos_model_free(m);
+    for (int64_t limit = 12500; limit < 27400; limit += 1500) {
+        jaos_model *m = warm_from(path, basis);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, limit));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT64(full, jaos_work_units(m));
+        TEST_ASSERT_EQUAL_INT64(iters, jaos_iterations(m));
+        jaos_model_free(m);
+    }
     jaos_model_free(ref);
 }
 
@@ -3752,7 +3756,7 @@ int main(void)
     RUN_TEST(test_solving_twice_is_bit_identical);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_a_stopped_solve_resumes_the_walk_it_left);
-    RUN_TEST(test_a_stop_inside_the_settling_reentry_resumes_its_round);
+    RUN_TEST(test_a_stop_inside_the_settling_reentry_resumes_its_walk);
     RUN_TEST(test_budgets_survive_a_reload);
     RUN_TEST(test_a_tolerance_must_be_a_tolerance);
     RUN_TEST(test_an_untouched_model_carries_no_tolerance_of_its_own);

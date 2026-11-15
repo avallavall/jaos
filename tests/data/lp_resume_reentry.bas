@@ -2,27 +2,26 @@
 NAME          m482
  XL x0        r0
  UL x1
- UL x3
- XL x5        r1
+ XL x3        r2
+ XL x5        r4
  UL x8
- XL x12       r2
- UL x13
- XL x16       r4
- XU x18       r6
- XU x20       r8
- XL x22       r10
- XL x23       r12
- XU x24       r14
- XU x25       r16
- XL x27       r18
+ XU x12       r6
+ XL x13       r7
+ XU x14       r8
+ XL x15       r10
+ UL x16
+ UL x17
+ XL x18       r12
+ XU x20       r14
+ UL x21
+ XU x22       r16
+ XL x23       r18
+ XL x25       r20
+ XU x27       r22
  UL x28
- XL x29       r20
+ XU x29       r23
  UL x30
  UL x32
- XL x34       r21
- XU x37       r22
- XU x39       r23
- UL x41
  UL x42
- XL x45       R25
+ UL x45
 ENDATA

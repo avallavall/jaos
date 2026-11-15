@@ -1747,9 +1747,9 @@ aside.
 A simplex solve stopped by a limit or a callback keeps its working state on
 the model. The next `jaos_solve` goes on from where it stopped, and ends on
 the answer, the work units and the iterations of a run that never stopped
-(`bench/measurements/02-247/`). The counts go on across a stop, so a solve
-resumed under the limit that stopped it stops again at once. An edit,
-`jaos_set_basis`, `jaos_clear_basis`, or a new algorithm or tolerance
+(`bench/measurements/02-247/`, `02-456/`). The counts go on across a stop,
+so a solve resumed under the limit that stopped it stops again at once. An
+edit, `jaos_set_basis`, `jaos_clear_basis`, or a new algorithm or tolerance
 discards that state. The next solve then starts from the stored basis: the
 one the stop left, the one `jaos_set_basis` gave, or the slack basis after
 `jaos_clear_basis`. A branch and bound keeps no such state: its tree starts

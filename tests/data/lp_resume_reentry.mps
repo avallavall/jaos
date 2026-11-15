@@ -26,7 +26,6 @@ ROWS
  G  r21
  E  r22
  L  r23
- G  R25
 COLUMNS
     x0        r9        4   r23       -5
     x1        obj       -13   r5        4
@@ -59,7 +58,7 @@ COLUMNS
     x11       r16       2   r22       4
     x12       obj       4   r5        4
     x12       r8        5   r15       3
-    x12       r22       -5   R25       -1
+    x12       r22       -5
     x13       obj       -6   r0        3
     x13       r4        -1   r9        5
     x13       r15       5
@@ -85,13 +84,12 @@ COLUMNS
     x20       obj       10   r4        -4
     x20       r8        5   r12       5
     x20       r14       -4   r16       -1
-    x20       R25       -1
     x21       obj       12   r3        5
     x21       r4        5   r9        5
     x21       r12       5   r15       -5
     x21       r20       4
     x22       r1        2   r8        -4
-    x22       r18       -2   R25       0.5000000000000001
+    x22       r18       -2
     x23       obj       -8   r0        -4
     x23       r5        4   r11       -4
     x23       r14       2   r18       -5
@@ -187,7 +185,6 @@ RHS
     RHS       r21       3
     RHS       r22       17
     RHS       r23       33
-    RHS       R25       -4.000000000000024
 RANGES
 BOUNDS
  UP BND       x0        8
@@ -195,49 +192,50 @@ BOUNDS
  UP BND       x2        8
  UP BND       x3        8
  UP BND       x4        8
- LO BND       x5        1
- UP BND       x5        8
+ UP BND       x5        1
  UP BND       x6        8
  UP BND       x7        8
  UP BND       x8        8
  UP BND       x9        8
  UP BND       x10       8
- FX BND       x11       0
+ UP BND       x11       1
  UP BND       x12       4
  UP BND       x13       8
  UP BND       x14       8
  UP BND       x15       8
- UP BND       x16       8
- UP BND       x17       8
+ LO BND       x16       1
+ UP BND       x16       2
+ FX BND       x17       0
  UP BND       x18       8
  UP BND       x19       8
- UP BND       x20       8
- LO BND       x21       5
- UP BND       x21       8
- UP BND       x22       6
- UP BND       x23       4
+ UP BND       x20       5
+ UP BND       x21       4
+ UP BND       x22       5
+ LO BND       x23       5
+ UP BND       x23       8
  LO BND       x24       7
  UP BND       x24       8
- UP BND       x25       2
+ UP BND       x25       8
+ LO BND       x26       3
  UP BND       x26       8
  UP BND       x27       8
  UP BND       x28       8
  UP BND       x29       8
- UP BND       x30       5
+ FX BND       x30       6
  UP BND       x31       8
  UP BND       x32       8
  UP BND       x33       8
- UP BND       x34       8
+ FX BND       x34       2
  UP BND       x35       8
  UP BND       x36       8
  UP BND       x37       8
- LO BND       x38       2
- UP BND       x38       8
+ FX BND       x38       2
+ LO BND       x39       7
  UP BND       x39       8
  UP BND       x40       8
- UP BND       x41       8
+ FX BND       x41       8
  UP BND       x42       8
  UP BND       x43       8
  UP BND       x44       8
- UP BND       x45       8
+ UP BND       x45       1
 ENDATA

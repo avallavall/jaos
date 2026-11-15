@@ -82,30 +82,66 @@ static ct_node *ct_pop(ct_heap *h)
     return top;
 }
 
+typedef struct {
+    int64_t col, at;
+} ct_fix_at;
+
+static int ct_fix_order(const void *a, const void *b)
+{
+    const ct_fix_at *x = a, *y = b;
+    if (x->col != y->col)
+        return x->col < y->col ? -1 : 1;
+    return x->at < y->at ? -1 : x->at > y->at;
+}
+
 static ct_node *ct_child(const ct_node *p, int64_t id, int64_t n,
                          const int64_t *col, const double *lo,
                          const double *hi, double key)
 {
     ct_node *c = calloc(1, sizeof *c);
-    if (c == nullptr)
+    ct_fix_at *ord = jm_alloc_array(n, sizeof *ord);
+    if (c == nullptr || ord == nullptr) {
+        free(ord);
+        ct_node_free(c);
         return nullptr;
+    }
     const int64_t k = p->nfix;
     c->col = jm_alloc_array(k + n, sizeof *c->col);
     c->lo = jm_alloc_array(k + n, sizeof *c->lo);
     c->hi = jm_alloc_array(k + n, sizeof *c->hi);
     if (c->col == nullptr || c->lo == nullptr || c->hi == nullptr) {
+        free(ord);
         ct_node_free(c);
         return nullptr;
     }
-    if (k > 0) {
-        memcpy(c->col, p->col, (size_t)k * sizeof *c->col);
-        memcpy(c->lo, p->lo, (size_t)k * sizeof *c->lo);
-        memcpy(c->hi, p->hi, (size_t)k * sizeof *c->hi);
+    for (int64_t t = 0; t < n; t++)
+        ord[t] = (ct_fix_at){.col = col[t], .at = t};
+    if (n > 1)
+        qsort(ord, (size_t)n, sizeof *ord, ct_fix_order);
+    int64_t a = 0, b = 0, out = 0;
+    while (a < k || b < n) {
+        if (b + 1 < n && ord[b + 1].col == ord[b].col) {
+            b++;
+            continue;
+        }
+        if (b == n || (a < k && p->col[a] < ord[b].col)) {
+            c->col[out] = p->col[a];
+            c->lo[out] = p->lo[a];
+            c->hi[out] = p->hi[a];
+            a++;
+        } else {
+            const int64_t t = ord[b].at;
+            if (a < k && p->col[a] == ord[b].col)
+                a++;
+            c->col[out] = col[t];
+            c->lo[out] = lo[t];
+            c->hi[out] = hi[t];
+            b++;
+        }
+        out++;
     }
-    memcpy(c->col + k, col, (size_t)n * sizeof *c->col);
-    memcpy(c->lo + k, lo, (size_t)n * sizeof *c->lo);
-    memcpy(c->hi + k, hi, (size_t)n * sizeof *c->hi);
-    c->nfix = k + n;
+    free(ord);
+    c->nfix = out;
     c->key = key;
     c->id = id;
     c->depth = p->depth + 1;

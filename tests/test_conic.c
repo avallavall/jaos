@@ -6,6 +6,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -1921,6 +1924,49 @@ static void test_the_conic_tree_answers_the_same_on_any_thread_count(void)
     jaos_model_free(bad);
 }
 
+#if defined(__GLIBC__)
+static size_t heap_in_use(void)
+{
+    const struct mallinfo2 mi = mallinfo2();
+    return mi.uordblks + mi.hblkhd;
+}
+
+static jaos_callback_action note_heap(const jaos_progress *p, void *user)
+{
+    (void)p;
+    size_t *peak = user;
+    const size_t now = heap_in_use();
+    if (now > *peak)
+        *peak = now;
+    return JAOS_CALLBACK_CONTINUE;
+}
+#endif
+
+static void test_a_deep_conic_dive_keeps_its_open_nodes_small(void)
+{
+#if defined(__GLIBC__)
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/conic_tree_deep_dive.mps"));
+    const size_t before = heap_in_use();
+    size_t peak = before;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 200000000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_progress_callback(m, note_heap, &peak));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.nodes > 2000);
+    TEST_ASSERT_TRUE_MESSAGE(peak - before < 8u << 20,
+                             "the open nodes of a dive outgrew 8 MB");
+    jaos_model_free(m);
+#else
+    TEST_IGNORE_MESSAGE("reads the heap through glibc's mallinfo2");
+#endif
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1944,6 +1990,7 @@ int main(void)
     RUN_TEST(test_a_maximisation_ends_where_its_negated_minimisation_does);
     RUN_TEST(test_a_cone_held_flat_leaves_the_direction_solve);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
+    RUN_TEST(test_a_deep_conic_dive_keeps_its_open_nodes_small);
     RUN_TEST(test_a_model_whose_cones_all_go_leaves_the_walk);
     RUN_TEST(test_columns_that_touch_nothing_take_their_own_minimiser);
     RUN_TEST(test_a_failed_leaf_is_set_aside_and_the_tree_goes_on);

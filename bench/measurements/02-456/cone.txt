@@ -1,0 +1,14 @@
+base 25000000: status work limit reached nodes 382 work 25006494 heap growth 2034912 bytes
+base 25000000: max resident 5280 kB
+base 50000000: status work limit reached nodes 753 work 50008492 heap growth 7119136 bytes
+base 50000000: max resident 11780 kB
+base 100000000: status work limit reached nodes 1492 work 100001728 heap growth 27127200 bytes
+base 100000000: max resident 37800 kB
+change 25000000: status work limit reached nodes 382 work 25006494 heap growth 125088 bytes
+change 25000000: max resident 3132 kB
+change 50000000: status work limit reached nodes 753 work 50008492 heap growth 208640 bytes
+change 50000000: max resident 3168 kB
+change 100000000: status work limit reached nodes 1492 work 100001728 heap growth 375424 bytes
+change 100000000: max resident 3316 kB
+change 2000000000: status work limit reached nodes 27369 work 2000011537 heap growth 6163008 bytes
+change 2000000000: max resident 8764 kB

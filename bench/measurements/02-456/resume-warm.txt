@@ -1,0 +1,9 @@
+node-000.mps limit 12334  stopped work limit reached straight optimal 17 iterations 31629 work, resumed optimal 17 iterations 31629 work: same
+node-003.mps limit 12042  stopped work limit reached straight optimal 11 iterations 23403 work, resumed optimal 11 iterations 23403 work: same
+node-004.mps limit 33854  stopped work limit reached straight optimal 31 iterations 49657 work, resumed optimal 31 iterations 49657 work: same
+node-033.mps limit 18752  stopped work limit reached straight optimal 15 iterations 29759 work, resumed optimal 15 iterations 29759 work: same
+node-034.mps limit 15930  stopped work limit reached straight optimal 16 iterations 25515 work, resumed optimal 16 iterations 25515 work: same
+node-045.mps limit 12795  stopped work limit reached straight optimal 8 iterations 23098 work, resumed optimal 8 iterations 23098 work: same
+node-053.mps limit 25033  stopped work limit reached straight optimal 17 iterations 30408 work, resumed optimal 17 iterations 30408 work: same
+node-058.mps limit 19682  stopped work limit reached straight optimal 15 iterations 27641 work, resumed optimal 15 iterations 27641 work: same
+broken 0
