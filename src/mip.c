@@ -186,6 +186,7 @@ constexpr double MIP_PC_EPS = 1e-6;
 
 constexpr int64_t MIP_RELIABILITY = 0;
 constexpr int64_t MIP_STRONG_CANDIDATES = 8;
+constexpr double MIP_PROBE_SHARE = 0.1;
 
 constexpr int64_t MIP_NODE_PRESOLVE_TRIAL = 50;
 constexpr double MIP_NODE_PRESOLVE_ITERS = 20.0;
@@ -1423,6 +1424,63 @@ static double pc_score(int64_t j, double f, int64_t nc, const double *pc_sum,
     return (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) * (qu > MIP_PC_EPS ? qu : MIP_PC_EPS);
 }
 
+static void probe_learn(double *pc_sum, int64_t *pc_n, int64_t nc, int64_t j,
+                        int d, double f, double gain)
+{
+    if (gain < 0.0)
+        gain = 0.0;
+    pc_sum[d * nc + j] += gain / (d == 0 ? f : 1.0 - f);
+    pc_n[d * nc + j] += 1;
+}
+
+static jaos_status kept_probes(jaos_model *lp, const jaos_model *m,
+                               const double *x, double key, double sigma,
+                               int64_t reliability, int64_t cap,
+                               double *pc_sum, int64_t *pc_n, int64_t *work,
+                               int64_t *solves, int64_t *probes,
+                               int64_t *capped, int64_t *cand, int64_t ncand,
+                               int64_t *left_out)
+{
+    const int64_t nc = m->num_col;
+    int64_t out = 0;
+    for (int64_t c = 0; c < ncand; c++) {
+        const int64_t j = cand[c];
+        const double f = x[j] - floor(x[j]);
+        for (int d = 0; d < 2; d++) {
+            if (pc_n[d * nc + j] >= reliability)
+                continue;
+            int64_t room = cap;
+            if (m->cfg.work_limit > 0) {
+                const int64_t left = m->cfg.work_limit - *work;
+                if (room <= 0 || left < room)
+                    room = left > 0 ? left : 1;
+            }
+            const double lo = d == 0 ? lp->col_lower[j] : ceil(x[j]);
+            const double hi = d == 0 ? floor(x[j]) : lp->col_upper[j];
+            double bound = 0.0;
+            jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
+            int64_t w = 0, it = 0;
+            const jaos_status st = jm_probe(lp, j, lo, hi, room, &bound, &o,
+                                            &w, &it);
+            if (st != JAOS_OK)
+                return st;
+            if (o == JAOS_SOLVE_NOT_RUN) {
+                cand[out++] = j;
+                break;
+            }
+            *work += w;
+            (*solves)++;
+            (*probes)++;
+            if (o == JAOS_SOLVE_WORK_LIMIT)
+                (*capped)++;
+            if (o == JAOS_SOLVE_OPTIMAL || o == JAOS_SOLVE_WORK_LIMIT)
+                probe_learn(pc_sum, pc_n, nc, j, d, f, sigma * bound - key);
+        }
+    }
+    *left_out = out;
+    return JAOS_OK;
+}
+
 static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                                 const double *x, double key, double sigma,
                                 int64_t reliability, int64_t cap,
@@ -1464,10 +1522,20 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
     }
     if (ncand == 0)
         return JAOS_OK;
+    if (lp->kept != nullptr) {
+        const jaos_status ks = kept_probes(lp, m, x, key, sigma, reliability,
+                                           cap, pc_sum, pc_n, work, solves,
+                                           probes, capped, cand, ncand,
+                                           &ncand);
+        if (ks != JAOS_OK || ncand == 0)
+            return ks;
+    }
     if (nc > 0)
         memcpy(cs, lp->sol_col_status, (size_t)nc * sizeof *cs);
     if (nr > 0)
         memcpy(rs, lp->sol_row_status, (size_t)nr * sizeof *rs);
+    const bool keep = lp->cfg.node_keep;
+    lp->cfg.node_keep = false;
     jaos_status st = JAOS_OK;
     for (int64_t c = 0; c < ncand && st == JAOS_OK; c++) {
         const int64_t j = cand[c];
@@ -1486,30 +1554,32 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                                  (caller_limit <= 0 || cap < caller_limit);
             if (capping)
                 lp->cfg.work_limit = cap;
+            lp->cfg.node_probe = true;
             if (st == JAOS_OK)
                 st = jaos_solve(lp);
+            lp->cfg.node_probe = false;
             lp->cfg.work_limit = caller_limit;
             (*solves)++;
             (*probes)++;
             *work += jaos_work_units(lp);
-            if (st == JAOS_OK && capping &&
-                jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT)
+            const bool stopped = st == JAOS_OK && capping &&
+                                 jaos_status_of(lp) == JAOS_SOLVE_WORK_LIMIT;
+            if (stopped)
                 (*capped)++;
-            if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
-                double obj = 0.0;
-                if (jaos_objective(lp, &obj) == JAOS_OK) {
-                    double gain = sigma * obj - key;
-                    if (gain < 0.0)
-                        gain = 0.0;
-                    pc_sum[d * nc + j] += gain / (d == 0 ? f : 1.0 - f);
-                    pc_n[d * nc + j] += 1;
-                }
-            }
+            double obj = 0.0;
+            if (stopped && lp->stop_bound_ok)
+                probe_learn(pc_sum, pc_n, nc, j, d, f,
+                            sigma * lp->stop_bound - key);
+            else if (st == JAOS_OK &&
+                     jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL &&
+                     jaos_objective(lp, &obj) == JAOS_OK)
+                probe_learn(pc_sum, pc_n, nc, j, d, f, sigma * obj - key);
             const jaos_status back = jaos_set_col_bounds(lp, j, lo0, hi0);
             if (st == JAOS_OK)
                 st = back;
         }
     }
+    lp->cfg.node_keep = keep;
     if (st != JAOS_OK)
         return st;
 
@@ -6195,6 +6265,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     if (jaos_model_copy(m, &lp) != JAOS_OK)
         goto done;
     lp->cfg.node_solve = true;
+    lp->cfg.node_keep = reliability > 0;
     free(lp->col_integer);
     lp->col_integer = nullptr;
     free(lp->col_semi);
@@ -8044,7 +8115,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         const int64_t nrl = lp->num_row;
 
         if (branch >= 0 && reliability > 0 &&
-            (probe_depth < 0 || depth_here <= probe_depth)) {
+            (probe_depth < 0 || depth_here <= probe_depth) &&
+            (double)ph.sum[PH_BRANCH] <= MIP_PROBE_SHARE * (double)work) {
             phase_to(&ph, work, PH_BRANCH);
             jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
                                                         sizeof *prs);

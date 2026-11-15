@@ -1191,7 +1191,14 @@ from an integer. Any other value fails.
 Sets how many branches in each direction a column needs before its
 pseudocost is trusted. Below that count, strong branching solves the
 children of up to 8 candidates per node, and their gains start the
-pseudocosts. The default is 0, never. The setting applies to pseudocost
+pseudocosts. When the node's relaxation ended optimal in the dual simplex,
+a child solve goes on from that basis and its factors, kept from the
+node's solve, with the one bound changed, and repeats neither presolve nor
+the node's solve; otherwise it is a solve of its own from the node's
+basis. A child stopped by its cap gives its pseudocost the Lagrangian
+bound of its last basis. Strong
+branching pauses at a node while it has taken more than a tenth of the
+tree's work. The default is 0, never. The setting applies to pseudocost
 branching only.
 
 **`jaos_set_mip_probe_cap`**\

@@ -2533,6 +2533,138 @@ static void test_a_capped_probe_reaches_the_same_optimum(void)
     jaos_model_free(m);
 }
 
+static uint64_t probe_lcg(uint64_t *s)
+{
+    *s = *s * 6364136223846793005ULL + 1442695040888963407ULL;
+    return *s >> 33;
+}
+
+enum { PROBE_NC = 25, PROBE_NR = 11 };
+
+static jaos_model *probe_lp(void)
+{
+    double cost[PROBE_NC], cl[PROBE_NC], cu[PROBE_NC];
+    double rl[PROBE_NR], ru[PROBE_NR], sum[PROBE_NR] = { 0 };
+    double av[PROBE_NC * PROBE_NR];
+    int64_t as[PROBE_NC + 1], ai[PROBE_NC * PROBE_NR];
+    uint64_t seed = 20261115;
+    int64_t nz = 0;
+    for (int64_t j = 0; j < PROBE_NC; j++) {
+        as[j] = nz;
+        cost[j] = (double)(1 + probe_lcg(&seed) % 20);
+        cl[j] = j == PROBE_NC - 1 ? 1.0 : 0.0;
+        cu[j] = 1.0;
+        for (int64_t i = 0; i < PROBE_NR - 1; i++) {
+            const double a = (double)(1 + probe_lcg(&seed) % 9);
+            ai[nz] = i;
+            av[nz] = a;
+            nz++;
+            sum[i] += a;
+        }
+        if (j == 0) {
+            ai[nz] = PROBE_NR - 1;
+            av[nz] = 1.0;
+            nz++;
+        }
+    }
+    as[PROBE_NC] = nz;
+    for (int64_t i = 0; i < PROBE_NR - 1; i++) {
+        rl[i] = -INFINITY;
+        ru[i] = floor(sum[i] / 3.0);
+    }
+    rl[PROBE_NR - 1] = -INFINITY;
+    ru[PROBE_NR - 1] = 0.75;
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, PROBE_NC, PROBE_NR, JAOS_MAXIMIZE, 0.0, cost, cl, cu,
+                     rl, ru, nz, as, ai, av));
+    return m;
+}
+
+static void test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child(void)
+{
+    for (int pre = 0; pre < 2; pre++) {
+        jaos_model *lp = probe_lp();
+        lp->cfg.node_solve = true;
+        lp->cfg.node_keep = true;
+        lp->cfg.no_presolve = pre == 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(lp));
+        TEST_ASSERT_NOT_NULL(lp->kept);
+        if (pre == 1) {
+            TEST_ASSERT_TRUE(lp->presolve_num_col < PROBE_NC);
+            double b = 0.0;
+            jaos_solve_status o = JAOS_SOLVE_OPTIMAL;
+            int64_t w = 0, it = 0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_probe(lp, PROBE_NC - 1, 1.0, 1.0,
+                                                    0, &b, &o, &w, &it));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NOT_RUN, o);
+        } else {
+            lp->cfg.work_limit = 1;
+        }
+        double x[PROBE_NC], after[PROBE_NC], obj = 0.0, again = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(lp, &obj));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(lp, x, nullptr, nullptr, nullptr));
+        int64_t solved = 0, infeasible = 0, stopped = 0;
+        for (int64_t j = 0; j < PROBE_NC; j++) {
+            if (x[j] - floor(x[j]) < 1e-6 || ceil(x[j]) - x[j] < 1e-6)
+                continue;
+            for (int d = 0; d < 2; d++) {
+                const double lo = d == 0 ? lp->col_lower[j] : ceil(x[j]);
+                const double hi = d == 0 ? floor(x[j]) : lp->col_upper[j];
+                double bound = 0.0, rough = 0.0, best = 0.0;
+                jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
+                jaos_solve_status ro = JAOS_SOLVE_NOT_RUN;
+                int64_t w = 0, it = 0;
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_probe(lp, j, lo, hi, 0,
+                                                        &bound, &o, &w, &it));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_probe(lp, j, lo, hi, 1,
+                                                        &rough, &ro, &w, &it));
+                jaos_model *child = nullptr;
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(lp, &child));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(child, 0));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                      jaos_set_col_bounds(child, j, lo, hi));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(child));
+                TEST_ASSERT_EQUAL_INT(jaos_status_of(child), o);
+                if (o == JAOS_SOLVE_INFEASIBLE) {
+                    infeasible++;
+                    TEST_ASSERT_TRUE(ro == JAOS_SOLVE_INFEASIBLE ||
+                                     ro == JAOS_SOLVE_WORK_LIMIT);
+                } else {
+                    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, o);
+                    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(child, &best));
+                    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(best)), best,
+                                              bound);
+                    TEST_ASSERT_TRUE(best <= obj + 1e-9 * (1.0 + fabs(obj)));
+                    solved++;
+                }
+                if (ro == JAOS_SOLVE_WORK_LIMIT) {
+                    stopped++;
+                    if (o == JAOS_SOLVE_OPTIMAL)
+                        TEST_ASSERT_TRUE(rough >=
+                                         best - 1e-9 * (1.0 + fabs(best)));
+                }
+                jaos_model_free(child);
+            }
+        }
+        TEST_ASSERT_TRUE(solved >= 4);
+        TEST_ASSERT_TRUE(infeasible >= 1);
+        TEST_ASSERT_TRUE(stopped >= 1);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(lp, &again));
+        TEST_ASSERT_EQUAL_DOUBLE(obj, again);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(lp, after, nullptr, nullptr, nullptr));
+        TEST_ASSERT_EQUAL_MEMORY(x, after, sizeof x);
+        TEST_ASSERT_NOT_NULL(lp->kept);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(lp, 1, 0.0, 1.0));
+        TEST_ASSERT_NULL(lp->kept);
+        jaos_model_free(lp);
+    }
+}
+
 static void test_every_dive_child_rule_reaches_the_same_optimum(void)
 {
     const jaos_dive_child rules[4] = { JAOS_DIVE_NEARER, JAOS_DIVE_UP,
@@ -5877,6 +6009,7 @@ int main(void)
     RUN_TEST(test_a_fractional_bound_on_an_integer_column_is_rounded_inward);
     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
     RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
+    RUN_TEST(test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child);
     RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
     RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
     RUN_TEST(test_dropping_slack_cuts_keeps_the_optimum);

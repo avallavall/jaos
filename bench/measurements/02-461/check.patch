@@ -1,0 +1,66 @@
+--- src/mip.c	2026-11-16 00:10:12.530858000 +0100
++++ src/mip.c	2026-11-16 00:52:44.194002363 +0100
+@@ -1,3 +1,4 @@
++#include <stdio.h>
+ /* SPDX-License-Identifier: Apache-2.0 */
+ 
+ #include "jaos_internal.h"
+@@ -1462,6 +1463,58 @@
+             int64_t w = 0, it = 0;
+             const jaos_status st = jm_probe(lp, j, lo, hi, room, &bound, &o,
+                                             &w, &it);
++            if (getenv("JAOS_KEPT_CHECK") != nullptr && st == JAOS_OK &&
++                o != JAOS_SOLVE_NOT_RUN) {
++                double kb = 0.0, fb = 0.0;
++                jaos_solve_status ko = JAOS_SOLVE_NOT_RUN;
++                jaos_solve_status fo = JAOS_SOLVE_NOT_RUN;
++                int64_t kw = 0, ki = 0;
++                const jaos_status ks = jm_probe(lp, j, lo, hi, 0, &kb, &ko,
++                                                &kw, &ki);
++                jaos_model *cp = nullptr;
++                if (ks == JAOS_OK && jaos_model_copy(lp, &cp) == JAOS_OK) {
++                    cp->cfg = lp->cfg;
++                    cp->cfg.node_keep = false;
++                    cp->cfg.node_probe = false;
++                    cp->cfg.work_limit = 0;
++                    cp->cfg.time_limit = 0.0;
++                    if (jaos_set_col_bounds(cp, j, lo, hi) == JAOS_OK &&
++                        jaos_solve(cp) == JAOS_OK) {
++                        fo = jaos_status_of(cp);
++                        if (fo == JAOS_SOLVE_OPTIMAL &&
++                            jaos_objective(cp, &fb) != JAOS_OK)
++                            fo = JAOS_SOLVE_NOT_RUN;
++                    }
++                    jaos_model_free(cp);
++                }
++                static long long n = 0, bad = 0, odd = 0, capok = 0, capbad = 0;
++                n++;
++                const bool kd = ko == JAOS_SOLVE_OPTIMAL ||
++                                ko == JAOS_SOLVE_INFEASIBLE;
++                const bool fd = fo == JAOS_SOLVE_OPTIMAL ||
++                                fo == JAOS_SOLVE_INFEASIBLE;
++                bool b = kd && fd && ko != fo;
++                if (ko == JAOS_SOLVE_OPTIMAL && fo == JAOS_SOLVE_OPTIMAL &&
++                    fabs(kb - fb) > 1e-6 * (1.0 + fabs(fb)))
++                    b = true;
++                if (o == JAOS_SOLVE_WORK_LIMIT && fo == JAOS_SOLVE_OPTIMAL) {
++                    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++                    if (sg * bound <= sg * fb + 1e-6 * (1.0 + fabs(fb)))
++                        capok++;
++                    else
++                        capbad++;
++                }
++                if (b)
++                    bad++;
++                if (!kd || !fd)
++                    odd++;
++                if (b || ((!kd || !fd) && odd <= 10))
++                    fprintf(stderr, "KCHK %s j=%lld d=%d kept=%d/%.12g "
++                            "fresh=%d/%.12g\n", b ? "BAD" : "odd",
++                            (long long)j, d, (int)ko, kb, (int)fo, fb);
++                fprintf(stderr, "KSUM n=%lld bad=%lld odd=%lld capok=%lld "
++                        "capbad=%lld\n", n, bad, odd, capok, capbad);
++            }
+             if (st != JAOS_OK)
+                 return st;
+             if (o == JAOS_SOLVE_NOT_RUN) {

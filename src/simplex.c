@@ -318,8 +318,47 @@ static void sx_free(sx *s)
     memset(s, 0, sizeof *s);
 }
 
+typedef struct {
+    sx s;
+    sx snap;
+    jm_presolve p;
+    bool reduced;
+    jm_var_status *status;
+    int64_t *basis, *where;
+    double *xb, *d, *dse, *lo, *up, *cost, *shift, *y;
+    jm_fake *fake;
+    uint64_t *dref;
+} jm_kept;
+
+static void kept_free(jm_kept *k)
+{
+    if (k == nullptr)
+        return;
+    sx_free(&k->s);
+    if (k->reduced)
+        jm_presolve_free(&k->p);
+    free(k->status);
+    free(k->basis);
+    free(k->where);
+    free(k->xb);
+    free(k->d);
+    free(k->dse);
+    free(k->lo);
+    free(k->up);
+    free(k->cost);
+    free(k->shift);
+    free(k->y);
+    free(k->fake);
+    free(k->dref);
+    free(k);
+}
+
 void jm_model_drop_parked(jaos_model *m)
 {
+    if (m->kept != nullptr) {
+        kept_free(m->kept);
+        m->kept = nullptr;
+    }
     jm_parked *pk = m->parked;
     if (pk == nullptr)
         return;
@@ -2530,14 +2569,8 @@ static bool save_settled(sx *s)
     return true;
 }
 
-static double settled_objective(const sx *s)
+static double point_objective(const sx *s)
 {
-#ifndef NDEBUG
-
-    for (int64_t v = 0; v < s->nvar; v++)
-        assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]);
-#endif
-
     double sum = 0.0, comp = 0.0;
     for (int64_t v = 0; v < s->nvar; v++) {
         const double x = s->status[v] == JM_BASIC ? s->xb[s->where[v]]
@@ -2551,6 +2584,40 @@ static double settled_objective(const sx *s)
     }
 
     return (isfinite(sum) && isfinite(comp)) ? sum + comp : sum;
+}
+
+static double settled_objective(const sx *s)
+{
+#ifndef NDEBUG
+
+    for (int64_t v = 0; v < s->nvar; v++)
+        assert(s->shift[v] == 0.0 && s->cost[v] == s->cost0[v]);
+#endif
+    return point_objective(s);
+}
+
+static bool stop_bound(sx *s, double *out)
+{
+    if (s->needs_refactor)
+        return false;
+    double *y = s->y;
+    for (int64_t i = 0; i < s->nrow; i++)
+        y[i] = s->cost0[s->basis[i]];
+    jm_lu_btran(&s->lu, y, &s->work);
+    double sum = 0.0, comp = 0.0;
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->status[v] == JM_BASIC)
+            continue;
+        const double d = s->cost0[v] - price_entry(s, y, v);
+        if (d == 0.0)
+            continue;
+        const double b = d > 0.0 ? real_lower(s, v) : real_upper(s, v);
+        if (!isfinite(b))
+            return false;
+        jm_obj_add(&sum, &comp, d * b);
+    }
+    *out = sum + comp;
+    return isfinite(*out);
 }
 
 static double settled_dual_violation(const sx *s)
@@ -4690,6 +4757,42 @@ static jaos_status restart_without_early_perturb(sx *s, jaos_model *m,
     return JAOS_OK;
 }
 
+static bool kept_take(jm_kept *k, const sx *s)
+{
+    const size_t nv = (size_t)s->nvar, nr = (size_t)s->nrow;
+    k->status = jm_alloc_array((int64_t)nv, sizeof *k->status);
+    k->basis = jm_alloc_array((int64_t)nr, sizeof *k->basis);
+    k->where = jm_alloc_array((int64_t)nv, sizeof *k->where);
+    k->xb = jm_alloc_array((int64_t)nr, sizeof *k->xb);
+    k->d = jm_alloc_array((int64_t)nv, sizeof *k->d);
+    k->dse = jm_alloc_array((int64_t)nr, sizeof *k->dse);
+    k->lo = jm_alloc_array((int64_t)nv, sizeof *k->lo);
+    k->up = jm_alloc_array((int64_t)nv, sizeof *k->up);
+    k->cost = jm_alloc_array((int64_t)nv, sizeof *k->cost);
+    k->shift = jm_alloc_array((int64_t)nv, sizeof *k->shift);
+    k->y = jm_alloc_array((int64_t)nr, sizeof *k->y);
+    k->fake = jm_alloc_array((int64_t)nv, sizeof *k->fake);
+    k->dref = jm_alloc_array((int64_t)((nv + 63) / 64), sizeof *k->dref);
+    if (!k->status || !k->basis || !k->where || !k->xb || !k->d || !k->dse ||
+        !k->lo || !k->up || !k->cost || !k->shift || !k->y || !k->fake ||
+        !k->dref)
+        return false;
+    memcpy(k->status, s->status, nv * sizeof *k->status);
+    memcpy(k->basis, s->basis, nr * sizeof *k->basis);
+    memcpy(k->where, s->where, nv * sizeof *k->where);
+    memcpy(k->xb, s->xb, nr * sizeof *k->xb);
+    memcpy(k->d, s->d, nv * sizeof *k->d);
+    memcpy(k->dse, s->dse, nr * sizeof *k->dse);
+    memcpy(k->lo, s->lo, nv * sizeof *k->lo);
+    memcpy(k->up, s->up, nv * sizeof *k->up);
+    memcpy(k->cost, s->cost, nv * sizeof *k->cost);
+    memcpy(k->shift, s->shift, nv * sizeof *k->shift);
+    memcpy(k->y, s->y, nr * sizeof *k->y);
+    memcpy(k->fake, s->fake, nv * sizeof *k->fake);
+    memcpy(k->dref, s->dref, ((nv + 63) / 64) * sizeof *k->dref);
+    return true;
+}
+
 static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                                      bool *by_presolve, int64_t *units,
                                      int64_t *iters)
@@ -5123,6 +5226,18 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         (st != JAOS_OK || outcome == JAOS_SOLVE_NUMERICAL_ERROR))
         memcpy(m->err, target->err, sizeof m->err);
 
+    m->stop_bound_ok = false;
+    if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
+        (outcome == JAOS_SOLVE_WORK_LIMIT ||
+         outcome == JAOS_SOLVE_TIME_LIMIT ||
+         outcome == JAOS_SOLVE_INTERRUPTED)) {
+        double lag = 0.0;
+        if (stop_bound(&s, &lag)) {
+            const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+            m->stop_bound = sgn * lag + target->obj_offset;
+            m->stop_bound_ok = true;
+        }
+    }
     if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL)
         polish_unscaled(&s);
     if (st == JAOS_OK)
@@ -5228,11 +5343,159 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
 
     *units = s.work.units;
     *iters = s.iters;
+    if (m->kept != nullptr) {
+        kept_free(m->kept);
+        m->kept = nullptr;
+    }
+    if (st == JAOS_OK && m->cfg.node_solve && m->cfg.node_keep &&
+        outcome == JAOS_SOLVE_OPTIMAL &&
+        (target == m || target == &p.reduced) && !p.aggregated &&
+        !s.primal_run && !s.needs_refactor) {
+        jm_kept *k = calloc(1, sizeof *k);
+        if (k != nullptr && kept_take(k, &s)) {
+            k->s = s;
+            k->reduced = target == &p.reduced;
+            if (k->reduced) {
+                k->p = p;
+                k->s.m = &k->p.reduced;
+            } else {
+                jm_presolve_free(&p);
+            }
+            k->snap = k->s;
+            m->kept = k;
+            return st;
+        }
+        kept_free(k);
+    }
     if (m->cfg.node_solve && m->lu_spare == nullptr)
         m->lu_spare = jm_lu_stash(&s.lu);
     sx_free(&s);
     jm_presolve_free(&p);
     return st;
+}
+
+static void kept_restore(jm_kept *k)
+{
+    sx *s = &k->s;
+    const sx now = *s;
+    *s = k->snap;
+    s->lu = now.lu;
+    s->bi = now.bi;
+    s->bv = now.bv;
+    s->bi_cap = now.bi_cap;
+    s->bv_cap = now.bv_cap;
+    s->sav_status = now.sav_status;
+    s->sav_basis = now.sav_basis;
+    s->sav_lo = now.sav_lo;
+    s->sav_up = now.sav_up;
+    s->sav_fake = now.sav_fake;
+    s->bst_status = now.bst_status;
+    s->bst_basis = now.bst_basis;
+    s->bst_lo = now.bst_lo;
+    s->bst_up = now.bst_up;
+    s->bst_fake = now.bst_fake;
+    s->c1 = now.c1;
+    s->c1_at = now.c1_at;
+    s->n_c1_at = now.n_c1_at;
+    s->work = now.work;
+    s->m = now.m;
+    const size_t nv = (size_t)s->nvar, nr = (size_t)s->nrow;
+    memcpy(s->status, k->status, nv * sizeof *s->status);
+    memcpy(s->basis, k->basis, nr * sizeof *s->basis);
+    memcpy(s->where, k->where, nv * sizeof *s->where);
+    memcpy(s->xb, k->xb, nr * sizeof *s->xb);
+    memcpy(s->d, k->d, nv * sizeof *s->d);
+    memcpy(s->dse, k->dse, nr * sizeof *s->dse);
+    memcpy(s->lo, k->lo, nv * sizeof *s->lo);
+    memcpy(s->up, k->up, nv * sizeof *s->up);
+    memcpy(s->cost, k->cost, nv * sizeof *s->cost);
+    memcpy(s->shift, k->shift, nv * sizeof *s->shift);
+    memcpy(s->y, k->y, nr * sizeof *s->y);
+    memcpy(s->fake, k->fake, nv * sizeof *s->fake);
+    memcpy(s->dref, k->dref, ((nv + 63) / 64) * sizeof *s->dref);
+    s->pviol_ok = false;
+    s->ncpat = -1;
+    s->anpat = -1;
+    s->nrpat = -1;
+    s->raw_var = -1;
+    s->rho_by_pattern = false;
+    s->held_valid = false;
+    memset(s->col, 0, nr * sizeof *s->col);
+    memset(s->raw, 0, nr * sizeof *s->raw);
+    memset(s->rhsc, 0, nr * sizeof *s->rhsc);
+    memset(s->resc, 0, nr * sizeof *s->resc);
+    memset(s->rho, 0, nr * sizeof *s->rho);
+    memset(s->tau, 0, nr * sizeof *s->tau);
+    memset(s->alpha, 0, nv * sizeof *s->alpha);
+    memset(s->amark, 0, ((nv + 63) / 64) * sizeof *s->amark);
+    memset(s->rmark, 0, ((nr + 63) / 64) * sizeof *s->rmark);
+    jm_nonbasic_build(s->nvar, s->status, s->nbmark);
+    pr_rebuild(s);
+    s->needs_refactor = true;
+    set_verified(s, false);
+}
+
+jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
+                     int64_t cap, double *bound, jaos_solve_status *out,
+                     int64_t *work, int64_t *iters)
+{
+    *out = JAOS_SOLVE_NOT_RUN;
+    *work = 0;
+    *iters = 0;
+    jm_kept *k = m->kept;
+    if (k == nullptr || j < 0 || j >= m->num_col)
+        return JAOS_ERR_INVALID_INPUT;
+    jaos_model *t = k->reduced ? &k->p.reduced : m;
+    const int64_t jr = k->reduced ? k->p.col_map[j] : j;
+    if (jr < 0)
+        return JAOS_OK;
+    const double plo = lo > t->col_lower[jr] ? lo : t->col_lower[jr];
+    const double phi = hi < t->col_upper[jr] ? hi : t->col_upper[jr];
+    if (plo > phi) {
+        *out = JAOS_SOLVE_INFEASIBLE;
+        return JAOS_OK;
+    }
+    kept_restore(k);
+    sx *s = &k->s;
+    const int64_t w0 = s->work.units, i0 = s->iters;
+    s->lo[jr] = plo / t->col_scale[jr];
+    s->up[jr] = phi / t->col_scale[jr];
+    const int64_t limit = t->cfg.work_limit;
+    t->cfg.work_limit = cap > 0 ? s->work.units + cap : 0;
+    jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
+    jaos_status st = run(s, &o);
+    t->cfg.work_limit = limit;
+    if (st == JAOS_OK && o != JAOS_SOLVE_INFEASIBLE &&
+        o != JAOS_SOLVE_NUMERICAL_ERROR && s->needs_refactor) {
+        bool ok = false;
+        st = refresh(s, &ok, false);
+        if (st == JAOS_OK && !ok)
+            o = JAOS_SOLVE_NUMERICAL_ERROR;
+    }
+    if (st == JAOS_ERR_OUT_OF_MEMORY) {
+        *work = s->work.units - w0;
+        return st;
+    }
+    if (st != JAOS_OK)
+        o = JAOS_SOLVE_NUMERICAL_ERROR;
+    if (o == JAOS_SOLVE_OPTIMAL || o == JAOS_SOLVE_WORK_LIMIT) {
+        double lag = 0.0;
+        const bool have = stop_bound(s, &lag);
+        if (!have && o == JAOS_SOLVE_OPTIMAL)
+            lag = point_objective(s);
+        if (have || o == JAOS_SOLVE_OPTIMAL) {
+            const double sgn = t->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+            *bound = sgn * lag + t->obj_offset;
+        } else {
+            o = JAOS_SOLVE_NUMERICAL_ERROR;
+        }
+    }
+    *out = o;
+    *work = s->work.units - w0;
+    *iters = s->iters - i0;
+    m->err[0] = '\0';
+    t->err[0] = '\0';
+    return JAOS_OK;
 }
 
 static bool presolve_answer_certified(jaos_model *m)

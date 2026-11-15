@@ -102,14 +102,14 @@ first:
   36,000. A node solve there is 5 to 15 dual iterations; presolve and the
   factorisation are 17% to 37% of its work (02-459). What they lack is
   bound per node: branching, node cuts, propagation.
-- On `neos-911970` a JAOS node takes about 200 LP iterations against
-  HiGHS's 72, and a strong-branching probe is a full LP solve. A
-  probe that learns the Lagrangian bound of its capped stop, with probes
-  held to 10% of the tree's work, gains 1.1% on the 2017 gap sum and
-  takes `misc03` to 4.2x; refused (02-459). The share was checked per
-  node, and one node's sixteen probes outran it on `beasleyC3`. Next:
-  probes that reuse the node's factors and stop after a few dual
-  iterations, under a share held probe by probe.
+- Strong branching: under `--reliability 4 --probe-cap 1` the children
+  run on the node's kept factors (02-461). The 2017 gap sum falls from
+  13.67 to 13.36 and MIPLIB 3's work to 0.796x, but `misc03`'s tree grows
+  from 248 nodes to 622 (2.9x), as under every probing form read so far
+  (02-459), so it stays off. Of the seven, `pk1`'s dual gap narrows from
+  0.256 to 0.204, and none closes. On `neos-911970` a JAOS node takes
+  about 200 LP iterations against HiGHS's 72. Next: what grows
+  `misc03`'s tree under probing, read node by node against the default.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
   4,066 nodes from a root of 6701.2 after a restart, against JAOS's

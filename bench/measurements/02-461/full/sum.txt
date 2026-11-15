@@ -1,0 +1,4 @@
+base       solved 5 incumbents 28 primal 7.0744 dual 6.5961 sum 13.6705
+rel4cap1   solved 5 incumbents 27 primal 9.2592 dual 6.5275 sum 15.7867
+first      solved 5 incumbents 27 primal 8.1784 dual 6.5609 sum 14.7393
+kept       solved 5 incumbents 28 primal 6.8427 dual 6.5188 sum 13.3615

@@ -3912,6 +3912,7 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
     }
 
     m->cfg = src->cfg;
+    m->cfg.node_keep = false;
 
     if (src->mip_start != nullptr) {
         st = jaos_set_mip_start(m, src->mip_start);

@@ -1159,15 +1159,17 @@ class Model:
 
     def set_mip_reliability(self, branches):
         """Branches per direction before a column's pseudocost is trusted;
-        below it the column's children are solved on the spot (D293). 0
-        never probes and is the default, since the probes measured worse
-        as a default; a negative value restores 0."""
+        below it the column's children are solved on the spot, from the
+        node's own basis and factors (D293). 0 never probes and is the
+        default, since the probes measured worse as a default; a negative
+        value restores 0."""
         self._check(_lib.jaos_set_mip_reliability(self._handle(), int(branches)))
 
     def set_mip_probe_cap(self, multiple):
         """A work cap on each strong-branching probe, as a multiple of the
         work the node's own relaxation took (D294): a child solve that
-        reaches it stops and teaches nothing. 0 removes the cap; a negative
+        reaches it stops and teaches the Lagrangian bound of its last
+        basis. 0 removes the cap; a negative
         value restores the default; NaN and infinity are refused."""
         self._check(_lib.jaos_set_mip_probe_cap(self._handle(), float(multiple)))
 

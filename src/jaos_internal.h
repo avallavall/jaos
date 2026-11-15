@@ -36,6 +36,8 @@ typedef struct {
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
+    bool node_keep;
+    bool node_probe;
     bool node_no_presolve;
     bool no_cert_solve;
     bool no_flat_rows;
@@ -329,6 +331,9 @@ struct jaos_model {
     bool cone_ok;
     bool conic_rough;
 
+    double stop_bound;
+    bool stop_bound_ok;
+
     char **exact_col;
     char **exact_dual;
     char *exact_obj;
@@ -355,6 +360,7 @@ struct jaos_model {
 
     void *parked;
     void *lu_spare;
+    void *kept;
 
     char err[256];
 };
@@ -368,6 +374,10 @@ typedef enum {
 
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 void jm_model_drop_parked(jaos_model *m);
+JAOS_NODISCARD jaos_status jm_probe(jaos_model *m, int64_t j, double lo,
+                                    double hi, int64_t cap, double *bound,
+                                    jaos_solve_status *out, int64_t *work,
+                                    int64_t *iters);
 
 double jm_primal_tolerance(const jaos_model *m);
 double jm_dual_tolerance(const jaos_model *m);
