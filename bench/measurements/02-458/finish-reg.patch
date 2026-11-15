@@ -1,0 +1,11 @@
+--- a/src/conic.c
++++ b/src/conic.c
+@@ -1680,7 +1680,7 @@
+     }
+ 
+     double worst_best = HUGE_VAL;
+-    const double row_reg = mode == 0 && fine ? CONIC_FINISH_REG : CONIC_REG;
++    const double row_reg = mode == 0 && fine ? (getenv("FINISH_REG") != nullptr ? atof(getenv("FINISH_REG")) : CONIC_FINISH_REG) : CONIC_REG;
+     int64_t step = 0;
+     bool symbolic = false;
+     for (;; step++) {

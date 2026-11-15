@@ -13,20 +13,6 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 ## Tier 1: defects
 
-J21. **A cone model with quadratic rows whose optimum sits at a large
-scale.** The second brute-force solve of 02-255 seed 4's model 533 ends
-`numerical_error`: its columns, rows, cones and duals pass the checker
-and its gap is 8e-7. The settle's projection moves the fixed column C4
-5e-9 off its value and stalls, the active rows stay 1.7e-9 to 3.2e-9 off
-their sides, and their multipliers are near 2e7
-(`bench/measurements/02-445/`). With the fixed columns held firmly in
-the projection (their constraint rows regularised by `CONIC_PIVOT` in
-place of `CONIC_REG`), the residual of R1, R4 and the cone stays at 7e-9:
-the three do not all hold at one point to better than that. Next: read
-which of the three the optimum leaves inactive, since the settle takes
-all three as active. Verify with 02-432's `gate.sh`: no `UNSURE` line on
-02-255 seed 4.
-
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
 so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400

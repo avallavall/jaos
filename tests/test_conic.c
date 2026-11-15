@@ -1644,6 +1644,22 @@ static void test_a_maximisation_ends_where_its_negated_minimisation_does(void)
     }
 }
 
+static void test_a_finish_whose_active_gradients_nearly_meet_reaches_its_optimum(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/conic_finish_near_tangent.mps"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_SOLVE_OPTIMAL, jaos_status_of(m),
+                                  jaos_model_error(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    const double want = 140548.0206097062;
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * want, want, obj);
+    assert_checked(m, true);
+    jaos_model_free(m);
+}
+
 static void test_a_cone_held_flat_leaves_the_direction_solve(void)
 {
     const char *path[2] = {"tests/data/cone_flat_ray.mps",
@@ -1988,6 +2004,7 @@ int main(void)
     RUN_TEST(test_a_rough_leaf_beside_a_semi_continuous_column_is_solved);
     RUN_TEST(test_a_failed_leaf_its_cone_leaves_empty_is_closed);
     RUN_TEST(test_a_maximisation_ends_where_its_negated_minimisation_does);
+    RUN_TEST(test_a_finish_whose_active_gradients_nearly_meet_reaches_its_optimum);
     RUN_TEST(test_a_cone_held_flat_leaves_the_direction_solve);
     RUN_TEST(test_the_conic_tree_answers_the_same_on_any_thread_count);
     RUN_TEST(test_a_deep_conic_dive_keeps_its_open_nodes_small);

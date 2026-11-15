@@ -1,0 +1,59 @@
+values: head | 1e-9 | 1e-11 | 1e-13
+#### misocp
+seed 1
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 2
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 3
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 4
+   optimal                           587 |          587 |          588 |          588
+   brute force unsure                  1 |            1 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+   [head] UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point ended at a point the checker doe
+   [1e-9] UNSURE status numerical error /home/vall/uns/s0.mps: the conic interior point ended at a point the checker doe
+seed 13
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 16
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 17
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 29
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+#### discrete
+seed 1
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 2
+   brute force unsure                  0 |            0 |            0 |            0
+   work units                  429427090 |    429443752 |    429443752 |    429443752
+   failed models                       0 |            0 |            0 |            0
+seed 3
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 22
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 24
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 25
+   brute force unsure                  0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+#### conic
+seed 1
+   checker failures                    0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 2
+   checker failures                    0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
+seed 3
+   checker failures                    0 |            0 |            0 |            0
+   failed models                       0 |            0 |            0 |            0
