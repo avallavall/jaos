@@ -117,9 +117,11 @@ first:
   depth 10 with node MIR lift JAOS's bound from 6718.1 to 6724.4 and help
   `beasleyC3` and `neos-911970`, but grow `bell5`'s tree 93x, and the
   node-cut stall that holds `bell5` takes `enigma` from 895 nodes to
-  13,082 (`node-cuts-depth-mir-stall`, 02-460). Next: a stop for a
-  subtree's cuts that keeps the shallow rounds, and the root restart
-  HiGHS takes when 2.9% of the integer columns go inactive.
+  13,082 (`node-cuts-depth-mir-stall`, 02-460). JAOS's `--restart` does
+  not fire on it even with `MIP_RESTART_FRAC` at 0.02: its root's reduced
+  costs fix fewer than 2% of the 170 integer columns, where HiGHS finds
+  2.9% inactive. Next: a stop for a subtree's cuts that keeps the shallow
+  rounds, and what makes HiGHS's root fix more.
 - MIPLIB 3: `l152lav` and `bell3a` trees are far larger than HiGHS's; the
   Gomory family is JAOS's weakest (`bench/measurements/02-351/`, `02-364/`).
 - General integers with equality rows: of 02-394's 700 generated MILPs,
