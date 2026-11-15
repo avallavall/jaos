@@ -1,0 +1,3 @@
+base       solved 5 incumbents 28 primal 7.0744 dual 6.5961 sum 13.6705
+d10mir     solved 5 incumbents 28 primal 7.2303 dual 6.5861 sum 13.8164
+d10mir-s3  solved 5 incumbents 27 primal 8.4827 dual 6.5530 sum 15.0357

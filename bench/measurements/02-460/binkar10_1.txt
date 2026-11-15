@@ -1,0 +1,7 @@
+base                   work_limit   nodes   36217 bound 6718.0662765755733   inc 6742.2000239999925
+restart                work_limit   nodes   36217 bound 6718.0662765755733   inc 6742.2000239999925
+cutdepth10             work_limit   nodes   30355 bound 6717.6332900762354   inc 6742.2000239999788
+nodemir                work_limit   nodes   32069 bound 6717.7735132795724   inc 6742.2000239999898
+cutdepth10-nodemir     work_limit   nodes   30402 bound 6724.3663695636915   inc 6742.2000239999879
+propagate4             work_limit   nodes   51472 bound 6717.5988040105804   inc 6742.2000239999907
+nodecuts-nocap         work_limit   nodes   30370 bound 6717.161104654102    inc 6746.7600229999925

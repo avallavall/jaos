@@ -111,7 +111,15 @@ first:
   probes that reuse the node's factors and stop after a few dual
   iterations, under a share held probe by probe.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
-  (`node-pool-scan`, `bench/measurements/02-340/`).
+  (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
+  4,066 nodes from a root of 6701.2 after a restart, against JAOS's
+  6693.2, with about 96 cuts in its node LPs and 9,500 conflicts. Cuts to
+  depth 10 with node MIR lift JAOS's bound from 6718.1 to 6724.4 and help
+  `beasleyC3` and `neos-911970`, but grow `bell5`'s tree 93x, and the
+  node-cut stall that holds `bell5` takes `enigma` from 895 nodes to
+  13,082 (`node-cuts-depth-mir-stall`, 02-460). Next: a stop for a
+  subtree's cuts that keeps the shallow rounds, and the root restart
+  HiGHS takes when 2.9% of the integer columns go inactive.
 - MIPLIB 3: `l152lav` and `bell3a` trees are far larger than HiGHS's; the
   Gomory family is JAOS's weakest (`bench/measurements/02-351/`, `02-364/`).
 - General integers with equality rows: of 02-394's 700 generated MILPs,

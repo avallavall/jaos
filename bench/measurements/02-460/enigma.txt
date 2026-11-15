@@ -1,0 +1,9 @@
+base                               optimal    nodes     895 work 18684934
+depth10 stall1e-3                  optimal    nodes   13082 work 96844111
+nodemir stall1e-3                  optimal    nodes   13082 work 96844111
+d10 mir stall1e-3                  optimal    nodes   13082 work 96844111
+d10 mir stall3e-3                  optimal    nodes   13082 work 96844111
+d10 mir stall1e-2                  optimal    nodes   13082 work 96844111
+d5 mir stall1e-3                   optimal    nodes   13082 work 96844111
+d3 mir stall1e-3                   optimal    nodes   13082 work 96844111
+stall1e-3 only, depth 3            optimal    nodes   13082 work 96844111
