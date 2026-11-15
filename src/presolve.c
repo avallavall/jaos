@@ -1150,6 +1150,15 @@ static void ps_add_to_other_rows(jaos_model *orig, double *rowc, int64_t j,
     }
 }
 
+static jaos_basis_status ps_equality_side(const jaos_model *orig, double dual,
+                                          double coef)
+{
+    const double y = orig->sense == JAOS_MAXIMIZE ? 0.0 - dual : dual;
+    if (y != 0.0)
+        return y > 0.0 ? JAOS_BASIS_AT_LOWER : JAOS_BASIS_AT_UPPER;
+    return coef < 0.0 ? JAOS_BASIS_AT_UPPER : JAOS_BASIS_AT_LOWER;
+}
+
 static jaos_basis_status ps_fixed_status(const jaos_model *orig, int64_t j,
                                          double value, double dc)
 {
@@ -1382,6 +1391,7 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
 
         orig->sol_row_status[i] =
             (orig->sol_col_status[j] == JAOS_BASIS_FREE) ? JAOS_BASIS_BASIC
+            : rec->lo == rec->hi ? ps_equality_side(orig, 0.0, rec->coef)
             : isfinite(rec->lo) ? JAOS_BASIS_AT_LOWER : JAOS_BASIS_AT_UPPER;
         break;
     }
@@ -1403,7 +1413,9 @@ static void ps_replay_one(jaos_model *orig, const jm_presolve *p, int64_t r,
         ps_row_add(orig, rowc, i, rec->coef * xv);
 
         orig->sol_col_status[j] = JAOS_BASIS_BASIC;
-        orig->sol_row_status[i] = JAOS_BASIS_AT_LOWER;
+        orig->sol_row_status[i] =
+            orig->row_lower[i] == orig->row_upper[i]
+                ? ps_equality_side(orig, yi, rec->coef) : JAOS_BASIS_AT_LOWER;
         break;
     }
 

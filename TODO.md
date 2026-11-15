@@ -83,6 +83,28 @@ from the linearised primal rows, read on 02-453's 8 models, then on
 every conic gate, since it moves every conic iterate. Verify with
 02-452's `read.sh`.
 
+J30. **A stop inside the settling re-entry of a warm-started solve
+resumes to another walk.** `docs/api.md` promises that a stopped simplex
+solve resumes to the iterations and work units of a run that never
+stopped. Of 60 node LPs of `tests/data/mip_noinc_propagate.mps`, each
+solved from the basis the tree gave it and stopped inside the dual pass
+its re-entry runs, 8 resume to other counts, 7 iterations and 18,612
+work units against 15 and 27,641 at worst, on f4cf5c6 as on the change
+of `bench/measurements/02-455/`. 02-424's cold solves read clean. Next:
+read which part of the parked state the resume rebuilds otherwise when
+the solve began from a given basis. Verify with 02-455's
+`resume-warm.sh`: no `BROKE` line; then 02-424's `read.sh`.
+
+J31. **The conic tree holds about 400 KB a node.** 02-455's cone model
+`s2-c01303.mps`, 34 lines with a quadratic row and an indicator row,
+reaches 2e9 work units at 27,369 nodes and 11.3 GB of memory, on f4cf5c6
+as on the change of `bench/measurements/02-455/`. Two such solves at once
+on a 15 GB machine end in the kernel's kill. Next: read what each open
+node keeps (its point, its bounds, a basis or a copy of the model) and
+keep what branching needs. Verify with `/usr/bin/time -f %M` on that file
+at 2e9 work units, which 02-455's `read.sh` writes to `cone-models/`:
+under 1 GB.
+
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
@@ -163,21 +185,6 @@ mode, bound propagation and probing. The last reading had none land
 (`bench/measurements/02-361/`); propagation runs only in a tree with no
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
-
-J29. **The trees the mirror does not reach.** With columns mirrored and
-rows negated, every MIPLIB 3 model, every one of CBLIB's 80
-mixed-integer instances and every one of QPLIB's 17 convex MIQPs now
-takes the same number of nodes and iterations
-(`bench/measurements/02-447/`, `02-450/`, `02-451/`, `02-454/`). Left:
-the MIP presolve's mirror does not run on a model with SOS sets,
-indicator rows, semi-continuous columns or a callback; the conic tree
-leaves a cone's head, an SOS member, a semi-continuous column and an
-indicator's column as they are; with rows negated `blend2` takes 124,814
-iterations against 124,695 in the same 6,972 nodes, and QPLIB_5924 6
-more work units at the same root. Next: 02-447's modes on MILPs with SOS
-sets, indicator rows and semi-continuous columns, built by 02-224's
-`perm.c`. Verify with 02-440's `mirrorfile.c` on that set: no node count
-differs.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).

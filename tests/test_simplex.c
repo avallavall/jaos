@@ -1398,30 +1398,34 @@ static void test_a_stopped_solve_resumes_the_walk_it_left(void)
     jaos_model_free(ref);
 }
 
-static jaos_model *primal_from(const char *path)
+static jaos_model *warm_from(const char *path, const char *basis)
 {
     jaos_model *m = nullptr;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_algorithm(m, JAOS_ALGORITHM_PRIMAL));
+    jaos_basis_status cs[64], rs[32];
+    TEST_ASSERT_TRUE(jaos_num_col(m) <= 64 && jaos_num_row(m) <= 32);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps_basis(m, basis, cs, rs));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(m, cs, rs));
     return m;
 }
 
 static void test_a_stop_inside_the_settling_reentry_resumes_its_round(void)
 {
     const char *path = "tests/data/lp_resume_reentry.mps";
-    jaos_model *ref = primal_from(path);
+    const char *basis = "tests/data/lp_resume_reentry.bas";
+    jaos_model *ref = warm_from(path, basis);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(ref));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(ref));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(ref));
     const int64_t full = jaos_work_units(ref), iters = jaos_iterations(ref);
 
-    jaos_model *m = primal_from(path);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 14839));
+    jaos_model *m = warm_from(path, basis);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 10155));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, 0));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_UNBOUNDED, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT64(full, jaos_work_units(m));
     TEST_ASSERT_EQUAL_INT64(iters, jaos_iterations(m));
     jaos_model_free(m);

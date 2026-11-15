@@ -1240,8 +1240,9 @@ static void test_a_mirrored_integer_column_gives_the_same_conic_tree(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
         nodes[pass] = rep.nodes;
         work[pass] = jaos_work_units(m);
-        TEST_ASSERT_EQUAL_INT_MESSAGE(pass, seen,
-            "an integer column in [-5, 0] is mirrored before the conic tree");
+        TEST_ASSERT_EQUAL_INT_MESSAGE(1, seen,
+            "the conic tree reads the model in one sign, its row >= 7.5 "
+            "negated and an integer column in [-5, 0] mirrored");
         jaos_model_free(m);
     }
     TEST_ASSERT_TRUE(obj[0] == obj[1]);
@@ -1250,6 +1251,62 @@ static void test_a_mirrored_integer_column_gives_the_same_conic_tree(void)
     TEST_ASSERT_TRUE(x[1][0] == x[0][0]);
     TEST_ASSERT_TRUE(x[1][1] == 0.0 - x[0][1]);
     TEST_ASSERT_TRUE(x[1][2] == 0.0 - x[0][2]);
+}
+
+static void catch_again(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "the tree runs again on the model as written") != nullptr)
+        (*(int *)user)++;
+}
+
+static jaos_callback_action keep_going(const jaos_incumbent *inc, void *user)
+{
+    (void)inc;
+    (void)user;
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_a_mirrored_copy_that_fails_gives_way_to_the_model(void)
+{
+    double obj[2] = {0.0, 0.0};
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_read_mps(m, "tests/data/cone_mirror_fallback.mps"));
+        int64_t relaxed = 0;
+        for (int64_t j = 0; j < jaos_num_col(m); j++) {
+            bool semi = false;
+            double lo = 0.0, up = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_semicontinuous(m, j, &semi));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, j, &lo, &up));
+            if (semi && up == 1e20) {
+                TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                      jaos_set_col_bounds(m, j, lo, INFINITY));
+                relaxed++;
+            }
+        }
+        TEST_ASSERT_EQUAL_INT64(1, relaxed);
+        int again = 0;
+        if (pass == 0) {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_log_callback(m, catch_again, &again));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        } else {
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_set_incumbent_callback(m, keep_going, nullptr));
+        }
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        if (pass == 0)
+            TEST_ASSERT_EQUAL_INT_MESSAGE(1, again,
+                "the tree on the mirrored copy ends numerical error, and the "
+                "tree runs again on the model as written");
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(obj[0] == obj[1]);
 }
 
 static void catch_sqp(void *user, jaos_log_level level, const char *line)
@@ -1872,6 +1929,7 @@ int main(void)
     RUN_TEST(test_a_quadratic_row_with_no_interior_ends_optimal_without_duals);
     RUN_TEST(test_a_cone_with_no_interior_ends_optimal_without_duals);
     RUN_TEST(test_a_mirrored_integer_column_gives_the_same_conic_tree);
+    RUN_TEST(test_a_mirrored_copy_that_fails_gives_way_to_the_model);
     RUN_TEST(test_a_certificate_comes_from_a_solve_over_its_multipliers);
     RUN_TEST(test_a_quadratic_row_leaves_out_its_columns_fixed_at_zero);
     RUN_TEST(test_a_cone_model_takes_its_certificate_from_a_solve);

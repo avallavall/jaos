@@ -1,0 +1,38 @@
+== cone both: DIFF=2 path=76 same=9922, nodes or iterations differ in 16
+   by shape: cone=2 cone+indicator=13 cone+semi=1
+   s1-c00087.mps cone+indicator iters 4630/4569 nodes 169/167
+   s1-c01957.mps cone+indicator iters 426/424 nodes 35/35
+   s1-c02166.mps cone+indicator iters 1641/1621 nodes 159/159
+   s1-c02231.mps cone iters 660/440 nodes 1/1
+   s2-c00218.mps cone+indicator DIFF DIFF   numerical error/optimal obj nan/35 inc 35/35 iters 553/515 work 29597710/26632350 nodes 18/18
+   s2-c00881.mps cone+indicator iters 1204/2229 nodes 97/153
+   s2-c01543.mps cone+indicator iters 412/413 nodes 41/41
+   s2-c02121.mps cone+indicator iters 911/912 nodes 80/80
+   s3-c00472.mps cone+indicator iters 225/201 nodes 19/19
+   s3-c01172.mps cone+indicator iters 87/86 nodes 9/9
+   s4-c00756.mps cone+indicator iters 1991/1601 nodes 107/87
+   s4-c00797.mps cone+indicator iters 172/163 nodes 15/15
+   s4-c00889.mps cone+indicator iters 444/442 nodes 17/17
+   s4-c00939.mps cone+indicator iters 311/280 nodes 21/19
+   s4-c01944.mps cone+semi iters 2360/2314 nodes 47/47
+   s4-c02483.mps cone DIFF DIFF   optimal/optimal obj -3/-2.9999998299200366 inc nan/nan iters 41/45 work 497417/524725 nodes 0/0
+== cone rows: path=35 same=9965, nodes or iterations differ in 0
+   by shape: 
+== cone cols: DIFF=2 path=67 same=9931, nodes or iterations differ in 16
+   by shape: cone=2 cone+indicator=13 cone+semi=1
+   s1-c00087.mps cone+indicator iters 4630/4569 nodes 169/167
+   s1-c01957.mps cone+indicator iters 426/424 nodes 35/35
+   s1-c02166.mps cone+indicator iters 1641/1621 nodes 159/159
+   s1-c02231.mps cone iters 660/440 nodes 1/1
+   s2-c00218.mps cone+indicator DIFF DIFF   numerical error/optimal obj nan/35 inc 35/35 iters 553/515 work 29597710/26632350 nodes 18/18
+   s2-c00881.mps cone+indicator iters 1204/2229 nodes 97/153
+   s2-c01543.mps cone+indicator iters 412/413 nodes 41/41
+   s2-c02121.mps cone+indicator iters 911/912 nodes 80/80
+   s3-c00472.mps cone+indicator iters 225/201 nodes 19/19
+   s3-c01172.mps cone+indicator iters 87/86 nodes 9/9
+   s4-c00756.mps cone+indicator iters 1991/1601 nodes 107/87
+   s4-c00797.mps cone+indicator iters 172/163 nodes 15/15
+   s4-c00889.mps cone+indicator iters 444/442 nodes 17/17
+   s4-c00939.mps cone+indicator iters 311/280 nodes 21/19
+   s4-c01944.mps cone+semi iters 2360/2314 nodes 47/47
+   s4-c02483.mps cone DIFF DIFF   optimal/optimal obj -3/-2.9999998299200366 inc nan/nan iters 41/45 work 497417/524725 nodes 0/0

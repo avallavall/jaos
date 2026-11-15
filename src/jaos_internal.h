@@ -289,6 +289,7 @@ struct jaos_model {
     double *mip_pool_x;
     double *mip_pool_obj;
     int64_t mip_pool_n;
+    const void *mip_user;
 
     int64_t *a_start;
     int64_t *a_index;
@@ -510,6 +511,8 @@ JAOS_NODISCARD bool jm_model_basis_count_ok(const jaos_model *m);
 double jm_model_objective_at(const jaos_model *m, const double *xv);
 void jm_model_publish_objective(jaos_model *m);
 bool jm_model_no_duals(const jaos_model *m);
+double jm_row_sign(const jaos_model *m, int64_t i);
+bool jm_column_mirrors(const jaos_model *m, int64_t j, const double *sign);
 
 static_assert(FLT_EVAL_METHOD == 0,
               "Dekker's split needs double arithmetic evaluated at double");

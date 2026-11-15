@@ -1,0 +1,126 @@
+== cone both: DIFF=27 path=2280 same=5996, nodes or iterations differ in 328
+   by shape: cone=85 cone+indicator=121 cone+semi=73 cone+sos=49
+   s1-c00023.mps cone+semi iters 142/147 nodes 9/9
+   s1-c00025.mps cone iters 72/70 nodes 3/3
+   s1-c00058.mps cone DIFF DIFF   optimal/optimal obj -0.99999973076960558/-0.99999972089211431 inc -0.99999973076960558/-0.99999972089211431 iters 133/134 work 2593610/2650294 nodes 5/5
+   s1-c00082.mps cone iters 37/39 nodes 1/1
+   s1-c00087.mps cone+indicator iters 4630/4569 nodes 169/167
+   s1-c00116.mps cone+sos iters 343/358 nodes 38/40
+   s1-c00121.mps cone+indicator iters 75/68 nodes 6/5
+   s1-c00127.mps cone+semi iters 159/161 nodes 5/5
+   s1-c00140.mps cone+semi iters 263/264 nodes 15/15
+   s1-c00163.mps cone+sos iters 385/384 nodes 16/16
+   s1-c00171.mps cone+indicator iters 156/157 nodes 17/17
+   s1-c00180.mps cone+sos DIFF DIFF   optimal/optimal obj 4.4296420046505705e-08/3.3432662385755219e-08 inc 4.4296420046505705e-08/3.3432662385755219e-08 iters 100/102 work 884382/908245 node
+   s1-c00209.mps cone+semi iters 92/94 nodes 7/7
+   s1-c00287.mps cone+semi iters 59/60 nodes 3/3
+   s1-c00345.mps cone+indicator iters 90/88 nodes 5/5
+   s1-c00354.mps cone+indicator iters 115/113 nodes 7/7
+   s1-c00360.mps cone+indicator iters 87/89 nodes 5/5
+   s1-c00375.mps cone+indicator iters 165/161 nodes 9/9
+   s1-c00420.mps cone+semi iters 136/135 nodes 13/13
+   s1-c00431.mps cone+semi DIFF DIFF   optimal/optimal obj -5.9999997270379728/-5.9999998697615897 inc -5.9999997270379728/-5.9999998697615897 iters 79/77 work 702855/675261 nodes 1/1
+   s1-c00446.mps cone+sos DIFF DIFF   optimal/optimal obj 25.000000359957625/25.000000162326749 inc 25.000000359957625/25.000000162326749 iters 177/180 work 1555581/1579572 nodes 2/2
+   s1-c00514.mps cone+indicator iters 121/118 nodes 3/3
+   s1-c00528.mps cone+sos iters 671/672 nodes 60/60
+   s1-c00535.mps cone+indicator iters 320/318 nodes 26/26
+   s1-c00566.mps cone iters 117/118 nodes 7/7
+   s1-c00627.mps cone+indicator iters 221/254 nodes 15/20
+   s1-c00639.mps cone+sos iters 214/305 nodes 10/12
+   s1-c00661.mps cone+semi DIFF DIFF   optimal/optimal obj 1.0000001651395212/1 inc 1.0000001651395212/1 iters 173/171 work 2738836/3051810 nodes 5/5
+   s1-c00695.mps cone+sos iters 123/126 nodes 6/6
+   s1-c00710.mps cone+sos iters 50/52 nodes 3/3
+   s1-c00786.mps cone+indicator DIFF DIFF   optimal/optimal obj 14.000000056866337/14.00000011786293 inc 14.000000056866337/14.00000011786293 iters 172/168 work 1846191/1786031 nodes 7/7
+   s1-c00845.mps cone+indicator iters 81/82 nodes 7/7
+   s1-c00951.mps cone iters 68/71 nodes 4/4
+   s1-c00973.mps cone+semi iters 143/119 nodes 7/7
+   s1-c00980.mps cone+semi iters 244/240 nodes 18/18
+   s1-c01018.mps cone+indicator iters 40/38 nodes 3/3
+   s1-c01019.mps cone+semi iters 47/48 nodes 3/3
+   s1-c01022.mps cone+semi iters 29/33 nodes 3/3
+   s1-c01062.mps cone+indicator iters 72/73 nodes 3/3
+   s1-c01118.mps cone+indicator iters 204611/204585 nodes 8514/8510
+== cone rows: DIFF=1 path=689 same=7713, nodes or iterations differ in 41
+   by shape: cone=11 cone+indicator=13 cone+semi=6 cone+sos=11
+   s1-c00180.mps cone+sos DIFF DIFF   optimal/optimal obj 4.4296420046505705e-08/3.3432662385755219e-08 inc 4.4296420046505705e-08/3.3432662385755219e-08 iters 100/102 work 884382/908245 node
+   s1-c00528.mps cone+sos iters 671/672 nodes 60/60
+   s1-c00541.mps cone+indicator iters 22/19 nodes 1/1
+   s1-c01019.mps cone+semi iters 47/48 nodes 3/3
+   s1-c01285.mps cone+indicator iters 307065/307235 nodes 41466/41491
+   s1-c01497.mps cone+indicator iters 143399/143378 nodes 7665/7664
+   s1-c01535.mps cone iters 62/59 nodes 3/3
+   s1-c01591.mps cone+sos iters 161/162 nodes 4/4
+   s1-c01674.mps cone iters 50/48 nodes 3/3
+   s1-c01878.mps cone+sos iters 233/231 nodes 8/8
+   s1-c02264.mps cone iters 145/148 nodes 11/11
+   s1-c02371.mps cone+semi iters 57/58 nodes 3/3
+   s2-c00056.mps cone+indicator iters 63/65 nodes 3/3
+   s2-c00130.mps cone+semi iters 231/232 nodes 18/18
+   s2-c00263.mps cone+sos iters 146/141 nodes 8/8
+   s2-c00658.mps cone+indicator iters 167/168 nodes 13/13
+   s2-c00804.mps cone+sos iters 34/33 nodes 1/1
+   s2-c00850.mps cone+indicator iters 138546/138541 nodes 10551/10550
+   s2-c00924.mps cone+semi iters 64679/64074 nodes 3145/3110
+   s2-c01000.mps cone+indicator iters 286/285 nodes 12/12
+   s2-c01284.mps cone iters 95/96 nodes 5/5
+   s2-c01829.mps cone iters 124/126 nodes 7/7
+   s2-c01838.mps cone+indicator iters 110695/106405 nodes 3303/3200
+   s2-c01925.mps cone+sos iters 207/201 nodes 10/10
+   s2-c02354.mps cone+indicator iters 506/505 nodes 25/25
+   s3-c00023.mps cone+sos iters 77/79 nodes 3/3
+   s3-c00162.mps cone+indicator iters 184/182 nodes 13/13
+   s3-c00452.mps cone iters 71/70 nodes 5/5
+   s3-c00455.mps cone+sos iters 356/353 nodes 33/33
+   s3-c00488.mps cone+sos iters 24/28 nodes 1/1
+   s3-c00511.mps cone+semi iters 165465/165467 nodes 12523/12528
+   s3-c00605.mps cone iters 273/269 nodes 13/13
+   s3-c01469.mps cone+sos iters 83/74 nodes 6/6
+   s3-c01656.mps cone+indicator iters 68/65 nodes 5/5
+   s3-c01708.mps cone iters 176/175 nodes 12/12
+   s3-c01840.mps cone iters 160/167 nodes 9/10
+   s3-c01992.mps cone+indicator iters 80/78 nodes 3/3
+   s3-c02368.mps cone+indicator iters 196/207 nodes 8/9
+   s4-c00254.mps cone iters 78/83 nodes 5/5
+   s4-c00344.mps cone iters 67/60 nodes 3/3
+== cone cols: DIFF=25 path=1814 same=6164, nodes or iterations differ in 299
+   by shape: cone=80 cone+indicator=114 cone+semi=65 cone+sos=40
+   s1-c00023.mps cone+semi iters 142/147 nodes 9/9
+   s1-c00025.mps cone iters 72/70 nodes 3/3
+   s1-c00058.mps cone DIFF DIFF   optimal/optimal obj -0.99999973076960558/-0.99999972089211431 inc -0.99999973076960558/-0.99999972089211431 iters 133/134 work 2593610/2650294 nodes 5/5
+   s1-c00082.mps cone iters 37/39 nodes 1/1
+   s1-c00087.mps cone+indicator iters 4630/4569 nodes 169/167
+   s1-c00116.mps cone+sos iters 343/358 nodes 38/40
+   s1-c00121.mps cone+indicator iters 75/68 nodes 6/5
+   s1-c00127.mps cone+semi iters 159/161 nodes 5/5
+   s1-c00140.mps cone+semi iters 263/264 nodes 15/15
+   s1-c00163.mps cone+sos iters 385/384 nodes 16/16
+   s1-c00171.mps cone+indicator iters 156/157 nodes 17/17
+   s1-c00209.mps cone+semi iters 92/94 nodes 7/7
+   s1-c00287.mps cone+semi iters 59/60 nodes 3/3
+   s1-c00345.mps cone+indicator iters 90/88 nodes 5/5
+   s1-c00354.mps cone+indicator iters 115/113 nodes 7/7
+   s1-c00360.mps cone+indicator iters 87/89 nodes 5/5
+   s1-c00375.mps cone+indicator iters 165/161 nodes 9/9
+   s1-c00420.mps cone+semi iters 136/135 nodes 13/13
+   s1-c00431.mps cone+semi DIFF DIFF   optimal/optimal obj -5.9999997270379728/-5.9999998697615897 inc -5.9999997270379728/-5.9999998697615897 iters 79/77 work 702855/675261 nodes 1/1
+   s1-c00446.mps cone+sos DIFF DIFF   optimal/optimal obj 25.000000359957625/25.000000162326749 inc 25.000000359957625/25.000000162326749 iters 177/180 work 1555581/1579572 nodes 2/2
+   s1-c00514.mps cone+indicator iters 121/118 nodes 3/3
+   s1-c00528.mps cone+sos iters 671/670 nodes 60/60
+   s1-c00535.mps cone+indicator iters 320/318 nodes 26/26
+   s1-c00541.mps cone+indicator iters 22/19 nodes 1/1
+   s1-c00566.mps cone iters 117/118 nodes 7/7
+   s1-c00627.mps cone+indicator iters 221/254 nodes 15/20
+   s1-c00639.mps cone+sos iters 214/305 nodes 10/12
+   s1-c00661.mps cone+semi DIFF DIFF   optimal/optimal obj 1.0000001651395212/1 inc 1.0000001651395212/1 iters 173/171 work 2738836/3051810 nodes 5/5
+   s1-c00695.mps cone+sos iters 123/126 nodes 6/6
+   s1-c00710.mps cone+sos iters 50/52 nodes 3/3
+   s1-c00786.mps cone+indicator DIFF DIFF   optimal/optimal obj 14.000000056866337/14.00000011786293 inc 14.000000056866337/14.00000011786293 iters 172/168 work 1846191/1786031 nodes 7/7
+   s1-c00845.mps cone+indicator iters 81/82 nodes 7/7
+   s1-c00951.mps cone iters 68/71 nodes 4/4
+   s1-c00973.mps cone+semi iters 143/119 nodes 7/7
+   s1-c00980.mps cone+semi iters 244/240 nodes 18/18
+   s1-c01018.mps cone+indicator iters 40/38 nodes 3/3
+   s1-c01022.mps cone+semi iters 29/33 nodes 3/3
+   s1-c01062.mps cone+indicator iters 72/73 nodes 3/3
+   s1-c01118.mps cone+indicator iters 204611/204585 nodes 8514/8510
+   s1-c01161.mps cone iters 37/36 nodes 1/1

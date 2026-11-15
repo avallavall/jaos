@@ -1689,6 +1689,94 @@ static jaos_callback_action lazy_pair(jaos_node *ev, void *user)
     return s->answer;
 }
 
+typedef struct {
+    double z;
+    int calls, incumbents;
+    bool outside;
+} mirror_seen;
+
+static jaos_callback_action lazy_pair_mirrored(jaos_node *ev, void *user)
+{
+    mirror_seen *s = user;
+    s->calls++;
+    for (int64_t j = 0; j < 2; j++)
+        if (s->z * ev->col_value[j] < -1e-9)
+            s->outside = true;
+    if (ev->integral &&
+        s->z * (ev->col_value[0] + ev->col_value[1]) > 1.5) {
+        const int64_t idx[2] = {0, 1};
+        const double val[2] = {s->z, s->z};
+        if (jaos_node_add_row(ev, 2, idx, val, -INFINITY, 1.0) != JAOS_OK)
+            s->outside = true;
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static jaos_callback_action incumbent_mirrored(const jaos_incumbent *inc,
+                                               void *user)
+{
+    mirror_seen *s = user;
+    s->incumbents++;
+    for (int64_t j = 0; j < 2; j++)
+        if (s->z * inc->col_value[j] < -1e-9)
+            s->outside = true;
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static void test_the_callbacks_see_a_mirrored_column_in_its_own_sign(void)
+{
+    const double rl[1] = {-INFINITY}, ru[1] = {2.0};
+    const int64_t as[4] = {0, 1, 2, 3}, ai[3] = {0, 0, 0};
+    double obj[2], x[2][3];
+    int64_t nodes[2];
+    mirror_seen seen[2] = {{.z = 1.0}, {.z = -1.0}};
+    for (int pass = 0; pass < 2; pass++) {
+        const double z = seen[pass].z;
+        const double c[3] = {-2.0 * z, -2.0 * z, -1.0};
+        const double cl[3] = {z > 0 ? 0.0 : -1.0, z > 0 ? 0.0 : -1.0, 0.0};
+        const double cu[3] = {z > 0 ? 1.0 : 0.0, z > 0 ? 1.0 : 0.0, 1.0};
+        const double av[3] = {z, z, 1.0};
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, 3, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                         3, as, ai, av));
+        for (int64_t j = 0; j < 3; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_node_callback(m, lazy_pair_mirrored, &seen[pass]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_set_incumbent_callback(m, incumbent_mirrored, &seen[pass]));
+        g_log[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_callback(m, capture_log, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[pass]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, x[pass], nullptr, nullptr, nullptr));
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[pass] = rep.nodes;
+        if (pass == 1)
+            TEST_ASSERT_NOT_NULL_MESSAGE(strstr(g_log, "MIP presolve: 2 columns"),
+                "the presolve runs under the callbacks");
+        TEST_ASSERT_FALSE_MESSAGE(seen[pass].outside,
+            "a callback sees every column in the model's own sign");
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, -3.0, obj[0]);
+    TEST_ASSERT_TRUE(obj[0] == obj[1]);
+    TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
+    TEST_ASSERT_EQUAL_INT(seen[0].calls, seen[1].calls);
+    TEST_ASSERT_EQUAL_INT(seen[0].incumbents, seen[1].incumbents);
+    TEST_ASSERT_TRUE(seen[0].incumbents >= 1);
+    for (int j = 0; j < 3; j++)
+        TEST_ASSERT_TRUE(x[1][j] == (j < 2 ? 0.0 - x[0][j] : x[0][j]));
+    TEST_ASSERT_TRUE(x[1][0] + x[1][1] >= -1.0 - 1e-9);
+}
+
 static void test_a_lazy_row_from_the_node_callback_rejects_the_point(void)
 {
     const double c[3] = {-2.0, -2.0, -1.0};
@@ -5781,6 +5869,7 @@ int main(void)
     RUN_TEST(test_the_objective_the_incumbent_and_the_bound_agree);
     RUN_TEST(test_a_gap_of_zero_is_zero_and_each_rule_holds_its_own_gap);
     RUN_TEST(test_a_lazy_row_from_the_node_callback_rejects_the_point);
+    RUN_TEST(test_the_callbacks_see_a_mirrored_column_in_its_own_sign);
     RUN_TEST(test_the_node_callback_hands_the_tree_a_solution);
     RUN_TEST(test_a_user_cut_from_the_node_callback_closes_the_root);
     RUN_TEST(test_the_node_callback_chooses_the_branching_column);

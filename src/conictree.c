@@ -1806,38 +1806,61 @@ done:
     return rc;
 }
 
-static bool ct_mirror_set(const jaos_model *m, bool *flip)
+static bool ct_mirror_set(const jaos_model *m, bool *flip, bool *neg)
 {
-    const int64_t nc = m->num_col;
+    const int64_t nc = m->num_col, nr = m->num_row;
     for (int64_t j = 0; j < nc; j++)
         flip[j] = false;
-    if (m->col_integer == nullptr || m->cfg.incumbent_cb != nullptr ||
-        m->cfg.node_cb != nullptr)
+    for (int64_t i = 0; i < nr; i++)
+        neg[i] = false;
+    if (m->cfg.incumbent_cb != nullptr || m->cfg.node_cb != nullptr)
         return false;
-    for (int64_t j = 0; j < nc; j++)
-        flip[j] = m->col_integer[j] &&
-                  fabs(m->col_lower[j]) > fabs(m->col_upper[j]);
+    double *sign = jm_alloc_array(nr > 0 ? nr : 1, sizeof *sign);
+    double *sum = jm_calloc_array(nr > 0 ? nr : 1, sizeof *sum);
+    double *first = jm_calloc_array(nr > 0 ? nr : 1, sizeof *first);
+    bool *keep = jm_calloc_array(nc > 0 ? nc : 1, sizeof *keep);
+    if (sign == nullptr || sum == nullptr || first == nullptr ||
+        keep == nullptr) {
+        free(sign); free(sum); free(first); free(keep);
+        return false;
+    }
     for (int64_t k = 0; k < m->num_cone; k++) {
         const int64_t b = m->cone_start[k];
-        flip[m->cone_col[b]] = false;
+        keep[m->cone_col[b]] = true;
         if (m->cone_type[k] == JAOS_CONE_ROTATED && b + 1 < m->cone_start[k + 1])
-            flip[m->cone_col[b + 1]] = false;
+            keep[m->cone_col[b + 1]] = true;
     }
-    for (int64_t t = 0; m->num_sos > 0 && t < m->sos_start[m->num_sos]; t++)
-        flip[m->sos_col[t]] = false;
     for (int64_t j = 0; m->col_semi != nullptr && j < nc; j++)
         if (m->col_semi[j])
-            flip[j] = false;
-    for (int64_t i = 0; m->row_ind_col != nullptr && i < m->num_row; i++)
+            keep[j] = true;
+    for (int64_t i = 0; m->row_ind_col != nullptr && i < nr; i++)
         if (m->row_ind_col[i] >= 0)
-            flip[m->row_ind_col[i]] = false;
+            keep[m->row_ind_col[i]] = true;
+    for (int64_t i = 0; i < nr; i++)
+        sign[i] = jm_row_sign(m, i);
     bool any = false;
-    for (int64_t j = 0; j < nc; j++)
+    for (int64_t j = 0; j < nc; j++) {
+        flip[j] = !keep[j] && jm_column_mirrors(m, j, sign);
         any = any || flip[j];
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double v = flip[j] ? 0.0 - m->a_value[k] : m->a_value[k];
+            sum[i] += v;
+            if (first[i] == 0.0)
+                first[i] = v;
+        }
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        neg[i] = sign[i] != 0.0 ? sign[i] < 0.0
+                 : sum[i] != 0.0 ? sum[i] < 0.0 : first[i] < 0.0;
+        any = any || neg[i];
+    }
+    free(sign); free(sum); free(first); free(keep);
     return any;
 }
 
-static jaos_status ct_mirror_pairs(jaos_model *c, const bool *flip, int64_t row)
+static jaos_status ct_mirror_pairs(jaos_model *c, const bool *flip, int64_t row,
+                                   bool negate)
 {
     const int64_t n = row < 0 ? jaos_quadratic_nz(c)
                               : jaos_row_quadratic_nz(c, row);
@@ -1853,7 +1876,7 @@ static jaos_status ct_mirror_pairs(jaos_model *c, const bool *flip, int64_t row)
                      : jaos_row_quadratic(c, row, r, q, v);
     bool moved = false;
     for (int64_t t = 0; st == JAOS_OK && t < n; t++)
-        if (flip[r[t]] != flip[q[t]]) {
+        if ((flip[r[t]] != flip[q[t]]) != negate) {
             v[t] = 0.0 - v[t];
             moved = true;
         }
@@ -1867,26 +1890,32 @@ static jaos_status ct_mirror_pairs(jaos_model *c, const bool *flip, int64_t row)
 }
 
 static jaos_status ct_mirror_copy(const jaos_model *m, const bool *flip,
-                                  jaos_model **out)
+                                  const bool *neg, jaos_model **out)
 {
-    const int64_t nc = m->num_col;
+    const int64_t nc = m->num_col, nr = m->num_row;
     jaos_model *c = nullptr;
     jaos_status st = jaos_model_copy(m, &c);
     for (int64_t j = 0; st == JAOS_OK && j < nc; j++) {
-        if (!flip[j])
-            continue;
-        st = jaos_set_col_bounds(c, j, 0.0 - m->col_upper[j],
-                                 0.0 - m->col_lower[j]);
-        if (st == JAOS_OK)
-            st = jaos_set_col_cost(c, j, 0.0 - m->col_cost[j]);
+        if (flip[j]) {
+            st = jaos_set_col_bounds(c, j, 0.0 - m->col_upper[j],
+                                     0.0 - m->col_lower[j]);
+            if (st == JAOS_OK)
+                st = jaos_set_col_cost(c, j, 0.0 - m->col_cost[j]);
+        }
         for (int64_t k = m->a_start[j]; st == JAOS_OK && k < m->a_start[j + 1];
              k++)
-            st = jaos_set_coefficient(c, m->a_index[k], j, 0.0 - m->a_value[k]);
+            if (flip[j] != neg[m->a_index[k]])
+                st = jaos_set_coefficient(c, m->a_index[k], j,
+                                          0.0 - m->a_value[k]);
     }
+    for (int64_t i = 0; st == JAOS_OK && i < nr; i++)
+        if (neg[i])
+            st = jaos_set_row_bounds(c, i, 0.0 - m->row_upper[i],
+                                     0.0 - m->row_lower[i]);
     if (st == JAOS_OK)
-        st = ct_mirror_pairs(c, flip, -1);
-    for (int64_t i = 0; st == JAOS_OK && m->rq_nz > 0 && i < m->num_row; i++)
-        st = ct_mirror_pairs(c, flip, i);
+        st = ct_mirror_pairs(c, flip, -1, false);
+    for (int64_t i = 0; st == JAOS_OK && m->rq_nz > 0 && i < nr; i++)
+        st = ct_mirror_pairs(c, flip, i, neg[i]);
     if (st == JAOS_OK && m->mip_start != nullptr) {
         double *start = jm_alloc_array(nc > 0 ? nc : 1, sizeof *start);
         if (start == nullptr) {
@@ -1907,7 +1936,7 @@ static jaos_status ct_mirror_copy(const jaos_model *m, const bool *flip,
 }
 
 static jaos_status ct_mirror_back(jaos_model *m, const jaos_model *c,
-                                  const bool *flip)
+                                  const bool *flip, const bool *neg)
 {
     const int64_t nc = m->num_col, nr = m->num_row;
     const int64_t members = m->num_cone > 0 ? m->cone_start[m->num_cone] : 0;
@@ -1976,7 +2005,8 @@ static jaos_status ct_mirror_back(jaos_model *m, const jaos_model *c,
     }
     if (c->solve_status != JAOS_SOLVE_OPTIMAL) {
         for (int64_t i = 0; i < nr; i++)
-            m->sol_farkas[i] = c->sol_farkas[i];
+            m->sol_farkas[i] = neg[i] ? 0.0 - c->sol_farkas[i]
+                                      : c->sol_farkas[i];
         for (int64_t t = 0; t < members && c->sol_cone != nullptr; t++)
             m->sol_cone[t] = flip[m->cone_col[t]] ? 0.0 - c->sol_cone[t]
                                                   : c->sol_cone[t];
@@ -1995,8 +2025,12 @@ static jaos_status ct_mirror_back(jaos_model *m, const jaos_model *c,
             : at == JAOS_BASIS_AT_UPPER ? JAOS_BASIS_AT_LOWER : at;
     }
     for (int64_t i = 0; i < nr; i++) {
-        m->sol_dual[i] = c->sol_dual[i];
-        m->sol_row_status[i] = c->sol_row_status[i];
+        const jaos_basis_status at = c->sol_row_status[i];
+        m->sol_dual[i] = neg[i] ? 0.0 - c->sol_dual[i] : c->sol_dual[i];
+        m->sol_row_status[i] =
+            !neg[i] ? at
+            : at == JAOS_BASIS_AT_LOWER ? JAOS_BASIS_AT_UPPER
+            : at == JAOS_BASIS_AT_UPPER ? JAOS_BASIS_AT_LOWER : at;
     }
     for (int64_t t = 0; t < members && c->sol_cone != nullptr; t++)
         m->sol_cone[t] = flip[m->cone_col[t]] ? 0.0 - c->sol_cone[t]
@@ -2014,31 +2048,54 @@ static jaos_status ct_mirror_back(jaos_model *m, const jaos_model *c,
 jaos_status jm_conic_branch_and_bound(jaos_model *m)
 {
     bool *flip = jm_alloc_array(m->num_col > 0 ? m->num_col : 1, sizeof *flip);
-    if (flip == nullptr)
-        return JAOS_ERR_OUT_OF_MEMORY;
-    if (!ct_mirror_set(m, flip)) {
+    bool *neg = jm_alloc_array(m->num_row > 0 ? m->num_row : 1, sizeof *neg);
+    if (flip == nullptr || neg == nullptr) {
         free(flip);
+        free(neg);
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
+    if (!ct_mirror_set(m, flip, neg)) {
+        free(flip);
+        free(neg);
         return ct_run(m);
     }
     jaos_model *c = nullptr;
-    jaos_status st = ct_mirror_copy(m, flip, &c);
+    jaos_status st = ct_mirror_copy(m, flip, neg, &c);
     if (st != JAOS_OK) {
         free(flip);
+        free(neg);
         return st == JAOS_ERR_OUT_OF_MEMORY ? st : ct_run(m);
     }
-    int64_t count = 0;
+    int64_t cols = 0, rows = 0;
     for (int64_t j = 0; j < m->num_col; j++)
-        count += flip[j] ? 1 : 0;
-    jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %lld integer columns "
-           "whose lower bound lies farther from zero than their upper bound "
-           "are mirrored", (long long)count);
+        cols += flip[j] ? 1 : 0;
+    for (int64_t i = 0; i < m->num_row; i++)
+        rows += neg[i] ? 1 : 0;
+    jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: %lld columns are "
+           "mirrored and %lld rows negated, so that the tree reads the model "
+           "in one sign whatever sign it was written in",
+           (long long)cols, (long long)rows);
     st = ct_run(c);
-    if (st != JAOS_OK) {
+    if (st == JAOS_ERR_OUT_OF_MEMORY) {
         jm_set_err(m, "%s", c->err);
+    } else if (st != JAOS_OK ||
+               c->solve_status == JAOS_SOLVE_NUMERICAL_ERROR) {
+        if (st == JAOS_OK)
+            jm_log(m, JAOS_LOG_SUMMARY, "conic branch and bound: the tree on "
+                   "the mirrored copy ended numerical error (%s); the tree "
+                   "runs again on the model as written", c->err);
+        const int64_t spent = c->solve_work;
+        const int64_t limit = m->cfg.work_limit;
+        if (limit > 0)
+            m->cfg.work_limit = limit > spent ? limit - spent : 1;
+        st = ct_run(m);
+        m->cfg.work_limit = limit;
+        m->solve_work += spent;
     } else {
-        st = ct_mirror_back(m, c, flip);
+        st = ct_mirror_back(m, c, flip, neg);
     }
     jaos_model_free(c);
     free(flip);
+    free(neg);
     return st;
 }

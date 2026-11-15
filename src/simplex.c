@@ -1136,6 +1136,23 @@ static void dual_devex_reset(sx *s)
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
 }
 
+static jm_var_status leaving_status(const sx *s, int64_t v)
+{
+    if (!isfinite(s->lo[v]) || !isfinite(s->up[v]) ||
+        fabs(s->lo[v]) != fabs(s->up[v]))
+        return bound_status(s, v);
+    if (s->lo[v] == s->up[v] && s->lo[v] != 0.0)
+        return s->lo[v] > 0.0 ? JM_AT_LOWER : JM_AT_UPPER;
+    if (v < s->ncol)
+        return s->cost0[v] < 0.0 ? JM_AT_UPPER : JM_AT_LOWER;
+    const jaos_model *m = s->m;
+    const int64_t i = v - s->ncol;
+    for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++)
+        if (m->ar_value[k] != 0.0)
+            return m->ar_value[k] > 0.0 ? JM_AT_LOWER : JM_AT_UPPER;
+    return JM_AT_LOWER;
+}
+
 static bool repair_singular_basis(sx *s)
 {
     const int64_t n = s->nrow;
@@ -1177,12 +1194,7 @@ static bool repair_singular_basis(sx *s)
             break;
         }
 
-        if (isfinite(s->lo[leaving]))
-            s->status[leaving] = JM_AT_LOWER;
-        else if (isfinite(s->up[leaving]))
-            s->status[leaving] = JM_AT_UPPER;
-        else
-            s->status[leaving] = JM_FREE;
+        s->status[leaving] = leaving_status(s, leaving);
         jm_nonbasic_insert(s->nbmark, leaving);
         s->where[leaving] = -1;
 
@@ -2003,6 +2015,8 @@ static int64_t price_and_select(sx *s, int64_t r, bool below,
 
 static inline void shift_to_feasible(sx *s, int64_t v)
 {
+    if (s->lo[v] == s->up[v])
+        return;
     double need = 0.0;
     if (s->status[v] == JM_AT_LOWER) {
         if (s->d[v] < 0.0)
@@ -2372,7 +2386,8 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
 static void repair_dual_infeasibility(sx *s)
 {
     for (int64_t v = 0; v < s->nvar; v++) {
-        if (s->status[v] == JM_BASIC || s->fake[v] != NOT_FAKE)
+        if (s->status[v] == JM_BASIC || s->fake[v] != NOT_FAKE ||
+            s->lo[v] == s->up[v])
             continue;
 
         double to;
@@ -2440,19 +2455,33 @@ static bool shifts_outstanding(const sx *s)
     return false;
 }
 
+static void settle_fixed(sx *s)
+{
+    for (int64_t v = 0; v < s->nvar; v++) {
+        if (s->lo[v] != s->up[v])
+            continue;
+        if (s->status[v] == JM_AT_LOWER && s->d[v] < 0.0)
+            s->status[v] = JM_AT_UPPER;
+        else if (s->status[v] == JM_AT_UPPER && s->d[v] > 0.0)
+            s->status[v] = JM_AT_LOWER;
+    }
+}
+
 static void settle_shifts(sx *s)
 {
-    if (!repay_shifts(s))
-        return;
-
-    compute_duals(s, false);
-    repair_dual_infeasibility(s);
+    if (repay_shifts(s)) {
+        compute_duals(s, false);
+        repair_dual_infeasibility(s);
+    }
+    settle_fixed(s);
 }
 
 static jaos_status run(sx *s, jaos_solve_status *out);
 
 static double dual_breach(const sx *s, int64_t v)
 {
+    if (s->lo[v] == s->up[v])
+        return 0.0;
     switch (s->status[v]) {
     case JM_AT_LOWER: return s->d[v] < -s->dual_tol ? -s->d[v] : 0.0;
     case JM_AT_UPPER: return s->d[v] > s->dual_tol ? s->d[v] : 0.0;
@@ -2465,6 +2494,8 @@ static double dual_breach(const sx *s, int64_t v)
 static double published_breach(const sx *s, int64_t v)
 {
     const jaos_model *m = s->m;
+    if (s->lo[v] == s->up[v])
+        return 0.0;
     const double d = v < s->ncol ? s->d[v] / m->col_scale[v]
                                  : s->d[v] * m->row_scale[v - s->ncol];
     switch (s->status[v]) {

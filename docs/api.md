@@ -657,6 +657,17 @@ The conic branch and bound of `src/conictree.c` solves a MIP with cones or
 quadratic rows. It reads only the gap and its rule, the node limit, the
 tree batch, the branching rule, the cutoff, the rounding switch, the count
 of the dive heuristic and the MIP start. Its pool holds the incumbent alone.
+Unless an incumbent or node callback is set, the tree runs on a copy that
+reads the model in one sign. A column is mirrored by the MIP presolve's
+rule (`jaos_set_mip_presolve`), except a cone's head, a semi-continuous
+column and the column of an indicator row. A row is negated when its sign
+by that rule is -1, or is 0 and the sum of its entries after the mirror is
+negative, or is 0 and the first nonzero entry is. The answer, the duals,
+the basis and a certificate come back to the model as it was written.
+When the tree on the copy ends `JAOS_SOLVE_NUMERICAL_ERROR` or fails,
+the tree runs again on the model as written, under the work limit less
+the work the copy took, so an input the tree refuses is named as the
+model writes it.
 A node moves its relaxation's point into the node's bounds before it
 branches. So a node solve that stops short of its tolerances, with a
 point outside the box, still branches into smaller boxes. Such a node's
@@ -1039,18 +1050,31 @@ second column, and gives its entries, cost and bounds to the first, in
 passes until no such row is left (at most `MIP_PRESOLVE_PASSES`). A column
 whose lower bound lies farther from zero than its upper bound is mirrored
 first: `x` becomes `-x`, with its bounds, cost and entries negated, so the
-tree sees a column in `[-5, 0]` as it sees one in `[0, 5]`. The tree
-then runs on that model. Its answer comes back to every column: a
-dropped column takes the value of the column it was merged into, a
-mirrored column takes its value negated, and an
-optimum is solved again on the whole model with the integer columns fixed,
-for its duals and basis. On a model with a quadratic objective the
-presolve only mirrors: a term of `Q` that pairs a mirrored column with one
-that is not changes sign, and no column is merged. It does not run on a
-model with cones, quadratic rows, SOS sets, indicator rows or
-semi-continuous columns, nor under an incumbent or node callback, which see
-the model's own columns. A sub-MIP inside the tree does not presolve
-again.
+tree sees a column in `[-5, 0]` as it sees one in `[0, 5]`. A column whose
+bounds lie equally far from zero is mirrored when it is fixed at a
+negative value, else when its cost is negative, else when the sum of its
+entries, each read in its row's sign, is negative, or is 0 and the first
+nonzero one of them is. A row's sign is 1 when only its upper side is
+finite, -1 when only its lower side is, the sign of the right-hand side
+for an equality row, the sign of the side farther from zero for a ranged
+row, and 0 otherwise. So a model takes the same tree whatever sign its
+columns were written in. The tree then runs on that model. Its answer
+comes back to every column: a dropped column takes the value of the
+column it was merged into, a mirrored column takes its value negated, and
+an optimum is solved again on the whole model with the integer columns
+fixed, for its duals and basis. When no column was merged, an infeasible
+or unbounded end of the tree is the model's, and an infeasible one's
+certificate comes back with the rows as they are. On a model with a
+quadratic objective, SOS sets, indicator rows or semi-continuous columns
+the presolve only mirrors, and no column is merged. A term of `Q` that
+pairs a mirrored column with one that is not changes sign. An SOS member
+is mirrored like any column; a semi-continuous column and the column of
+an indicator row keep their sign. The presolve does not run on a model
+with cones or quadratic rows, which the conic branch and bound reads in
+one sign itself. An incumbent or node callback sees the model's own
+columns: the point it is shown, and the rows, branches and points it
+hands back, cross the mirror and the merges. A sub-MIP inside the tree
+does not presolve again.
 
 **`jaos_set_mip_probing`**\
 `jaos_status jaos_set_mip_probing(jaos_model *m, int on)`\

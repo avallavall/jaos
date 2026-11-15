@@ -1,0 +1,18 @@
+--- a/perm.c
++++ b/perm.c
+@@ -246,6 +246,15 @@
+         for (int64_t j = 0; j < g.nc; j++) idc[j] = j;
+ 
+         if (build(&g, idc, idr, &a) != JAOS_OK) { skipped++; continue; }
++        if (getenv("DUMPALL") != nullptr) {
++            char path[64];
++            snprintf(path, sizeof path, "g%05" PRId64 ".mps", t);
++            if (jaos_write_mps(a, path) != JAOS_OK)
++                return 2;
++            jaos_model_free(a);
++            built++;
++            continue;
++        }
+         if (build(&g, pc, pr, &b) != JAOS_OK) { jaos_model_free(a); skipped++; continue; }
+         built++;
+ 

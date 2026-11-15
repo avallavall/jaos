@@ -1,0 +1,16 @@
+--- a/mirrorfile.c	2026-11-15 11:22:41.704543199 +0100
++++ b/mirrorfile.c	2026-11-15 11:22:41.721594456 +0100
+@@ -118,13 +118,6 @@
+         if (st == JAOS_OK && type == JAOS_CONE_ROTATED && len > 1)
+             sc[ri[1]] = 1.0;
+     }
+-    for (int64_t k = 0; st == JAOS_OK && k < jaos_num_sos(b); k++) {
+-        int type = 0;
+-        int64_t len = 0;
+-        st = jaos_sos(b, k, &type, &len, ri, v);
+-        for (int64_t p = 0; p < len; p++)
+-            sc[ri[p]] = 1.0;
+-    }
+     for (int64_t j = 0; st == JAOS_OK && j < n; j++) {
+         bool semi = false;
+         st = jaos_col_semicontinuous(b, j, &semi);

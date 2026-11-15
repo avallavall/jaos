@@ -1,0 +1,6 @@
+== mip both: path=7188 same=2812, nodes or iterations differ in 0
+   by shape: 
+== mip rows: same=10000, nodes or iterations differ in 0
+   by shape: 
+== mip cols: path=7188 same=2812, nodes or iterations differ in 0
+   by shape: 

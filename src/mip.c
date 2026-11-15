@@ -1752,6 +1752,17 @@ static int kitem_weight_cmp(const void *pa, const void *pb)
     return p->col < q->col ? -1 : p->col > q->col;
 }
 
+static bool lower_side_first(const jaos_model *lp, int64_t i)
+{
+    const double s = jm_row_sign(lp, i);
+    if (s != 0.0)
+        return s < 0.0;
+    for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1]; k++)
+        if (lp->ar_value[k] != 0.0)
+            return lp->ar_value[k] < 0.0;
+    return false;
+}
+
 static int64_t cover_round(const jaos_model *m, jaos_model *lp,
                            const double *x, const double *ilo,
                            const double *ihi, cutbuf *cb, kitem *items,
@@ -1773,7 +1784,9 @@ static int64_t cover_round(const jaos_model *m, jaos_model *lp,
         }
         if (!binary)
             continue;
-        for (int side = 0; side < 2; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
@@ -2479,7 +2492,9 @@ static int64_t clique_table_build(const jaos_model *m, jaos_model *lp,
         }
         if (!binary)
             continue;
-        for (int side = 0; side < 2; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
@@ -2704,6 +2719,7 @@ static int64_t clique_round(const jaos_model *m, const clique_table *t,
 typedef struct {
     int64_t row;
     double sign, slack, rhs;
+    int pass;
 } zhrow;
 
 static int zhrow_cmp(const void *pa, const void *pb)
@@ -2713,7 +2729,7 @@ static int zhrow_cmp(const void *pa, const void *pb)
         return p->slack < q->slack ? -1 : 1;
     if (p->row != q->row)
         return p->row < q->row ? -1 : 1;
-    return p->sign < q->sign ? -1 : p->sign > q->sign;
+    return p->pass < q->pass ? -1 : p->pass > q->pass;
 }
 
 static bool zh_integral(double v)
@@ -2859,7 +2875,9 @@ static int64_t zero_half_round(const jaos_model *m, jaos_model *lp,
         }
         if (!fit)
             continue;
-        for (int side = 0; side < 2; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound) || !zh_integral(bound))
                 continue;
@@ -2870,6 +2888,7 @@ static int64_t zero_half_round(const jaos_model *m, jaos_model *lp,
             if (!(slack < 1.0 - tol))
                 continue;
             cand[n++] = (zhrow){ .row = i, .sign = sign, .slack = slack,
+                                 .pass = pass,
                                  .rhs = sign * bound };
         }
     }
@@ -2991,7 +3010,9 @@ static int64_t flow_cover_round(const jaos_model *m, jaos_model *lp,
         const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
         if (p1 - p0 < 2)
             continue;
-        for (int side = 0; side < 2 && added < MIP_FLOW_COVER_CUT_CAP; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2 && added < MIP_FLOW_COVER_CUT_CAP; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
@@ -3770,7 +3791,9 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
     memset(cut, 0, (size_t)nc * sizeof *cut);
     for (int64_t i = 0; i < nr; i++) {
         const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
-        for (int side = 0; side < 2; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
@@ -3860,7 +3883,9 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
     memset(cut, 0, (size_t)nc * sizeof *cut);
     *work += nc + nr;
     for (int64_t i = 0; i < nr; i++) {
-        for (int side = 0; side < 2; side++) {
+        const bool lower_first = lower_side_first(lp, i);
+        for (int pass = 0; pass < 2; pass++) {
+            const int side = lower_first ? 1 - pass : pass;
             const double bound = side == 0 ? lp->row_upper[i] : lp->row_lower[i];
             if (!isfinite(bound))
                 continue;
@@ -5085,7 +5110,15 @@ typedef struct {
     double *sol;
     int64_t cap_sol;
     bool has_sol;
+    int64_t sol_seq;
 } rowbuf;
+
+static int64_t mp_user_ncol(const jaos_model *m);
+static const double *mp_user_point(const jaos_model *m, const double *x);
+static int64_t mp_user_col(const jaos_model *m, int64_t k);
+static int64_t mp_copy_col(const jaos_model *m, int64_t j);
+static void mp_rows_to_copy(const jaos_model *m, rowbuf *rb, int64_t from);
+static void mp_sol_to_copy(const jaos_model *m, rowbuf *rb);
 
 typedef struct {
     rowbuf rb;
@@ -5144,6 +5177,7 @@ jaos_status jaos_node_add_solution(jaos_node *ev, int64_t num_col,
     if (num_col > 0)
         memcpy(rb->sol, col_value, (size_t)num_col * sizeof *rb->sol);
     rb->has_sol = true;
+    rb->sol_seq++;
     return JAOS_OK;
 }
 
@@ -5327,16 +5361,21 @@ static jaos_callback_action steer_fire(const jaos_model *m, steer *sw,
         .depth = depth,
         .objective = obj,
         .bound = bound,
-        .col_value = x,
-        .num_col = m->num_col,
+        .col_value = mp_user_point(m, x),
+        .num_col = mp_user_ncol(m),
         .integral = integral,
-        .branch_col = *branch,
+        .branch_col = mp_user_col(m, *branch),
         .internal = &sw->rb,
     };
-    sw->rb.nc = m->num_col;
+    const int64_t rows = sw->rb.n, seq = sw->rb.sol_seq;
+    sw->rb.nc = mp_user_ncol(m);
     sw->fired++;
     const jaos_callback_action a = m->cfg.node_cb(&ev, m->cfg.node_user);
-    *branch = ev.branch_col;
+    *branch = mp_copy_col(m, ev.branch_col);
+    mp_rows_to_copy(m, &sw->rb, rows);
+    if (sw->rb.sol_seq != seq)
+        mp_sol_to_copy(m, &sw->rb);
+    sw->rb.nc = m->num_col;
     return a;
 }
 
@@ -5410,8 +5449,8 @@ static bool incumbent_announce(const jaos_model *m, const incumbent *inc,
         .node = node,
         .objective = inc->obj,
         .bound = bound,
-        .col_value = inc->x,
-        .num_col = m->num_col,
+        .col_value = mp_user_point(m, inc->x),
+        .num_col = mp_user_ncol(m),
         .by_rounding = by_rounding,
     };
     return m->cfg.incumbent_cb(&ev, m->cfg.incumbent_user) !=
@@ -8695,18 +8734,54 @@ static bool mp_eligible(const jaos_model *m)
     if (m->cfg.mip_presolved ||
         !(m->cfg.mip_presolve_set ? m->cfg.mip_presolve : MIP_PRESOLVE))
         return false;
-    if (jm_model_has_conic(m) || m->num_sos > 0 ||
-        m->cfg.incumbent_cb != nullptr || m->cfg.node_cb != nullptr)
-        return false;
-    if (m->row_ind_col != nullptr)
-        for (int64_t i = 0; i < m->num_row; i++)
-            if (m->row_ind_col[i] >= 0)
-                return false;
-    if (m->col_semi != nullptr)
-        for (int64_t j = 0; j < m->num_col; j++)
-            if (m->col_semi[j])
-                return false;
-    return true;
+    return !jm_model_has_conic(m);
+}
+
+double jm_row_sign(const jaos_model *m, int64_t i)
+{
+    const double lo = m->row_lower[i], up = m->row_upper[i];
+    if (isfinite(lo) != isfinite(up))
+        return isfinite(up) ? 1.0 : -1.0;
+    if (!isfinite(up))
+        return 0.0;
+    if (lo == up)
+        return up > 0.0 ? 1.0 : up < 0.0 ? -1.0 : 0.0;
+    return fabs(up) > fabs(lo) ? 1.0 : fabs(up) < fabs(lo) ? -1.0 : 0.0;
+}
+
+bool jm_column_mirrors(const jaos_model *m, int64_t j, const double *sign)
+{
+    const double lo = fabs(m->col_lower[j]), up = fabs(m->col_upper[j]);
+    if (lo != up)
+        return lo > up;
+    if (m->col_lower[j] == m->col_upper[j] && m->col_lower[j] != 0.0)
+        return m->col_lower[j] < 0.0;
+    if (m->col_cost[j] != 0.0)
+        return m->col_cost[j] < 0.0;
+    double sum = 0.0, first = 0.0;
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        const double t = sign[m->a_index[k]] * m->a_value[k];
+        sum += t;
+        if (first == 0.0)
+            first = t;
+    }
+    return sum != 0.0 ? sum < 0.0 : first < 0.0;
+}
+
+static bool mp_mark_kept(const jaos_model *m, bool *keep)
+{
+    bool shaped = m->num_sos > 0;
+    for (int64_t j = 0; m->col_semi != nullptr && j < m->num_col; j++)
+        if (m->col_semi[j]) {
+            keep[j] = true;
+            shaped = true;
+        }
+    for (int64_t i = 0; m->row_ind_col != nullptr && i < m->num_row; i++)
+        if (m->row_ind_col[i] >= 0) {
+            keep[m->row_ind_col[i]] = true;
+            shaped = true;
+        }
+    return shaped;
 }
 
 static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
@@ -8726,14 +8801,19 @@ static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
     s->flip = jm_calloc_array(nc > 0 ? nc : 1, sizeof *s->flip);
     int64_t *cnt = jm_alloc_array(nr > 0 ? nr : 1, sizeof *cnt);
     int64_t *two = jm_alloc_array(2 * (nr > 0 ? nr : 1), sizeof *two);
+    bool *keep = jm_calloc_array(nc > 0 ? nc : 1, sizeof *keep);
+    double *sign = jm_alloc_array(nr > 0 ? nr : 1, sizeof *sign);
     int rc = -1;
     if (s->col == nullptr || s->cost == nullptr || s->lo == nullptr ||
         s->hi == nullptr || s->col_gone == nullptr || s->row_gone == nullptr ||
         s->used == nullptr || s->dirty == nullptr || s->flip == nullptr ||
-        cnt == nullptr || two == nullptr)
+        cnt == nullptr || two == nullptr || keep == nullptr || sign == nullptr)
         goto out;
+    const bool shaped = mp_mark_kept(m, keep);
+    for (int64_t i = 0; i < nr; i++)
+        sign[i] = jm_row_sign(m, i);
     for (int64_t j = 0; j < nc; j++) {
-        const bool flip = fabs(m->col_lower[j]) > fabs(m->col_upper[j]);
+        const bool flip = !keep[j] && jm_column_mirrors(m, j, sign);
         s->flip[j] = flip;
         s->nflip += flip ? 1 : 0;
         s->cost[j] = flip ? 0.0 - m->col_cost[j] : m->col_cost[j];
@@ -8747,7 +8827,8 @@ static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
     }
     *work += m->num_nz + nc + nr;
     *passes = 0;
-    const int64_t npass = jm_model_has_quadratic(m) ? 0 : MIP_PRESOLVE_PASSES;
+    const int64_t npass = jm_model_has_quadratic(m) || shaped
+                              ? 0 : MIP_PRESOLVE_PASSES;
     for (int64_t pass = 0; pass < npass; pass++) {
         (*passes)++;
         for (int64_t i = 0; i < nr; i++) {
@@ -8818,7 +8899,31 @@ static int mp_contract(const jaos_model *m, mp_state *s, int64_t *passes,
 out:
     free(cnt);
     free(two);
+    free(keep);
+    free(sign);
     return rc;
+}
+
+static bool mp_carry_shapes(const jaos_model *m, jaos_model *m2, int64_t nc2,
+                            int64_t nr2)
+{
+    const bool same = nc2 == m->num_col && nr2 == m->num_row;
+    for (int64_t j = 0; m->col_semi != nullptr && j < m->num_col; j++)
+        if (m->col_semi[j] &&
+            (!same || jaos_set_col_semicontinuous(m2, j, true) != JAOS_OK))
+            return false;
+    for (int64_t k = 0; k < m->num_sos; k++) {
+        const int64_t b = m->sos_start[k], e = m->sos_start[k + 1];
+        if (!same || jaos_add_sos(m2, m->sos_type[k], e - b, m->sos_col + b,
+                                  m->sos_weight + b) != JAOS_OK)
+            return false;
+    }
+    for (int64_t i = 0; m->row_ind_col != nullptr && i < m->num_row; i++)
+        if (m->row_ind_col[i] >= 0 &&
+            (!same || jaos_set_row_indicator(m2, i, m->row_ind_col[i],
+                                             m->row_ind_val[i]) != JAOS_OK))
+            return false;
+    return true;
 }
 
 static jaos_model *mp_build(const jaos_model *m, const mp_state *s,
@@ -8901,6 +9006,8 @@ static jaos_model *mp_build(const jaos_model *m, const mp_state *s,
         if (jaos_set_quadratic(m2, qn, qr, qc, qv) != JAOS_OK)
             goto out;
     }
+    if (!mp_carry_shapes(m, m2, nc2, nr2))
+        goto out;
     if (m->mip_start != nullptr) {
         start = jm_alloc_array(nc2 > 0 ? nc2 : 1, sizeof *start);
         if (start == nullptr)
@@ -8937,6 +9044,118 @@ static void mp_postsolve(const mp_state *s, const int64_t *map, int64_t nc2,
             x[j] = 0.0 - x[j];
 }
 
+typedef struct {
+    const mp_state *s;
+    const int64_t *map;
+    int64_t nc2;
+    int64_t *inv, *at, *ord;
+    double *x, *acc;
+} mp_user;
+
+static int64_t mp_user_ncol(const jaos_model *m)
+{
+    const mp_user *u = m->mip_user;
+    return u != nullptr ? u->s->nc : m->num_col;
+}
+
+static const double *mp_user_point(const jaos_model *m, const double *x)
+{
+    const mp_user *u = m->mip_user;
+    if (u == nullptr || x == nullptr)
+        return x;
+    mp_postsolve(u->s, u->map, u->nc2, x, u->x);
+    return u->x;
+}
+
+static int64_t mp_user_col(const jaos_model *m, int64_t k)
+{
+    const mp_user *u = m->mip_user;
+    return u == nullptr || k < 0 || k >= u->nc2 ? k : u->map[k];
+}
+
+static int64_t mp_copy_col(const jaos_model *m, int64_t j)
+{
+    const mp_user *u = m->mip_user;
+    if (u == nullptr || j < 0)
+        return j;
+    return j < u->s->nc ? u->inv[j] : u->nc2;
+}
+
+static void mp_rows_to_copy(const jaos_model *m, rowbuf *rb, int64_t from)
+{
+    const mp_user *u = m->mip_user;
+    if (u == nullptr || from >= rb->n)
+        return;
+    int64_t w = rb->start[from];
+    for (int64_t r = from; r < rb->n; r++) {
+        const int64_t b = rb->start[r], e = rb->start[r + 1];
+        int64_t n = 0;
+        for (int64_t t = b; t < e; t++) {
+            const int64_t j = rb->idx[t], k = u->inv[j];
+            const double v = u->s->flip[j] ? 0.0 - rb->val[t] : rb->val[t];
+            if (u->at[k] < 0) {
+                u->at[k] = n;
+                u->ord[n++] = k;
+                u->acc[k] = v;
+            } else {
+                u->acc[k] += v;
+            }
+        }
+        rb->start[r] = w;
+        for (int64_t q = 0; q < n; q++) {
+            const int64_t k = u->ord[q];
+            u->at[k] = -1;
+            if (u->acc[k] == 0.0)
+                continue;
+            rb->idx[w] = k;
+            rb->val[w] = u->acc[k];
+            w++;
+        }
+    }
+    rb->start[rb->n] = w;
+    rb->nnz = w;
+}
+
+static void mp_sol_to_copy(const jaos_model *m, rowbuf *rb)
+{
+    const mp_user *u = m->mip_user;
+    if (u == nullptr || !rb->has_sol)
+        return;
+    for (int64_t k = 0; k < u->nc2; k++) {
+        const int64_t j = u->map[k];
+        rb->sol[k] = u->s->flip[j] ? 0.0 - rb->sol[j] : rb->sol[j];
+    }
+}
+
+static bool mp_user_init(mp_user *u, const mp_state *s, const int64_t *map,
+                         int64_t nc2)
+{
+    const int64_t nc = s->nc;
+    u->s = s;
+    u->map = map;
+    u->nc2 = nc2;
+    u->inv = jm_alloc_array(nc > 0 ? nc : 1, sizeof *u->inv);
+    u->x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *u->x);
+    u->at = jm_alloc_array(nc2 > 0 ? nc2 : 1, sizeof *u->at);
+    u->ord = jm_alloc_array(nc2 > 0 ? nc2 : 1, sizeof *u->ord);
+    u->acc = jm_alloc_array(nc2 > 0 ? nc2 : 1, sizeof *u->acc);
+    if (u->inv == nullptr || u->x == nullptr || u->at == nullptr ||
+        u->ord == nullptr || u->acc == nullptr)
+        return false;
+    for (int64_t k = 0; k < nc2; k++) {
+        u->at[k] = -1;
+        u->inv[map[k]] = k;
+    }
+    for (int64_t t = s->nsub - 1; t >= 0; t--)
+        u->inv[s->sub[t].drop] = u->inv[s->sub[t].keep];
+    return true;
+}
+
+static void mp_user_free(mp_user *u)
+{
+    free(u->inv); free(u->x); free(u->at); free(u->ord); free(u->acc);
+}
+
 static jaos_status bb_run_marked(jaos_model *m)
 {
     const bool was = m->cfg.mip_presolved;
@@ -8964,6 +9183,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     const double t0 = now_seconds();
     const int64_t nc = m->num_col, nr = m->num_row;
     mp_state s = {0};
+    mp_user u = {0};
     int64_t passes = 0, pre_work = 0;
     int64_t *map = nullptr;
     jaos_model *m2 = nullptr;
@@ -8990,8 +9210,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     }
     if (s.nflip > 0)
         jm_log(m, JAOS_LOG_SUMMARY,
-               "MIP presolve: %lld columns whose lower bound lies farther "
-               "from zero than their upper bound are mirrored",
+               "MIP presolve: %lld columns are mirrored, so that the tree "
+               "reads each column in one sign whatever sign it was written in",
                (long long)s.nflip);
     if (s.nsub > 0)
         jm_log(m, JAOS_LOG_SUMMARY,
@@ -9000,9 +9220,11 @@ jaos_status jm_branch_and_bound(jaos_model *m)
                "columns left",
                (long long)s.nsub, (long long)passes, (long long)m2->num_row,
                (long long)m2->num_col);
-    if (m->cfg.work_limit > 0)
-        m2->cfg.work_limit = m->cfg.work_limit > pre_work
-                                 ? m->cfg.work_limit - pre_work : 1;
+    if (m->cfg.incumbent_cb != nullptr || m->cfg.node_cb != nullptr) {
+        if (!mp_user_init(&u, &s, map, m2->num_col))
+            goto out;
+        m2->mip_user = &u;
+    }
     st = jm_branch_and_bound(m2);
     if (st != JAOS_OK) {
         jm_set_err(m, "%s", m2->err);
@@ -9012,7 +9234,9 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     if (outcome != JAOS_SOLVE_OPTIMAL && outcome != JAOS_SOLVE_WORK_LIMIT &&
         outcome != JAOS_SOLVE_TIME_LIMIT &&
         outcome != JAOS_SOLVE_NODE_LIMIT &&
-        outcome != JAOS_SOLVE_INTERRUPTED) {
+        outcome != JAOS_SOLVE_INTERRUPTED &&
+        (s.nsub > 0 || (outcome != JAOS_SOLVE_INFEASIBLE &&
+                        outcome != JAOS_SOLVE_UNBOUNDED))) {
         st = bb_run_after(m, m2->solve_work + pre_work);
         goto out;
     }
@@ -9042,6 +9266,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
     m->solve_status = outcome;
     m->solve_work = m2->solve_work + pre_work;
     m->solve_iters = m2->solve_iters;
+    if (outcome == JAOS_SOLVE_INFEASIBLE && m2->farkas_ok)
+        (void)root_certifies(m, m2);
     if (m2->mip_pool_n > 0) {
         m->mip_pool_x = jm_alloc_array(m2->mip_pool_n * (nc > 0 ? nc : 1),
                                        sizeof *m->mip_pool_x);
@@ -9085,6 +9311,7 @@ jaos_status jm_branch_and_bound(jaos_model *m)
 out:
     jaos_model_free(m2);
     mp_free(&s);
+    mp_user_free(&u);
     free(map);
     free(x);
     return st;
