@@ -87,6 +87,29 @@ incumbent either way. `bisect-csched008.sh` puts the node count at
 53.8%, so a root heuristic outruns its share since then. `make
 miplib2017` rewrites the record with this reading.
 
+## Node cost is not the gap
+
+A node solve on HEAD, with each part's work summed over the solves of a
+1e9 run (a counting patch, not kept):
+
+| instance | presolve | simplex | of it, factorisations | iterations |
+|---|---|---|---|---|
+| `mas76` | 2,946 | 20,514 | 5,106 | 5.3 |
+| `gen-ip002` | 1,739 | 28,244 | 7,683 | 6.7 |
+| `gen-ip054` | 1,171 | 16,269 | 5,256 | 5.2 |
+| `pk1` | 118 | 55,070 | 9,429 | 14.5 |
+
+Without the node presolve the simplex costs what the presolve saved
+(`mas76` 25,295 against 23,459 units a solve). The fixed part, presolve
+and factorisation, is 17% to 37% of a node; the rest is the dual
+iterations' pricing, so a probe on the node's factors could not be much
+cheaper than the node solve it replaces. And JAOS already takes more
+nodes than the others: in the comparison's 20 s, `mas76` 214,379 against
+HiGHS's 78,024 and SCIP's 66,118, `gen-ip002` 236,531 against 26,433 and
+137,257, `pk1` 196,868 against 49,257 and 52,074, `binkar10_1` 18,265
+against 4,066 and 1,859, which both close. Only `neos5` goes the other
+way, 41,644 against HiGHS's 59,319.
+
 The seven whose incumbent is the optimum (`gen-ip002`, `gen-ip054`,
 `mas76`, `pk1`, `neos5`, `assign1-5-8`, `binkar10_1`) are not where
 JAOS trails the field: in the comparison taken after this reading

@@ -95,8 +95,15 @@ first:
   HiGHS's presolved model reaches bound 745 and incumbent 851 at 1e10,
   against 742 and 830, so presolve is not what keeps it open. Next: the
   root bound and the incumbent.
-- Node cost: on `neos-911970` a JAOS node takes about 200 LP iterations
-  against HiGHS's 72, and a strong-branching probe is a full LP solve. A
+- Node cost is not what keeps the small ones open: in 20 s JAOS takes
+  1.5 to 9 times the nodes of HiGHS and SCIP on `mas76`, `gen-ip002`,
+  `gen-ip054`, `pk1`, `assign1-5-8` and `binkar10_1`, and HiGHS closes
+  `binkar10_1` in 4,066 nodes, SCIP in 1,859, where JAOS stays open past
+  36,000. A node solve there is 5 to 15 dual iterations; presolve and the
+  factorisation are 17% to 37% of its work (02-459). What they lack is
+  bound per node: branching, node cuts, propagation.
+- On `neos-911970` a JAOS node takes about 200 LP iterations against
+  HiGHS's 72, and a strong-branching probe is a full LP solve. A
   probe that learns the Lagrangian bound of its capped stop, with probes
   held to 10% of the tree's work, gains 1.1% on the 2017 gap sum and
   takes `misc03` to 4.2x; refused (02-459). The share was checked per
