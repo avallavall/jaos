@@ -210,7 +210,14 @@ The structures, largest first:
   `graphdraw-domain` 0.44, `supportcase26`, `neos-3754480-nidda`).
 - Scheduling with one start per job: the serial schedule generation
   scheme, priorities from the relaxation (`csched008` has no incumbent,
-  `csched007` is 0.35 away).
+  `csched007` is 0.35 away). `csched008` is time-indexed: 50 jobs, each
+  starting once within a window, durations up to 49, and one resource of
+  capacity 25 kept as a chain of profile columns. A Python prototype of
+  fix-and-propagate, placing each job at its earliest start that bound
+  propagation over every row accepts, never places all 50. It jams after
+  68 to 97 fixes, ordered longest first, by deadline or by release, with
+  seeded restarts. Next: the same with backtracking, a limited
+  discrepancy search over the starts.
 - Periodic timetables: the modulo network simplex (`ic97_potential` has no
   incumbent, `timtab1` is 0.68 away).
 - Fixed-charge networks: dynamic slope scaling, then closing and opening
