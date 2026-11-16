@@ -95,13 +95,21 @@ first:
   HiGHS's presolved model reaches bound 745 and incumbent 851 at 1e10,
   against 742 and 830, so presolve is not what keeps it open. Next: the
   root bound and the incumbent.
-- Node cost is not what keeps the small ones open: in 20 s JAOS takes
-  1.5 to 9 times the nodes of HiGHS and SCIP on `mas76`, `gen-ip002`,
-  `gen-ip054`, `pk1`, `assign1-5-8` and `binkar10_1`, and HiGHS closes
-  `binkar10_1` in 4,066 nodes, SCIP in 1,859, where JAOS stays open past
-  36,000. A node solve there is 5 to 15 dual iterations; presolve and the
-  factorisation are 17% to 37% of its work (02-459). What they lack is
-  bound per node: branching, node cuts, propagation.
+- The seven at 5e10, five times the budget (02-465): `pk1` closes at
+  1.64e10 and `mas76` at 1.95e10; the other five stay open. For those
+  two the target is node work. Their node relaxations are 80% to 88% of
+  the tree's work, at 12 and 6 dual iterations a node, and the
+  heuristics' 12% to 16% buys nothing once node 1 holds the optimum.
+  With node presolve off after the trial, `mas76` closes at 1.84e10.
+  Next: fewer or cheaper iterations per node, such as a child solved on
+  its parent's kept factors when it is the next node; then a heuristic
+  share that falls while no point improves. Verify with `pk1` and `mas76`
+  closing inside 1e10 and `make miplib J=2`.
+- The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
+  the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
+  and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
+  1,859, where JAOS stays open past 121,000 (02-465). What they lack is
+  branching, node cuts and propagation.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

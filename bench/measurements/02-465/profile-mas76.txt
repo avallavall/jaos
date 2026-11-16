@@ -1,0 +1,25 @@
+49,143,781,620 (100.0%)  PROGRAM TOTALS
+6,157,479,584 (12.53%)  src/presolve.c:ps_row_range
+5,275,417,807 (10.73%)  src/scale.c:scale_curtis_reid.constprop.0
+2,776,792,662 ( 5.65%)  src/simplex.c:price_all
+2,054,627,793 ( 4.18%)  ./math/../sysdeps/ieee754/dbl-64/e_log2.c:__log2_fma [/usr/lib/x86_64-linux-gnu/libm.so.6]
+1,964,003,298 ( 4.00%)  src/presolve.c:jm_presolve_run
+1,395,247,820 ( 2.84%)  ./malloc/./malloc/malloc.c:_int_malloc [/usr/lib/x86_64-linux-gnu/libc.so.6]
+1,386,241,267 ( 2.82%)  src/simplex.c:sx_init
+1,356,561,133 ( 2.76%)  ./stdlib/./stdlib/qsort.c:msort_with_tmp.part.0'2 [/usr/lib/x86_64-linux-gnu/libc.so.6]
+1,230,761,451 ( 2.50%)  src/lu.c:jm_lu_factor
+1,007,160,442 ( 2.05%)  src/presolve.c:ps_build_rowwise
+  908,024,421 ( 1.85%)  src/presolve.c:ps_bound_shift
+  882,428,099 ( 1.80%)  src/simplex.c:admit_candidate
+  842,344,905 ( 1.71%)  src/model.c:jm_model_ensure_rowwise
+  797,039,240 ( 1.62%)  src/model.c:jm_two_product_residue
+  711,480,821 ( 1.45%)  src/simplex.c:update_dual
+  687,822,052 ( 1.40%)  ./malloc/./malloc/malloc.c:free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  683,775,853 ( 1.39%)  src/lu.c:jm_lu_btran_sparse
+  662,524,709 ( 1.35%)  src/simplex.c:price_entry
+  654,779,896 ( 1.33%)  ./malloc/./malloc/malloc.c:_int_free [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  495,682,326 ( 1.01%)  src/simplex.c:published_breach
+  477,186,587 ( 0.97%)  src/presolve.c:ps_replay_one.isra.0
+  464,143,002 ( 0.94%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  460,587,082 ( 0.94%)  src/presolve.c:jm_postsolve_expand
+  434,555,741 ( 0.88%)  src/simplex.c:dual_ratio_test.constprop.0

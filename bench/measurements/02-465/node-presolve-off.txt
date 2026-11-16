@@ -1,0 +1,5 @@
+pk1          optimal    rows=45 cols=86 shape=ok iters=4063513 work=16386388700 nodes=337705 cuts=71 heur=7 first=1 obj=10.999999999997739 ref=11[miplib2017] objective=ok checker=ok (col=0 row=2.27e-12 int=0) det=ok digest=b13fada49b9057ef basis=0e7bda2d1fc62b56
+mas76        optimal    rows=12 cols=151 shape=ok iters=3569416 work=18352459773 nodes=564475 cuts=67 heur=4 first=1 obj=40005.054141999994 ref=40005.053989999993[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=91b2b24cf63c030f basis=6d0c88a4adfd0edc
+
+2 instances: 2 solved, 2 shape ok, 2 objective ok, 2 checker ok, 2 deterministic, 0 failed
+gate: PASS
