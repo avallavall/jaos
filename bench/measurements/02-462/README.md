@@ -74,13 +74,45 @@ On the whole set:
 | 1 (02-461) | 0.796x | `misc03` 2.9x |
 | 4 | 1.006x | `enigma` 4.35x |
 
+## What would find `enigma`'s point
+
+`enigma` is a cryptarithm. Each of its 100 binaries puts a letter on a
+digit. Ten rows give each letter one digit, and ten give each digit one
+letter. `BILANCIO` is the sum, with coefficients up to 9,090, and it must
+equal 0. A point is a permutation that satisfies `BILANCIO`.
+
+`heuristics.sh` reads HEAD's heuristics at larger settings, and the
+feasibility jump with `MIP_FJ_WORK` at 100 and 1000 times its value and no
+cap from the root's work (`heuristics.txt`):
+
+| setting | first incumbent at node | work |
+|---|---|---|
+| default | 895 | 18,684,934 |
+| `--feaspump 200`, with and without `--pump-obj 0` | 895 | 25.1M, 31.4M |
+| `--dive-heuristic 500` | 895 | 18,684,934 |
+| `--dive-heuristic-depth 100` | 832 | 51,892,202 |
+| `--dive` | 1,291 | 19,653,402 |
+| `--dive --dive-backtrack 1000` | 22,733 | 153,358,379 |
+| `--local-branching 10` | 895 | 18,684,934 |
+| feasibility jump, 100x its work | 895 | 1.66e9 |
+| feasibility jump, 1000x its work | 895 | 1.64e10 |
+
+None finds it before the tree does. Even at 1.64e10 work units, more than
+the benchmarks' whole budget, the jump finds none: it moves one binary at
+a time. From a permutation, any single flip breaks two assignment rows,
+and the next permutation is four flips away, two letters trading digits.
+A move made of such exchanges would be a search for permutations under
+one equation, which is `enigma`'s own shape.
+
 ## The verdict
 
 Nothing changes in the code. Strong branching stays behind
 `--reliability`.
 
 Under the gate, no setting of the cap can make it the default while
-`enigma`'s tree is a search for a point. A heuristic that finds
-`enigma`'s point at the root would take that instance out of the reading.
-Then the cap could be chosen on `misc03` and the rest: there, cap 0.5 or
-1.5 and no cap keep `misc03` under 1.4x.
+`enigma`'s tree is a search for a point. No heuristic JAOS has finds that
+point at any setting read here. A heuristic that did would take
+`enigma` out of the reading, and the cap could then be chosen on `misc03`
+and the rest: there, cap 0.5 or 1.5 and no cap keep `misc03` under 1.4x.
+The only move that reaches it is a search for permutations, made for
+`enigma`'s shape, and that is not built.

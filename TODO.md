@@ -111,10 +111,12 @@ first:
   probes' weak bounds (no cap: 257 nodes). But `enigma`'s root bound is
   its optimum, so its tree is the search for a first point that no
   heuristic finds. That search moves with any branching change, and no
-  cap from 0.25 to 3 keeps both under 2x (02-462). On `neos-911970` a
-  JAOS node takes about 200 LP iterations against HiGHS's 72. Next: a
-  heuristic that finds `enigma`'s point at the root, then the cap chosen
-  on the rest.
+  cap from 0.25 to 3 keeps both under 2x (02-462). No heuristic finds
+  that point, the feasibility jump at 1000x its work included: a
+  permutation's neighbour is four flips away. On `neos-911970` a JAOS
+  node takes about 200 LP iterations against HiGHS's 72. Next: a move
+  that trades two columns' places across a pair of assignment rows,
+  read on every model with such rows, not on `enigma` alone.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
   4,066 nodes from a root of 6701.2 after a restart, against JAOS's

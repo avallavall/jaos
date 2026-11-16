@@ -1,0 +1,10 @@
+default                                        nodes    895 first incumbent    895 work     18684934
+--feaspump 200                                 nodes    895 first incumbent    895 work     25137501
+--feaspump 200 --pump-obj 0                    nodes    895 first incumbent    895 work     31431724
+--dive-heuristic 500                           nodes    895 first incumbent    895 work     18684934
+--dive-heuristic 50 --dive-heuristic-depth 100 nodes    832 first incumbent    832 work     51892202
+--dive                                         nodes   1291 first incumbent   1291 work     19653402
+--dive --dive-backtrack 1000                   nodes  22733 first incumbent  22733 work    153358379
+--local-branching 10                           nodes    895 first incumbent    895 work     18684934
+feasibility jump, 100x its work                nodes    895 first incumbent    895 work   1657712038
+feasibility jump, 1000x its work               nodes    895 first incumbent    895 work  16417712013
