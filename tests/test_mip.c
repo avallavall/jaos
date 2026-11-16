@@ -2398,6 +2398,7 @@ static void test_a_tree_with_no_incumbent_propagates_from_node_1000(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK,
                               jaos_read_mps(m, "tests/data/mip_noinc_propagate.mps"));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 3000));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 0));
         if (set == 1)
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));

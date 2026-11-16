@@ -304,7 +304,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_TREE_BATCH: i = c->mip_tree_batch > 0 ? c->mip_tree_batch : 1; break;
     case O_BRANCHING: e = c->mip_branching; break;
     case O_RELIABILITY: i = (int64_t)eff(c->mip_reliability_set, (double)c->mip_reliability, JM_DEF_RELIABILITY); break;
-    case O_PROBE_CAP: x = c->mip_probe_cap_set ? c->mip_probe_cap : 0.0; break;
+    case O_PROBE_CAP: x = eff(c->mip_probe_cap_set, c->mip_probe_cap, JM_DEF_PROBE_CAP); break;
     case O_PROBE_DEPTH: i = c->mip_probe_depth_set ? c->mip_probe_depth : -1; break;
     case O_CUT_ROUNDS: i = (int64_t)eff(c->mip_cut_rounds_set, (double)c->mip_cut_rounds, JM_DEF_CUT_ROUNDS); break;
     case O_CUT_DEPTH: i = (int64_t)eff(c->mip_cut_depth_set, (double)c->mip_cut_depth, JM_DEF_CUT_DEPTH); break;

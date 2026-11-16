@@ -1,0 +1,3 @@
+before     solved 5 incumbents 28 primal 7.0744 dual 6.5961 sum 13.6705
+cap1       solved 5 incumbents 28 primal 6.8427 dual 6.5188 sum 13.3615
+cap1.5     solved 5 incumbents 28 primal 7.0004 dual 6.5150 sum 13.5153

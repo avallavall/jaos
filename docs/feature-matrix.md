@@ -134,7 +134,7 @@ cells here are rows `SPECS.md` marks out of scope.
 |---|---|---|---|---|---|---|---|
 | Branch and bound | ● | ● | — | — | ● | ● | ● |
 | Pseudocost branching | ● | ● | — | — | ● | ● | ? |
-| Strong branching | ◐ | ● | — | — | ● | ● | ? |
+| Strong branching | ● | ● | — | — | ● | ● | ? |
 | Node selection beyond best bound | ● | ● | — | — | ● | ? | ? |
 | MIP restarts | ◐ | ● | — | — | ● | ● | ? |
 | Cutting planes | ◐ | ● | — | — | ● | ● | ● |
@@ -151,8 +151,9 @@ cells here are rows `SPECS.md` marks out of scope.
 | Indicator constraints | ● | ○ | — | — | ● | ● | ◐ |
 | Deterministic parallel tree search | ● | ? | — | — | ● | ● | ? |
 
-- *Strong branching*: `--reliability N` exists and is off, measured worse
-  (`bench/refusals.txt`).
+- *Strong branching*: reliability branching is on by default for a linear
+  model, with each child on the node's kept factors
+  (`bench/measurements/02-464/`).
 - *Node selection*: Gurobi names no rule, and no parameter selects one
   (searched: the parameter reference, the MIP logging page, the 12.0
   slides).

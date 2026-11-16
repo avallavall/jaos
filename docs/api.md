@@ -131,8 +131,8 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_node_limit` | `mip_node_limit` | integer | 0, no limit |
 | `jaos_set_mip_tree_batch` | `mip_tree_batch` | integer | 1 |
 | `jaos_set_mip_branching` | `mip_branching` | `pseudocost`, `most-fractional` | `pseudocost` |
-| `jaos_set_mip_reliability` | `mip_reliability` | integer | 0 |
-| `jaos_set_mip_probe_cap` | `mip_probe_cap` | number | 0, no cap |
+| `jaos_set_mip_reliability` | `mip_reliability` | integer | 4; 0 with a quadratic objective |
+| `jaos_set_mip_probe_cap` | `mip_probe_cap` | number | 1.5 |
 | `jaos_set_mip_probe_depth` | `mip_probe_depth` | integer | -1, every depth |
 | `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1 |
 | `jaos_set_mip_cut_depth` | `mip_cut_depth` | integer | 3 |
@@ -1205,14 +1205,17 @@ the node's solve; otherwise it is a solve of its own from the node's
 basis. A child stopped by its cap gives its pseudocost the Lagrangian
 bound of its last basis. Strong
 branching pauses at a node while it has taken more than a tenth of the
-tree's work. The default is 0, never. The setting applies to pseudocost
+tree's work. The default is 4, and 0, never, on a model with a quadratic
+objective, whose children are barrier solves. 0 turns it off, and a
+negative value restores the default. The setting applies to pseudocost
 branching only.
 
 **`jaos_set_mip_probe_cap`**\
 `jaos_status jaos_set_mip_probe_cap(jaos_model *m, double multiple)`\
 Stops each strong-branching child solve at `multiple` times the work of the
-node's own relaxation. The default is 0, no cap, and a negative value
-restores it. The call fails when `multiple` is NaN or positive infinity.
+node's own relaxation. The default is 1.5, 0 is no cap, and a negative
+value restores the default. The call fails when `multiple` is NaN or
+positive infinity.
 
 **`jaos_set_mip_probe_depth`**\
 `jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)`\

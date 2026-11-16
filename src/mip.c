@@ -185,7 +185,7 @@ constexpr double MIP_CUT_SLACK = 1e-15;
 
 constexpr double MIP_PC_EPS = 1e-6;
 
-constexpr int64_t MIP_RELIABILITY = 0;
+constexpr int64_t MIP_RELIABILITY = 4;
 constexpr int64_t MIP_STRONG_CANDIDATES = 8;
 constexpr double MIP_PROBE_SHARE = 0.1;
 
@@ -196,7 +196,7 @@ constexpr int64_t MIP_NOINC_DIVE_AFTER = 1000;
 constexpr int64_t MIP_NOINC_DIVE_BACKTRACKS = 100;
 constexpr int64_t MIP_NOINC_PROPAGATE = 4;
 
-constexpr double MIP_PROBE_CAP = 0.0;
+constexpr double MIP_PROBE_CAP = 1.5;
 
 constexpr int64_t MIP_PROBE_DEPTH = -1;
 
@@ -1320,6 +1320,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
     case JM_DEF_RELIABILITY: return (double)MIP_RELIABILITY;
+    case JM_DEF_PROBE_CAP: return MIP_PROBE_CAP;
     }
     return 0.0;
 }
@@ -6518,9 +6519,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     const bool stack_dive = dive && (backtrack > 0 || dive_gap > 0.0);
     const bool heur = !m->cfg.mip_no_heuristics;
     const jaos_branching rule = (jaos_branching)m->cfg.mip_branching;
-    const int64_t reliability = rule == JAOS_BRANCH_PSEUDOCOST
-        ? (m->cfg.mip_reliability_set ? m->cfg.mip_reliability : MIP_RELIABILITY)
-        : 0;
+    const int64_t reliability = rule != JAOS_BRANCH_PSEUDOCOST ? 0
+        : m->cfg.mip_reliability_set ? m->cfg.mip_reliability
+        : quadratic ? 0 : MIP_RELIABILITY;
     const double probe_cap = m->cfg.mip_probe_cap_set ? m->cfg.mip_probe_cap
                                                       : MIP_PROBE_CAP;
     const int dive_child = m->cfg.mip_dive_child;

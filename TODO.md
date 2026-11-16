@@ -102,20 +102,16 @@ first:
   36,000. A node solve there is 5 to 15 dual iterations; presolve and the
   factorisation are 17% to 37% of its work (02-459). What they lack is
   bound per node: branching, node cuts, propagation.
-- Strong branching: under `--reliability 4 --probe-cap 1` the children
-  run on the node's kept factors (02-461). The 2017 gap sum falls from
-  13.67 to 13.36 and MIPLIB 3's work to 0.796x, but `misc03`'s tree grows
-  from 248 nodes to 622 (2.9x), as under every probing form read so far
-  (02-459), so it stays off. Of the seven, `pk1`'s dual gap narrows from
-  0.256 to 0.204, and none closes. `misc03` grows from the capped
-  probes' weak bounds (no cap: 257 nodes). But `enigma`'s root bound is
-  its optimum, so its tree is the search for a first point that no
-  heuristic finds. That search moves with any branching change, and no
-  cap from 0.25 to 3 keeps both under 2x (02-462). Exchanges between
-  assignment rows now find `enigma`'s point at the root, so its tree is
-  one node under every setting (02-463). On `neos-911970` a JAOS node
-  takes about 200 LP iterations against HiGHS's 72. Next: the probe cap
-  chosen on MIPLIB 3 and read on MIPLIB 2017, for the default.
+- Strong branching is on by default for a linear model: reliability 4,
+  the children on the node's kept factors, each capped at 1.5 times the
+  node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against
+  13.67, and the dual side 6.515 against 6.596. Of the seven, `pk1`'s dual
+  gap narrows from 0.256 to 0.203 and `mas76`'s from 0.0073 to 0.0057, and
+  none closes. Cap 1 reads 13.36 on 2017 but takes `misc03` to 2.9x,
+  whose tree grows from the capped probes' weak bounds (02-462). On
+  `neos-911970` a JAOS node takes about 200 LP iterations against
+  HiGHS's 72. Next: what makes cap 1 cheaper on 2017 without growing
+  `misc03`, read probe by probe.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
   4,066 nodes from a root of 6701.2 after a restart, against JAOS's
@@ -202,8 +198,8 @@ J10. **The primal's six overruns and the crossover's fourteen**
 (`bench/results/primal.txt`, `bench/results/barrier.txt`). Seven primal
 remedies are refused; read `bench/refusals.txt` first.
 
-J11. **MIP switches that are off by measurement**: strong branching,
-zero-half and lifted cover cuts, local branching, restarts outside network
+J11. **MIP switches that are off by measurement**: zero-half and lifted
+cover cuts, local branching, restarts outside network
 mode, bound propagation and probing. The last reading had none land
 (`bench/measurements/02-361/`); propagation runs only in a tree with no
 incumbent past node 1000 (`02-407/`). Each needs a form that pays on
