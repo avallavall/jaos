@@ -88,11 +88,35 @@ solved: 1,210 of `pk1`'s 16,715 nodes (7%) and 4,791 of `mas76`'s 32,042
 (15%). So solving a child on its parent's kept factors, as 02-461 does for
 the probes, reaches few nodes under the current node selection.
 
+## A child from its parent's whole state
+
+`children.py` patches a copy of HEAD's `src/mip.c`. At every
+strong-branching child, it solves the child twice:
+- from the parent's kept state, an uncapped `jm_probe` with the parent's
+  factors, pricing weights and reduced model;
+- as the tree solves a node: a copy of the node's model, the child's
+  bound, the parent's basis, and a solve with fresh factors and weights.
+
+Over one run at 1e9 work units, per child:
+
+| instance | children | from the kept state | as the tree does | work, kept over tree | iterations, kept over tree |
+|---|---|---|---|---|---|
+| `pk1` | 1,560 | 25.7 iterations, 116,663 units | 31.7, 150,253 | 0.78 | 0.81 |
+| `mas76` | 4,893 | 6.1, 16,791 | 6.3, 21,518 | 0.78 | 0.97 |
+| `gen-ip002` | 3,043 | 6.1, 37,362 | 7.1, 46,330 | 0.81 | 0.86 |
+| `binkar10_1` | 674 | 17.8, 202,202 | 31.0, 392,233 | 0.52 | 0.58 |
+
+The parent's whole state saves 19% to 22% of a child's work on `pk1`,
+`mas76` and `gen-ip002`, and 48% on `binkar10_1`. On `pk1` and
+`binkar10_1` much of it is iterations, the pricing weights. On `mas76` it
+is presolve and the factorisation.
+
 ## The verdict
 
 Nothing changes in the code. For `pk1` and `mas76` the target is 1.64x and
-1.95x less work, and none of the cheap levers reaches it, alone or
-together. What remains:
+1.95x less work. None of the cheap levers reaches it, alone or together,
+and neither does the parent's whole state: at 0.78x on every node with
+heuristics off, `pk1` would take about 1.1e10. What remains:
 - fewer iterations a node, for instance pricing weights carried from the
   parent to its children;
 - a node order that keeps the parent's factors live, where the dive was

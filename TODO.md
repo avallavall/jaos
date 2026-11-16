@@ -104,9 +104,13 @@ first:
   floor, so the count of iterations and nodes is the lever. Heuristics
   off, `--rins 0` and node presolve off each move the work by at most
   12%. Only 7% and 15% of nodes follow their parent, so the parent's kept
-  factors reach few of them. Next: pricing weights carried from parent to
-  child, then a node order that keeps the factors live. Verify with `pk1`
-  and `mas76` closing inside 1e10 and `make miplib J=2`.
+  factors reach few of them. Solving a child from the parent's whole
+  state takes 0.78x the work of the tree's solve on `pk1` and `mas76`,
+  and 0.52x on `binkar10_1`. Even on every node and with heuristics off,
+  that leaves `pk1` near 1.1e10. Next: the pricing weights carried from
+  parent to child, the part of that state a node can keep, measured with
+  fewer nodes than today. Verify with `pk1` and `mas76` closing inside
+  1e10 and `make miplib J=2`.
 - The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
   the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
   and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
