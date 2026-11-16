@@ -52,10 +52,51 @@ In work units, presolve is the smaller share. With it off after the trial,
 `mas76` closes at 1.84e10 in 564,475 nodes, 0.94x. `pk1`, which skips it
 already, reads the same.
 
+## A node's work units, stage by stage
+
+`stages.py` patches a copy of HEAD's `src/simplex.c` to count, over the
+node solves of one run at 1e9 work units, the units before the simplex
+runs (presolve and setup), in the run, in the settling re-entry, and in
+publishing:
+
+| instance | node solves | before the run | run | settling | publishing | iterations a solve | refactorisations a solve | units an iteration |
+|---|---|---|---|---|---|---|---|---|
+| `pk1` | 17,547 | 2.0% | 94.9% | 0 | 1.8% | 14.2 | 1.7 | 3,578 |
+| `mas76` | 33,280 | 16.9% | 81.6% | 0.03% | 1.4% | 5.7 | 1.2 | 3,507 |
+
+On these dense rows an iteration costs about the matrix's nonzeros, the
+dual simplex's floor. The bound-flipping ratio test is already in. 21 of
+`pk1`'s node solves are perturbed and none of `mas76`'s. So the lever is
+the count of iterations and nodes, not the cost of each.
+
+## What the cheap levers reach
+
+To optimality, at 5e10:
+
+| setting | `pk1` | `mas76` |
+|---|---|---|
+| default (02-464) | 1.64e10, 337,705 nodes | 1.95e10, 632,196 nodes |
+| `--rins 0` | 1.66e10, 376,007 | 1.72e10, 608,001 |
+| `--rins 0 --no-heuristics` | 1.46e10, 341,255 | 1.90e10, 671,903 |
+| node presolve off after the trial | 1.64e10, the same tree | 1.84e10, 564,475 |
+
+Each moves the work by at most 12%, and the node counts move by up to 11%
+with it.
+
+`plunge.py` counts how often the next node is a child of the node just
+solved: 1,210 of `pk1`'s 16,715 nodes (7%) and 4,791 of `mas76`'s 32,042
+(15%). So solving a child on its parent's kept factors, as 02-461 does for
+the probes, reaches few nodes under the current node selection.
+
 ## The verdict
 
-Nothing changes in the code. For `pk1` and `mas76` the target is the node
-relaxation's work: 1.64x and 1.95x less (1.84x with node presolve off),
-through fewer iterations per node or cheaper ones, and the heuristics'
-share once an incumbent is held. For
-the other five it is the bound per node. TODO J7 holds both.
+Nothing changes in the code. For `pk1` and `mas76` the target is 1.64x and
+1.95x less work, and none of the cheap levers reaches it, alone or
+together. What remains:
+- fewer iterations a node, for instance pricing weights carried from the
+  parent to its children;
+- a node order that keeps the parent's factors live, where the dive was
+  refused (D289-dive);
+- or fewer nodes.
+
+For the other five it is the bound per node. TODO J7 holds both.

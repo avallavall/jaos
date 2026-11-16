@@ -100,11 +100,13 @@ first:
   two the target is node work. Their node relaxations are 80% to 88% of
   the tree's work, at 12 and 6 dual iterations a node, and the
   heuristics' 12% to 16% buys nothing once node 1 holds the optimum.
-  With node presolve off after the trial, `mas76` closes at 1.84e10.
-  Next: fewer or cheaper iterations per node, such as a child solved on
-  its parent's kept factors when it is the next node; then a heuristic
-  share that falls while no point improves. Verify with `pk1` and `mas76`
-  closing inside 1e10 and `make miplib J=2`.
+  An iteration costs about the matrix's nonzeros, the dual simplex's
+  floor, so the count of iterations and nodes is the lever. Heuristics
+  off, `--rins 0` and node presolve off each move the work by at most
+  12%. Only 7% and 15% of nodes follow their parent, so the parent's kept
+  factors reach few of them. Next: pricing weights carried from parent to
+  child, then a node order that keeps the factors live. Verify with `pk1`
+  and `mas76` closing inside 1e10 and `make miplib J=2`.
 - The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
   the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
   and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
