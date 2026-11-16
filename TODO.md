@@ -141,11 +141,48 @@ first:
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
-J32. **MIP: heuristics made for the model's structure.** 02-463's
-`census.py` sorts the open MIPLIB 2017 instances into families. Each family
-has a heuristic in the literature made for its shape, and JAOS has none of
-them. The first, exchanges between assignment rows, closes `enigma` at the
-root (895 nodes to 1, `bench/measurements/02-463/`). Next, largest first:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 15:
+- for linear MIPs:
+  - node rounding, lock rounding;
+  - the feasibility jump, the exchanges between assignment rows;
+  - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
+    the RINS dive;
+  - local branching (off), and the dive from node 1000 with no
+    incumbent;
+- for MIQPs: the relaxation rounded, and a halving dive;
+- for the conic tree: rounding and a dive.
+
+The LP, QP and conic solvers need none: they solve to optimality, and their
+start rules (crash basis, initial basis) are not primal heuristics. SCIP
+ships about 50. Step 0 is a scheduler that every heuristic plugs into. Each
+heuristic has a detector of where it applies and a share of the work, and
+the scheduler keeps the success of each and picks the next by it, with a
+seeded rule, so the portfolio stays deterministic. Then, by what each
+reaches on the open instances:
+
+- Made for a structure. 02-463's `census.py` sorts the open MIPLIB 2017
+  instances into families, each with a heuristic in the literature for its
+  shape. The first, exchanges between assignment rows, closes `enigma` at
+  the root (895 nodes to 1, `bench/measurements/02-463/`). The rest,
+  largest first, follow below.
+- Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
+  2014; Fischetti and Lodi, 2011):
+  - rounding: shifting, ZI round, seeded randomized rounding,
+    shift-and-propagate (Berthold and Hendel);
+  - diving: fractional, coefficient, guided toward the incumbent,
+    pseudocost, vector-length (for covering and partitioning rows),
+    line-search, Farkas, conflict;
+  - neighbourhoods: crossover and mutation over the pool, DINS, proximity
+    search (Fischetti and Monaci), a zero-objective sub-MIP, RENS at nodes,
+    variable neighbourhood search over local branching;
+  - improvement: 1-opt, 2-opt, polishing by evolution over the pool
+    (Rothberg);
+  - local search: tabu and weighted moves past one flip (lift and
+    breakthrough moves), simulated annealing over the jump.
+- For MIQP and the conic tree, which have two each: the jump, the pump,
+  RINS and RENS carried to quadratic and conic rows.
+
+The structures, largest first:
 
 - Partitioning rows with items: carry the exchange to binaries in one
   partitioning row, moving one item or trading two (`mad` 0.30 of the
@@ -163,9 +200,15 @@ root (895 nodes to 1, `bench/measurements/02-463/`). Next, largest first:
 - Market split and general integer equality systems: lattice
   reformulations (`markshare2`, `gen-ip002`, `gen-ip054`, 02-394's 34
   models with no point).
+- Shapes the census marks, outside the open set: set covering by a
+  Lagrangian greedy (Beasley; Caprara, Fischetti and Toth), knapsack
+  systems by a core greedy (`mas74` 0.08 away), lot sizing by
+  relax-and-fix and fix-and-optimize (`tr12-30`), bin packing by first fit
+  decreasing, colouring by DSATUR, facility location by opening and
+  closing sites.
 
-Each one runs only where `census.py`'s mark for its shape is. Verify with
-the primal side of `m17sum.py`, the first incumbent's node, `make miplib
+Each one runs only where its detector finds its shape. Verify with the
+primal side of `m17sum.py`, the first incumbent's node, `make miplib
 J=2`, and 02-394's set for the general integer family.
 
 J8. **LP: time per iteration and presolve.** `stocfor3` takes 11.2x
