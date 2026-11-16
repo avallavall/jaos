@@ -1,0 +1,6 @@
+misc03 baseline 42810322:  cap 0.25 2.44x  cap 0.5 1.22x  cap 1 2.90x  cap 1.5 1.29x  cap 2 1.72x  cap 3 1.46x
+enigma baseline 18684934:  cap 0.25 3.00x  cap 0.5 5.20x  cap 1 0.86x  cap 1.5 2.28x  cap 2 2.80x  cap 3 4.74x
+mod008 baseline 24085601:  cap 0.25 1.28x  cap 0.5 1.36x  cap 1 1.53x  cap 1.5 1.64x  cap 2 1.35x  cap 3 1.34x
+p0201 baseline 60557418:  cap 0.25 0.90x  cap 0.5 0.46x  cap 1 1.54x  cap 1.5 0.57x  cap 2 1.54x  cap 3 1.27x
+rgn baseline 7490576:  cap 0.25 1.18x  cap 0.5 1.07x  cap 1 1.21x  cap 1.5 1.26x  cap 2 1.15x  cap 3 1.92x
+misc07 baseline 3687285525:  cap 0.25 0.68x  cap 0.5 0.61x  cap 1 0.65x  cap 1.5 0.73x  cap 2 1.61x  cap 3 0.95x

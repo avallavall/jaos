@@ -1,0 +1,16 @@
+--reliability 0                                nodes   248 work   42810322 0 probes, 0 of them capped
+--reliability 1 --probe-cap 0                  nodes   257 work   57472120 29 probes, 0 of them capped
+--reliability 1 --probe-cap 1                  nodes   447 work  103026032 89 probes, 33 of them capped
+--reliability 1 --probe-cap 4                  nodes   305 work   69318778 45 probes, 8 of them capped
+--reliability 2 --probe-cap 0                  nodes   257 work   57734645 31 probes, 0 of them capped
+--reliability 2 --probe-cap 1                  nodes   455 work  101407883 106 probes, 47 of them capped
+--reliability 2 --probe-cap 4                  nodes   305 work   69344751 44 probes, 9 of them capped
+--reliability 4 --probe-cap 0                  nodes   257 work   57604577 32 probes, 0 of them capped
+--reliability 4 --probe-cap 1                  nodes   622 work  124227900 115 probes, 44 of them capped
+--reliability 4 --probe-cap 4                  nodes   303 work   68834529 48 probes, 6 of them capped
+--reliability 8 --probe-cap 0                  nodes   257 work   57604577 32 probes, 0 of them capped
+--reliability 8 --probe-cap 1                  nodes   640 work  126582689 177 probes, 87 of them capped
+--reliability 8 --probe-cap 4                  nodes   303 work   68834529 48 probes, 6 of them capped
+--reliability 4 --probe-cap 1 --probe-depth 0  nodes   411 work   81675883 16 probes, 0 of them capped
+--reliability 4 --probe-cap 1 --probe-depth 2  nodes   377 work   79692833 48 probes, 12 of them capped
+--reliability 4 --probe-cap 1 --probe-depth 5  nodes   648 work  121760400 32 probes, 2 of them capped

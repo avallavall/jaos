@@ -1,0 +1,3 @@
+default                          nodes   895 first_incumbent   895
+--reliability 4 --probe-cap 1    nodes   730 first_incumbent   730
+--reliability 4                  nodes  8670 first_incumbent  8670

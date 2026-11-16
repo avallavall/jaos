@@ -107,9 +107,14 @@ first:
   13.67 to 13.36 and MIPLIB 3's work to 0.796x, but `misc03`'s tree grows
   from 248 nodes to 622 (2.9x), as under every probing form read so far
   (02-459), so it stays off. Of the seven, `pk1`'s dual gap narrows from
-  0.256 to 0.204, and none closes. On `neos-911970` a JAOS node takes
-  about 200 LP iterations against HiGHS's 72. Next: what grows
-  `misc03`'s tree under probing, read node by node against the default.
+  0.256 to 0.204, and none closes. `misc03` grows from the capped
+  probes' weak bounds (no cap: 257 nodes). But `enigma`'s root bound is
+  its optimum, so its tree is the search for a first point that no
+  heuristic finds. That search moves with any branching change, and no
+  cap from 0.25 to 3 keeps both under 2x (02-462). On `neos-911970` a
+  JAOS node takes about 200 LP iterations against HiGHS's 72. Next: a
+  heuristic that finds `enigma`'s point at the root, then the cap chosen
+  on the rest.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
   4,066 nodes from a root of 6701.2 after a restart, against JAOS's
