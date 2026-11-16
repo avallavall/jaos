@@ -1,0 +1,1 @@
+default    solved 5 incumbents 28 primal 7.0744 dual 6.5961 sum 13.6705

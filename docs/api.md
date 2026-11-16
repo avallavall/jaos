@@ -1153,7 +1153,14 @@ When the root still has no incumbent after that, the third runs a
 feasibility jump: it moves one column at a time to the value that most
 lowers the weighted violation of its rows, from the relaxation's point and
 then from zero, under half the root's work. It fixes the integer columns of
-the point it finds and solves the rest. The dive heuristic, RINS and the
+the point it finds and solves the rest. When the jump finds nothing and
+most free columns are binaries that each sit in exactly two partitioning
+rows (rows that take exactly one of their binaries), the fourth searches
+exchanges between those rows. It starts from a seeded random assignment,
+and each move trades the rows of two chosen binaries, keeping every
+partitioning row satisfied. It takes the exchange that most lowers the
+violation of the other rows, restarts when none does, and after each point
+looks for one with a lower objective. The dive heuristic, RINS and the
 pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\

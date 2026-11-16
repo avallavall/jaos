@@ -1,0 +1,4 @@
+default                          nodes     1 first_incumbent     1 work    3678186 | root: incumbent 0 by exchanges between assignment rows
+--reliability 4 --probe-cap 1    nodes     1 first_incumbent     1 work    3678186 | root: incumbent 0 by exchanges between assignment rows
+--reliability 4                  nodes     1 first_incumbent     1 work    3678186 | root: incumbent 0 by exchanges between assignment rows
+--reliability 4 --probe-cap 4    nodes     1 first_incumbent     1 work    3678186 | root: incumbent 0 by exchanges between assignment rows

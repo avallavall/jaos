@@ -154,6 +154,7 @@ constexpr double MIP_NET_POOL_SLACK = 1e-6;
 constexpr int64_t MIP_FJ_WORK = 20000;
 constexpr int64_t MIP_FJ_SAMPLE = 25;
 constexpr double MIP_FJ_ROOT = 0.5;
+constexpr int64_t MIP_SWAP_WORK = 5000;
 
 constexpr int64_t MIP_SUBMIP_NODES = 500;
 constexpr double MIP_SUBMIP_FIXED = 0.3;
@@ -4696,6 +4697,408 @@ out:
     return rc;
 }
 
+typedef struct {
+    int64_t a, b, j;
+} swcell;
+
+static int swcell_cmp(const void *p, const void *q)
+{
+    const swcell *s = p, *t = q;
+    if (s->a != t->a)
+        return s->a < t->a ? -1 : 1;
+    if (s->b != t->b)
+        return s->b < t->b ? -1 : 1;
+    return (s->j > t->j) - (s->j < t->j);
+}
+
+static int64_t swcell_find(const swcell *c, int64_t n, int64_t a, int64_t b)
+{
+    if (a > b) {
+        const int64_t t = a;
+        a = b;
+        b = t;
+    }
+    int64_t lo = 0, hi = n;
+    while (lo < hi) {
+        const int64_t mid = lo + (hi - lo) / 2;
+        if (c[mid].a < a || (c[mid].a == a && c[mid].b < b))
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo < n && c[lo].a == a && c[lo].b == b ? c[lo].j : -1;
+}
+
+static uint64_t sw_next(uint64_t *s)
+{
+    *s ^= *s << 13;
+    *s ^= *s >> 7;
+    *s ^= *s << 17;
+    return *s;
+}
+
+typedef struct {
+    int64_t nc, nr, ncell;
+    bool *part;
+    int64_t *ra, *rb;
+    bool *free_cell;
+    swcell *cells;
+    int64_t *pstart, *pcell;
+    double *x, *r, *dr, *cand, *best;
+    int64_t *mark, *touched, *act, *order;
+    bool *covered;
+} swstate;
+
+static void sw_free(swstate *w)
+{
+    free(w->part); free(w->ra); free(w->rb); free(w->free_cell);
+    free(w->cells); free(w->pstart); free(w->pcell); free(w->x); free(w->r);
+    free(w->dr); free(w->cand); free(w->best); free(w->mark);
+    free(w->touched); free(w->act); free(w->order); free(w->covered);
+}
+
+static bool sw_shape(const jaos_model *m, const double *ilo, const double *ihi,
+                     swstate *w, int64_t *ops)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (m->row_ind_col != nullptr)
+        for (int64_t i = 0; i < nr; i++)
+            if (m->row_ind_col[i] >= 0)
+                return false;
+    for (int64_t i = 0; i < nr; i++) {
+        *ops += m->ar_start[i + 1] - m->ar_start[i] + 1;
+        if (m->row_lower[i] != 1.0 || m->row_upper[i] != 1.0)
+            continue;
+        bool ok = m->ar_start[i + 1] > m->ar_start[i];
+        for (int64_t p = m->ar_start[i]; ok && p < m->ar_start[i + 1]; p++) {
+            const int64_t j = m->ar_index[p];
+            ok = m->ar_value[p] == 1.0 && m->col_integer[j] && ilo[j] >= 0.0 &&
+                 ihi[j] <= 1.0;
+        }
+        w->part[i] = ok;
+    }
+    int64_t ncell = 0, nother = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        w->ra[j] = w->rb[j] = -1;
+        *ops += m->a_start[j + 1] - m->a_start[j] + 1;
+        if (ilo[j] == ihi[j])
+            continue;
+        if (!m->col_integer[j] || !isfinite(ilo[j]))
+            return false;
+        if (ilo[j] != 0.0 || ihi[j] != 1.0) {
+            nother++;
+            continue;
+        }
+        int64_t k = 0;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
+            const int64_t i = m->a_index[q];
+            if (!w->part[i])
+                continue;
+            if (k == 0)
+                w->ra[j] = i;
+            else
+                w->rb[j] = i;
+            k++;
+        }
+        if (k != 2) {
+            w->ra[j] = w->rb[j] = -1;
+            nother++;
+            continue;
+        }
+        if (w->ra[j] > w->rb[j]) {
+            const int64_t t = w->ra[j];
+            w->ra[j] = w->rb[j];
+            w->rb[j] = t;
+        }
+        w->cells[ncell++] = (swcell){ w->ra[j], w->rb[j], j };
+    }
+    if (ncell < 4 || nother > ncell)
+        return false;
+    for (int64_t j = 0; j < nc; j++) {
+        if (ilo[j] != ihi[j] || ilo[j] == 0.0)
+            continue;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            if (w->part[m->a_index[q]])
+                w->covered[m->a_index[q]] = true;
+    }
+    int64_t nfree = 0;
+    for (int64_t c = 0; c < ncell; c++) {
+        const int64_t j = w->cells[c].j;
+        w->free_cell[j] = !w->covered[w->ra[j]] && !w->covered[w->rb[j]];
+        if (w->free_cell[j])
+            w->cells[nfree++] = w->cells[c];
+    }
+    ncell = nfree;
+    if (ncell < 4)
+        return false;
+    qsort(w->cells, (size_t)ncell, sizeof *w->cells, swcell_cmp);
+    *ops += ncell;
+    for (int64_t c = 0; c < ncell; c++) {
+        w->pstart[w->cells[c].a + 1]++;
+        w->pstart[w->cells[c].b + 1]++;
+    }
+    for (int64_t i = 0; i < nr; i++)
+        w->pstart[i + 1] += w->pstart[i];
+    int64_t *fill = w->touched;
+    for (int64_t i = 0; i < nr; i++)
+        fill[i] = w->pstart[i];
+    for (int64_t c = 0; c < ncell; c++) {
+        w->pcell[fill[w->cells[c].a]++] = w->cells[c].j;
+        w->pcell[fill[w->cells[c].b]++] = w->cells[c].j;
+    }
+    w->ncell = ncell;
+    return true;
+}
+
+static bool sw_start(const jaos_model *m, const double *ilo, swstate *w,
+                     const bool *pre, uint64_t *rng, int64_t *ops)
+{
+    const int64_t nc = w->nc, nr = w->nr;
+    for (int64_t i = 0; i < nr; i++) {
+        w->r[i] = 0.0;
+        w->covered[i] = pre[i];
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        w->x[j] = w->free_cell[j] ? 0.0 : ilo[j];
+        if (w->x[j] != 0.0)
+            for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+                w->r[m->a_index[q]] += m->a_value[q] * w->x[j];
+    }
+    *ops += m->num_nz + nc + nr;
+    int64_t np = 0;
+    for (int64_t i = 0; i < nr; i++)
+        if (w->part[i] && !w->covered[i])
+            w->order[np++] = i;
+    for (int64_t t = np - 1; t > 0; t--) {
+        const int64_t s = (int64_t)(sw_next(rng) % (uint64_t)(t + 1));
+        const int64_t v = w->order[t];
+        w->order[t] = w->order[s];
+        w->order[s] = v;
+    }
+    for (int64_t t = 0; t < np; t++) {
+        const int64_t i = w->order[t];
+        if (w->covered[i])
+            continue;
+        int64_t n = 0;
+        for (int64_t p = w->pstart[i]; p < w->pstart[i + 1]; p++) {
+            const int64_t j = w->pcell[p];
+            const int64_t o = w->ra[j] == i ? w->rb[j] : w->ra[j];
+            if (!w->covered[o])
+                w->act[n++] = j;
+        }
+        *ops += w->pstart[i + 1] - w->pstart[i] + 1;
+        if (n == 0)
+            return false;
+        const int64_t j = w->act[sw_next(rng) % (uint64_t)n];
+        w->x[j] = 1.0;
+        w->covered[w->ra[j]] = w->covered[w->rb[j]] = true;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            w->r[m->a_index[q]] += m->a_value[q];
+    }
+    return true;
+}
+
+static double sw_violation(const jaos_model *m, const swstate *w, double z,
+                           bool cut, double zcut)
+{
+    double v = 0.0;
+    for (int64_t i = 0; i < w->nr; i++)
+        if (!w->part[i])
+            v += fj_viol(w->r[i], m->row_lower[i], m->row_upper[i]);
+    if (cut && z > zcut)
+        v += z - zcut;
+    return v;
+}
+
+static bool sw_feasible(const jaos_model *m, const swstate *w, double tol)
+{
+    for (int64_t i = 0; i < w->nr; i++) {
+        if (w->part[i])
+            continue;
+        const double lo = m->row_lower[i], hi = m->row_upper[i];
+        const double sc = tol * (1.0 + fmax(fabs(lo) < INFINITY ? fabs(lo) : 0.0,
+                                            fabs(hi) < INFINITY ? fabs(hi) : 0.0));
+        if (fj_viol(w->r[i], lo, hi) > sc)
+            return false;
+    }
+    return true;
+}
+
+static double sw_delta(const jaos_model *m, swstate *w, const int64_t mv[4],
+                       int64_t *stamp, int64_t *ops)
+{
+    (*stamp)++;
+    int64_t nt = 0;
+    for (int t = 0; t < 4; t++) {
+        const int64_t j = mv[t];
+        const double s = t < 2 ? 1.0 : -1.0;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
+            const int64_t i = m->a_index[q];
+            if (w->part[i])
+                continue;
+            if (w->mark[i] != *stamp) {
+                w->mark[i] = *stamp;
+                w->dr[i] = 0.0;
+                w->touched[nt++] = i;
+            }
+            w->dr[i] += s * m->a_value[q];
+        }
+        *ops += m->a_start[j + 1] - m->a_start[j];
+    }
+    double dv = 0.0;
+    for (int64_t t = 0; t < nt; t++) {
+        const int64_t i = w->touched[t];
+        const double lo = m->row_lower[i], hi = m->row_upper[i];
+        dv += fj_viol(w->r[i] + w->dr[i], lo, hi) - fj_viol(w->r[i], lo, hi);
+    }
+    return dv;
+}
+
+static int swap_for_point(const jaos_model *m, const jaos_model *lp,
+                          const double *ilo, const double *ihi, double floor_z,
+                          int64_t limit, double *out, int64_t *work,
+                          int64_t *solves_done)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (nc == 0 || nr == 0 || jm_model_ensure_rowwise((jaos_model *)m) != JAOS_OK)
+        return 0;
+    const double tol = jm_primal_tolerance(m);
+    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    swstate w = { .nc = nc, .nr = nr };
+    w.part = jm_calloc_array(nr, sizeof *w.part);
+    w.ra = jm_alloc_array(nc, sizeof *w.ra);
+    w.rb = jm_alloc_array(nc, sizeof *w.rb);
+    w.free_cell = jm_calloc_array(nc, sizeof *w.free_cell);
+    w.cells = jm_alloc_array(nc, sizeof *w.cells);
+    w.pstart = jm_calloc_array(nr + 1, sizeof *w.pstart);
+    w.pcell = jm_alloc_array(2 * nc, sizeof *w.pcell);
+    w.x = jm_alloc_array(nc, sizeof *w.x);
+    w.r = jm_alloc_array(nr, sizeof *w.r);
+    w.dr = jm_alloc_array(nr, sizeof *w.dr);
+    w.cand = jm_alloc_array(nc, sizeof *w.cand);
+    w.best = jm_alloc_array(nc, sizeof *w.best);
+    w.mark = jm_calloc_array(nr, sizeof *w.mark);
+    w.touched = jm_alloc_array(nr > nc ? nr : nc, sizeof *w.touched);
+    w.act = jm_alloc_array(nc, sizeof *w.act);
+    w.order = jm_alloc_array(nr, sizeof *w.order);
+    w.covered = jm_calloc_array(nr, sizeof *w.covered);
+    bool *pre = jm_calloc_array(nr, sizeof *pre);
+    int rc = -1;
+    int64_t ops = 0;
+    if (!w.part || !w.ra || !w.rb || !w.free_cell || !w.cells || !w.pstart ||
+        !w.pcell || !w.x || !w.r || !w.dr || !w.cand || !w.best || !w.mark ||
+        !w.touched || !w.act || !w.order || !w.covered || !pre)
+        goto out;
+    rc = 0;
+    if (!sw_shape(m, ilo, ihi, &w, &ops))
+        goto out;
+    for (int64_t i = 0; i < nr; i++)
+        pre[i] = w.covered[i];
+    bool integral = true;
+    for (int64_t c = 0; c < w.ncell; c++) {
+        const double cj = sg * m->col_cost[w.cells[c].j];
+        if (!isfinite(cj) || cj != floor(cj))
+            integral = false;
+    }
+    int64_t budget_ops = MIP_SWAP_WORK * (m->num_nz + nc + nr);
+    if (limit > 0 && limit < budget_ops)
+        budget_ops = limit;
+    uint64_t rng = 0x9E3779B97F4A7C15u;
+    int64_t stamp = 0;
+    bool have = false, cut = false;
+    double zbest = INFINITY, zcut = INFINITY;
+    while (ops < budget_ops) {
+        if (!sw_start(m, ilo, &w, pre, &rng, &ops))
+            continue;
+        double z = sg * m->obj_offset;
+        for (int64_t j = 0; j < nc; j++)
+            z += sg * m->col_cost[j] * w.x[j];
+        double v = sw_violation(m, &w, z, cut, zcut);
+        ops += nr;
+        while (ops < budget_ops && v > 0.0) {
+            int64_t na = 0;
+            for (int64_t c = 0; c < w.ncell; c++)
+                if (w.x[w.cells[c].j] == 1.0)
+                    w.act[na++] = w.cells[c].j;
+            double bd = -1e-9 * (1.0 + v);
+            int64_t bm[4] = { -1, -1, -1, -1 };
+            double bz = 0.0;
+            for (int64_t p = 0; p < na && ops < budget_ops; p++) {
+                for (int64_t q = p + 1; q < na; q++) {
+                    const int64_t j = w.act[p], k = w.act[q];
+                    const int64_t a = w.ra[j], b = w.rb[j];
+                    const int64_t c = w.ra[k], d = w.rb[k];
+                    if (a == c || a == d || b == c || b == d)
+                        continue;
+                    for (int pair = 0; pair < 2; pair++) {
+                        const int64_t u = swcell_find(w.cells, w.ncell, a,
+                                                      pair == 0 ? c : d);
+                        const int64_t s = swcell_find(w.cells, w.ncell, b,
+                                                      pair == 0 ? d : c);
+                        ops += 2;
+                        if (u < 0 || s < 0)
+                            continue;
+                        const int64_t mv[4] = { u, s, j, k };
+                        double dv = sw_delta(m, &w, mv, &stamp, &ops);
+                        const double dz = sg * (m->col_cost[u] + m->col_cost[s] -
+                                                m->col_cost[j] - m->col_cost[k]);
+                        if (cut)
+                            dv += fmax(0.0, z + dz - zcut) - fmax(0.0, z - zcut);
+                        if (dv < bd) {
+                            bd = dv;
+                            bz = dz;
+                            for (int t = 0; t < 4; t++)
+                                bm[t] = mv[t];
+                        }
+                    }
+                }
+            }
+            if (bm[0] < 0)
+                break;
+            for (int t = 0; t < 4; t++) {
+                const int64_t j = bm[t];
+                const double s = t < 2 ? 1.0 : -1.0;
+                w.x[j] += s;
+                for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+                    w.r[m->a_index[q]] += s * m->a_value[q];
+                ops += m->a_start[j + 1] - m->a_start[j];
+            }
+            z += bz;
+            v = sw_violation(m, &w, z, cut, zcut);
+            ops += nr;
+        }
+        if (!sw_feasible(m, &w, tol) || (cut && z > zcut + 1e-9 * (1.0 + fabs(zcut))))
+            continue;
+        jaos_model *hv = nullptr;
+        if (jaos_model_copy(lp, &hv) != JAOS_OK) {
+            rc = -1;
+            goto out;
+        }
+        const int got = fix_and_solve(m, hv, w.x, w.cand, work, solves_done);
+        jaos_model_free(hv);
+        if (got != 1)
+            continue;
+        if (!have || z < zbest) {
+            memcpy(w.best, w.cand, (size_t)nc * sizeof *w.best);
+            zbest = z;
+            have = true;
+        }
+        if (!integral || zbest - 1.0 < floor_z - 1e-9 * (1.0 + fabs(floor_z)))
+            break;
+        cut = true;
+        zcut = zbest - 1.0;
+    }
+    if (have) {
+        memcpy(out, w.best, (size_t)nc * sizeof *out);
+        rc = 1;
+    }
+out:
+    *work += ops;
+    sw_free(&w);
+    free(pre);
+    return rc;
+}
+
 static int locks_for_point(const jaos_model *m, const jaos_model *lp,
                            const double *x, bool to_side, double *out,
                            int64_t *work, int64_t *solves_done)
@@ -7452,6 +7855,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             if (got == 0)
                 got = fj_for_point(m, lp, ilo, ihi, nullptr, fj_limit, xr,
                                    &work, &solves);
+            bool by_swap = false;
+            if (got == 0) {
+                int64_t room = fj_limit > 0 ? fj_limit : 1;
+                if (m->cfg.work_limit > 0 && m->cfg.work_limit - work < room)
+                    room = m->cfg.work_limit - work > 1
+                               ? m->cfg.work_limit - work : 1;
+                got = swap_for_point(m, lp, ilo, ihi, sigma * key, room, xr,
+                                     &work, &solves);
+                by_swap = got == 1;
+            }
             if (got < 0)
                 goto done;
             double hobj = 0.0;
@@ -7477,8 +7890,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     heur_points++;
                     if (first_inc == 0)
                         first_inc = nodes;
-                    jm_log(m, JAOS_LOG_PROGRESS,
-                           "root: incumbent %.17g by feasibility jump", hobj);
+                    jm_log(m, JAOS_LOG_PROGRESS, "root: incumbent %.17g by %s",
+                           hobj, by_swap ? "exchanges between assignment rows"
+                                         : "feasibility jump");
                     if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
                         outcome = JAOS_SOLVE_INTERRUPTED;
                         break;

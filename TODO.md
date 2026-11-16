@@ -111,12 +111,11 @@ first:
   probes' weak bounds (no cap: 257 nodes). But `enigma`'s root bound is
   its optimum, so its tree is the search for a first point that no
   heuristic finds. That search moves with any branching change, and no
-  cap from 0.25 to 3 keeps both under 2x (02-462). No heuristic finds
-  that point, the feasibility jump at 1000x its work included: a
-  permutation's neighbour is four flips away. On `neos-911970` a JAOS
-  node takes about 200 LP iterations against HiGHS's 72. Next: a move
-  that trades two columns' places across a pair of assignment rows,
-  read on every model with such rows, not on `enigma` alone.
+  cap from 0.25 to 3 keeps both under 2x (02-462). Exchanges between
+  assignment rows now find `enigma`'s point at the root, so its tree is
+  one node under every setting (02-463). On `neos-911970` a JAOS node
+  takes about 200 LP iterations against HiGHS's 72. Next: the probe cap
+  chosen on MIPLIB 3 and read on MIPLIB 2017, for the default.
 - `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
   (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
   4,066 nodes from a root of 6701.2 after a restart, against JAOS's
@@ -145,6 +144,33 @@ first:
 
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
+
+J32. **MIP: heuristics made for the model's structure.** 02-463's
+`census.py` sorts the open MIPLIB 2017 instances into families. Each family
+has a heuristic in the literature made for its shape, and JAOS has none of
+them. The first, exchanges between assignment rows, closes `enigma` at the
+root (895 nodes to 1, `bench/measurements/02-463/`). Next, largest first:
+
+- Partitioning rows with items: carry the exchange to binaries in one
+  partitioning row, moving one item or trading two (`mad` 0.30 of the
+  optimum away, `neos-911970`, `glass4`, `csched007`).
+- Big-M placement: fix each disjunction to the side the relaxation's
+  coordinates order, solve the LP, then move the order (`glass4` 1.0 away,
+  `graphdraw-domain` 0.44, `supportcase26`, `neos-3754480-nidda`).
+- Scheduling with one start per job: the serial schedule generation
+  scheme, priorities from the relaxation (`csched008` has no incumbent,
+  `csched007` is 0.35 away).
+- Periodic timetables: the modulo network simplex (`ic97_potential` has no
+  incumbent, `timtab1` is 0.68 away).
+- Fixed-charge networks: dynamic slope scaling, then closing and opening
+  arcs (`beasleyC3` 0.10 away).
+- Market split and general integer equality systems: lattice
+  reformulations (`markshare2`, `gen-ip002`, `gen-ip054`, 02-394's 34
+  models with no point).
+
+Each one runs only where `census.py`'s mark for its shape is. Verify with
+the primal side of `m17sum.py`, the first incumbent's node, `make miplib
+J=2`, and 02-394's set for the general integer family.
 
 J8. **LP: time per iteration and presolve.** `stocfor3` takes 11.2x
 HiGHS. Half of that is presolve: HiGHS leaves 8259 rows, JAOS 13305. In the
