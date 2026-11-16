@@ -1,0 +1,8 @@
+HEURW locks work=55424 got=0
+HEURW locks work=55424 got=0
+HEURW fj work=150680661 got=0
+HEURW dive work=1418281920 got=0
+HEURW pump work=5500988387 got=0
+work_units 10002304745
+nodes 1
+first_incumbent 0

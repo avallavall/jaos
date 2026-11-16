@@ -78,11 +78,11 @@ HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 first:
 
 - No incumbent: `ic97_potential` and `csched008`. HiGHS finds
-  `csched008`'s first point by a sub-MIP at node 533. Since 00e975c JAOS
-  stays at `csched008`'s root for the whole 1e10, its heuristics taking
-  72.2% of the work against 53.8% when it reached 57 nodes
-  (`bench/measurements/02-459/`). Next: the root heuristic that outruns
-  its share, then the node cost below.
+  `csched008`'s first point by a sub-MIP at node 533. Its root pump took
+  5.5e9 of the 1e10. The root's pump and dive are now held to half the
+  root's work while there is no incumbent (`MIP_HEUR_ROOT`, 02-466), and
+  `csched008` reaches 79 nodes. Each costs about 6e7 work units, and it
+  finds no point. Next: J32's scheduling heuristic, then the node cost.
 - Weak roots on the timetabling models: `timtab1` 427178 against HiGHS's
   569441, `ic97_potential` 3868 against SCIP's 3896. Their cuts come from
   rows summed around cycles of the event graph; the simple form was refused
@@ -171,8 +171,12 @@ start rules (crash basis, initial basis) are not primal heuristics. SCIP
 ships about 50. Step 0 is a scheduler that every heuristic plugs into. Each
 heuristic has a detector of where it applies and a share of the work, and
 the scheduler keeps the success of each and picks the next by it, with a
-seeded rule, so the portfolio stays deterministic. Then, by what each
-reaches on the open instances:
+seeded rule, so the portfolio stays deterministic. Its first piece is in:
+at a root with no incumbent, the dive and the pump each get half the
+root's work, or a floor by the model's size (`MIP_HEUR_ROOT`,
+`MIP_HEUR_FLOOR`, 02-466). MIPLIB 3 reads its baseline, and the 2017 gap
+sum goes from 13.52 to 13.36. Then, by what each reaches on the open
+instances:
 
 - Made for a structure. 02-463's `census.py` sorts the open MIPLIB 2017
   instances into families, each with a heuristic in the literature for its

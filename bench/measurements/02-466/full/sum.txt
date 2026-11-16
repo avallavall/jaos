@@ -1,0 +1,4 @@
+before     solved 5 incumbents 28 primal 7.0004 dual 6.5150 sum 13.5153
+share0.5   solved 5 incumbents 28 primal 6.8781 dual 6.5251 sum 13.4032
+share0.25  solved 5 incumbents 28 primal 7.2284 dual 6.5345 sum 13.7629
+landed     solved 5 incumbents 28 primal 6.8396 dual 6.5210 sum 13.3607

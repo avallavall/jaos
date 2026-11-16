@@ -4223,6 +4223,28 @@ static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
     jaos_model_free(m);
 }
 
+static void test_the_root_pump_stops_at_its_share_of_the_root(void)
+{
+    int64_t work[2] = { 0, 0 };
+    const int64_t rounds[2] = { 2000, 4000 };
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_read_mps(m, "tests/data/mip_noinc_propagate.mps"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, rounds[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_FALSE(rep.has_incumbent);
+        work[k] = jaos_work_units(m);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+}
+
 static void test_the_feasibility_pump_finds_a_point_at_the_root(void)
 {
     const int64_t rounds[3] = { 0, 5, 20 };
@@ -6105,6 +6127,7 @@ int main(void)
     RUN_TEST(test_the_dive_heuristic_finds_the_first_incumbent);
     RUN_TEST(test_the_dive_heuristic_runs_below_the_root);
     RUN_TEST(test_the_feasibility_pump_finds_a_point_at_the_root);
+    RUN_TEST(test_the_root_pump_stops_at_its_share_of_the_root);
     RUN_TEST(test_the_general_pump_reaches_a_general_integer_point);
     RUN_TEST(test_the_objective_pump_finds_a_better_root_point);
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);

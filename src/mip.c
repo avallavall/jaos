@@ -154,6 +154,8 @@ constexpr double MIP_NET_POOL_SLACK = 1e-6;
 constexpr int64_t MIP_FJ_WORK = 20000;
 constexpr int64_t MIP_FJ_SAMPLE = 25;
 constexpr double MIP_FJ_ROOT = 0.5;
+constexpr double MIP_HEUR_ROOT = 0.5;
+constexpr int64_t MIP_HEUR_FLOOR = 20000;
 constexpr int64_t MIP_SWAP_WORK = 5000;
 
 constexpr int64_t MIP_SUBMIP_NODES = 500;
@@ -6622,7 +6624,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     cmir_ctx cmx = {0};
     int64_t sub_spent = 0, sub_last = 0;
     const double heur_cap = net ? MIP_NET_HEUR_CAP : 0.0;
-    int64_t heur_amount = 0, heur_stop = 0;
+    int64_t heur_amount = 0, heur_stop = 0, root_heur_amount = 0;
     int64_t mirs = 0;
     bnode **dstack = nullptr;
     int64_t dstack_n = 0, dstack_cap = 0, backtracks = 0;
@@ -7698,6 +7700,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         phase_to(&ph, work, PH_HEUR);
         if (nodes == 1 && heur_cap > 0.0)
             heur_amount = (int64_t)(heur_cap * (double)work) + 1;
+        if (nodes == 1) {
+            const int64_t floor_amount =
+                MIP_HEUR_FLOOR * (m->num_nz + nc + m->num_row);
+            root_heur_amount = (int64_t)(MIP_HEUR_ROOT * (double)work) + 1;
+            if (root_heur_amount < floor_amount)
+                root_heur_amount = floor_amount;
+        }
         heur_stop = heur_amount > 0 ? work + heur_amount : 0;
         if (nodes == 1 && m->mip_start != nullptr) {
             double hobj = 0.0;
@@ -7906,7 +7915,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             (cur == nullptr || cur->depth <= dive_heur_depth)) {
             const int got = dive_for_point(m, lp, dive_heur, nullptr, nullptr,
                                            xr, &work, &solves,
-                                           inc.have ? heur_stop : 0);
+                                           inc.have ? heur_stop
+                                           : nodes == 1 ? work + root_heur_amount
+                                           : 0);
             if (got < 0)
                 goto done;
             double hobj = 0.0;
@@ -7961,7 +7972,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             const int got = pump_for_point(m, lp, x, feaspump, pump_general,
                                            pump_obj, xr, prnd, pprev, pprev2,
                                            &work, &solves,
-                                           inc.have ? heur_stop : 0);
+                                           inc.have ? heur_stop
+                                           : nodes == 1 ? work + root_heur_amount
+                                           : 0);
             if (got < 0)
                 goto done;
             double hobj = 0.0;

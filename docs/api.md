@@ -867,8 +867,11 @@ quadratic objective keeps the single-row form.
 Sets the most solves that the dive heuristic takes. On a copy of the
 relaxation, the dive fixes the integer column nearest an integer and solves
 again. An integral point it reaches is judged like any heuristic point. The
-default is 50, and 0 turns it off. In a model with cones or quadratic rows,
-each solve fixes half of the fractional integer columns.
+default is 50, and 0 turns it off. At a root with no incumbent, the dive
+also stops once it has spent half the work the root took before it, or
+20000 times (nonzeros + columns + rows) if that is more. In a
+model with cones or quadratic rows, each solve fixes half of the
+fractional integer columns.
 
 **`jaos_set_mip_dive_heuristic_depth`**\
 `jaos_status jaos_set_mip_dive_heuristic_depth(jaos_model *m, int64_t depth)`\
@@ -926,7 +929,9 @@ never restarts. A negative value restores the default.
 Sets the rounds of the feasibility pump at the root. Each round rounds the
 relaxation's point. It then solves the copy for the point nearest that
 rounding in the L1 norm. The default is 20, and 0 turns it off. The pump
-runs only while no incumbent exists.
+runs only while no incumbent exists, and stops once it has spent half the
+work the root took before it, or 20000 times (nonzeros + columns + rows)
+if that is more.
 
 **`jaos_set_mip_pump_general`**\
 `jaos_status jaos_set_mip_pump_general(jaos_model *m, int on)`\

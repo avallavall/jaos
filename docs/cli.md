@@ -238,11 +238,11 @@ again: `bench/refusals.txt` says what would reopen each one, and
 | `--dive-backtrack N` | lets a dive resume from the deepest sibling it left, up to `N` times. Default 0. Only matters with `--dive`. |
 | `--dive-gap F` | resumes a dive only while the waiting sibling's bound is within `F` of (1 + \|best open bound\|). Default 0, no condition. Only matters with `--dive`. |
 | `--dive-degrade F` | goes on into a child only while its bound is within `F` of (1 + \|its parent's\|). Default 0, no condition. Only matters with `--dive`. |
-| `--dive-heuristic N` | at the root, on a copy of the relaxation, fixes the integer column nearest an integer and solves again, up to `N` times. Default 50; `0` turns it off. |
+| `--dive-heuristic N` | at the root, on a copy of the relaxation, fixes the integer column nearest an integer and solves again, up to `N` times; with no incumbent, within half the root's work or 20000 times the model's size, whichever is more. Default 50; `0` turns it off. |
 | `--dive-heuristic-depth D` | runs that dive at every node down to depth `D`, the root being 0. Default 0, the root alone. |
 | `--rins N` | fixes the integer columns on which an incumbent and a node's relaxation agree and dives on the rest, up to `N` solves per incumbent (after Danna, Rothberg and Le Pape). Default 50 (`bench/measurements/02-325/`), and 0 on a model with a quadratic objective unless it is set. |
 | `--local-branching K` | for each incumbent, solves a tree of at most `MIP_LOCAL_BRANCHING_NODES` nodes that keeps the binary columns within `K` flips of it (after Fischetti and Lodi). Default 0, off (`bench/measurements/02-286/`). |
-| `--feaspump N` | rounds of the feasibility pump at the root, while there is no incumbent. Default 20; `0` turns it off. |
+| `--feaspump N` | rounds of the feasibility pump at the root, while there is no incumbent, within half the root's work or 20000 times the model's size, whichever is more. Default 20; `0` turns it off. |
 | `--pump-general 0\|1` | gives the pump an auxiliary column and two rows per general integer column (after Bertacco, Fischetti and Lodi). Off by default. |
 | `--pump-obj F` | blends the objective into the pump at a weight that starts at 1 and is multiplied by `F` each round (after Achterberg and Berthold). Default 0.5; `0` is the plain pump; `1` or more is a usage error. |
 | `--pump-always` | runs the pump at the root even when an incumbent exists. Off by default; `--no-pump-always` keeps the default. |
