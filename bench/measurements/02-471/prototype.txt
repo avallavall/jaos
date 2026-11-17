@@ -1,0 +1,39 @@
+glass4            lps=500   seed=1 start relax violation 0 after 253 LPs, first 6325061525 at LP 255, T0 8.875e+08 best 2600022700 after 500 LPs, 20034506 work units, finish 2600022700.0
+glass4            lps=500   seed=2 start relax violation 0 after 106 LPs, first 4800036575 at LP 108, T0 7e+08 best 2666690467 after 500 LPs, 16770190 work units, finish 2666690466.666667
+glass4            lps=500   seed=3 start relax violation 0 after 143 LPs, first 4100033500 at LP 145, T0 0 best 2266687333 after 500 LPs, 18855473 work units, finish 2266687333.3333335
+glass4            lps=1000  seed=1 start relax violation 0 after 253 LPs, first 6325061525 at LP 255, T0 8.875e+08 best 1925017800 after 1000 LPs, 39497892 work units, finish 1925017800.0
+glass4            lps=1000  seed=2 start relax violation 0 after 106 LPs, first 4800036575 at LP 108, T0 7e+08 best 2333355300 after 1000 LPs, 33953767 work units, finish 2333355300.0
+glass4            lps=1000  seed=3 start relax violation 0 after 143 LPs, first 4100033500 at LP 145, T0 0 best 2000019400 after 1000 LPs, 36811714 work units, finish 2000019400.0
+glass4            lps=4000  seed=1 start relax violation 0 after 253 LPs, first 6325061525 at LP 255, T0 8.875e+08 best 1833348450 after 4000 LPs, 171477097 work units, finish 1833348450.0
+glass4            lps=4000  seed=2 start relax violation 0 after 106 LPs, first 4800036575 at LP 108, T0 7e+08 best 1900016733 after 4000 LPs, 168856964 work units, finish 1900016733.333321
+glass4            lps=4000  seed=3 start relax violation 0 after 143 LPs, first 4100033500 at LP 145, T0 0 best 1875019100 after 4000 LPs, 150490572 work units, finish 1875019100.0
+graphdraw-domain  lps=500   seed=1 start relax violation 0 after 290 LPs, first 37374.5 at LP 292, T0 1934 best 24174 after 500 LPs, 34175095 work units, finish 24174.0
+graphdraw-domain  lps=500   seed=2 start relax violation 0 after 135 LPs, first 37224 at LP 137, T0 173 best 25009 after 500 LPs, 30377586 work units, finish 25095.0
+graphdraw-domain  lps=500   seed=3 start relax violation 0 after 293 LPs, first 40346 at LP 295, T0 345 best 26813 after 500 LPs, 32662243 work units, finish 26814.0
+graphdraw-domain  lps=1000  seed=1 start relax violation 0 after 290 LPs, first 37374.5 at LP 292, T0 1934 best 23103.5 after 1000 LPs, 63120950 work units, finish 23190.0
+graphdraw-domain  lps=1000  seed=2 start relax violation 0 after 135 LPs, first 37224 at LP 137, T0 173 best 22422 after 1000 LPs, 54690016 work units, finish 22508.0
+graphdraw-domain  lps=1000  seed=3 start relax violation 0 after 293 LPs, first 40346 at LP 295, T0 345 best 26677.5 after 1000 LPs, 56130770 work units, finish 26806.0
+graphdraw-domain  lps=4000  seed=1 start relax violation 0 after 290 LPs, first 37374.5 at LP 292, T0 1934 best 23503 after 4000 LPs, 197720862 work units, finish 23717.0
+graphdraw-domain  lps=4000  seed=2 start relax violation 0 after 135 LPs, first 37224 at LP 137, T0 173 best 22888 after 4000 LPs, 234950581 work units, finish 23018.0
+graphdraw-domain  lps=4000  seed=3 start relax violation 0 after 293 LPs, first 40346 at LP 295, T0 345 best 22719 after 4000 LPs, 210563143 work units, finish 22848.0
+assign1-5-8       lps=500   seed=1 start relax violation 0 after 56 LPs, first 235 at LP 58, T0 3 best 214 after 500 LPs, 615314 work units, finish 214.0
+assign1-5-8       lps=500   seed=2 start relax violation 0 after 47 LPs, first 230 at LP 49, T0 5 best 214 after 500 LPs, 482370 work units, finish 214.0
+assign1-5-8       lps=500   seed=3 start relax violation 0 after 37 LPs, first 259 at LP 39, T0 14 best 216 after 500 LPs, 403757 work units, finish 216.0
+assign1-5-8       lps=1000  seed=1 start relax violation 0 after 56 LPs, first 235 at LP 58, T0 3 best 212 after 1000 LPs, 680314 work units, finish 212.0
+assign1-5-8       lps=1000  seed=2 start relax violation 0 after 47 LPs, first 230 at LP 49, T0 5 best 215 after 1000 LPs, 547370 work units, finish 215.0
+assign1-5-8       lps=1000  seed=3 start relax violation 0 after 37 LPs, first 259 at LP 39, T0 14 best 217 after 1000 LPs, 468757 work units, finish 217.0
+assign1-5-8       lps=4000  seed=1 start relax violation 0 after 56 LPs, first 235 at LP 58, T0 3 best 212 after 4000 LPs, 1070314 work units, finish 212.0
+assign1-5-8       lps=4000  seed=2 start relax violation 0 after 47 LPs, first 230 at LP 49, T0 5 best 214 after 4000 LPs, 937370 work units, finish 214.0
+assign1-5-8       lps=4000  seed=3 start relax violation 0 after 37 LPs, first 259 at LP 39, T0 14 best 216 after 4000 LPs, 858757 work units, finish 216.0
+csched007         lps=500   seed=1 start relax violation 6 after 499 LPs, no point
+csched007         lps=500   seed=2 start relax violation 6 after 499 LPs, no point
+csched007         lps=500   seed=3 start relax violation 6 after 499 LPs, no point
+csched007         lps=1000  seed=1 start relax violation 6 after 999 LPs, no point
+csched007         lps=1000  seed=2 start relax violation 6 after 999 LPs, no point
+csched007         lps=1000  seed=3 start relax violation 6 after 999 LPs, no point
+csched007         lps=4000  seed=1 start relax violation 6 after 3999 LPs, no point
+csched007         lps=4000  seed=2 start relax violation 6 after 3999 LPs, no point
+csched007         lps=4000  seed=3 start relax violation 6 after 3999 LPs, no point
+csched007         lps=4000  seed=1 start greedy violation 10 after 2541 LPs, no point
+csched007         lps=4000  seed=2 start greedy violation 12 after 2541 LPs, no point
+csched007         lps=4000  seed=3 start greedy violation 10 after 2541 LPs, no point

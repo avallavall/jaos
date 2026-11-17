@@ -155,13 +155,14 @@ first:
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 18:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 19:
 - for linear MIPs:
   - node rounding, lock rounding;
   - the search over the starts of a time-indexed schedule, the
     feasibility jump, the exchanges between assignment rows, threshold
-    accepting over the items of partitioning rows, moves over the
-    disjunctions of big-M rows;
+    accepting over the items of partitioning rows, the same priced by an
+    LP over the columns that link rows, moves over the disjunctions of
+    big-M rows;
   - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
     the RINS dive;
   - local branching (off), and the dive from node 1000 with no
@@ -193,8 +194,10 @@ instances:
   its optimum, `bench/measurements/02-470/`). The fourth,
   a search over the starts of a time-indexed schedule, takes it to
   10.91 (`csched008` from no incumbent to 0.012 away, `csched007`
-  0.32 to 0.13, `bench/measurements/02-472/`). The rest, largest first,
-  follow below.
+  0.32 to 0.13, `bench/measurements/02-472/`). The fifth, the same items
+  search priced by an LP over the columns that link rows, takes it to
+  10.85 (`glass4` 0.50 to 0.25 and its dual gap 0.33 to 0.25,
+  `bench/measurements/02-471/`). The rest, largest first, follow below.
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
   - rounding: shifting, ZI round, seeded randomized rounding,
@@ -217,14 +220,14 @@ instances:
 
 The structures, largest first:
 
-- Partitioning rows with items whose continuous columns link rows
-  (`glass4`, `assign1-5-8`, `graphdraw-domain`): the items search of
-  02-469 prices each row's continuous columns in closed form, which these
-  models do not allow. Next: an LP over the continuous columns after a
-  run of moves, read on those three.
+- Partitioning rows with items whose continuous columns link rows:
+  02-471's search prices each move by an LP, about 56,000 units on
+  `glass4`, 18,000 of them the setup of each solve, and takes most of its
+  budget there; `glass4` ends 0.25 away and `graphdraw-domain` 0.10.
+  Next: an LP that keeps its factors between moves, read on those two.
 - Big-M placement: 02-470's moves change one disjunction at a time, with
-  kicks of up to four. `glass4` stops at 1.70e9, 0.42 away, and its last
-  ten runs find nothing. `supportcase26` ends 0.018 away against 0.011
+  kicks of up to four. Alone, `glass4` stops at 1.70e9, 0.42 away, and its
+  last ten runs find nothing; with 02-471's search it ends 0.25 away. `supportcase26` ends 0.018 away against 0.011
   before: a job there moves past several of the other chain's jobs at
   once, and a single flip between them closes a cycle. Next: a move that
   frees every disjunction of one object (a rectangle, a job) and solves

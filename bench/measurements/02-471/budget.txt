@@ -1,0 +1,68 @@
+glass4 LKPHASE1 feasible=1 ops=4568705 lps=83 violation=0
+glass4 LKFIRST z=3200025800 from_inc=0
+glass4 LKBEST z=3166693500 ops=5023084 lps=98 budget=126650000
+glass4 LKBEST z=2850026050 ops=5315897 lps=104 budget=126650000
+glass4 LKBEST z=2733357000 ops=7071453 lps=146 budget=126650000
+glass4 LKBEST z=2433356400 ops=7655112 lps=159 budget=126650000
+glass4 LKBEST z=2300022350 ops=8248917 lps=173 budget=126650000
+glass4 LKBEST z=2300022150 ops=9525052 lps=199 budget=126650000
+glass4 LKBEST z=2300021800 ops=12443082 lps=257 budget=126650000
+glass4 LKBEST z=2200020400 ops=14226461 lps=303 budget=126650000
+glass4 LKBEST z=2200020200 ops=14536634 lps=307 budget=126650000
+glass4 LKBEST z=2166686483 ops=18447710 lps=375 budget=126650000
+glass4 LKBEST z=2152400648 ops=18993419 lps=387 budget=126650000
+glass4 LKBEST z=2144463989 ops=19059014 lps=389 budget=126650000
+glass4 LKBEST z=2133352967 ops=19198119 lps=393 budget=126650000
+glass4 LKBEST z=2000019500 ops=21214440 lps=437 budget=126650000
+glass4 LKBEST z=2000019400 ops=21738837 lps=449 budget=126650000
+glass4 LKBEST z=1983353333 ops=88680656 lps=1649 budget=126650000
+glass4 LKBEST z=1975019550 ops=90695821 lps=1678 budget=126650000
+glass4 LKBEST z=1975019500 ops=90729232 lps=1679 budget=126650000
+glass4 LKBEST z=1956269506 ops=93592360 lps=1723 budget=126650000
+glass4 LKBEST z=1950019283 ops=95074062 lps=1747 budget=126650000
+glass4 LKBEST z=1950019250 ops=96592712 lps=1769 budget=126650000
+glass4 LKBEST z=1925018800 ops=99618745 lps=1822 budget=126650000
+glass4 LKBEST z=1900018875 ops=101788735 lps=1861 budget=126650000
+glass4 LKBEST z=1884393766 ops=114035294 lps=2063 budget=126650000
+glass4 LKBEST z=1875018700 ops=119162142 lps=2141 budget=126650000
+glass4 LKEND ops=126651431 lps=2259 budget=126650000 T0=300 nlive=36 lpcols=19 lpint=0 lprows=360
+glass4 work_units 137982040
+glass4 incumbent 1875018700
+graphdraw-domain LKPHASE1 feasible=1 ops=246903 lps=1 violation=0
+graphdraw-domain LKFIRST z=26263 from_inc=1
+graphdraw-domain LKBEST z=25612 ops=5843300 lps=126 budget=185950000
+graphdraw-domain LKBEST z=24752 ops=9366289 lps=214 budget=185950000
+graphdraw-domain LKBEST z=24623 ops=18313689 lps=448 budget=185950000
+graphdraw-domain LKBEST z=24238.5 ops=19308798 lps=466 budget=185950000
+graphdraw-domain LKBEST z=24111.5 ops=19389660 lps=468 budget=185950000
+graphdraw-domain LKBEST z=24100.5 ops=22012789 lps=531 budget=185950000
+graphdraw-domain LKBEST z=24057.5 ops=22371385 lps=539 budget=185950000
+graphdraw-domain LKBEST z=24009 ops=22444006 lps=542 budget=185950000
+graphdraw-domain LKBEST z=23965.5 ops=22537283 lps=545 budget=185950000
+graphdraw-domain LKBEST z=23578.5 ops=26226193 lps=626 budget=185950000
+graphdraw-domain LKBEST z=22720.5 ops=27667711 lps=664 budget=185950000
+graphdraw-domain LKBEST z=22720 ops=29525787 lps=709 budget=185950000
+graphdraw-domain LKBEST z=22633 ops=31246149 lps=756 budget=185950000
+graphdraw-domain LKBEST z=22510 ops=79010221 lps=1850 budget=185950000
+graphdraw-domain LKBEST z=22466 ops=83465489 lps=1981 budget=185950000
+graphdraw-domain LKBEST z=20963 ops=85338689 lps=2031 budget=185950000
+graphdraw-domain LKBEST z=20617 ops=111854261 lps=2685 budget=185950000
+graphdraw-domain LKBEST z=20616.5 ops=115033581 lps=2762 budget=185950000
+graphdraw-domain LKBEST z=20486 ops=116985791 lps=2817 budget=185950000
+graphdraw-domain LKEND ops=185950883 lps=4584 budget=185950000 T0=0 nlive=45 lpcols=74 lpint=20 lprows=340
+graphdraw-domain work_units 227003804
+graphdraw-domain incumbent 20616
+assign1-5-8 LKPHASE1 feasible=1 ops=34521 lps=1 violation=0
+assign1-5-8 LKFIRST z=224 from_inc=1
+assign1-5-8 LKBEST z=221 ops=115480 lps=9 budget=201850000
+assign1-5-8 LKBEST z=220 ops=166275 lps=14 budget=201850000
+assign1-5-8 LKBEST z=219 ops=193877 lps=17 budget=201850000
+assign1-5-8 LKBEST z=218 ops=201798 lps=18 budget=201850000
+assign1-5-8 LKBEST z=216 ops=247401 lps=23 budget=201850000
+assign1-5-8 LKBEST z=215 ops=9776088 lps=1014 budget=201850000
+assign1-5-8 LKBEST z=214 ops=17691397 lps=1794 budget=201850000
+assign1-5-8 LKEND ops=201850099 lps=18890 budget=201850000 T0=3 nlive=26 lpcols=26 lpint=0 lprows=130
+assign1-5-8 work_units 354889196
+assign1-5-8 incumbent 214
+csched007 LKPHASE1 feasible=0 ops=3957915 lps=221 violation=10
+csched007 work_units 627470406

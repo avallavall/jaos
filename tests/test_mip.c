@@ -1658,6 +1658,92 @@ static void test_search_over_starts_schedules_the_jobs_on_the_profile(void)
     jaos_model_free(m);
 }
 
+static jaos_model *linked_groups(void)
+{
+    constexpr int64_t N = 12;
+    constexpr int64_t K = 3;
+    constexpr int64_t C = N * K + K;
+    constexpr int64_t R = N + 2 * K;
+    const double wt[N] = { 12, 89, 98, 31, 97, 15, 55, 38, 65, 99, 19, 24 };
+    double c[C], cl[C], cu[C], rl[R], ru[R], av[3 * C];
+    int64_t as[C + 1], ai[3 * C], p = 0;
+    for (int64_t i = 0; i < N; i++)
+        for (int64_t k = 0; k < K; k++) {
+            const int64_t q = i * K + k;
+            as[q] = p;
+            c[q] = 0.0;
+            cl[q] = 0.0;
+            cu[q] = 1.0;
+            ai[p] = i;
+            av[p++] = 1.0;
+            ai[p] = N + 2 * k;
+            av[p++] = wt[i];
+            ai[p] = N + 2 * k + 1;
+            av[p++] = wt[i];
+        }
+    for (int64_t k = 0; k < K; k++) {
+        const int64_t q = N * K + k;
+        as[q] = p;
+        c[q] = 1.0;
+        cl[q] = 0.0;
+        cu[q] = INFINITY;
+        ai[p] = N + 2 * k;
+        av[p++] = -1.0;
+        ai[p] = N + 2 * k + 1;
+        av[p++] = 1.0;
+    }
+    as[C] = p;
+    for (int64_t i = 0; i < N; i++)
+        rl[i] = ru[i] = 1.0;
+    for (int64_t k = 0; k < K; k++) {
+        rl[N + 2 * k] = -INFINITY;
+        ru[N + 2 * k] = 214.0;
+        rl[N + 2 * k + 1] = 214.0;
+        ru[N + 2 * k + 1] = INFINITY;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, C, R, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, p, as, ai,
+                     av));
+    for (int64_t q = 0; q < N * K; q++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, q, true));
+    return m;
+}
+
+static void test_threshold_accepting_with_an_lp_over_linking_columns(void)
+{
+    jaos_model *m = linked_groups();
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, rep.incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "an LP pricing the columns that link "
+                                       "the rows"));
+    double x[39], load[3] = { 0.0, 0.0, 0.0 };
+    const double wt[12] = { 12, 89, 98, 31, 97, 15, 55, 38, 65, 99, 19, 24 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    for (int64_t i = 0; i < 12; i++)
+        for (int64_t k = 0; k < 3; k++)
+            load[k] += wt[i] * x[i * 3 + k];
+    for (int64_t k = 0; k < 3; k++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, 214.0, load[k]);
+    jaos_model_free(m);
+
+    m = linked_groups();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, rep.incumbent);
+    TEST_ASSERT_TRUE(rep.nodes > 1);
+    jaos_model_free(m);
+}
+
 static jaos_model *lights_out(void)
 {
     constexpr int64_t N = 3;
@@ -6361,6 +6447,7 @@ int main(void)
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
+    RUN_TEST(test_threshold_accepting_with_an_lp_over_linking_columns);
     RUN_TEST(test_search_over_starts_schedules_the_jobs_on_the_profile);
     RUN_TEST(test_moves_over_big_m_disjunctions_order_one_machine);
     RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);

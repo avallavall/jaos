@@ -135,6 +135,7 @@ typedef struct {
     bool mip_presolve_set;
     bool mip_presolve;
     bool mip_presolved;
+    bool mip_sub;
 
     bool mip_probing_set;
     bool mip_probing;

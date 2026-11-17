@@ -1210,8 +1210,22 @@ from each new incumbent, and every 100 nodes from its own, while its work
 stays under 30% of the tree's; the wait doubles after each run from its
 own point that finds nothing. General integer columns of its point are
 rounded and the rest solved, or else a sub-MIP boxes each between its
-floor and ceiling. The
-dive heuristic, RINS and the pump have their own setters.
+floor and ceiling. The eighth runs once at the root of the main tree,
+after the seventh, when every free integer column is an item or a
+general integer column in no partitioning row, and some continuous
+column sits in two or more rows or some such general integer column
+exists. One LP over those columns, general integers relaxed, and the
+rows they sit in, with the items' activity moved into the row bounds,
+then prices each move, from the basis of the last optimum. From the
+incumbent it searches as the sixth does. With no incumbent it starts
+from each row's item with the largest value in the relaxation, and
+first walks on the violation: the violation of the rows outside the LP
+plus the optimum of the LP with one elastic column per finite row bound.
+It takes a move that does not raise it, and gives up after four LPs per
+partitioning row without a fall. It fixes the best assignment it finds
+and solves the rest, as a sub-MIP over the general integer columns when
+there are any. The dive heuristic, RINS and the pump have their own
+setters.
 
 **`jaos_set_mip_node_limit`**\
 `jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)`\

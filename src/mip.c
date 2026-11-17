@@ -161,6 +161,9 @@ constexpr int64_t MIP_ANNEAL_WORK = 5000;
 constexpr int64_t MIP_ANNEAL_SAMPLE = 1000;
 constexpr double MIP_ANNEAL_COOL = 1e-3;
 constexpr int MIP_ANNEAL_LEVELS = 64;
+constexpr int64_t MIP_LINK_WORK = 50000;
+constexpr int64_t MIP_LINK_SAMPLE = 30;
+constexpr int64_t MIP_LINK_STALL = 4;
 constexpr int64_t MIP_SCHED_WORK = 5000;
 constexpr double MIP_SCHED_STEP = 1e-4;
 constexpr double MIP_BIGM_RATIO = 1e3;
@@ -4232,6 +4235,9 @@ bool jm_mip_start_partial(const jaos_model *m)
     return false;
 }
 
+static int submip_run(const jaos_model *m, jaos_model *sub, double incobj,
+                      int64_t limit, int64_t *work, double *xout);
+
 static int submip_for_point(const jaos_model *m, const double *ilo,
                             const double *ihi, const double *xinc,
                             double incobj, const double *xlp, int64_t limit,
@@ -4269,6 +4275,17 @@ static int submip_for_point(const jaos_model *m, const double *ilo,
     }
     if (nint == 0 || (double)nfix < MIP_SUBMIP_FIXED * (double)nint)
         goto out;
+    got = submip_run(m, sub, incobj, limit, work, xout);
+out:
+    jaos_model_free(sub);
+    return got;
+}
+
+static int submip_run(const jaos_model *m, jaos_model *sub, double incobj,
+                      int64_t limit, int64_t *work, double *xout)
+{
+    const int64_t nc = m->num_col;
+    int got = 0;
     free(sub->mip_start);
     sub->mip_start = nullptr;
     sub->cfg.log_cb = nullptr;
@@ -4284,6 +4301,7 @@ static int submip_for_point(const jaos_model *m, const double *ilo,
     sub->cfg.mip_restart_set = true;
     sub->cfg.mip_restart = false;
     sub->cfg.mip_node_limit = MIP_SUBMIP_NODES;
+    sub->cfg.mip_sub = true;
     if (isfinite(incobj)) {
         sub->cfg.mip_cutoff_set = true;
         sub->cfg.mip_cutoff = incobj;
@@ -4308,8 +4326,6 @@ static int submip_for_point(const jaos_model *m, const double *ilo,
     } else if (st == JAOS_ERR_OUT_OF_MEMORY) {
         got = -1;
     }
-out:
-    jaos_model_free(sub);
     return got;
 }
 
@@ -5212,7 +5228,7 @@ static bool an_slack(const jaos_model *m, const double *ilo, const double *ihi,
 }
 
 static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
-                     anstate *w, int64_t *ops)
+                     bool linked, anstate *w, int64_t *ops)
 {
     const int64_t nc = m->num_col, nr = m->num_row;
     const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
@@ -5238,7 +5254,7 @@ static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
         }
         w->part[i] = ok;
     }
-    int64_t nitem = 0;
+    int64_t nitem = 0, nlink = 0;
     for (int64_t j = 0; j < nc; j++) {
         const int64_t len = m->a_start[j + 1] - m->a_start[j];
         *ops += len + 1;
@@ -5258,17 +5274,23 @@ static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
             continue;
         }
         if (m->col_integer[j]) {
-            if (ilo[j] != 0.0 || ihi[j] != 1.0)
-                return false;
             int64_t k = 0;
             for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
                 if (w->part[m->a_index[q]]) {
                     w->prow[j] = m->a_index[q];
                     k++;
                 }
-            if (k != 1)
+            if (linked && k == 0 && ihi[j] - ilo[j] > 1.0) {
+                nlink++;
+                continue;
+            }
+            if (k != 1 || ilo[j] != 0.0 || ihi[j] != 1.0)
                 return false;
             nitem++;
+            continue;
+        }
+        if (linked) {
+            nlink += len > 1;
             continue;
         }
         if (len > 1)
@@ -5291,7 +5313,7 @@ static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
         else
             w->dstart[i + 1]++;
     }
-    if (nitem < 4)
+    if (nitem < 4 || (linked && nlink == 0))
         return false;
     for (int64_t i = 0; i < nr; i++) {
         w->ustart[i + 1] += w->ustart[i];
@@ -5299,7 +5321,7 @@ static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
     }
     for (int64_t i = 0; i < nr; i++)
         w->cur[i] = w->ustart[i];
-    for (int64_t j = 0; j < nc; j++) {
+    for (int64_t j = 0; !linked && j < nc; j++) {
         if (m->col_integer[j] || ilo[j] == ihi[j] ||
             m->a_start[j + 1] - m->a_start[j] != 1)
             continue;
@@ -5317,7 +5339,7 @@ static bool an_shape(const jaos_model *m, const double *ilo, const double *ihi,
     }
     for (int64_t i = 0; i < nr; i++)
         w->cur[i] = w->dstart[i];
-    for (int64_t j = 0; j < nc; j++) {
+    for (int64_t j = 0; !linked && j < nc; j++) {
         if (m->col_integer[j] || ilo[j] == ihi[j] ||
             m->a_start[j + 1] - m->a_start[j] != 1)
             continue;
@@ -5505,6 +5527,50 @@ static int an_propose(const anstate *w, uint64_t *rng, int64_t *out,
     return 1;
 }
 
+static bool an_alloc(anstate *w, const jaos_model *m)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    *w = (anstate){ .nc = nc, .nr = nr };
+    w->part = jm_calloc_array(nr, sizeof *w->part);
+    w->free_row = jm_calloc_array(nr, sizeof *w->free_row);
+    w->covered = jm_calloc_array(nr, sizeof *w->covered);
+    w->prow = jm_alloc_array(nc, sizeof *w->prow);
+    w->slot = jm_alloc_array(nc, sizeof *w->slot);
+    w->pstart = jm_calloc_array(nr + 1, sizeof *w->pstart);
+    w->pcol = jm_alloc_array(nc, sizeof *w->pcol);
+    w->live = jm_alloc_array(nr, sizeof *w->live);
+    w->choice = jm_alloc_array(nr, sizeof *w->choice);
+    w->best = jm_alloc_array(nr, sizeof *w->best);
+    w->order = jm_alloc_array(nr, sizeof *w->order);
+    w->ustart = jm_calloc_array(nr + 1, sizeof *w->ustart);
+    w->dstart = jm_calloc_array(nr + 1, sizeof *w->dstart);
+    w->cur = jm_alloc_array(nr, sizeof *w->cur);
+    w->mark = jm_calloc_array(nr, sizeof *w->mark);
+    w->touched = jm_alloc_array(nr, sizeof *w->touched);
+    w->sig = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof *w->sig);
+    w->opt = jm_alloc_array(nc, sizeof *w->opt);
+    w->sigs = jm_alloc_array(nc, sizeof *w->sigs);
+    w->up = jm_alloc_array(nc, sizeof *w->up);
+    w->dn = jm_alloc_array(nc, sizeof *w->dn);
+    w->act = jm_calloc_array(nr, sizeof *w->act);
+    w->rc = jm_calloc_array(nr, sizeof *w->rc);
+    w->rv = jm_calloc_array(nr, sizeof *w->rv);
+    w->anchor = jm_calloc_array(nr, sizeof *w->anchor);
+    w->base = jm_calloc_array(nr, sizeof *w->base);
+    w->vtol = jm_alloc_array(nr, sizeof *w->vtol);
+    w->dr = jm_alloc_array(nr, sizeof *w->dr);
+    w->nrc = jm_alloc_array(nr, sizeof *w->nrc);
+    w->nrv = jm_alloc_array(nr, sizeof *w->nrv);
+    w->smp = jm_alloc_array(MIP_ANNEAL_SAMPLE, sizeof *w->smp);
+    w->x = jm_alloc_array(nc, sizeof *w->x);
+    return w->part && w->free_row && w->covered && w->prow && w->slot &&
+           w->pstart && w->pcol && w->live && w->choice && w->best &&
+           w->order && w->ustart && w->dstart && w->cur && w->mark &&
+           w->touched && w->sig && w->opt && w->sigs && w->up && w->dn &&
+           w->act && w->rc && w->rv && w->anchor && w->base && w->vtol &&
+           w->dr && w->nrc && w->nrv && w->smp && w->x;
+}
+
 static int anneal_for_point(const jaos_model *m, const jaos_model *lp,
                             const double *ilo, const double *ihi,
                             const double *start, int64_t limit, double *out,
@@ -5513,50 +5579,13 @@ static int anneal_for_point(const jaos_model *m, const jaos_model *lp,
     const int64_t nc = m->num_col, nr = m->num_row;
     if (nc == 0 || nr == 0 || jm_model_ensure_rowwise((jaos_model *)m) != JAOS_OK)
         return 0;
-    anstate w = { .nc = nc, .nr = nr };
-    w.part = jm_calloc_array(nr, sizeof *w.part);
-    w.free_row = jm_calloc_array(nr, sizeof *w.free_row);
-    w.covered = jm_calloc_array(nr, sizeof *w.covered);
-    w.prow = jm_alloc_array(nc, sizeof *w.prow);
-    w.slot = jm_alloc_array(nc, sizeof *w.slot);
-    w.pstart = jm_calloc_array(nr + 1, sizeof *w.pstart);
-    w.pcol = jm_alloc_array(nc, sizeof *w.pcol);
-    w.live = jm_alloc_array(nr, sizeof *w.live);
-    w.choice = jm_alloc_array(nr, sizeof *w.choice);
-    w.best = jm_alloc_array(nr, sizeof *w.best);
-    w.order = jm_alloc_array(nr, sizeof *w.order);
-    w.ustart = jm_calloc_array(nr + 1, sizeof *w.ustart);
-    w.dstart = jm_calloc_array(nr + 1, sizeof *w.dstart);
-    w.cur = jm_alloc_array(nr, sizeof *w.cur);
-    w.mark = jm_calloc_array(nr, sizeof *w.mark);
-    w.touched = jm_alloc_array(nr, sizeof *w.touched);
-    w.sig = jm_alloc_array(m->num_nz > 0 ? m->num_nz : 1, sizeof *w.sig);
-    w.opt = jm_alloc_array(nc, sizeof *w.opt);
-    w.sigs = jm_alloc_array(nc, sizeof *w.sigs);
-    w.up = jm_alloc_array(nc, sizeof *w.up);
-    w.dn = jm_alloc_array(nc, sizeof *w.dn);
-    w.act = jm_calloc_array(nr, sizeof *w.act);
-    w.rc = jm_calloc_array(nr, sizeof *w.rc);
-    w.rv = jm_calloc_array(nr, sizeof *w.rv);
-    w.anchor = jm_calloc_array(nr, sizeof *w.anchor);
-    w.base = jm_calloc_array(nr, sizeof *w.base);
-    w.vtol = jm_alloc_array(nr, sizeof *w.vtol);
-    w.dr = jm_alloc_array(nr, sizeof *w.dr);
-    w.nrc = jm_alloc_array(nr, sizeof *w.nrc);
-    w.nrv = jm_alloc_array(nr, sizeof *w.nrv);
-    w.smp = jm_alloc_array(MIP_ANNEAL_SAMPLE, sizeof *w.smp);
-    w.x = jm_alloc_array(nc, sizeof *w.x);
+    anstate w;
     int rc = -1;
     int64_t ops = 0;
-    if (!w.part || !w.free_row || !w.covered || !w.prow || !w.slot ||
-        !w.pstart || !w.pcol || !w.live || !w.choice || !w.best || !w.order ||
-        !w.ustart || !w.dstart || !w.cur || !w.mark || !w.touched || !w.sig ||
-        !w.opt || !w.sigs || !w.up || !w.dn || !w.act || !w.rc || !w.rv ||
-        !w.anchor || !w.base || !w.vtol || !w.dr || !w.nrc || !w.nrv ||
-        !w.smp || !w.x)
+    if (!an_alloc(&w, m))
         goto out;
     rc = 0;
-    if (!an_shape(m, ilo, ihi, &w, &ops))
+    if (!an_shape(m, ilo, ihi, false, &w, &ops))
         goto out;
     int64_t budget_ops = MIP_ANNEAL_WORK * (m->num_nz + nc + nr);
     if (limit > 0 && limit < budget_ops)
@@ -6865,6 +6894,459 @@ static int sched_for_point(const jaos_model *m, const jaos_model *lp,
 out:
     *work += ops - booked;
     sc_free(&w);
+    return rc;
+}
+
+typedef struct {
+    jaos_model *lp;
+    int64_t ncol, nrow, nslk, nint;
+    int64_t *rpos, *rcol;
+    double *cost;
+    jaos_basis_status *cs, *rs;
+    bool warm;
+} lkstate;
+
+static void lk_free(lkstate *k)
+{
+    jaos_model_free(k->lp);
+    free(k->rpos); free(k->rcol); free(k->cost); free(k->cs); free(k->rs);
+}
+
+static void lk_map(const jaos_model *m, const double *ilo, const double *ihi,
+                   const anstate *w, lkstate *k, int64_t *ops)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    for (int64_t i = 0; i < nr; i++)
+        k->rpos[i] = -1;
+    for (int64_t j = 0; j < nc; j++) {
+        if (ilo[j] == ihi[j] || w->prow[j] >= 0)
+            continue;
+        k->rcol[k->ncol++] = j;
+        k->nint += m->col_integer[j];
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            k->rpos[m->a_index[q]] = -2;
+        *ops += m->a_start[j + 1] - m->a_start[j];
+    }
+    for (int64_t i = 0; i < nr; i++)
+        if (k->rpos[i] == -2) {
+            k->rpos[i] = k->nrow++;
+            k->nslk += isfinite(m->row_lower[i]) + isfinite(m->row_upper[i]);
+        }
+    *ops += nc + nr;
+}
+
+static int lk_load(const jaos_model *m, const jaos_model *lp,
+                   const double *ilo, const double *ihi, const anstate *w,
+                   lkstate *k, int64_t *ops)
+{
+    const int64_t nr = m->num_row, n = k->ncol + k->nslk, nrr = k->nrow;
+    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    int64_t nz = k->nslk;
+    for (int64_t t = 0; t < k->ncol; t++)
+        nz += m->a_start[k->rcol[t] + 1] - m->a_start[k->rcol[t]];
+    int64_t *st = jm_alloc_array(n + 1, sizeof *st);
+    int64_t *ix = jm_alloc_array(nz > 0 ? nz : 1, sizeof *ix);
+    double *va = jm_alloc_array(nz > 0 ? nz : 1, sizeof *va);
+    double *cl = jm_alloc_array(n > 0 ? n : 1, sizeof *cl);
+    double *cu = jm_alloc_array(n > 0 ? n : 1, sizeof *cu);
+    double *co = jm_alloc_array(n > 0 ? n : 1, sizeof *co);
+    double *rl = jm_alloc_array(nrr > 0 ? nrr : 1, sizeof *rl);
+    double *ru = jm_alloc_array(nrr > 0 ? nrr : 1, sizeof *ru);
+    k->cost = jm_alloc_array(k->ncol > 0 ? k->ncol : 1, sizeof *k->cost);
+    k->cs = jm_alloc_array(n > 0 ? n : 1, sizeof *k->cs);
+    k->rs = jm_alloc_array(nrr > 0 ? nrr : 1, sizeof *k->rs);
+    int rc = -1;
+    if (!st || !ix || !va || !cl || !cu || !co || !rl || !ru || !k->cost ||
+        !k->cs || !k->rs)
+        goto out;
+    int64_t p = 0;
+    for (int64_t t = 0; t < k->ncol; t++) {
+        const int64_t j = k->rcol[t];
+        st[t] = p;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
+            ix[p] = k->rpos[m->a_index[q]];
+            va[p++] = m->a_value[q];
+        }
+        cl[t] = ilo[j];
+        cu[t] = ihi[j];
+        co[t] = k->cost[t] = sg * m->col_cost[j];
+    }
+    int64_t t = k->ncol;
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t r = k->rpos[i];
+        if (r < 0)
+            continue;
+        rl[r] = m->row_lower[i] - w->act[i];
+        ru[r] = m->row_upper[i] - w->act[i];
+        for (int s = 0; s < 2; s++) {
+            if (!isfinite(s == 0 ? m->row_lower[i] : m->row_upper[i]))
+                continue;
+            st[t] = p;
+            ix[p] = r;
+            va[p++] = s == 0 ? 1.0 : -1.0;
+            cl[t] = cu[t] = co[t] = 0.0;
+            t++;
+        }
+    }
+    st[n] = p;
+    *ops += p + n + nrr;
+    jaos_status s = jaos_model_new(&k->lp);
+    if (s == JAOS_OK)
+        s = jaos_load_lp(k->lp, n, nrr, JAOS_MINIMIZE, 0.0, co, cl, cu, rl, ru,
+                         p, st, ix, va);
+    rc = s == JAOS_OK ? 1 : s == JAOS_ERR_OUT_OF_MEMORY ? -1 : 0;
+    if (rc == 1) {
+        k->lp->cfg = lp->cfg;
+        k->lp->cfg.log_cb = nullptr;
+        k->lp->cfg.log_level = JAOS_LOG_OFF;
+        k->lp->cfg.progress_cb = nullptr;
+        k->lp->cfg.progress_user = nullptr;
+        k->lp->cfg.incumbent_cb = nullptr;
+        k->lp->cfg.node_cb = nullptr;
+        k->lp->cfg.time_limit = 0.0;
+        k->lp->cfg.node_keep = false;
+        k->lp->cfg.node_probe = false;
+        k->lp->cfg.cut_resolve = false;
+        k->lp->cfg.no_presolve = true;
+    }
+out:
+    free(st); free(ix); free(va); free(cl); free(cu); free(co); free(rl);
+    free(ru);
+    return rc;
+}
+
+static bool lk_phase(lkstate *k, bool feasible, int64_t *ops)
+{
+    jaos_status s = JAOS_OK;
+    for (int64_t t = 0; s == JAOS_OK && t < k->ncol; t++)
+        s = jaos_set_col_cost(k->lp, t, feasible ? k->cost[t] : 0.0);
+    for (int64_t t = k->ncol; s == JAOS_OK && t < k->ncol + k->nslk; t++) {
+        s = jaos_set_col_cost(k->lp, t, feasible ? 0.0 : 1.0);
+        if (s == JAOS_OK)
+            s = jaos_set_col_bounds(k->lp, t, 0.0, feasible ? 0.0 : INFINITY);
+    }
+    *ops += k->ncol + k->nslk;
+    return s == JAOS_OK;
+}
+
+static int lk_solve(lkstate *k, int64_t room, double *z, int64_t *ops)
+{
+    jaos_model *r = k->lp;
+    if (k->warm && jaos_set_basis(r, k->cs, k->rs) != JAOS_OK) {
+        jaos_clear_basis(r);
+        k->warm = false;
+    }
+    r->cfg.work_limit = room > 1 ? room : 1;
+    const jaos_status st = jaos_solve(r);
+    *ops += jaos_work_units(r);
+    if (st == JAOS_ERR_OUT_OF_MEMORY)
+        return -1;
+    if (st != JAOS_OK || jaos_status_of(r) != JAOS_SOLVE_OPTIMAL ||
+        jaos_objective(r, z) != JAOS_OK)
+        return 0;
+    k->warm = jaos_basis(r, k->cs, k->rs) == JAOS_OK;
+    return 1;
+}
+
+static double lk_viol(const jaos_model *m, const anstate *w, int64_t i,
+                      double a)
+{
+    const double v = fmax(m->row_lower[i] - a, a - m->row_upper[i]);
+    return v > w->vtol[i] ? v : 0.0;
+}
+
+static bool lk_touch(const jaos_model *m, anstate *w, lkstate *k,
+                     const int64_t *out, const int64_t *in, int nm, double *dz,
+                     double *dv, int64_t *nt_out, int64_t *ops)
+{
+    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    w->stamp++;
+    int64_t nt = 0;
+    double z = 0.0, v = 0.0;
+    for (int t = 0; t < 2 * nm; t++) {
+        const int64_t j = t < nm ? in[t] : out[t - nm];
+        const double s = t < nm ? 1.0 : -1.0;
+        z += s * sg * m->col_cost[j];
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
+            const int64_t i = m->a_index[q];
+            if (w->part[i])
+                continue;
+            if (w->mark[i] != w->stamp) {
+                w->mark[i] = w->stamp;
+                w->dr[i] = 0.0;
+                w->touched[nt++] = i;
+            }
+            w->dr[i] += s * m->a_value[q];
+        }
+        *ops += m->a_start[j + 1] - m->a_start[j] + 1;
+    }
+    bool ok = true;
+    for (int64_t t = 0; t < nt; t++) {
+        const int64_t i = w->touched[t];
+        const double a = w->act[i] + w->dr[i];
+        w->nrc[i] = 0.0;
+        w->nrv[i] = 0.0;
+        if (k->rpos[i] >= 0) {
+            ok = ok && jaos_set_row_bounds(k->lp, k->rpos[i], m->row_lower[i] - a,
+                                           m->row_upper[i] - a) == JAOS_OK;
+            continue;
+        }
+        w->nrv[i] = lk_viol(m, w, i, a);
+        v += w->nrv[i] - w->rv[i];
+    }
+    *ops += 2 * nt;
+    *dz = z;
+    *dv = v;
+    *nt_out = nt;
+    return ok;
+}
+
+static void lk_undo(const jaos_model *m, const anstate *w, lkstate *k,
+                    int64_t nt)
+{
+    for (int64_t t = 0; t < nt; t++) {
+        const int64_t i = w->touched[t];
+        if (k->rpos[i] >= 0)
+            (void)jaos_set_row_bounds(k->lp, k->rpos[i],
+                                      m->row_lower[i] - w->act[i],
+                                      m->row_upper[i] - w->act[i]);
+    }
+}
+
+static int lk_finish(const jaos_model *m, const double *ilo, const double *ihi,
+                     const anstate *w, const double *x, double *out,
+                     int64_t *work)
+{
+    jaos_model *sub = nullptr;
+    if (jaos_model_copy(m, &sub) != JAOS_OK)
+        return -1;
+    jaos_status s = JAOS_OK;
+    for (int64_t j = 0; s == JAOS_OK && j < m->num_col; j++)
+        s = w->prow[j] >= 0 ? jaos_set_col_bounds(sub, j, x[j], x[j])
+                            : jaos_set_col_bounds(sub, j, ilo[j], ihi[j]);
+    *work += m->num_col;
+    const int got = s == JAOS_OK ? submip_run(m, sub, INFINITY, 0, work, out)
+                                 : s == JAOS_ERR_OUT_OF_MEMORY ? -1 : 0;
+    jaos_model_free(sub);
+    return got;
+}
+
+static int link_for_point(const jaos_model *m, const jaos_model *lp,
+                          const double *ilo, const double *ihi,
+                          const double *start, const double *xlp,
+                          int64_t limit, double *out, int64_t *work,
+                          int64_t *solves_done)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (nc == 0 || nr == 0 || jm_model_ensure_rowwise((jaos_model *)m) != JAOS_OK)
+        return 0;
+    anstate w;
+    lkstate k = {0};
+    int rc = -1;
+    int64_t ops = 0;
+    if (!an_alloc(&w, m))
+        goto out;
+    k.rpos = jm_alloc_array(nr, sizeof *k.rpos);
+    k.rcol = jm_alloc_array(nc, sizeof *k.rcol);
+    if (k.rpos == nullptr || k.rcol == nullptr)
+        goto out;
+    rc = 0;
+    if (!an_shape(m, ilo, ihi, true, &w, &ops))
+        goto out;
+    lk_map(m, ilo, ihi, &w, &k, &ops);
+    int64_t budget_ops = MIP_LINK_WORK * (m->num_nz + nc + nr);
+    if (limit > 0 && limit < budget_ops)
+        budget_ops = limit;
+    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    for (int64_t t = 0; t < w.nlive; t++)
+        w.choice[w.live[t]] = -1;
+    int64_t placed = 0;
+    for (int64_t j = 0; start != nullptr && j < nc; j++) {
+        const int64_t p = w.prow[j];
+        if (p < 0 || w.covered[p] || w.choice[p] >= 0 || start[j] < 0.5)
+            continue;
+        w.choice[p] = j;
+        placed++;
+    }
+    const bool from_inc = start != nullptr && placed == w.nlive;
+    for (int64_t t = 0; t < w.nlive; t++) {
+        const int64_t p = w.live[t];
+        for (int64_t q = w.pstart[p]; w.choice[p] < 0 && q < w.pstart[p + 1]; q++)
+            if (q == w.pstart[p] ||
+                (xlp != nullptr && xlp[w.pcol[q]] > xlp[w.order[t]]))
+                w.order[t] = w.pcol[q];
+        if (w.choice[p] < 0)
+            w.choice[p] = w.order[t];
+        ops += w.pstart[p + 1] - w.pstart[p];
+    }
+    double zi = 0.0;
+    for (int64_t t = 0; t < w.nlive; t++) {
+        const int64_t j = w.choice[w.live[t]];
+        zi += sg * m->col_cost[j];
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            if (!w.part[m->a_index[q]])
+                w.act[m->a_index[q]] += m->a_value[q];
+        ops += m->a_start[j + 1] - m->a_start[j] + 1;
+    }
+    double hv = 0.0;
+    for (int64_t i = 0; i < nr; i++) {
+        if (w.part[i] || k.rpos[i] >= 0)
+            continue;
+        w.rv[i] = lk_viol(m, &w, i, w.act[i]);
+        hv += w.rv[i];
+        w.nviol += w.rv[i] > 0.0;
+    }
+    ops += nr;
+    const int ld = lk_load(m, lp, ilo, ihi, &w, &k, &ops);
+    if (ld <= 0) {
+        rc = ld;
+        goto out;
+    }
+    const double tol = jm_primal_tolerance(m);
+    bool feas = false;
+    double zr = 0.0, z1 = 0.0, v = INFINITY, vfail = INFINITY;
+    if (from_inc && w.nviol == 0) {
+        if (!lk_phase(&k, true, &ops))
+            goto out;
+        const int s = lk_solve(&k, budget_ops - ops, &zr, &ops);
+        if (s < 0) {
+            rc = -1;
+            goto out;
+        }
+        feas = s == 1;
+    }
+    if (!feas) {
+        if (!lk_phase(&k, false, &ops))
+            goto out;
+        const int s = lk_solve(&k, budget_ops - ops, &z1, &ops);
+        if (s < 0) {
+            rc = -1;
+            goto out;
+        }
+        if (s == 1)
+            v = hv + z1;
+    }
+    uint64_t rng = 0x9E3779B97F4A7C15u;
+    int64_t mo[2], mi[2], nt, calm = 0;
+    double dz, dv;
+    while (!feas && isfinite(v) && ops < budget_ops) {
+        if (w.nviol == 0 && z1 <= tol && v < vfail) {
+            if (!lk_phase(&k, true, &ops))
+                goto out;
+            const int s = lk_solve(&k, budget_ops - ops, &zr, &ops);
+            if (s < 0) {
+                rc = -1;
+                goto out;
+            }
+            feas = s == 1;
+            if (feas)
+                break;
+            vfail = v;
+            if (!lk_phase(&k, false, &ops))
+                goto out;
+        }
+        if (calm >= MIP_LINK_STALL * w.nlive)
+            break;
+        const int nm = an_propose(&w, &rng, mo, mi, &ops);
+        if (nm == 0)
+            continue;
+        if (!lk_touch(m, &w, &k, mo, mi, nm, &dz, &dv, &nt, &ops))
+            goto out;
+        double zn = 0.0;
+        const int s = lk_solve(&k, budget_ops - ops, &zn, &ops);
+        calm++;
+        if (s < 0) {
+            rc = -1;
+            goto out;
+        }
+        if (s == 0 || hv + dv + zn > v) {
+            lk_undo(m, &w, &k, nt);
+            continue;
+        }
+        an_apply(&w, mi, nm, nt, 0.0);
+        zi += dz;
+        hv += dv;
+        if (hv + zn < v)
+            calm = 0;
+        v = hv + zn;
+        z1 = zn;
+    }
+    if (!feas)
+        goto out;
+    double z = zi + zr, zbest = z;
+    const double zstart = z;
+    for (int64_t t = 0; t < w.nlive; t++)
+        w.best[t] = w.choice[w.live[t]];
+    int64_t nsmp = 0;
+    for (int64_t s = 0; s < MIP_LINK_SAMPLE && ops < budget_ops; s++) {
+        const int nm = an_propose(&w, &rng, mo, mi, &ops);
+        if (nm == 0)
+            continue;
+        if (!lk_touch(m, &w, &k, mo, mi, nm, &dz, &dv, &nt, &ops))
+            goto out;
+        double z2 = 0.0;
+        const int got = dv > 0.0 ? 0 : lk_solve(&k, budget_ops - ops, &z2, &ops);
+        if (got < 0) {
+            rc = -1;
+            goto out;
+        }
+        if (got == 1 && dz + z2 - zr > 0.0)
+            w.smp[nsmp++] = dz + z2 - zr;
+        lk_undo(m, &w, &k, nt);
+    }
+    qsort(w.smp, (size_t)nsmp, sizeof *w.smp, an_dbl_cmp);
+    double lev[MIP_ANNEAL_LEVELS];
+    double q = MIP_ANNEAL_COOL;
+    for (int l = MIP_ANNEAL_LEVELS; l > 1; l /= 2)
+        q = sqrt(q);
+    lev[0] = nsmp > 0 ? w.smp[nsmp / 2] : 0.0;
+    for (int l = 1; l < MIP_ANNEAL_LEVELS; l++)
+        lev[l] = lev[l - 1] * q;
+    const int64_t loop0 = ops;
+    const int64_t span = budget_ops > ops ? budget_ops - ops : 1;
+    while (ops < budget_ops) {
+        int64_t lv = (ops - loop0) * MIP_ANNEAL_LEVELS / span;
+        if (lv >= MIP_ANNEAL_LEVELS)
+            lv = MIP_ANNEAL_LEVELS - 1;
+        const int nm = an_propose(&w, &rng, mo, mi, &ops);
+        if (nm == 0)
+            continue;
+        if (!lk_touch(m, &w, &k, mo, mi, nm, &dz, &dv, &nt, &ops))
+            goto out;
+        double z2 = 0.0;
+        const int got = dv > 0.0 ? 0 : lk_solve(&k, budget_ops - ops, &z2, &ops);
+        if (got < 0) {
+            rc = -1;
+            goto out;
+        }
+        if (got == 0 || dz + z2 - zr > lev[lv]) {
+            lk_undo(m, &w, &k, nt);
+            continue;
+        }
+        an_apply(&w, mi, nm, nt, 0.0);
+        z += dz + z2 - zr;
+        zr = z2;
+        if (z < zbest - 1e-9 * (1.0 + fabs(zbest))) {
+            for (int64_t t = 0; t < w.nlive; t++)
+                w.best[t] = w.choice[w.live[t]];
+            ops += w.nlive;
+            zbest = z;
+        }
+    }
+    if (from_inc && !(zbest < zstart - 1e-9 * (1.0 + fabs(zstart))))
+        goto out;
+    for (int64_t j = 0; j < nc; j++)
+        w.x[j] = ilo[j] == ihi[j] ? ilo[j] : 0.0;
+    for (int64_t t = 0; t < w.nlive; t++)
+        w.x[w.best[t]] = 1.0;
+    *work += ops;
+    ops = 0;
+    rc = k.nint == 0 ? fixed_for_point(m, lp, w.x, out, work, solves_done)
+                     : lk_finish(m, ilo, ihi, &w, w.x, out, work);
+out:
+    *work += ops;
+    an_free(&w);
+    lk_free(&k);
     return rc;
 }
 
@@ -8354,6 +8836,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     double lb_key = 0.0;
     bool lb_seen = false;
     bool anneal_done = false;
+    bool link_done = false;
     bool sched_done = false;
     bool bigm_shape = true, bigm_root = false, bigm_seen = false;
     double bigm_key = 0.0;
@@ -10012,6 +10495,52 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
         if (outcome == JAOS_SOLVE_INTERRUPTED)
             break;
+
+        if (nodes == 1 && heur && !quadratic && branch >= 0 && !link_done &&
+            !m->cfg.mip_sub && !budget_gone(m, work)) {
+            link_done = true;
+            int64_t room = MIP_LINK_WORK * (m->num_nz + nc + nr);
+            if (m->cfg.work_limit > 0 && m->cfg.work_limit - work < room)
+                room = m->cfg.work_limit - work > 1 ? m->cfg.work_limit - work : 1;
+            const int got = link_for_point(m, lp, ilo, ihi,
+                                           inc.have ? inc.x : nullptr, x, room,
+                                           xr, &work, &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by threshold accepting over "
+                           "the items of the partitioning rows, an LP pricing "
+                           "the columns that link the rows", hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
 
         if (rins > 0 && inc.have && branch >= 0 && !budget_gone(m, work) &&
             (!rins_seen || inc.key != rins_key)) {
