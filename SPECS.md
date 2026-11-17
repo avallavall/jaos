@@ -85,7 +85,7 @@ there is a row here that is not done.
 | Semi-continuous variables | **done** | `jaos_set_col_semicontinuous`; MPS `SC` and `SI`, LP `Semi-continuous`, both writers |
 | SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_sos`; MPS and LP `SOS` sections, both writers; Python `add_sos` |
 | Indicator constraints | **done** | `jaos_set_row_indicator`: a row that holds only while an integer column equals 0 or 1. The tree keeps it free until the column is fixed. LP `z = 1 ->`, MPS `INDICATORS`, both writers, Python `add_indicator` |
-| Symmetry detection | **done** | automorphisms by colour refinement and a partition search under a work cap, each row read with one sign so that a negated row matches its twins (`src/symmetry.c`, `02-447/`); orbital branching and fixing on by default (`--orbital`), `--symmetry` to detect and report |
+| Symmetry detection | **done** | automorphisms by colour refinement and a partition search under a work cap, each row read with one sign so that a negated row matches its twins (`src/symmetry.c`, `02-447/`), searched again under four times the cap before the first branch when the root's search runs out (`02-477/`); orbital branching and fixing on by default (`--orbital`), `--symmetry` to detect and report |
 | Conflict analysis | **done** | an infeasible node's Farkas proof gives a row over the binaries the proof needs, kept for the rest of the search; on by default (`--conflicts`) |
 | Deterministic parallel tree search | **done** | both trees can take their open nodes in rounds (`--tree-batch N`), each node on its own copy, the answers taken in the round's order, so the tree and its work are the same at any thread count; off by default by measurement (`bench/measurements/02-264/`, `02-290/`) |
 

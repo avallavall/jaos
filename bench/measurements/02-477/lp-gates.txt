@@ -1,0 +1,12 @@
+== netlib
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+== netlib-infeas
+29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+== netlib-kennington
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes

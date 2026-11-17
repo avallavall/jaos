@@ -1,0 +1,32 @@
+--- a/src/mip.c	2026-11-17 21:33:18.944138159 +0100
++++ b/src/mip.c	2026-11-17 21:33:18.962051030 +0100
+@@ -9097,6 +9097,10 @@
+                    "column, the largest of %lld",
+                    (long long)sym.ngen, (long long)sym.norbit,
+                    (long long)sym.largest);
++        if (getenv("JAOS_SYMONLY") != nullptr) {
++            fprintf(stderr, "SYMONLY gens %lld orbits %lld largest %lld\n", (long long)sym.ngen, (long long)sym.norbit, (long long)sym.largest);
++            exit(0);
++        }
+     }
+ 
+     if (node_mir) {
+--- a/src/symmetry.c	2026-11-17 21:33:18.956487252 +0100
++++ b/src/symmetry.c	2026-11-17 21:33:18.959725982 +0100
+@@ -4,6 +4,7 @@
+ #include <math.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <stdio.h>
+ 
+ constexpr int64_t SYM_MAX_DEPTH = 64;
+ constexpr int64_t SYM_LEAF_CAP = 64;
+@@ -608,6 +609,8 @@
+     }
+ out:
+     *work += work_cap - (g.budget > 0 ? g.budget : 0);
++    if (getenv("JAOS_SYMONLY") != nullptr)
++        fprintf(stderr, "SYMSEARCH depth %lld used %lld of %lld gens %lld\n", (long long)depth, (long long)(work_cap - g.budget), (long long)work_cap, (long long)g.ngen);
+     free(color); free(members); free(leaf1); free(inv1);
+     free(saved); free(cellv); free(cellstart); free(chosen);
+     sg_free(&g);

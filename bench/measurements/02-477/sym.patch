@@ -1,0 +1,11 @@
+--- a/src/mip.c	2026-11-17 21:33:18.944138159 +0100
++++ b/src/mip.c	2026-11-17 21:33:18.983894289 +0100
+@@ -36,7 +36,7 @@
+ constexpr bool MIP_CONFLICTS = true;
+ constexpr bool MIP_SYMMETRY = false;
+ constexpr bool MIP_ORBITAL = true;
+-constexpr int64_t MIP_SYMMETRY_WORK = 250;
++constexpr int64_t MIP_SYMMETRY_WORK = 1000;
+ constexpr int64_t MIP_CONFLICT_MAX = 32;
+ constexpr double MIP_CONFLICT_GAP = 1e-9;
+ constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;

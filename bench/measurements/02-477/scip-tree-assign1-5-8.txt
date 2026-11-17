@@ -1,0 +1,7 @@
+default              nodelimit  nodes    20000 bound 197.1204 primal 212.0000 lpiter    440227 time 36.5
+no-symmetry          nodelimit  nodes    20000 bound 191.6223 primal 212.0000 lpiter    492770 time 47.5
+no-node-sepa         nodelimit  nodes    20000 bound 195.2890 primal 212.0000 lpiter    268706 time 16.0
+no-conflict          nodelimit  nodes    20000 bound 198.0018 primal 212.0000 lpiter    382837 time 37.0
+no-restart           nodelimit  nodes    20000 bound 197.1204 primal 212.0000 lpiter    440227 time 34.4
+no-propagation       nodelimit  nodes    20000 bound 191.1001 primal 212.0000 lpiter    536449 time 36.1
+bare                 nodelimit  nodes    20000 bound 189.5137 primal 212.0000 lpiter    400542 time 16.1

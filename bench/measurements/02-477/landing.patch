@@ -1,0 +1,439 @@
+diff --git a/SPECS.md b/SPECS.md
+index 492629e9..217ad114 100644
+--- a/SPECS.md
++++ b/SPECS.md
+@@ -85,7 +85,7 @@ there is a row here that is not done.
+ | Semi-continuous variables | **done** | `jaos_set_col_semicontinuous`; MPS `SC` and `SI`, LP `Semi-continuous`, both writers |
+ | SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_sos`; MPS and LP `SOS` sections, both writers; Python `add_sos` |
+ | Indicator constraints | **done** | `jaos_set_row_indicator`: a row that holds only while an integer column equals 0 or 1. The tree keeps it free until the column is fixed. LP `z = 1 ->`, MPS `INDICATORS`, both writers, Python `add_indicator` |
+-| Symmetry detection | **done** | automorphisms by colour refinement and a partition search under a work cap, each row read with one sign so that a negated row matches its twins (`src/symmetry.c`, `02-447/`); orbital branching and fixing on by default (`--orbital`), `--symmetry` to detect and report |
++| Symmetry detection | **done** | automorphisms by colour refinement and a partition search under a work cap, each row read with one sign so that a negated row matches its twins (`src/symmetry.c`, `02-447/`), searched again under four times the cap before the first branch when the root's search runs out (`02-477/`); orbital branching and fixing on by default (`--orbital`), `--symmetry` to detect and report |
+ | Conflict analysis | **done** | an infeasible node's Farkas proof gives a row over the binaries the proof needs, kept for the rest of the search; on by default (`--conflicts`) |
+ | Deterministic parallel tree search | **done** | both trees can take their open nodes in rounds (`--tree-batch N`), each node on its own copy, the answers taken in the round's order, so the tree and its work are the same at any thread count; off by default by measurement (`bench/measurements/02-264/`, `02-290/`) |
+ 
+diff --git a/TODO.md b/TODO.md
+index 26d20949..6577220b 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -117,6 +117,19 @@ first:
+   1,859, where JAOS stayed open past 121,000 (02-465). What they lack is
+   branching, node cuts and propagation; `binkar10_1` closes with node
+   MIR (02-474, below).
++- `neos5` and `assign1-5-8` are out of reach at 1e10
++  (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
++  and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work
++  units, 38 LP iterations a solve against HiGHS's 12. Neither closes
++  `assign1-5-8` in 600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at
++  205.0 after 1.12M; without symmetry SCIP's bound at 20,000 nodes falls
++  from 197.1 to 191.6. JAOS's search ran out before it found the exchange
++  of the four groups; a second search before the first branch finds it,
++  and the objective step takes the 26 cost columns as whole: 192.79 to
++  196 at 1e10. Next for `assign1-5-8`: those implied integers in the cuts
++  too (declared integer, its root reads 189.80 against 185.26); for
++  `neos5`, the iterations of a node's relaxation. Verify at 1e10 on both
++  and with `make miplib J=2`.
+ - Strong branching is on by default for a linear model: reliability 4,
+   the children on the node's kept factors, each capped at 1.5 times the
+   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against
+diff --git a/bench/refusals.txt b/bench/refusals.txt
+index 3e3e1b19..c4f1ebac 100644
+--- a/bench/refusals.txt
++++ b/bench/refusals.txt
+@@ -202,3 +202,4 @@ proximity-search | bench/measurements/02-467/read.sh | Proximity search (Fischet
+ one-opt | bench/measurements/02-468/read.sh | 1-opt on every point that passes rounded_point: each integer column with a cost moves towards a better objective within its bounds and its rows' slack, one at a time, with the continuous columns held (bench/measurements/02-468/, one-opt.patch). MIPLIB 3 reads 0.998x, and MIPLIB 2017's gap sum moves from 13.3607 to 13.3667: tr12-30 reaches its optimum, gen-ip054 loses its optimal incumbent and beasleyC3 ends worse. The heuristics' points sit at vertices, where a row holds each column with a cost. Reopens with an LP over the continuous columns after the moves, so that one of them can take up a row's slack.
+ node-dse-carry | bench/measurements/02-473/read.sh | A node's final dual steepest-edge weights, kept by basic variable and given to both children when their basis is built on a model of the same size, in place of weights of 1 (bench/measurements/02-473/, carry.patch). To 20,000 nodes pk1 takes 0.887x the work and binkar10_1 0.926x, assign1-5-8 1.083x. At 1e10 MIPLIB 2017's dual side gains 0.028 (pk1 0.203 to 0.176, neos5, timtab1), but the trees' other paths cost the primal side 0.24 (neos-3754480-nidda, csched007, tr12-30), the gap sum goes from 13.06 to 13.27, and MIPLIB 3 reads 1.026x. Reopens with a node count or branching that makes the dual gain reach a closed instance, or with a primal side that no longer moves with the tree's path.
+ mir-root-cmir-steps | bench/measurements/02-474/read.sh | Marchand and Wolsey's complementation and divisor halving on every row of the root's single-row MIR, alone or with MIR over the root's cut rows and without the MIP_MIR_MORE_STALL stop (bench/measurements/02-474/, prototype.patch bits 1, 2, 8 and 16). binkar10_1's root reaches 6703.4 with the two steps and 6710.8 with all four, SCIP's 6710.3, against 6693.2, but the two steps alone put gt2 at 2.5x and p0201 at 3.4x, all four put enigma at 154x and gt2 at 8.1x, and MIPLIB 2017's gap sum rises from 10.85 to 13.78 as csched008 loses its point and markshare_4_0 its optimum. At the nodes the same steps close binkar10_1 (node-mir-every-depth). Reopens with a root that takes the steps without growing gt2's and p0201's trees, read on both sets.
++symmetry-root-cap | MANUAL | The root's symmetry search under 1000 times the model's size in place of 250 (bench/measurements/02-477/, sym.patch). It finds assign1-5-8's exchange of its four groups, as the landed second search does, but air03, which closes at its root, pays 1.31x for it and MIPLIB 3 reads 1.002x in total; the landed form spends the larger cap only before the first branch (MIP_SYMMETRY_MORE). Reopens with a search that finishes air03 inside 250, such as a refinement that splits only the cells a change touches.
+diff --git a/docs/api.md b/docs/api.md
+index b50ba28f..8663f3c0 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -1131,7 +1131,9 @@ is on by default, runs the same search, so this switch matters only with
+ `jaos_status jaos_set_mip_orbital(jaos_model *m, int on)`\
+ Turns orbital branching and fixing on or off. It is on by default. It uses
+ the symmetries that the root's search finds to fix whole orbits of binary
+-columns at 0.
++columns at 0. When the root's search runs out of work, it runs again with
++four times the work before the tree's first branch, and `jaos_mip_result`
++reports the second search.
+ 
+ **`jaos_set_mip_propagate`**\
+ `jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)`\
+diff --git a/docs/cli.md b/docs/cli.md
+index fac63a90..167e47a7 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -254,7 +254,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
+ | `--probing-cap M` | stops probing at `M` times the work of the root solve. Default 1; `0` is no cap; a negative value is a usage error. |
+ | `--clique-fix` | at each node, fixes every literal the root's clique table puts in conflict with a fixed binary. On by default (`bench/measurements/02-325/`); `--no-clique-fix` turns it off. |
+ | `--conflicts` | at an infeasible node whose proof needs at most 32 binaries fixed on the path, adds a row that forbids that combination. On by default; `--no-conflicts` turns it off. |
+-| `--symmetry` | detects the model's symmetries at the root, under a work cap of `MIP_SYMMETRY_WORK` (250) times the model's size. Off by default. `--orbital`, which is on by default, runs the same search, so this switch matters only with `--no-orbital`. |
++| `--symmetry` | detects the model's symmetries at the root, under a work cap of `MIP_SYMMETRY_WORK` (250) times the model's size; with `--orbital`, a search that runs out runs again under `MIP_SYMMETRY_MORE` (1000) times the size before the tree's first branch. Off by default. `--orbital`, which is on by default, runs the same search, so this switch matters only with `--no-orbital`. |
+ | `--orbital` | orbital branching and fixing with the root's symmetries. On by default; `--no-orbital` turns it off. |
+ | `--propagate N` | passes of bound propagation at each node before its relaxation is solved. Default 0, and 4 on a model with a quadratic objective (`MIP_QUAD_PROPAGATE`); a linear tree with no incumbent also propagates 4 passes at each node from node 1000 (`MIP_NOINC_PROPAGATE`). A value given here replaces both. `jaos options` prints the unset value as -1. |
+ | `--propagate-depth D` | the deepest node at which propagation runs, the root being 0. Negative, the default, is every node. |
+diff --git a/docs/tolerances.md b/docs/tolerances.md
+index ac2ff3cb..38123eab 100644
+--- a/docs/tolerances.md
++++ b/docs/tolerances.md
+@@ -327,7 +327,8 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_CONFLICT_MAX` | 32 | The most binaries a conflict row may hold; a longer one prunes almost nothing. Not swept |
+ | `MIP_CONFLICT_GAP` | 1e-9 | The gap the proof must keep, relative to (1 + \|the rows' side\|), for a fixing to be dropped or the row written; below it the proof is rounding. Not swept |
+ | `MIP_SYMMETRY` | off | Runs the root's symmetry search (colour refinement, then partition backtracking) on its own. `MIP_ORBITAL` runs the same search, so this matters only with orbital branching off |
+-| `MIP_SYMMETRY_WORK` | 250 | The work the search may spend, as a multiple of (nonzeros + columns + rows); a search that runs out keeps the generators found. At 250 every symmetric MIPLIB 3 instance finishes but misc06 and air03; 100 gives p0201 a poorer orbit, 0.943x against 0.835x (`bench/measurements/02-31/`) |
++| `MIP_SYMMETRY_WORK` | 250 | The work the root's search may spend, as a multiple of (nonzeros + columns + rows); a search that runs out keeps the generators found, and runs again under `MIP_SYMMETRY_MORE` before the tree's first branch. At 250 every symmetric MIPLIB 3 instance finishes but misc06 and air03; 100 gives p0201 a poorer orbit, 0.943x against 0.835x (`bench/measurements/02-31/`) |
++| `MIP_SYMMETRY_MORE` | 1000 | The cap of that second search, the same multiple. Under 250 the search on `assign1-5-8` finds the exchanges of its twin points and misses the exchange of its four groups of five, which takes 719 times the size; `neos-911970` takes 938, `misc06` 490 and `air03` 423, and every search on MIPLIB 3 and the 2017 set that finishes under 4000 finishes under 1000. Run before the first branch, it costs nothing on a model the root closes, as `air03` (`bench/measurements/02-477/`) |
+ | `MIP_ORBITAL` | on | Orbital branching and fixing (Ostrowski, Linderoth, Rossi and Smriglio): the zero side of a branch zeroes the binary's whole orbit under the node's stabiliser, and node entry zeroes every orbit the path zeroed. 0.835x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`) |
+ | `SYM_MAX_DEPTH` | 64 | The levels of the first leaf's path the search revisits. Not swept |
+ | `SYM_LEAF_CAP` | 64 | The leaves the backtracking under one alternative vertex may visit before giving it up. Not swept |
+@@ -435,9 +436,9 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_HEUR_ROOT` | 0.5 | The work the root's dive heuristic and its feasibility pump may each spend while there is no incumbent, as a share of the root's work before them, and never less than `MIP_HEUR_FLOOR`. With no share, the pump took 5.5e9 of `csched008`'s 1e10 and found nothing. Without the floor, 0.5 reads 0.933x on MIPLIB 3 against 0.955x at 0.25 and 0.975x at 1, and MIPLIB 2017's gap sum is 13.40 against 13.52 with no share and 13.76 at 0.25 (`bench/measurements/02-466/`) |
+ | `MIP_HEUR_FLOOR` | 20000 | The work, in units of (nonzeros + columns + rows), that the root's dive and pump may spend whatever the root took, as `MIP_FJ_WORK` gives the jump. Without it, half the root is less than the few rounds the pump needs on a small model. With it, MIPLIB 3 reads exactly its baseline, and MIPLIB 2017's gap sum is 13.36 (`bench/measurements/02-466/`). Not swept |
+ | `MIP_FJ_ROOT` | 0.5 | One jump's work as a share of the root's. A successful jump needs at most 0.29x; uncapped, failures put `p0033` at 4x, and at 0.5 MIPLIB 3 reads 1.014x (`bench/measurements/02-329/fj-root.txt`) |
+-| `MIP_OBJ_DENOM` | 100 | The largest cost denominator the objective step looks for: when every costed column is integer, the objective lies on a grid and a bound is rounded up to it. It closes `sp150x300d` and reads 0.941x on MIPLIB 3 (`bench/measurements/02-328/`). Not swept |
++| `MIP_OBJ_DENOM` | 100 | The largest cost denominator the objective step looks for: when every costed column is integer, or continuous with whole bounds in rows whose other columns are integer and whose coefficients and sides are whole multiples of its own, so that an optimum takes it whole, the objective lies on a grid and a bound is rounded up to it. It closes `sp150x300d` and reads 0.941x on MIPLIB 3 (`bench/measurements/02-328/`); the continuous case puts `assign1-5-8`, `misc03`, `misc07` and `markshare_4_0` on a grid (`bench/measurements/02-477/`). Not swept |
+ | `MIP_OBJ_LCM` | 1e6 | The largest common denominator of the costs the step accepts. Not swept |
+-| `MIP_OBJ_FIT` | 1e-9 | How close a cost times a denominator must sit to an integer, relative to max(1, \|product\|). Not swept |
++| `MIP_OBJ_FIT` | 1e-9 | How close a cost times a denominator must sit to an integer, relative to max(1, \|product\|); and how close, absolutely, a costed continuous column's bound, or a coefficient or side of its row over its own coefficient there, must sit to one for the column to count as whole. Not swept |
+ | `MIP_OBJ_ROUND` | 1e-6 | How far below a grid value, in steps, a bound may sit and still round to it. Not swept |
+ | `MIP_OBJ_ROUND_REL` | 1e-9 | The same slack per step of the bound's own size. Not swept |
+ 
+diff --git a/docs/work-units.md b/docs/work-units.md
+index cb749de5..348ab627 100644
+--- a/docs/work-units.md
++++ b/docs/work-units.md
+@@ -325,7 +325,10 @@ clique of `nm` members, a stalled pump round `MIP_PUMP_FLIPS * nc`, and
+ orbital fixing `ngen * nfix + kept * nc`. The probe of a root round's
+ aggregated MIR cuts bills its copy of the root LP at `nnz + nr + nc` and
+ its solve as any solve. Symmetry detection (`src/symmetry.c`) searches
+-under a cap and bills what it spent of it. Under `--tree-batch N` above 1,
++under a cap and bills what it spent of it; a search that ran out at the
++root searches again under a larger cap before the first branch, and bills
++that too. The objective step's reading of the rows over a costed
++continuous column bills one unit per entry it reads. Under `--tree-batch N` above 1,
+ each node of a round is solved on its own copy of the tree's LP with
+ `(work_limit - work) / n` of the budget, and its work is added. The tree
+ then solves each node again from the round's basis, and that solve is
+diff --git a/src/mip.c b/src/mip.c
+index be2256f9..4c0e3188 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -37,6 +37,7 @@ constexpr bool MIP_CONFLICTS = true;
+ constexpr bool MIP_SYMMETRY = false;
+ constexpr bool MIP_ORBITAL = true;
+ constexpr int64_t MIP_SYMMETRY_WORK = 250;
++constexpr int64_t MIP_SYMMETRY_MORE = 1000;
+ constexpr int64_t MIP_CONFLICT_MAX = 32;
+ constexpr double MIP_CONFLICT_GAP = 1e-9;
+ constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
+@@ -920,6 +921,7 @@ static bool network_shape(jaos_model *m)
+ 
+ typedef struct {
+     double off, step;
++    int64_t implied;
+ } objgrid;
+ 
+ static int64_t gcd64(int64_t a, int64_t b)
+@@ -932,18 +934,57 @@ static int64_t gcd64(int64_t a, int64_t b)
+     return a;
+ }
+ 
+-static objgrid objective_grid(const jaos_model *m, double sigma)
++static bool whole_ratio(double v, double a)
+ {
+-    objgrid g = {0.0, 0.0};
++    if (!isfinite(v))
++        return true;
++    const double r = v / a;
++    return fabs(r - jm_round(r)) <= MIP_OBJ_FIT;
++}
++
++static bool implied_integer(const jaos_model *m, int64_t j, int64_t *spent)
++{
++    if (m->col_semi != nullptr && m->col_semi[j])
++        return false;
++    if (!whole_ratio(m->col_lower[j], 1.0) || !whole_ratio(m->col_upper[j], 1.0))
++        return false;
++    for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
++        const int64_t i = m->a_index[p];
++        const double a = m->a_value[p];
++        if (a == 0.0)
++            continue;
++        if (!whole_ratio(m->row_lower[i], a) || !whole_ratio(m->row_upper[i], a))
++            return false;
++        for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++) {
++            const int64_t k = m->ar_index[q];
++            (*spent)++;
++            if (k == j || m->ar_value[q] == 0.0)
++                continue;
++            if (!m->col_integer[k] || !whole_ratio(m->ar_value[q], a))
++                return false;
++        }
++    }
++    return true;
++}
++
++static objgrid objective_grid(jaos_model *m, double sigma, int64_t *spent)
++{
++    objgrid g = {0.0, 0.0, 0};
+     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
+         return g;
+-    int64_t lcm = 1;
++    int64_t lcm = 1, implied = 0;
+     for (int64_t j = 0; j < m->num_col; j++) {
+         const double c = m->col_cost[j];
+         if (c == 0.0)
+             continue;
+-        if (!m->col_integer[j] || !isfinite(c))
++        if (!isfinite(c))
+             return g;
++        if (!m->col_integer[j]) {
++            if (jm_model_ensure_rowwise(m) != JAOS_OK ||
++                !implied_integer(m, j, spent))
++                return g;
++            implied++;
++        }
+         int64_t q = 1;
+         while (q <= MIP_OBJ_DENOM) {
+             const double v = c * (double)q;
+@@ -973,6 +1014,7 @@ static objgrid objective_grid(const jaos_model *m, double sigma)
+         return g;
+     g.off = sigma * m->obj_offset;
+     g.step = (double)gd / (double)lcm;
++    g.implied = implied;
+     return g;
+ }
+ 
+@@ -8706,7 +8748,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     const double gap = m->cfg.mip_gap_set ? m->cfg.mip_gap : MIP_GAP;
+     const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
+                                                                       : 1.0;
+-    const objgrid og = objective_grid(m, sigma);
++    int64_t og_work = 0;
++    const objgrid og = objective_grid(m, sigma, &og_work);
+     const bool net = !quadratic && network_shape(m);
+     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
+                                                      : MIP_CUT_ROUNDS;
+@@ -8890,6 +8933,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     steer sw = {0};
+     int64_t nperm = nr;
+     jm_symmetry sym = {0};
++    bool sym_short = false;
+     int64_t *ouf = nullptr;
+     bool *ozero = nullptr;
+     int64_t orbital_fixed = 0, orbital_branches = 0;
+@@ -8923,7 +8967,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t rp_del_cap = 0, rp_mark_cap = 0, rp_sel_cap = 0, rp_nrm_cap = 0;
+     int64_t rp_rk_cap = 0, rp_nrm_n = 0, rp_dropped = 0, rp_back = 0;
+ 
+-    int64_t work = 0, iters = 0;
++    int64_t work = og_work, iters = 0;
+     bool root_cert_tried = false;
+     bb_phases ph = {0};
+     double best_bound = -INFINITY;
+@@ -9072,11 +9116,19 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                (long long)reliability, probe_cap, cut_stall, node_cut_stall,
+                root_cut_drop ? "dropped when slack" : "kept",
+                cover_lift ? "lifted" : "extended");
+-        if (og.step > 0.0)
++        if (og.step > 0.0 && og.implied == 0)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: every integer point's objective is a "
+                    "multiple of %.17g from %.17g, so a bound rounds up to the "
+                    "next one", og.step, sigma * og.off);
++        if (og.step > 0.0 && og.implied > 0)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: %lld continuous columns with a cost sit "
++                   "only in rows whose other columns are integer, with whole "
++                   "ratios, so an optimum takes them whole; its objective is "
++                   "a multiple of %.17g from %.17g, so a bound rounds up to "
++                   "the next one",
++                   (long long)og.implied, og.step, sigma * og.off);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9087,8 +9139,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+ 
+     if (symmetry_on && outcome == JAOS_SOLVE_NOT_RUN) {
+         const int64_t cap = MIP_SYMMETRY_WORK * (m->num_nz + nc + nr + 1);
++        const int64_t before = work;
+         if (jm_symmetry_find(m, cap, &sym, &work) != JAOS_OK)
+             goto done;
++        sym_short = work - before >= cap;
+         m->mip_sym_gen = sym.ngen;
+         m->mip_sym_orbits = sym.norbit;
+         if (sym.ngen > 0)
+@@ -11154,6 +11208,22 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             nr_child = nfixed + kept;
+             child_rs = crs;
+         }
++        if (nodes == 1 && orbital_on && sym_short) {
++            sym_short = false;
++            jm_symmetry_free(&sym);
++            const int64_t cap = MIP_SYMMETRY_MORE * (m->num_nz + nc + nr + 1);
++            if (jm_symmetry_find(m, cap, &sym, &work) != JAOS_OK)
++                goto done;
++            m->mip_sym_gen = sym.ngen;
++            m->mip_sym_orbits = sym.norbit;
++            if (sym.ngen > 0)
++                jm_log(m, JAOS_LOG_SUMMARY,
++                       "symmetry: the root's search ran out, and again "
++                       "before the first branch: %lld generators, %lld "
++                       "orbits of more than one column, the largest of %lld",
++                       (long long)sym.ngen, (long long)sym.norbit,
++                       (long long)sym.largest);
++        }
+         const double v = branch >= 0 ? x[branch] : 0.0;
+         int64_t nfd = 1, nfu = 1;
+         double f = 0.5, frac_d = 0.0, frac_u = 0.0;
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index 5eabc179..ea5a5f7e 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -611,6 +611,80 @@ static void test_a_quadratic_objective_breaks_the_symmetry(void)
+     jaos_model_free(m);
+ }
+ 
++static void test_the_symmetry_search_finds_the_groups_of_a_partition_with_twins(void)
++{
++    constexpr int64_t P = 26;
++    constexpr int64_t G = 5;
++    constexpr int64_t TWINS = 6;
++    constexpr int64_t NC = P + P * G;
++    constexpr int64_t NR = P * G + P + G;
++    constexpr int64_t NZ = P * G + P * G * (P + 2);
++    const int64_t size[G] = {5, 5, 5, 5, 6};
++    static int64_t a[P][P];
++    uint64_t s = 7;
++    for (int64_t i = 0; i < P; i++)
++        for (int64_t k = i + 1; k < P; k++) {
++            s = (s * 1103515245u + 12345u) % 2147483648u;
++            a[i][k] = a[k][i] = 1 + (int64_t)(s >> 16) % 5;
++        }
++    for (int64_t t = 0; t < TWINS; t++)
++        for (int64_t l = 0; l < P; l++)
++            if (l != 2 * t && l != 2 * t + 1)
++                a[2 * t + 1][l] = a[l][2 * t + 1] = a[2 * t][l];
++    static double cost[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[NZ];
++    static int64_t as[NC + 1], ai[NZ];
++    int64_t nz = 0;
++    for (int64_t i = 0; i < P; i++) {
++        as[i] = nz;
++        cost[i] = 1.0;
++        cl[i] = 0.0;
++        cu[i] = 20.0;
++        for (int64_t g = 0; g < G; g++) {
++            ai[nz] = i * G + g;
++            av[nz++] = 1.0;
++        }
++    }
++    for (int64_t k = 0; k < P; k++)
++        for (int64_t g = 0; g < G; g++) {
++            const int64_t j = P + k * G + g;
++            as[j] = nz;
++            cost[j] = 0.0;
++            cl[j] = 0.0;
++            cu[j] = 1.0;
++            for (int64_t i = 0; i < P; i++) {
++                ai[nz] = i * G + g;
++                av[nz++] = -(double)(i == k ? 5 : a[i][k]);
++            }
++            ai[nz] = P * G + k;
++            av[nz++] = 1.0;
++            ai[nz] = P * G + P + g;
++            av[nz++] = 1.0;
++        }
++    as[NC] = nz;
++    for (int64_t r = 0; r < P * G; r++) {
++        rl[r] = -5.0;
++        ru[r] = INFINITY;
++    }
++    for (int64_t k = 0; k < P; k++)
++        rl[P * G + k] = ru[P * G + k] = 1.0;
++    for (int64_t g = 0; g < G; g++)
++        rl[P * G + P + g] = ru[P * G + P + g] = (double)size[g];
++
++    jaos_model *m = fresh();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, nz,
++                     as, ai, av));
++    for (int64_t j = P; j < NC; j++)
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    jaos_mip_report rep;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++    TEST_ASSERT_EQUAL_INT64(32, rep.symmetry_orbits);
++    jaos_model_free(m);
++}
++
+ static void test_an_infeasible_quadratic_model_says_so(void)
+ {
+     const double cost[2] = {1.0, 1.0}, lo[2] = {0.0, 0.0}, hi[2] = {1.0, 1.0};
+@@ -1255,6 +1329,49 @@ static void test_the_tree_logs_its_start_root_and_end(void)
+     jaos_model_free(m);
+ }
+ 
++static jaos_model *excess_model(double zcoef)
++{
++    const double cost[4] = {1.0, 0.0, 0.0, 0.0};
++    const double cl[4] = {0.0, 0.0, 0.0, 0.0}, cu[4] = {10.0, 1.0, 1.0, 1.0};
++    const double rl[2] = {-1.0, 2.0}, ru[2] = {INFINITY, INFINITY};
++    const int64_t as[5] = {0, 1, 3, 5, 7};
++    const int64_t ai[7] = {0, 0, 1, 0, 1, 0, 1};
++    const double av[7] = {zcoef, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0};
++    jaos_model *m = fresh();
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
++                     7, as, ai, av));
++    for (int64_t j = 1; j < 4; j++)
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
++    g_log[0] = '\0';
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
++    return m;
++}
++
++static void test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound(void)
++{
++    jaos_model *m = excess_model(1.0);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    double obj = 0.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
++    TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 1 continuous columns "
++                                       "with a cost sit only in rows whose other "
++                                       "columns are integer"));
++    jaos_model_free(m);
++
++    m = excess_model(2.0);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
++    TEST_ASSERT_NULL(strstr(g_log, "continuous columns with a cost"));
++    TEST_ASSERT_NULL(strstr(g_log, "is a multiple of"));
++    jaos_model_free(m);
++}
++
+ static jaos_model *exact_pick(void)
+ {
+     const double c[5] = {2, 3, 4, 3, 5};
+@@ -6566,6 +6683,7 @@ int main(void)
+     RUN_TEST(test_the_rounding_heuristic_takes_the_relaxations_neighbour);
+     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
+     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
++    RUN_TEST(test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound);
+     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
+     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
+     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
+@@ -6673,6 +6791,7 @@ int main(void)
+     RUN_TEST(test_network_cut_rounds_start_at_fifty_linked_columns);
+     RUN_TEST(test_a_quadratic_node_without_an_interior_still_solves);
+     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
++    RUN_TEST(test_the_symmetry_search_finds_the_groups_of_a_partition_with_twins);
+     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
+     RUN_TEST(test_a_cut_never_shuts_out_every_point);
+     RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);

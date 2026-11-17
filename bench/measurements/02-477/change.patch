@@ -1,0 +1,172 @@
+diff --git a/src/mip.c b/src/mip.c
+index be2256f9..4c0e3188 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -37,6 +37,7 @@ constexpr bool MIP_CONFLICTS = true;
+ constexpr bool MIP_SYMMETRY = false;
+ constexpr bool MIP_ORBITAL = true;
+ constexpr int64_t MIP_SYMMETRY_WORK = 250;
++constexpr int64_t MIP_SYMMETRY_MORE = 1000;
+ constexpr int64_t MIP_CONFLICT_MAX = 32;
+ constexpr double MIP_CONFLICT_GAP = 1e-9;
+ constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
+@@ -920,6 +921,7 @@ static bool network_shape(jaos_model *m)
+ 
+ typedef struct {
+     double off, step;
++    int64_t implied;
+ } objgrid;
+ 
+ static int64_t gcd64(int64_t a, int64_t b)
+@@ -932,18 +934,57 @@ static int64_t gcd64(int64_t a, int64_t b)
+     return a;
+ }
+ 
+-static objgrid objective_grid(const jaos_model *m, double sigma)
++static bool whole_ratio(double v, double a)
+ {
+-    objgrid g = {0.0, 0.0};
++    if (!isfinite(v))
++        return true;
++    const double r = v / a;
++    return fabs(r - jm_round(r)) <= MIP_OBJ_FIT;
++}
++
++static bool implied_integer(const jaos_model *m, int64_t j, int64_t *spent)
++{
++    if (m->col_semi != nullptr && m->col_semi[j])
++        return false;
++    if (!whole_ratio(m->col_lower[j], 1.0) || !whole_ratio(m->col_upper[j], 1.0))
++        return false;
++    for (int64_t p = m->a_start[j]; p < m->a_start[j + 1]; p++) {
++        const int64_t i = m->a_index[p];
++        const double a = m->a_value[p];
++        if (a == 0.0)
++            continue;
++        if (!whole_ratio(m->row_lower[i], a) || !whole_ratio(m->row_upper[i], a))
++            return false;
++        for (int64_t q = m->ar_start[i]; q < m->ar_start[i + 1]; q++) {
++            const int64_t k = m->ar_index[q];
++            (*spent)++;
++            if (k == j || m->ar_value[q] == 0.0)
++                continue;
++            if (!m->col_integer[k] || !whole_ratio(m->ar_value[q], a))
++                return false;
++        }
++    }
++    return true;
++}
++
++static objgrid objective_grid(jaos_model *m, double sigma, int64_t *spent)
++{
++    objgrid g = {0.0, 0.0, 0};
+     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
+         return g;
+-    int64_t lcm = 1;
++    int64_t lcm = 1, implied = 0;
+     for (int64_t j = 0; j < m->num_col; j++) {
+         const double c = m->col_cost[j];
+         if (c == 0.0)
+             continue;
+-        if (!m->col_integer[j] || !isfinite(c))
++        if (!isfinite(c))
+             return g;
++        if (!m->col_integer[j]) {
++            if (jm_model_ensure_rowwise(m) != JAOS_OK ||
++                !implied_integer(m, j, spent))
++                return g;
++            implied++;
++        }
+         int64_t q = 1;
+         while (q <= MIP_OBJ_DENOM) {
+             const double v = c * (double)q;
+@@ -973,6 +1014,7 @@ static objgrid objective_grid(const jaos_model *m, double sigma)
+         return g;
+     g.off = sigma * m->obj_offset;
+     g.step = (double)gd / (double)lcm;
++    g.implied = implied;
+     return g;
+ }
+ 
+@@ -8706,7 +8748,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     const double gap = m->cfg.mip_gap_set ? m->cfg.mip_gap : MIP_GAP;
+     const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
+                                                                       : 1.0;
+-    const objgrid og = objective_grid(m, sigma);
++    int64_t og_work = 0;
++    const objgrid og = objective_grid(m, sigma, &og_work);
+     const bool net = !quadratic && network_shape(m);
+     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
+                                                      : MIP_CUT_ROUNDS;
+@@ -8890,6 +8933,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     steer sw = {0};
+     int64_t nperm = nr;
+     jm_symmetry sym = {0};
++    bool sym_short = false;
+     int64_t *ouf = nullptr;
+     bool *ozero = nullptr;
+     int64_t orbital_fixed = 0, orbital_branches = 0;
+@@ -8923,7 +8967,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t rp_del_cap = 0, rp_mark_cap = 0, rp_sel_cap = 0, rp_nrm_cap = 0;
+     int64_t rp_rk_cap = 0, rp_nrm_n = 0, rp_dropped = 0, rp_back = 0;
+ 
+-    int64_t work = 0, iters = 0;
++    int64_t work = og_work, iters = 0;
+     bool root_cert_tried = false;
+     bb_phases ph = {0};
+     double best_bound = -INFINITY;
+@@ -9072,11 +9116,19 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                (long long)reliability, probe_cap, cut_stall, node_cut_stall,
+                root_cut_drop ? "dropped when slack" : "kept",
+                cover_lift ? "lifted" : "extended");
+-        if (og.step > 0.0)
++        if (og.step > 0.0 && og.implied == 0)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: every integer point's objective is a "
+                    "multiple of %.17g from %.17g, so a bound rounds up to the "
+                    "next one", og.step, sigma * og.off);
++        if (og.step > 0.0 && og.implied > 0)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: %lld continuous columns with a cost sit "
++                   "only in rows whose other columns are integer, with whole "
++                   "ratios, so an optimum takes them whole; its objective is "
++                   "a multiple of %.17g from %.17g, so a bound rounds up to "
++                   "the next one",
++                   (long long)og.implied, og.step, sigma * og.off);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9087,8 +9139,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+ 
+     if (symmetry_on && outcome == JAOS_SOLVE_NOT_RUN) {
+         const int64_t cap = MIP_SYMMETRY_WORK * (m->num_nz + nc + nr + 1);
++        const int64_t before = work;
+         if (jm_symmetry_find(m, cap, &sym, &work) != JAOS_OK)
+             goto done;
++        sym_short = work - before >= cap;
+         m->mip_sym_gen = sym.ngen;
+         m->mip_sym_orbits = sym.norbit;
+         if (sym.ngen > 0)
+@@ -11154,6 +11208,22 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             nr_child = nfixed + kept;
+             child_rs = crs;
+         }
++        if (nodes == 1 && orbital_on && sym_short) {
++            sym_short = false;
++            jm_symmetry_free(&sym);
++            const int64_t cap = MIP_SYMMETRY_MORE * (m->num_nz + nc + nr + 1);
++            if (jm_symmetry_find(m, cap, &sym, &work) != JAOS_OK)
++                goto done;
++            m->mip_sym_gen = sym.ngen;
++            m->mip_sym_orbits = sym.norbit;
++            if (sym.ngen > 0)
++                jm_log(m, JAOS_LOG_SUMMARY,
++                       "symmetry: the root's search ran out, and again "
++                       "before the first branch: %lld generators, %lld "
++                       "orbits of more than one column, the largest of %lld",
++                       (long long)sym.ngen, (long long)sym.norbit,
++                       (long long)sym.largest);
++        }
+         const double v = branch >= 0 ? x[branch] : 0.0;
+         int64_t nfd = 1, nfu = 1;
+         double f = 0.5, frac_d = 0.0, frac_u = 0.0;

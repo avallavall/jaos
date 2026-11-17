@@ -611,6 +611,80 @@ static void test_a_quadratic_objective_breaks_the_symmetry(void)
     jaos_model_free(m);
 }
 
+static void test_the_symmetry_search_finds_the_groups_of_a_partition_with_twins(void)
+{
+    constexpr int64_t P = 26;
+    constexpr int64_t G = 5;
+    constexpr int64_t TWINS = 6;
+    constexpr int64_t NC = P + P * G;
+    constexpr int64_t NR = P * G + P + G;
+    constexpr int64_t NZ = P * G + P * G * (P + 2);
+    const int64_t size[G] = {5, 5, 5, 5, 6};
+    static int64_t a[P][P];
+    uint64_t s = 7;
+    for (int64_t i = 0; i < P; i++)
+        for (int64_t k = i + 1; k < P; k++) {
+            s = (s * 1103515245u + 12345u) % 2147483648u;
+            a[i][k] = a[k][i] = 1 + (int64_t)(s >> 16) % 5;
+        }
+    for (int64_t t = 0; t < TWINS; t++)
+        for (int64_t l = 0; l < P; l++)
+            if (l != 2 * t && l != 2 * t + 1)
+                a[2 * t + 1][l] = a[l][2 * t + 1] = a[2 * t][l];
+    static double cost[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[NZ];
+    static int64_t as[NC + 1], ai[NZ];
+    int64_t nz = 0;
+    for (int64_t i = 0; i < P; i++) {
+        as[i] = nz;
+        cost[i] = 1.0;
+        cl[i] = 0.0;
+        cu[i] = 20.0;
+        for (int64_t g = 0; g < G; g++) {
+            ai[nz] = i * G + g;
+            av[nz++] = 1.0;
+        }
+    }
+    for (int64_t k = 0; k < P; k++)
+        for (int64_t g = 0; g < G; g++) {
+            const int64_t j = P + k * G + g;
+            as[j] = nz;
+            cost[j] = 0.0;
+            cl[j] = 0.0;
+            cu[j] = 1.0;
+            for (int64_t i = 0; i < P; i++) {
+                ai[nz] = i * G + g;
+                av[nz++] = -(double)(i == k ? 5 : a[i][k]);
+            }
+            ai[nz] = P * G + k;
+            av[nz++] = 1.0;
+            ai[nz] = P * G + P + g;
+            av[nz++] = 1.0;
+        }
+    as[NC] = nz;
+    for (int64_t r = 0; r < P * G; r++) {
+        rl[r] = -5.0;
+        ru[r] = INFINITY;
+    }
+    for (int64_t k = 0; k < P; k++)
+        rl[P * G + k] = ru[P * G + k] = 1.0;
+    for (int64_t g = 0; g < G; g++)
+        rl[P * G + P + g] = ru[P * G + P + g] = (double)size[g];
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, nz,
+                     as, ai, av));
+    for (int64_t j = P; j < NC; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(32, rep.symmetry_orbits);
+    jaos_model_free(m);
+}
+
 static void test_an_infeasible_quadratic_model_says_so(void)
 {
     const double cost[2] = {1.0, 1.0}, lo[2] = {0.0, 0.0}, hi[2] = {1.0, 1.0};
@@ -1252,6 +1326,49 @@ static void test_the_tree_logs_its_start_root_and_end(void)
     TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 3 integer columns of 3"));
     TEST_ASSERT_NOT_NULL(strstr(g_log, "root: relaxation"));
     TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: optimal after"));
+    jaos_model_free(m);
+}
+
+static jaos_model *excess_model(double zcoef)
+{
+    const double cost[4] = {1.0, 0.0, 0.0, 0.0};
+    const double cl[4] = {0.0, 0.0, 0.0, 0.0}, cu[4] = {10.0, 1.0, 1.0, 1.0};
+    const double rl[2] = {-1.0, 2.0}, ru[2] = {INFINITY, INFINITY};
+    const int64_t as[5] = {0, 1, 3, 5, 7};
+    const int64_t ai[7] = {0, 0, 1, 0, 1, 0, 1};
+    const double av[7] = {zcoef, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0};
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 4, 2, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     7, as, ai, av));
+    for (int64_t j = 1; j < 4; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound(void)
+{
+    jaos_model *m = excess_model(1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 1 continuous columns "
+                                       "with a cost sit only in rows whose other "
+                                       "columns are integer"));
+    jaos_model_free(m);
+
+    m = excess_model(2.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
+    TEST_ASSERT_NULL(strstr(g_log, "continuous columns with a cost"));
+    TEST_ASSERT_NULL(strstr(g_log, "is a multiple of"));
     jaos_model_free(m);
 }
 
@@ -6566,6 +6683,7 @@ int main(void)
     RUN_TEST(test_the_rounding_heuristic_takes_the_relaxations_neighbour);
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
+    RUN_TEST(test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound);
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
@@ -6673,6 +6791,7 @@ int main(void)
     RUN_TEST(test_network_cut_rounds_start_at_fifty_linked_columns);
     RUN_TEST(test_a_quadratic_node_without_an_interior_still_solves);
     RUN_TEST(test_a_quadratic_objective_breaks_the_symmetry);
+    RUN_TEST(test_the_symmetry_search_finds_the_groups_of_a_partition_with_twins);
     RUN_TEST(test_an_infeasible_quadratic_model_says_so);
     RUN_TEST(test_a_cut_never_shuts_out_every_point);
     RUN_TEST(test_a_conflict_rests_only_on_rows_that_always_hold);

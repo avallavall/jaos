@@ -1131,7 +1131,9 @@ is on by default, runs the same search, so this switch matters only with
 `jaos_status jaos_set_mip_orbital(jaos_model *m, int on)`\
 Turns orbital branching and fixing on or off. It is on by default. It uses
 the symmetries that the root's search finds to fix whole orbits of binary
-columns at 0.
+columns at 0. When the root's search runs out of work, it runs again with
+four times the work before the tree's first branch, and `jaos_mip_result`
+reports the second search.
 
 **`jaos_set_mip_propagate`**\
 `jaos_status jaos_set_mip_propagate(jaos_model *m, int64_t rounds)`\

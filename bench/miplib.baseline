@@ -6,21 +6,21 @@
 #
 # name status solved shape objective checker det iters work rsub nodes
 air03        optimal      1 1 1 1 1 443 56546831 -1 1
-bell3a       optimal      1 1 1 1 1 226074 956963024 -1 63291
-bell5        optimal      1 1 1 1 1 47693 236758516 -1 22191
+bell3a       optimal      1 1 1 1 1 226074 956963037 -1 63291
+bell5        optimal      1 1 1 1 1 47693 236758608 -1 22191
 blend2       optimal      1 1 1 1 1 62924 409705095 -1 4216
-dcmulti      optimal      1 1 1 1 1 15127 132922070 -1 376
+dcmulti      optimal      1 1 1 1 1 15127 132922080 -1 376
 egout        optimal      1 1 1 1 1 121 1168334 -1 1
 enigma       optimal      1 1 1 1 1 392 3680939 -1 1
-flugpl       optimal      1 1 1 1 1 296 1196613 -1 73
+flugpl       optimal      1 1 1 1 1 296 1196614 -1 73
 gen          optimal      1 1 1 1 1 568 4228986 -1 2
 gt2          optimal      1 1 1 1 1 372 2240486 -1 5
-khb05250     optimal      1 1 1 1 1 1745 29764066 -1 71
+khb05250     optimal      1 1 1 1 1 1745 29764068 -1 71
 l152lav      optimal      1 1 1 1 1 51611 1565129348 -1 583
 lseu         optimal      1 1 1 1 1 3392 13120111 -1 245
-misc03       optimal      1 1 1 1 1 8713 62647199 -1 291
-misc06       optimal      1 1 1 1 1 1156 39653906 -1 50
-misc07       optimal      1 1 1 1 1 189960 2463730663 -1 8617
+misc03       optimal      1 1 1 1 1 8713 62647755 -1 291
+misc06       optimal      1 1 1 1 1 1156 48568739 -1 50
+misc07       optimal      1 1 1 1 1 194059 2514248963 -1 8663
 mod008       optimal      1 1 1 1 1 1168 13759134 -1 43
 mod010       optimal      1 1 1 1 1 822 18882942 -1 1
 p0033        optimal      1 1 1 1 1 217 2826760 -1 11

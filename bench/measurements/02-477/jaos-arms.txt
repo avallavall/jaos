@@ -1,0 +1,12 @@
+default     base  work_limit nodes  18426 work  10000021699 bound 192.78789907314723 orbit-branchings 1434
+default     sym   work_limit nodes  46613 work  10000015841 bound 195.57366190280203 orbit-branchings 6800
+default     land  work_limit nodes  44794 work  10000017070 bound 196 orbit-branchings 6075
+no-orbit    sym   work_limit nodes  14598 work  10000022535 bound 192.08044021037654 orbit-branchings 0
+bound       sym   work_limit nodes  18962 work  10000025383 bound 197.27502478711037 orbit-branchings 10690
+cut-all     sym   work_limit nodes   6075 work  10000008086 bound 193.88559709391228 orbit-branchings 1964
+rel8        sym   work_limit nodes  47451 work  10000019252 bound 195.55165924918026 orbit-branchings 6637
+zero-half   sym   work_limit nodes  46402 work  10000013218 bound 195.4961542686188 orbit-branchings 6138
+zint        sym   work_limit nodes  34079 work  10000011644 bound 197 orbit-branchings 5954
+neos-911970 base  work_limit nodes   2645 work  10000010251 bound 51.926782695575518 orbit-branchings 411
+neos-911970 sym   work_limit nodes   1777 work  10000016784 bound 51.959564240720816 orbit-branchings 1134
+neos-911970 land  work_limit nodes   1722 work  10000016503 bound 51.957364587375366 orbit-branchings 1138

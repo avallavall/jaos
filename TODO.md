@@ -117,6 +117,19 @@ first:
   1,859, where JAOS stayed open past 121,000 (02-465). What they lack is
   branching, node cuts and propagation; `binkar10_1` closes with node
   MIR (02-474, below).
+- `neos5` and `assign1-5-8` are out of reach at 1e10
+  (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
+  and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work
+  units, 38 LP iterations a solve against HiGHS's 12. Neither closes
+  `assign1-5-8` in 600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at
+  205.0 after 1.12M; without symmetry SCIP's bound at 20,000 nodes falls
+  from 197.1 to 191.6. JAOS's search ran out before it found the exchange
+  of the four groups; a second search before the first branch finds it,
+  and the objective step takes the 26 cost columns as whole: 192.79 to
+  196 at 1e10. Next for `assign1-5-8`: those implied integers in the cuts
+  too (declared integer, its root reads 189.80 against 185.26); for
+  `neos5`, the iterations of a node's relaxation. Verify at 1e10 on both
+  and with `make miplib J=2`.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

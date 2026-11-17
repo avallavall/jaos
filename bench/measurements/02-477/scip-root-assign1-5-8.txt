@@ -1,0 +1,15 @@
+default                    186.3499
+default-nosb               186.1684
+maxaggrsroot0              186.3499
+maxaggrsroot1              186.3499
+maxaggrsroot2              186.3499
+no-cmir                    186.3499
+no-flowcover               186.3499
+no-knapsackcover           186.3499
+cmir-only                  186.3499
+flowcover-only             186.3499
+knapsackcover-only         186.3499
+cmir-only-agg0             186.3499
+nopresolve-agg0            186.3312
+nopresolve-cmironly-agg0   186.3312
+nopresolve-cmironly        186.3312

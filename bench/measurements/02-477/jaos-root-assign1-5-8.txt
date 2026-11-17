@@ -1,0 +1,23 @@
+branch and bound: 130 integer columns of 156, 1 rounds of cuts, 20 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 4, probe cap 1.5x, cut stall 0 at the root and 0 below it, root cuts dropped when slack, covers extended
+symmetry: 5 generators, 18 orbits of more than one column, the largest of 4
+clique table: 260 conflicts over 130 literals, 0 of the conflicts from probing
+root: relaxation 185.25800492598 after 118 cuts, 4 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+root: MIR aggregation kept 0 cuts after 0 probes on a copy
+root: incumbent 224 by feasibility jump
+root: incumbent 214 by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows
+branch and bound work: node relaxations 4.9%, cuts 0.3%, heuristics 75.5%, propagation, probing and conflicts 0.0%, strong branching 19.1%, the rest 0.3%
+branch and bound: node limit reached after 1 nodes, 122 solves, 118 cuts (0 below the root), 2 points by rounding, 0 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pump, 16 probes, 2 of them capped, 0 columns fixed by cliques and 0 nodes cut by them, the callback fired 0 times, added 0 rows, rejected 0 points, chose 0 branches, handed 0 incumbents and 0 points refused, 0 conflicts over 0 binaries, 0 branchings widened to an orbit, 0 columns fixed by orbits and 0 nodes the relaxation failed on set aside with their bound
+status node_limit
+iterations 465
+work_units 354901146
+nodes 1
+cuts 118
+heuristic_points 2
+first_incumbent 1
+fixed_cols 0
+tightened 0
+symmetry_generators 5
+symmetry_orbits 18
+bound 185.25800492598
+incumbent 214
+time 0.968977

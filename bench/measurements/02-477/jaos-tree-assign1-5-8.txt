@@ -1,0 +1,211 @@
+branch and bound: 130 integer columns of 156, 1 rounds of cuts, 20 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 4, probe cap 1.5x, cut stall 0 at the root and 0 below it, root cuts dropped when slack, covers extended
+symmetry: 5 generators, 18 orbits of more than one column, the largest of 4
+clique table: 260 conflicts over 130 literals, 0 of the conflicts from probing
+root: relaxation 185.25800492598 after 118 cuts, 4 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+root: MIR aggregation kept 0 cuts after 0 probes on a copy
+root: incumbent 224 by feasibility jump
+root: incumbent 214 by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows
+node 51: the first 50 node relaxations took 149.0 iterations each; the nodes after them skip presolve
+node 100: 99 open, bound 186.84101820563197, incumbent yes
+node 200: 199 open, bound 187.09954213197636, incumbent yes
+node 300: 299 open, bound 187.50237042296956, incumbent yes
+node 400: 399 open, bound 187.75039202418913, incumbent yes
+node 401: incumbent 212 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 500: 499 open, bound 187.94994120264823, incumbent yes
+node 600: 599 open, bound 188.08407383670388, incumbent yes
+node 700: 699 open, bound 188.19553839977979, incumbent yes
+node 800: 799 open, bound 188.27532417518444, incumbent yes
+node 900: 899 open, bound 188.35075224444614, incumbent yes
+node 1000: 999 open, bound 188.49542435598772, incumbent yes
+node 1100: 1099 open, bound 188.59451818021847, incumbent yes
+node 1200: 1199 open, bound 188.69856532318201, incumbent yes
+node 1300: 1299 open, bound 188.81324235860811, incumbent yes
+node 1400: 1399 open, bound 188.90921147640998, incumbent yes
+node 1500: 1499 open, bound 188.9630258922549, incumbent yes
+node 1600: 1599 open, bound 189.02160053490203, incumbent yes
+node 1700: 1699 open, bound 189.07120815589616, incumbent yes
+node 1800: 1799 open, bound 189.11206051025064, incumbent yes
+node 1900: 1899 open, bound 189.15282979524764, incumbent yes
+node 2000: 1999 open, bound 189.19859300774553, incumbent yes
+node 2100: 2099 open, bound 189.23868866350483, incumbent yes
+node 2200: 2199 open, bound 189.26818225279919, incumbent yes
+node 2300: 2299 open, bound 189.32507854082908, incumbent yes
+node 2400: 2399 open, bound 189.35985387711565, incumbent yes
+node 2500: 2499 open, bound 189.4022016880555, incumbent yes
+node 2600: 2599 open, bound 189.44633644744417, incumbent yes
+node 2700: 2699 open, bound 189.51588053490582, incumbent yes
+node 2800: 2799 open, bound 189.54934670137035, incumbent yes
+node 2900: 2899 open, bound 189.61668897848415, incumbent yes
+node 3000: 2999 open, bound 189.64888281057253, incumbent yes
+node 3100: 3099 open, bound 189.68828398725668, incumbent yes
+node 3200: 3199 open, bound 189.72919131725644, incumbent yes
+node 3300: 3299 open, bound 189.76143576847142, incumbent yes
+node 3400: 3399 open, bound 189.79069322880662, incumbent yes
+node 3500: 3499 open, bound 189.81562426818263, incumbent yes
+node 3600: 3599 open, bound 189.8645723701234, incumbent yes
+node 3700: 3699 open, bound 189.89350465156733, incumbent yes
+node 3800: 3799 open, bound 189.93991191532439, incumbent yes
+node 3900: 3899 open, bound 189.96897018718232, incumbent yes
+node 4000: 3999 open, bound 190.00673769262474, incumbent yes
+node 4100: 4099 open, bound 190.03311519422093, incumbent yes
+node 4200: 4199 open, bound 190.06877926845118, incumbent yes
+node 4300: 4299 open, bound 190.10736718822309, incumbent yes
+node 4400: 4399 open, bound 190.13825222957402, incumbent yes
+node 4500: 4499 open, bound 190.16858676131048, incumbent yes
+node 4600: 4599 open, bound 190.19749971749226, incumbent yes
+node 4700: 4699 open, bound 190.22676115842302, incumbent yes
+node 4800: 4799 open, bound 190.26284924892258, incumbent yes
+node 4900: 4899 open, bound 190.29017511420554, incumbent yes
+node 5000: 4999 open, bound 190.3072866529636, incumbent yes
+node 5100: 5099 open, bound 190.32967608845021, incumbent yes
+node 5200: 5199 open, bound 190.35851948120882, incumbent yes
+node 5300: 5299 open, bound 190.39200781690857, incumbent yes
+node 5400: 5399 open, bound 190.43042304693819, incumbent yes
+node 5500: 5499 open, bound 190.46337738184042, incumbent yes
+node 5600: 5599 open, bound 190.49572510737624, incumbent yes
+node 5700: 5699 open, bound 190.54069576436285, incumbent yes
+node 5800: 5799 open, bound 190.57439308618814, incumbent yes
+node 5900: 5899 open, bound 190.60345030672008, incumbent yes
+node 6000: 5999 open, bound 190.65167171796415, incumbent yes
+node 6100: 6099 open, bound 190.71573589892054, incumbent yes
+node 6200: 6199 open, bound 190.7373785729219, incumbent yes
+node 6300: 6299 open, bound 190.75741282778478, incumbent yes
+node 6400: 6399 open, bound 190.78839008548525, incumbent yes
+node 6500: 6499 open, bound 190.81412134973581, incumbent yes
+node 6600: 6599 open, bound 190.83182304673355, incumbent yes
+node 6700: 6699 open, bound 190.8561590440523, incumbent yes
+node 6800: 6799 open, bound 190.8976604700751, incumbent yes
+node 6900: 6899 open, bound 190.94086318963576, incumbent yes
+node 7000: 6999 open, bound 190.9616780612435, incumbent yes
+node 7100: 7099 open, bound 190.99152687265291, incumbent yes
+node 7200: 7199 open, bound 191.01330387242126, incumbent yes
+node 7300: 7299 open, bound 191.02969177739215, incumbent yes
+node 7400: 7399 open, bound 191.05539852329886, incumbent yes
+node 7500: 7499 open, bound 191.08160380117647, incumbent yes
+node 7600: 7599 open, bound 191.10376838106683, incumbent yes
+node 7700: 7699 open, bound 191.12676541949054, incumbent yes
+node 7800: 7799 open, bound 191.15577340760018, incumbent yes
+node 7900: 7899 open, bound 191.16998017430876, incumbent yes
+node 8000: 7999 open, bound 191.19002676631109, incumbent yes
+node 8100: 8099 open, bound 191.20846359246721, incumbent yes
+node 8200: 8199 open, bound 191.22686383954596, incumbent yes
+node 8300: 8299 open, bound 191.24226592809657, incumbent yes
+node 8400: 8399 open, bound 191.26123479897305, incumbent yes
+node 8500: 8499 open, bound 191.27655570839525, incumbent yes
+node 8600: 8599 open, bound 191.30185178272336, incumbent yes
+node 8700: 8699 open, bound 191.32130518004303, incumbent yes
+node 8800: 8799 open, bound 191.3388880692462, incumbent yes
+node 8900: 8899 open, bound 191.35469026571752, incumbent yes
+node 9000: 8999 open, bound 191.36953108078839, incumbent yes
+node 9100: 9099 open, bound 191.39776886114228, incumbent yes
+node 9200: 9199 open, bound 191.43506689290192, incumbent yes
+node 9300: 9299 open, bound 191.46642954560707, incumbent yes
+node 9400: 9399 open, bound 191.49598621863086, incumbent yes
+node 9500: 9499 open, bound 191.52401455605528, incumbent yes
+node 9600: 9599 open, bound 191.53399646815413, incumbent yes
+node 9700: 9699 open, bound 191.5460056578774, incumbent yes
+node 9800: 9799 open, bound 191.57135373823454, incumbent yes
+node 9900: 9899 open, bound 191.59395885401943, incumbent yes
+node 10000: 9999 open, bound 191.6081642807161, incumbent yes
+node 10100: 10099 open, bound 191.63117254987947, incumbent yes
+node 10200: 10199 open, bound 191.6603208612872, incumbent yes
+node 10300: 10299 open, bound 191.67226474314489, incumbent yes
+node 10400: 10399 open, bound 191.68750923869825, incumbent yes
+node 10500: 10499 open, bound 191.70802128048174, incumbent yes
+node 10600: 10599 open, bound 191.7224797219418, incumbent yes
+node 10700: 10699 open, bound 191.74012748360005, incumbent yes
+node 10800: 10799 open, bound 191.75756197283908, incumbent yes
+node 10900: 10899 open, bound 191.77897659839701, incumbent yes
+node 11000: 10999 open, bound 191.78627996630388, incumbent yes
+node 11100: 11099 open, bound 191.80305243286506, incumbent yes
+node 11200: 11199 open, bound 191.8337674709212, incumbent yes
+node 11300: 11299 open, bound 191.84947942176299, incumbent yes
+node 11400: 11399 open, bound 191.86701827495457, incumbent yes
+node 11500: 11499 open, bound 191.8784806054235, incumbent yes
+node 11600: 11599 open, bound 191.88389503501551, incumbent yes
+node 11700: 11699 open, bound 191.89944167232235, incumbent yes
+node 11800: 11799 open, bound 191.91299256361651, incumbent yes
+node 11900: 11899 open, bound 191.93367524938873, incumbent yes
+node 12000: 11999 open, bound 191.96246286749894, incumbent yes
+node 12100: 12099 open, bound 191.97877023832274, incumbent yes
+node 12200: 12199 open, bound 191.99164808815814, incumbent yes
+node 12300: 12299 open, bound 192.01261367277652, incumbent yes
+node 12400: 12399 open, bound 192.02412245432748, incumbent yes
+node 12500: 12499 open, bound 192.05137617160855, incumbent yes
+node 12600: 12599 open, bound 192.07268598379622, incumbent yes
+node 12700: 12699 open, bound 192.08164596479256, incumbent yes
+node 12800: 12799 open, bound 192.10018101946119, incumbent yes
+node 12900: 12899 open, bound 192.11409159828477, incumbent yes
+node 13000: 12999 open, bound 192.12010085705259, incumbent yes
+node 13100: 13099 open, bound 192.13553751743487, incumbent yes
+node 13200: 13199 open, bound 192.15944094798417, incumbent yes
+node 13300: 13299 open, bound 192.16845555498435, incumbent yes
+node 13400: 13399 open, bound 192.17875377121433, incumbent yes
+node 13500: 13499 open, bound 192.18860005688234, incumbent yes
+node 13600: 13599 open, bound 192.20696890705926, incumbent yes
+node 13700: 13699 open, bound 192.22101739164572, incumbent yes
+node 13800: 13799 open, bound 192.23451340392776, incumbent yes
+node 13900: 13899 open, bound 192.2425651031825, incumbent yes
+node 14000: 13999 open, bound 192.2550303918176, incumbent yes
+node 14100: 14099 open, bound 192.26493339481453, incumbent yes
+node 14200: 14199 open, bound 192.28541028793251, incumbent yes
+node 14300: 14299 open, bound 192.2965181515992, incumbent yes
+node 14400: 14399 open, bound 192.30999430287272, incumbent yes
+node 14500: 14499 open, bound 192.32157654836095, incumbent yes
+node 14600: 14599 open, bound 192.33111804477761, incumbent yes
+node 14700: 14699 open, bound 192.34790377218715, incumbent yes
+node 14800: 14799 open, bound 192.3579378107907, incumbent yes
+node 14900: 14899 open, bound 192.37591150334254, incumbent yes
+node 15000: 14999 open, bound 192.38931303690305, incumbent yes
+node 15100: 15099 open, bound 192.40666304374815, incumbent yes
+node 15200: 15199 open, bound 192.4281942747285, incumbent yes
+node 15300: 15299 open, bound 192.44224354077957, incumbent yes
+node 15400: 15399 open, bound 192.45062639292775, incumbent yes
+node 15500: 15499 open, bound 192.45831722882542, incumbent yes
+node 15600: 15599 open, bound 192.47512419747216, incumbent yes
+node 15700: 15699 open, bound 192.4912938523604, incumbent yes
+node 15800: 15799 open, bound 192.50650433670017, incumbent yes
+node 15900: 15899 open, bound 192.52415524530193, incumbent yes
+node 16000: 15999 open, bound 192.53369168256796, incumbent yes
+node 16100: 16099 open, bound 192.53910036717883, incumbent yes
+node 16200: 16199 open, bound 192.55161110292048, incumbent yes
+node 16300: 16299 open, bound 192.56508351530243, incumbent yes
+node 16400: 16399 open, bound 192.57674030099312, incumbent yes
+node 16500: 16499 open, bound 192.5903955500392, incumbent yes
+node 16600: 16599 open, bound 192.60241720909255, incumbent yes
+node 16700: 16699 open, bound 192.6079007732765, incumbent yes
+node 16800: 16799 open, bound 192.61469340977919, incumbent yes
+node 16900: 16899 open, bound 192.62439287675107, incumbent yes
+node 17000: 16999 open, bound 192.63684216065849, incumbent yes
+node 17100: 17099 open, bound 192.6521093117949, incumbent yes
+node 17200: 17199 open, bound 192.66173439108124, incumbent yes
+node 17300: 17299 open, bound 192.67554736454386, incumbent yes
+node 17400: 17399 open, bound 192.68570125139584, incumbent yes
+node 17500: 17499 open, bound 192.69716372570812, incumbent yes
+node 17600: 17599 open, bound 192.71301643522798, incumbent yes
+node 17700: 17699 open, bound 192.72381567940261, incumbent yes
+node 17800: 17799 open, bound 192.72822906789841, incumbent yes
+node 17900: 17899 open, bound 192.74199785428817, incumbent yes
+node 18000: 17999 open, bound 192.75221477082943, incumbent yes
+node 18100: 18099 open, bound 192.76127248105561, incumbent yes
+node 18200: 18199 open, bound 192.77099043691186, incumbent yes
+node 18300: 18299 open, bound 192.78019757175579, incumbent yes
+node 18400: 18399 open, bound 192.7864900998282, incumbent yes
+branch and bound work: node relaxations 82.8%, cuts 0.1%, heuristics 13.4%, propagation, probing and conflicts 0.2%, strong branching 3.3%, the rest 0.2%
+branch and bound: work limit reached after 18426 nodes, 19375 solves, 174 cuts (56 below the root), 3 points by rounding, 0 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pump, 784 probes, 74 of them capped, 448881 columns fixed by cliques and 0 nodes cut by them, the callback fired 0 times, added 0 rows, rejected 0 points, chose 0 branches, handed 0 incumbents and 0 points refused, 0 conflicts over 0 binaries, 1434 branchings widened to an orbit, 0 columns fixed by orbits and 0 nodes the relaxation failed on set aside with their bound
+status work_limit
+iterations 443593
+work_units 10000021699
+nodes 18426
+cuts 174
+heuristic_points 3
+first_incumbent 1
+fixed_cols 0
+tightened 0
+symmetry_generators 5
+symmetry_orbits 18
+bound 192.78789907314723
+incumbent 212
+time 24.373488
+Command exited with non-zero status 3
+21.92 s 48280 KB
