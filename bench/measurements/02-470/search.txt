@@ -1,0 +1,358 @@
+glass4 BMBEST step z=5200052300 work=79359
+glass4 BMBEST step z=4700045400 work=116776
+glass4 BMBEST step z=4550043375 work=173185
+glass4 BMBEST step z=4200038850 work=205394
+glass4 BMBEST step z=4000038000 work=235229
+glass4 BMBEST step z=3900037650 work=271251
+glass4 BMBEST step z=3600034800 work=344035
+glass4 BMBEST step z=3600034600 work=401425
+glass4 BMBEST step z=3550034700 work=441817
+glass4 BMBEST step z=3500034500 work=469092
+glass4 BMBEST step z=3440032260 work=553739
+glass4 BMBEST step z=3350031400 work=672249
+glass4 BMBEST step z=3150030600 work=722823
+glass4 BMBEST step z=3100029500 work=772388
+glass4 BMBEST step z=3100029300 work=816106
+glass4 BMBEST step z=3000028300 work=864100
+glass4 BMBEST step z=2900028100 work=892554
+glass4 BMBEST step z=2700027500 work=921224
+glass4 BMBEST step z=2592334962 work=957753
+glass4 BMBEST step z=2542884000 work=988077
+glass4 BMBEST step z=2500026500 work=1018441
+glass4 BMBEST step z=2500025100 work=1129693
+glass4 BMBEST step z=2350021500 work=1164498
+glass4 BMBEST step z=2250020500 work=1195606
+glass4 BMBEST step z=2200020200 work=1228958
+glass4 BMBEST step z=2200019800 work=1261203
+glass4 BMBEST step z=2166686033 work=1307229
+glass4 BMBEST step z=2166685633 work=1337012
+glass4 BMBEST step z=2133352967 work=1798744
+glass4 BMBEST step z=2050019167 work=1838304
+glass4 BMBEST step z=2025018933 work=1889365
+glass4 BMBEST step z=2025018883 work=1919771
+glass4 BMBEST step z=2025018750 work=5357816
+glass4 BMEND from=incumbent switches=298 groups=36 z0=5600052200 best=2025018750 work=50670222 room=50660000
+glass4 node 1206: incumbent 2025018749.9999998 by moves over the disjunctions of the big-M rows
+glass4 BMBEST step z=2025018550 work=4271306
+glass4 BMBEST step z=1966685500 work=5733768
+glass4 BMBEST step z=1933352200 work=5771046
+glass4 BMBEST step z=1920018680 work=5809139
+glass4 BMBEST step z=1911129711 work=5842371
+glass4 BMBEST step z=1900019000 work=23315066
+glass4 BMBEST step z=1900018900 work=23367627
+glass4 BMBEST step z=1900018650 work=31621922
+glass4 BMBEST step z=1900018400 work=31659518
+glass4 BMBEST step z=1800017600 work=32959613
+glass4 BMBEST step z=1800016800 work=33051060
+glass4 BMEND from=own switches=298 groups=36 z0=2025018750 best=1800016800 work=50667298 room=50660000
+glass4 node 2077: incumbent 1800016799.9999886 by moves over the disjunctions of the big-M rows
+glass4 BMBEST step z=1800016600 work=11161345
+glass4 BMEND from=own switches=298 groups=36 z0=1800016800 best=1800016600 work=36695300 room=50660000
+glass4 node 4194: incumbent 1800016600 by moves over the disjunctions of the big-M rows
+glass4 BMEND from=own switches=298 groups=36 z0=1800016600 best=1800016600 work=16426392 room=50660000
+glass4 BMBEST step z=1800015400 work=41910323
+glass4 BMBEST step z=1700015200 work=42211278
+glass4 BMBEST step z=1700015100 work=47924405
+glass4 BMEND from=own switches=298 groups=36 z0=1800016600 best=1700015100 work=50667330 room=50660000
+glass4 node 6865: incumbent 1700015099.9999959 by moves over the disjunctions of the big-M rows
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50667492 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50667428 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=17863095 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50667229 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50676862 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=13347109 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50667463 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50667923 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50673986 room=50660000
+glass4 BMEND from=own switches=298 groups=36 z0=1700015100 best=1700015100 work=50680404 room=50660000
+glass4 work_units 10000006842
+glass4 incumbent 1700015099.9999959
+graphdraw-domain BMBEST step z=26280.5 work=459900
+graphdraw-domain BMBEST step z=25611 work=2170514
+graphdraw-domain BMEND from=incumbent switches=180 groups=45 z0=26284.5 best=25611 work=71633697 room=74380000
+graphdraw-domain node 1: incumbent 25610.999999999985 by moves over the disjunctions of the big-M rows
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=25611 best=25611 work=10096260 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=25611 best=25611 work=24345960 room=74380000
+graphdraw-domain BMBEST step z=25082.66667 work=12669445
+graphdraw-domain BMBEST step z=24546.33333 work=16731285
+graphdraw-domain BMBEST step z=24531.66667 work=16784141
+graphdraw-domain BMBEST step z=24275.16667 work=19377343
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=25611 best=24275.16667 work=41744445 room=74380000
+graphdraw-domain node 1088: incumbent 24418 by moves over the disjunctions of the big-M rows
+graphdraw-domain BMBEST step z=22949.16667 work=1745233
+graphdraw-domain BMBEST step z=22098.5 work=20446049
+graphdraw-domain BMBEST step z=22054.5 work=20496977
+graphdraw-domain BMBEST step z=21575 work=20940385
+graphdraw-domain BMBEST step z=21531 work=20985933
+graphdraw-domain BMBEST step z=21487 work=21028488
+graphdraw-domain BMBEST step z=20522 work=21345210
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=24296.5 best=20522 work=39191552 room=74380000
+graphdraw-domain node 1234: incumbent 20788 by moves over the disjunctions of the big-M rows
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20551.5 best=20551.5 work=14214781 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20551.5 best=20551.5 work=74390978 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20550.83333 best=20550.83333 work=11061109 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20551.5 best=20551.5 work=29650852 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20529.16667 best=20529.16667 work=32089025 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20550.5 best=20550.5 work=33758170 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20530 best=20530 work=35054025 room=74380000
+graphdraw-domain BMEND from=own switches=180 groups=45 z0=20536.5 best=20536.5 work=33887371 room=74380000
+graphdraw-domain work_units 10000015956
+graphdraw-domain incumbent 20788
+supportcase26 BMBEST step z=2625.998758 work=635038
+supportcase26 BMBEST step z=2621.752547 work=825861
+supportcase26 BMBEST step z=2481.627576 work=1038834
+supportcase26 BMBEST step z=2477.381365 work=1314996
+supportcase26 BMBEST step z=2473.135153 work=1607505
+supportcase26 BMBEST step z=2354.241238 work=1900800
+supportcase26 BMBEST step z=2349.995027 work=2260594
+supportcase26 BMBEST step z=2248.085957 work=2634416
+supportcase26 BMBEST step z=2243.839746 work=3069497
+supportcase26 BMBEST step z=2239.593534 work=3517417
+supportcase26 BMBEST step z=2235.347323 work=3965968
+supportcase26 BMBEST step z=2158.915521 work=4414483
+supportcase26 BMBEST step z=2095.222352 work=4921522
+supportcase26 BMBEST step z=2044.267817 work=5499464
+supportcase26 BMBEST step z=2006.051916 work=6150925
+supportcase26 BMBEST step z=1980.574648 work=6868298
+supportcase26 BMBEST step z=1972.082226 work=7664255
+supportcase26 BMEND from=relaxation switches=396 groups=0 z0=2783.108575 best=1972.082226 work=75977700 room=75960000
+supportcase26 node 1: incumbent 1972.082225656105 by moves over the disjunctions of the big-M rows
+supportcase26 BMBEST step z=2625.998758 work=470631
+supportcase26 BMEND from=relaxation switches=128 groups=0 z0=2783.108575 best=2625.998758 work=512317 room=504506
+supportcase26 BMEND from=own switches=396 groups=0 z0=1972.082226 best=1972.082226 work=75972789 room=75960000
+supportcase26 BMBEST step z=2044.267817 work=318524
+supportcase26 BMBEST step z=2040.021606 work=597621
+supportcase26 BMBEST step z=2035.775394 work=890257
+supportcase26 BMBEST step z=2031.529183 work=1232172
+supportcase26 BMBEST step z=2027.282972 work=1586562
+supportcase26 BMBEST step z=2023.036761 work=1941583
+supportcase26 BMBEST step z=2018.790549 work=2317068
+supportcase26 BMBEST step z=1955.097381 work=2740610
+supportcase26 BMEND from=relaxation switches=45 groups=0 z0=2184.392788 best=1955.097381 work=4285693 room=4281267
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1955.097381 best=1955.097381 work=75972608 room=75960000
+supportcase26 BMBEST step z=2485.873787 work=454868
+supportcase26 BMBEST step z=2341.502605 work=644469
+supportcase26 BMBEST step z=2337.256393 work=924119
+supportcase26 BMBEST step z=2333.010182 work=1220109
+supportcase26 BMBEST step z=2328.763971 work=1516737
+supportcase26 BMBEST step z=2209.870056 work=1815379
+supportcase26 BMBEST step z=2112.207197 work=2189935
+supportcase26 BMBEST step z=2052.760239 work=2713333
+supportcase26 BMEND from=relaxation switches=98 groups=0 z0=2642.983603 best=2052.760239 work=2866385 room=2854762
+supportcase26 BMEND from=own switches=396 groups=0 z0=1955.097381 best=1955.097381 work=75981163 room=75960000
+supportcase26 BMBEST step z=2477.338168 work=376359
+supportcase26 BMBEST step z=2341.459408 work=555004
+supportcase26 BMBEST step z=2337.213197 work=812949
+supportcase26 BMBEST step z=2218.319282 work=1086376
+supportcase26 BMEND from=relaxation switches=62 groups=0 z0=2549.566956 best=2218.319282 work=1292114 room=1285960
+supportcase26 BMEND from=own switches=396 groups=0 z0=1955.097381 best=1955.097381 work=75977382 room=75960000
+supportcase26 BMBEST step z=2141.930676 work=546439
+supportcase26 BMBEST step z=2044.267817 work=914480
+supportcase26 BMBEST step z=1997.559493 work=1490271
+supportcase26 BMEND from=relaxation switches=67 groups=0 z0=2256.578379 best=1997.559493 work=1610059 room=1603903
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1853.145114 best=1853.145114 work=75967703 room=75960000
+supportcase26 BMBEST step z=2468.888942 work=484612
+supportcase26 BMBEST step z=2345.748816 work=779044
+supportcase26 BMBEST step z=2341.502605 work=1141324
+supportcase26 BMBEST step z=2337.256393 work=1517812
+supportcase26 BMEND from=relaxation switches=97 groups=0 z0=2609.013913 best=2337.256393 work=1842020 room=1836764
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1848.898903 best=1848.898903 work=75975130 room=75960000
+supportcase26 BMBEST step z=2558.059378 work=397894
+supportcase26 BMBEST step z=2413.688196 work=587290
+supportcase26 BMBEST step z=2290.548069 work=883827
+supportcase26 BMEND from=relaxation switches=71 groups=0 z0=2715.169195 best=2290.548069 work=892655 room=887971
+supportcase26 BMEND from=relaxation switches=2 groups=0 z0=1814.929213 best=1814.929213 work=702479 room=698795
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75968913 room=75960000
+supportcase26 BMBEST step z=2010.254931 work=319351
+supportcase26 BMBEST step z=2006.00872 work=484803
+supportcase26 BMBEST step z=1925.330706 work=662271
+supportcase26 BMBEST step z=1895.607227 work=1022325
+supportcase26 BMBEST step z=1891.361016 work=3411628
+supportcase26 BMEND from=relaxation switches=51 groups=0 z0=2107.91779 best=1891.361016 work=3434414 room=3422601
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75969417 room=75960000
+supportcase26 BMBEST step z=2150.423098 work=510331
+supportcase26 BMBEST step z=2023.036761 work=776768
+supportcase26 BMBEST step z=2018.790549 work=1200922
+supportcase26 BMBEST step z=2014.544338 work=1630970
+supportcase26 BMEND from=relaxation switches=71 groups=0 z0=2154.669309 best=2014.544338 work=1856456 room=1848263
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75969301 room=75960000
+supportcase26 BMBEST step z=2481.627576 work=507223
+supportcase26 BMBEST step z=2354.241238 work=785096
+supportcase26 BMBEST step z=2239.593534 work=1148910
+supportcase26 BMBEST step z=2137.684464 work=1546626
+supportcase26 BMEND from=relaxation switches=76 groups=0 z0=2621.752547 best=2137.684464 work=1721044 room=1709076
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75972962 room=75960000
+supportcase26 BMBEST step z=2371.226083 work=398726
+supportcase26 BMBEST step z=2235.347323 work=608998
+supportcase26 BMBEST step z=2231.101112 work=882263
+supportcase26 BMBEST step z=2226.854901 work=1171265
+supportcase26 BMBEST step z=2112.207197 work=1461057
+supportcase26 BMEND from=relaxation switches=83 groups=0 z0=2524.089688 best=2112.207197 work=1641274 room=1629374
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75981546 room=75960000
+supportcase26 BMBEST step z=2235.347323 work=486818
+supportcase26 BMBEST step z=2231.101112 work=821359
+supportcase26 BMBEST step z=2226.854901 work=1170744
+supportcase26 BMBEST step z=2222.608689 work=1517804
+supportcase26 BMBEST step z=2218.362478 work=1865321
+supportcase26 BMBEST step z=2214.116267 work=2209999
+supportcase26 BMBEST step z=2116.453408 work=2552355
+supportcase26 BMBEST step z=2112.207197 work=2968683
+supportcase26 BMEND from=relaxation switches=50 groups=0 z0=2366.979872 best=2112.207197 work=2993892 room=2983576
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75966382 room=75960000
+supportcase26 BMBEST step z=2226.854901 work=254266
+supportcase26 BMBEST step z=2099.468563 work=458355
+supportcase26 BMBEST step z=2006.051916 work=744790
+supportcase26 BMBEST step z=2001.805704 work=1106381
+supportcase26 BMBEST step z=1997.559493 work=1473864
+supportcase26 BMBEST step z=1993.313282 work=1849596
+supportcase26 BMBEST step z=1989.067071 work=2242958
+supportcase26 BMBEST step z=1942.358747 work=2653969
+supportcase26 BMEND from=relaxation switches=45 groups=0 z0=2298.997296 best=1942.358747 work=3169689 room=3161556
+supportcase26 BMEND from=own switches=396 groups=0 z0=1798.542853 best=1798.542853 work=75977979 room=75960000
+supportcase26 BMBEST step z=2023.036761 work=483417
+supportcase26 BMBEST step z=2018.790549 work=907501
+supportcase26 BMBEST step z=2014.544338 work=1337479
+supportcase26 BMBEST step z=2010.298127 work=1775706
+supportcase26 BMEND from=relaxation switches=57 groups=0 z0=2150.423098 best=2010.298127 work=2044140 room=2037463
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1781.002719 best=1781.002719 work=75968532 room=75960000
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1776.756508 best=1776.756508 work=75975523 room=75960000
+supportcase26 BMEND from=relaxation switches=21 groups=0 z0=1776.756508 best=1776.756508 work=12646043 room=12631705
+supportcase26 BMEND from=incumbent switches=396 groups=0 z0=1776.756508 best=1776.756508 work=75978521 room=75960000
+supportcase26 BMBEST step z=1882.911789 work=414893
+supportcase26 BMBEST step z=1848.942099 work=653342
+supportcase26 BMBEST step z=1827.711043 work=959176
+supportcase26 BMBEST step z=1819.218621 work=1329965
+supportcase26 BMEND from=relaxation switches=47 groups=0 z0=1929.620113 best=1819.218621 work=5856988 room=5851844
+supportcase26 work_units 10000007852
+supportcase26 incumbent 1776.7565080992504
+neos-3754480-nidda BMBEST step z=16195.23649 work=516896
+neos-3754480-nidda BMBEST step z=15869.87533 work=584225
+neos-3754480-nidda BMBEST step z=15206.38619 work=819912
+neos-3754480-nidda BMBEST step z=15018.16797 work=866739
+neos-3754480-nidda BMBEST step z=14681.86648 work=916001
+neos-3754480-nidda BMBEST step z=14108.57099 work=1117129
+neos-3754480-nidda BMBEST step z=13434.07909 work=1321702
+neos-3754480-nidda BMBEST step z=13293.31884 work=1758199
+neos-3754480-nidda BMBEST step z=13074.17465 work=1827577
+neos-3754480-nidda BMBEST step z=13055.3765 work=7879273
+neos-3754480-nidda BMEND from=relaxation switches=50 groups=0 z0=16992.38944 best=13055.3765 work=21745951 room=42860000
+neos-3754480-nidda node 1: incumbent 13055.376499742029 by moves over the disjunctions of the big-M rows
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=2024133 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=1303358 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=1724915 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=1363025 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=1911631 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=10585853 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=13055.3765 best=13055.3765 work=1601935 room=42860000
+neos-3754480-nidda BMBEST step z=15847.79397 work=334668
+neos-3754480-nidda BMBEST step z=15579.672 work=405292
+neos-3754480-nidda BMBEST step z=15263.03192 work=466933
+neos-3754480-nidda BMBEST step z=14456.30705 work=695647
+neos-3754480-nidda BMBEST step z=14238.63076 work=932438
+neos-3754480-nidda BMBEST step z=14101.22496 work=1180254
+neos-3754480-nidda BMBEST step z=14078.23645 work=1459350
+neos-3754480-nidda BMBEST step z=13873.53057 work=1742108
+neos-3754480-nidda BMBEST step z=13665.82915 work=2024798
+neos-3754480-nidda BMBEST step z=13601.07171 work=2944463
+neos-3754480-nidda BMBEST step z=13596.46392 work=3746662
+neos-3754480-nidda BMBEST step z=13595.98645 work=3794556
+neos-3754480-nidda BMBEST step z=13020.13167 work=3997401
+neos-3754480-nidda BMEND from=relaxation switches=32 groups=0 z0=16173.34188 best=13020.13167 work=23660651 room=36460993
+neos-3754480-nidda BMBEST step z=12941.73839 work=3503933
+neos-3754480-nidda BMEND from=incumbent switches=50 groups=0 z0=13020.13167 best=12941.73839 work=26838050 room=42860000
+neos-3754480-nidda node 15602: incumbent 12941.738385617773 by moves over the disjunctions of the big-M rows
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=20296735 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=10733035 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=29044238 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=12178599 room=42860000
+neos-3754480-nidda BMBEST step z=15665.53371 work=241378
+neos-3754480-nidda BMBEST step z=15445.1369 work=296089
+neos-3754480-nidda BMBEST step z=15197.09303 work=340842
+neos-3754480-nidda BMBEST step z=14892.01588 work=385246
+neos-3754480-nidda BMBEST step z=14070.59492 work=578526
+neos-3754480-nidda BMBEST step z=13971.23897 work=1029983
+neos-3754480-nidda BMBEST step z=13831.60629 work=1693188
+neos-3754480-nidda BMBEST step z=13613.96642 work=1972625
+neos-3754480-nidda BMBEST step z=13540.62654 work=2250417
+neos-3754480-nidda BMBEST step z=13531.93911 work=2294249
+neos-3754480-nidda BMBEST step z=13371.0087 work=7834208
+neos-3754480-nidda BMBEST step z=13232.58186 work=8074098
+neos-3754480-nidda BMBEST step z=13227.03804 work=8625521
+neos-3754480-nidda BMBEST step z=13143.08889 work=8858302
+neos-3754480-nidda BMEND from=relaxation switches=34 groups=0 z0=15932.9865 best=13143.08889 work=26013041 room=32350976
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=4530164 room=42860000
+neos-3754480-nidda BMBEST step z=15654.72513 work=409906
+neos-3754480-nidda BMBEST step z=15451.06989 work=470760
+neos-3754480-nidda BMBEST step z=15217.12553 work=520443
+neos-3754480-nidda BMBEST step z=14930.00135 work=584951
+neos-3754480-nidda BMBEST step z=14309.88239 work=783284
+neos-3754480-nidda BMBEST step z=14125.2596 work=953436
+neos-3754480-nidda BMBEST step z=14055.26064 work=1384149
+neos-3754480-nidda BMBEST step z=14054.85844 work=1859514
+neos-3754480-nidda BMBEST step z=13915.67764 work=2347481
+neos-3754480-nidda BMBEST step z=13912.72686 work=2875054
+neos-3754480-nidda BMBEST step z=13693.44104 work=3344586
+neos-3754480-nidda BMBEST step z=13617.86803 work=3391606
+neos-3754480-nidda BMBEST step z=13600.52539 work=4139838
+neos-3754480-nidda BMBEST step z=13143.08889 work=11081855
+neos-3754480-nidda BMBEST step z=13099.54885 work=16780756
+neos-3754480-nidda BMEND from=relaxation switches=35 groups=0 z0=15907.19797 best=13099.54885 work=29470555 room=29460316
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=36853792 room=42860000
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=4435566 room=42860000
+neos-3754480-nidda BMBEST step z=15720.86917 work=291862
+neos-3754480-nidda BMBEST step z=15340.4433 work=354020
+neos-3754480-nidda BMBEST step z=14499.66526 work=585446
+neos-3754480-nidda BMBEST step z=14354.63349 work=644621
+neos-3754480-nidda BMBEST step z=14035.2234 work=879189
+neos-3754480-nidda BMBEST step z=13445.44702 work=1074169
+neos-3754480-nidda BMBEST step z=13327.58443 work=1121510
+neos-3754480-nidda BMBEST step z=13108.44026 work=1179737
+neos-3754480-nidda BMBEST step z=13099.54885 work=1446143
+neos-3754480-nidda BMEND from=relaxation switches=34 groups=0 z0=15950.80221 best=13099.54885 work=8075501 room=34644451
+neos-3754480-nidda BMBEST step z=15644.8898 work=459910
+neos-3754480-nidda BMBEST step z=15396.86833 work=505420
+neos-3754480-nidda BMBEST step z=14519.44468 work=709497
+neos-3754480-nidda BMBEST step z=14270.37022 work=753209
+neos-3754480-nidda BMBEST step z=14106.00403 work=796605
+neos-3754480-nidda BMBEST step z=13984.05508 work=844420
+neos-3754480-nidda BMBEST step z=13846.31332 work=1058130
+neos-3754480-nidda BMBEST step z=13704.89587 work=1487009
+neos-3754480-nidda BMEND from=relaxation switches=35 groups=0 z0=15963.48374 best=13704.89587 work=5835487 room=35765708
+neos-3754480-nidda BMBEST step z=15500.19051 work=433774
+neos-3754480-nidda BMBEST step z=15214.75703 work=496564
+neos-3754480-nidda BMBEST step z=14593.1415 work=685965
+neos-3754480-nidda BMBEST step z=14315.10522 work=746415
+neos-3754480-nidda BMBEST step z=14198.81167 work=812041
+neos-3754480-nidda BMBEST step z=14054.85844 work=1026981
+neos-3754480-nidda BMBEST step z=13915.67764 work=1456758
+neos-3754480-nidda BMBEST step z=13912.72686 work=1908512
+neos-3754480-nidda BMBEST step z=13693.44104 work=2179775
+neos-3754480-nidda BMBEST step z=13617.86803 work=2226763
+neos-3754480-nidda BMBEST step z=13600.52539 work=2750707
+neos-3754480-nidda BMEND from=relaxation switches=33 groups=0 z0=15829.61584 best=13600.52539 work=12724550 room=29679549
+neos-3754480-nidda BMBEST step z=15541.37832 work=307806
+neos-3754480-nidda BMBEST step z=15197.09303 work=357680
+neos-3754480-nidda BMBEST step z=14892.01588 work=406680
+neos-3754480-nidda BMBEST step z=14070.59492 work=599979
+neos-3754480-nidda BMBEST step z=13971.23897 work=1051455
+neos-3754480-nidda BMBEST step z=13831.60629 work=1717455
+neos-3754480-nidda BMBEST step z=13613.96642 work=1999687
+neos-3754480-nidda BMBEST step z=13540.62654 work=2280274
+neos-3754480-nidda BMBEST step z=13531.93911 work=2324125
+neos-3754480-nidda BMBEST step z=13419.41092 work=13045565
+neos-3754480-nidda BMBEST step z=13413.35875 work=13348108
+neos-3754480-nidda BMBEST step z=13066.74441 work=13573240
+neos-3754480-nidda BMBEST step z=12941.73839 work=27048968
+neos-3754480-nidda BMEND from=relaxation switches=35 groups=0 z0=15758.41479 best=12941.73839 work=35525621 room=35522114
+neos-3754480-nidda BMBEST step z=15882.78471 work=243661
+neos-3754480-nidda BMBEST step z=15529.0954 work=304092
+neos-3754480-nidda BMBEST step z=15212.95025 work=361295
+neos-3754480-nidda BMBEST step z=14403.22073 work=562386
+neos-3754480-nidda BMBEST step z=14106.00403 work=609900
+neos-3754480-nidda BMBEST step z=13984.05508 work=657713
+neos-3754480-nidda BMBEST step z=13846.31332 work=871421
+neos-3754480-nidda BMBEST step z=13704.89587 work=1298910
+neos-3754480-nidda BMEND from=relaxation switches=35 groups=0 z0=16106.36871 best=13704.89587 work=15177117 room=35657488
+neos-3754480-nidda BMEND from=own switches=50 groups=0 z0=12941.73839 best=12941.73839 work=40606992 room=42860000
+neos-3754480-nidda work_units 10000072122
+neos-3754480-nidda incumbent 12941.738385617775

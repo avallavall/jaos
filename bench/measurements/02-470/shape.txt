@@ -1,0 +1,54 @@
+air03                  bin=10757 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+bell3a                 bin=   39 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  32 
+bell5                  bin=   30 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  28 
+blend2                 bin=  231 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  25 
+dcmulti                bin=   75 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+egout                  bin=   55 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+enigma                 bin=  100 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+flugpl                 bin=    0 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  11 
+gen                    bin=  144 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   6 
+gt2                    bin=   24 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint= 164 
+khb05250               bin=   24 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+l152lav                bin= 1989 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+lseu                   bin=   89 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+misc03                 bin=  159 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+misc06                 bin=  112 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+misc07                 bin=  259 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+mod008                 bin=  319 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+mod010                 bin= 2655 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+p0033                  bin=   33 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+p0201                  bin=  201 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+p0282                  bin=  282 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+rgn                    bin=  100 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+stein27                bin=   27 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+stein45                bin=   45 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+markshare_4_0          bin=   30 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+markshare2             bin=   60 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+enlight_hard           bin=  100 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint= 100 
+pk1                    bin=   55 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+neos5                  bin=   53 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+gen-ip054              bin=    0 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  30 
+timtab1                bin=   64 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  94 
+neos-3046615-murg      bin=  240 switches=  240 rows=  240 in_one_part=    0 in_two_or_more= 240 gint=  16 
+sp150x300d             bin=  300 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+mas76                  bin=  150 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+mas74                  bin=  150 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+gen-ip002              bin=    0 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  41 
+neos-3754480-nidda     bin=   50 switches=   50 rows=  100 in_one_part=    0 in_two_or_more=   0 gint=   0 ALL
+neos-2657525-crna      bin=  129 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint= 395 
+assign1-5-8            bin=  130 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+glass4                 bin=  302 switches=  302 rows=  351 in_one_part=  302 in_two_or_more=   0 gint=   0 ALL
+supportcase26          bin=  396 switches=  396 rows=  792 in_one_part=    0 in_two_or_more=   0 gint=   0 ALL
+neos-911970            bin=  840 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+mad                    bin=  200 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+graphdraw-domain       bin=  180 switches=  180 rows=  180 in_one_part=  180 in_two_or_more=   0 gint=  20 ALL
+exp-1-500-5-5          bin=  250 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+tr12-30                bin=  360 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+neos-3381206-awhea     bin=  475 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=1900 
+ic97_potential         bin=  450 switches=    8 rows=   10 in_one_part=    0 in_two_or_more=   0 gint=  73 
+neos-3627168-kasai     bin=  462 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=  73 
+binkar10_1             bin=  170 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+csched008              bin= 1284 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+csched007              bin= 1457 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+beasleyC3              bin= 1250 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 
+p200x1188c             bin= 1188 switches=    0 rows=    0 in_one_part=    0 in_two_or_more=   0 gint=   0 

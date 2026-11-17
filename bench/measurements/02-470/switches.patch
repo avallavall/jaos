@@ -1,0 +1,166 @@
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -162,9 +162,21 @@
+ constexpr double MIP_ANNEAL_COOL = 1e-3;
+ constexpr int MIP_ANNEAL_LEVELS = 64;
+ constexpr double MIP_BIGM_RATIO = 1e3;
++#ifdef BM_WORK
++constexpr int64_t MIP_BIGM_WORK = BM_WORK;
++#else
+ constexpr int64_t MIP_BIGM_WORK = 20000;
++#endif
++#ifdef BM_SHARE
++constexpr double MIP_BIGM_SHARE = BM_SHARE;
++#else
+ constexpr double MIP_BIGM_SHARE = 0.3;
++#endif
++#ifdef BM_KICK
++constexpr int MIP_BIGM_KICK = BM_KICK;
++#else
+ constexpr int MIP_BIGM_KICK = 4;
++#endif
+ constexpr int MIP_BIGM_KICK_TRIES = 10;
+ constexpr int64_t MIP_BIGM_EVERY = 100;
+ 
+@@ -5678,10 +5690,17 @@
+     const bmmove *s = p, *t = q;
+     if (s->dual != t->dual)
+         return s->dual ? -1 : 1;
++#ifndef BM_ORDER
++#define BM_ORDER 2
++#endif
++#if BM_ORDER == 2
+     if ((s->cv <= 0.0) != (t->cv <= 0.0))
+         return s->cv <= 0.0 ? -1 : 1;
++#endif
++#if BM_ORDER != 1
+     if (s->dual && s->est != t->est)
+         return s->est < t->est ? -1 : 1;
++#endif
+     if (s->cv != t->cv)
+         return s->cv < t->cv ? -1 : 1;
+     if (s->est != t->est)
+@@ -6030,14 +6049,22 @@
+     double key = INFINITY;
+     *work += ops;
+     ops = 0;
+-    if (bm_solve(m, hv, sg, w.x, w.d, &key, work, solves_done, stop) != 1)
+-        goto out;
++    {
++        const int got0 = bm_solve(m, hv, sg, w.x, w.d, &key, work, solves_done, stop);
++#ifdef BM_TRACE
++        fprintf(stderr, "BMSTART %s got %d key %.10g st %d nsw %lld ngrp %lld\n", start ? "inc" : "lp",
++                got0, key, (int)jaos_status_of(hv), (long long)w.nsw, (long long)w.ngrp);
++#endif
++        if (got0 != 1)
++            goto out;
++    }
+     const double key0 = key;
+     double kbest = key;
+     memcpy(w.vb, w.v, (size_t)nc * sizeof *w.vb);
+     memcpy(w.xb, w.x, (size_t)nc * sizeof *w.xb);
+     memcpy(w.db, w.d, (size_t)nc * sizeof *w.db);
+     ops += 3 * nc;
++    int64_t steps = 0, kicks = 0;
+     bool stuck = kick_first;
+     int ks = 0;
+     double kref = INFINITY;
+@@ -6061,6 +6088,12 @@
+             ops = 0;
+             const int got = bm_solve(m, hv, sg, w.xt, w.dt, &kt, work,
+                                      solves_done, stop);
++#ifdef BM_TRACE
++            if (steps < 2 && t < 12)
++                fprintf(stderr, "BMTRY step %lld t %lld on %lld off %lld est %.4g got %d kt %.10g key %.10g st %d\n",
++                        (long long)steps, (long long)t, (long long)mv.on, (long long)mv.off,
++                        mv.est, got, kt, key, (int)jaos_status_of(hv));
++#endif
+             if (got < 0)
+                 break;
+             if (got == 1 && kt < key - eps) {
+@@ -6072,6 +6105,12 @@
+                 if (mv.off >= 0)
+                     w.v[mv.off] = 0.0;
+                 moved = true;
++                steps++;
++#ifdef BM_TRACE
++                fprintf(stderr, "BMSTEP %lld key %.10g try %lld of %lld dual %d cv %.4g work %lld\n",
++                        (long long)steps, key, (long long)t, (long long)w.nmv, mv.dual, mv.cv,
++                        (long long)(*work - (stop - room)));
++#endif
+                 break;
+             }
+             if ((mv.on >= 0 && jaos_set_col_bounds(hv, mv.on, 0.0, 0.0) != JAOS_OK) ||
+@@ -6091,7 +6130,11 @@
+             continue;
+         }
+         bool fed = false;
++#ifdef BM_FIXKICK
++        ks = MIP_BIGM_KICK;
++#else
+         ks = kbest < kref - eps || ks >= MIP_BIGM_KICK ? 1 : ks + 1;
++#endif
+         kref = kbest;
+         memcpy(w.v, w.vb, (size_t)nc * sizeof *w.v);
+         {
+@@ -6107,7 +6150,10 @@
+             memcpy(w.v, w.vb, (size_t)nc * sizeof *w.v);
+             ops += nc;
+             for (int k = 0; k < ks; k++) {
+-                if (w.nmv > 0) {
++#ifndef BM_KICKMODE
++#define BM_KICKMODE 1
++#endif
++                if (BM_KICKMODE && w.nmv > 0) {
+                     const bmmove mv = w.mv[sw_next(rng) % (uint64_t)w.nmv];
+                     if ((mv.on >= 0 && w.v[mv.on] != 0.0) ||
+                         (mv.off >= 0 && w.v[mv.off] != 1.0))
+@@ -6161,7 +6207,17 @@
+         }
+         if (!fed)
+             break;
+-    }
++        kicks++;
++#ifdef BM_TRACE
++        fprintf(stderr, "BMKICK %lld key %.10g best %.10g work %lld\n", (long long)kicks, key, kbest,
++                (long long)(*work - (stop - room)));
++#endif
++    }
++#ifdef BM_TRACE
++    fprintf(stderr, "BMEND nsw %lld ngrp %lld start %s key0 %.10g best %.10g steps %lld kicks %lld work %lld of %lld\n",
++            (long long)w.nsw, (long long)w.ngrp, start ? "inc" : "lp", key0, kbest,
++            (long long)steps, (long long)kicks, (long long)(*work + ops - (stop - room)), (long long)room);
++#endif
+     if (start != nullptr && !(kbest < key0 - 1e-9 * (1.0 + fabs(key0))))
+         goto out;
+     bool whole = true;
+@@ -6198,9 +6254,15 @@
+             jaos_solution(hv, out, nullptr, nullptr, nullptr) == JAOS_OK)
+             rc = 1;
+     }
++#ifdef BM_TRACE
++    fprintf(stderr, "BMFIX rc %d\n", rc);
++#endif
+     if (rc == 0)
+         rc = submip_for_point(m, ilo, ihi, nullptr, INFINITY, w.xb, 0, work,
+                               out);
++#ifdef BM_TRACE
++    fprintf(stderr, "BMSUB rc %d\n", rc);
++#endif
+ out:
+     *work += ops;
+     jaos_model_free(hv);
+@@ -9270,6 +9332,13 @@
+             double hobj = 0.0;
+             if (got == 1)
+                 work += m->num_nz + nc + nr;
++#ifdef BM_TRACE
++            if (got == 1) {
++                const bool okr = rounded_point(m, xr, x2, ra, &hobj);
++                fprintf(stderr, "BMCALL node %lld got %d rounded %d hobj %.10g inc %.10g spent %lld\n",
++                        (long long)nodes, got, okr, hobj, inc.have ? inc.obj : NAN, (long long)bigm_spent);
++            }
++#endif
+             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                 const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                            &nfixed, &nperm, nodes,

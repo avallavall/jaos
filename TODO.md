@@ -157,11 +157,12 @@ first:
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 16:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 17:
 - for linear MIPs:
   - node rounding, lock rounding;
   - the feasibility jump, the exchanges between assignment rows, threshold
-    accepting over the items of partitioning rows;
+    accepting over the items of partitioning rows, moves over the
+    disjunctions of big-M rows;
   - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
     the RINS dive;
   - local branching (off), and the dive from node 1000 with no
@@ -187,8 +188,11 @@ instances:
   the root (895 nodes to 1, `bench/measurements/02-463/`). The second,
   threshold accepting over the items of partitioning rows, takes the 2017
   gap sum from 13.36 to 13.06 (`mad` 0.30 to 0.09 of the optimum away,
-  `neos-911970` 0.030 to 0.004, `bench/measurements/02-469/`). The rest,
-  largest first, follow below.
+  `neos-911970` 0.030 to 0.004, `bench/measurements/02-469/`). The third,
+  moves over the disjunctions of big-M rows, takes it to 12.04 (`glass4`
+  1.0 to 0.42, `graphdraw-domain` 0.44 to 0.06, `neos-3754480-nidda` to
+  its optimum, `bench/measurements/02-470/`). The rest, largest first,
+  follow below.
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
   - rounding: shifting, ZI round, seeded randomized rounding,
@@ -216,9 +220,13 @@ The structures, largest first:
   search of 02-469 prices each row's continuous columns in closed form,
   which these models do not allow. Next: an LP over the continuous
   columns after a run of moves, read on those four.
-- Big-M placement: fix each disjunction to the side the relaxation's
-  coordinates order, solve the LP, then move the order (`glass4` 1.0 away,
-  `graphdraw-domain` 0.44, `supportcase26`, `neos-3754480-nidda`).
+- Big-M placement: 02-470's moves change one disjunction at a time, with
+  kicks of up to four. `glass4` stops at 1.70e9, 0.42 away, and its last
+  ten runs find nothing. `supportcase26` ends 0.018 away against 0.011
+  before: a job there moves past several of the other chain's jobs at
+  once, and a single flip between them closes a cycle. Next: a move that
+  frees every disjunction of one object (a rectangle, a job) and solves
+  them as a sub-MIP with the rest held, read on those two.
 - Scheduling with one start per job: the serial schedule generation
   scheme, priorities from the relaxation (`csched008` has no incumbent,
   `csched007` is 0.35 away). `csched008` is time-indexed: 50 jobs, each

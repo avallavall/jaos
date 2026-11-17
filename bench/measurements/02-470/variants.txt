@@ -1,0 +1,24 @@
+# Incumbents at 1e9 work units with development builds of the moves
+# (jaos solve FILE --work-limit 1000000000). The first block has no backoff
+# between runs in the tree; the second has it. "kick k" is a kick of k
+# moves every time; "vns k" is the landed rule, one to k moves.
+#
+# variant                     glass4        graphdraw-domain  supportcase26  neos-3754480-nidda
+# no backoff
+kick 2, share 0.1             1875019100    22854             1819.18        12941.74
+kick 1, share 0.1             1900019200    24418
+kick 3, share 0.1             1780016660    22165
+kick 4, share 0.1             1900018400    22449
+kick 5, share 0.1             1911129711    22536
+kick 2, share 0.3             1875019100    21839
+kick 2 uniform, share 0.1     1883351783    22607
+kick 3, share 0.3             1700016150    21574
+kick 4, share 0.3             1600014650    22079
+# backoff
+kick 3, share 0.3             1700016150    22165             1827.67        12959.34
+kick 4, share 0.3             1600014650    22079             1955.10        12959.34
+vns 4, share 0.3 (landed)     1700015100    20788             1955.10        13055.38
+vns 6, share 0.3              1800017800    20788             1827.67        12985.77
+#
+# optimum                     1200012600    19686             1745.12        12941.74
+# record at 1e10 (02-469)     5900057800    28362             1764.02        13624.54

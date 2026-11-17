@@ -1176,8 +1176,27 @@ trades the slots of two rows' items, where an item's slot is the set of
 its other rows. It takes a move that lowers the violation of the rows
 without continuous columns, and otherwise one that raises the objective by
 less than a threshold that falls geometrically. It fixes the best
-assignment it finds and solves the rest. The dive heuristic, RINS and the
-pump have their own setters.
+assignment it finds and solves the rest. The sixth runs on a linear model
+whose every free binary switches a big-M row: it is the one binary of a
+row with two or more other columns of both signs, and its coefficient is
+at least 1e3 times the median of theirs or one of its values leaves the
+row slack over their bounds. A partitioning row over such binaries is a
+disjunction, and every other such binary is one by its two values. With
+the binaries fixed, the rest of the model is a linear program, solved
+again after each move. A move gives a partitioning row another of its
+binaries or flips a binary. The moves tried first are those whose reduced
+costs promise a lower objective, then those that loosen a row the
+program's point holds tight, and within each those the point already
+satisfies. The first move that lowers the objective is taken. At a local
+optimum the best point takes one to four random moves of those, one more
+after each kick that finds nothing better, and the search goes on. At the
+root it starts from the side each binary's rows favour at the
+relaxation's point, then from the incumbent. In the tree it starts again
+from each new incumbent, and every 100 nodes from its own, while its work
+stays under 30% of the tree's; the wait doubles after each run from its
+own point that finds nothing. General integer columns of its point are rounded and the rest
+solved, or else a sub-MIP boxes each between its floor and ceiling. The
+dive heuristic, RINS and the pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\
 `jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)`\
