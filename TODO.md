@@ -107,10 +107,12 @@ first:
   factors reach few of them. Solving a child from the parent's whole
   state takes 0.78x the work of the tree's solve on `pk1` and `mas76`,
   and 0.52x on `binkar10_1`. Even on every node and with heuristics off,
-  that leaves `pk1` near 1.1e10. Next: the pricing weights carried from
-  parent to child, the part of that state a node can keep, measured with
-  fewer nodes than today. Verify with `pk1` and `mas76` closing inside
-  1e10 and `make miplib J=2`.
+  that leaves `pk1` near 1.1e10. The pricing weights carried from parent
+  to child save 11% of `pk1`'s work to 20,000 nodes and raise the 2017
+  dual side by 0.028, but the trees' other paths cost the primal side
+  0.24 and MIPLIB 3 1.026x (`node-dse-carry`, 02-473). Next: fewer nodes,
+  by the branching and node cuts the other five need too. Verify with
+  `pk1` and `mas76` closing inside 1e10 and `make miplib J=2`.
 - The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
   the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
   and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in

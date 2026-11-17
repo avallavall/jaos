@@ -1,0 +1,130 @@
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -361,6 +361,10 @@
+     void *parked;
+     void *lu_spare;
+     void *kept;
++    double *node_dse_in;
++    int64_t node_dse_in_n;
++    double *node_dse_out;
++    int64_t node_dse_out_n;
+ 
+     char err[256];
+ };
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -448,6 +448,8 @@
+     int64_t fcap;
+     double est;
+     int64_t hpos;
++    double *dw;
++    int64_t dwn;
+ } bnode;
+ 
+ static void node_free(bnode *n)
+@@ -456,6 +458,7 @@
+         return;
+     free(n->col); free(n->lo); free(n->hi); free(n->cs); free(n->rs);
+     free(n->cuts);
++    free(n->dw);
+     free(n);
+ }
+ 
+@@ -776,6 +779,15 @@
+     if (st == JAOS_OK && n != nullptr && !jm_model_has_quadratic(lp)) {
+         if (n->nrow == lp->num_row) {
+             st = jaos_set_basis(lp, n->cs, n->rs);
++            if (st == JAOS_OK && n->dw != nullptr &&
++                n->dwn == lp->num_col + lp->num_row) {
++                double *o = realloc(lp->node_dse_in, (size_t)n->dwn * sizeof *o);
++                if (o != nullptr) {
++                    lp->node_dse_in = o;
++                    memcpy(o, n->dw, (size_t)n->dwn * sizeof *o);
++                    lp->node_dse_in_n = n->dwn;
++                }
++            }
+         } else {
+             const int64_t copies = n->nrow - n->nperm;
+             if (nfixed + copies != lp->num_row || nfixed < n->nperm)
+@@ -9318,6 +9330,15 @@
+             goto done;
+         }
+         down->est = up->est = key;
++        if (lp->node_dse_out_n > 0 && lp->node_dse_out_n == nc + nr_child) {
++            down->dw = malloc((size_t)lp->node_dse_out_n * sizeof *down->dw);
++            up->dw = malloc((size_t)lp->node_dse_out_n * sizeof *up->dw);
++            if (down->dw && up->dw) {
++                memcpy(down->dw, lp->node_dse_out, (size_t)lp->node_dse_out_n * sizeof *down->dw);
++                memcpy(up->dw, lp->node_dse_out, (size_t)lp->node_dse_out_n * sizeof *up->dw);
++                down->dwn = up->dwn = lp->node_dse_out_n;
++            }
++        }
+         if (heap.by_est && branch >= 0 && m->col_integer[branch]) {
+             double sum = 0.0, own = 0.0;
+             for (int64_t j = 0; j < nc; j++) {
+--- a/src/model.c
++++ b/src/model.c
+@@ -55,6 +55,8 @@
+     free(m->sol_ray);
+     free(m->start_col_status);
+     free(m->start_row_status);
++    free(m->node_dse_in);
++    free(m->node_dse_out);
+     jm_model_drop_exact(m);
+     jm_model_take_names(m, nullptr, nullptr, nullptr);
+     free(m->model_name);
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -819,6 +819,13 @@
+ #endif
+ }
+ 
++static int64_t dse_applied;
++__attribute__((destructor)) static void dse_report(void)
++{
++    if (dse_applied > 0)
++        fprintf(stderr, "DSEAPPLIED %lld\n", (long long)dse_applied);
++}
++
+ static bool build_warm_basis(sx *s)
+ {
+     s->pviol_ok = false;
+@@ -5033,6 +5040,17 @@
+         } else {
+             s.early_perturb_off = !allow_early_perturb;
+             warm = allow_warm && build_warm_basis(&s);
++            if (warm && target == m && m->cfg.node_solve && !m->cfg.node_probe &&
++                getenv("J7_DSE") != nullptr &&
++                m->node_dse_in != nullptr && m->node_dse_in_n == s.nvar) {
++                for (int64_t q = 0; q < s.nrow; q++) {
++                    const double w = m->node_dse_in[s.basis[q]];
++                    if (w > 0.0)
++                        s.dse[q] = w;
++                }
++                dse_applied++;
++            }
++            m->node_dse_in_n = 0;
+             if (!warm)
+                 build_initial_basis(&s);
+             jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
+@@ -5343,6 +5361,20 @@
+ 
+     *units = s.work.units;
+     *iters = s.iters;
++    if (m->cfg.node_solve && !m->cfg.node_probe) {
++        m->node_dse_out_n = 0;
++        if (st == JAOS_OK && outcome == JAOS_SOLVE_OPTIMAL && target == m &&
++            !p.aggregated) {
++            double *o = realloc(m->node_dse_out, (size_t)s.nvar * sizeof *o);
++            if (o != nullptr) {
++                m->node_dse_out = o;
++                memset(o, 0, (size_t)s.nvar * sizeof *o);
++                for (int64_t q = 0; q < s.nrow; q++)
++                    o[s.basis[q]] = s.dse[q];
++                m->node_dse_out_n = s.nvar;
++            }
++        }
++    }
+     if (m->kept != nullptr) {
+         kept_free(m->kept);
+         m->kept = nullptr;

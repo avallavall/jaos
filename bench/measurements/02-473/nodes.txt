@@ -1,0 +1,10 @@
+pk1 off iterations 267675 work_units 1164097726 nodes 20000 bound 4.403092044911074 incumbent 20
+pk1 on iterations 227477 work_units 1032529380 nodes 20000 bound 4.1675932462809069 incumbent 21 DSEAPPLIED 19687
+binkar10_1 off iterations 396742 work_units 6018197698 nodes 20000 bound 6716.106073521004 incumbent 6747.3100149999918
+binkar10_1 on iterations 370431 work_units 5574473626 nodes 20000 bound 6715.607958198827 incumbent 6742.2000239999934 DSEAPPLIED 9703
+gen-ip002 off iterations 134357 work_units 698916544 nodes 20000 bound -4817.4060470629838 incumbent -4783.7333915999998
+gen-ip002 on iterations 134343 work_units 698859784 nodes 20000 bound -4817.4060470629838 incumbent -4783.7333915999998 DSEAPPLIED 30
+mas76 off iterations 112873 work_units 633720508 nodes 20000 bound 39384.669237552029 incumbent 40116.054141999994
+mas76 on iterations 112873 work_units 633720508 nodes 20000 bound 39384.669237552029 incumbent 40116.054141999994
+assign1-5-8 off iterations 418770 work_units 7601509646 nodes 20000 bound 192.13882629396778 incumbent 212
+assign1-5-8 on iterations 443763 work_units 8232825592 nodes 20000 bound 191.60393313194538 incumbent 212 DSEAPPLIED 17399
