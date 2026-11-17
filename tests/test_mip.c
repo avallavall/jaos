@@ -1377,6 +1377,85 @@ static void test_exchanges_between_assignment_rows_find_a_permutation(void)
     jaos_model_free(m);
 }
 
+static jaos_model *balanced_groups(void)
+{
+    constexpr int64_t N = 12;
+    constexpr int64_t K = 3;
+    constexpr int64_t C = N * K + 2 * K;
+    constexpr int64_t R = N + K;
+    const double wt[N] = { 12, 89, 98, 31, 97, 15, 55, 38, 65, 99, 19, 24 };
+    double c[C], cl[C], cu[C], rl[R], ru[R], av[2 * C];
+    int64_t as[C + 1], ai[2 * C], p = 0;
+    for (int64_t i = 0; i < N; i++)
+        for (int64_t k = 0; k < K; k++) {
+            const int64_t q = i * K + k;
+            as[q] = p;
+            c[q] = 0.0;
+            cl[q] = 0.0;
+            cu[q] = 1.0;
+            ai[p] = i;
+            av[p++] = 1.0;
+            ai[p] = N + k;
+            av[p++] = wt[i];
+        }
+    for (int64_t k = 0; k < K; k++)
+        for (int64_t s = 0; s < 2; s++) {
+            const int64_t q = N * K + 2 * k + s;
+            as[q] = p;
+            c[q] = 1.0;
+            cl[q] = 0.0;
+            cu[q] = INFINITY;
+            ai[p] = N + k;
+            av[p++] = s == 0 ? -1.0 : 1.0;
+        }
+    as[C] = p;
+    for (int64_t i = 0; i < N; i++)
+        rl[i] = ru[i] = 1.0;
+    for (int64_t k = 0; k < K; k++)
+        rl[N + k] = ru[N + k] = 214.0;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, C, R, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, p, as, ai,
+                     av));
+    for (int64_t q = 0; q < N * K; q++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, q, true));
+    return m;
+}
+
+static void test_threshold_accepting_over_items_balances_the_groups(void)
+{
+    jaos_model *m = balanced_groups();
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, rep.incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "by threshold accepting over the items "
+                                       "of the partitioning rows"));
+    double x[48], load[3] = { 0.0, 0.0, 0.0 };
+    const double wt[12] = { 12, 89, 98, 31, 97, 15, 55, 38, 65, 99, 19, 24 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    for (int64_t i = 0; i < 12; i++)
+        for (int64_t k = 0; k < 3; k++)
+            load[k] += wt[i] * x[i * 3 + k];
+    for (int64_t k = 0; k < 3; k++)
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, 214.0, load[k]);
+    jaos_model_free(m);
+
+    m = balanced_groups();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.0, rep.incumbent);
+    TEST_ASSERT_TRUE(rep.nodes > 1);
+    jaos_model_free(m);
+}
+
 static jaos_model *lights_out(void)
 {
     constexpr int64_t N = 3;
@@ -6079,6 +6158,7 @@ int main(void)
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
+    RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
     RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);
     RUN_TEST(test_parity_rows_that_contradict_end_infeasible);
     RUN_TEST(test_the_mip_presolve_substitutes_flow_through_a_node);

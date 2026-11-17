@@ -1165,7 +1165,18 @@ exchanges between those rows. It starts from a seeded random assignment,
 and each move trades the rows of two chosen binaries, keeping every
 partitioning row satisfied. It takes the exchange that most lowers the
 violation of the other rows, restarts when none does, and after each point
-looks for one with a lower objective. The dive heuristic, RINS and the
+looks for one with a lower objective. The fifth runs once at the root,
+after the sub-MIPs, when every free integer column is a binary in exactly
+one partitioning row (an item of that row) and every continuous column
+sits in at most one row. Each row then prices its continuous columns in
+closed form, as the cheapest way to cover what the items leave of its
+bounds. From the incumbent, or else from a greedy assignment, it searches
+by threshold accepting: a move gives one row another of its items, or
+trades the slots of two rows' items, where an item's slot is the set of
+its other rows. It takes a move that lowers the violation of the rows
+without continuous columns, and otherwise one that raises the objective by
+less than a threshold that falls geometrically. It fixes the best
+assignment it finds and solves the rest. The dive heuristic, RINS and the
 pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\

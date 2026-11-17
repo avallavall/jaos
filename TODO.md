@@ -155,10 +155,11 @@ first:
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 15:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 16:
 - for linear MIPs:
   - node rounding, lock rounding;
-  - the feasibility jump, the exchanges between assignment rows;
+  - the feasibility jump, the exchanges between assignment rows, threshold
+    accepting over the items of partitioning rows;
   - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
     the RINS dive;
   - local branching (off), and the dive from node 1000 with no
@@ -181,7 +182,10 @@ instances:
 - Made for a structure. 02-463's `census.py` sorts the open MIPLIB 2017
   instances into families, each with a heuristic in the literature for its
   shape. The first, exchanges between assignment rows, closes `enigma` at
-  the root (895 nodes to 1, `bench/measurements/02-463/`). The rest,
+  the root (895 nodes to 1, `bench/measurements/02-463/`). The second,
+  threshold accepting over the items of partitioning rows, takes the 2017
+  gap sum from 13.36 to 13.06 (`mad` 0.30 to 0.09 of the optimum away,
+  `neos-911970` 0.030 to 0.004, `bench/measurements/02-469/`). The rest,
   largest first, follow below.
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
@@ -205,9 +209,11 @@ instances:
 
 The structures, largest first:
 
-- Partitioning rows with items: carry the exchange to binaries in one
-  partitioning row, moving one item or trading two (`mad` 0.30 of the
-  optimum away, `neos-911970`, `glass4`, `csched007`).
+- Partitioning rows with items whose continuous columns link rows
+  (`glass4`, `csched007`, `assign1-5-8`, `graphdraw-domain`): the items
+  search of 02-469 prices each row's continuous columns in closed form,
+  which these models do not allow. Next: an LP over the continuous
+  columns after a run of moves, read on those four.
 - Big-M placement: fix each disjunction to the side the relaxation's
   coordinates order, solve the LP, then move the order (`glass4` 1.0 away,
   `graphdraw-domain` 0.44, `supportcase26`, `neos-3754480-nidda`).
