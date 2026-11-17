@@ -1,0 +1,2 @@
+before     solved 5 incumbents 28 primal 6.8396 dual 6.5210 sum 13.3607
+proximity  solved 5 incumbents 28 primal 7.8883 dual 6.5617 sum 14.4500

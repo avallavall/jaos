@@ -1,0 +1,206 @@
+diff --git a/src/mip.c b/src/mip.c
+index f585c580..25fca7b4 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -162,6 +162,8 @@ constexpr int64_t MIP_SUBMIP_NODES = 500;
+ constexpr double MIP_SUBMIP_FIXED = 0.3;
+ constexpr int64_t MIP_SUBMIP_WORK = 20000;
+ constexpr int64_t MIP_SUBMIP_EVERY = 100;
++constexpr double MIP_PROX_DELTA = 1e-3;
++constexpr double MIP_PROX_SHARE = 0.1;
+ constexpr double MIP_SUBMIP_SHARE = 0.1;
+ constexpr double MIP_SUBMIP_ROOT = 0.5;
+ 
+@@ -4301,6 +4303,106 @@ out:
+     return got;
+ }
+ 
++static int proximity_for_point(const jaos_model *m, const double *ilo,
++                               const double *ihi, const double *xinc,
++                               double incobj, double step, int64_t limit,
++                               int64_t *work, double *xout)
++{
++    const int64_t nc = m->num_col;
++    int64_t nb = 0, ones = 0, nz = 0;
++    for (int64_t j = 0; j < nc; j++) {
++        if (lb_binary(m, j) && ilo[j] < ihi[j]) {
++            nb++;
++            ones += xinc[j] > 0.5;
++        }
++        nz += m->col_cost[j] != 0.0;
++    }
++    *work += nc;
++    if (nb == 0 || nz == 0)
++        return 0;
++    int64_t *idx = jm_alloc_array(nz, sizeof *idx);
++    double *val = jm_alloc_array(nz, sizeof *val);
++    jaos_model *sub = nullptr;
++    int got = -1;
++    if (idx == nullptr || val == nullptr ||
++        jaos_model_copy(m, &sub) != JAOS_OK)
++        goto out;
++    int64_t k = 0;
++    for (int64_t j = 0; j < nc; j++) {
++        if (m->col_cost[j] != 0.0) {
++            idx[k] = j;
++            val[k] = m->col_cost[j];
++            k++;
++        }
++        if (m->col_integer[j] &&
++            jaos_set_col_bounds(sub, j, ilo[j], ihi[j]) != JAOS_OK)
++            goto out;
++    }
++    const double delta = step > 0.0 ? step
++                                    : MIP_PROX_DELTA * (1.0 + fabs(incobj));
++    const bool max = m->sense == JAOS_MAXIMIZE;
++    const double lo = max ? incobj + delta - m->obj_offset : -INFINITY;
++    const double hi = max ? INFINITY : incobj - delta - m->obj_offset;
++    const int64_t start[2] = {0, nz};
++    if (jaos_add_rows(sub, 1, &lo, &hi, nz, start, idx, val) != JAOS_OK)
++        goto out;
++    for (int64_t j = 0; j < nc; j++) {
++        const double c = lb_binary(m, j) && ilo[j] < ihi[j]
++                             ? (xinc[j] > 0.5 ? -1.0 : 1.0) : 0.0;
++        if (jaos_set_col_cost(sub, j, c) != JAOS_OK)
++            goto out;
++    }
++    if (jaos_set_objective_sense(sub, JAOS_MINIMIZE) != JAOS_OK ||
++        jaos_set_objective_offset(sub, (double)ones) != JAOS_OK)
++        goto out;
++    free(sub->mip_start);
++    sub->mip_start = nullptr;
++    sub->cfg.log_cb = nullptr;
++    sub->cfg.log_level = JAOS_LOG_OFF;
++    sub->cfg.progress_cb = nullptr;
++    sub->cfg.incumbent_cb = nullptr;
++    sub->cfg.node_cb = nullptr;
++    sub->cfg.time_limit = 0.0;
++    sub->cfg.mip_local_branching_set = true;
++    sub->cfg.mip_local_branching = 0;
++    sub->cfg.mip_rins_set = true;
++    sub->cfg.mip_rins = 0;
++    sub->cfg.mip_restart_set = true;
++    sub->cfg.mip_restart = false;
++    sub->cfg.mip_node_limit = MIP_SUBMIP_NODES;
++    sub->cfg.mip_cutoff_set = false;
++    {
++        int64_t cap = MIP_SUBMIP_WORK * (m->num_nz + nc + m->num_row);
++        if (limit > 0 && limit < cap)
++            cap = limit;
++        if (m->cfg.work_limit > 0) {
++            const int64_t left = m->cfg.work_limit - *work;
++            if (left < cap)
++                cap = left > 0 ? left : 1;
++        }
++        sub->cfg.work_limit = cap;
++    }
++    const jaos_status st = jaos_solve(sub);
++    *work += sub->solve_work;
++    if (getenv("J32_PROXDBG") != nullptr)
++        fprintf(stderr, "PROX st=%d status=%d nodes=%lld work=%lld cap=%lld inc=%d bound=%g delta=%g incobj=%g\n",
++                (int)st, (int)sub->solve_status, (long long)sub->mip_nodes,
++                (long long)sub->solve_work, (long long)sub->cfg.work_limit,
++                (int)sub->mip_has_incumbent, sub->mip_bound, delta, incobj);
++    got = 0;
++    if (st == JAOS_OK && sub->mip_has_incumbent && sub->mip_inc_x != nullptr) {
++        memcpy(xout, sub->mip_inc_x, (size_t)nc * sizeof *xout);
++        got = 1;
++    } else if (st == JAOS_ERR_OUT_OF_MEMORY) {
++        got = -1;
++    }
++out:
++    jaos_model_free(sub);
++    free(idx);
++    free(val);
++    return got;
++}
++
+ int jm_mip_start_complete(const jaos_model *m, int64_t work, double *xout,
+                           int64_t *spent)
+ {
+@@ -6622,7 +6724,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t mused_cap = 0;
+     bool *mpicked = nullptr;
+     cmir_ctx cmx = {0};
+-    int64_t sub_spent = 0, sub_last = 0;
++    int64_t sub_spent = 0, sub_last = 0, prox_spent = 0;
++    double prox_key = INFINITY;
+     const double heur_cap = net ? MIP_NET_HEUR_CAP : 0.0;
+     int64_t heur_amount = 0, heur_stop = 0, root_heur_amount = 0;
+     int64_t mirs = 0;
+@@ -8019,21 +8122,41 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             (nodes == 1 ||
+              (inc.have && nodes - sub_last >= MIP_SUBMIP_EVERY &&
+               (double)sub_spent < MIP_SUBMIP_SHARE * (double)work));
+-        for (int pass = 0; pass < 2 && sub_here; pass++) {
++        const bool prox_here =
++            getenv("J32_PROX") != nullptr && heur && !quadratic && rins > 0 &&
++            branch >= 0 && inc.have && !budget_gone(m, work) &&
++            inc.key != prox_key &&
++            (double)prox_spent < MIP_PROX_SHARE * (double)work;
++        for (int pass = 0; pass < 3 && (sub_here || prox_here); pass++) {
++            if (pass < 2 && !sub_here)
++                continue;
++            if (pass == 2 && !prox_here)
++                break;
+             if (pass == 0 && (inc.have || nodes > 1))
+                 continue;
+-            if (pass == 1 && !inc.have)
++            if (pass >= 1 && !inc.have)
+                 break;
+             const int64_t sub_limit =
+-                nodes > 1 ? (int64_t)(MIP_SUBMIP_SHARE * (double)work) -
+-                                sub_spent + 1
+-                          : (int64_t)(MIP_SUBMIP_ROOT * (double)work) + 1;
++                pass == 2 ? (int64_t)(MIP_PROX_SHARE * (double)work) -
++                                prox_spent + 1
++                : nodes > 1 ? (int64_t)(MIP_SUBMIP_SHARE * (double)work) -
++                                  sub_spent + 1
++                            : (int64_t)(MIP_SUBMIP_ROOT * (double)work) + 1;
+             const int64_t sub_before = work;
+-            const int got = submip_for_point(
+-                m, ilo, ihi, pass == 1 ? inc.x : nullptr,
+-                pass == 1 ? inc.obj : INFINITY, x, sub_limit, &work, xr);
+-            sub_spent += work - sub_before;
+-            sub_last = nodes;
++            if (pass == 2)
++                prox_key = inc.key;
++            const int got = pass == 2
++                ? proximity_for_point(m, ilo, ihi, inc.x, inc.obj, og.step,
++                                      sub_limit, &work, xr)
++                : submip_for_point(m, ilo, ihi, pass == 1 ? inc.x : nullptr,
++                                   pass == 1 ? inc.obj : INFINITY, x,
++                                   sub_limit, &work, xr);
++            if (pass == 2) {
++                prox_spent += work - sub_before;
++            } else {
++                sub_spent += work - sub_before;
++                sub_last = nodes;
++            }
+             if (got < 0)
+                 goto done;
+             double hobj = 0.0;
+@@ -8059,12 +8182,17 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     heur_points++;
+                     if (first_inc == 0)
+                         first_inc = nodes;
+-                    jm_log(m, JAOS_LOG_PROGRESS,
+-                           "node %lld: incumbent %.17g by a sub-MIP over the "
+-                           "columns %s", (long long)nodes, hobj,
+-                           pass == 1 ? "the incumbent and the relaxation "
+-                                       "disagree on"
+-                                     : "the relaxation leaves fractional");
++                    if (pass == 2)
++                        jm_log(m, JAOS_LOG_PROGRESS,
++                               "node %lld: incumbent %.17g by proximity search",
++                               (long long)nodes, hobj);
++                    else
++                        jm_log(m, JAOS_LOG_PROGRESS,
++                               "node %lld: incumbent %.17g by a sub-MIP over "
++                               "the columns %s", (long long)nodes, hobj,
++                               pass == 1 ? "the incumbent and the relaxation "
++                                           "disagree on"
++                                         : "the relaxation leaves fractional");
+                     if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                         outcome = JAOS_SOLVE_INTERRUPTED;
+                         break;

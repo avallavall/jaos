@@ -190,9 +190,11 @@ instances:
   - diving: fractional, coefficient, guided toward the incumbent,
     pseudocost, vector-length (for covering and partitioning rows),
     line-search, Farkas, conflict;
-  - neighbourhoods: crossover and mutation over the pool, DINS, proximity
-    search (Fischetti and Monaci), a zero-objective sub-MIP, RENS at nodes,
-    variable neighbourhood search over local branching;
+  - neighbourhoods: crossover and mutation over the pool, DINS, a
+    zero-objective sub-MIP, RENS at nodes, variable neighbourhood search
+    over local branching; proximity search was refused on its own budget
+    (`proximity-search`, 02-467) until the scheduler can give it work only
+    while it improves;
   - improvement: 1-opt, 2-opt, polishing by evolution over the pool
     (Rothberg);
   - local search: tabu and weighted moves past one flip (lift and
