@@ -1,0 +1,35 @@
+binkar10_1's root under HEAD 003a8f9 (--node-limit 1), the switches that
+exist: the root relaxation after cuts, and the work of the one-node run.
+
+base                         6693.1632777494333 after 96 cuts, 18 covers, 76 MIR | 162531372
+--mir-rounds 20              6693.1632777494333 after 96 cuts                     | 162578236
+--cut-rounds 5               6692.1791014229584 after 91 cuts                     | 293827130
+--zero-half-rounds 4         6693.1632777494333 after 96 cuts                     | 162576523
+--flow-cover-rounds 20       6693.1632777494333 after 96 cuts                     | 162643746
+--mir-aggregate 12           6693.1632777494333 after 96 cuts                     | 162558763
+--mir-aggregate 12 --mir-rounds 20  6693.1632777494333                            | 162603563
+--cover-lift                 6693.1632777494333 after 96 cuts                     | 162531372
+--cover-rounds 20            6693.1632777494333 after 99 cuts                     | 171256734
+--no-root-cut-drop           6693.1632777494333 after 96 cuts                     | 162531372
+all of them                  6692.276362499495 after 95 cuts                      | 382367387
+
+The rounds (--log detail): nine, lifting 6653.16, 6664.17, 6668.42,
+6673.39, 6680.42, 6686.57, 6689.67, 6692.08, 6693.16; the tenth finds no
+violated cut in any family. The aggregated MIR finds none in round 1
+(0 probes on a copy).
+
+prototype.patch, JAOS_MIRX bits on the single-row MIR at the root:
+1 complements on every row (Marchand and Wolsey), not only on rows with a
+continuous column; 2 tries the best divisor halved up to three times; 8
+runs the MIR over the root's cut rows too (rank 2); 16 drops the
+MIP_MIR_MORE_STALL stop.
+
+mirx0          6693.1632777494333 after 96 cuts  | 162531372
+mirx1          6693.7854814244101 after 70 cuts  | 109348198
+mirx2          6697.9771008474208 after 87 cuts  | 172595229
+mirx3          6703.3873129051963 after 81 cuts  | 179838921
+mirx8          6699.2441726677189 after 184 cuts | 135597503
+mirx9          6697.9024231271687 after 125 cuts | 124573292
+mirx11         6704.7277798824307 after 128 cuts | 106921737
+mirx19         6703.3873129051963 after 81 cuts  | 181292611
+mirx27         6710.7512652119894 after 162 cuts | 125485597

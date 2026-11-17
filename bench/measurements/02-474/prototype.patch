@@ -1,0 +1,192 @@
+diff --git a/src/mip.c b/src/mip.c
+index 60ece7b6..51aa9bca 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -3357,6 +3357,21 @@ out:
+     return added;
+ }
+ 
++static bool g_mir_node;
++static int64_t g_nm_rounds, g_nm_lifted, g_nm_cuts, g_nm_tried, g_nm_found, g_nm_inf, g_nm_above, g_nm_pruned;
++static int g_bb_depth;
++static double g_nm_lift, g_nm_gap, g_nm_bgain, g_nm_snap[4];
++
++static int mirx(void)
++{
++    static int v = -1;
++    if (v < 0) {
++        const char *e = getenv("JAOS_MIRX");
++        v = e != nullptr ? atoi(e) : 0;
++    }
++    return v;
++}
++
+ static bool shift_to_upper(double lo, double hi, double xj)
+ {
+     if (!isfinite(lo))
+@@ -3488,9 +3503,27 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                         best[nz[t]] = cut[nz[t]];
+                 }
+             }
++            const bool cm = g_mir_node ? (mirx() & 64) != 0
++                                       : (mirx() & 128) == 0;
++            if (have && cm && (mirx() & 2)) {
++                const double d0 = best_d;
++                for (int q = 2; q <= 8; q *= 2) {
++                    double rhs = 0.0;
++                    const double eff = mir_cut_at(m, x, ilo, ihi, a_in, b_in,
++                                                  nz, nnz, nullptr, d0 / q,
++                                                  cut, &rhs);
++                    if (eff > best_eff) {
++                        best_eff = eff;
++                        best_rhs = rhs;
++                        best_d = d0 / q;
++                        for (int64_t t = 0; t < nnz; t++)
++                            best[nz[t]] = cut[nz[t]];
++                    }
++                }
++            }
+             for (int64_t t = 0; t < nnz && !mixed; t++)
+                 mixed = a_in[nz[t]] != 0.0 && !m->col_integer[nz[t]];
+-            if (have && mixed) {
++            if (have && (mixed || (cm && (mirx() & 1)))) {
+                 bool *flip = jm_calloc_array(nnz > 0 ? nnz : 1, sizeof *flip);
+                 if (flip == nullptr)
+                     return -1;
+@@ -3866,7 +3899,7 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                          double *agg, cmir_ctx *cx, int64_t *work)
+ {
+     const int64_t nc = m->num_col;
+-    const int64_t nr = cx != nullptr ? lp->num_row : m->num_row;
++    const int64_t nr = cx != nullptr || (mirx() & 8) ? lp->num_row : m->num_row;
+     int64_t added = 0;
+     if (jm_model_ensure_rowwise(lp) != JAOS_OK)
+         return -1;
+@@ -8674,6 +8707,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+ {
+     const double t0 = now_seconds();
+     m->mip_started = t0;
++    if (g_bb_depth == 1)
++        g_nm_rounds = g_nm_lifted = g_nm_cuts = g_nm_tried = g_nm_found = g_nm_inf = g_nm_above = g_nm_pruned = 0;
++    if (g_bb_depth == 1)
++        g_nm_lift = g_nm_gap = g_nm_bgain = g_nm_snap[0] = g_nm_snap[1] = g_nm_snap[2] = g_nm_snap[3] = 0.0;
+     const int64_t nc = m->num_col, nr = m->num_row;
+     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+     const bool quadratic = jm_model_has_quadratic(m);
+@@ -9914,7 +9951,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (cut_stall > 0.0 &&
+                     key - key_before < cut_stall * (1.0 + fabs(key_before)))
+                     break;
+-                if (mir_more && r + 1 >= MIP_MIR_ROUNDS &&
++                if (mir_more && !(mirx() & 16) && r + 1 >= MIP_MIR_ROUNDS &&
+                     !(hull_got > 0 && hull_got * MIP_HULL_KEEP >= m->num_row) &&
+                     key - key_before <
+                         MIP_MIR_MORE_STALL * (1.0 + fabs(key_before)))
+@@ -10627,8 +10664,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+ 
+         phase_to(&ph, work, PH_CUTS);
+-        if (nodes > 1 && branch >= 0 && cur->depth <= cut_depth &&
+-            !cur->no_cuts) {
++        const bool nm_deep = node_mir && (mirx() & 32) != 0;
++        if (nodes > 1 && branch >= 0 &&
++            (cur->depth <= cut_depth || nm_deep) && !cur->no_cuts) {
+             const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
+             if (need > row_cap) {
+                 double *grown = jm_realloc_array(row, need, sizeof *row);
+@@ -10642,7 +10680,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (cut == nullptr)
+                 goto done;
+             cb.n = cb.nnz = 0;
+-            int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
++            int64_t got = cur->depth <= cut_depth
++                ? gomory_round(lp, m, x, &cb, row, cut, &work) : 0;
+             if (got < 0)
+                 goto done;
+ 
+@@ -10655,12 +10694,27 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
+                 if (mbest == nullptr || mdelta == nullptr || magg == nullptr)
+                     goto done;
++                g_mir_node = true;
+                 const int64_t mv = mir_round(m, lp, x, lp->col_lower,
+                                              lp->col_upper, &cb, cut, mbest,
+                                              mdelta, magg, nullptr, &work);
++                g_mir_node = false;
+                 if (mv < 0)
+                     goto done;
+                 got += mv;
++                if (g_bb_depth == 1) {
++                    g_nm_tried++;
++                    g_nm_found += mv > 0;
++                    if (inc.have && inc.key - key <= gap * (gap_shift + fabs(inc.key)))
++                        g_nm_above++;
++                    if (isfinite(cur->key) && key > cur->key)
++                        g_nm_bgain += key - cur->key;
++                    const int64_t at[4] = {50, 100, 200, 500};
++                    for (int q = 0; q < 4; q++)
++                        if (g_nm_tried == at[q])
++                            g_nm_snap[q] = g_nm_bgain > 0.0
++                                ? g_nm_lift / g_nm_bgain : -1.0;
++                }
+             }
+ 
+             if (got > 0 && node_cut_cap > 0)
+@@ -10698,8 +10752,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     goto done;
+                 }
+                 ns = jaos_status_of(lp);
+-                if (ns == JAOS_SOLVE_INFEASIBLE)
++                if (ns == JAOS_SOLVE_INFEASIBLE) {
++                    if (g_bb_depth == 1)
++                        g_nm_inf++;
+                     continue;
++                }
+                 if (ns != JAOS_SOLVE_OPTIMAL) {
+                     outcome = ns;
+                     break;
+@@ -10709,6 +10766,19 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     goto done;
+                 key = sigma * obj;
+                 branch = select_branch(m, x, rule, pc_sum, pc_n);
++                if (g_bb_depth == 1 && inc.have &&
++                    inc.key - key <= gap * (gap_shift + fabs(inc.key)) &&
++                    !(inc.key - key_before <= gap * (gap_shift + fabs(inc.key))))
++                    g_nm_pruned++;
++                if (g_bb_depth == 1) {
++                    g_nm_rounds++;
++                    g_nm_cuts += got;
++                    g_nm_lift += key - key_before;
++                    if (inc.have)
++                        g_nm_gap += inc.key - key_before;
++                    if (key - key_before > 1e-6 * (1.0 + fabs(key_before)))
++                        g_nm_lifted++;
++                }
+ 
+                 if (node_cut_stall > 0.0 &&
+                     key - key_before < node_cut_stall * (1.0 + fabs(key_before)))
+@@ -11307,6 +11377,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         m->mip_bound = sigma * grid_up(&og, ok < best_bound ? ok : best_bound);
+     }
+     phase_to(&ph, work, PH_OTHER);
++    if (g_bb_depth == 1)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "NMSTAT tried %lld found %lld above %lld resolved %lld "
++               "infeasible %lld pruned %lld lifted %lld cuts %lld lift %.6g bgain %.6g ratio %.4g snap %.3g %.3g %.3g %.3g",
++               (long long)g_nm_tried, (long long)g_nm_found,
++               (long long)g_nm_above, (long long)g_nm_rounds,
++               (long long)g_nm_inf, (long long)g_nm_pruned,
++               (long long)g_nm_lifted, (long long)g_nm_cuts, g_nm_lift, g_nm_bgain, g_nm_bgain > 0.0 ? g_nm_lift / g_nm_bgain : -1.0, g_nm_snap[0], g_nm_snap[1], g_nm_snap[2], g_nm_snap[3]);
+     if (work > 0)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound work: node relaxations %.1f%%, cuts %.1f%%, "
+@@ -12127,7 +12205,9 @@ static jaos_status bb_run_marked(jaos_model *m)
+ {
+     const bool was = m->cfg.mip_presolved;
+     m->cfg.mip_presolved = true;
++    g_bb_depth++;
+     const jaos_status st = bb_run(m);
++    g_bb_depth--;
+     m->cfg.mip_presolved = was;
+     return st;
+ }

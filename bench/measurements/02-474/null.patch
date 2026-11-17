@@ -1,0 +1,10 @@
+--- a/src/mip.c	2026-11-17 18:52:20.000000000 +0100
++++ b/src/mip.c	2026-11-17 19:40:45.385443997 +0100
+@@ -9930,6 +9930,7 @@
+         }
+         if (nodes == 1) {
+             best_bound = key;
++            work += 450 * (m->num_nz + nc + nr);
+ 
+             nfixed = root_cut_drop ? nperm : lp->num_row;
+             jm_log(m, JAOS_LOG_SUMMARY,

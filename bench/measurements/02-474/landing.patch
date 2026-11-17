@@ -1,0 +1,671 @@
+diff --git a/cli/jaos.c b/cli/jaos.c
+index 45aa97b5..577730f6 100644
+--- a/cli/jaos.c
++++ b/cli/jaos.c
+@@ -172,8 +172,9 @@ static const char U_SOLVE_D[] =
+     "                   --dive-gap is no count, the gap alone)\n"
+     "  --dive-gap F     resume only while the sibling's bound is within F of\n"
+     "                   (1 + |best open bound|) (F >= 0; 0 for no bound)\n"
+-    "  --node-mir       MIR cuts over a node's own bounds beside its Gomory\n"
+-    "                   round; --no-node-mir keeps the round Gomory's\n"
++    "  --node-mir       MIR cuts over a node's own bounds at every depth while\n"
++    "                   they pay (default for a linear objective);\n"
++    "                   --no-node-mir turns them off\n"
+     "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
+     "                   (N >= 0; 0 is the single-row form)\n"
+     "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
+diff --git a/docs/api.md b/docs/api.md
+index 2fc9d2c9..b50ba28f 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -144,7 +144,7 @@ value `jaos_get_option` reports before any setter runs.
+ | `jaos_set_mip_root_cut_drop` | `mip_root_cut_drop` | boolean | true |
+ | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
+ | `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 100 in network mode |
+-| `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | false |
++| `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | true for a linear objective, false for a quadratic one |
+ | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
+ | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
+ | `jaos_set_mip_dive_child` | `mip_dive_child` | `nearer`, `up`, `down`, `pseudocost` | `nearer` |
+@@ -847,8 +847,17 @@ infinite.
+ 
+ **`jaos_set_mip_node_mir`**\
+ `jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)`\
+-Adds MIR cuts over a node's own bounds to the node's round of Gomory cuts,
+-under the same cap. It is off by default.
++MIR cuts over a node's own bounds at every depth of the tree, beside the
++Gomory round down to the cut depth and under the same cap, from the rows
++whose columns are all integer and whose coefficients or sides are not all
++±1 and whole. On those rows the MIR halves its best divisor up to three
++times and measures each integer column inside its bounds from its other
++bound in turn, as c-MIR does. A node whose bound already reaches the
++incumbent gets none, and the cuts stop for the rest of the tree once, after
++`MIP_NODE_MIR_TRIAL` nodes, the bound they lifted is no more than
++`MIP_NODE_MIR_PAYS` of what branching gained at the same nodes. On by
++default for a linear objective, off for a quadratic one; -1 restores the
++default.
+ 
+ **`jaos_set_mip_mir_aggregate`**\
+ `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\
+diff --git a/docs/cli.md b/docs/cli.md
+index b0d5bb9a..fac63a90 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -232,7 +232,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
+ | `--hull-rounds N` | rounds of hull cuts at the root: for a row of at most eight integer columns with at most 1024 integer points, the valid inequality the point violates most (`MIP_HULL_ROUNDS` in `docs/tolerances.md`). Default 20; `0` turns them off. |
+ | `--mir-rounds N` | rounds of mixed-integer rounding cuts on the model's rows at the root. Default 6. Left at the default, the rounds go on up to 20 while each lifts the root bound by at least 1e-4 of itself (`MIP_MIR_MORE`, `MIP_MIR_MORE_STALL`). A count given here runs as given. `0` turns them off. |
+ | `--mir-aggregate N` | lets an MIR row absorb up to `N` other rows before it is rounded. Aggregated root cuts are kept only when they lift the bound by `MIP_MIR_AGG_GAIN` of itself. Default 6; `0` is the single-row form, which a model with a quadratic objective always uses. |
+-| `--node-mir` | adds MIR cuts over a node's own bounds to its Gomory round. Off by default; `--no-node-mir` keeps the default. |
++| `--node-mir` | MIR cuts over a node's own bounds at every depth, from the rows whose columns are all integer and whose coefficients or sides are not all ±1 and whole, until they lift the bound by no more than a quarter of what branching gains (`MIP_NODE_MIR_PAYS`). On by default for a linear objective; `--no-node-mir` turns them off. |
+ | `--dive` | dives from each selected node: the child `--dive-child` picks is solved next and its sibling joins the open set, until a node is pruned or integral. Off by default (D289-dive in `bench/refusals.txt`). Without `--dive`, a tree with no incumbent after 1000 nodes dives on its own until it finds one (`MIP_NOINC_DIVE_AFTER` in `docs/tolerances.md`). |
+ | `--dive-child RULE` | which child a dive solves first: `nearer`, the default, `up`, `down` or `pseudocost`. An unknown rule is a usage error. Only matters with `--dive`. |
+ | `--dive-backtrack N` | lets a dive resume from the deepest sibling it left, up to `N` times. Default 0. Only matters with `--dive`. |
+diff --git a/docs/tolerances.md b/docs/tolerances.md
+index 07a03dda..ac2ff3cb 100644
+--- a/docs/tolerances.md
++++ b/docs/tolerances.md
+@@ -304,7 +304,9 @@ the root's cut mode for a model with many continuous columns under binaries
+ |---|---|---|
+ | `MIP_ROOT_CUT_DROP` | on | Lets a root cut leave the relaxation below a node where it does not bind. 0.799x the work on MIPLIB 3, none past 2x (`bench/measurements/02-202/`) |
+ | `MIP_COVER_LIFT` | off | Gives each cover cut Balas's lifted coefficients instead of extending it by every heavier item. The 2017 set reads 1.001x, short of 0.95x (`bench/measurements/02-298/`) |
+-| `MIP_NODE_MIR` | off | Adds MIR cuts over a node's own bounds to the node's Gomory round |
++| `MIP_NODE_MIR` | on | MIR cuts at every depth of a linear model's tree, over the node's own bounds and the rows whose columns are all integer and whose coefficients or sides are not all ±1 and whole (such a row gives no MIR cut). On those rows the MIR takes the two c-MIR steps the root keeps to rows with a continuous column: the best divisor halved up to three times, and each integer column inside its bounds measured from its other bound in turn. A node whose bound already reaches the incumbent gets none. `binkar10_1` closes at 5.2e9 work units where it stayed open at 1e10, and MIPLIB 3 reads 0.802x, none past 2x (`bench/measurements/02-474/`) |
++| `MIP_NODE_MIR_TRIAL` | 50 | The nodes MIR cuts are tried at before `MIP_NODE_MIR_PAYS` can stop them. Not swept |
++| `MIP_NODE_MIR_PAYS` | 0.25 | MIR cuts at the nodes stop for the rest of the tree once the bound they have lifted is no more than this share of what branching gained at the same nodes, each node's bound over its parent's. 02-474's census at 2e9 work units reads 1.0 to 1.4 on `binkar10_1`, 0.75 to 1.0 on `lseu`, 0.4 to 0.8 on `gen-ip054` and 0.27 to 0.63 on `p0282`, which all gain, and under 0.25 on `pk1`, `misc03`, `l152lav`, `bell5` and `blend2`, which lose (`bench/measurements/02-474/`). Not swept |
+ | `MIP_PUMP_GENERAL` | off | Gives the pump an extra column and two rows per general integer column, so the column's distance to its rounding counts wherever the rounding lies |
+ | `MIP_PUMP_ALWAYS` | off | Runs the pump at the root even when an incumbent exists |
+ | `MIP_RCFIX` | on | Once an incumbent exists, the root pulls an integer column's far bound in as far as its reduced cost allows. MIPLIB 3 reads 0.944x (`bench/measurements/02-335/`) |
+@@ -345,7 +347,7 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_MIR_ROUNDS` | 6 | Rounds of MIR cuts on the model's rows at the root. Swept from 1 to 12: 6 has the best mean (0.719x against none) and the curve is flat past it |
+ | `MIP_MIR_MORE` | 20 | The most MIR rounds outside network mode: past `MIP_MIR_ROUNDS` a round runs only while the one before lifted the bound by `MIP_MIR_MORE_STALL`, because some roots sit flat and then climb. MIPLIB 3 reads 1.005x and the 2017 gap sum falls from 16.80 to 16.54; 20 rounds without the rule put `gt2` at 2.5x (`bench/measurements/02-332/`) |
+ | `MIP_MIR_MORE_STALL` | 1e-4 | The share of (1 + \|bound\|) such a round must lift the bound by; `MIP_NET_STALL`'s value. Not swept |
+-| `MIP_MIR_FLIP_GAIN` | 1e-9 | How much flipping an integer column to its other bound must raise a MIR cut's efficacy to be kept (Marchand and Wolsey's complementation), outside network mode on rows with a continuous column. The 2017 gap sum falls from 14.19 to 13.48 and MIPLIB 3 reads 1.000x (`bench/measurements/02-357/`). Not swept |
++| `MIP_MIR_FLIP_GAIN` | 1e-9 | How much flipping an integer column to its other bound must raise a MIR cut's efficacy to be kept (Marchand and Wolsey's complementation), outside network mode on rows with a continuous column at the root and on every row the nodes cut (`MIP_NODE_MIR`). The 2017 gap sum falls from 14.19 to 13.48 and MIPLIB 3 reads 1.000x (`bench/measurements/02-357/`). Not swept |
+ | `MIP_MIR_DELTAS` | 8 | How many scalings a row's MIR cut tries beyond 1, taken from the fractional integer columns' coefficients. Not swept: a longer list only adds candidates the efficacy rule can reject |
+ | `MIP_MIR_ROUND` | 1e-9 | The rounding a MIR side's shifted right-hand side may carry and still be cut, `DBL_EPSILON` times its terms' magnitudes times their count. An understated fraction gives an invalid cut; 1e-9 keeps the coefficient error under 1e-7 after the 1 / (1 - f0) that `MIP_CUT_AWAY` caps at 100. Not swept |
+ | `MIP_MIR_AGGREGATE` | 6 | How many continuous columns a MIR aggregate may substitute out with other rows before it is rounded; 0 is the single-row form. Each step picks the column farthest from its bounds (in network mode the largest coefficient) and the row that leaves the least bound distance. Unguarded, every count put `gen` past 2x; behind `MIP_MIR_AGG_GAIN`, 6 reads 1.012x on MIPLIB 3 and 0.986x on the 2017 set (`bench/measurements/02-321/`, `bench/measurements/02-347/`) |
+diff --git a/python/jaos/model.py b/python/jaos/model.py
+index 4cd2f9c7..0af8f95c 100644
+--- a/python/jaos/model.py
++++ b/python/jaos/model.py
+@@ -875,8 +875,9 @@ class Model:
+         self._check(_lib.jaos_set_mip_dive_gap(self._handle(), float(fraction)))
+ 
+     def set_mip_node_mir(self, on=True):
+-        """Whether a node inside the cut depth gets MIR cuts over its own
+-        bounds beside its Gomory round (D310); None restores the default."""
++        """Whether the nodes get MIR cuts over their own bounds at every
++        depth while the cuts pay (on for a linear objective); None
++        restores the default."""
+         v = -1 if on is None else int(bool(on))
+         self._check(_lib.jaos_set_mip_node_mir(self._handle(), v))
+ 
+diff --git a/python/jaos/problem.py b/python/jaos/problem.py
+index f5c853e3..c4153af8 100644
+--- a/python/jaos/problem.py
++++ b/python/jaos/problem.py
+@@ -1060,7 +1060,7 @@ class Problem:
+         return self
+ 
+     def set_mip_node_mir(self, on=True):
+-        """MIR cuts at the nodes beside the Gomory round (D310); None
++        """MIR cuts at the nodes at every depth while they pay; None
+         restores the default."""
+         self._m.set_mip_node_mir(on)
+         return self
+diff --git a/python/test_jaos.py b/python/test_jaos.py
+index e8e746ac..fdb55d43 100644
+--- a/python/test_jaos.py
++++ b/python/test_jaos.py
+@@ -2029,7 +2029,7 @@ class TestBranchAndBound(unittest.TestCase):
+         self.assertGreaterEqual(rep.cuts, 1)
+         self.assertEqual(rep.nodes, 1)
+         self.assertTrue(p._m.col_integer(0))
+-        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_dive(True).set_mip_heuristics(False).set_mip_hull_rounds(0)
++        p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_node_mir(False).set_mip_dive(True).set_mip_heuristics(False).set_mip_hull_rounds(0)
+         p.set_mip_dive_heuristic(0).set_mip_feaspump(0)
+         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+         self.assertAlmostEqual(p.objective_value, 9.0, places=9)
+@@ -2489,7 +2489,7 @@ class TestBranchAndBound(unittest.TestCase):
+             p.add(2 * a + 3 * b + c <= 5)
+             p.maximize(5 * a + 4 * b + 3 * c)
+             p.set_mip_tighten(0)
+-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_branching(rule).set_mip_hull_rounds(0)
++            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_node_mir(False).set_mip_branching(rule).set_mip_hull_rounds(0)
+             p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_rins(0)
+             p.set_mip_heuristics(False)
+             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+@@ -2546,7 +2546,7 @@ class TestBranchAndBound(unittest.TestCase):
+             a, b, c, d, e = v
+             p.add(3 * a + 5 * b + 2 * c + 4 * d + 2 * e <= 8)
+             p.maximize(10 * a + 13 * b + 7 * c + 9 * d + 5 * e)
+-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(depth).set_mip_hull_rounds(0)
++            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(depth).set_mip_node_mir(False).set_mip_hull_rounds(0)
+             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+             self.assertAlmostEqual(p.objective_value, 23.0, places=9)
+             self.assertEqual([x.value for x in v], [1.0, 1.0, 0.0, 0.0, 0.0])
+@@ -2711,7 +2711,7 @@ class TestBranchAndBound(unittest.TestCase):
+             y = p.add_var(integer=True, name="y")
+             p.add(2 * x + 2 * y <= 3)
+             p.maximize(x + 0.999 * y)
+-            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0)
++            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_cut_depth(0).set_mip_node_mir(False)
+             p.set_mip_mir_rounds(rounds)
+             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+             self.assertAlmostEqual(p.objective_value, 1.0, places=9)
+@@ -3010,7 +3010,7 @@ class TestBranchAndBound(unittest.TestCase):
+             p.add(sum(xs) >= 2.5)
+             p.minimize(sum(xs))
+             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_hull_rounds(0)
+-            p.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
++            p.set_mip_clique_rounds(0).set_mip_cut_depth(0).set_mip_node_mir(False).set_mip_heuristics(False)
+             p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+             p.set_mip_conflicts(0).set_mip_orbital(on)
+             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+@@ -3120,7 +3120,7 @@ class TestBranchAndBound(unittest.TestCase):
+             p.add(3 * xs[0] + 3 * xs[1] + 2 * xs[2] <= 5)
+             p.maximize(4 * xs[0] + 4 * xs[1] + xs[2])
+             p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0)
+-            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_hull_rounds(0).set_mip_cut_depth(0).set_mip_heuristics(False)
++            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_flow_cover_rounds(0).set_mip_hull_rounds(0).set_mip_cut_depth(0).set_mip_node_mir(False).set_mip_heuristics(False)
+             p.set_mip_dive_heuristic(0).set_mip_feaspump(0).set_mip_tighten(0)
+             p.set_mip_clique_fix(on)
+             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+diff --git a/src/mip.c b/src/mip.c
+index 60ece7b6..be2256f9 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -190,7 +190,11 @@ constexpr double MIP_PROP_INFEAS = 1e-7;
+ 
+ constexpr double MIP_PROP_MOVE = 0.5;
+ 
+-constexpr bool MIP_NODE_MIR = false;
++constexpr bool MIP_NODE_MIR = true;
++
++constexpr int64_t MIP_NODE_MIR_TRIAL = 50;
++
++constexpr double MIP_NODE_MIR_PAYS = 0.25;
+ 
+ constexpr double MIP_CUT_AWAY = 0.01;
+ 
+@@ -3429,7 +3433,8 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                     const double *ilo, const double *ihi, const double *a_in,
+                     double b_in, double mag_in, int64_t terms_in,
+                     const double *cmag, cutbuf *cb, double *cut, double *best,
+-                    double *delta, const int64_t *nz, int64_t nnz)
++                    double *delta, const int64_t *nz, int64_t nnz,
++                    bool every_row)
+ {
+     if (cmag != nullptr)
+         for (int64_t t = 0; t < nnz; t++)
+@@ -3488,9 +3493,25 @@ static int mir_side(const jaos_model *m, jaos_model *lp, const double *x,
+                         best[nz[t]] = cut[nz[t]];
+                 }
+             }
++            if (have && every_row) {
++                const double d0 = best_d;
++                for (int q = 2; q <= 8; q *= 2) {
++                    double rhs = 0.0;
++                    const double eff = mir_cut_at(m, x, ilo, ihi, a_in, b_in,
++                                                  nz, nnz, nullptr, d0 / q,
++                                                  cut, &rhs);
++                    if (eff > best_eff) {
++                        best_eff = eff;
++                        best_rhs = rhs;
++                        best_d = d0 / q;
++                        for (int64_t t = 0; t < nnz; t++)
++                            best[nz[t]] = cut[nz[t]];
++                    }
++                }
++            }
+             for (int64_t t = 0; t < nnz && !mixed; t++)
+                 mixed = a_in[nz[t]] != 0.0 && !m->col_integer[nz[t]];
+-            if (have && mixed) {
++            if (have && (mixed || every_row)) {
+                 bool *flip = jm_calloc_array(nnz > 0 ? nnz : 1, sizeof *flip);
+                 if (flip == nullptr)
+                     return -1;
+@@ -3863,7 +3884,8 @@ static int cmir_side(const jaos_model *m, const jaos_model *lp,
+ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                          const double *ilo, const double *ihi, cutbuf *cb,
+                          double *cut, double *best, double *delta,
+-                         double *agg, cmir_ctx *cx, int64_t *work)
++                         double *agg, cmir_ctx *cx, const bool *node_rows,
++                         int64_t node_nz, int64_t *work)
+ {
+     const int64_t nc = m->num_col;
+     const int64_t nr = cx != nullptr ? lp->num_row : m->num_row;
+@@ -3875,10 +3897,13 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+         assert(!m->col_integer[j] ||
+                ((!isfinite(ilo[j]) || floor(ilo[j]) == ilo[j]) &&
+                 (!isfinite(ihi[j]) || floor(ihi[j]) == ihi[j])));
+-    *work += (m->num_nz + nc + nr) * (MIP_MIR_DELTAS + 1);
++    *work += ((node_rows != nullptr ? node_nz : m->num_nz) + nc + nr) *
++             (MIP_MIR_DELTAS + 1);
+     memset(agg, 0, (size_t)nc * sizeof *agg);
+     memset(cut, 0, (size_t)nc * sizeof *cut);
+     for (int64_t i = 0; i < nr; i++) {
++        if (node_rows != nullptr && !node_rows[i])
++            continue;
+         const int64_t p0 = lp->ar_start[i], p1 = lp->ar_start[i + 1];
+         const bool lower_first = lower_side_first(lp, i);
+         for (int pass = 0; pass < 2; pass++) {
+@@ -3896,7 +3921,8 @@ static int64_t mir_round(const jaos_model *m, jaos_model *lp, const double *x,
+                                 work)
+                     : mir_side(m, lp, x, ilo, ihi, agg, sg * bound, 0.0, 0,
+                                nullptr, cb, cut, best, delta,
+-                               &lp->ar_index[p0], p1 - p0);
++                               &lp->ar_index[p0], p1 - p0,
++                               node_rows != nullptr);
+             for (int64_t k = p0; k < p1; k++)
+                 agg[lp->ar_index[k]] = 0.0;
+             if (pushed < 0)
+@@ -4090,7 +4116,7 @@ static int64_t mir_aggregate_round(const jaos_model *m, jaos_model *lp,
+                         ? cmir_side(m, lp, x, ilo, ihi, cx, agg, b, mag, terms,
+                                     cmag, tl, nt, cb, work)
+                         : mir_side(m, lp, x, ilo, ihi, agg, b, mag, terms,
+-                                   cmag, cb, cut, best, delta, tl, nt);
++                                   cmag, cb, cut, best, delta, tl, nt, false);
+                 if (pushed < 0) {
+                     added = -1;
+                     goto out;
+@@ -8715,7 +8741,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     const double dive_gap = m->cfg.mip_dive_gap_set ? m->cfg.mip_dive_gap
+                                                     : MIP_DIVE_GAP;
+     const bool node_mir = m->cfg.mip_node_mir_set ? m->cfg.mip_node_mir
+-                                                  : MIP_NODE_MIR;
++                                                  : MIP_NODE_MIR && !quadratic;
+     const int64_t mir_aggregate = m->cfg.mip_mir_aggregate_set
+         ? m->cfg.mip_mir_aggregate : MIP_MIR_AGGREGATE;
+     const int64_t dive_heur = m->cfg.mip_dive_heuristic_set
+@@ -8816,6 +8842,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t crs_cap = 0;
+     spool sp = {0};
+     int64_t local_cuts = 0;
++    bool mir_live = false;
++    bool *mir_rows = nullptr;
++    int64_t mir_tries = 0, mir_nz = 0, mir_nrows = 0;
++    double mir_lift = 0.0, mir_gain = 0.0;
+     bnode *cur = nullptr, *next = nullptr;
+     double *x = nullptr, *row = nullptr, *cut = nullptr;
+     int64_t row_cap = 0;
+@@ -9069,6 +9099,32 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    (long long)sym.largest);
+     }
+ 
++    if (node_mir) {
++        if (jm_model_ensure_rowwise(m) != JAOS_OK)
++            goto done;
++        mir_rows = jm_calloc_array(nr > 0 ? nr : 1, sizeof *mir_rows);
++        if (mir_rows == nullptr)
++            goto done;
++        for (int64_t i = 0; i < nr; i++) {
++            bool all_int = true, step = false;
++            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
++                all_int = all_int && m->col_integer[m->ar_index[k]];
++                step = step || fabs(m->ar_value[k]) != 1.0;
++            }
++            for (int side = 0; side < 2; side++) {
++                const double b = side == 0 ? m->row_lower[i] : m->row_upper[i];
++                step = step || (isfinite(b) && floor(b) != b);
++            }
++            mir_rows[i] = all_int && step &&
++                          m->ar_start[i + 1] > m->ar_start[i];
++            if (mir_rows[i]) {
++                mir_nrows++;
++                mir_nz += m->ar_start[i + 1] - m->ar_start[i];
++            }
++        }
++        mir_live = mir_nrows > 0;
++    }
++
+     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
+         phase_to(&ph, work, PH_OTHER);
+         if (sw.rb.has_sol) {
+@@ -9774,7 +9830,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < mir_rounds) {
+                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
+                                                  mbest, mdelta, magg, cxp,
+-                                                 &work);
++                                                 nullptr, 0, &work);
+                     if (mv < 0)
+                         goto done;
+                     mirs += mv;
+@@ -10627,8 +10683,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+ 
+         phase_to(&ph, work, PH_CUTS);
+-        if (nodes > 1 && branch >= 0 && cur->depth <= cut_depth &&
+-            !cur->no_cuts) {
++        const double nbk = inc.have && inc.key < cut_key ? inc.key : cut_key;
++        const bool node_open =
++            !(nbk < INFINITY &&
++              nbk - grid_up(&og, key) <= gap * (gap_shift + fabs(nbk)));
++        const bool gomory_here = nodes > 1 && cur->depth <= cut_depth;
++        const bool mir_here = mir_live && node_open;
++        if (nodes > 1 && branch >= 0 && !cur->no_cuts &&
++            (gomory_here || mir_here)) {
+             const int64_t need = nc + lp->num_row + 1 + (nc > 0 ? nc : 1);
+             if (need > row_cap) {
+                 double *grown = jm_realloc_array(row, need, sizeof *row);
+@@ -10642,11 +10704,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (cut == nullptr)
+                 goto done;
+             cb.n = cb.nnz = 0;
+-            int64_t got = gomory_round(lp, m, x, &cb, row, cut, &work);
++            int64_t got = gomory_here
++                ? gomory_round(lp, m, x, &cb, row, cut, &work) : 0;
+             if (got < 0)
+                 goto done;
++            const double key_before = key;
++            const double branch_gain =
++                isfinite(cur->key) && key > cur->key ? key - cur->key : 0.0;
+ 
+-            if (node_mir) {
++            if (mir_here) {
+                 if (mbest == nullptr)
+                     mbest = jm_alloc_array(nc > 0 ? nc : 1, sizeof *mbest);
+                 if (mdelta == nullptr)
+@@ -10657,7 +10723,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     goto done;
+                 const int64_t mv = mir_round(m, lp, x, lp->col_lower,
+                                              lp->col_upper, &cb, cut, mbest,
+-                                             mdelta, magg, nullptr, &work);
++                                             mdelta, magg, nullptr, mir_rows,
++                                             mir_nz, &work);
+                 if (mv < 0)
+                     goto done;
+                 got += mv;
+@@ -10680,7 +10747,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 }
+                 cuts += got;
+                 local_cuts += got;
+-                const double key_before = key;
+                 phase_to(&ph, work, PH_LP);
+                 budget(lp, m, work);
+                 st = jaos_solve(lp);
+@@ -10698,8 +10764,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     goto done;
+                 }
+                 ns = jaos_status_of(lp);
+-                if (ns == JAOS_SOLVE_INFEASIBLE)
++                if (ns == JAOS_SOLVE_INFEASIBLE) {
++                    if (mir_here) {
++                        mir_tries++;
++                        mir_lift += isfinite(nbk) && nbk > key_before
++                            ? nbk - key_before : branch_gain;
++                        mir_gain += branch_gain;
++                    }
+                     continue;
++                }
+                 if (ns != JAOS_SOLVE_OPTIMAL) {
+                     outcome = ns;
+                     break;
+@@ -10714,6 +10787,21 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     key - key_before < node_cut_stall * (1.0 + fabs(key_before)))
+                     stalled = true;
+             }
++            if (mir_here) {
++                mir_tries++;
++                if (key > key_before)
++                    mir_lift += key - key_before;
++                mir_gain += branch_gain;
++                if (mir_tries >= MIP_NODE_MIR_TRIAL &&
++                    !(mir_lift > MIP_NODE_MIR_PAYS * mir_gain)) {
++                    mir_live = false;
++                    jm_log(m, JAOS_LOG_PROGRESS,
++                           "node %lld: MIR cuts at the nodes stop, having "
++                           "lifted the bound by %.3g against %.3g from "
++                           "branching over %lld nodes", (long long)nodes,
++                           mir_lift, mir_gain, (long long)mir_tries);
++                }
++            }
+         }
+ 
+         phase_to(&ph, work, PH_OTHER);
+@@ -11343,6 +11431,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+            (long long)sw.refused, (long long)conflicts,
+            (long long)conflict_lits, (long long)orbital_branches,
+            (long long)orbital_fixed, (long long)parked);
++    if (mir_nrows > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: MIR cuts over %lld integer rows at %lld "
++               "nodes lifted the bound by %.6g against %.6g from branching, "
++               "%s at the end", (long long)mir_nrows, (long long)mir_tries,
++               mir_lift, mir_gain, mir_live ? "still on" : "off");
+     if (open_splits > 0)
+         jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld nodes with an "
+                "unbounded relaxation were split on an SOS set or an indicator "
+@@ -11442,6 +11536,7 @@ done:
+     free(porder);
+     free(mu);
+     free(mbest);
++    free(mir_rows);
+     free(mdelta);
+     free(prnd);
+     free(pprev);
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index f32f0685..5eabc179 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -2766,6 +2766,7 @@ static void test_a_tree_with_no_incumbent_propagates_from_node_1000(void)
+                               jaos_read_mps(m, "tests/data/mip_noinc_propagate.mps"));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 3000));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_reliability(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+         if (set == 1)
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_propagate(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+@@ -2903,6 +2904,7 @@ static void test_strong_branching_probes_are_counted_and_change_no_answer(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rins(m, 0));
+@@ -3159,6 +3161,7 @@ static void test_cuts_below_the_root_reach_the_same_optimum(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, depths[d]));
+             TEST_ASSERT_TRUE(m->cfg.mip_cut_depth_set);
+             TEST_ASSERT_EQUAL_INT64(depths[d], m->cfg.mip_cut_depth);
+@@ -3715,6 +3718,7 @@ static void test_a_mir_cut_closes_the_halved_row_at_the_root(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, rounds));
+         TEST_ASSERT_TRUE(m->cfg.mip_mir_rounds_set);
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+@@ -3886,6 +3890,7 @@ static void test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(void)
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(m, count[arm]));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_gap(m, frac[arm]));
+@@ -3916,6 +3921,7 @@ static void test_a_dive_bounded_by_the_gap_reaches_the_same_optimum(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(c, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(c, false));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(c, true));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_backtrack(c, 0));
+@@ -4533,6 +4539,7 @@ static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(m, true));
+             TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                 jaos_set_mip_dive_degrade(m, frac[arm]));
+@@ -4563,6 +4570,7 @@ static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(c, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(c, false));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(c, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive(c, true));
+@@ -5600,6 +5608,7 @@ static void test_clique_fixing_at_a_node_shortens_the_tree(void)
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+@@ -5666,6 +5675,7 @@ static jaos_model *zero_half_model(bool cycle)
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+@@ -5856,6 +5866,118 @@ static void test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound(v
+     jaos_model_free(m);
+ }
+ 
++static jaos_model *node_mir_model(int64_t n, int64_t nr, jaos_obj_sense sense,
++                                  const double *c, const double *w,
++                                  const double *ru)
++{
++    double cl[16], cu[16], rl[4];
++    int64_t as[17], ai[64];
++    double av[64];
++    int64_t nz = 0;
++    for (int64_t j = 0; j < n; j++) {
++        cl[j] = 0.0;
++        cu[j] = 1.0;
++        as[j] = nz;
++        for (int64_t i = 0; i < nr; i++) {
++            if (w[i * n + j] == 0.0)
++                continue;
++            ai[nz] = i;
++            av[nz++] = w[i * n + j];
++        }
++    }
++    as[n] = nz;
++    for (int64_t i = 0; i < nr; i++)
++        rl[i] = sense == JAOS_MAXIMIZE ? -INFINITY : ru[i];
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, n, nr, sense, 0.0, c, cl, cu, rl, ru, nz, as, ai,
++                     av));
++    for (int64_t j = 0; j < n; j++)
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_symmetry(m, 0));
++    g_log[0] = '\0';
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
++    return m;
++}
++
++static void test_node_mir_cuts_below_the_cut_depth_close_a_knapsack_tree(void)
++{
++    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
++    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
++                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
++                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
++    const double ru[3] = {97.5, 108.0, 88.2};
++    int64_t nodes[2] = {0, 0};
++    for (int on = 0; on < 2; on++) {
++        jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
++        if (!on)
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++        double obj = 0.0;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
++        jaos_mip_report rep;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++        nodes[on] = rep.nodes;
++        if (on) {
++            TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: MIR cuts over "));
++            TEST_ASSERT_NOT_NULL(strstr(g_log, "still on at the end"));
++            TEST_ASSERT_TRUE(rep.cuts >= 1);
++        } else {
++            TEST_ASSERT_NULL(strstr(g_log, "branch and bound: MIR cuts over "));
++        }
++        jaos_model_free(m);
++    }
++    TEST_ASSERT_TRUE(4 * nodes[1] < nodes[0]);
++}
++
++static void test_node_mir_cuts_stop_when_they_lift_no_bound(void)
++{
++    const double c[12] = {0};
++    const double w[24] = {5, 19, 28, 26, 25, 3, 9, 4, 16, 25, 15, 16,
++                          21, 13, 26, 7, 4, 16, 1, 29, 27, 13, 14, 20};
++    const double ru[2] = {95.0, 95.0};
++    for (int on = 0; on < 2; on++) {
++        jaos_model *m = node_mir_model(12, 2, JAOS_MINIMIZE, c, w, ru);
++        if (!on)
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, jaos_status_of(m));
++        if (on) {
++            TEST_ASSERT_NOT_NULL(strstr(g_log, "off at the end"));
++        }
++        jaos_model_free(m);
++    }
++}
++
++static void test_node_mir_cuts_skip_rows_of_whole_units(void)
++{
++    const double c[4] = {1, 2, 3, 1};
++    const double w[8] = {1, 1, 0, 0, 0, 0, 1, 1};
++    const double ru[2] = {1.0, 1.0};
++    jaos_model *m = node_mir_model(4, 2, JAOS_MINIMIZE, c, w, ru);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    double obj = 0.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 2.0, obj);
++    TEST_ASSERT_NULL(strstr(g_log, "branch and bound: MIR cuts over "));
++    jaos_model_free(m);
++}
++
+ static void test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(void)
+ {
+     int64_t nodes[2] = {0, 0};
+@@ -6528,6 +6650,9 @@ int main(void)
+     RUN_TEST(test_probing_keeps_a_bound_both_settings_imply);
+     RUN_TEST(test_clique_fixing_at_a_node_shortens_the_tree);
+     RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
++    RUN_TEST(test_node_mir_cuts_below_the_cut_depth_close_a_knapsack_tree);
++    RUN_TEST(test_node_mir_cuts_stop_when_they_lift_no_bound);
++    RUN_TEST(test_node_mir_cuts_skip_rows_of_whole_units);
+     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
+     RUN_TEST(test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root);
+     RUN_TEST(test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound);
+diff --git a/tests/test_symmetry.c b/tests/test_symmetry.c
+index 9100bf0e..0fd75032 100644
+--- a/tests/test_symmetry.c
++++ b/tests/test_symmetry.c
+@@ -195,6 +195,7 @@ static void test_orbital_branching_shortens_a_symmetric_tree(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));

@@ -1,0 +1,76 @@
+Running HiGHS 1.15.1 (git hash: n/a): Copyright (c) 2026 under MIT licence terms
+Includes third-party software components, see THIRD_PARTY_NOTICES.md for full details
+Command line parsed using CLI11 2.5.0: Copyright (c) 2017-2025 University of Cincinnati
+Set option threads to 1
+Set option time_limit to 120
+Set option log_file to "/dev/null"
+Set option mip_rel_gap to 1e-06
+MIP binkar10_1 has 1026 rows; 2298 cols; 4496 nonzeros; 170 integer variables (170 binary)
+Coefficient ranges:
+  Matrix  [1e+00, 3e+01]
+  Cost    [8e-01, 1e+06]
+  Bound   [1e+00, 1e+00]
+  RHS     [1e+00, 8e+01]
+Presolving model
+826 rows, 2025 cols, 4023 nonzeros 0s
+820 rows, 2013 cols, 3848 nonzeros 0s
+Presolve reductions: rows 820(-206); columns 2013(-285); nonzeros 3848(-648) 
+
+Solving MIP model with:
+   820 rows
+   2013 cols (170 binary, 0 integer, 0 implied int., 1843 continuous, 0 domain fixed)
+   3848 nonzeros
+   Thread count 1 (of 12 threads). Using 1 max workers. Parallel search off
+
+Src: B => Branching; C => Central rounding; F => Feasibility pump; H => Heuristic;
+     I => Shifting; J => Feasibility jump; L => Sub-MIP; P => Empty MIP; R => Randomized rounding;
+     S => Solve LP; T => Evaluate node; U => Unbounded; X => User solution; Y => HiGHS solution;
+     Z => ZI Round; l => Trivial lower; p => Trivial point; u => Trivial upper; z => Trivial zero
+
+        Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+
+ J       0       0         0   0.00%   -inf            2011758.000127     Large        0      0      0         0     0.0s
+ R       0       0         0   0.00%   6637.188027     7464.290034       11.08%        0      0      0      1033     0.0s
+ L       0       0         0   0.00%   6700.847391     6768.630016        1.00%     2393     56      3      1567     0.5s
+ L       0       0         0   0.00%   6701.027927     6747.310015        0.69%     2402     57      3      4096     0.8s
+
+2.9% inactive integer columns, restarting
+Model after restart has 780 rows, 1907 cols (165 bin., 0 int., 9 impl., 1733 cont., 0 dom.fix.), and 3650 nonzeros
+
+         0       0         0   0.00%   6701.218192     6747.310015        0.68%       31      0      0      7246     0.8s
+         0       0         0   0.00%   6701.225548     6747.310015        0.68%       31     27      3      7354     0.8s
+       717      70       322  22.97%   6707.017119     6747.310015        0.60%     3402    122   4608     68032     5.8s
+      2501     102      1191  55.27%   6720.928729     6747.310015        0.39%     4178     80   9193    114232    10.8s
+ T    2874      60      1384  60.71%   6722.16298      6742.200024        0.30%     3508     68   9530    124508    12.0s
+      4066       0      2009 100.00%   6742.200009     6742.200024        0.00%     3774     96   9503    159673    16.7s
+
+Solving report
+  Model             binkar10_1
+  Status            Optimal
+  Primal bound      6742.200024
+  Dual bound        6742.2000085
+  Gap               0% (tolerance: 0.0001%)
+  P-D integral      0.125695872223
+  Solution status   feasible
+                    6742.200024 (objective)
+                    0 (bound viol.)
+                    1.04805053525e-13 (int. viol.)
+                    0 (row viol.)
+  Timing            16.69
+                    2.06 (Presolve)
+                        MIP    time [calls] = 0.01 [1]
+                        subMIP time [calls] = 2.05 [23]
+                    14.62 (Solve)
+                        MIP    time [calls] = 15.42 [1]
+                        subMIP time [calls] = -0.80 [23]
+                    0.00 (Postsolve)
+                        MIP    time [calls] = 0.00 [1]
+                        subMIP time [calls] = 0.00 [23]
+  Max sub-MIP depth 8
+  Nodes             4066
+  Repair LPs        0
+  LP iterations     159673
+                    36572 (strong br.)
+                    12909 (separation)
+                    13572 (heuristics)

@@ -47,8 +47,9 @@ their violation is refused. The first threshold is the median rise among
 
 Threshold accepting with a geometric fall matches annealing, and needs no
 `exp`, whose rounding differs between libraries. The trades are what reach
-the optimum. On `mad` no rule comes near the tree's 0.038 at 1e10. An
-iterated descent with random kicks, tried first, stopped at 0.30.
+the optimum. On `mad` every rule ends below the tree's incumbent at
+1e10, 0.324 (02-466), and none near the optimum. An iterated descent with
+random kicks, tried first, stopped at 0.30.
 
 ## What was built
 
@@ -106,7 +107,8 @@ MIPLIB 2017 at 1e10, 02-328's `m17sum.py`:
 | this change | 6.5397 | 6.5166 | 13.0562 |
 
 The two models of the shape:
-- `mad`: incumbent 0.297 to 0.088 of the optimum away;
+- `mad`: incumbent 0.324 to 0.1148, the root's point, a gap of 0.297 to
+  0.088 (`m17sum.py` measures it against 1 when the optimum is smaller);
 - `neos-911970`: 0.030 to 0.0037, and its dual gap 0.054 to 0.052.
 
 The other instances move only by the work the detector adds:

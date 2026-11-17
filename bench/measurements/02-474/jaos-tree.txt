@@ -1,0 +1,31 @@
+binkar10_1 at 1e10 work units. prototype.patch's JAOS_MIRX bits; read.sh's
+labels. Bits 1 and 2 take the c-MIR steps at the root, and with 64 at the
+nodes too; 32 runs the node MIR at every depth with Gomory to the cut
+depth; 128 keeps the root as it is. --cut-depth D with --node-mir runs
+Gomory and MIR together to depth D.
+
+label        bits  options                          status     nodes   work         bound
+base         0     (the record)                     work_limit 35620   10000039597  6718.8846512953351
+root3        3                                      work_limit 36728   10000033520  6722.6555032656634
+root11       11                                     work_limit 32029   10000034717  6723.1070349752436
+root27       27                                     work_limit 37601   10000034519  6730.7979068729783
+d3-27        91    --node-mir                       work_limit 37287   10000033694  6733.1547832095484
+d10-0        0     --cut-depth 10 --node-mir        work_limit 31382   10000039055  6726.8496126285672
+d10-27       91    --cut-depth 10 --node-mir        optimal    23328    8429007376  6742.2000239999998
+all-0        0     --cut-depth 100000 --node-mir    work_limit  9690   10000044248  6733.5471746020312
+all-65       65    --cut-depth 100000 --node-mir    optimal     8796    9887031417  6742.2000239999998
+all-66       66    --cut-depth 100000 --node-mir    work_limit  9674   10000038836  6735.2362778707029
+all-67       67    --cut-depth 100000 --node-mir    optimal     6916    7882914599  6742.2000239999998
+all-75       75    --cut-depth 100000 --node-mir    optimal     7129    7503224247  6742.2000239999998
+all-91       91    --cut-depth 100000 --node-mir    optimal     4044    4111591353  6742.2000239999998
+deep-32      32    --node-mir                       work_limit 10206   10000042937  6733.0902579044623
+deep-99      99    --node-mir                       optimal     7429    7579736292  6742.2000239999998
+deep-107     107   --node-mir                       optimal     8062    7796533245  6742.2000239999998
+deep-123     123   --node-mir                       optimal     4893    4568310925  6742.2000239999998
+deep-227     227   --node-mir                       optimal     5502    5840330440  6742.2000239999998
+c1           c1.patch, defaults                     optimal     5322    4823876081  6742.2000239999998
+c2           node-mir.patch, defaults               optimal     6280    5224803844  6742.2000239999998
+
+The record, bench/results/miplib2017.txt: work_limit, 35,620 nodes, bound
+6718.88. The root's run at 1e9 reads bound 6708.76 at 3,051 nodes, where
+HiGHS reads 6707.0 at 717 nodes and 6720.9 at 2,501.

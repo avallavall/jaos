@@ -1,0 +1,6 @@
+before     solved 5 incumbents 29 primal 4.4267 dual 6.4227 sum 10.8494
+x27        solved 5 incumbents 28 primal 6.3132 dual 7.4715 sum 13.7848
+p227nm     solved 6 incumbents 29 primal 4.4027 dual 6.6466 sum 11.0493
+c1         solved 6 incumbents 29 primal 4.4844 dual 6.5604 sum 11.0448
+c2         solved 6 incumbents 29 primal 4.4435 dual 6.4500 sum 10.8936
+null       solved 5 incumbents 29 primal 4.6099 dual 6.5232 sum 11.1331

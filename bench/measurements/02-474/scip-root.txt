@@ -1,0 +1,33 @@
+binkar10_1, SCIP 10.0 through pyscipopt 6.2.1, one thread, the root alone
+(limits/nodes 1, no restart); scip_root.py. The dual bound after the root,
+root strong branching included unless the arm turns it off. LP 6637.19,
+optimum 6742.20.
+
+default                    6710.2685
+default-nosb               6707.7048
+no-aggregation             6666.4359
+gomory-only                6666.4359
+aggregation-only           6710.2043
+no-gomory                  6710.8366
+no-zerohalf                6710.2685
+no-impliedbounds           6710.2685
+no-sepa                    6642.8923
+no-presolve                6715.3300
+maxaggrsroot0              6710.5816
+maxaggrsroot1              6710.4977
+maxaggrsroot2              6710.2685
+no-cmir                    6675.4539
+no-flowcover               6715.5325
+no-knapsackcover           6714.3589
+cmir-only                  6711.2478
+flowcover-only             6673.2003
+knapsackcover-only         6681.9254
+cmir-only-agg0             6711.2478
+nopresolve-agg0            6715.9893
+nopresolve-cmironly-agg0   6713.9139
+nopresolve-cmironly        6716.1660
+
+scip_cuts.py: no presolve, c-MIR alone on single rows (maxaggrsroot 0,
+flow cover, knapsack cover, Gomory and zero-half off), no root strong
+branching: bound 6709.4146, 81 cuts in the LP, every one over the binaries
+of one of the ten knapsack rows (scip-cuts.txt).
