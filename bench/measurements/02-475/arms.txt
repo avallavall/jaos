@@ -1,0 +1,17 @@
+pk1    head       optimal   nodes  331251 work  16136639736 bound 10.999999999998042    
+pk1    grid       optimal   nodes  203103 work  10188683049 bound 10.999999999997971    
+pk1    cut1       optimal   nodes  340814 work  13176649475 bound 10.99999999999762    109099 stopped 
+pk1    grid-cut1  optimal   nodes  208554 work   8335335055 bound 11                   66107 stopped 
+pk1    grid-cut2  optimal   nodes  212059 work   8438382837 bound 10.999999999999211   67246 stopped 
+pk1    rc         optimal   nodes  297736 work  13979078517 bound 10.999999999999158    697935 tightened
+pk1    grid-rc    optimal   nodes  188780 work   9191698994 bound 10.999999999998941    471273 tightened
+pk1    all        optimal   nodes  174316 work   7493903346 bound 11                   39002 stopped 439159 tightened
+mas76  head       optimal   nodes  632196 work  19524136951 bound 40005.054141999994    
+mas76  grid       optimal   nodes  632196 work  19524136951 bound 40005.054141999994    
+mas76  cut1       optimal   nodes  577515 work  13187035346 bound 40005.054141999994   288078 stopped 
+mas76  grid-cut1  optimal   nodes  577515 work  13187035346 bound 40005.054141999994   288078 stopped 
+mas76  grid-cut2  optimal   nodes  598479 work  13511922176 bound 40005.054141999994   298519 stopped 
+mas76  rc         optimal   nodes  417737 work   8056733923 bound 40005.054141999994    1948424 tightened
+mas76  grid-rc    optimal   nodes  417737 work   8056733923 bound 40005.054141999994    1948424 tightened
+mas76  all        optimal   nodes  379655 work   5604057819 bound 40005.054141999994   188122 stopped 1422628 tightened
+pk1    cutoff10   status infeasible work_units 10005667739 nodes 218055 bound 9.6386947510063354 

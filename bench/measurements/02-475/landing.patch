@@ -1,0 +1,989 @@
+diff --git a/cli/jaos.c b/cli/jaos.c
+index 577730f6..41997ad0 100644
+--- a/cli/jaos.c
++++ b/cli/jaos.c
+@@ -208,8 +208,9 @@ static const char U_SOLVE_D2[] =
+     "                   incumbent's reduced costs fix a fifth of the integer\n"
+     "                   columns (default off, on in network mode;\n"
+     "                   --no-restart turns it off)\n"
+-    "  --rcfix          fix integer column bounds at the root by their\n"
+-    "                   reduced costs once an incumbent exists; on by\n"
++    "  --rcfix          fix integer column bounds by their reduced costs\n"
++    "                   once an incumbent exists, at the root for the whole\n"
++    "                   tree and at each node for its subtree; on by\n"
+     "                   default, --no-rcfix turns it off\n"
+     "  --tighten        at the root, shrink a binary column's coefficient\n"
+     "                   in a one-sided row it can never make tight; on by\n"
+diff --git a/docs/api.md b/docs/api.md
+index b50ba28f..505c5410 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -714,7 +714,11 @@ Sets the gap that ends the search. A node closes when its bound is within
+ `gap * (1 + |incumbent|)` of the incumbent, or `gap * |incumbent|` under the
+ relative rule of `jaos_set_mip_gap_rule`. The default is 1e-6. A gap of 0
+ means zero: a node closes only when its bound does not beat the incumbent.
+-The call fails when `gap` is negative or not finite.
++The call fails when `gap` is negative or not finite. When every integer
++point's objective is a multiple of a step, a bound rounds up to the next
++multiple before this test. Below the root of a linear model, a node's dual
++simplex stops as soon as the bound its duals prove closes the node this way,
++and the node closes without its relaxation's optimum.
+ 
+ **`jaos_set_mip_gap_rule`**\
+ `jaos_status jaos_set_mip_gap_rule(jaos_model *m, jaos_gap_rule rule)`\
+@@ -1034,10 +1038,13 @@ off by default.
+ 
+ **`jaos_set_mip_rcfix`**\
+ `jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)`\
+-Turns reduced-cost fixing at the root on or off. It is on by default. Once
+-an incumbent exists, it moves an integer column's far bound to the furthest
+-integer the column's reduced cost allows. Every node inherits the new bound,
+-and `jaos_mip_result` counts such columns in `fixed_cols`.
++Turns reduced-cost fixing on or off, at the root and at the nodes. It is on
++by default. Once an incumbent exists, the root moves an integer column's far
++bound to the furthest integer the column's reduced cost allows against the
++incumbent. Every node inherits the new bound, and `jaos_mip_result` counts
++such columns in `fixed_cols`. A node of a linear model does the same with its
++own relaxation's reduced costs, against the bound at which a node is pruned,
++and its subtree inherits what it moves; the summary log counts those bounds.
+ 
+ **`jaos_set_mip_tighten`**\
+ `jaos_status jaos_set_mip_tighten(jaos_model *m, int on)`\
+@@ -1116,7 +1123,8 @@ Turns conflict analysis on or off. It is on by default. At a node whose
+ relaxation is infeasible, it reads the Farkas proof over the branchings on
+ the path. When the proof needs only binaries fixed on the path, at most 32
+ of them, it adds a row that forbids that combination for the rest of the
+-search.
++search. A binary the nodes fixed by its reduced cost does not count as fixed
++on the path, so a proof that needs one adds no row.
+ 
+ **`jaos_set_mip_symmetry`**\
+ `jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)`\
+diff --git a/docs/cli.md b/docs/cli.md
+index fac63a90..33714a54 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -129,8 +129,9 @@ apply. An LP prints none of them.
+ - `heuristic_points` counts the incumbents a heuristic found.
+ - `first_incumbent` is the node at which the first incumbent appeared, 0
+   when none did.
+-- `fixed_cols` counts the bounds `--rcfix` moved, and `tightened` the
+-  bounds `--propagate` moved. Each reads 0 when its switch is off.
++- `fixed_cols` counts the bounds `--rcfix` moved at the root, and
++  `tightened` the bounds `--propagate` moved. Each reads 0 when its switch
++  is off.
+ - `bound` is the best objective an open node could still reach.
+ - `incumbent` follows when the tree holds an integer point, so a tree
+   stopped by a limit says what it found. At `optimal` the `objective`,
+@@ -247,7 +248,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
+ | `--pump-obj F` | blends the objective into the pump at a weight that starts at 1 and is multiplied by `F` each round (after Achterberg and Berthold). Default 0.5; `0` is the plain pump; `1` or more is a usage error. |
+ | `--pump-always` | runs the pump at the root even when an incumbent exists. Off by default; `--no-pump-always` keeps the default. |
+ | `--no-heuristics` | turns off the rounding heuristics: the rounding of each fractional node's point and, at the root of a linear model, lock rounding, the search over the starts of a time-indexed schedule, the feasibility jump, the exchanges between assignment rows, the threshold accepting over the items of partitioning rows, priced in closed form or by an LP over the columns that link the rows, and the moves over the disjunctions of big-M rows at the root and in the tree. In a model with cones or quadratic rows it turns off the root's rounding. |
+-| `--rcfix` | reduced-cost fixing at the root once an incumbent exists; every node inherits the bounds. On by default (`bench/measurements/02-335/`); `--no-rcfix` turns it off. |
++| `--rcfix` | reduced-cost fixing once an incumbent exists: at the root, whose bounds every node inherits, and at each node, whose bounds its subtree inherits. On by default (`bench/measurements/02-335/`, `bench/measurements/02-475/`); `--no-rcfix` turns it off. |
+ | `--tighten` | coefficient tightening of binary columns in one-sided rows, and the parity step over equality rows, at the root. On by default; `--no-tighten` turns both off. |
+ | `--mip-presolve` | before the tree, merges two continuous columns that an equality row makes equal, and mirrors a column whose lower bound lies farther from zero than its upper bound, or whose bounds lie equally far and whose cost or entries read negative, so that the tree reads each column in one sign (`jaos_set_mip_presolve` in `docs/api.md` gives the rule). On by default; `--no-mip-presolve` turns it off. |
+ | `--probing` | after the root solve, tries each fractional binary at 0 and at 1 and keeps what the propagation proves. Off by default; `--no-probing` keeps the default. |
+diff --git a/docs/tolerances.md b/docs/tolerances.md
+index ac2ff3cb..e4be05ae 100644
+--- a/docs/tolerances.md
++++ b/docs/tolerances.md
+@@ -309,7 +309,7 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_NODE_MIR_PAYS` | 0.25 | MIR cuts at the nodes stop for the rest of the tree once the bound they have lifted is no more than this share of what branching gained at the same nodes, each node's bound over its parent's. 02-474's census at 2e9 work units reads 1.0 to 1.4 on `binkar10_1`, 0.75 to 1.0 on `lseu`, 0.4 to 0.8 on `gen-ip054` and 0.27 to 0.63 on `p0282`, which all gain, and under 0.25 on `pk1`, `misc03`, `l152lav`, `bell5` and `blend2`, which lose (`bench/measurements/02-474/`). Not swept |
+ | `MIP_PUMP_GENERAL` | off | Gives the pump an extra column and two rows per general integer column, so the column's distance to its rounding counts wherever the rounding lies |
+ | `MIP_PUMP_ALWAYS` | off | Runs the pump at the root even when an incumbent exists |
+-| `MIP_RCFIX` | on | Once an incumbent exists, the root pulls an integer column's far bound in as far as its reduced cost allows. MIPLIB 3 reads 0.944x (`bench/measurements/02-335/`) |
++| `MIP_RCFIX` | on | Once an incumbent exists, the root pulls an integer column's far bound in as far as its reduced cost allows. MIPLIB 3 reads 0.944x (`bench/measurements/02-335/`). Below the root of a linear model each node does the same with its own reduced costs, against the bound at which a node is pruned, and its subtree inherits the bounds, a column's new bound written over its last entry so that a general integer tightened again adds none; the orbital fixing does not read them as branchings. `mas76` closes at 8.1e9 work units where it took 1.95e10, and MIPLIB 3 reads 0.879x, none past 1.03x (`bench/measurements/02-475/`) |
+ | `MIP_RESTART` | off | Restarts the tree from the root once the root's reduced costs fix `MIP_RESTART_FRAC` of the integer columns (`mip-restart` in `bench/refusals.txt`). Network mode restarts whatever this says, keeping the first root's cuts (`bench/measurements/02-345/`) |
+ | `MIP_INT_TOL` | 1e-6 | How far a relaxation value may sit from an integer and count as integral, in the model's units; such a value is published rounded. A smaller value asks for more than the relaxation's own accuracy, and a larger one publishes fractional points. Not swept: no MIPLIB 3 instance comes near it |
+ | `MIP_CLIQUE_ROUNDS` | 4 | Rounds of clique cuts at the root. 0.97x the work on MIPLIB 3, none past 2x. Not swept beyond on and off |
+@@ -323,7 +323,7 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_HULL_COLS` | 8 | The most columns a row may have for hull cuts. Not swept |
+ | `MIP_HULL_POINTS` | 1024 | The most integer points a row's box may hold for hull cuts; `neos-3381206-awhea`'s rows hold 576. Not swept |
+ | `MIP_HULL_KEEP` | 10 | A root round in which hull cuts reach at least one row in `MIP_HULL_KEEP` does not count as stalled (`MIP_MIR_MORE_STALL`). At 0 `neos-3381206-awhea` stops before its bound rises; with every such round `p0033` costs 1.9x (`bench/measurements/02-356/`) |
+-| `MIP_CONFLICTS` | on | Turns an infeasible node's Farkas proof into a permanent conflict row over the binaries the path fixed, after relaxing every fixing the proof does not need. Skipped with indicator rows or SOS sets. 0.924x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`) |
++| `MIP_CONFLICTS` | on | Turns an infeasible node's Farkas proof into a permanent conflict row over the binaries the path fixed, after relaxing every fixing the proof does not need. Skipped with indicator rows or SOS sets. 0.924x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`). A proof that needs a bound the nodes' reduced costs fixed gives no row: with those rows `markshare_4_0` keeps 3,424 conflicts against 1,788, its iterations cost 1.7 times as much and its tree reaches 428,665 nodes at 1e10 work units against 650,369 (`bench/measurements/02-475/`) |
+ | `MIP_CONFLICT_MAX` | 32 | The most binaries a conflict row may hold; a longer one prunes almost nothing. Not swept |
+ | `MIP_CONFLICT_GAP` | 1e-9 | The gap the proof must keep, relative to (1 + \|the rows' side\|), for a fixing to be dropped or the row written; below it the proof is rounding. Not swept |
+ | `MIP_SYMMETRY` | off | Runs the root's symmetry search (colour refinement, then partition backtracking) on its own. `MIP_ORBITAL` runs the same search, so this matters only with orbital branching off |
+@@ -333,7 +333,7 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `SYM_LEAF_CAP` | 64 | The leaves the backtracking under one alternative vertex may visit before giving it up. Not swept |
+ | `MIP_CLIQUE_FIX` | on | At each node, a binary fixed to one value fixes the literals in conflict with it in the root's clique table (the all-binary rows' conflicts and probing's implications), cascading; a node holding both sides of a conflict is cut without a solve. With RINS on, MIPLIB 3 reads 0.735x in summed work and 1.002x in the geometric mean, and the 2017 set 0.994x (`bench/measurements/02-325/`) |
+ | `MIP_CLIQUE_ROW_CAP` | 64 | The largest literals of a row and side that feed the conflict graph; it bounds the work per row. Not swept |
+-| `MIP_GAP` | 1e-6 | The relative gap that closes the search: no open node beats the incumbent by more than `MIP_GAP * (1 + \|incumbent\|)`. Under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Not swept: every MIPLIB 3 instance closes with bound equal to incumbent |
++| `MIP_GAP` | 1e-6 | The relative gap that closes the search: no open node beats the incumbent by more than `MIP_GAP * (1 + \|incumbent\|)`. Under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Below the root of a linear model, a node's dual simplex stops once the Lagrangian bound of its duals closes the node by this test, and the cut-off child's pseudocost learns that bound; MIPLIB 3 reads 0.935x and `mas76` takes 0.68x the work (`bench/measurements/02-475/`). Not swept: every MIPLIB 3 instance closes with bound equal to incumbent |
+ | `MIP_CUT_ROUNDS` | 1 | Rounds of Gomory mixed-integer cuts at the root. Swept at 0 to 5: 1 has the best mean with every instance under 2x, and 2 and 3 put several past 2x. A later reading of 2 gave 1.111x (`bench/measurements/02-351/`) |
+ | `MIP_CUT_AWAY` | 0.01 | A basic integer column is cut only when its fraction lies in `[AWAY, 1 - AWAY]`, since the cut divides by the fraction and its complement. Balas, Ceria, Cornuejols and Natraj's bound. Not swept |
+ | `MIP_CUT_DROP` | 1e-9 | A coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid; kept when that bound is infinite. Not swept |
+@@ -435,10 +435,10 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_HEUR_ROOT` | 0.5 | The work the root's dive heuristic and its feasibility pump may each spend while there is no incumbent, as a share of the root's work before them, and never less than `MIP_HEUR_FLOOR`. With no share, the pump took 5.5e9 of `csched008`'s 1e10 and found nothing. Without the floor, 0.5 reads 0.933x on MIPLIB 3 against 0.955x at 0.25 and 0.975x at 1, and MIPLIB 2017's gap sum is 13.40 against 13.52 with no share and 13.76 at 0.25 (`bench/measurements/02-466/`) |
+ | `MIP_HEUR_FLOOR` | 20000 | The work, in units of (nonzeros + columns + rows), that the root's dive and pump may spend whatever the root took, as `MIP_FJ_WORK` gives the jump. Without it, half the root is less than the few rounds the pump needs on a small model. With it, MIPLIB 3 reads exactly its baseline, and MIPLIB 2017's gap sum is 13.36 (`bench/measurements/02-466/`). Not swept |
+ | `MIP_FJ_ROOT` | 0.5 | One jump's work as a share of the root's. A successful jump needs at most 0.29x; uncapped, failures put `p0033` at 4x, and at 0.5 MIPLIB 3 reads 1.014x (`bench/measurements/02-329/fj-root.txt`) |
+-| `MIP_OBJ_DENOM` | 100 | The largest cost denominator the objective step looks for: when every costed column is integer, the objective lies on a grid and a bound is rounded up to it. It closes `sp150x300d` and reads 0.941x on MIPLIB 3 (`bench/measurements/02-328/`). Not swept |
++| `MIP_OBJ_DENOM` | 100 | The largest cost denominator the objective step looks for: when every costed column is integer, the objective lies on a grid and a bound is rounded up to it. It closes `sp150x300d` and reads 0.941x on MIPLIB 3 (`bench/measurements/02-328/`). A continuous column with a cost counts as integer when every continuous column its rows link it to has whole bounds and sits in rows that hold at most one of them at +β and one at −β, with whole sides and integer coefficients over β: those rows over the continuous columns are a network's transpose, so their relaxation has a whole optimum at any integer point. That reaches `pk1`, `markshare_4_0`, `markshare2`, `assign1-5-8`, `ic97_potential`, `csched007`, `csched008`, `misc03` and `misc07` (`bench/measurements/02-475/`). Not swept |
+ | `MIP_OBJ_LCM` | 1e6 | The largest common denominator of the costs the step accepts. Not swept |
+ | `MIP_OBJ_FIT` | 1e-9 | How close a cost times a denominator must sit to an integer, relative to max(1, \|product\|). Not swept |
+-| `MIP_OBJ_ROUND` | 1e-6 | How far below a grid value, in steps, a bound may sit and still round to it. Not swept |
++| `MIP_OBJ_ROUND` | 1e-6 | How far below a grid value, in steps, a bound may sit and still round to it. A node's dual simplex stops once its bound passes the grid value below the incumbent by twice this and twice `MIP_OBJ_ROUND_REL`, where it rounds to the incumbent (`bench/measurements/02-475/`). Not swept |
+ | `MIP_OBJ_ROUND_REL` | 1e-9 | The same slack per step of the bound's own size. Not swept |
+ 
+ ## The feasibility relaxation
+diff --git a/python/jaos/model.py b/python/jaos/model.py
+index 0af8f95c..98ceb955 100644
+--- a/python/jaos/model.py
++++ b/python/jaos/model.py
+@@ -982,12 +982,13 @@ class Model:
+         self._check(_lib.jaos_set_mip_pump_always(self._handle(), int(on)))
+ 
+     def set_mip_rcfix(self, on):
+-        """Reduced-cost fixing at the root.
++        """Reduced-cost fixing at the root and at the nodes.
+ 
+-        Once the root holds an incumbent, an integer column resting at a
+-        bound has its other bound pulled in to the furthest integer its
+-        reduced cost still allows. On by default; a negative value
+-        restores it.
++        Once an incumbent exists, an integer column resting at a bound has
++        its other bound pulled in to the furthest integer its reduced cost
++        still allows: at the root for the whole tree, and at each node of a
++        linear model for that node's subtree. On by default; a negative
++        value restores it.
+         """
+         self._check(_lib.jaos_set_mip_rcfix(self._handle(), int(on)))
+ 
+diff --git a/python/jaos/problem.py b/python/jaos/problem.py
+index c4153af8..956baf25 100644
+--- a/python/jaos/problem.py
++++ b/python/jaos/problem.py
+@@ -1134,8 +1134,8 @@ class Problem:
+         return self
+ 
+     def set_mip_rcfix(self, on):
+-        """Reduced-cost fixing of integer bounds at the root (D323); on by
+-        default, negative restores it."""
++        """Reduced-cost fixing of integer bounds at the root and at the
++        nodes (D323, 02-475); on by default, negative restores it."""
+         self._m.set_mip_rcfix(on)
+         return self
+ 
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 5d027bb3..43042d7d 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -39,6 +39,8 @@ typedef struct {
+     bool node_keep;
+     bool node_probe;
+     bool node_no_presolve;
++    bool node_cutoff_set;
++    double node_cutoff;
+     bool no_cert_solve;
+     bool no_flat_rows;
+     bool cut_resolve;
+@@ -334,6 +336,7 @@ struct jaos_model {
+ 
+     double stop_bound;
+     bool stop_bound_ok;
++    bool cutoff_hit;
+ 
+     char **exact_col;
+     char **exact_dual;
+diff --git a/src/mip.c b/src/mip.c
+index be2256f9..355aad8d 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -453,6 +453,7 @@ typedef struct {
+     int64_t nfix;
+     int64_t *col;
+     double *lo, *hi;
++    bool *rcf;
+     jaos_basis_status *cs, *rs;
+     double frac;
+     bool up;
+@@ -469,7 +470,8 @@ static void node_free(bnode *n)
+ {
+     if (n == nullptr)
+         return;
+-    free(n->col); free(n->lo); free(n->hi); free(n->cs); free(n->rs);
++    free(n->col); free(n->lo); free(n->hi); free(n->rcf); free(n->cs);
++    free(n->rs);
+     free(n->cuts);
+     free(n);
+ }
+@@ -674,10 +676,12 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
+     n->col = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->col);
+     n->lo = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->lo);
+     n->hi = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->hi);
++    n->rcf = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->rcf);
+     n->cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *n->cs);
+     n->rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *n->rs);
+     n->cuts = jm_alloc_array(act_n > 0 ? act_n : 1, sizeof *n->cuts);
+-    if (!n->col || !n->lo || !n->hi || !n->cs || !n->rs || !n->cuts) {
++    if (!n->col || !n->lo || !n->hi || !n->rcf || !n->cs || !n->rs ||
++        !n->cuts) {
+         node_free(n);
+         return nullptr;
+     }
+@@ -688,11 +692,13 @@ static bnode *node_child(const bnode *parent, int64_t nc, int64_t nr,
+         memcpy(n->col, parent->col, (size_t)pf * sizeof *n->col);
+         memcpy(n->lo, parent->lo, (size_t)pf * sizeof *n->lo);
+         memcpy(n->hi, parent->hi, (size_t)pf * sizeof *n->hi);
++        memcpy(n->rcf, parent->rcf, (size_t)pf * sizeof *n->rcf);
+     }
+     for (int64_t k = 0; k < nfix; k++) {
+         n->col[pf + k] = fcol[k];
+         n->lo[pf + k] = flo[k];
+         n->hi[pf + k] = fhi[k];
++        n->rcf[pf + k] = false;
+     }
+     n->nfix = nf;
+     n->fcap = nf > 0 ? nf : 1;
+@@ -814,26 +820,31 @@ static jaos_status node_apply(jaos_model *lp, const jaos_model *m,
+ }
+ 
+ 
+-static bool node_add_fix(bnode *n, int64_t col, double lo, double hi)
++static bool node_add_fix(bnode *n, int64_t col, double lo, double hi,
++                         bool rc)
+ {
+     if (n->nfix >= n->fcap) {
+         const int64_t cap = n->fcap > 0 ? 2 * n->fcap : 4;
+         int64_t *c = jm_realloc_array(n->col, cap, sizeof *c);
+         double *l = jm_realloc_array(n->lo, cap, sizeof *l);
+         double *h = jm_realloc_array(n->hi, cap, sizeof *h);
++        bool *f = jm_realloc_array(n->rcf, cap, sizeof *f);
+         if (c != nullptr)
+             n->col = c;
+         if (l != nullptr)
+             n->lo = l;
+         if (h != nullptr)
+             n->hi = h;
+-        if (c == nullptr || l == nullptr || h == nullptr)
++        if (f != nullptr)
++            n->rcf = f;
++        if (c == nullptr || l == nullptr || h == nullptr || f == nullptr)
+             return false;
+         n->fcap = cap;
+     }
+     n->col[n->nfix] = col;
+     n->lo[n->nfix] = lo;
+     n->hi[n->nfix] = hi;
++    n->rcf[n->nfix] = rc;
+     n->nfix++;
+     return true;
+ }
+@@ -920,6 +931,7 @@ static bool network_shape(jaos_model *m)
+ 
+ typedef struct {
+     double off, step;
++    int64_t ncont;
+ } objgrid;
+ 
+ static int64_t gcd64(int64_t a, int64_t b)
+@@ -932,17 +944,137 @@ static int64_t gcd64(int64_t a, int64_t b)
+     return a;
+ }
+ 
++static bool grid_whole(double v)
++{
++    return fabs(v) < 0x1p52 &&
++           fabs(v - jm_round(v)) <= MIP_OBJ_FIT * fmax(1.0, fabs(v));
++}
++
++static bool grid_side(double v, double beta)
++{
++    return !isfinite(v) || grid_whole(v / beta);
++}
++
++static int64_t ui_find(int64_t *p, int64_t a)
++{
++    while (p[a] != a) {
++        p[a] = p[p[a]];
++        a = p[a];
++    }
++    return a;
++}
++
++static int64_t integral_continuous(const jaos_model *m)
++{
++    const int64_t nc = m->num_col, nr = m->num_row;
++    bool costed = false;
++    for (int64_t j = 0; j < nc; j++)
++        if (!m->col_integer[j] && m->col_cost[j] != 0.0)
++            costed = true;
++    if (!costed)
++        return 0;
++    if (m->num_sos > 0 || m->rq_nz > 0 || m->num_cone > 0)
++        return -1;
++    for (int64_t j = 0; j < nc; j++)
++        if (m->col_semi != nullptr && m->col_semi[j])
++            return -1;
++    for (int64_t i = 0; m->row_ind_col != nullptr && i < nr; i++)
++        if (m->row_ind_col[i] >= 0)
++            return -1;
++    int64_t *par = jm_alloc_array(nc > 0 ? nc : 1, sizeof *par);
++    int64_t *first = jm_alloc_array(nr > 0 ? nr : 1, sizeof *first);
++    double *beta = calloc((size_t)(nr > 0 ? nr : 1), sizeof *beta);
++    bool *pos = calloc((size_t)(nr > 0 ? nr : 1), sizeof *pos);
++    bool *neg = calloc((size_t)(nr > 0 ? nr : 1), sizeof *neg);
++    bool *hot = calloc((size_t)(nc > 0 ? nc : 1), sizeof *hot);
++    int64_t out = -1;
++    if (par == nullptr || first == nullptr || beta == nullptr ||
++        pos == nullptr || neg == nullptr || hot == nullptr)
++        goto done;
++    for (int64_t j = 0; j < nc; j++)
++        par[j] = j;
++    for (int64_t i = 0; i < nr; i++)
++        first[i] = -1;
++    for (int64_t j = 0; j < nc; j++) {
++        if (m->col_integer[j])
++            continue;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            if (m->a_value[k] == 0.0)
++                continue;
++            if (first[i] < 0) {
++                first[i] = j;
++            } else {
++                const int64_t a = ui_find(par, first[i]), b = ui_find(par, j);
++                if (a != b)
++                    par[a < b ? b : a] = a < b ? a : b;
++            }
++        }
++    }
++    for (int64_t j = 0; j < nc; j++)
++        if (!m->col_integer[j] && m->col_cost[j] != 0.0)
++            hot[ui_find(par, j)] = true;
++    out = 0;
++    for (int64_t j = 0; j < nc && out >= 0; j++) {
++        if (m->col_integer[j] || !hot[ui_find(par, j)])
++            continue;
++        if (!grid_side(m->col_lower[j], 1.0) ||
++            !grid_side(m->col_upper[j], 1.0)) {
++            out = -1;
++            break;
++        }
++        out++;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            const double a = m->a_value[k];
++            if (a == 0.0)
++                continue;
++            if (beta[i] == 0.0)
++                beta[i] = fabs(a);
++            if (fabs(a) != beta[i] || (a > 0.0 ? pos[i] : neg[i])) {
++                out = -1;
++                break;
++            }
++            if (a > 0.0)
++                pos[i] = true;
++            else
++                neg[i] = true;
++        }
++    }
++    for (int64_t i = 0; i < nr && out >= 0; i++)
++        if (beta[i] > 0.0 && (!grid_side(m->row_lower[i], beta[i]) ||
++                              !grid_side(m->row_upper[i], beta[i])))
++            out = -1;
++    for (int64_t j = 0; j < nc && out >= 0; j++) {
++        if (!m->col_integer[j])
++            continue;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            if (beta[i] > 0.0 && !grid_whole(m->a_value[k] / beta[i])) {
++                out = -1;
++                break;
++            }
++        }
++    }
++done:
++    free(par); free(first); free(beta); free(pos); free(neg); free(hot);
++    return out;
++}
++
+ static objgrid objective_grid(const jaos_model *m, double sigma)
+ {
+-    objgrid g = {0.0, 0.0};
++    objgrid g = {0.0, 0.0, 0};
+     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
+         return g;
++    const int64_t ncont = integral_continuous(m);
++    if (ncont < 0)
++        return g;
+     int64_t lcm = 1;
+     for (int64_t j = 0; j < m->num_col; j++) {
+         const double c = m->col_cost[j];
+         if (c == 0.0)
+             continue;
+-        if (!m->col_integer[j] || !isfinite(c))
++        if (!isfinite(c))
+             return g;
+         int64_t q = 1;
+         while (q <= MIP_OBJ_DENOM) {
+@@ -973,6 +1105,7 @@ static objgrid objective_grid(const jaos_model *m, double sigma)
+         return g;
+     g.off = sigma * m->obj_offset;
+     g.step = (double)gd / (double)lcm;
++    g.ncont = ncont;
+     return g;
+ }
+ 
+@@ -986,6 +1119,25 @@ static double grid_up(const objgrid *g, double key)
+     return up > key ? up : key;
+ }
+ 
++static double prune_at(const objgrid *g, double bk, double gap,
++                       double gap_shift)
++{
++    if (!(bk < INFINITY))
++        return INFINITY;
++    const double t = bk - gap * (gap_shift + fabs(bk));
++    if (!(g->step > 0.0) || !(fabs(t - g->off) / g->step < 0x1p40))
++        return t;
++    double n = ceil((t - g->off) / g->step);
++    while (g->off + n * g->step < t)
++        n += 1.0;
++    while (g->off + (n - 1.0) * g->step >= t)
++        n -= 1.0;
++    const double s = n - 1.0 +
++        2.0 * (MIP_OBJ_ROUND + MIP_OBJ_ROUND_REL * (fabs(n) + 1.0));
++    const double k = g->off + s * g->step;
++    return k < t && grid_up(g, k) >= t ? k : t;
++}
++
+ static bool time_gone(const jaos_model *m)
+ {
+     return m->cfg.time_limit > 0.0 &&
+@@ -8073,7 +8225,7 @@ static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
+             continue;
+         }
+         if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0 ||
+-            blo[j] != bhi[j])
++            blo[j] != bhi[j] || cur->rcf[k])
+             return 0;
+         kept++;
+         ones += blo[j] == 1.0;
+@@ -8853,10 +9005,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
+     double *plo = nullptr, *phi = nullptr;
+     double *rcd = nullptr;
++    int64_t *rcpos = nullptr;
+     int64_t *pc_n = nullptr, *cand = nullptr;
+     jaos_basis_status *pcs = nullptr, *prs = nullptr;
+     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
+-    int64_t probes = 0, capped = 0;
++    int64_t probes = 0, capped = 0, cutoff_nodes = 0;
++    int64_t node_rcfixed = 0;
+     int64_t dive_points = 0;
+     int64_t rins_points = 0;
+     int64_t pump_points = 0;
+@@ -9077,6 +9231,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    "branch and bound: every integer point's objective is a "
+                    "multiple of %.17g from %.17g, so a bound rounds up to the "
+                    "next one", og.step, sigma * og.off);
++        if (og.step > 0.0 && og.ncont > 0)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: %lld continuous columns share rows "
++                   "with the ones that carry a cost, and take whole values "
++                   "at an optimum, since those rows hold them as "
++                   "differences with whole sides",
++                   (long long)og.ncont);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9265,7 +9426,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             for (int64_t k = 0; k < cur->nfix; k++) {
+                 const int64_t j = cur->col[k];
+                 if (m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0 &&
+-                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0) {
++                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0 && !cur->rcf[k]) {
+                     ozero[orbit_find(ouf, j)] = true;
+                     any = true;
+                 }
+@@ -9279,7 +9440,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (!ozero[orbit_find(ouf, l)])
+                     continue;
+                 if (jaos_set_col_bounds(lp, l, 0.0, 0.0) != JAOS_OK ||
+-                    !node_add_fix(cur, l, 0.0, 0.0))
++                    !node_add_fix(cur, l, 0.0, 0.0, false))
+                     goto done;
+                 orbital_fixed++;
+             }
+@@ -9333,11 +9494,32 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             goto done;
+         phase_to(&ph, work, PH_LP);
+         budget(lp, m, work);
++        const double sol_bk = inc.have && inc.key < cut_key ? inc.key : cut_key;
++        const double cut_at = nodes > 1 && !quadratic
++            ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
++        lp->cfg.node_cutoff_set = cut_at < INFINITY;
++        lp->cfg.node_cutoff = cut_at;
++        lp->cutoff_hit = false;
+         st = jaos_solve(lp);
++        lp->cfg.node_cutoff_set = false;
+         solves++;
+-        const int64_t node_work = jaos_work_units(lp);
++        int64_t node_work = jaos_work_units(lp);
+         work += node_work;
+         iters += jaos_iterations(lp);
++        if (st == JAOS_OK && lp->cutoff_hit) {
++            const double ck = sigma * lp->stop_bound;
++            if (sol_bk - grid_up(&og, ck) <= gap * (gap_shift + fabs(sol_bk))) {
++                pseudocost_learn(cur, ck, nc, pc_sum, pc_n);
++                cutoff_nodes++;
++                continue;
++            }
++            budget(lp, m, work);
++            st = jaos_solve(lp);
++            solves++;
++            node_work = jaos_work_units(lp);
++            work += node_work;
++            iters += jaos_iterations(lp);
++        }
+         if (nodes > 1 && !lp->cfg.node_no_presolve &&
+             npre_n < MIP_NODE_PRESOLVE_TRIAL) {
+             npre_n++;
+@@ -11058,6 +11240,58 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (bk < INFINITY &&
+                 bk - grid_up(&og, key) <= gap * (gap_shift + fabs(bk)))
+                 continue;
++            if (rcfix && nodes > 1 && bk < INFINITY && branch >= 0 &&
++                !quadratic) {
++                if (rcd == nullptr) {
++                    rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
++                    if (rcd == nullptr)
++                        goto done;
++                }
++                if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) !=
++                    JAOS_OK)
++                    goto done;
++                if (rcpos == nullptr) {
++                    rcpos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcpos);
++                    if (rcpos == nullptr)
++                        goto done;
++                    for (int64_t j = 0; j < nc; j++)
++                        rcpos[j] = -1;
++                }
++                for (int64_t k = 0; k < cur->nfix; k++)
++                    rcpos[cur->col[k]] = k;
++                work += nc + cur->nfix;
++                const double room = prune_at(&og, bk, gap, gap_shift) - key;
++                for (int64_t j = 0; room >= 0.0 && j < nc; j++) {
++                    if (!m->col_integer[j] || semi_live(m, j))
++                        continue;
++                    const double lo = lp->col_lower[j], hi = lp->col_upper[j];
++                    if (!(lo < hi))
++                        continue;
++                    const double d = sigma * rcd[j];
++                    const jaos_basis_status bs = lp->sol_col_status[j];
++                    double nlo = lo, nhi = hi;
++                    if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 && lo > -INFINITY)
++                        nhi = lo + floor(room / d + MIP_RCFIX_SLACK);
++                    else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
++                             hi < INFINITY)
++                        nlo = hi - floor(room / -d + MIP_RCFIX_SLACK);
++                    if (nhi < hi || nlo > lo) {
++                        const double flo = nlo > lo ? nlo : lo;
++                        const double fhi = nhi < hi ? nhi : hi;
++                        const int64_t at = rcpos[j];
++                        if (at >= 0) {
++                            cur->lo[at] = flo;
++                            cur->hi[at] = fhi;
++                            cur->rcf[at] = true;
++                        } else if (!node_add_fix(cur, j, flo, fhi, true)) {
++                            goto done;
++                        }
++                        node_rcfixed++;
++                    }
++                }
++                for (int64_t k = 0; k < cur->nfix; k++)
++                    rcpos[cur->col[k]] = -1;
++            }
+         }
+ 
+         int64_t sos_first = -1, sos_last = -1;
+@@ -11431,6 +11665,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+            (long long)sw.refused, (long long)conflicts,
+            (long long)conflict_lits, (long long)orbital_branches,
+            (long long)orbital_fixed, (long long)parked);
++    if (cutoff_nodes > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: %lld node relaxations stopped once their "
++               "bound reached the incumbent", (long long)cutoff_nodes);
++    if (node_rcfixed > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: %lld column bounds tightened at the nodes "
++               "by their reduced costs", (long long)node_rcfixed);
+     if (mir_nrows > 0)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: MIR cuts over %lld integer rows at %lld "
+@@ -11510,6 +11752,7 @@ done:
+     free(plo);
+     free(phi);
+     free(rcd);
++    free(rcpos);
+     free(pc_sum);
+     free(pc_n);
+     free(cand);
+diff --git a/src/simplex.c b/src/simplex.c
+index 865baed0..1cfcd3d2 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -257,6 +257,11 @@ typedef struct {
+     bool held_valid, held_below;
+     int64_t held_row;
+     double held_violation, held_total;
++
++    double cut_lag, cut_bound;
++    bool cut_hit;
++    double zobj;
++    bool zobj_ok;
+ } sx;
+ 
+ enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
+@@ -388,6 +393,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
+     s->nrow = m->num_row;
+     s->ncol = m->num_col;
+     s->nvar = m->num_col + m->num_row;
++    s->cut_lag = INFINITY;
+ 
+     s->primal_tol = m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
+     s->dual_tol   = m->cfg.dual_tol   > 0.0 ? m->cfg.dual_tol   : DUAL_TOL;
+@@ -1017,6 +1023,7 @@ static void pviol_touch(sx *s, int64_t i)
+ static void compute_primal(sx *s, bool refine)
+ {
+     s->pviol_ok = false;
++    s->zobj_ok = false;
+     double *rhs = s->col;
+     double *comp = s->rhsc;
+     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+@@ -1586,6 +1593,8 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
+ 
+     double *rhs = s->col;
+     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
++    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
++    double dz = 0.0;
+ 
+     for (int64_t k = at; k < n; k++) {
+ 
+@@ -1597,6 +1606,7 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
+         double delta = nonbasic_value(s, v) - from;
+         if (delta == 0.0)
+             continue;
++        dz += s->cost0[v] * delta;
+ 
+         if (v < s->ncol) {
+             const jaos_model *m = s->m;
+@@ -1617,15 +1627,24 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
+             const int64_t i = s->cpat[k];
+             s->xb[i] -= rhs[i];
+             pviol_touch(s, i);
++            if (track)
++                dz -= s->cost0[s->basis[i]] * rhs[i];
+         }
+         jm_work_add(&s->work, nc * JM_WORK_NONZERO);
+     } else {
+         for (int64_t i = 0; i < s->nrow; i++) {
+             s->xb[i] -= rhs[i];
+             pviol_touch(s, i);
++            if (track)
++                dz -= s->cost0[s->basis[i]] * rhs[i];
+         }
+         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+     }
++    if (track) {
++        s->zobj += dz;
++        jm_work_add(&s->work, (nc * SPARSE_COL_DEN <= s->nrow ? nc : s->nrow) *
++                              JM_WORK_NONZERO);
++    }
+ 
+     s->ncpat = -1;
+ }
+@@ -2368,14 +2387,26 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
+     }
+ 
+     double q_value = nonbasic_value(s, q);
++    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
++    double dz = 0.0;
+     if (sparse_col) {
+         for (int64_t k = 0; k < s->ncpat; k++) {
+             int64_t i = s->cpat[k];
+             s->xb[i] -= theta_primal * s->col[i];
++            if (track)
++                dz += s->cost0[s->basis[i]] * s->col[i];
+         }
+     } else {
+-        for (int64_t i = 0; i < s->nrow; i++)
++        for (int64_t i = 0; i < s->nrow; i++) {
+             s->xb[i] -= theta_primal * s->col[i];
++            if (track)
++                dz += s->cost0[s->basis[i]] * s->col[i];
++        }
++    }
++    if (track) {
++        s->zobj += theta_primal * (s->cost0[q] - dz);
++        jm_work_add(&s->work,
++                    (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
+     }
+     s->xb[r] = q_value + theta_primal;
+ 
+@@ -2596,11 +2627,10 @@ static double settled_objective(const sx *s)
+     return point_objective(s);
+ }
+ 
+-static bool stop_bound(sx *s, double *out)
++static bool stop_bound_in(sx *s, double *y, double *out)
+ {
+     if (s->needs_refactor)
+         return false;
+-    double *y = s->y;
+     for (int64_t i = 0; i < s->nrow; i++)
+         y[i] = s->cost0[s->basis[i]];
+     jm_lu_btran(&s->lu, y, &s->work);
+@@ -2620,6 +2650,31 @@ static bool stop_bound(sx *s, double *out)
+     return isfinite(*out);
+ }
+ 
++static bool stop_bound(sx *s, double *out)
++{
++    return stop_bound_in(s, s->y, out);
++}
++
++static bool past_cutoff(sx *s)
++{
++    if (!s->zobj_ok) {
++        s->zobj = point_objective(s);
++        s->zobj_ok = true;
++        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
++    }
++    if (!(s->zobj >= s->cut_lag))
++        return false;
++    jm_work_add(&s->work, (s->m->num_nz + s->nvar) * JM_WORK_NONZERO);
++    double lag = 0.0;
++    if (stop_bound_in(s, s->tau, &lag) && lag >= s->cut_lag) {
++        s->cut_bound = lag;
++        s->cut_hit = true;
++        return true;
++    }
++    s->cut_lag = INFINITY;
++    return false;
++}
++
+ static double settled_dual_violation(const sx *s)
+ {
+     double worst = 0.0;
+@@ -4322,6 +4377,10 @@ static jaos_status run(sx *s, jaos_solve_status *out)
+             continue;
+ 
+         s->iters++;
++        if (s->cut_lag < INFINITY && !s->needs_refactor && past_cutoff(s)) {
++            *out = JAOS_SOLVE_WORK_LIMIT;
++            return JAOS_OK;
++        }
+     }
+ }
+ 
+@@ -4801,6 +4860,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+     *by_presolve = false;
+     *units = 0;
+     *iters = 0;
++    m->cutoff_hit = false;
+     jm_presolve p;
+     jm_presolve_init(&p);
+     p.orig = m;
+@@ -5046,6 +5106,10 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+             st = JAOS_OK;
+             outcome = JAOS_SOLVE_OPTIMAL;
+         } else {
++            const double tsg = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++            s.cut_lag = !s.primal_run && m->cfg.node_cutoff_set
++                ? m->cfg.node_cutoff - tsg * target->obj_offset : INFINITY;
++            s.cut_hit = false;
+             st = s.primal_run ? run_primal(&s, &outcome)
+                               : run(&s, &outcome);
+         }
+@@ -5227,7 +5291,13 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+         memcpy(m->err, target->err, sizeof m->err);
+ 
+     m->stop_bound_ok = false;
+-    if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
++    m->cutoff_hit = false;
++    if (st == JAOS_OK && s.cut_hit && outcome == JAOS_SOLVE_WORK_LIMIT) {
++        const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++        m->stop_bound = sgn * s.cut_bound + target->obj_offset;
++        m->stop_bound_ok = true;
++        m->cutoff_hit = true;
++    } else if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
+         (outcome == JAOS_SOLVE_WORK_LIMIT ||
+          outcome == JAOS_SOLVE_TIME_LIMIT ||
+          outcome == JAOS_SOLVE_INTERRUPTED)) {
+@@ -5462,6 +5532,8 @@ jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
+     s->up[jr] = phi / t->col_scale[jr];
+     const int64_t limit = t->cfg.work_limit;
+     t->cfg.work_limit = cap > 0 ? s->work.units + cap : 0;
++    s->cut_lag = INFINITY;
++    s->cut_hit = false;
+     jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
+     jaos_status st = run(s, &o);
+     t->cfg.work_limit = limit;
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index 5eabc179..2c2bb1b9 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -5978,6 +5978,146 @@ static void test_node_mir_cuts_skip_rows_of_whole_units(void)
+     jaos_model_free(m);
+ }
+ 
++static jaos_model *deviation_model(double pcoef)
++{
++    const double cost[6] = {0, 0, 0, 0, 0, 1};
++    const double cl[6] = {0, 0, 0, 0, 0, 0};
++    const double cu[6] = {1, 1, 1, INFINITY, INFINITY, INFINITY};
++    const double rl[4] = {3.0, 0.0, 0.0, -INFINITY};
++    const double ru[4] = {3.0, INFINITY, INFINITY, 5.0};
++    const int64_t as[7] = {0, 2, 4, 6, 8, 10, 12};
++    const int64_t ai[12] = {0, 3, 0, 3, 0, 3, 0, 1, 0, 2, 1, 2};
++    const double av[12] = {2, 4, 2, 4, 2, 4, pcoef, -1, -1, -1, 1, 1};
++    jaos_model *m = nullptr;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK,
++        jaos_load_lp(m, 6, 4, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 12, as,
++                     ai, av));
++    for (int64_t j = 0; j < 3; j++)
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_presolve(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
++    g_log[0] = '\0';
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
++    return m;
++}
++
++static void test_a_continuous_objective_held_by_differences_rounds_its_bound(void)
++{
++    jaos_model *m = deviation_model(1.0);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    double obj = 0.0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
++    jaos_mip_report rep;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
++    TEST_ASSERT_NOT_NULL(strstr(g_log, "root: relaxation 0.5 after"));
++    TEST_ASSERT_NOT_NULL(strstr(g_log, "3 continuous columns share rows"));
++    jaos_model_free(m);
++
++    m = deviation_model(2.0);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++    TEST_ASSERT_TRUE(rep.nodes > 1);
++    TEST_ASSERT_NULL(strstr(g_log, "continuous columns share rows"));
++    jaos_model_free(m);
++}
++
++static void test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent(void)
++{
++    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
++    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
++                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
++                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
++    const double ru[3] = {97.5, 108.0, 88.2};
++    int64_t nodes[2] = {0, 0}, work[2] = {0, 0};
++    for (int k = 0; k < 2; k++) {
++        jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++        double obj = 0.0;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
++        TEST_ASSERT_NOT_NULL(strstr(g_log, " node relaxations stopped once "
++                                           "their bound reached the incumbent"));
++        jaos_mip_report rep;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++        nodes[k] = rep.nodes;
++        work[k] = jaos_work_units(m);
++        jaos_model_free(m);
++    }
++    TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
++    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
++}
++
++static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
++{
++    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
++    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
++                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
++                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
++    const double ru[3] = {97.5, 108.0, 88.2};
++    for (int on = 0; on < 2; on++) {
++        jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, on));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++        double obj = 0.0;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
++        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
++        const char *line = strstr(g_log, " column bounds tightened at the "
++                                         "nodes by their reduced costs");
++        if (on)
++            TEST_ASSERT_NOT_NULL(line);
++        else
++            TEST_ASSERT_NULL(line);
++        jaos_model_free(m);
++    }
++}
++
++static void test_reduced_costs_tighten_general_integer_bounds_at_the_nodes(void)
++{
++    const double c[8] = {7, 5, 9, 4, 6, 8, 3, 5};
++    const double w[16] = {3, 2, 5, 2, 3, 4, 1, 3,
++                          4, 3, 2, 5, 2, 3, 2, 1};
++    const double ru[2] = {23.5, 19.3};
++    double obj[2] = {0.0, 0.0};
++    for (int on = 0; on < 2; on++) {
++        jaos_model *m = node_mir_model(8, 2, JAOS_MAXIMIZE, c, w, ru);
++        for (int64_t j = 0; j < 8; j++)
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, j, 0.0, 4.0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, on));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[on]));
++        const char *line = strstr(g_log, " column bounds tightened at the "
++                                         "nodes by their reduced costs");
++        if (on)
++            TEST_ASSERT_NOT_NULL(line);
++        else
++            TEST_ASSERT_NULL(line);
++        jaos_model_free(m);
++    }
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, obj[0], obj[1]);
++}
++
+ static void test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(void)
+ {
+     int64_t nodes[2] = {0, 0};
+@@ -6653,6 +6793,10 @@ int main(void)
+     RUN_TEST(test_node_mir_cuts_below_the_cut_depth_close_a_knapsack_tree);
+     RUN_TEST(test_node_mir_cuts_stop_when_they_lift_no_bound);
+     RUN_TEST(test_node_mir_cuts_skip_rows_of_whole_units);
++    RUN_TEST(test_a_continuous_objective_held_by_differences_rounds_its_bound);
++    RUN_TEST(test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent);
++    RUN_TEST(test_reduced_costs_tighten_bounds_at_the_nodes);
++    RUN_TEST(test_reduced_costs_tighten_general_integer_bounds_at_the_nodes);
+     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
+     RUN_TEST(test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root);
+     RUN_TEST(test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound);

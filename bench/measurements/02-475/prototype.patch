@@ -1,0 +1,661 @@
+diff -ru a/src/jaos_internal.h b/src/jaos_internal.h
+--- a/src/jaos_internal.h	2026-11-17 22:56:41.562672250 +0100
++++ b/src/jaos_internal.h	2026-11-17 22:56:41.570504226 +0100
+@@ -39,6 +39,8 @@
+     bool node_keep;
+     bool node_probe;
+     bool node_no_presolve;
++    bool node_cutoff_set;
++    double node_cutoff;
+     bool no_cert_solve;
+     bool no_flat_rows;
+     bool cut_resolve;
+@@ -334,6 +336,7 @@
+ 
+     double stop_bound;
+     bool stop_bound_ok;
++    bool cutoff_hit;
+ 
+     char **exact_col;
+     char **exact_dual;
+diff -ru a/src/mip.c b/src/mip.c
+--- a/src/mip.c	2026-11-17 22:56:41.535979916 +0100
++++ b/src/mip.c	2026-11-17 22:56:41.592907658 +0100
+@@ -453,6 +453,7 @@
+     int64_t nfix;
+     int64_t *col;
+     double *lo, *hi;
++    bool *rcf;
+     jaos_basis_status *cs, *rs;
+     double frac;
+     bool up;
+@@ -469,7 +470,8 @@
+ {
+     if (n == nullptr)
+         return;
+-    free(n->col); free(n->lo); free(n->hi); free(n->cs); free(n->rs);
++    free(n->col); free(n->lo); free(n->hi); free(n->rcf); free(n->cs);
++    free(n->rs);
+     free(n->cuts);
+     free(n);
+ }
+@@ -674,10 +676,12 @@
+     n->col = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->col);
+     n->lo = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->lo);
+     n->hi = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->hi);
++    n->rcf = jm_alloc_array(nf > 0 ? nf : 1, sizeof *n->rcf);
+     n->cs = jm_alloc_array(nc > 0 ? nc : 1, sizeof *n->cs);
+     n->rs = jm_alloc_array(nr > 0 ? nr : 1, sizeof *n->rs);
+     n->cuts = jm_alloc_array(act_n > 0 ? act_n : 1, sizeof *n->cuts);
+-    if (!n->col || !n->lo || !n->hi || !n->cs || !n->rs || !n->cuts) {
++    if (!n->col || !n->lo || !n->hi || !n->rcf || !n->cs || !n->rs ||
++        !n->cuts) {
+         node_free(n);
+         return nullptr;
+     }
+@@ -688,11 +692,13 @@
+         memcpy(n->col, parent->col, (size_t)pf * sizeof *n->col);
+         memcpy(n->lo, parent->lo, (size_t)pf * sizeof *n->lo);
+         memcpy(n->hi, parent->hi, (size_t)pf * sizeof *n->hi);
++        memcpy(n->rcf, parent->rcf, (size_t)pf * sizeof *n->rcf);
+     }
+     for (int64_t k = 0; k < nfix; k++) {
+         n->col[pf + k] = fcol[k];
+         n->lo[pf + k] = flo[k];
+         n->hi[pf + k] = fhi[k];
++        n->rcf[pf + k] = false;
+     }
+     n->nfix = nf;
+     n->fcap = nf > 0 ? nf : 1;
+@@ -814,26 +820,31 @@
+ }
+ 
+ 
+-static bool node_add_fix(bnode *n, int64_t col, double lo, double hi)
++static bool node_add_fix(bnode *n, int64_t col, double lo, double hi,
++                         bool rc)
+ {
+     if (n->nfix >= n->fcap) {
+         const int64_t cap = n->fcap > 0 ? 2 * n->fcap : 4;
+         int64_t *c = jm_realloc_array(n->col, cap, sizeof *c);
+         double *l = jm_realloc_array(n->lo, cap, sizeof *l);
+         double *h = jm_realloc_array(n->hi, cap, sizeof *h);
++        bool *f = jm_realloc_array(n->rcf, cap, sizeof *f);
+         if (c != nullptr)
+             n->col = c;
+         if (l != nullptr)
+             n->lo = l;
+         if (h != nullptr)
+             n->hi = h;
+-        if (c == nullptr || l == nullptr || h == nullptr)
++        if (f != nullptr)
++            n->rcf = f;
++        if (c == nullptr || l == nullptr || h == nullptr || f == nullptr)
+             return false;
+         n->fcap = cap;
+     }
+     n->col[n->nfix] = col;
+     n->lo[n->nfix] = lo;
+     n->hi[n->nfix] = hi;
++    n->rcf[n->nfix] = rc;
+     n->nfix++;
+     return true;
+ }
+@@ -920,6 +931,7 @@
+ 
+ typedef struct {
+     double off, step;
++    int64_t ncont;
+ } objgrid;
+ 
+ static int64_t gcd64(int64_t a, int64_t b)
+@@ -932,17 +944,137 @@
+     return a;
+ }
+ 
++static bool grid_whole(double v)
++{
++    return fabs(v) < 0x1p52 &&
++           fabs(v - jm_round(v)) <= MIP_OBJ_FIT * fmax(1.0, fabs(v));
++}
++
++static bool grid_side(double v, double beta)
++{
++    return !isfinite(v) || grid_whole(v / beta);
++}
++
++static int64_t ui_find(int64_t *p, int64_t a)
++{
++    while (p[a] != a) {
++        p[a] = p[p[a]];
++        a = p[a];
++    }
++    return a;
++}
++
++static int64_t integral_continuous(const jaos_model *m)
++{
++    const int64_t nc = m->num_col, nr = m->num_row;
++    bool costed = false;
++    for (int64_t j = 0; j < nc; j++)
++        if (!m->col_integer[j] && m->col_cost[j] != 0.0)
++            costed = true;
++    if (!costed)
++        return 0;
++    if (m->num_sos > 0 || m->rq_nz > 0 || m->num_cone > 0)
++        return -1;
++    for (int64_t j = 0; j < nc; j++)
++        if (m->col_semi != nullptr && m->col_semi[j])
++            return -1;
++    for (int64_t i = 0; m->row_ind_col != nullptr && i < nr; i++)
++        if (m->row_ind_col[i] >= 0)
++            return -1;
++    int64_t *par = jm_alloc_array(nc > 0 ? nc : 1, sizeof *par);
++    int64_t *first = jm_alloc_array(nr > 0 ? nr : 1, sizeof *first);
++    double *beta = calloc((size_t)(nr > 0 ? nr : 1), sizeof *beta);
++    bool *pos = calloc((size_t)(nr > 0 ? nr : 1), sizeof *pos);
++    bool *neg = calloc((size_t)(nr > 0 ? nr : 1), sizeof *neg);
++    bool *hot = calloc((size_t)(nc > 0 ? nc : 1), sizeof *hot);
++    int64_t out = -1;
++    if (par == nullptr || first == nullptr || beta == nullptr ||
++        pos == nullptr || neg == nullptr || hot == nullptr)
++        goto done;
++    for (int64_t j = 0; j < nc; j++)
++        par[j] = j;
++    for (int64_t i = 0; i < nr; i++)
++        first[i] = -1;
++    for (int64_t j = 0; j < nc; j++) {
++        if (m->col_integer[j])
++            continue;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            if (m->a_value[k] == 0.0)
++                continue;
++            if (first[i] < 0) {
++                first[i] = j;
++            } else {
++                const int64_t a = ui_find(par, first[i]), b = ui_find(par, j);
++                if (a != b)
++                    par[a < b ? b : a] = a < b ? a : b;
++            }
++        }
++    }
++    for (int64_t j = 0; j < nc; j++)
++        if (!m->col_integer[j] && m->col_cost[j] != 0.0)
++            hot[ui_find(par, j)] = true;
++    out = 0;
++    for (int64_t j = 0; j < nc && out >= 0; j++) {
++        if (m->col_integer[j] || !hot[ui_find(par, j)])
++            continue;
++        if (!grid_side(m->col_lower[j], 1.0) ||
++            !grid_side(m->col_upper[j], 1.0)) {
++            out = -1;
++            break;
++        }
++        out++;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            const double a = m->a_value[k];
++            if (a == 0.0)
++                continue;
++            if (beta[i] == 0.0)
++                beta[i] = fabs(a);
++            if (fabs(a) != beta[i] || (a > 0.0 ? pos[i] : neg[i])) {
++                out = -1;
++                break;
++            }
++            if (a > 0.0)
++                pos[i] = true;
++            else
++                neg[i] = true;
++        }
++    }
++    for (int64_t i = 0; i < nr && out >= 0; i++)
++        if (beta[i] > 0.0 && (!grid_side(m->row_lower[i], beta[i]) ||
++                              !grid_side(m->row_upper[i], beta[i])))
++            out = -1;
++    for (int64_t j = 0; j < nc && out >= 0; j++) {
++        if (!m->col_integer[j])
++            continue;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            if (beta[i] > 0.0 && !grid_whole(m->a_value[k] / beta[i])) {
++                out = -1;
++                break;
++            }
++        }
++    }
++done:
++    free(par); free(first); free(beta); free(pos); free(neg); free(hot);
++    return out;
++}
++
+ static objgrid objective_grid(const jaos_model *m, double sigma)
+ {
+-    objgrid g = {0.0, 0.0};
++    objgrid g = {0.0, 0.0, 0};
+     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
+         return g;
++    const int64_t ncont = integral_continuous(m);
++    if (ncont < 0 || (ncont > 0 && getenv("JAOS_NOGRID") != nullptr))
++        return g;
+     int64_t lcm = 1;
+     for (int64_t j = 0; j < m->num_col; j++) {
+         const double c = m->col_cost[j];
+         if (c == 0.0)
+             continue;
+-        if (!m->col_integer[j] || !isfinite(c))
++        if (!isfinite(c))
+             return g;
+         int64_t q = 1;
+         while (q <= MIP_OBJ_DENOM) {
+@@ -973,6 +1105,7 @@
+         return g;
+     g.off = sigma * m->obj_offset;
+     g.step = (double)gd / (double)lcm;
++    g.ncont = ncont;
+     return g;
+ }
+ 
+@@ -986,6 +1119,25 @@
+     return up > key ? up : key;
+ }
+ 
++static double prune_at(const objgrid *g, double bk, double gap,
++                       double gap_shift)
++{
++    if (!(bk < INFINITY))
++        return INFINITY;
++    const double t = bk - gap * (gap_shift + fabs(bk));
++    if (!(g->step > 0.0) || !(fabs(t - g->off) / g->step < 0x1p40))
++        return t;
++    double n = ceil((t - g->off) / g->step);
++    while (g->off + n * g->step < t)
++        n += 1.0;
++    while (g->off + (n - 1.0) * g->step >= t)
++        n -= 1.0;
++    const double s = n - 1.0 +
++        2.0 * (MIP_OBJ_ROUND + MIP_OBJ_ROUND_REL * (fabs(n) + 1.0));
++    const double k = g->off + s * g->step;
++    return k < t && grid_up(g, k) >= t ? k : t;
++}
++
+ static bool time_gone(const jaos_model *m)
+ {
+     return m->cfg.time_limit > 0.0 &&
+@@ -8073,7 +8225,7 @@
+             continue;
+         }
+         if (!m->col_integer[j] || ilo[j] != 0.0 || ihi[j] != 1.0 ||
+-            blo[j] != bhi[j])
++            blo[j] != bhi[j] || cur->rcf[k])
+             return 0;
+         kept++;
+         ones += blo[j] == 1.0;
+@@ -8853,10 +9005,16 @@
+     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
+     double *plo = nullptr, *phi = nullptr;
+     double *rcd = nullptr;
++    int64_t *rcpos = nullptr;
+     int64_t *pc_n = nullptr, *cand = nullptr;
+     jaos_basis_status *pcs = nullptr, *prs = nullptr;
+     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
+-    int64_t probes = 0, capped = 0;
++    int64_t probes = 0, capped = 0, cutoff_nodes = 0;
++    const char *ncut_env = getenv("JAOS_NCUT");
++    const int ncut_mode = ncut_env != nullptr ? atoi(ncut_env) : 0;
++    const char *nrc_env = getenv("JAOS_NRC");
++    const int nrc_mode = nrc_env != nullptr ? atoi(nrc_env) : 0;
++    int64_t node_rcfixed = 0;
+     int64_t dive_points = 0;
+     int64_t rins_points = 0;
+     int64_t pump_points = 0;
+@@ -9077,6 +9235,13 @@
+                    "branch and bound: every integer point's objective is a "
+                    "multiple of %.17g from %.17g, so a bound rounds up to the "
+                    "next one", og.step, sigma * og.off);
++        if (og.step > 0.0 && og.ncont > 0)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: %lld continuous columns share rows "
++                   "with the ones that carry a cost, and take whole values "
++                   "at an optimum, since those rows hold them as "
++                   "differences with whole sides",
++                   (long long)og.ncont);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9265,7 +9430,7 @@
+             for (int64_t k = 0; k < cur->nfix; k++) {
+                 const int64_t j = cur->col[k];
+                 if (m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0 &&
+-                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0) {
++                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0 && !cur->rcf[k]) {
+                     ozero[orbit_find(ouf, j)] = true;
+                     any = true;
+                 }
+@@ -9279,7 +9444,7 @@
+                 if (!ozero[orbit_find(ouf, l)])
+                     continue;
+                 if (jaos_set_col_bounds(lp, l, 0.0, 0.0) != JAOS_OK ||
+-                    !node_add_fix(cur, l, 0.0, 0.0))
++                    !node_add_fix(cur, l, 0.0, 0.0, false))
+                     goto done;
+                 orbital_fixed++;
+             }
+@@ -9333,11 +9498,33 @@
+             goto done;
+         phase_to(&ph, work, PH_LP);
+         budget(lp, m, work);
++        const double sol_bk = inc.have && inc.key < cut_key ? inc.key : cut_key;
++        const double cut_at = nodes > 1 && ncut_mode > 0 && !quadratic
++            ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
++        lp->cfg.node_cutoff_set = cut_at < INFINITY;
++        lp->cfg.node_cutoff = cut_at;
++        lp->cutoff_hit = false;
+         st = jaos_solve(lp);
++        lp->cfg.node_cutoff_set = false;
+         solves++;
+-        const int64_t node_work = jaos_work_units(lp);
++        int64_t node_work = jaos_work_units(lp);
+         work += node_work;
+         iters += jaos_iterations(lp);
++        if (st == JAOS_OK && lp->cutoff_hit) {
++            const double ck = sigma * lp->stop_bound;
++            if (sol_bk - grid_up(&og, ck) <= gap * (gap_shift + fabs(sol_bk))) {
++                if (ncut_mode == 1)
++                    pseudocost_learn(cur, ck, nc, pc_sum, pc_n);
++                cutoff_nodes++;
++                continue;
++            }
++            budget(lp, m, work);
++            st = jaos_solve(lp);
++            solves++;
++            node_work = jaos_work_units(lp);
++            work += node_work;
++            iters += jaos_iterations(lp);
++        }
+         if (nodes > 1 && !lp->cfg.node_no_presolve &&
+             npre_n < MIP_NODE_PRESOLVE_TRIAL) {
+             npre_n++;
+@@ -11058,6 +11245,58 @@
+             if (bk < INFINITY &&
+                 bk - grid_up(&og, key) <= gap * (gap_shift + fabs(bk)))
+                 continue;
++            if (nrc_mode > 0 && nodes > 1 && bk < INFINITY && branch >= 0 &&
++                !quadratic) {
++                if (rcd == nullptr) {
++                    rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
++                    if (rcd == nullptr)
++                        goto done;
++                }
++                if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) !=
++                    JAOS_OK)
++                    goto done;
++                if (rcpos == nullptr) {
++                    rcpos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcpos);
++                    if (rcpos == nullptr)
++                        goto done;
++                    for (int64_t j = 0; j < nc; j++)
++                        rcpos[j] = -1;
++                }
++                for (int64_t k = 0; k < cur->nfix; k++)
++                    rcpos[cur->col[k]] = k;
++                work += nc + cur->nfix;
++                const double room = prune_at(&og, bk, gap, gap_shift) - key;
++                for (int64_t j = 0; room >= 0.0 && j < nc; j++) {
++                    if (!m->col_integer[j] || semi_live(m, j))
++                        continue;
++                    const double lo = lp->col_lower[j], hi = lp->col_upper[j];
++                    if (!(lo < hi))
++                        continue;
++                    const double d = sigma * rcd[j];
++                    const jaos_basis_status bs = lp->sol_col_status[j];
++                    double nlo = lo, nhi = hi;
++                    if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 && lo > -INFINITY)
++                        nhi = lo + floor(room / d + MIP_RCFIX_SLACK);
++                    else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
++                             hi < INFINITY)
++                        nlo = hi - floor(room / -d + MIP_RCFIX_SLACK);
++                    if (nhi < hi || nlo > lo) {
++                        const double flo = nlo > lo ? nlo : lo;
++                        const double fhi = nhi < hi ? nhi : hi;
++                        const int64_t at = rcpos[j];
++                        if (at >= 0) {
++                            cur->lo[at] = flo;
++                            cur->hi[at] = fhi;
++                            cur->rcf[at] = true;
++                        } else if (!node_add_fix(cur, j, flo, fhi, true)) {
++                            goto done;
++                        }
++                        node_rcfixed++;
++                    }
++                }
++                for (int64_t k = 0; k < cur->nfix; k++)
++                    rcpos[cur->col[k]] = -1;
++            }
+         }
+ 
+         int64_t sos_first = -1, sos_last = -1;
+@@ -11431,6 +11670,14 @@
+            (long long)sw.refused, (long long)conflicts,
+            (long long)conflict_lits, (long long)orbital_branches,
+            (long long)orbital_fixed, (long long)parked);
++    if (cutoff_nodes > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: %lld node relaxations stopped once their "
++               "bound reached the incumbent", (long long)cutoff_nodes);
++    if (node_rcfixed > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: %lld column bounds tightened at the nodes "
++               "by their reduced costs", (long long)node_rcfixed);
+     if (mir_nrows > 0)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: MIR cuts over %lld integer rows at %lld "
+@@ -11510,6 +11757,7 @@
+     free(plo);
+     free(phi);
+     free(rcd);
++    free(rcpos);
+     free(pc_sum);
+     free(pc_n);
+     free(cand);
+diff -ru a/src/simplex.c b/src/simplex.c
+--- a/src/simplex.c	2026-11-17 22:56:41.549672247 +0100
++++ b/src/simplex.c	2026-11-17 22:56:41.558478839 +0100
+@@ -257,6 +257,11 @@
+     bool held_valid, held_below;
+     int64_t held_row;
+     double held_violation, held_total;
++
++    double cut_lag, cut_bound;
++    bool cut_hit;
++    double zobj;
++    bool zobj_ok;
+ } sx;
+ 
+ enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
+@@ -388,6 +393,7 @@
+     s->nrow = m->num_row;
+     s->ncol = m->num_col;
+     s->nvar = m->num_col + m->num_row;
++    s->cut_lag = INFINITY;
+ 
+     s->primal_tol = m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
+     s->dual_tol   = m->cfg.dual_tol   > 0.0 ? m->cfg.dual_tol   : DUAL_TOL;
+@@ -1017,6 +1023,7 @@
+ static void compute_primal(sx *s, bool refine)
+ {
+     s->pviol_ok = false;
++    s->zobj_ok = false;
+     double *rhs = s->col;
+     double *comp = s->rhsc;
+     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+@@ -1586,6 +1593,8 @@
+ 
+     double *rhs = s->col;
+     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
++    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
++    double dz = 0.0;
+ 
+     for (int64_t k = at; k < n; k++) {
+ 
+@@ -1597,6 +1606,7 @@
+         double delta = nonbasic_value(s, v) - from;
+         if (delta == 0.0)
+             continue;
++        dz += s->cost0[v] * delta;
+ 
+         if (v < s->ncol) {
+             const jaos_model *m = s->m;
+@@ -1617,15 +1627,24 @@
+             const int64_t i = s->cpat[k];
+             s->xb[i] -= rhs[i];
+             pviol_touch(s, i);
++            if (track)
++                dz -= s->cost0[s->basis[i]] * rhs[i];
+         }
+         jm_work_add(&s->work, nc * JM_WORK_NONZERO);
+     } else {
+         for (int64_t i = 0; i < s->nrow; i++) {
+             s->xb[i] -= rhs[i];
+             pviol_touch(s, i);
++            if (track)
++                dz -= s->cost0[s->basis[i]] * rhs[i];
+         }
+         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+     }
++    if (track) {
++        s->zobj += dz;
++        jm_work_add(&s->work, (nc * SPARSE_COL_DEN <= s->nrow ? nc : s->nrow) *
++                              JM_WORK_NONZERO);
++    }
+ 
+     s->ncpat = -1;
+ }
+@@ -2368,14 +2387,26 @@
+     }
+ 
+     double q_value = nonbasic_value(s, q);
++    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
++    double dz = 0.0;
+     if (sparse_col) {
+         for (int64_t k = 0; k < s->ncpat; k++) {
+             int64_t i = s->cpat[k];
+             s->xb[i] -= theta_primal * s->col[i];
++            if (track)
++                dz += s->cost0[s->basis[i]] * s->col[i];
+         }
+     } else {
+-        for (int64_t i = 0; i < s->nrow; i++)
++        for (int64_t i = 0; i < s->nrow; i++) {
+             s->xb[i] -= theta_primal * s->col[i];
++            if (track)
++                dz += s->cost0[s->basis[i]] * s->col[i];
++        }
++    }
++    if (track) {
++        s->zobj += theta_primal * (s->cost0[q] - dz);
++        jm_work_add(&s->work,
++                    (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
+     }
+     s->xb[r] = q_value + theta_primal;
+ 
+@@ -2596,11 +2627,10 @@
+     return point_objective(s);
+ }
+ 
+-static bool stop_bound(sx *s, double *out)
++static bool stop_bound_in(sx *s, double *y, double *out)
+ {
+     if (s->needs_refactor)
+         return false;
+-    double *y = s->y;
+     for (int64_t i = 0; i < s->nrow; i++)
+         y[i] = s->cost0[s->basis[i]];
+     jm_lu_btran(&s->lu, y, &s->work);
+@@ -2620,6 +2650,31 @@
+     return isfinite(*out);
+ }
+ 
++static bool stop_bound(sx *s, double *out)
++{
++    return stop_bound_in(s, s->y, out);
++}
++
++static bool past_cutoff(sx *s)
++{
++    if (!s->zobj_ok) {
++        s->zobj = point_objective(s);
++        s->zobj_ok = true;
++        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
++    }
++    if (!(s->zobj >= s->cut_lag))
++        return false;
++    jm_work_add(&s->work, (s->m->num_nz + s->nvar) * JM_WORK_NONZERO);
++    double lag = 0.0;
++    if (stop_bound_in(s, s->tau, &lag) && lag >= s->cut_lag) {
++        s->cut_bound = lag;
++        s->cut_hit = true;
++        return true;
++    }
++    s->cut_lag = INFINITY;
++    return false;
++}
++
+ static double settled_dual_violation(const sx *s)
+ {
+     double worst = 0.0;
+@@ -4322,6 +4377,10 @@
+             continue;
+ 
+         s->iters++;
++        if (s->cut_lag < INFINITY && !s->needs_refactor && past_cutoff(s)) {
++            *out = JAOS_SOLVE_WORK_LIMIT;
++            return JAOS_OK;
++        }
+     }
+ }
+ 
+@@ -4801,6 +4860,7 @@
+     *by_presolve = false;
+     *units = 0;
+     *iters = 0;
++    m->cutoff_hit = false;
+     jm_presolve p;
+     jm_presolve_init(&p);
+     p.orig = m;
+@@ -5046,6 +5106,10 @@
+             st = JAOS_OK;
+             outcome = JAOS_SOLVE_OPTIMAL;
+         } else {
++            const double tsg = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++            s.cut_lag = !s.primal_run && m->cfg.node_cutoff_set
++                ? m->cfg.node_cutoff - tsg * target->obj_offset : INFINITY;
++            s.cut_hit = false;
+             st = s.primal_run ? run_primal(&s, &outcome)
+                               : run(&s, &outcome);
+         }
+@@ -5227,7 +5291,13 @@
+         memcpy(m->err, target->err, sizeof m->err);
+ 
+     m->stop_bound_ok = false;
+-    if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
++    m->cutoff_hit = false;
++    if (st == JAOS_OK && s.cut_hit && outcome == JAOS_SOLVE_WORK_LIMIT) {
++        const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++        m->stop_bound = sgn * s.cut_bound + target->obj_offset;
++        m->stop_bound_ok = true;
++        m->cutoff_hit = true;
++    } else if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
+         (outcome == JAOS_SOLVE_WORK_LIMIT ||
+          outcome == JAOS_SOLVE_TIME_LIMIT ||
+          outcome == JAOS_SOLVE_INTERRUPTED)) {
+@@ -5462,6 +5532,8 @@
+     s->up[jr] = phi / t->col_scale[jr];
+     const int64_t limit = t->cfg.work_limit;
+     t->cfg.work_limit = cap > 0 ? s->work.units + cap : 0;
++    s->cut_lag = INFINITY;
++    s->cut_hit = false;
+     jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
+     jaos_status st = run(s, &o);
+     t->cfg.work_limit = limit;

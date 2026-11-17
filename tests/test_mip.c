@@ -1358,8 +1358,7 @@ static void test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bou
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
     TEST_ASSERT_NOT_NULL(strstr(g_log, "branch and bound: 1 continuous columns "
-                                       "with a cost sit only in rows whose other "
-                                       "columns are integer"));
+                                       "share rows"));
     jaos_model_free(m);
 
     m = excess_model(2.0);
@@ -1367,7 +1366,7 @@ static void test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bou
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
-    TEST_ASSERT_NULL(strstr(g_log, "continuous columns with a cost"));
+    TEST_ASSERT_NULL(strstr(g_log, "continuous columns share rows"));
     TEST_ASSERT_NULL(strstr(g_log, "is a multiple of"));
     jaos_model_free(m);
 }
@@ -6240,6 +6239,146 @@ static void test_lattice_branching_leaves_binaries_and_short_trees_alone(void)
     TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
 }
 
+static jaos_model *deviation_model(double pcoef)
+{
+    const double cost[6] = {0, 0, 0, 0, 0, 1};
+    const double cl[6] = {0, 0, 0, 0, 0, 0};
+    const double cu[6] = {1, 1, 1, INFINITY, INFINITY, INFINITY};
+    const double rl[4] = {3.0, 0.0, 0.0, -INFINITY};
+    const double ru[4] = {3.0, INFINITY, INFINITY, 5.0};
+    const int64_t as[7] = {0, 2, 4, 6, 8, 10, 12};
+    const int64_t ai[12] = {0, 3, 0, 3, 0, 3, 0, 1, 0, 2, 1, 2};
+    const double av[12] = {2, 4, 2, 4, 2, 4, pcoef, -1, -1, -1, 1, 1};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 6, 4, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru, 12, as,
+                     ai, av));
+    for (int64_t j = 0; j < 3; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_presolve(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_flow_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_a_continuous_objective_held_by_differences_rounds_its_bound(void)
+{
+    jaos_model *m = deviation_model(1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 1.0, obj);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "root: relaxation 0.5 after"));
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "3 continuous columns share rows"));
+    jaos_model_free(m);
+
+    m = deviation_model(2.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 0.5, obj);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_TRUE(rep.nodes > 1);
+    TEST_ASSERT_NULL(strstr(g_log, "continuous columns share rows"));
+    jaos_model_free(m);
+}
+
+static void test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent(void)
+{
+    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
+    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
+                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
+                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
+    const double ru[3] = {97.5, 108.0, 88.2};
+    int64_t nodes[2] = {0, 0}, work[2] = {0, 0};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
+        TEST_ASSERT_NOT_NULL(strstr(g_log, " node relaxations stopped once "
+                                           "their bound reached the incumbent"));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[k] = rep.nodes;
+        work[k] = jaos_work_units(m);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT64(nodes[0], nodes[1]);
+    TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
+}
+
+static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
+{
+    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
+    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
+                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
+                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
+    const double ru[3] = {97.5, 108.0, 88.2};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
+        const char *line = strstr(g_log, " column bounds tightened at the "
+                                         "nodes by their reduced costs");
+        if (on)
+            TEST_ASSERT_NOT_NULL(line);
+        else
+            TEST_ASSERT_NULL(line);
+        jaos_model_free(m);
+    }
+}
+
+static void test_reduced_costs_tighten_general_integer_bounds_at_the_nodes(void)
+{
+    const double c[8] = {7, 5, 9, 4, 6, 8, 3, 5};
+    const double w[16] = {3, 2, 5, 2, 3, 4, 1, 3,
+                          4, 3, 2, 5, 2, 3, 2, 1};
+    const double ru[2] = {23.5, 19.3};
+    double obj[2] = {0.0, 0.0};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = node_mir_model(8, 2, JAOS_MAXIMIZE, c, w, ru);
+        for (int64_t j = 0; j < 8; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(m, j, 0.0, 4.0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_rcfix(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj[on]));
+        const char *line = strstr(g_log, " column bounds tightened at the "
+                                         "nodes by their reduced costs");
+        if (on)
+            TEST_ASSERT_NOT_NULL(line);
+        else
+            TEST_ASSERT_NULL(line);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, obj[0], obj[1]);
+}
+
 static void test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root(void)
 {
     int64_t nodes[2] = {0, 0};
@@ -6915,6 +7054,10 @@ int main(void)
     RUN_TEST(test_zero_half_cuts_close_an_odd_row_and_an_odd_cycle_at_the_root);
     RUN_TEST(test_node_mir_cuts_below_the_cut_depth_close_a_knapsack_tree);
     RUN_TEST(test_node_mir_cuts_stop_when_they_lift_no_bound);
+    RUN_TEST(test_a_continuous_objective_held_by_differences_rounds_its_bound);
+    RUN_TEST(test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent);
+    RUN_TEST(test_reduced_costs_tighten_bounds_at_the_nodes);
+    RUN_TEST(test_reduced_costs_tighten_general_integer_bounds_at_the_nodes);
     RUN_TEST(test_node_mir_cuts_skip_rows_of_whole_units);
     RUN_TEST(test_lattice_branching_closes_a_thin_knapsack_slab);
     RUN_TEST(test_lattice_branching_publishes_its_point_at_a_node_limit);

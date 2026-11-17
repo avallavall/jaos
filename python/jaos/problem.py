@@ -1141,8 +1141,8 @@ class Problem:
         return self
 
     def set_mip_rcfix(self, on):
-        """Reduced-cost fixing of integer bounds at the root (D323); on by
-        default, negative restores it."""
+        """Reduced-cost fixing of integer bounds at the root and at the
+        nodes (D323, 02-475); on by default, negative restores it."""
         self._m.set_mip_rcfix(on)
         return self
 

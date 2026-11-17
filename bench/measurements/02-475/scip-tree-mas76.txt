@@ -1,0 +1,8 @@
+default                                          optimal    nodes  216712 bound 40005.0541 primal 40005.0541 time 56.5
+no-redcost                                       optimal    nodes  354034 bound 40005.0541 primal 40005.0541 time 83.1
+no-node-sepa                                     optimal    nodes  316847 bound 40005.0541 primal 40005.0541 time 50.7
+no-conflict                                      optimal    nodes  334009 bound 40005.0541 primal 40005.0541 time 59.0
+no-restart                                       optimal    nodes  167711 bound 40005.0541 primal 40005.0541 time 59.2
+pscost-branching                                 optimal    nodes  190688 bound 40005.0541 primal 40005.0541 time 51.9
+no-node-sepa-no-conflict-no-restart-no-redcost   optimal    nodes  666815 bound 40005.0541 primal 40005.0541 time 72.3
+bare                                             optimal    nodes  678845 bound 40005.0541 primal 40005.0541 time 75.8

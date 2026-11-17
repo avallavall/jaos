@@ -71,7 +71,7 @@ every conic gate, since it moves every conic iterate. Verify with
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 7 of 30 at 1e10 work units, 29 with an
+J7. **MIP: MIPLIB 2017, 9 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
 HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 `binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
@@ -93,31 +93,25 @@ first:
   HiGHS's presolved model reaches bound 745 and incumbent 851 at 1e10,
   against 742 and 830, so presolve is not what keeps it open. Next: the
   root bound and the incumbent.
-- The seven at 5e10, five times the budget (02-465): `pk1` closes at
-  1.64e10 and `mas76` at 1.95e10; the other five stay open. For those
-  two the target is node work. Their node relaxations are 80% to 88% of
-  the tree's work, at 12 and 6 dual iterations a node, and the
-  heuristics' 12% to 16% buys nothing once node 1 holds the optimum.
-  An iteration costs about the matrix's nonzeros, the dual simplex's
-  floor, so the count of iterations and nodes is the lever. Heuristics
-  off, `--rins 0` and node presolve off each move the work by at most
-  12%. Only 7% and 15% of nodes follow their parent, so the parent's kept
-  factors reach few of them. Solving a child from the parent's whole
-  state takes 0.78x the work of the tree's solve on `pk1` and `mas76`,
-  and 0.52x on `binkar10_1`. Even on every node and with heuristics off,
-  that leaves `pk1` near 1.1e10. The pricing weights carried from parent
-  to child save 11% of `pk1`'s work to 20,000 nodes and raise the 2017
-  dual side by 0.028, but the trees' other paths cost the primal side
-  0.24 and MIPLIB 3 1.026x (`node-dse-carry`, 02-473). Next: fewer nodes,
-  by the branching and node cuts the other five need too. Verify with
-  `pk1` and `mas76` closing inside 1e10 and `make miplib J=2`.
-- The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
-  the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
-  and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
-  1,859, where JAOS stayed open past 121,000 (02-465). What they lack is
-  branching, node cuts and propagation; `binkar10_1` closes with node
-  MIR (02-474, below). On `gen-ip002` and `gen-ip054` JAOS's bound per
-  node leads, and neither HiGHS nor SCIP closes them in 300 s (02-476).
+- The seven at 5e10, five times the budget (02-465): `binkar10_1` closes
+  with node MIR (02-474, below), and `pk1` and `mas76` close inside 1e10
+  (`bench/measurements/02-475/`). `pk1`'s objective is a whole number at
+  every integer point, which the objective step now reads through
+  continuous columns held as differences; with node relaxations that stop
+  at the incumbent and reduced-cost fixing at every node it closes at
+  7.5e9 in 174,316 nodes, where SCIP takes 353,721. `mas76` closes at
+  5.6e9 in 379,655 nodes against SCIP's 216,712. SCIP's ablation on
+  `mas76` puts its conflicts from nodes that pass the incumbent at 1.54x
+  its nodes and its node cuts at 1.46x; JAOS has neither on `mas76`'s
+  rows, which all hold its continuous column.
+- The other four lack bound per node: `gen-ip002`, `gen-ip054`, `neos5`
+  and `assign1-5-8`. In 20 s JAOS takes 1.5 to 9 times the nodes of
+  HiGHS and SCIP on `gen-ip002`, `gen-ip054` and `assign1-5-8` (02-465);
+  on `gen-ip002` and `gen-ip054` JAOS's bound per node leads, and neither
+  HiGHS nor SCIP closes them in 300 s (02-476). Next: a conflict from a
+  node whose relaxation stopped at the incumbent, its proof the stopped
+  duals over the path's bounds, read on `mas76`, `mas74` and the four,
+  since JAOS draws conflicts from infeasible nodes only (02-475).
 - `gen-ip054` closes at 2.8e9 work units in 75,989 nodes on an
   LLL-reduced basis of the improving region (`--lattice`, 02-476), where
   the columns' tree is open at 1e11. The tree first runs 20,000 nodes over
@@ -129,8 +123,10 @@ first:
   the columns costs 4% to 9% of the work and finds better points late
   (`lattice-round-columns`). Next for `gen-ip002`: a heuristic for the
   reduced tree whose points hold the bound rows `V y >= 0`, so that the
-  first phase can be short. Verify with `gen-ip002` holding its optimum
-  and closing inside 1e10.
+  first phase can be short. With 02-475's fixing at every node the first
+  20,000 nodes no longer reach the optimum, and `gen-ip002` ends 0.0025
+  away. Verify with `gen-ip002` holding its optimum and closing inside
+  1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
   (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
   and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work

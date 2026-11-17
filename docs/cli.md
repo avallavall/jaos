@@ -130,8 +130,9 @@ apply. An LP prints none of them.
 - `heuristic_points` counts the incumbents a heuristic found.
 - `first_incumbent` is the node at which the first incumbent appeared, 0
   when none did.
-- `fixed_cols` counts the bounds `--rcfix` moved, and `tightened` the
-  bounds `--propagate` moved. Each reads 0 when its switch is off.
+- `fixed_cols` counts the bounds `--rcfix` moved at the root, and
+  `tightened` the bounds `--propagate` moved. Each reads 0 when its switch
+  is off.
 - `bound` is the best objective an open node could still reach.
 - `incumbent` follows when the tree holds an integer point, so a tree
   stopped by a limit says what it found. At `optimal` the `objective`,
@@ -249,7 +250,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
 | `--pump-obj F` | blends the objective into the pump at a weight that starts at 1 and is multiplied by `F` each round (after Achterberg and Berthold). Default 0.5; `0` is the plain pump; `1` or more is a usage error. |
 | `--pump-always` | runs the pump at the root even when an incumbent exists. Off by default; `--no-pump-always` keeps the default. |
 | `--no-heuristics` | turns off the rounding heuristics: the rounding of each fractional node's point and, at the root of a linear model, lock rounding, the search over the starts of a time-indexed schedule, the feasibility jump, the exchanges between assignment rows, the threshold accepting over the items of partitioning rows, priced in closed form or by an LP over the columns that link the rows, and the moves over the disjunctions of big-M rows at the root and in the tree. In a model with cones or quadratic rows it turns off the root's rounding. |
-| `--rcfix` | reduced-cost fixing at the root once an incumbent exists; every node inherits the bounds. On by default (`bench/measurements/02-335/`); `--no-rcfix` turns it off. |
+| `--rcfix` | reduced-cost fixing once an incumbent exists: at the root, whose bounds every node inherits, and at each node, whose bounds its subtree inherits. On by default (`bench/measurements/02-335/`, `bench/measurements/02-475/`); `--no-rcfix` turns it off. |
 | `--tighten` | coefficient tightening of binary columns in one-sided rows, and the parity step over equality rows, at the root. On by default; `--no-tighten` turns both off. |
 | `--mip-presolve` | before the tree, merges two continuous columns that an equality row makes equal, and mirrors a column whose lower bound lies farther from zero than its upper bound, or whose bounds lie equally far and whose cost or entries read negative, so that the tree reads each column in one sign (`jaos_set_mip_presolve` in `docs/api.md` gives the rule). On by default; `--no-mip-presolve` turns it off. |
 | `--probing` | after the root solve, tries each fractional binary at 0 and at 1 and keeps what the propagation proves. Off by default; `--no-probing` keeps the default. |

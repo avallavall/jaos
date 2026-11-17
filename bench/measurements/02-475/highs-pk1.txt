@@ -1,0 +1,77 @@
+Running HiGHS 1.15.1 (git hash: n/a): Copyright (c) 2026 under MIT licence terms
+Includes third-party software components, see THIRD_PARTY_NOTICES.md for full details
+Command line parsed using CLI11 2.5.0: Copyright (c) 2017-2025 University of Cincinnati
+Set option threads to 1
+Set option time_limit to 900
+Set option log_file to "/dev/null"
+Set option mip_rel_gap to 1e-06
+MIP pk1 has 45 rows; 86 cols; 915 nonzeros; 55 integer variables (55 binary)
+Coefficient ranges:
+  Matrix  [1e+00, 6e+01]
+  Cost    [1e+00, 1e+00]
+  Bound   [1e+00, 1e+00]
+  RHS     [7e+02, 7e+02]
+Presolving model
+45 rows, 86 cols, 915 nonzeros 0s
+45 rows, 86 cols, 915 nonzeros 0s
+Presolve reductions: rows 45(-0); columns 86(-0); nonzeros 915(-0) - Not reduced
+
+Solving MIP model with:
+   45 rows
+   86 cols (55 binary, 0 integer, 0 implied int., 31 continuous, 0 domain fixed)
+   915 nonzeros
+   Thread count 1 (of 12 threads). Using 1 max workers. Parallel search off
+
+Src: B => Branching; C => Central rounding; F => Feasibility pump; H => Heuristic;
+     I => Shifting; J => Feasibility jump; L => Sub-MIP; P => Empty MIP; R => Randomized rounding;
+     S => Solve LP; T => Evaluate node; U => Unbounded; X => User solution; Y => HiGHS solution;
+     Z => ZI Round; l => Trivial lower; p => Trivial point; u => Trivial upper; z => Trivial zero
+
+        Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+
+         0       0         0   0.00%   0               inf                  inf        0      0      0         0     0.0s
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+Restarting search from the root node
+Model after restart has 45 rows, 86 cols (55 bin., 0 int., 0 impl., 31 cont., 0 dom.fix.), and 915 nonzeros
+
+
+        Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+
+     50475       0         0   0.00%   0               17               100.00%       10      0      0    552616    22.2s
+
+        Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+
+    322726    9409    127519  24.59%   3.560232245     14                74.57%     1147     31   9946     3140k   115.5s
+
+        Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+
+    545707    8703    236439  56.11%   5.129100034     11.999999         57.26%     1085     18   9807     5441k   204.8s
+    563792    8483    245540  60.87%   5.331848929     11.999999         55.57%     1173     28   9938     5659k   214.8s

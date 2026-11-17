@@ -39,6 +39,8 @@ typedef struct {
     bool node_keep;
     bool node_probe;
     bool node_no_presolve;
+    bool node_cutoff_set;
+    double node_cutoff;
     bool no_cert_solve;
     bool no_flat_rows;
     bool cut_resolve;
@@ -338,6 +340,7 @@ struct jaos_model {
 
     double stop_bound;
     bool stop_bound_ok;
+    bool cutoff_hit;
 
     char **exact_col;
     char **exact_dual;

@@ -1,0 +1,3 @@
+before     solved 6 incumbents 29 primal 4.4435 dual 6.4500 sum 10.8936
+land       solved 8 incumbents 29 primal 5.4989 dual 6.3148 sum 11.8137
+unguarded  solved 8 incumbents 29 primal 5.4754 dual 6.2933 sum 11.7687

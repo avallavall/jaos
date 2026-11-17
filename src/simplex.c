@@ -257,6 +257,11 @@ typedef struct {
     bool held_valid, held_below;
     int64_t held_row;
     double held_violation, held_total;
+
+    double cut_lag, cut_bound;
+    bool cut_hit;
+    double zobj;
+    bool zobj_ok;
 } sx;
 
 enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
@@ -388,6 +393,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->nrow = m->num_row;
     s->ncol = m->num_col;
     s->nvar = m->num_col + m->num_row;
+    s->cut_lag = INFINITY;
 
     s->primal_tol = m->cfg.primal_tol > 0.0 ? m->cfg.primal_tol : PRIMAL_TOL;
     s->dual_tol   = m->cfg.dual_tol   > 0.0 ? m->cfg.dual_tol   : DUAL_TOL;
@@ -1017,6 +1023,7 @@ static void pviol_touch(sx *s, int64_t i)
 static void compute_primal(sx *s, bool refine)
 {
     s->pviol_ok = false;
+    s->zobj_ok = false;
     double *rhs = s->col;
     double *comp = s->rhsc;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
@@ -1586,6 +1593,8 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
 
     double *rhs = s->col;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
+    double dz = 0.0;
 
     for (int64_t k = at; k < n; k++) {
 
@@ -1597,6 +1606,7 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
         double delta = nonbasic_value(s, v) - from;
         if (delta == 0.0)
             continue;
+        dz += s->cost0[v] * delta;
 
         if (v < s->ncol) {
             const jaos_model *m = s->m;
@@ -1617,14 +1627,23 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
             const int64_t i = s->cpat[k];
             s->xb[i] -= rhs[i];
             pviol_touch(s, i);
+            if (track)
+                dz -= s->cost0[s->basis[i]] * rhs[i];
         }
         jm_work_add(&s->work, nc * JM_WORK_NONZERO);
     } else {
         for (int64_t i = 0; i < s->nrow; i++) {
             s->xb[i] -= rhs[i];
             pviol_touch(s, i);
+            if (track)
+                dz -= s->cost0[s->basis[i]] * rhs[i];
         }
         jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
+    }
+    if (track) {
+        s->zobj += dz;
+        jm_work_add(&s->work, (nc * SPARSE_COL_DEN <= s->nrow ? nc : s->nrow) *
+                              JM_WORK_NONZERO);
     }
 
     s->ncpat = -1;
@@ -2368,14 +2387,26 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     }
 
     double q_value = nonbasic_value(s, q);
+    const bool track = s->zobj_ok && s->cut_lag < INFINITY;
+    double dz = 0.0;
     if (sparse_col) {
         for (int64_t k = 0; k < s->ncpat; k++) {
             int64_t i = s->cpat[k];
             s->xb[i] -= theta_primal * s->col[i];
+            if (track)
+                dz += s->cost0[s->basis[i]] * s->col[i];
         }
     } else {
-        for (int64_t i = 0; i < s->nrow; i++)
+        for (int64_t i = 0; i < s->nrow; i++) {
             s->xb[i] -= theta_primal * s->col[i];
+            if (track)
+                dz += s->cost0[s->basis[i]] * s->col[i];
+        }
+    }
+    if (track) {
+        s->zobj += theta_primal * (s->cost0[q] - dz);
+        jm_work_add(&s->work,
+                    (sparse_col ? s->ncpat : s->nrow) * JM_WORK_NONZERO);
     }
     s->xb[r] = q_value + theta_primal;
 
@@ -2596,11 +2627,10 @@ static double settled_objective(const sx *s)
     return point_objective(s);
 }
 
-static bool stop_bound(sx *s, double *out)
+static bool stop_bound_in(sx *s, double *y, double *out)
 {
     if (s->needs_refactor)
         return false;
-    double *y = s->y;
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost0[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
@@ -2618,6 +2648,31 @@ static bool stop_bound(sx *s, double *out)
     }
     *out = sum + comp;
     return isfinite(*out);
+}
+
+static bool stop_bound(sx *s, double *out)
+{
+    return stop_bound_in(s, s->y, out);
+}
+
+static bool past_cutoff(sx *s)
+{
+    if (!s->zobj_ok) {
+        s->zobj = point_objective(s);
+        s->zobj_ok = true;
+        jm_work_add(&s->work, s->nvar * JM_WORK_NONZERO);
+    }
+    if (!(s->zobj >= s->cut_lag))
+        return false;
+    jm_work_add(&s->work, (s->m->num_nz + s->nvar) * JM_WORK_NONZERO);
+    double lag = 0.0;
+    if (stop_bound_in(s, s->tau, &lag) && lag >= s->cut_lag) {
+        s->cut_bound = lag;
+        s->cut_hit = true;
+        return true;
+    }
+    s->cut_lag = INFINITY;
+    return false;
 }
 
 static double settled_dual_violation(const sx *s)
@@ -4322,6 +4377,10 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             continue;
 
         s->iters++;
+        if (s->cut_lag < INFINITY && !s->needs_refactor && past_cutoff(s)) {
+            *out = JAOS_SOLVE_WORK_LIMIT;
+            return JAOS_OK;
+        }
     }
 }
 
@@ -4801,6 +4860,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     *by_presolve = false;
     *units = 0;
     *iters = 0;
+    m->cutoff_hit = false;
     jm_presolve p;
     jm_presolve_init(&p);
     p.orig = m;
@@ -5046,6 +5106,10 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             st = JAOS_OK;
             outcome = JAOS_SOLVE_OPTIMAL;
         } else {
+            const double tsg = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+            s.cut_lag = !s.primal_run && m->cfg.node_cutoff_set
+                ? m->cfg.node_cutoff - tsg * target->obj_offset : INFINITY;
+            s.cut_hit = false;
             st = s.primal_run ? run_primal(&s, &outcome)
                               : run(&s, &outcome);
         }
@@ -5227,7 +5291,13 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         memcpy(m->err, target->err, sizeof m->err);
 
     m->stop_bound_ok = false;
-    if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
+    m->cutoff_hit = false;
+    if (st == JAOS_OK && s.cut_hit && outcome == JAOS_SOLVE_WORK_LIMIT) {
+        const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+        m->stop_bound = sgn * s.cut_bound + target->obj_offset;
+        m->stop_bound_ok = true;
+        m->cutoff_hit = true;
+    } else if (st == JAOS_OK && m->cfg.node_probe && !s.primal_run &&
         (outcome == JAOS_SOLVE_WORK_LIMIT ||
          outcome == JAOS_SOLVE_TIME_LIMIT ||
          outcome == JAOS_SOLVE_INTERRUPTED)) {
@@ -5462,6 +5532,8 @@ jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
     s->up[jr] = phi / t->col_scale[jr];
     const int64_t limit = t->cfg.work_limit;
     t->cfg.work_limit = cap > 0 ? s->work.units + cap : 0;
+    s->cut_lag = INFINITY;
+    s->cut_hit = false;
     jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
     jaos_status st = run(s, &o);
     t->cfg.work_limit = limit;

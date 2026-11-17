@@ -715,7 +715,11 @@ Sets the gap that ends the search. A node closes when its bound is within
 `gap * (1 + |incumbent|)` of the incumbent, or `gap * |incumbent|` under the
 relative rule of `jaos_set_mip_gap_rule`. The default is 1e-6. A gap of 0
 means zero: a node closes only when its bound does not beat the incumbent.
-The call fails when `gap` is negative or not finite.
+The call fails when `gap` is negative or not finite. When every integer
+point's objective is a multiple of a step, a bound rounds up to the next
+multiple before this test. Below the root of a linear model, a node's dual
+simplex stops as soon as the bound its duals prove closes the node this way,
+and the node closes without its relaxation's optimum.
 
 **`jaos_set_mip_gap_rule`**\
 `jaos_status jaos_set_mip_gap_rule(jaos_model *m, jaos_gap_rule rule)`\
@@ -1062,10 +1066,13 @@ off by default.
 
 **`jaos_set_mip_rcfix`**\
 `jaos_status jaos_set_mip_rcfix(jaos_model *m, int on)`\
-Turns reduced-cost fixing at the root on or off. It is on by default. Once
-an incumbent exists, it moves an integer column's far bound to the furthest
-integer the column's reduced cost allows. Every node inherits the new bound,
-and `jaos_mip_result` counts such columns in `fixed_cols`.
+Turns reduced-cost fixing on or off, at the root and at the nodes. It is on
+by default. Once an incumbent exists, the root moves an integer column's far
+bound to the furthest integer the column's reduced cost allows against the
+incumbent. Every node inherits the new bound, and `jaos_mip_result` counts
+such columns in `fixed_cols`. A node of a linear model does the same with its
+own relaxation's reduced costs, against the bound at which a node is pruned,
+and its subtree inherits what it moves; the summary log counts those bounds.
 
 **`jaos_set_mip_tighten`**\
 `jaos_status jaos_set_mip_tighten(jaos_model *m, int on)`\
@@ -1144,7 +1151,8 @@ Turns conflict analysis on or off. It is on by default. At a node whose
 relaxation is infeasible, it reads the Farkas proof over the branchings on
 the path. When the proof needs only binaries fixed on the path, at most 32
 of them, it adds a row that forbids that combination for the rest of the
-search.
+search. A binary the nodes fixed by its reduced cost does not count as fixed
+on the path, so a proof that needs one adds no row.
 
 **`jaos_set_mip_symmetry`**\
 `jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)`\

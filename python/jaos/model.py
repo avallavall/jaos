@@ -990,12 +990,13 @@ class Model:
         self._check(_lib.jaos_set_mip_pump_always(self._handle(), int(on)))
 
     def set_mip_rcfix(self, on):
-        """Reduced-cost fixing at the root.
+        """Reduced-cost fixing at the root and at the nodes.
 
-        Once the root holds an incumbent, an integer column resting at a
-        bound has its other bound pulled in to the furthest integer its
-        reduced cost still allows. On by default; a negative value
-        restores it.
+        Once an incumbent exists, an integer column resting at a bound has
+        its other bound pulled in to the furthest integer its reduced cost
+        still allows: at the root for the whole tree, and at each node of a
+        linear model for that node's subtree. On by default; a negative
+        value restores it.
         """
         self._check(_lib.jaos_set_mip_rcfix(self._handle(), int(on)))
 

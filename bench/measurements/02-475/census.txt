@@ -1,0 +1,54 @@
+air03 every integer point's objective is a multiple of 2 from 0, so a bound rounds up to the next one 
+bell3a 
+bell5 
+blend2 
+dcmulti 
+egout 
+enigma every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+flugpl 
+gen 
+gt2 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+khb05250 
+l152lav every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+lseu every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+misc03 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 1 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+misc06 
+misc07 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 1 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+mod008 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+mod010 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+p0033 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+p0201 every integer point's objective is a multiple of 5 from 0, so a bound rounds up to the next one 
+p0282 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+rgn 
+stein27 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+stein45 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+markshare_4_0 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 4 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+markshare2 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 14 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+enlight_hard every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+pk1 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 31 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+neos5 
+gen-ip054 
+timtab1 
+neos-3046615-murg 
+sp150x300d every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+mas76 
+mas74 
+gen-ip002 
+neos-3754480-nidda 
+neos-2657525-crna 
+assign1-5-8 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 26 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+glass4 
+supportcase26 
+neos-911970 
+mad 
+graphdraw-domain 
+exp-1-500-5-5 
+tr12-30 
+neos-3381206-awhea every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+ic97_potential every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 205 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+neos-3627168-kasai 
+binkar10_1 
+csched008 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 51 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+csched007 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 100 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them as differences with whole sides 
+beasleyC3 every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
+p200x1188c every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one every integer point's objective is a multiple of 1 from 0, so a bound rounds up to the next one 
