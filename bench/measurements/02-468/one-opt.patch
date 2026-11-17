@@ -1,0 +1,55 @@
+diff --git a/src/mip.c b/src/mip.c
+index f585c580..d6217d8f 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -5514,6 +5514,41 @@ out_free:
+     return rc;
+ }
+ 
++static double one_opt(const jaos_model *m, double *xr, double *ra, double tol)
++{
++    const int64_t nc = m->num_col;
++    if (m->col_quad != nullptr || m->q_start != nullptr || m->num_sos > 0 ||
++        m->row_ind_col != nullptr)
++        return 0.0;
++    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++    double gain = 0.0;
++    for (int64_t j = 0; j < nc; j++) {
++        const double c = sg * m->col_cost[j];
++        if (!m->col_integer[j] || c == 0.0 || semi_live(m, j))
++            continue;
++        const double d = c > 0.0 ? -1.0 : 1.0;
++        double room = d < 0.0 ? xr[j] - m->col_lower[j]
++                              : m->col_upper[j] - xr[j];
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1] && room >= 1.0;
++             k++) {
++            const int64_t i = m->a_index[k];
++            const double s = m->a_value[k] * d;
++            if (s > 0.0 && isfinite(m->row_upper[i]))
++                room = fmin(room, (m->row_upper[i] + tol - ra[i]) / s);
++            else if (s < 0.0 && isfinite(m->row_lower[i]))
++                room = fmin(room, (ra[i] - m->row_lower[i] + tol) / -s);
++        }
++        const double t = floor(room);
++        if (!(t >= 1.0) || !isfinite(t))
++            continue;
++        xr[j] += d * t;
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
++            ra[m->a_index[k]] += m->a_value[k] * d * t;
++        gain += m->col_cost[j] * d * t;
++    }
++    return gain;
++}
++
+ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+                           double *ra, double *obj)
+ {
+@@ -5556,6 +5591,8 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+             return false;
+     if (sos_violated(m, xr, 0, nullptr, nullptr) >= 0)
+         return false;
++    if (getenv("J32_ONEOPT") != nullptr)
++        z += one_opt(m, xr, ra, tol);
+     *obj = z;
+     return true;
+ }

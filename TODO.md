@@ -195,8 +195,9 @@ instances:
     over local branching; proximity search was refused on its own budget
     (`proximity-search`, 02-467) until the scheduler can give it work only
     while it improves;
-  - improvement: 1-opt, 2-opt, polishing by evolution over the pool
-    (Rothberg);
+  - improvement: 2-opt, polishing by evolution over the pool (Rothberg);
+    1-opt with the continuous columns held was refused (`one-opt`,
+    02-468) until an LP over them follows the moves;
   - local search: tabu and weighted moves past one flip (lift and
     breakthrough moves), simulated annealing over the jump.
 - For MIQP and the conic tree, which have two each: the jump, the pump,
