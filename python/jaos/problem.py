@@ -1060,7 +1060,7 @@ class Problem:
         return self
 
     def set_mip_node_mir(self, on=True):
-        """MIR cuts at the nodes beside the Gomory round (D310); None
+        """MIR cuts at the nodes at every depth while they pay; None
         restores the default."""
         self._m.set_mip_node_mir(on)
         return self

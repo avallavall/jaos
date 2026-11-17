@@ -1,4 +1,4 @@
-# 02-474 — binkar10_1: MIR cuts at the nodes, refused
+# 02-474 — binkar10_1: MIR cuts at the nodes
 
 Taken on 2026-11-17 on 003a8f9, for TODO row J7's `binkar10_1` line.
 `read.sh` takes every reading one solve at a time, from copies of 003a8f9
@@ -234,17 +234,42 @@ other nodes. The sum moves by more on a work-only change than `c1` or
 `c2` move it, so it cannot judge a change that closes one instance and
 leaves the rest to the trial's noise.
 
+Four more null offsets, 150, 300, 600 and 900 times the same size, each
+added once at the root of 003a8f9 and nothing else changed
+(`miplib2017/null150.txt` to `null900.txt`, `spread.txt`):
+
+| arm | primal | dual | sum |
+|---|---|---|---|
+| the record, offset 0 | 4.4267 | 6.4227 | 10.8494 |
+| `c2` | 4.4435 | 6.4500 | 10.8936 |
+| offset 600 | 4.4972 | 6.5490 | 11.0462 |
+| offset 900 | 4.5937 | 6.4557 | 11.0494 |
+| offset 450, `null` | 4.6099 | 6.5232 | 11.1331 |
+| offset 300 | 5.3253 | 6.5312 | 11.8565 |
+| offset 150 | 5.4417 | 6.4356 | 11.8773 |
+
+The six readings of one code span 10.85 to 11.88, and the record is the
+lowest of them. The swings are incumbents found or missed:
+- `markshare_4_0` loses its optimum at 150 and 300, 0.75 each;
+- `mas74` loses it at 150, 450 and 900;
+- `timtab1` ranges from 1.15e6 to 1.29e6;
+- `glass4` from 1.50e9 to 1.70e9;
+- `tr12-30` reaches 144,007 at 450.
+
+`c2` reads below five of the six, so its 0.044 over the record is inside
+the spread. A difference of the 2017 sum smaller than about 1.0 says
+nothing on its own; it has to be read instance by instance.
+
 ## The verdict
 
-Refused: MIPLIB 2017's sum reads 10.8936 against 10.8494, the bar. The
-change closes `binkar10_1` and reads 0.802x on MIPLIB 3 with no instance
-past 1.14x. `bench/refusals.txt`'s `node-mir-every-depth` and
-`mir-root-cmir-steps` carry what reopens them; TODO J7 names the next
-step: the sum's spread over several null offsets, then `landing.patch`
-read against it.
+Landed, as `landing.patch`: node MIR is on for a linear objective, at
+every depth while it pays. It closes `binkar10_1`, one of J7's seven,
+and MIPLIB 3 reads 0.802x geometric and 0.923x in total, worst `misc03`
+1.14x. On MIPLIB 2017 the instances with a row the node MIR cuts move
+as the table above says, and the sum sits inside the spread of null
+offsets. `bench/refusals.txt`'s `mir-root-cmir-steps` keeps the root's
+steps refused.
 
-`make test`, `make sanitize` and `make python-test` passed with
-`landing.patch` applied (`c2`'s code, its three tests in
-`tests/test_mip.c`, and node MIR pinned off in the tests whose subject is
-a tree without node cuts). The netlib sets were not run: no LP path
-changed.
+`make test`, `make sanitize`, `make python-test`, the netlib and
+Kennington sets and `make miplib J=2` pass on the landed commit, and
+its MIPLIB 2017 record reads as `miplib2017/c2.txt`.

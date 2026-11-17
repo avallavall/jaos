@@ -875,8 +875,9 @@ class Model:
         self._check(_lib.jaos_set_mip_dive_gap(self._handle(), float(fraction)))
 
     def set_mip_node_mir(self, on=True):
-        """Whether a node inside the cut depth gets MIR cuts over its own
-        bounds beside its Gomory round (D310); None restores the default."""
+        """Whether the nodes get MIR cuts over their own bounds at every
+        depth while the cuts pay (on for a linear objective); None
+        restores the default."""
         v = -1 if on is None else int(bool(on))
         self._check(_lib.jaos_set_mip_node_mir(self._handle(), v))
 

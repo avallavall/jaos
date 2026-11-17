@@ -71,7 +71,7 @@ every conic gate, since it moves every conic iterate. Verify with
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 29 with an
+J7. **MIP: MIPLIB 2017, 6 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
 HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 `binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
@@ -114,8 +114,9 @@ first:
 - The other five lack bound per node. In 20 s JAOS takes 1.5 to 9 times
   the nodes of HiGHS and SCIP on `gen-ip002`, `gen-ip054`, `assign1-5-8`
   and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
-  1,859, where JAOS stays open past 121,000 (02-465). What they lack is
-  branching, node cuts and propagation.
+  1,859, where JAOS stayed open past 121,000 (02-465). What they lack is
+  branching, node cuts and propagation; `binkar10_1` closes with node
+  MIR (02-474, below).
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against
@@ -126,18 +127,14 @@ first:
   `neos-911970` a JAOS node takes about 200 LP iterations against
   HiGHS's 72. Next: what makes cap 1 cheaper on 2017 without growing
   `misc03`, read probe by probe.
-- `binkar10_1`'s bound stays 0.4% short; cuts at nodes did not pay
-  (`node-pool-scan`, `bench/measurements/02-340/`). HiGHS closes it in
-  4,066 nodes from a root of 6701.2 after a restart, against JAOS's
-  6693.2, with about 96 cuts in its node LPs and 9,500 conflicts. Cuts to
-  depth 10 with node MIR lift JAOS's bound from 6718.1 to 6724.4 and help
-  `beasleyC3` and `neos-911970`, but grow `bell5`'s tree 93x, and the
-  node-cut stall that holds `bell5` takes `enigma` from 895 nodes to
-  13,082 (`node-cuts-depth-mir-stall`, 02-460). JAOS's `--restart` does
-  not fire on it even with `MIP_RESTART_FRAC` at 0.02: its root's reduced
-  costs fix fewer than 2% of the 170 integer columns, where HiGHS finds
-  2.9% inactive. Next: a stop for a subtree's cuts that keeps the shallow
-  rounds, and what makes HiGHS's root fix more.
+- `binkar10_1` closes at 5.2e9 work units in 6,280 nodes with MIR over
+  each node's bounds at every depth, on the rows whose columns are all
+  integer, with c-MIR's complementation and divisor halving, stopped
+  once they lift under a quarter of the branching gain
+  (`bench/measurements/02-474/`; HiGHS 4,066 nodes, SCIP 1,859). The
+  same steps at the root reach SCIP's 6710.3 but grow `gt2` and `p0201`
+  (`mir-root-cmir-steps`). Next: the root's steps on the rows where they
+  lift, read on `gt2` and `p0201`.
 - MIPLIB 3: `l152lav` and `bell3a` trees are far larger than HiGHS's; the
   Gomory family is JAOS's weakest (`bench/measurements/02-351/`, `02-364/`).
 - General integers with equality rows: of 02-394's 700 generated MILPs,
@@ -153,7 +150,9 @@ first:
   point satisfies such rows, read on those models and on MIPLIB.
 
 Verify with `make miplib J=2`, `make miplib2017` and
-`bench/measurements/02-328/m17sum.py`.
+`bench/measurements/02-328/m17sum.py`. Read the sum against 02-474's
+spread: six readings of one code, with only the root's work moved,
+span 10.85 to 11.88, so a change is judged instance by instance.
 
 J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 19:
 - for linear MIPs:

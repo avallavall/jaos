@@ -144,7 +144,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_root_cut_drop` | `mip_root_cut_drop` | boolean | true |
 | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
 | `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 100 in network mode |
-| `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | false |
+| `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | true for a linear objective, false for a quadratic one |
 | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
 | `jaos_set_mip_dive_child` | `mip_dive_child` | `nearer`, `up`, `down`, `pseudocost` | `nearer` |
@@ -847,8 +847,17 @@ infinite.
 
 **`jaos_set_mip_node_mir`**\
 `jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)`\
-Adds MIR cuts over a node's own bounds to the node's round of Gomory cuts,
-under the same cap. It is off by default.
+MIR cuts over a node's own bounds at every depth of the tree, beside the
+Gomory round down to the cut depth and under the same cap, from the rows
+whose columns are all integer and whose coefficients or sides are not all
+±1 and whole. On those rows the MIR halves its best divisor up to three
+times and measures each integer column inside its bounds from its other
+bound in turn, as c-MIR does. A node whose bound already reaches the
+incumbent gets none, and the cuts stop for the rest of the tree once, after
+`MIP_NODE_MIR_TRIAL` nodes, the bound they lifted is no more than
+`MIP_NODE_MIR_PAYS` of what branching gained at the same nodes. On by
+default for a linear objective, off for a quadratic one; -1 restores the
+default.
 
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\

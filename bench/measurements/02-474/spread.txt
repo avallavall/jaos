@@ -1,0 +1,7 @@
+record     solved 5 incumbents 29 primal 4.4267 dual 6.4227 sum 10.8494
+null150    solved 5 incumbents 29 primal 5.4417 dual 6.4356 sum 11.8773
+null300    solved 5 incumbents 29 primal 5.3253 dual 6.5312 sum 11.8565
+null450    solved 5 incumbents 29 primal 4.6099 dual 6.5232 sum 11.1331
+null600    solved 5 incumbents 29 primal 4.4972 dual 6.5490 sum 11.0462
+null900    solved 5 incumbents 29 primal 4.5937 dual 6.4557 sum 11.0494
+c2         solved 6 incumbents 29 primal 4.4435 dual 6.4500 sum 10.8936
