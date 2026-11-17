@@ -1,0 +1,6 @@
+gen-ip054 rcnode=0 status work_limit work_units 2000010159 nodes 43019 bound 6797.0899167853495 incumbent 6866.2306826720005 
+gen-ip054 rcnode=1 status work_limit work_units 2000002623 nodes 42909 bound 6796.9979868314313 incumbent 6840.9656417920005 
+branch and bound: 224682 node bounds tightened by reduced costs
+gen-ip002 rcnode=0 status work_limit work_units 2000003343 nodes 60102 bound -4812.236917574648 incumbent -4783.7333915999998 
+gen-ip002 rcnode=1 status work_limit work_units 2000007292 nodes 60380 bound -4812.4558645317356 incumbent -4783.7333915999998 
+branch and bound: 487424 node bounds tightened by reduced costs

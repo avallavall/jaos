@@ -1,0 +1,6 @@
+ref-gen-ip054-cut      optimal    nodes   58587 work   2024828529 bound 6840.9656417919905   inc 6840.9656417919905
+ref-gen-ip054-z1       optimal    nodes  249106 work   6087070669 bound 6840.9656417919978   inc 6840.9656417919978
+ref-gen-ip054-z2       optimal    nodes   53482 work   1694309832 bound 6840.9656417920196   inc 6840.9656417920196
+ref-gen-ip002-cut      work_limit nodes  183246 work  10000005898 bound -4801.6927520279205  inc 0
+ref-gen-ip002-z1       work_limit nodes  218795 work  10000004632 bound -4804.9601614550838  inc 0
+ref-gen-ip002-z2       work_limit nodes  180163 work  10000011681 bound -4801.5619105262449  inc 0

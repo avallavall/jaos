@@ -1,0 +1,217 @@
+diff --git a/src/mip.c b/src/mip.c
+index be2256f9..de4b18c0 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1456,6 +1456,51 @@ static void probe_learn(double *pc_sum, int64_t *pc_n, int64_t nc, int64_t j,
+     pc_n[d * nc + j] += 1;
+ }
+ 
++static double *sb_gain_proto = nullptr;
++
++static void sb_note(int64_t nc, int64_t j, int d, jaos_solve_status o,
++                    double gain)
++{
++    if (sb_gain_proto == nullptr)
++        return;
++    if (o == JAOS_SOLVE_INFEASIBLE)
++        sb_gain_proto[d * nc + j] = INFINITY;
++    else if (o == JAOS_SOLVE_OPTIMAL || o == JAOS_SOLVE_WORK_LIMIT)
++        sb_gain_proto[d * nc + j] = gain > 0.0 ? gain : 0.0;
++}
++
++static int64_t select_branch_sb(const jaos_model *m, const double *x,
++                                const double *pc_sum, const int64_t *pc_n,
++                                const double *g, double cap)
++{
++    const int64_t nc = m->num_col;
++    int64_t branch = -1;
++    double best = -1.0, best_away = -1.0;
++    for (int64_t j = 0; j < nc; j++) {
++        if (!m->col_integer[j])
++            continue;
++        const double f = x[j] - floor(x[j]);
++        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL)
++            continue;
++        double qd = isnan(g[j]) ? f * pseudocost(j, 0, nc, pc_sum, pc_n) : g[j];
++        double qu = isnan(g[nc + j]) ? (1.0 - f) * pseudocost(j, 1, nc, pc_sum, pc_n)
++                                     : g[nc + j];
++        if (qd > cap)
++            qd = cap;
++        if (qu > cap)
++            qu = cap;
++        const double score = (qd > MIP_PC_EPS ? qd : MIP_PC_EPS) *
++                             (qu > MIP_PC_EPS ? qu : MIP_PC_EPS);
++        const double away = f < 1.0 - f ? f : 1.0 - f;
++        if (score > best || (score == best && away > best_away)) {
++            best = score;
++            best_away = away;
++            branch = j;
++        }
++    }
++    return branch;
++}
++
+ static jaos_status kept_probes(jaos_model *lp, const jaos_model *m,
+                                const double *x, double key, double sigma,
+                                int64_t reliability, int64_t cap,
+@@ -1496,6 +1541,7 @@ static jaos_status kept_probes(jaos_model *lp, const jaos_model *m,
+             (*probes)++;
+             if (o == JAOS_SOLVE_WORK_LIMIT)
+                 (*capped)++;
++            sb_note(nc, j, d, o, sigma * bound - key);
+             if (o == JAOS_SOLVE_OPTIMAL || o == JAOS_SOLVE_WORK_LIMIT)
+                 probe_learn(pc_sum, pc_n, nc, j, d, f, sigma * bound - key);
+         }
+@@ -1590,13 +1636,20 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
+             if (stopped)
+                 (*capped)++;
+             double obj = 0.0;
+-            if (stopped && lp->stop_bound_ok)
++            if (stopped && lp->stop_bound_ok) {
++                sb_note(nc, j, d, JAOS_SOLVE_WORK_LIMIT,
++                        sigma * lp->stop_bound - key);
+                 probe_learn(pc_sum, pc_n, nc, j, d, f,
+                             sigma * lp->stop_bound - key);
+-            else if (st == JAOS_OK &&
++            } else if (st == JAOS_OK &&
+                      jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL &&
+-                     jaos_objective(lp, &obj) == JAOS_OK)
++                     jaos_objective(lp, &obj) == JAOS_OK) {
++                sb_note(nc, j, d, JAOS_SOLVE_OPTIMAL, sigma * obj - key);
+                 probe_learn(pc_sum, pc_n, nc, j, d, f, sigma * obj - key);
++            } else if (st == JAOS_OK &&
++                       jaos_status_of(lp) == JAOS_SOLVE_INFEASIBLE) {
++                sb_note(nc, j, d, JAOS_SOLVE_INFEASIBLE, 0.0);
++            }
+             const jaos_status back = jaos_set_col_bounds(lp, j, lo0, hi0);
+             if (st == JAOS_OK)
+                 st = back;
+@@ -8764,6 +8817,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     const bool pump_always = m->cfg.mip_pump_always_set
+         ? m->cfg.mip_pump_always : MIP_PUMP_ALWAYS;
+     const bool rcfix = m->cfg.mip_rcfix_set ? m->cfg.mip_rcfix : MIP_RCFIX;
++    const char *rcenv = getenv("JAOS_RCNODE");
++    const bool rcnode_on = rcenv != nullptr && rcenv[0] == '1';
++    const char *sbenv = getenv("JAOS_SBSEL");
++    const bool sbsel_on = sbenv != nullptr && sbenv[0] == '1';
++    double *sb_gain = nullptr;
++    const char *psenv = getenv("JAOS_PSHARE");
++    const double probe_share = psenv != nullptr ? atof(psenv) : MIP_PROBE_SHARE;
+     const bool tighten = m->cfg.mip_tighten_set ? m->cfg.mip_tighten
+                                                 : MIP_TIGHTEN;
+     const bool probing = m->cfg.mip_probing_set ? m->cfg.mip_probing
+@@ -8916,6 +8976,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     bool noinc_told = false;
+     int64_t first_inc = 0;
+     int64_t rcfixed = 0;
++    int64_t rcnode_fixed = 0;
+     int64_t tightened = 0;
+     int64_t *rp_del = nullptr, *rp_mark = nullptr, *rp_sel = nullptr;
+     double *rp_nrm = nullptr;
+@@ -11099,7 +11160,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+ 
+         if (branch >= 0 && reliability > 0 &&
+             (probe_depth < 0 || depth_here <= probe_depth) &&
+-            (double)ph.sum[PH_BRANCH] <= MIP_PROBE_SHARE * (double)work) {
++            (double)ph.sum[PH_BRANCH] <= probe_share * (double)work) {
+             phase_to(&ph, work, PH_BRANCH);
+             jaos_basis_status *grown = jm_realloc_array(prs, nrl > 0 ? nrl : 1,
+                                                         sizeof *prs);
+@@ -11112,6 +11173,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 const double c = ceil(probe_cap * (double)node_work);
+                 cap = c < 1.0 ? 1 : (int64_t)c;
+             }
++            if (sbsel_on) {
++                if (sb_gain == nullptr)
++                    sb_gain = jm_alloc_array(nc > 0 ? 2 * nc : 1, sizeof *sb_gain);
++                if (sb_gain == nullptr)
++                    goto done;
++                for (int64_t j = 0; j < 2 * nc; j++)
++                    sb_gain[j] = NAN;
++                sb_gain_proto = sb_gain;
++            }
+             const jaos_status ps = strong_probe(lp, m, x, key, sigma,
+                                                 reliability, cap, pc_sum, pc_n,
+                                                 &work, &solves, &probes,
+@@ -11125,7 +11195,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 }
+                 goto done;
+             }
+-            branch = select_branch(m, x, rule, pc_sum, pc_n);
++            sb_gain_proto = nullptr;
++            if (sbsel_on) {
++                const double rbk = inc.have && inc.key < cut_key ? inc.key : cut_key;
++                const double cap = isfinite(rbk) && rbk > key ? rbk - key : 1e20;
++                branch = select_branch_sb(m, x, pc_sum, pc_n, sb_gain, cap);
++                work += 2 * nc;
++            } else {
++                branch = select_branch(m, x, rule, pc_sum, pc_n);
++            }
+         }
+         phase_to(&ph, work, PH_OTHER);
+ 
+@@ -11251,6 +11329,45 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             }
+         }
+ 
++        if (rcnode_on && nodes > 1 && branch >= 0 && inc.have) {
++            const double rbk = inc.key < cut_key ? inc.key : cut_key;
++            const double room = rbk - key;
++            if (room >= 0.0 && isfinite(room)) {
++                if (rcd == nullptr) {
++                    rcd = jm_alloc_array(nc > 0 ? nc : 1, sizeof *rcd);
++                    if (rcd == nullptr)
++                        goto done;
++                }
++                if (jaos_solution(lp, nullptr, nullptr, nullptr, rcd) != JAOS_OK)
++                    goto done;
++                work += nc;
++                for (int64_t j = 0; j < nc; j++) {
++                    if (!m->col_integer[j] || semi_live(m, j))
++                        continue;
++                    const double d = sigma * rcd[j];
++                    const jaos_basis_status bs = lp->sol_col_status[j];
++                    const double lo = lp->col_lower[j], hi = lp->col_upper[j];
++                    if (lo >= hi)
++                        continue;
++                    if (bs == JAOS_BASIS_AT_LOWER && d > 0.0 && lo > -INFINITY) {
++                        const double nh = lo + floor(room / d + MIP_RCFIX_SLACK);
++                        if (nh < hi) {
++                            if (!node_add_fix(cur, j, lo, nh))
++                                goto done;
++                            rcnode_fixed++;
++                        }
++                    } else if (bs == JAOS_BASIS_AT_UPPER && d < 0.0 &&
++                               hi < INFINITY) {
++                        const double nl = hi - floor(room / -d + MIP_RCFIX_SLACK);
++                        if (nl > lo) {
++                            if (!node_add_fix(cur, j, nl, hi))
++                                goto done;
++                            rcnode_fixed++;
++                        }
++                    }
++                }
++            }
++        }
+         const bool child_no_cuts = stalled || (nodes > 1 && cur->no_cuts);
+         bnode *down = node_child(nodes > 0 ? cur : nullptr, nc, nr_child,
+                                  nfixed, lp->sol_col_status, child_rs, nfd,
+@@ -11437,6 +11554,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                "nodes lifted the bound by %.6g against %.6g from branching, "
+                "%s at the end", (long long)mir_nrows, (long long)mir_tries,
+                mir_lift, mir_gain, mir_live ? "still on" : "off");
++    if (rcnode_on)
++        jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld node bounds "
++               "tightened by reduced costs", (long long)rcnode_fixed);
+     if (open_splits > 0)
+         jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld nodes with an "
+                "unbounded relaxation were split on an SOS set or an indicator "
+@@ -11517,6 +11637,8 @@ done:
+     free(flo);
+     free(fhi);
+     free(pcs);
++    free(sb_gain);
++    sb_gain_proto = nullptr;
+     free(prs);
+     free(row);
+     free(cut);

@@ -1,0 +1,10 @@
+gen-ip054  pc                   nodes   20000 work    434346007 bound 6787.2379996447353   inc 6881.0785948040002   strong branching 0.5%
+gen-ip054  pc-sel               nodes   20000 work    435045476 bound 6787.252034724298    inc 6881.0785948040002   strong branching 0.8%
+gen-ip054  full                 nodes   20000 work   5187758777 bound 6787.8597394580993   inc 6866.1758263290003   strong branching 83.0%
+gen-ip054  full-sel             nodes   20000 work   5114408792 bound 6788.3831477180984   inc 6870.870655142       strong branching 82.5%
+gen-ip054  full-sel-cap0        nodes   20000 work   5162810099 bound 6788.4424652713424   inc 6875.7593371530002   strong branching 82.6%
+gen-ip002  pc                   nodes   20000 work    753911488 bound -4813.9187252336678  inc -4769.7405888000003  strong branching 0.7%
+gen-ip002  pc-sel               nodes   20000 work    754195377 bound -4813.9079989817983  inc -4769.7405888000003  strong branching 0.9%
+gen-ip002  full                 nodes   20000 work   8960884941 bound -4812.4859236093353  inc -4766.4447485000001  strong branching 82.9%
+gen-ip002  full-sel             nodes   20000 work   8864642916 bound -4811.8235554491694  inc -4771.6363915000002  strong branching 82.6%
+gen-ip002  full-sel-cap0        nodes   20000 work   9007630971 bound -4811.8577246964296  inc -4771.6363915000002  strong branching 82.7%

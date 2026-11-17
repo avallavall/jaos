@@ -68,7 +68,7 @@ there is a row here that is not done.
 | | status | |
 |---|---|---|
 | Branch and bound | **done** | best estimate first with the best bound every fifth pick, each node warm from its parent's basis on one private copy of the model. Stops at the gap `mip_gap`, absolute or relative (`jaos_set_mip_gap_rule`). Rounds a bound up to the objective's step when every cost sits on one. A failed node relaxation is set aside with its bound. An unbounded relaxation ends `UNBOUNDED` only when an integer point exists, with SOS sets and indicator rows split first (`bench/measurements/02-326/`, `02-328/`, `02-352/`) |
-| Pseudocost branching | **done** | most-fractional as an option (`--branching`, `jaos_set_mip_branching`) |
+| Pseudocost branching | **done** | most-fractional as an option (`--branching`, `jaos_set_mip_branching`); on a small dense model of general integers whose tree outlives 20000 nodes, the tree starts again on an LLL-reduced basis of the improving region (`--lattice`, `jaos_set_mip_lattice`, `bench/measurements/02-476/`) |
 | Strong branching | **done** | reliability branching by default on a linear model, reliability 4 and each child capped at 1.5 times the node's work (`--reliability N`, `--probe-cap`, `--probe-depth`). The children run on the node's kept factors, a capped child gives its Lagrangian bound, and probing pauses past a tenth of the tree's work (`bench/measurements/02-461/`, `02-464/`) |
 | Gomory, knapsack cover and MIR cuts | **done** | Gomory cuts at the root and to depth 3; knapsack covers and MIR at the root, the MIR rounds going on while they lift the bound; MIR over each node's bounds at every depth on the all-integer rows, with complementation and divisor halving, while it lifts a quarter of the branching gain (`bench/measurements/02-474/`); aggregated MIR with Marchand and Wolsey's bound flips on rows with a continuous column; a network mode with c-MIR, variable-bound substitution and a cut pool for fixed-charge networks; hull cuts on short all-integer rows (`--hull-rounds`). Slack cuts are dropped (`bench/measurements/02-328/`, `02-341/`, `02-342/`, `02-347/`, `02-356/`, `02-357/`) |
 | Clique cuts | **done** | four rounds at the root from the conflicts of the all-binary rows (`--clique-rounds`) |
@@ -137,7 +137,7 @@ there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| C API, one header | **done** | `include/jaos.h`, 208 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
+| C API, one header | **done** | `include/jaos.h`, 209 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
 | Command-line tool | **done** | `docs/cli.md` |
 | Python: ctypes wrapper and modeling layer | **done** | `python/jaos/`, standard library only: `Model` over every C call and `Problem` on top, which edits the model in place and re-solves warm |
 | Python package installable with pip | **done** | `pyproject.toml` and `setup.py`; a tag builds the wheels and the sdist into a GitHub Release, and the PyPI upload is off until the project is registered (`docs/build.md`) |
@@ -158,7 +158,7 @@ there is a row here that is not done.
 | Logging with levels | **done** | `jaos_set_log_callback`, `jaos_set_log_level` (`off`, `summary`, `progress`, `detail`), `--log`, `--quiet` (`bench/measurements/02-243/`) |
 | Progress callback that can stop | **done** | `jaos_set_progress_callback`: iterations, work, primal infeasibility, and for a MIP nodes, bound and incumbent; a `STOP` ends the solve `INTERRUPTED` and the next solve continues (`bench/measurements/02-232/`) |
 | Choose the algorithm | **done** | `jaos_set_algorithm`, `--algorithm dual|primal|barrier|pdlp|concurrent` |
-| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 62 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
+| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 63 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
 | Steering callbacks: user cuts, lazy constraints, branching, solutions | **done** | `jaos_set_node_callback`: rows through `jaos_node_add_row`, the branching column, and points through `jaos_node_add_solution` |
 | Thread count | **done** | `jaos_set_threads`, `--threads N`; 0 means every core; the answer is the same at every count |
 | Sensitivity and ranging | **done** | `jaos_cost_ranging`, `jaos_rhs_ranging`, `jaos_bound_ranging`, the CLI's `ranging`; a QP and a MIP are refused by name |

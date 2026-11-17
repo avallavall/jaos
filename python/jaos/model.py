@@ -881,6 +881,14 @@ class Model:
         v = -1 if on is None else int(bool(on))
         self._check(_lib.jaos_set_mip_node_mir(self._handle(), v))
 
+    def set_mip_lattice(self, on=True):
+        """Whether a small dense model of general integers is solved in a
+        reduced basis of its improving region, the tree branching on
+        integer combinations of the columns (on by default); None
+        restores the default."""
+        v = -1 if on is None else int(bool(on))
+        self._check(_lib.jaos_set_mip_lattice(self._handle(), v))
+
     def set_mip_mir_aggregate(self, rows):
         """How many other rows a MIR cut's aggregate may absorb before it
         is rounded (D312); 0 is the single-row form, a negative value

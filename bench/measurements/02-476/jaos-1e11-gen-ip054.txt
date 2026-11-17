@@ -1,0 +1,60 @@
+branch and bound: 30 integer columns of 30, 1 rounds of cuts, 20 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 4, probe cap 1.5x, cut stall 0 at the root and 0 below it, root cuts dropped when slack, covers extended
+root: relaxation 6766.9360454617063 after 16 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 1 MIR
+root: MIR aggregation kept 0 cuts after 0 probes on a copy
+root: incumbent 11423.684270435999 by feasibility jump
+node 1: incumbent 7065.941373525 by the dive heuristic
+root: 8 column bounds fixed by their reduced costs
+node 101: incumbent 7041.087803002999 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 190: incumbent 7027.9236973440002 by rounding
+node 201: incumbent 6958.8223135210001 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 250: incumbent 6933.2556586950013 by rounding
+node 1317: incumbent 6926.1289144889988 by rounding
+node 2176: incumbent 6915.2138857670006 by rounding
+node 9055: incumbent 6911.0300281240006 by rounding
+node 13211: incumbent 6907.2926215899997 by rounding
+node 15223: incumbent 6885.7738987399989 by rounding
+node 17507: incumbent 6866.2306826719996 by rounding
+node 51401: incumbent 6840.9656417919996 by rounding
+node 100000: 97055 open, bound 6802.3415312139032, incumbent yes
+node 200000: 187059 open, bound 6807.2764870546425, incumbent yes
+node 300000: 270839 open, bound 6810.5914610327573, incumbent yes
+node 400000: 347169 open, bound 6813.0863386140545, incumbent yes
+node 500000: 417439 open, bound 6815.1305113156277, incumbent yes
+node 600000: 481179 open, bound 6816.8677264453454, incumbent yes
+node 700000: 538441 open, bound 6818.3801480449083, incumbent yes
+node 800000: 588108 open, bound 6819.7343524300995, incumbent yes
+node 900000: 629927 open, bound 6820.9530310456821, incumbent yes
+node 1000000: 665122 open, bound 6822.0511082122339, incumbent yes
+node 1100000: 694212 open, bound 6823.0501599737527, incumbent yes
+node 1200000: 718292 open, bound 6823.9668431418813, incumbent yes
+node 1300000: 737902 open, bound 6824.8038585804397, incumbent yes
+node 1400000: 752442 open, bound 6825.5935649548228, incumbent yes
+node 1500000: 762023 open, bound 6826.3433022269446, incumbent yes
+node 1600000: 767062 open, bound 6827.040627146208, incumbent yes
+node 1700000: 769058 open, bound 6827.6943483262248, incumbent yes
+node 1800000: 766812 open, bound 6828.3168569300569, incumbent yes
+node 1900000: 760510 open, bound 6828.9162847311309, incumbent yes
+node 2000000: 750396 open, bound 6829.4940639548422, incumbent yes
+node 2100000: 737227 open, bound 6830.0465729215121, incumbent yes
+node 2200000: 720174 open, bound 6830.578775671338, incumbent yes
+node 2300000: 698953 open, bound 6831.1149077662221, incumbent yes
+node 2400000: 674908 open, bound 6831.6266535106943, incumbent yes
+node 2500000: 646724 open, bound 6832.1243520591997, incumbent yes
+node 2600000: 614736 open, bound 6832.615558515743, incumbent yes
+branch and bound work: node relaxations 77.9%, cuts 10.5%, heuristics 11.5%, propagation, probing and conflicts 0.0%, strong branching 0.0%, the rest 0.0%
+branch and bound: work limit reached after 2606036 nodes, 4507402 solves, 5245704 cuts (5245688 below the root), 13 points by rounding, 1 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pump, 154 probes, 25 of them capped, 0 columns fixed by cliques and 0 nodes cut by them, the callback fired 0 times, added 0 rows, rejected 0 points, chose 0 branches, handed 0 incumbents and 0 points refused, 0 conflicts over 0 binaries, 0 branchings widened to an orbit, 0 columns fixed by orbits and 0 nodes the relaxation failed on set aside with their bound
+branch and bound: MIR cuts over 27 integer rows at 1987648 nodes lifted the bound by 9.08074e+06 against 7.07463e+06 from branching, still on at the end
+status work_limit
+iterations 22439477
+work_units 100000001846
+nodes 2606036
+cuts 5245704
+heuristic_points 13
+first_incumbent 1
+fixed_cols 8
+tightened 0
+symmetry_generators 0
+symmetry_orbits 0
+bound 6832.6426970276716
+incumbent 6840.9656417920005
+time 774.841922

@@ -1,0 +1,10 @@
+gen-ip054  default              work_limit nodes  220574 work  10000001975 bound 6808.0636336282041   inc 6840.9656417920005
+gen-ip054  gom-every            work_limit nodes  138380 work  10000002723 bound 6808.1288646354024   inc 6855.0469726800002
+gen-ip054  cap2                 work_limit nodes  224029 work  10000001271 bound 6811.2414906411595   inc 6840.9656417920005
+gen-ip054  bound                work_limit nodes  502434 work  10000002297 bound 6809.6461739994129   inc 6840.9656417920005
+gen-ip054  rcnode               work_limit nodes  218506 work  10000004453 bound 6808.5109664443762   inc 6840.9656417920005
+gen-ip002  default              work_limit nodes  331854 work  10000002183 bound -4804.340489131554   inc -4783.7333915999998
+gen-ip002  gom-every            work_limit nodes   85228 work  10000018293 bound -4805.7648601270212  inc -4783.7333915999998
+gen-ip002  cap2                 work_limit nodes  335195 work  10000005487 bound -4804.3333741500401  inc -4783.7333915999998
+gen-ip002  bound                work_limit nodes  316638 work  10000004334 bound -4801.2140868160004  inc -4783.7333915999998
+gen-ip002  rcnode               work_limit nodes  345632 work  10000002500 bound -4804.2776539603938  inc -4783.7333915999998

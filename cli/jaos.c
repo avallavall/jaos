@@ -38,6 +38,7 @@ static const char U_SYNOPSIS[] =
     "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
     "                  [--dive] [--dive-child RULE] [--dive-backtrack N]\n"
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
+    "                  [--lattice | --no-lattice]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
     "                  [--local-branching K]\n"
@@ -175,6 +176,9 @@ static const char U_SOLVE_D[] =
     "  --node-mir       MIR cuts over a node's own bounds at every depth while\n"
     "                   they pay (default for a linear objective);\n"
     "                   --no-node-mir turns them off\n"
+    "  --lattice        branch on a reduced basis of the improving region on\n"
+    "                   small dense models of general integers (default);\n"
+    "                   --no-lattice branches on the columns\n"
     "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
     "                   (N >= 0; 0 is the single-row form)\n"
     "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
@@ -884,6 +888,7 @@ struct solve_options {
     bool has_dive_gap;
     double dive_gap;
     int node_mir;
+    int lattice;
     int64_t mir_aggregate;
     int64_t dive_heuristic;
     int64_t dive_heuristic_depth;
@@ -950,6 +955,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->mir_rounds = -1;
     o->dive_backtrack = -1;
     o->node_mir = -1;
+    o->lattice = -1;
     o->pump_always = -1;
     o->rcfix = -1;
     o->restart = -1;
@@ -1018,6 +1024,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--node-mir") == 0) {
             o->node_mir = 1;
+            continue;
+        }
+        if (strcmp(a, "--lattice") == 0) {
+            o->lattice = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-lattice") == 0) {
+            o->lattice = 0;
             continue;
         }
         if (strcmp(a, "--pump-always") == 0) {
@@ -1547,6 +1561,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.node_mir >= 0 && jaos_set_mip_node_mir(m, o.node_mir) != JAOS_OK) {
         rc = library_error("set the node MIR cuts for", o.file, m);
+        goto out;
+    }
+    if (o.lattice >= 0 && jaos_set_mip_lattice(m, o.lattice) != JAOS_OK) {
+        rc = library_error("set the lattice branching for", o.file, m);
         goto out;
     }
     if (o.mir_aggregate >= 0 &&

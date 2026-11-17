@@ -1,0 +1,905 @@
+diff --git a/include/jaos.h b/include/jaos.h
+index 462ae97a..b879524d 100644
+--- a/include/jaos.h
++++ b/include/jaos.h
+@@ -259,6 +259,8 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_dive_gap(jaos_model *m,
+ 
+ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_node_mir(jaos_model *m, int on);
+ 
++JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_lattice(jaos_model *m, int on);
++
+ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_mir_aggregate(jaos_model *m,
+                                                       int64_t rows);
+ 
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 5d027bb3..56a10ec1 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -101,6 +101,9 @@ typedef struct {
+     bool mip_node_mir_set;
+     bool mip_node_mir;
+ 
++    bool mip_lattice_set;
++    bool mip_lattice;
++
+     bool mip_mir_aggregate_set;
+     int64_t mip_mir_aggregate;
+ 
+@@ -293,6 +296,8 @@ struct jaos_model {
+     double *mip_pool_obj;
+     int64_t mip_pool_n;
+     const void *mip_user;
++    int64_t *lat_u, *lat_v;
++    const jaos_model *lat_parent;
+ 
+     int64_t *a_start;
+     int64_t *a_index;
+@@ -393,7 +398,7 @@ enum jm_mip_key {
+     JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_MIP_PRESOLVE, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_CONFLICTS, JM_DEF_SYMMETRY, JM_DEF_ORBITAL, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
+     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
+     JM_DEF_FLOW_COVER_ROUNDS, JM_DEF_LOCAL_BRANCHING, JM_DEF_NODE_SELECT,
+-    JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP,
++    JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP, JM_DEF_LATTICE,
+ };
+ double jm_mip_default(enum jm_mip_key key);
+ bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,
+diff --git a/src/mip.c b/src/mip.c
+index be2256f9..d7e67194 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -196,6 +196,16 @@ constexpr int64_t MIP_NODE_MIR_TRIAL = 50;
+ 
+ constexpr double MIP_NODE_MIR_PAYS = 0.25;
+ 
++constexpr bool MIP_LATTICE = true;
++constexpr int64_t MIP_LATTICE_COLS = 100;
++constexpr double MIP_LATTICE_DENSITY = 0.5;
++constexpr double MIP_LATTICE_DELTA = 0.99;
++constexpr int64_t MIP_LATTICE_NEWTON = 100;
++constexpr double MIP_LATTICE_CENTERED = 1e-6;
++constexpr double MIP_LATTICE_RADIUS = 1e-6;
++constexpr int64_t MIP_LATTICE_ENTRY = 1048576;
++constexpr int64_t MIP_LATTICE_SWAPS = 1000000;
++
+ constexpr double MIP_CUT_AWAY = 0.01;
+ 
+ constexpr double MIP_CUT_DROP = 1e-9;
+@@ -1340,6 +1350,7 @@ double jm_mip_default(enum jm_mip_key key)
+     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
+     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
+     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
++    case JM_DEF_LATTICE: return MIP_LATTICE ? 1.0 : 0.0;
+     case JM_DEF_RELIABILITY: return (double)MIP_RELIABILITY;
+     case JM_DEF_PROBE_CAP: return MIP_PROBE_CAP;
+     }
+@@ -8850,6 +8861,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     double *x = nullptr, *row = nullptr, *cut = nullptr;
+     int64_t row_cap = 0;
+     double *xr = nullptr, *ra = nullptr, *x2 = nullptr;
++    double *lat_x = nullptr, *lat_r = nullptr;
+     double *ilo = nullptr, *ihi = nullptr, *pc_sum = nullptr;
+     double *plo = nullptr, *phi = nullptr;
+     double *rcd = nullptr;
+@@ -10918,6 +10930,67 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 }
+             }
+         }
++        if (heur && branch >= 0 && m->lat_parent != nullptr &&
++            !budget_gone(m, work)) {
++            const jaos_model *par = m->lat_parent;
++            double hobj = 0.0, pobj = 0.0;
++            if (lat_x == nullptr)
++                lat_x = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lat_x);
++            if (lat_r == nullptr)
++                lat_r = jm_alloc_array(par->num_row > 0 ? par->num_row : 1,
++                                       sizeof *lat_r);
++            if (lat_x == nullptr || lat_r == nullptr)
++                goto done;
++            for (int64_t j = 0; j < nc; j++) {
++                double a = 0.0;
++                for (int64_t k = 0; k < nc; k++)
++                    a += (double)m->lat_v[j * nc + k] * x[k];
++                xr[j] = a;
++            }
++            work += nc * nc + par->num_nz + nc + par->num_row;
++            bool fits = rounded_point(par, xr, lat_x, lat_r, &pobj);
++            if (fits) {
++                for (int64_t k = 0; k < nc; k++) {
++                    double a = 0.0;
++                    for (int64_t j = 0; j < nc; j++)
++                        a += (double)m->lat_u[j * nc + k] * lat_x[j];
++                    xr[k] = a;
++                }
++                work += nc * nc + m->num_nz + nc + nr;
++                fits = rounded_point(m, xr, x2, ra, &hobj);
++            }
++            if (fits) {
++                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
++                                           &nfixed, &nperm, nodes,
++                                           depth_here, sigma * key, x2,
++                                           hobj, &work);
++                if (sc == STEER_ERR)
++                    goto done;
++                if (sc == STEER_STOP) {
++                    outcome = JAOS_SOLVE_INTERRUPTED;
++                    break;
++                }
++                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
++                if (sc == STEER_OK)
++                    spool_offer(&sp, x2, hkey, hobj);
++                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
++                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
++                        goto done;
++                    heur_points++;
++                    if (first_inc == 0)
++                        first_inc = nodes;
++                    jm_log(m, JAOS_LOG_PROGRESS,
++                           "node %lld: incumbent %.17g by rounding the "
++                           "original columns", (long long)nodes, hobj);
++                    const double ok = open_bound(&heap, &kh, dstack, dstack_n);
++                    if (!incumbent_announce(m, &inc, nodes,
++                            sigma * (ok < key ? ok : key), true)) {
++                        outcome = JAOS_SOLVE_INTERRUPTED;
++                        break;
++                    }
++                }
++            }
++        }
+ 
+         phase_to(&ph, work, PH_OTHER);
+         if (nodes == 1 && rs != nullptr && rs->want && inc.have &&
+@@ -11504,6 +11577,8 @@ done:
+     free(x);
+     free(xr);
+     free(x2);
++    free(lat_x);
++    free(lat_r);
+     free(ra);
+     free(ilo);
+     free(ihi);
+@@ -11638,7 +11713,679 @@ jaos_status jaos_mip_incumbent(const jaos_model *m, double *col_value,
+     return JAOS_OK;
+ }
+ 
++static bool lat_eligible(const jaos_model *m)
++{
++    if (!(m->cfg.mip_lattice_set ? m->cfg.mip_lattice : MIP_LATTICE))
++        return false;
++    const int64_t nc = m->num_col, nr = m->num_row;
++    if (nc < 2 || nc > MIP_LATTICE_COLS || nr < 1 || m->col_integer == nullptr)
++        return false;
++    if (jm_model_has_quadratic(m) || jm_model_has_conic(m) ||
++        m->num_sos > 0 || m->cfg.incumbent_cb != nullptr ||
++        m->cfg.node_cb != nullptr || m->mip_user != nullptr)
++        return false;
++    if ((double)m->num_nz < MIP_LATTICE_DENSITY * (double)nc * (double)nr)
++        return false;
++    bool cost = false;
++    for (int64_t j = 0; j < nc; j++) {
++        if (!m->col_integer[j] || (m->col_semi != nullptr && m->col_semi[j]))
++            return false;
++        if (!(m->col_upper[j] - m->col_lower[j] > 1.0))
++            return false;
++        cost = cost || m->col_cost[j] != 0.0;
++    }
++    for (int64_t i = 0; i < nr; i++) {
++        if (m->row_lower[i] == m->row_upper[i])
++            return false;
++        if (m->row_ind_col != nullptr && m->row_ind_col[i] >= 0)
++            return false;
++    }
++    return cost;
++}
++
++static bool lat_cholesky(int64_t n, const double *a, double *l)
++{
++    for (int64_t j = 0; j < n; j++) {
++        double d = a[j * n + j];
++        for (int64_t k = 0; k < j; k++)
++            d -= l[j * n + k] * l[j * n + k];
++        if (!(d > 0.0))
++            return false;
++        const double s = sqrt(d);
++        l[j * n + j] = s;
++        for (int64_t i = j + 1; i < n; i++) {
++            double v = a[i * n + j];
++            for (int64_t k = 0; k < j; k++)
++                v -= l[i * n + k] * l[j * n + k];
++            l[i * n + j] = v / s;
++        }
++        for (int64_t i = 0; i < j; i++)
++            l[i * n + j] = 0.0;
++    }
++    return true;
++}
++
++static int lat_center(const jaos_model *m, const double *xinc, double *hess,
++                      int64_t *work)
++{
++    const int64_t n = m->num_col, nr = m->num_row;
++    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++    int64_t nt = 1;
++    for (int64_t i = 0; i < nr; i++)
++        nt += isfinite(m->row_upper[i]) + isfinite(m->row_lower[i]);
++    for (int64_t j = 0; j < n; j++)
++        nt += isfinite(m->col_upper[j]) + isfinite(m->col_lower[j]);
++    double *a = jm_calloc_array(nr * n, sizeof *a);
++    double *g = jm_calloc_array(nt * n, sizeof *g);
++    double *h = jm_alloc_array(nt, sizeof *h);
++    double *s = jm_alloc_array(nt, sizeof *s);
++    double *x = jm_alloc_array(n + 1, sizeof *x);
++    double *grad = jm_alloc_array(n, sizeof *grad);
++    double *dx = jm_alloc_array(n, sizeof *dx);
++    double *l = jm_alloc_array(n * n, sizeof *l);
++    int64_t *cs = jm_alloc_array(n + 2, sizeof *cs);
++    int64_t *ci = jm_alloc_array((n + 1) * nt, sizeof *ci);
++    double *cv = jm_alloc_array((n + 1) * nt, sizeof *cv);
++    double *cc = jm_calloc_array(n + 1, sizeof *cc);
++    double *clo = jm_alloc_array(n + 1, sizeof *clo);
++    double *chi = jm_alloc_array(n + 1, sizeof *chi);
++    double *rlo = jm_alloc_array(nt, sizeof *rlo);
++    jaos_model *ch = nullptr;
++    int rc = -1;
++    if (a == nullptr || g == nullptr || h == nullptr || s == nullptr ||
++        x == nullptr || grad == nullptr || dx == nullptr || l == nullptr ||
++        cs == nullptr || ci == nullptr || cv == nullptr || cc == nullptr ||
++        clo == nullptr || chi == nullptr || rlo == nullptr)
++        goto out;
++    for (int64_t j = 0; j < n; j++)
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
++            a[m->a_index[k] * n + j] = m->a_value[k];
++    int64_t t = 0;
++    for (int64_t i = 0; i < nr; i++) {
++        if (isfinite(m->row_upper[i])) {
++            for (int64_t j = 0; j < n; j++)
++                g[t * n + j] = a[i * n + j];
++            h[t++] = m->row_upper[i];
++        }
++        if (isfinite(m->row_lower[i])) {
++            for (int64_t j = 0; j < n; j++)
++                g[t * n + j] = 0.0 - a[i * n + j];
++            h[t++] = 0.0 - m->row_lower[i];
++        }
++    }
++    for (int64_t j = 0; j < n; j++) {
++        if (isfinite(m->col_upper[j])) {
++            g[t * n + j] = 1.0;
++            h[t++] = m->col_upper[j];
++        }
++        if (isfinite(m->col_lower[j])) {
++            g[t * n + j] = -1.0;
++            h[t++] = 0.0 - m->col_lower[j];
++        }
++    }
++    double zc = 0.0;
++    for (int64_t j = 0; j < n; j++) {
++        g[t * n + j] = sigma * m->col_cost[j];
++        zc += sigma * m->col_cost[j] * xinc[j];
++    }
++    h[t++] = zc;
++    *work += (nt + nr) * n + m->num_nz;
++
++    int64_t nz = 0;
++    for (int64_t j = 0; j <= n; j++) {
++        cs[j] = nz;
++        for (int64_t r = 0; r < nt; r++) {
++            double v;
++            if (j < n) {
++                v = g[r * n + j];
++            } else {
++                double q = 0.0;
++                for (int64_t k = 0; k < n; k++)
++                    q += g[r * n + k] * g[r * n + k];
++                v = sqrt(q);
++            }
++            if (v != 0.0) {
++                ci[nz] = r;
++                cv[nz++] = v;
++            }
++        }
++        clo[j] = j < n ? -INFINITY : 0.0;
++        chi[j] = j < n ? INFINITY : 1.0;
++    }
++    cs[n + 1] = nz;
++    cc[n] = 1.0;
++    for (int64_t r = 0; r < nt; r++)
++        rlo[r] = -INFINITY;
++    *work += 2 * nt * n;
++    if (jaos_model_new(&ch) != JAOS_OK ||
++        jaos_load_lp(ch, n + 1, nt, JAOS_MAXIMIZE, 0.0, cc, clo, chi, rlo, h,
++                     nz, cs, ci, cv) != JAOS_OK)
++        goto out;
++    if (m->cfg.work_limit > 0) {
++        const int64_t left = m->cfg.work_limit - *work;
++        if (jaos_set_work_limit(ch, left > 1 ? left : 1) != JAOS_OK)
++            goto out;
++    }
++    if (jaos_solve(ch) != JAOS_OK)
++        goto out;
++    *work += jaos_work_units(ch);
++    rc = 1;
++    if (jaos_status_of(ch) != JAOS_SOLVE_OPTIMAL ||
++        jaos_solution(ch, x, nullptr, nullptr, nullptr) != JAOS_OK ||
++        !(x[n] > MIP_LATTICE_RADIUS))
++        goto out;
++
++    for (int64_t it = 0;; it++) {
++        for (int64_t r = 0; r < nt; r++) {
++            double v = h[r];
++            for (int64_t j = 0; j < n; j++)
++                v -= g[r * n + j] * x[j];
++            if (!(v > 0.0))
++                goto out;
++            s[r] = v;
++        }
++        for (int64_t j = 0; j < n; j++) {
++            grad[j] = 0.0;
++            for (int64_t k = 0; k <= j; k++)
++                hess[j * n + k] = 0.0;
++        }
++        for (int64_t r = 0; r < nt; r++) {
++            const double w = 1.0 / s[r];
++            const double *gr = g + r * n;
++            for (int64_t j = 0; j < n; j++) {
++                if (gr[j] == 0.0)
++                    continue;
++                grad[j] += gr[j] * w;
++                const double gw = gr[j] * w * w;
++                for (int64_t k = 0; k <= j; k++)
++                    hess[j * n + k] += gw * gr[k];
++            }
++        }
++        for (int64_t j = 0; j < n; j++)
++            for (int64_t k = 0; k < j; k++)
++                hess[k * n + j] = hess[j * n + k];
++        *work += nt * n * (n + 3) + n * n * n;
++        if (!lat_cholesky(n, hess, l))
++            goto out;
++        for (int64_t j = 0; j < n; j++) {
++            double v = 0.0 - grad[j];
++            for (int64_t k = 0; k < j; k++)
++                v -= l[j * n + k] * dx[k];
++            dx[j] = v / l[j * n + j];
++        }
++        for (int64_t j = n - 1; j >= 0; j--) {
++            double v = dx[j];
++            for (int64_t k = j + 1; k < n; k++)
++                v -= l[k * n + j] * dx[k];
++            dx[j] = v / l[j * n + j];
++        }
++        double dec = 0.0;
++        for (int64_t j = 0; j < n; j++)
++            dec -= grad[j] * dx[j];
++        const double lam = dec > 0.0 ? sqrt(dec) : 0.0;
++        if (lam <= MIP_LATTICE_CENTERED || it >= MIP_LATTICE_NEWTON)
++            break;
++        const double step = 1.0 / (1.0 + lam);
++        for (int64_t j = 0; j < n; j++)
++            x[j] += step * dx[j];
++    }
++    rc = 0;
++out:
++    jaos_model_free(ch);
++    free(a); free(g); free(h); free(s); free(x); free(grad); free(dx);
++    free(l); free(cs); free(ci); free(cv); free(cc); free(clo); free(chi);
++    free(rlo);
++    return rc;
++}
++
++static bool lat_entry_ok(int64_t v)
++{
++    return v <= MIP_LATTICE_ENTRY && v >= 0 - MIP_LATTICE_ENTRY;
++}
++
++static bool lat_red(int64_t n, int64_t k, int64_t lk, double *mu, int64_t *u,
++                    int64_t *v, int64_t *work)
++{
++    const double mkl = mu[k * n + lk];
++    if (!(fabs(mkl) > 0.5))
++        return true;
++    const double qd = jm_round(mkl);
++    if (!(fabs(qd) <= (double)MIP_LATTICE_ENTRY))
++        return false;
++    const int64_t q = (int64_t)qd;
++    for (int64_t i = 0; i < n; i++) {
++        u[i * n + k] -= q * u[i * n + lk];
++        v[i * n + lk] += q * v[i * n + k];
++        if (!lat_entry_ok(u[i * n + k]) || !lat_entry_ok(v[i * n + lk]))
++            return false;
++    }
++    mu[k * n + lk] -= qd;
++    for (int64_t i = 0; i < lk; i++)
++        mu[k * n + i] -= qd * mu[lk * n + i];
++    *work += 2 * n + lk;
++    return true;
++}
++
++static int lat_reduce(int64_t n, const double *hess, int64_t *u, int64_t *v,
++                      int64_t *work)
++{
++    double *l = jm_alloc_array(n * n, sizeof *l);
++    double *li = jm_calloc_array(n * n, sizeof *li);
++    double *gram = jm_alloc_array(n * n, sizeof *gram);
++    double *mu = jm_calloc_array(n * n, sizeof *mu);
++    double *bb = jm_alloc_array(n, sizeof *bb);
++    int rc = -1;
++    if (l == nullptr || li == nullptr || gram == nullptr || mu == nullptr ||
++        bb == nullptr)
++        goto out;
++    rc = 1;
++    if (!lat_cholesky(n, hess, l))
++        goto out;
++    for (int64_t c = 0; c < n; c++) {
++        li[c * n + c] = 1.0 / l[c * n + c];
++        for (int64_t i = c + 1; i < n; i++) {
++            double a = 0.0;
++            for (int64_t k = c; k < i; k++)
++                a -= l[i * n + k] * li[k * n + c];
++            li[i * n + c] = a / l[i * n + i];
++        }
++    }
++    for (int64_t j = 0; j < n; j++)
++        for (int64_t k = 0; k <= j; k++) {
++            double a = 0.0;
++            for (int64_t i = j; i < n; i++)
++                a += li[i * n + j] * li[i * n + k];
++            gram[j * n + k] = gram[k * n + j] = a;
++        }
++    for (int64_t i = 0; i < n; i++) {
++        for (int64_t j = 0; j < i; j++) {
++            double a = gram[i * n + j];
++            for (int64_t k = 0; k < j; k++)
++                a -= mu[j * n + k] * mu[i * n + k] * bb[k];
++            mu[i * n + j] = a / bb[j];
++        }
++        double d = gram[i * n + i];
++        for (int64_t k = 0; k < i; k++)
++            d -= mu[i * n + k] * mu[i * n + k] * bb[k];
++        if (!(d > 0.0))
++            goto out;
++        bb[i] = d;
++    }
++    *work += 2 * n * n * n;
++    for (int64_t i = 0; i < n * n; i++)
++        u[i] = v[i] = 0;
++    for (int64_t i = 0; i < n; i++)
++        u[i * n + i] = v[i * n + i] = 1;
++
++    int64_t k = 1, swaps = 0;
++    while (k < n) {
++        if (!lat_red(n, k, k - 1, mu, u, v, work))
++            goto out;
++        const double m1 = mu[k * n + k - 1];
++        if (bb[k] < (MIP_LATTICE_DELTA - m1 * m1) * bb[k - 1]) {
++            if (++swaps > MIP_LATTICE_SWAPS)
++                goto out;
++            for (int64_t i = 0; i < n; i++) {
++                const int64_t tu = u[i * n + k];
++                u[i * n + k] = u[i * n + k - 1];
++                u[i * n + k - 1] = tu;
++                const int64_t tv = v[i * n + k];
++                v[i * n + k] = v[i * n + k - 1];
++                v[i * n + k - 1] = tv;
++            }
++            for (int64_t j = 0; j < k - 1; j++) {
++                const double tm = mu[k * n + j];
++                mu[k * n + j] = mu[(k - 1) * n + j];
++                mu[(k - 1) * n + j] = tm;
++            }
++            const double b = bb[k] + m1 * m1 * bb[k - 1];
++            mu[k * n + k - 1] = m1 * bb[k - 1] / b;
++            bb[k] = bb[k - 1] * bb[k] / b;
++            bb[k - 1] = b;
++            for (int64_t i = k + 1; i < n; i++) {
++                const double tm = mu[i * n + k];
++                mu[i * n + k] = mu[i * n + k - 1] - m1 * tm;
++                mu[i * n + k - 1] = tm + mu[k * n + k - 1] * mu[i * n + k];
++            }
++            *work += 3 * n;
++            if (k > 1)
++                k--;
++            continue;
++        }
++        for (int64_t lk = k - 2; lk >= 0; lk--)
++            if (!lat_red(n, k, lk, mu, u, v, work))
++                goto out;
++        k++;
++    }
++    bool same = true;
++    for (int64_t i = 0; i < n && same; i++)
++        for (int64_t j = 0; j < n && same; j++)
++            same = u[i * n + j] == (i == j);
++    if (same)
++        goto out;
++    for (int64_t j = 0; j < n; j++)
++        for (int64_t c = 0; c < n; c++) {
++            int64_t a = 0;
++            for (int64_t i = 0; i < n; i++)
++                a += u[i * n + j] * v[i * n + c];
++            if (a != (j == c))
++                goto out;
++        }
++    *work += n * n * n;
++    rc = 0;
++out:
++    free(l); free(li); free(gram); free(mu); free(bb);
++    return rc;
++}
++
++static jaos_model *lat_build(const jaos_model *m, const int64_t *u,
++                             const int64_t *v, const double *xinc,
++                             int64_t *work)
++{
++    const int64_t n = m->num_col, nr = m->num_row;
++    int64_t nb = 0;
++    for (int64_t j = 0; j < n; j++)
++        nb += isfinite(m->col_lower[j]) || isfinite(m->col_upper[j]);
++    const int64_t nr2 = nr + nb;
++    double *acc = jm_alloc_array(nr2, sizeof *acc);
++    int64_t *brow = jm_alloc_array(n, sizeof *brow);
++    int64_t *astart = jm_alloc_array(n + 1, sizeof *astart);
++    int64_t *aidx = jm_alloc_array(n * nr2, sizeof *aidx);
++    double *aval = jm_alloc_array(n * nr2, sizeof *aval);
++    double *cost = jm_alloc_array(n, sizeof *cost);
++    double *clo = jm_alloc_array(n, sizeof *clo);
++    double *chi = jm_alloc_array(n, sizeof *chi);
++    double *rlo = jm_alloc_array(nr2, sizeof *rlo);
++    double *rhi = jm_alloc_array(nr2, sizeof *rhi);
++    double *y = jm_alloc_array(n, sizeof *y);
++    jaos_model *m2 = nullptr;
++    bool ok = false;
++    if (acc == nullptr || brow == nullptr || astart == nullptr ||
++        aidx == nullptr || aval == nullptr || cost == nullptr ||
++        clo == nullptr || chi == nullptr || rlo == nullptr || rhi == nullptr ||
++        y == nullptr)
++        goto out;
++    for (int64_t i = 0; i < nr; i++) {
++        rlo[i] = m->row_lower[i];
++        rhi[i] = m->row_upper[i];
++    }
++    int64_t b = nr;
++    for (int64_t j = 0; j < n; j++) {
++        brow[j] = -1;
++        if (!isfinite(m->col_lower[j]) && !isfinite(m->col_upper[j]))
++            continue;
++        brow[j] = b;
++        rlo[b] = m->col_lower[j];
++        rhi[b] = m->col_upper[j];
++        b++;
++    }
++    int64_t nz = 0;
++    for (int64_t k = 0; k < n; k++) {
++        astart[k] = nz;
++        for (int64_t i = 0; i < nr2; i++)
++            acc[i] = 0.0;
++        double ck = 0.0;
++        for (int64_t j = 0; j < n; j++) {
++            const int64_t q = v[j * n + k];
++            if (q == 0)
++                continue;
++            const double qd = (double)q;
++            ck += m->col_cost[j] * qd;
++            for (int64_t t = m->a_start[j]; t < m->a_start[j + 1]; t++)
++                acc[m->a_index[t]] += m->a_value[t] * qd;
++            if (brow[j] >= 0)
++                acc[brow[j]] = qd;
++            *work += m->a_start[j + 1] - m->a_start[j] + 1;
++        }
++        cost[k] = ck;
++        clo[k] = -INFINITY;
++        chi[k] = INFINITY;
++        for (int64_t i = 0; i < nr2; i++)
++            if (acc[i] != 0.0) {
++                aidx[nz] = i;
++                aval[nz++] = acc[i];
++            }
++        double yk = 0.0;
++        for (int64_t j = 0; j < n; j++)
++            yk += (double)u[j * n + k] * xinc[j];
++        y[k] = jm_round(yk);
++        *work += 2 * nr2 + 2 * n;
++    }
++    astart[n] = nz;
++    if (jaos_model_copy(m, &m2) != JAOS_OK)
++        goto out;
++    m2->cfg.mip_lattice_set = true;
++    m2->cfg.mip_lattice = false;
++    m2->cfg.mip_presolved = true;
++    if (jaos_load_lp(m2, n, nr2, m->sense, m->obj_offset, cost, clo, chi, rlo,
++                     rhi, nz, astart, aidx, aval) != JAOS_OK)
++        goto out;
++    for (int64_t k = 0; k < n; k++)
++        if (jaos_set_col_integer(m2, k, true) != JAOS_OK)
++            goto out;
++    if (jaos_set_mip_start(m2, y) != JAOS_OK)
++        goto out;
++    ok = true;
++out:
++    if (!ok) {
++        jaos_model_free(m2);
++        m2 = nullptr;
++    }
++    free(acc); free(brow); free(astart); free(aidx); free(aval); free(cost);
++    free(clo); free(chi); free(rlo); free(rhi); free(y);
++    return m2;
++}
++
++static void lat_point(int64_t n, const int64_t *v, const double *y, double *x)
++{
++    for (int64_t j = 0; j < n; j++) {
++        double a = 0.0;
++        for (int64_t k = 0; k < n; k++)
++            a += (double)v[j * n + k] * jm_round(y[k]);
++        x[j] = a;
++    }
++}
++
++static jaos_status bb_run_plain(jaos_model *m);
++
++static jaos_status lat_fallback(jaos_model *m, int64_t spent)
++{
++    const int64_t limit = m->cfg.work_limit;
++    if (limit > 0)
++        m->cfg.work_limit = limit > spent ? limit - spent : 1;
++    const jaos_status st = bb_run_plain(m);
++    m->cfg.work_limit = limit;
++    m->solve_work += spent;
++    return st;
++}
++
++static jaos_status lat_run(jaos_model *m, bool *done)
++{
++    *done = true;
++    const double t0 = now_seconds();
++    const int64_t n = m->num_col, nr = m->num_row;
++    const int64_t node_limit = m->cfg.mip_node_limit;
++    const char *lnenv = getenv("JAOS_LATNODES");
++    const int64_t pre_nodes = lnenv != nullptr ? atoll(lnenv) : 1;
++    m->cfg.mip_node_limit = pre_nodes;
++    jaos_status st = bb_tree(m, nullptr);
++    m->cfg.mip_node_limit = node_limit;
++    if (st != JAOS_OK || node_limit == 1 ||
++        m->solve_status != JAOS_SOLVE_NODE_LIMIT)
++        return st;
++    int64_t spent = m->solve_work;
++    const int64_t root_iters = m->solve_iters, root_nodes = m->mip_nodes;
++    const int64_t root_solves = m->mip_solves;
++    if (!m->mip_has_incumbent || m->mip_inc_x == nullptr)
++        return lat_fallback(m, spent);
++
++    int64_t lw = 0;
++    double *xinc = jm_alloc_array(n, sizeof *xinc);
++    double *hess = jm_alloc_array(n * n, sizeof *hess);
++    int64_t *u = jm_alloc_array(n * n, sizeof *u);
++    int64_t *v = jm_alloc_array(n * n, sizeof *v);
++    double *x = nullptr;
++    jaos_model *m2 = nullptr;
++    st = JAOS_ERR_OUT_OF_MEMORY;
++    if (xinc == nullptr || hess == nullptr || u == nullptr || v == nullptr)
++        goto out;
++    memcpy(xinc, m->mip_inc_x, (size_t)n * sizeof *xinc);
++    int got = lat_center(m, xinc, hess, &lw);
++    if (got == 0)
++        got = lat_reduce(n, hess, u, v, &lw);
++    if (got < 0)
++        goto out;
++    if (got == 0) {
++        m2 = lat_build(m, u, v, xinc, &lw);
++        if (m2 == nullptr)
++            goto out;
++    }
++    if (m2 == nullptr) {
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "lattice: no reduced basis for the improving region, so the "
++               "tree branches on the columns");
++        st = lat_fallback(m, spent + lw);
++        goto out;
++    }
++    int64_t terms = 0, big = 0;
++    for (int64_t k = 0; k < n; k++) {
++        int64_t tk = 0;
++        for (int64_t j = 0; j < n; j++) {
++            const int64_t uj = u[j * n + k];
++            tk += uj != 0;
++            const int64_t a = uj < 0 ? 0 - uj : uj;
++            if (a > big)
++                big = a;
++        }
++        if (tk > terms)
++            terms = tk;
++    }
++    m2->lat_u = u;
++    m2->lat_parent = m;
++    m2->lat_v = jm_alloc_array(n * n, sizeof *m2->lat_v);
++    u = nullptr;
++    if (m2->lat_v == nullptr)
++        goto out;
++    memcpy(m2->lat_v, v, (size_t)(n * n) * sizeof *v);
++    jm_log(m, JAOS_LOG_SUMMARY,
++           "lattice: the tree branches on %lld integer combinations of the "
++           "columns, a reduced basis of the improving region at the root's "
++           "incumbent %.17g, up to %lld columns and coefficient %lld each",
++           (long long)n, m->mip_inc_obj, (long long)terms, (long long)big);
++    spent += lw;
++    const int64_t work_limit = m->cfg.work_limit;
++    if (work_limit > 0)
++        m2->cfg.work_limit = work_limit > spent ? work_limit - spent : 1;
++    if (m->cfg.time_limit > 0.0) {
++        const double used = now_seconds() - t0;
++        m2->cfg.time_limit = m->cfg.time_limit > used
++                                 ? m->cfg.time_limit - used : DBL_MIN;
++    }
++    if (node_limit > 0)
++        m2->cfg.mip_node_limit = node_limit > root_nodes
++                                     ? node_limit - root_nodes : 1;
++    st = jm_branch_and_bound(m2);
++    if (st != JAOS_OK) {
++        jm_set_err(m, "%s", m2->err);
++        goto out;
++    }
++    const jaos_solve_status outcome = m2->solve_status;
++    if ((outcome != JAOS_SOLVE_OPTIMAL && outcome != JAOS_SOLVE_WORK_LIMIT &&
++         outcome != JAOS_SOLVE_TIME_LIMIT &&
++         outcome != JAOS_SOLVE_NODE_LIMIT &&
++         outcome != JAOS_SOLVE_INTERRUPTED) ||
++        !m2->mip_has_incumbent || m2->mip_inc_x == nullptr) {
++        st = lat_fallback(m, spent + m2->solve_work);
++        goto out;
++    }
++    x = jm_alloc_array(n, sizeof *x);
++    if (x == nullptr) {
++        st = JAOS_ERR_OUT_OF_MEMORY;
++        goto out;
++    }
++    lat_point(n, v, m2->mip_inc_x, x);
++    free(m->mip_inc_x);
++    m->mip_inc_x = nullptr;
++    free(m->mip_pool_x);
++    m->mip_pool_x = nullptr;
++    free(m->mip_pool_obj);
++    m->mip_pool_obj = nullptr;
++    m->mip_pool_n = 0;
++    m->sol_basis_ok = false;
++    m->farkas_ok = false;
++    m->ray_ok = false;
++    m->mip_nodes = root_nodes + m2->mip_nodes;
++    m->mip_solves = root_solves + m2->mip_solves;
++    m->mip_cuts = m2->mip_cuts;
++    m->mip_heur = m2->mip_heur;
++    m->mip_first_inc = m2->mip_first_inc > 0 ? root_nodes + m2->mip_first_inc
++                                              : 0;
++    m->mip_rcfix_n = m2->mip_rcfix_n;
++    m->mip_prop_n = m2->mip_prop_n;
++    m->mip_sym_gen = m2->mip_sym_gen;
++    m->mip_sym_orbits = m2->mip_sym_orbits;
++    m->mip_bound = m2->mip_bound;
++    m->mip_has_incumbent = false;
++    m->solve_status = outcome;
++    m->solve_work = spent + m2->solve_work;
++    m->solve_iters = root_iters + m2->solve_iters;
++    if (m2->mip_pool_n > 0) {
++        m->mip_pool_x = jm_alloc_array(m2->mip_pool_n * n,
++                                       sizeof *m->mip_pool_x);
++        m->mip_pool_obj = jm_alloc_array(m2->mip_pool_n,
++                                         sizeof *m->mip_pool_obj);
++        if (m->mip_pool_x == nullptr || m->mip_pool_obj == nullptr) {
++            st = JAOS_ERR_OUT_OF_MEMORY;
++            goto out;
++        }
++        for (int64_t k = 0; k < m2->mip_pool_n; k++) {
++            double *px = m->mip_pool_x + k * n;
++            lat_point(n, v, m2->mip_pool_x + k * n, px);
++            m->mip_pool_obj[k] = jm_model_objective_at(m, px);
++        }
++        m->mip_pool_n = m2->mip_pool_n;
++    }
++    m->mip_inc_x = x;
++    x = nullptr;
++    m->mip_has_incumbent = true;
++    m->mip_inc_obj = jm_model_objective_at(m, m->mip_inc_x);
++    if (outcome == JAOS_SOLVE_OPTIMAL)
++        m->mip_bound = m->mip_inc_obj;
++    if (outcome == JAOS_SOLVE_OPTIMAL) {
++        int64_t extra = 0;
++        if (jm_model_ensure_solution_arrays(m) != JAOS_OK) {
++            st = JAOS_ERR_OUT_OF_MEMORY;
++            goto out;
++        }
++        if (!republish_at_the_incumbent(m, m->mip_inc_x, n, nr, m, &extra)) {
++            st = lat_fallback(m, m->solve_work + extra);
++            goto out;
++        }
++        m->solve_work += extra;
++        m->sol_basis_ok = jm_model_basis_count_ok(m);
++        jm_model_publish_objective(m);
++        jm_mip_take_published(m);
++    }
++    m->solve_time = now_seconds() - t0;
++    st = JAOS_OK;
++out:
++    jaos_model_free(m2);
++    free(xinc); free(hess); free(u); free(v); free(x);
++    return st;
++}
++
+ static jaos_status bb_run(jaos_model *m)
++{
++    if (lat_eligible(m)) {
++        bool done = false;
++        const jaos_status st = lat_run(m, &done);
++        if (st != JAOS_OK || done)
++            return st;
++    }
++    return bb_run_plain(m);
++}
++
++static jaos_status bb_run_plain(jaos_model *m)
+ {
+     const bool net = !jm_model_has_quadratic(m) && network_shape(m);
+     const bool restart = m->cfg.mip_restart_set ? m->cfg.mip_restart
+diff --git a/src/model.c b/src/model.c
+index c921ba24..caff6f06 100644
+--- a/src/model.c
++++ b/src/model.c
+@@ -82,6 +82,8 @@ static void model_release_arrays(jaos_model *m)
+     free(m->mip_inc_x);
+     free(m->mip_pool_x);
+     free(m->mip_pool_obj);
++    free(m->lat_u);
++    free(m->lat_v);
+ 
+     const jm_config cfg = m->cfg;
+     memset(m, 0, sizeof *m);
+@@ -2406,6 +2408,15 @@ jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
+     return JAOS_OK;
+ }
+ 
++jaos_status jaos_set_mip_lattice(jaos_model *m, int on)
++{
++    if (m == nullptr)
++        return JAOS_ERR_INVALID_INPUT;
++    m->cfg.mip_lattice_set = on >= 0;
++    m->cfg.mip_lattice = on > 0;
++    return JAOS_OK;
++}
++
+ jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
+ {
+     if (m == nullptr)
+diff --git a/src/options.c b/src/options.c
+index bce23075..dbe15474 100644
+--- a/src/options.c
++++ b/src/options.c
+@@ -31,7 +31,7 @@ enum opt_id {
+     O_RELIABILITY,
+     O_PROBE_CAP, O_PROBE_DEPTH, O_CUT_ROUNDS, O_CUT_DEPTH, O_CUT_DROP,
+     O_NODE_CUT_CAP, O_COVER_ROUNDS, O_CUT_STALL, O_NODE_CUT_STALL,
+-    O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_MIR_AGGREGATE,
++    O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_LATTICE, O_MIR_AGGREGATE,
+     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
+     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
+     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
+@@ -65,6 +65,7 @@ static const opt_def OPTS[O_COUNT] = {
+     [O_COVER_LIFT] = {"mip_cover_lift", OPT_BOOL, nullptr, 0},
+     [O_MIR_ROUNDS] = {"mip_mir_rounds", OPT_INT, nullptr, 0},
+     [O_NODE_MIR] = {"mip_node_mir", OPT_BOOL, nullptr, 0},
++    [O_LATTICE] = {"mip_lattice", OPT_BOOL, nullptr, 0},
+     [O_MIR_AGGREGATE] = {"mip_mir_aggregate", OPT_INT, nullptr, 0},
+     [O_DIVE] = {"mip_dive", OPT_BOOL, nullptr, 0},
+     [O_DIVE_CHILD] = {"mip_dive_child", OPT_ENUM, DIVE_WORDS, 4},
+@@ -231,6 +232,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
+     case O_COVER_LIFT: return jaos_set_mip_cover_lift(m, b);
+     case O_MIR_ROUNDS: return jaos_set_mip_mir_rounds(m, i);
+     case O_NODE_MIR: return jaos_set_mip_node_mir(m, b);
++    case O_LATTICE: return jaos_set_mip_lattice(m, b);
+     case O_MIR_AGGREGATE: return jaos_set_mip_mir_aggregate(m, i);
+     case O_DIVE: return jaos_set_mip_dive(m, b == 1);
+     case O_DIVE_CHILD: return jaos_set_mip_dive_child(m, (jaos_dive_child)e);
+@@ -317,6 +319,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
+     case O_COVER_LIFT: b = eff(c->mip_cover_lift_set, c->mip_cover_lift ? 1.0 : 0.0, JM_DEF_COVER_LIFT) != 0.0; break;
+     case O_MIR_ROUNDS: i = (int64_t)eff(c->mip_mir_rounds_set, (double)c->mip_mir_rounds, JM_DEF_MIR_ROUNDS); break;
+     case O_NODE_MIR: b = eff(c->mip_node_mir_set, c->mip_node_mir ? 1.0 : 0.0, JM_DEF_NODE_MIR) != 0.0; break;
++    case O_LATTICE: b = eff(c->mip_lattice_set, c->mip_lattice ? 1.0 : 0.0, JM_DEF_LATTICE) != 0.0; break;
+     case O_MIR_AGGREGATE: i = (int64_t)eff(c->mip_mir_aggregate_set, (double)c->mip_mir_aggregate, JM_DEF_MIR_AGGREGATE); break;
+     case O_DIVE: b = c->mip_dive; break;
+     case O_DIVE_CHILD: e = c->mip_dive_child; break;

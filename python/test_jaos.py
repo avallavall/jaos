@@ -2731,6 +2731,23 @@ class TestBranchAndBound(unittest.TestCase):
             self.assertEqual((a.value, b.value), (1.0, 1.0))
         p.set_mip_dive_backtrack(-1)
 
+    def test_lattice_branching_closes_a_thin_slab_in_fewer_nodes(self):
+
+        nodes = []
+        for on in (False, True):
+            p = jaos.Problem()
+            xs = [p.add_var(ub=20, integer=True) for _ in range(6)]
+            a = (4046, 4520, 3642, 2564, 2511, 4740)
+            p.add_range(354322.5, sum(w * x for w, x in zip(a, xs)), 354323)
+            p.maximize(sum(c * x for c, x in zip((3, 2, 5, 3, 6, 6), xs)))
+            p.set_mip_lattice(on)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 426.0, places=9)
+            self.assertEqual(sum(w * x.value for w, x in zip(a, xs)), 354323.0)
+            nodes.append(p.mip_report().nodes)
+            p.set_mip_lattice(None)
+        self.assertLess(nodes[1], nodes[0])
+
     def test_mir_cuts_at_the_nodes_keep_the_optimum(self):
 
         counts = []

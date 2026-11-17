@@ -1,0 +1,6 @@
+gen-ip054  --reliability 8        optimal      nodes   58044 work   1725499991 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip054  --reliability 0        optimal      nodes   68755 work   1991635463 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip054  --node-select bound    optimal      nodes   57569 work   1653358482 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip054  --cut-depth 0          optimal      nodes   76231 work   2267417334 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip054  --no-node-mir          optimal      nodes  124340 work   3512689103 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip054  --no-heuristics        optimal      nodes  242979 work   5335347173 bound 6840.9656417920005   inc 6840.9656417920005

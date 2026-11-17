@@ -101,6 +101,9 @@ typedef struct {
     bool mip_node_mir_set;
     bool mip_node_mir;
 
+    bool mip_lattice_set;
+    bool mip_lattice;
+
     bool mip_mir_aggregate_set;
     int64_t mip_mir_aggregate;
 
@@ -169,6 +172,7 @@ typedef struct {
     bool mip_no_heuristics;
 
     int64_t mip_node_limit;
+    int64_t mip_node_soft;
     int64_t mip_tree_batch;
     int mip_branching;
 
@@ -393,7 +397,7 @@ enum jm_mip_key {
     JM_DEF_RCFIX, JM_DEF_TIGHTEN, JM_DEF_MIP_PRESOLVE, JM_DEF_PROBING, JM_DEF_PROBING_CAP, JM_DEF_CLIQUE_FIX, JM_DEF_CONFLICTS, JM_DEF_SYMMETRY, JM_DEF_ORBITAL, JM_DEF_PROPAGATE, JM_DEF_PROPAGATE_DEPTH, JM_DEF_NODE_MIR,
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
     JM_DEF_FLOW_COVER_ROUNDS, JM_DEF_LOCAL_BRANCHING, JM_DEF_NODE_SELECT,
-    JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP,
+    JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP, JM_DEF_LATTICE,
 };
 double jm_mip_default(enum jm_mip_key key);
 bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,

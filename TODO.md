@@ -71,7 +71,7 @@ every conic gate, since it moves every conic iterate. Verify with
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 6 of 30 at 1e10 work units, 29 with an
+J7. **MIP: MIPLIB 2017, 7 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
 HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 `binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
@@ -116,7 +116,21 @@ first:
   and `binkar10_1`. HiGHS closes `binkar10_1` in 4,066 nodes and SCIP in
   1,859, where JAOS stayed open past 121,000 (02-465). What they lack is
   branching, node cuts and propagation; `binkar10_1` closes with node
-  MIR (02-474, below).
+  MIR (02-474, below). On `gen-ip002` and `gen-ip054` JAOS's bound per
+  node leads, and neither HiGHS nor SCIP closes them in 300 s (02-476).
+- `gen-ip054` closes at 2.8e9 work units in 75,989 nodes on an
+  LLL-reduced basis of the improving region (`--lattice`, 02-476), where
+  the columns' tree is open at 1e11. The tree first runs 20,000 nodes over
+  the columns for an incumbent: the reduced tree finds few points of its
+  own, and with 1000 first `gen-ip002` lost its optimum (found by the
+  columns' tree at node 10,326) and ended at -4754.42. `gen-ip002` holds
+  the optimum and its bound at 1e10 moves from -4804.34 to -4802.43; best
+  bound first on the columns reads -4801.21. Rounding each node's point in
+  the columns costs 4% to 9% of the work and finds better points late
+  (`lattice-round-columns`). Next for `gen-ip002`: a heuristic for the
+  reduced tree whose points hold the bound rows `V y >= 0`, so that the
+  first phase can be short. Verify with `gen-ip002` holding its optimum
+  and closing inside 1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
   (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
   and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work

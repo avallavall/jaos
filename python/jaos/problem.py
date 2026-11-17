@@ -1065,6 +1065,13 @@ class Problem:
         self._m.set_mip_node_mir(on)
         return self
 
+    def set_mip_lattice(self, on=True):
+        """Branching on integer combinations of the columns, a reduced
+        basis of the improving region, on small dense models of general
+        integers; None restores the default."""
+        self._m.set_mip_lattice(on)
+        return self
+
     def set_mip_mir_aggregate(self, rows):
         """Rows a MIR cut may absorb before it is rounded (D312); 0 is the
         single-row form, negative the default."""

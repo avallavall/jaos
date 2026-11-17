@@ -2406,6 +2406,15 @@ jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_lattice(jaos_model *m, int on)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_lattice_set = on >= 0;
+    m->cfg.mip_lattice = on > 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_probe_depth(jaos_model *m, int64_t depth)
 {
     if (m == nullptr)

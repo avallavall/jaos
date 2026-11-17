@@ -31,7 +31,7 @@ enum opt_id {
     O_RELIABILITY,
     O_PROBE_CAP, O_PROBE_DEPTH, O_CUT_ROUNDS, O_CUT_DEPTH, O_CUT_DROP,
     O_NODE_CUT_CAP, O_COVER_ROUNDS, O_CUT_STALL, O_NODE_CUT_STALL,
-    O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_MIR_AGGREGATE,
+    O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_LATTICE, O_MIR_AGGREGATE,
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
     O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
@@ -65,6 +65,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_COVER_LIFT] = {"mip_cover_lift", OPT_BOOL, nullptr, 0},
     [O_MIR_ROUNDS] = {"mip_mir_rounds", OPT_INT, nullptr, 0},
     [O_NODE_MIR] = {"mip_node_mir", OPT_BOOL, nullptr, 0},
+    [O_LATTICE] = {"mip_lattice", OPT_BOOL, nullptr, 0},
     [O_MIR_AGGREGATE] = {"mip_mir_aggregate", OPT_INT, nullptr, 0},
     [O_DIVE] = {"mip_dive", OPT_BOOL, nullptr, 0},
     [O_DIVE_CHILD] = {"mip_dive_child", OPT_ENUM, DIVE_WORDS, 4},
@@ -231,6 +232,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_COVER_LIFT: return jaos_set_mip_cover_lift(m, b);
     case O_MIR_ROUNDS: return jaos_set_mip_mir_rounds(m, i);
     case O_NODE_MIR: return jaos_set_mip_node_mir(m, b);
+    case O_LATTICE: return jaos_set_mip_lattice(m, b);
     case O_MIR_AGGREGATE: return jaos_set_mip_mir_aggregate(m, i);
     case O_DIVE: return jaos_set_mip_dive(m, b == 1);
     case O_DIVE_CHILD: return jaos_set_mip_dive_child(m, (jaos_dive_child)e);
@@ -317,6 +319,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_COVER_LIFT: b = eff(c->mip_cover_lift_set, c->mip_cover_lift ? 1.0 : 0.0, JM_DEF_COVER_LIFT) != 0.0; break;
     case O_MIR_ROUNDS: i = (int64_t)eff(c->mip_mir_rounds_set, (double)c->mip_mir_rounds, JM_DEF_MIR_ROUNDS); break;
     case O_NODE_MIR: b = eff(c->mip_node_mir_set, c->mip_node_mir ? 1.0 : 0.0, JM_DEF_NODE_MIR) != 0.0; break;
+    case O_LATTICE: b = eff(c->mip_lattice_set, c->mip_lattice ? 1.0 : 0.0, JM_DEF_LATTICE) != 0.0; break;
     case O_MIR_AGGREGATE: i = (int64_t)eff(c->mip_mir_aggregate_set, (double)c->mip_mir_aggregate, JM_DEF_MIR_AGGREGATE); break;
     case O_DIVE: b = c->mip_dive; break;
     case O_DIVE_CHILD: e = c->mip_dive_child; break;

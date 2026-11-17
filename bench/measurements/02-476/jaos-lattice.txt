@@ -1,0 +1,35 @@
+# lat1: MIP_LATTICE_NODES at 1
+gen-ip054  optimal      nodes  258514 work   6456624410 bound 6840.9656417920005   inc 6840.9656417920005
+lattice: after 1 nodes the tree starts again on 30 integer combinations of the columns, a reduced basis of the improving region at the incumbent 7065.941373525, each over up to 30 columns with coefficients up to 10
+gen-ip002  work_limit   nodes  228366 work  10000002254 bound -4805.2870817825205  inc -4783.7333915999998
+lattice: after 1 nodes the tree starts again on 41 integer combinations of the columns, a reduced basis of the improving region at the incumbent -4217.1585802999998, each over up to 41 columns with coefficients up to 13
+# lat2: a first form that ran the MIP presolve on the reduced model, the basis after 100, 1000 and 12000 nodes
+gen-ip002  pre 100    work_limit   nodes  186819 work  10000007631 bound -4801.5016868611347  inc -4754.4235292000003 | incumbent -4754.4235292000003, up to 41 columns and coefficient 17 each
+gen-ip002  pre 1000   work_limit   nodes  186902 work  10000007434 bound -4801.5265289140225  inc -4754.4235292000003 | incumbent -4754.4235292000003, up to 41 columns and coefficient 17 each
+gen-ip002  pre 12000  work_limit   nodes  182817 work  10000010469 bound -4802.4613639362206  inc -4783.7333915999998 | incumbent -4783.7333915999998, up to 41 columns and coefficient 22 each
+gen-ip054  pre 100    optimal      nodes  191856 work   4673246520 bound 6840.9656417920005   inc 6840.9656417920005 | incumbent 7065.941373525, up to 30 columns and coefficient 10 each
+gen-ip054  pre 1000   optimal      nodes   61964 work   1886832462 bound 6840.9656417920005   inc 6840.9656417920005 | incumbent 6933.2556586950004, up to 30 columns and coefficient 16 each
+gen-ip054  pre 12000  optimal      nodes   79785 work   2557401266 bound 6840.9656417920005   inc 6840.9656417920005 | incumbent 6911.0300281239997, up to 30 columns and coefficient 25 each
+# lat3: after 1 node, each node's point rounded in the columns and checked on the reduced model's rows
+gen-ip054  optimal      nodes  219209 work   6008708436 bound 6840.9656417920005   inc 6840.9656417920005
+lattice: the tree branches on 30 integer combinations of the columns, a reduced basis of the improving region at the root's incumbent 7065.941373525, up to 30 columns and coefficient 10 each
+gen-ip002  work_limit   nodes  201768 work  10000008290 bound -4805.9158610467885  inc -4783.7333915999998
+lattice: the tree branches on 41 integer combinations of the columns, a reduced basis of the improving region at the root's incumbent -4217.1585802999998, up to 41 columns and coefficient 13 each
+# lat4: hook.patch, the same rounding checked on the model's own rows, after 1 and 1000 nodes
+gen-ip054  pre 1      optimal      nodes  222698 work   5870122680 bound 6840.9656417920005   inc 6840.9656417920005   | incumbent 7065.941373525, up to 30 columns and coefficient 10 each | work: node relaxations 81.4%, cuts 0.0%, heuristics 18.0%, propagation, probing and conflicts 0.5%, strong branching 0.0%, the rest 0.1%
+gen-ip002  pre 1      work_limit   nodes  212208 work  10000283959 bound -4805.4410760199225  inc -4774.6474389000005  | incumbent -4217.1585802999998, up to 41 columns and coefficient 13 each | work: node relaxations 80.6%, cuts 0.0%, heuristics 19.2%, propagation, probing and conflicts 0.1%, strong branching 0.1%, the rest 0.1%
+gen-ip054  pre 1000   optimal      nodes   59219 work   1846807554 bound 6840.9656417920005   inc 6840.9656417920005   | incumbent 6933.2556586950004, up to 30 columns and coefficient 16 each | work: node relaxations 82.5%, cuts 0.1%, heuristics 16.4%, propagation, probing and conflicts 0.8%, strong branching 0.2%, the rest 0.0%
+gen-ip002  pre 1000   work_limit   nodes  173170 work  10000005579 bound -4802.1735839757202  inc -4761.2394999999997  | incumbent -4754.4235292000003, up to 41 columns and coefficient 17 each | work: node relaxations 82.4%, cuts 0.0%, heuristics 17.0%, propagation, probing and conflicts 0.4%, strong branching 0.1%, the rest 0.1%
+# lat5: 2cb06169, MIP_LATTICE_NODES at 1000
+gen-ip054  optimal      nodes   61513 work   1814649186 bound 6840.9656417920005   inc 6840.9656417920005
+lattice: after 1000 nodes the tree starts again on 30 integer combinations of the columns, a reduced basis of the improving region at the incumbent 6933.2556586950004, each over up to 30 columns with coefficients up to 16
+gen-ip002  work_limit   nodes  189083 work  10000003643 bound -4800.8479488582916  inc -4754.4235292000003
+lattice: after 1000 nodes the tree starts again on 41 integer combinations of the columns, a reduced basis of the improving region at the incumbent -4754.4235292000003, each over up to 41 columns with coefficients up to 17
+# MIP_LATTICE_NODES at 12000
+gen-ip054  nodes-first 12000  optimal      nodes   80197 work   2514544966 bound 6840.9656417920005   inc 6840.9656417920005
+gen-ip002  nodes-first 12000  work_limit   nodes  183513 work  10000004867 bound -4802.2657953269618  inc -4783.7333915999998
+# the change, MIP_LATTICE_NODES at 20000
+gen-ip054  optimal      nodes   75989 work   2767118358 bound 6840.9656417920005   inc 6840.9656417920005
+lattice: after 20000 nodes the tree starts again on 30 integer combinations of the columns, a reduced basis of the improving region at the incumbent 6866.2306826720005, each over up to 30 columns with coefficients up to 20
+gen-ip002  work_limit   nodes  186340 work  10000012131 bound -4802.4291565564499  inc -4783.7333915999998
+lattice: after 20000 nodes the tree starts again on 41 integer combinations of the columns, a reduced basis of the improving region at the incumbent -4783.7333915999998, each over up to 41 columns with coefficients up to 22

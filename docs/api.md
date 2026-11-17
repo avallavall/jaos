@@ -145,6 +145,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_cover_lift` | `mip_cover_lift` | boolean | false |
 | `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 100 in network mode |
 | `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | true for a linear objective, false for a quadratic one |
+| `jaos_set_mip_lattice` | `mip_lattice` | boolean | true |
 | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
 | `jaos_set_mip_dive_child` | `mip_dive_child` | `nearer`, `up`, `down`, `pseudocost` | `nearer` |
@@ -858,6 +859,33 @@ incumbent gets none, and the cuts stop for the rest of the tree once, after
 `MIP_NODE_MIR_PAYS` of what branching gained at the same nodes. On by
 default for a linear objective, off for a quadratic one; -1 restores the
 default.
+
+**`jaos_set_mip_lattice`**\
+`jaos_status jaos_set_mip_lattice(jaos_model *m, int on)`\
+Branching on integer combinations of the columns for a small dense model of
+general integers: a linear objective, every column integer with bounds more
+than 1 apart, no equality row, no SOS set, semi-continuous column or
+indicator row, at most `MIP_LATTICE_COLS` columns, at least
+`MIP_LATTICE_DENSITY` of the matrix nonzero, and no incumbent or node
+callback. The tree runs over the columns until it has taken
+`MIP_LATTICE_NODES` nodes and holds an incumbent; a tree that ends first,
+or that finds no incumbent, is the answer. Then the region the incumbent
+leaves to improve on, the rows, the bounds and the objective at most the
+incumbent's, is rounded by the Dikin ellipsoid at its analytic center, and
+an LLL reduction
+under that ellipsoid gives an integer basis `U` of the integer points with
+`|det U| = 1`. The model is written in `y = U^T x`: every row over `y`, a
+row per bounded column for its bounds, `y` integer and free. The tree starts
+again from its root on that model with the incumbent as its start, and its
+answer is mapped back to `x`, each point checked on the model's own rows;
+an optimum is published with the model's duals, and at a limit the
+incumbent and the pool as a limited tree publishes them. A region with no
+interior, a mapped point that breaks a row, a basis that is the identity,
+or a reduction past `MIP_LATTICE_ENTRY` or `MIP_LATTICE_SWAPS` keeps the
+columns, and the tree starts again on them.
+The summary log says how many nodes ran first, at which incumbent, and how
+long the combinations are. A node limit of `MIP_LATTICE_NODES` or fewer
+keeps the columns. On by default; -1 restores the default.
 
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\

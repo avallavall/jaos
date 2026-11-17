@@ -1,0 +1,4 @@
+ref-gen-ip002-cut      work_limit   nodes  205216 work  10000013660 bound -4820.8139979078578  inc 
+ref-gen-ip002-z1       work_limit   nodes  249131 work  10000004916 bound -4824.0990345011014  inc 
+ref-gen-ip002-z2       work_limit   nodes  200101 work  10000007055 bound -4819.8822603709441  inc 
+gen-ip002              work_limit   nodes  389613 work  10000003570 bound -4823.8122985829032  inc 

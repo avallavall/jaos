@@ -363,6 +363,20 @@ expect_exit 0 "MIR cuts at the nodes still solve it" \
     || flunk "node mir: $(line_of objective)"
 expect_exit 0 "and the Gomory round alone by name" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-node-mir
+expect_exit 0 "a thin slab of general integers closes on a reduced basis" \
+    "$JAOS" solve "$DATA/lattice_slab.lp" --log progress
+[ "$(line_of objective)" = "objective 426" ] && pass "to 426" \
+    || flunk "lattice: $(line_of objective)"
+printf '%s\n' "$err" | grep -q "^lattice: after 20000 nodes the tree starts again on 6 integer combinations" \
+    && pass "after 20000 nodes over the columns" \
+    || flunk "no lattice line in the log"
+expect_exit 0 "and --no-lattice closes it over the columns" \
+    "$JAOS" solve "$DATA/lattice_slab.lp" --log progress --no-lattice
+[ "$(line_of objective)" = "objective 426" ] && pass "to 426" \
+    || flunk "no lattice: $(line_of objective)"
+printf '%s\n' "$err" | grep -q "^lattice:" \
+    && flunk "--no-lattice still reformulated" \
+    || pass "with no lattice line"
 expect_exit 0 "a dive bounded by the gap still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive --dive-gap 0.1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

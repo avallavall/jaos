@@ -1,0 +1,14 @@
+gen-ip054  default              nodes   30000 work   1402778112 bound 6795.0487289095217   inc 6866.2306826720005   strong branching 0.2%
+gen-ip054  rel8-s0.5            nodes   30000 work   1371426747 bound 6796.0491152709983   inc 6857.5664950350001   strong branching 0.7%
+gen-ip054  full-s1-cap0         nodes   30000 work   7706433778 bound 6787.0400204583775   inc 6873.8111216440002   strong branching 83.3%
+gen-ip054  full-s1-cap1.5       nodes   30000 work   7572060344 bound 6786.7072562939293   inc 6857.9868950400005   strong branching 83.1%
+gen-ip054  gom-every            nodes   30000 work   2303169924 bound 6798.3957184528235   inc 6855.0469726800002   strong branching 0.2%
+gen-ip054  gom-every-full       nodes   30000 work  12051101313 bound 6797.6640594651617   inc 6857.5664950350001   strong branching 73.3%
+gen-ip054  bound                nodes   30000 work    651211793 bound 6788.7864533270067   inc 6840.9656417920005   strong branching 0.4%
+gen-ip002  default              nodes   30000 work   1045245006 bound -4815.3071839761551  inc -4783.7333915999998  strong branching 0.5%
+gen-ip002  rel8-s0.5            nodes   30000 work   1018781148 bound -4814.5173557911376  inc -4783.7333915999998  strong branching 1.8%
+gen-ip002  full-s1-cap0         nodes   30000 work  13104933526 bound -4813.7275161379293  inc -4783.7333915999998  strong branching 83.3%
+gen-ip002  full-s1-cap1.5       nodes   30000 work  12972462344 bound -4813.9621090897199  inc -4770.7191027999997  strong branching 83.2%
+gen-ip002  gom-every            nodes   30000 work   3793710005 bound -4810.635732231759   inc -4783.7333915999998  strong branching 0.3%
+gen-ip002  gom-every-full       nodes   30000 work  20431440984 bound -4809.3701563884024  inc -4772.3956717000001  strong branching 74.0%
+gen-ip002  bound                nodes   30000 work   1104198752 bound -4812.570166605411   inc -4769.7405888000003  strong branching 0.5%
