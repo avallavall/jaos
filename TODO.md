@@ -71,18 +71,16 @@ every conic gate, since it moves every conic iterate. Verify with
 
 ## Tier 3: the largest performance gaps
 
-J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 28 with an
+J7. **MIP: MIPLIB 2017, 5 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
 HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 `binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
 first:
 
-- No incumbent: `ic97_potential` and `csched008`. HiGHS finds
-  `csched008`'s first point by a sub-MIP at node 533. Its root pump took
-  5.5e9 of the 1e10. The root's pump and dive are now held to half the
-  root's work while there is no incumbent (`MIP_HEUR_ROOT`, 02-466), and
-  `csched008` reaches 79 nodes. Each costs about 6e7 work units, and it
-  finds no point. Next: J32's scheduling heuristic, then the node cost.
+- No incumbent: `ic97_potential`. `csched008` has one at its root from
+  J32's search over the starts (`bench/measurements/02-472/`): 175, its
+  optimum 173. Its bound stays at 171 after 96 nodes. Next for it: the
+  node cost (about 6e7 work units a node, 02-466).
 - Weak roots on the timetabling models: `timtab1` 427178 against HiGHS's
   569441, `ic97_potential` 3868 against SCIP's 3896. Their cuts come from
   rows summed around cycles of the event graph; the simple form was refused
@@ -157,10 +155,11 @@ first:
 Verify with `make miplib J=2`, `make miplib2017` and
 `bench/measurements/02-328/m17sum.py`.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 17:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 18:
 - for linear MIPs:
   - node rounding, lock rounding;
-  - the feasibility jump, the exchanges between assignment rows, threshold
+  - the search over the starts of a time-indexed schedule, the
+    feasibility jump, the exchanges between assignment rows, threshold
     accepting over the items of partitioning rows, moves over the
     disjunctions of big-M rows;
   - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
@@ -191,7 +190,10 @@ instances:
   `neos-911970` 0.030 to 0.004, `bench/measurements/02-469/`). The third,
   moves over the disjunctions of big-M rows, takes it to 12.04 (`glass4`
   1.0 to 0.42, `graphdraw-domain` 0.44 to 0.06, `neos-3754480-nidda` to
-  its optimum, `bench/measurements/02-470/`). The rest, largest first,
+  its optimum, `bench/measurements/02-470/`). The fourth,
+  a search over the starts of a time-indexed schedule, takes it to
+  10.91 (`csched008` from no incumbent to 0.012 away, `csched007`
+  0.32 to 0.13, `bench/measurements/02-472/`). The rest, largest first,
   follow below.
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
@@ -216,10 +218,10 @@ instances:
 The structures, largest first:
 
 - Partitioning rows with items whose continuous columns link rows
-  (`glass4`, `csched007`, `assign1-5-8`, `graphdraw-domain`): the items
-  search of 02-469 prices each row's continuous columns in closed form,
-  which these models do not allow. Next: an LP over the continuous
-  columns after a run of moves, read on those four.
+  (`glass4`, `assign1-5-8`, `graphdraw-domain`): the items search of
+  02-469 prices each row's continuous columns in closed form, which these
+  models do not allow. Next: an LP over the continuous columns after a
+  run of moves, read on those three.
 - Big-M placement: 02-470's moves change one disjunction at a time, with
   kicks of up to four. `glass4` stops at 1.70e9, 0.42 away, and its last
   ten runs find nothing. `supportcase26` ends 0.018 away against 0.011
@@ -227,18 +229,17 @@ The structures, largest first:
   once, and a single flip between them closes a cycle. Next: a move that
   frees every disjunction of one object (a rectangle, a job) and solves
   them as a sub-MIP with the rest held, read on those two.
-- Scheduling with one start per job: the serial schedule generation
-  scheme, priorities from the relaxation (`csched008` has no incumbent,
-  `csched007` is 0.35 away). `csched008` is time-indexed: 50 jobs, each
-  starting once within a window, durations up to 49, and one resource of
-  capacity 25 kept as a chain of profile columns. A Python prototype of
-  fix-and-propagate, placing each job at its earliest start that bound
-  propagation over every row accepts, never places all 50. It jams after
-  68 to 97 fixes, ordered longest first, by deadline or by release, with
-  seeded restarts. Next: the same with backtracking, a limited
-  discrepancy search over the starts.
 - Periodic timetables: the modulo network simplex (`ic97_potential` has no
   incumbent, `timtab1` is 0.68 away).
+- Scheduling with one start per job, the objective after the first
+  point: 02-472's search places the jobs by their earliest start, ties by
+  the relaxation's mean start, and sees the objective only through the
+  bound it propagates. On `csched008`'s makespan that bound drops the late
+  starts (175, its optimum 173). On `csched007`'s total tardiness it drops
+  none, so the search stops at its first point, 407, and the RINS sub-MIP
+  takes it to 397 at 1e10 (optimum 351). Next: a neighbourhood over the
+  starts that frees the jobs of one time window and searches them again
+  under the bound, read on `csched007`.
 - Fixed-charge networks: dynamic slope scaling, then closing and opening
   arcs (`beasleyC3` 0.10 away).
 - Market split and general integer equality systems: lattice

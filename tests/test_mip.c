@@ -1535,6 +1535,129 @@ static void test_moves_over_big_m_disjunctions_order_one_machine(void)
     jaos_model_free(m);
 }
 
+enum { TI_JOBS = 7, TI_T = 20, TI_X = 49 };
+static const int64_t ti_dur[TI_JOBS] = { 2, 4, 1, 3, 6, 5, 2 };
+static const double ti_use[TI_JOBS] = { 2, 2, 2, 2, 1, 3, 2 };
+static const int64_t ti_first[TI_JOBS] = { 1, 2, 5, 9, 10, 5, 2 };
+static const int64_t ti_last[TI_JOBS] = { 11, 8, 6, 16, 11, 12, 12 };
+
+static jaos_model *time_indexed_jobs(void)
+{
+    constexpr int64_t J = TI_JOBS;
+    constexpr int64_t T = TI_T;
+    constexpr int64_t C = TI_X + T + 1 + J + 1;
+    constexpr int64_t R = T + 1 + 3 * J;
+    double c[C], cl[C], cu[C], rl[R], ru[R], av[4 * C];
+    int64_t as[C + 1], ai[4 * C], p = 0, q = 0;
+    for (int64_t j = 0; j < J; j++)
+        for (int64_t t = ti_first[j]; t <= ti_last[j]; t++, q++) {
+            as[q] = p;
+            c[q] = 0.0;
+            cl[q] = 0.0;
+            cu[q] = 1.0;
+            ai[p] = t;
+            av[p++] = -ti_use[j];
+            if (t + ti_dur[j] <= T) {
+                ai[p] = t + ti_dur[j];
+                av[p++] = ti_use[j];
+            }
+            ai[p] = T + 1 + j;
+            av[p++] = 1.0;
+            ai[p] = T + 1 + J + j;
+            av[p++] = -(double)t;
+        }
+    TEST_ASSERT_EQUAL_INT64(TI_X, q);
+    for (int64_t t = 0; t <= T; t++, q++) {
+        as[q] = p;
+        c[q] = 0.0;
+        cl[q] = 0.0;
+        cu[q] = 4.0;
+        ai[p] = t;
+        av[p++] = 1.0;
+        if (t < T) {
+            ai[p] = t + 1;
+            av[p++] = -1.0;
+        }
+    }
+    for (int64_t j = 0; j < J; j++, q++) {
+        as[q] = p;
+        c[q] = 0.0;
+        cl[q] = (double)ti_first[j];
+        cu[q] = (double)ti_last[j];
+        ai[p] = T + 1 + J + j;
+        av[p++] = 1.0;
+        ai[p] = T + 1 + 2 * J + j;
+        av[p++] = -1.0;
+    }
+    as[q] = p;
+    c[q] = 1.0;
+    cl[q] = 0.0;
+    cu[q] = INFINITY;
+    for (int64_t j = 0; j < J; j++) {
+        ai[p] = T + 1 + 2 * J + j;
+        av[p++] = 1.0;
+    }
+    as[C] = p;
+    for (int64_t i = 0; i <= T; i++)
+        rl[i] = ru[i] = 0.0;
+    for (int64_t j = 0; j < J; j++) {
+        rl[T + 1 + j] = ru[T + 1 + j] = 1.0;
+        rl[T + 1 + J + j] = ru[T + 1 + J + j] = 0.0;
+        rl[T + 1 + 2 * J + j] = (double)ti_dur[j];
+        ru[T + 1 + 2 * J + j] = INFINITY;
+    }
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, C, R, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, p, as, ai,
+                     av));
+    for (int64_t k = 0; k < TI_X; k++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, k, true));
+    return m;
+}
+
+static void test_search_over_starts_schedules_the_jobs_on_the_profile(void)
+{
+    jaos_model *m = time_indexed_jobs();
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(1, rep.nodes);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 16.0, rep.incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "by a search over the jobs' starts on "
+                                       "the chain of profile columns"));
+    double x[TI_X + TI_T + 1 + TI_JOBS + 1], load[TI_T + 1] = { 0.0 };
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    int64_t q = 0;
+    for (int64_t j = 0; j < TI_JOBS; j++) {
+        int64_t starts = 0;
+        for (int64_t t = ti_first[j]; t <= ti_last[j]; t++, q++) {
+            if (x[q] < 0.5)
+                continue;
+            starts++;
+            TEST_ASSERT_TRUE(t + ti_dur[j] <= 16);
+            for (int64_t k = t; k < t + ti_dur[j]; k++)
+                load[k] += ti_use[j];
+        }
+        TEST_ASSERT_EQUAL_INT64(1, starts);
+    }
+    for (int64_t k = 0; k <= TI_T; k++)
+        TEST_ASSERT_TRUE(load[k] <= 4.0 + 1e-9);
+    jaos_model_free(m);
+
+    m = time_indexed_jobs();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 16.0, rep.incumbent);
+    TEST_ASSERT_TRUE(rep.nodes > 1);
+    jaos_model_free(m);
+}
+
 static jaos_model *lights_out(void)
 {
     constexpr int64_t N = 3;
@@ -6238,6 +6361,7 @@ int main(void)
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
+    RUN_TEST(test_search_over_starts_schedules_the_jobs_on_the_profile);
     RUN_TEST(test_moves_over_big_m_disjunctions_order_one_machine);
     RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);
     RUN_TEST(test_parity_rows_that_contradict_end_infeasible);

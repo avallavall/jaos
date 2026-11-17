@@ -1,0 +1,6 @@
+bell5        work 0.99x nodes 21034 to 20939
+blend2       work 0.90x nodes 4337 to 4220
+misc07       work 1.08x nodes 9485 to 9776
+mod008       work 0.88x nodes 1507 to 1239
+p0282        work 1.02x nodes 1717 to 1783
+total 1.0202x over 24 instances

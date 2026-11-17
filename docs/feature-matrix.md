@@ -172,8 +172,9 @@ cells here are rows `SPECS.md` marks out of scope.
   no incumbent (`bench/measurements/02-407/`). Hexaly names "propagation
   methods" and no reduced-cost fixing.
 - *Primal heuristics*: rounding, dives, the feasibility pump, lock
-  rounding, a feasibility jump, exchanges between assignment rows,
-  threshold accepting over the items of partitioning rows, moves over the
+  rounding, a search over the starts of time-indexed schedules, a
+  feasibility jump, exchanges between assignment rows, threshold
+  accepting over the items of partitioning rows, moves over the
   disjunctions of big-M rows, RINS and RENS run by default. Local
   branching is off by measurement (`bench/measurements/02-325/`).
 - *MIP start and cutoff*: HiGHS documents no MIP cutoff. Hexaly takes a

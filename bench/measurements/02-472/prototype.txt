@@ -1,0 +1,26 @@
+csched008 relaxation objective 171
+csched008 branch=settimes prop=table
+round 1 deadline -: d0=51 nodes 51 work 253702 makespan 182
+round 2 deadline 181: d0=51 nodes 51 work 244880 makespan 180
+round 3 deadline 179: d0=39 d1=57 nodes 96 work 452095 makespan 179
+round 4 deadline 178: d0=49 nodes 49 work 231230 makespan 176
+round 5 deadline 175: d0=27 d1=413 d2=50 nodes 490 work 2649579 makespan 175
+round 6 deadline 174: d0=24 d1=339 d2=3290 d3=1347 nodes 5000 work 24064852 none
+  csched008-1: status optimal objective 182 
+  csched008-2: status optimal objective 180 
+  csched008-3: status optimal objective 179 
+  csched008-4: status optimal objective 176 
+  csched008-5: status optimal objective 175 
+csched008 branch=settimes prop=placed
+round 1 deadline -: d0=11 d1=99 d2=897 d3=1795 nodes 2802 work 9378829 makespan 185
+  csched008-1: status optimal objective 185 
+csched008 branch=job prop=table
+round 1 deadline -: d0=33 d1=518 d2=4449 nodes 5000 work 22889242 none
+csched007 relaxation objective 269.25158730158728
+csched007 branch=settimes prop=table
+round 1 deadline -: d0=32 d1=82 nodes 114 work 523210 makespan 196
+  csched007-1: status optimal objective 412 
+csched007 branch=settimes prop=placed
+round 1 deadline -: d0=29 d1=470 d2=4501 nodes 5000 work 15884631 none
+csched007 branch=job prop=table
+round 1 deadline -: d0=24 d1=317 d2=2984 d3=1675 nodes 5000 work 26624608 none

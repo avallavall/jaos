@@ -1,0 +1,2 @@
+before     solved 5 incumbents 28 primal 6.5397 dual 6.5166 sum 13.0562
+landed     solved 5 incumbents 29 primal 5.4012 dual 6.5238 sum 11.9250

@@ -1154,30 +1154,44 @@ rounds each fractional node's relaxation to the nearest integers and offers
 the point as an incumbent. At the root of a linear model, the second rounds
 each integer column the way no row locks it, once from the relaxation and
 once to the column's bound on that side, fixes them and solves the rest.
-When the root still has no incumbent after that, the third runs a
-feasibility jump: it moves one column at a time to the value that most
-lowers the weighted violation of its rows, from the relaxation's point and
-then from zero, under half the root's work. It fixes the integer columns of
-the point it finds and solves the rest. When the jump finds nothing and
-most free columns are binaries that each sit in exactly two partitioning
-rows (rows that take exactly one of their binaries), the fourth searches
-exchanges between those rows. It starts from a seeded random assignment,
-and each move trades the rows of two chosen binaries, keeping every
-partitioning row satisfied. It takes the exchange that most lowers the
-violation of the other rows, restarts when none does, and after each point
-looks for one with a lower objective. The fifth runs once at the root,
-after the sub-MIPs, when every free integer column is a binary in exactly
-one partitioning row (an item of that row) and every continuous column
-sits in at most one row. Each row then prices its continuous columns in
-closed form, as the cheapest way to cover what the items leave of its
-bounds. From the incumbent, or else from a greedy assignment, it searches
+The third runs once at the root of a time-indexed schedule: every free
+integer column is a binary in exactly one partitioning row (rows that take
+exactly one of their binaries), a start of that row's job, and a chain of
+equality rows, each linked to the next by a continuous column with
+opposite coefficients in the two, keeps the profile of a resource, which
+each start enters as a block of usage from one chain row to a later one.
+It searches the starts as a schedule. The compulsory part of each job, the
+positions all its remaining starts cover, counts on the profile, and a
+start that would lift the profile past a position's bound leaves its job,
+until none does. The search takes the job whose earliest remaining start
+comes first, ties by the relaxation's mean start, places it there, and on
+backtrack drops that start, within a limited discrepancy search. It fixes
+the starts it finds and solves the rest, then bounds the objective just
+below that point's, propagates the bound through the rows and searches
+again, until a search finds nothing better or its work runs out. When the
+root still has no incumbent after those, the fourth runs a feasibility
+jump: it moves one column at a time to the value that most lowers the
+weighted violation of its rows, from the relaxation's point and then from
+zero, under half the root's work. It fixes the integer columns of the point
+it finds and solves the rest. When the jump finds nothing and most free
+columns are binaries that each sit in exactly two partitioning rows, the
+fifth searches exchanges between those rows. It starts from a seeded
+random assignment, and each move trades the rows of two chosen binaries,
+keeping every partitioning row satisfied. It takes the exchange that most
+lowers the violation of the other rows, restarts when none does, and after
+each point looks for one with a lower objective. The sixth runs once at
+the root, after the sub-MIPs, when every free integer column is a binary
+in exactly one partitioning row (an item of that row) and every
+continuous column sits in at most one row. Each row then prices its
+continuous columns in closed form, as the cheapest way to cover what the
+items leave of its bounds. From the incumbent, or else from a greedy assignment, it searches
 by threshold accepting: a move gives one row another of its items, or
 trades the slots of two rows' items, where an item's slot is the set of
 its other rows. It takes a move that lowers the violation of the rows
 without continuous columns, and otherwise one that raises the objective by
 less than a threshold that falls geometrically. It fixes the best
-assignment it finds and solves the rest. The sixth runs on a linear model
-whose every free binary switches a big-M row: it is the one binary of a
+assignment it finds and solves the rest. The seventh runs on a linear
+model whose every free binary switches a big-M row: it is the one binary of a
 row with two or more other columns of both signs, and its coefficient is
 at least 1e3 times the median of theirs or one of its values leaves the
 row slack over their bounds. A partitioning row over such binaries is a
@@ -1194,8 +1208,9 @@ root it starts from the side each binary's rows favour at the
 relaxation's point, then from the incumbent. In the tree it starts again
 from each new incumbent, and every 100 nodes from its own, while its work
 stays under 30% of the tree's; the wait doubles after each run from its
-own point that finds nothing. General integer columns of its point are rounded and the rest
-solved, or else a sub-MIP boxes each between its floor and ceiling. The
+own point that finds nothing. General integer columns of its point are
+rounded and the rest solved, or else a sub-MIP boxes each between its
+floor and ceiling. The
 dive heuristic, RINS and the pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\

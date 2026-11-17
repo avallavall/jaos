@@ -161,6 +161,8 @@ constexpr int64_t MIP_ANNEAL_WORK = 5000;
 constexpr int64_t MIP_ANNEAL_SAMPLE = 1000;
 constexpr double MIP_ANNEAL_COOL = 1e-3;
 constexpr int MIP_ANNEAL_LEVELS = 64;
+constexpr int64_t MIP_SCHED_WORK = 5000;
+constexpr double MIP_SCHED_STEP = 1e-4;
 constexpr double MIP_BIGM_RATIO = 1e3;
 constexpr int64_t MIP_BIGM_WORK = 20000;
 constexpr double MIP_BIGM_SHARE = 0.3;
@@ -6208,6 +6210,664 @@ out:
     return rc;
 }
 
+typedef struct {
+    int64_t p, q, col, job;
+    double u;
+} scitem;
+
+typedef struct {
+    int64_t mark, item, disc;
+    bool right;
+} scframe;
+
+typedef struct {
+    int64_t nj, ni, len, ntrail;
+    bool limited;
+    bool *part, *alive;
+    int64_t *indeg, *outdeg, *outc, *nxt, *prv, *pos, *path, *job, *ijob;
+    int64_t *jstart, *nalive, *trail, *cnt, *cplo, *cphi;
+    double *outg, *cap, *prof, *cpu, *mean, *lo, *hi, *x, *sol;
+    scitem *it;
+    scframe *fr;
+} scstate;
+
+static void sc_free(scstate *w)
+{
+    free(w->part); free(w->alive); free(w->indeg); free(w->outdeg);
+    free(w->outc); free(w->nxt); free(w->prv); free(w->pos); free(w->path);
+    free(w->job); free(w->ijob); free(w->jstart); free(w->nalive);
+    free(w->trail); free(w->cnt); free(w->cplo); free(w->cphi); free(w->outg);
+    free(w->cap); free(w->prof); free(w->cpu); free(w->mean); free(w->lo);
+    free(w->hi); free(w->x); free(w->sol); free(w->it); free(w->fr);
+}
+
+static int scitem_cmp(const void *pa, const void *pb)
+{
+    const scitem *a = pa, *b = pb;
+    if (a->job != b->job)
+        return a->job < b->job ? -1 : 1;
+    if (a->p != b->p)
+        return a->p < b->p ? -1 : 1;
+    if (a->q != b->q)
+        return a->q < b->q ? -1 : 1;
+    return (a->col > b->col) - (a->col < b->col);
+}
+
+static bool sc_chain(const jaos_model *m, const double *ilo, const double *ihi,
+                     scstate *w, int64_t *ops)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    for (int64_t j = 0; j < nc; j++) {
+        const int64_t b = m->a_start[j];
+        if (m->col_integer[j] || ilo[j] == ihi[j] || m->a_start[j + 1] - b != 2)
+            continue;
+        const int64_t r0 = m->a_index[b], r1 = m->a_index[b + 1];
+        const double a0 = m->a_value[b], a1 = m->a_value[b + 1];
+        if (a0 == 0.0 || a0 != -a1 || r0 == r1 ||
+            m->row_lower[r0] != m->row_upper[r0] ||
+            m->row_lower[r1] != m->row_upper[r1])
+            continue;
+        const int64_t from = a0 > 0.0 ? r0 : r1, to = a0 > 0.0 ? r1 : r0;
+        w->outdeg[from]++;
+        w->indeg[to]++;
+        w->outc[from] = j;
+        w->outg[from] = fabs(a0);
+    }
+    *ops += nc;
+    for (int64_t i = 0; i < nr; i++) {
+        if (w->outdeg[i] != 1 || w->indeg[i] > 1)
+            continue;
+        const int64_t b = m->a_start[w->outc[i]];
+        const int64_t to = m->a_index[b] == i ? m->a_index[b + 1] : m->a_index[b];
+        if (w->indeg[to] != 1 || w->outdeg[to] > 1)
+            continue;
+        w->nxt[i] = to;
+        w->prv[to] = i;
+    }
+    int64_t head = -1, best = 0;
+    for (int64_t i = 0; i < nr; i++) {
+        if (w->nxt[i] < 0 || w->prv[i] >= 0)
+            continue;
+        int64_t len = 1;
+        for (int64_t r = i; w->nxt[r] >= 0; r = w->nxt[r])
+            len++;
+        *ops += len;
+        if (len > best) {
+            best = len;
+            head = i;
+        }
+    }
+    if (head < 0 || best < 3)
+        return false;
+    w->len = 0;
+    for (int64_t r = head; r >= 0; r = w->nxt[r]) {
+        w->path[w->len] = r;
+        w->pos[r] = w->len++;
+    }
+    return true;
+}
+
+static bool sc_shape(const jaos_model *m, const double *ilo, const double *ihi,
+                     const double *xlp, double tol, scstate *w, int64_t *ops)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (m->num_sos > 0)
+        return false;
+    if (m->row_ind_col != nullptr)
+        for (int64_t i = 0; i < nr; i++)
+            if (m->row_ind_col[i] >= 0)
+                return false;
+    for (int64_t i = 0; i < nr; i++) {
+        *ops += m->ar_start[i + 1] - m->ar_start[i] + 1;
+        w->outc[i] = w->nxt[i] = w->prv[i] = w->pos[i] = w->job[i] = -1;
+        if (m->row_lower[i] != 1.0 || m->row_upper[i] != 1.0)
+            continue;
+        bool ok = m->ar_start[i + 1] > m->ar_start[i];
+        for (int64_t p = m->ar_start[i]; ok && p < m->ar_start[i + 1]; p++) {
+            const int64_t j = m->ar_index[p];
+            ok = m->ar_value[p] == 1.0 && m->col_integer[j] && ilo[j] >= 0.0 &&
+                 ihi[j] <= 1.0;
+        }
+        w->part[i] = ok;
+    }
+    int64_t ni = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        *ops += m->a_start[j + 1] - m->a_start[j] + 1;
+        w->ijob[j] = -1;
+        if (semi_live(m, j))
+            return false;
+        if (ilo[j] == ihi[j]) {
+            if (!isfinite(ilo[j]))
+                return false;
+            for (int64_t q = m->a_start[j]; q < m->a_start[j + 1] && ilo[j] != 0.0;
+                 q++)
+                if (w->part[m->a_index[q]])
+                    w->job[m->a_index[q]] = -2;
+            continue;
+        }
+        if (!m->col_integer[j])
+            continue;
+        if (ilo[j] != 0.0 || ihi[j] != 1.0)
+            return false;
+        int64_t k = 0;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            if (w->part[m->a_index[q]]) {
+                w->ijob[j] = m->a_index[q];
+                k++;
+            }
+        if (k != 1)
+            return false;
+        ni++;
+    }
+    if (ni < 4 || !sc_chain(m, ilo, ihi, w, ops))
+        return false;
+    const int64_t last = w->path[w->len - 1];
+    int64_t tail = -1;
+    for (int64_t k = 0; k < w->len; k++) {
+        const int64_t r = w->path[k];
+        if (w->part[r])
+            return false;
+        *ops += m->ar_start[r + 1] - m->ar_start[r];
+        for (int64_t p = m->ar_start[r]; p < m->ar_start[r + 1]; p++) {
+            const int64_t j = m->ar_index[p];
+            if (ilo[j] == ihi[j] || w->ijob[j] >= 0 ||
+                (k + 1 < w->len && j == w->outc[r]) ||
+                (k > 0 && j == w->outc[w->path[k - 1]]))
+                continue;
+            if (r != last || tail >= 0 || m->col_integer[j] ||
+                m->a_start[j + 1] - m->a_start[j] != 1)
+                return false;
+            tail = j;
+        }
+    }
+    int64_t neg = 0, posv = 0;
+    w->nj = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (w->ijob[j] < 0)
+            continue;
+        const int64_t r = w->ijob[j];
+        if (w->job[r] == -2)
+            return false;
+        if (w->job[r] == -1)
+            w->job[r] = w->nj++;
+        int64_t np = 0, p0 = -1, p1 = -1;
+        double v0 = 0.0, v1 = 0.0;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++) {
+            const int64_t k = w->pos[m->a_index[q]];
+            if (k < 0 || m->a_value[q] == 0.0)
+                continue;
+            if (np == 0) {
+                p0 = k;
+                v0 = m->a_value[q];
+            } else {
+                p1 = k;
+                v1 = m->a_value[q];
+            }
+            np++;
+        }
+        if (np == 2 && p1 < p0) {
+            const int64_t tp = p0;
+            const double tv = v0;
+            p0 = p1;
+            v0 = v1;
+            p1 = tp;
+            v1 = tv;
+        }
+        if (np == 1)
+            p1 = w->len;
+        else if (np != 2 || v1 != -v0)
+            return false;
+        if (v0 < 0.0)
+            neg++;
+        else
+            posv++;
+        w->it[w->ni++] = (scitem){ .p = p0, .q = p1, .col = j,
+                                   .job = w->job[r], .u = fabs(v0) };
+    }
+    if (w->nj < 2 || (neg > 0 && posv > 0))
+        return false;
+    qsort(w->it, (size_t)w->ni, sizeof *w->it, scitem_cmp);
+    *ops += 2 * w->ni;
+    for (int64_t t = 0; t < w->ni; t++)
+        w->jstart[w->it[t].job + 1]++;
+    for (int64_t j = 0; j < w->nj; j++)
+        w->jstart[j + 1] += w->jstart[j];
+    for (int64_t j = 0; j < w->nj; j++) {
+        const int64_t b = w->jstart[j], n = w->jstart[j + 1] - b;
+        double sx = 0.0, sp = 0.0;
+        for (int64_t t = b; t < b + n; t++) {
+            const double v = fmin(1.0, fmax(0.0, xlp[w->it[t].col]));
+            sx += v;
+            sp += v * (double)w->it[t].p;
+            *ops += 2;
+        }
+        w->mean[j] = sx > MIP_INT_TOL
+                         ? sp / sx
+                         : 0.5 * (double)(w->it[b].p + w->it[b + n - 1].p);
+        w->nalive[j] = n;
+    }
+    for (int64_t t = 0; t < w->ni; t++)
+        w->alive[t] = true;
+    double s = 0.0;
+    for (int64_t k = 0; k < w->len; k++) {
+        const int64_t r = w->path[k];
+        s += m->row_lower[r];
+        for (int64_t p = m->ar_start[r]; p < m->ar_start[r + 1]; p++) {
+            const int64_t j = m->ar_index[p];
+            if (ilo[j] == ihi[j])
+                s -= m->ar_value[p] * ilo[j];
+        }
+        const int64_t z = k + 1 < w->len ? w->outc[r] : tail;
+        double gmin = 0.0, gmax = 0.0;
+        if (z >= 0) {
+            const double g = k + 1 < w->len ? w->outg[r]
+                                            : m->a_value[m->a_start[z]];
+            gmin = g > 0.0 ? g * ilo[z] : g * ihi[z];
+            gmax = g > 0.0 ? g * ihi[z] : g * ilo[z];
+        }
+        const double lo = neg > 0 ? gmin - s : s - gmax;
+        const double hi = neg > 0 ? gmax - s : s - gmin;
+        if (isnan(lo) || isnan(hi) || lo > tol * (1.0 + fabs(lo)) ||
+            hi < -tol * (1.0 + fabs(hi)))
+            return false;
+        w->cap[k] = hi;
+    }
+    return true;
+}
+
+static void sc_kill(scstate *w, int64_t t)
+{
+    w->alive[t] = false;
+    w->nalive[w->it[t].job]--;
+    w->trail[w->ntrail++] = t;
+}
+
+static void sc_undo(scstate *w, int64_t mark)
+{
+    while (w->ntrail > mark) {
+        const int64_t t = w->trail[--w->ntrail];
+        w->alive[t] = true;
+        w->nalive[w->it[t].job]++;
+    }
+}
+
+static void sc_part(scstate *w, int64_t j, double sign, int64_t *ops)
+{
+    if (sign > 0.0) {
+        int64_t lo = -1, hi = w->len;
+        double u = INFINITY;
+        for (int64_t t = w->jstart[j]; t < w->jstart[j + 1]; t++) {
+            if (!w->alive[t])
+                continue;
+            if (w->it[t].p > lo)
+                lo = w->it[t].p;
+            if (w->it[t].q < hi)
+                hi = w->it[t].q;
+            if (w->it[t].u < u)
+                u = w->it[t].u;
+        }
+        *ops += w->jstart[j + 1] - w->jstart[j];
+        w->cplo[j] = lo >= 0 && lo < hi ? lo : 0;
+        w->cphi[j] = lo >= 0 && lo < hi ? hi : 0;
+        w->cpu[j] = u;
+    }
+    for (int64_t k = w->cplo[j]; k < w->cphi[j]; k++)
+        w->prof[k] += sign * w->cpu[j];
+    *ops += w->cphi[j] - w->cplo[j];
+}
+
+static bool sc_prop(scstate *w, double tol, int64_t *ops)
+{
+    for (int64_t k = 0; k < w->len; k++)
+        w->prof[k] = 0.0;
+    *ops += w->len;
+    for (int64_t j = 0; j < w->nj; j++)
+        sc_part(w, j, 1.0, ops);
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (int64_t j = 0; j < w->nj; j++) {
+            const int64_t b = w->jstart[j], e = w->jstart[j + 1];
+            int64_t lo = w->len, hi = 0;
+            for (int64_t t = b; t < e; t++)
+                if (w->alive[t]) {
+                    if (w->it[t].p < lo)
+                        lo = w->it[t].p;
+                    if (w->it[t].q > hi)
+                        hi = w->it[t].q;
+                }
+            *ops += e - b;
+            double u = -1.0;
+            int64_t killed = 0;
+            for (int64_t t = b; t < e; t++) {
+                if (!w->alive[t])
+                    continue;
+                if (w->it[t].u != u) {
+                    u = w->it[t].u;
+                    w->cnt[0] = 0;
+                    for (int64_t k = lo; k < hi; k++) {
+                        double use = w->prof[k] + u;
+                        if (k >= w->cplo[j] && k < w->cphi[j])
+                            use -= w->cpu[j];
+                        const bool bad =
+                            use > w->cap[k] + tol * (1.0 + fabs(w->cap[k]));
+                        w->cnt[k - lo + 1] = w->cnt[k - lo] + (bad ? 1 : 0);
+                    }
+                    *ops += hi - lo;
+                }
+                if (w->cnt[w->it[t].q - lo] > w->cnt[w->it[t].p - lo]) {
+                    sc_kill(w, t);
+                    killed++;
+                }
+            }
+            if (w->nalive[j] == 0)
+                return false;
+            if (killed == 0)
+                continue;
+            const int64_t ol = w->cplo[j], oh = w->cphi[j];
+            const double ou = w->cpu[j];
+            sc_part(w, j, -1.0, ops);
+            sc_part(w, j, 1.0, ops);
+            if (w->cplo[j] != ol || w->cphi[j] != oh ||
+                (oh > ol && w->cpu[j] != ou))
+                changed = true;
+        }
+    }
+    return true;
+}
+
+static int64_t sc_pick(const scstate *w, int64_t *ops)
+{
+    int64_t bt = -1, be = 0, bl = 0;
+    double bm = 0.0;
+    for (int64_t j = 0; j < w->nj; j++) {
+        if (w->nalive[j] < 2)
+            continue;
+        int64_t f = -1, l = -1;
+        for (int64_t t = w->jstart[j]; t < w->jstart[j + 1]; t++)
+            if (w->alive[t]) {
+                if (f < 0)
+                    f = t;
+                l = t;
+            }
+        *ops += w->jstart[j + 1] - w->jstart[j];
+        const int64_t est = w->it[f].p, lst = w->it[l].p;
+        if (bt < 0 || est < be ||
+            (est == be && (w->mean[j] < bm ||
+                           (w->mean[j] == bm && lst < bl)))) {
+            bt = f;
+            be = est;
+            bm = w->mean[j];
+            bl = lst;
+        }
+    }
+    return bt;
+}
+
+static int sc_search(scstate *w, int64_t dmax, int64_t budget, double tol,
+                     int64_t *ops)
+{
+    int64_t nf = 0, disc = dmax;
+    for (;;) {
+        if (*ops >= budget)
+            return -1;
+        if (sc_prop(w, tol, ops)) {
+            const int64_t t = sc_pick(w, ops);
+            if (t < 0)
+                return 1;
+            w->fr[nf++] = (scframe){ .mark = w->ntrail, .item = t, .disc = disc };
+            const int64_t j = w->it[t].job;
+            for (int64_t u = w->jstart[j]; u < w->jstart[j + 1]; u++)
+                if (u != t && w->alive[u])
+                    sc_kill(w, u);
+            *ops += w->jstart[j + 1] - w->jstart[j];
+            continue;
+        }
+        for (;;) {
+            if (nf == 0)
+                return 0;
+            scframe *f = &w->fr[nf - 1];
+            sc_undo(w, f->mark);
+            if (f->right || f->disc == 0) {
+                w->limited = w->limited || !f->right;
+                nf--;
+                continue;
+            }
+            f->right = true;
+            disc = f->disc - 1;
+            sc_kill(w, f->item);
+            break;
+        }
+    }
+}
+
+static bool sc_cut(const jaos_model *m, const double *ilo, const double *ihi,
+                   double zcut, double sg, double tol, double *lo, double *hi,
+                   int64_t *ops)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    for (int64_t j = 0; j < nc; j++) {
+        lo[j] = ilo[j];
+        hi[j] = ihi[j];
+    }
+    *ops += nc;
+    for (int64_t pass = 0; pass < MIP_IMPLIED_PASSES; pass++) {
+        int64_t moved = 0;
+        *ops += m->num_nz + 2 * nc + nr;
+        for (int64_t i = 0; i <= nr; i++) {
+            const bool obj = i == nr;
+            if (obj && m->col_cost == nullptr)
+                continue;
+            const double rlo = obj ? -INFINITY : m->row_lower[i];
+            const double rhi = obj ? zcut - sg * m->obj_offset : m->row_upper[i];
+            if (rlo == -INFINITY && rhi == INFINITY)
+                continue;
+            const int64_t b = obj ? 0 : m->ar_start[i];
+            const int64_t e = obj ? nc : m->ar_start[i + 1];
+            double smin = 0.0, smax = 0.0;
+            int64_t nmin = 0, nmax = 0;
+            for (int64_t k = b; k < e; k++) {
+                const int64_t j = obj ? k : m->ar_index[k];
+                const double a = obj ? sg * m->col_cost[j] : m->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                const double f = a > 0.0 ? lo[j] : hi[j];
+                const double g = a > 0.0 ? hi[j] : lo[j];
+                if (isinf(f))
+                    nmin++;
+                else
+                    smin += a * f;
+                if (isinf(g))
+                    nmax++;
+                else
+                    smax += a * g;
+            }
+            if (nmin == 0 && rhi < INFINITY &&
+                smin - rhi > MIP_PROP_INFEAS * (1.0 + fabs(rhi) + fabs(smin)))
+                return false;
+            if (nmax == 0 && rlo > -INFINITY &&
+                rlo - smax > MIP_PROP_INFEAS * (1.0 + fabs(rlo) + fabs(smax)))
+                return false;
+            if (nmin > 1 && nmax > 1)
+                continue;
+            for (int64_t k = b; k < e; k++) {
+                const int64_t j = obj ? k : m->ar_index[k];
+                const double a = obj ? sg * m->col_cost[j] : m->ar_value[k];
+                if (a == 0.0)
+                    continue;
+                const double f = a > 0.0 ? lo[j] : hi[j];
+                const double g = a > 0.0 ? hi[j] : lo[j];
+                const bool rmin_ok = isinf(f) ? nmin == 1 : nmin == 0;
+                const bool rmax_ok = isinf(g) ? nmax == 1 : nmax == 0;
+                const double rmin = isinf(f) ? smin : smin - a * f;
+                const double rmax = isinf(g) ? smax : smax - a * g;
+                double ub = INFINITY, lb = -INFINITY, ubs = 0.0, lbs = 0.0;
+                if (rmin_ok && rhi < INFINITY) {
+                    const double t = (rhi - rmin) / a;
+                    const double s = prop_window(rhi, rmin, a);
+                    if (a > 0.0) {
+                        ub = t;
+                        ubs = s;
+                    } else {
+                        lb = t;
+                        lbs = s;
+                    }
+                }
+                if (rmax_ok && rlo > -INFINITY) {
+                    const double t = (rlo - rmax) / a;
+                    const double s = prop_window(rlo, rmax, a);
+                    if (a > 0.0) {
+                        if (t > lb) {
+                            lb = t;
+                            lbs = s;
+                        }
+                    } else if (t < ub) {
+                        ub = t;
+                        ubs = s;
+                    }
+                }
+                if (m->col_integer[j]) {
+                    if (isfinite(ub))
+                        ub = floor(ub + fmax(MIP_PROP_SLACK * (1.0 + fabs(ub)),
+                                             ubs));
+                    if (isfinite(lb))
+                        lb = ceil(lb - fmax(MIP_PROP_SLACK * (1.0 + fabs(lb)),
+                                            lbs));
+                } else {
+                    ub += tol * (1.0 + fabs(ub));
+                    lb -= tol * (1.0 + fabs(lb));
+                }
+                if (ub < lo[j] - tol * (1.0 + fabs(lo[j])) ||
+                    lb > hi[j] + tol * (1.0 + fabs(hi[j])))
+                    return false;
+                if (implied_move(ub, hi[j], true) && !(ub < lo[j])) {
+                    hi[j] = ub;
+                    moved++;
+                }
+                if (implied_move(lb, lo[j], false) && !(lb > hi[j])) {
+                    lo[j] = lb;
+                    moved++;
+                }
+            }
+        }
+        if (moved == 0)
+            break;
+    }
+    return true;
+}
+
+static int sched_for_point(const jaos_model *m, const jaos_model *lp,
+                           const double *ilo, const double *ihi,
+                           const double *xlp, double zinc, double zfloor,
+                           int64_t limit, double *out, int64_t *work,
+                           int64_t *solves_done)
+{
+    const int64_t nc = m->num_col, nr = m->num_row;
+    if (nc == 0 || nr == 0 || xlp == nullptr ||
+        jm_model_ensure_rowwise((jaos_model *)m) != JAOS_OK)
+        return 0;
+    const double tol = jm_primal_tolerance(m);
+    const double sg = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    scstate w = {0};
+    w.part = jm_calloc_array(nr, sizeof *w.part);
+    w.indeg = jm_calloc_array(nr, sizeof *w.indeg);
+    w.outdeg = jm_calloc_array(nr, sizeof *w.outdeg);
+    w.outc = jm_alloc_array(nr, sizeof *w.outc);
+    w.nxt = jm_alloc_array(nr, sizeof *w.nxt);
+    w.prv = jm_alloc_array(nr, sizeof *w.prv);
+    w.pos = jm_alloc_array(nr, sizeof *w.pos);
+    w.path = jm_alloc_array(nr, sizeof *w.path);
+    w.job = jm_alloc_array(nr, sizeof *w.job);
+    w.jstart = jm_calloc_array(nr + 1, sizeof *w.jstart);
+    w.nalive = jm_alloc_array(nr, sizeof *w.nalive);
+    w.cnt = jm_alloc_array(nr + 1, sizeof *w.cnt);
+    w.cplo = jm_alloc_array(nr, sizeof *w.cplo);
+    w.cphi = jm_alloc_array(nr, sizeof *w.cphi);
+    w.outg = jm_alloc_array(nr, sizeof *w.outg);
+    w.cap = jm_alloc_array(nr, sizeof *w.cap);
+    w.prof = jm_alloc_array(nr, sizeof *w.prof);
+    w.cpu = jm_alloc_array(nr, sizeof *w.cpu);
+    w.mean = jm_alloc_array(nr, sizeof *w.mean);
+    w.ijob = jm_alloc_array(nc, sizeof *w.ijob);
+    w.alive = jm_alloc_array(nc, sizeof *w.alive);
+    w.trail = jm_alloc_array(nc, sizeof *w.trail);
+    w.lo = jm_alloc_array(nc, sizeof *w.lo);
+    w.hi = jm_alloc_array(nc, sizeof *w.hi);
+    w.x = jm_alloc_array(nc, sizeof *w.x);
+    w.sol = jm_alloc_array(nc, sizeof *w.sol);
+    w.it = jm_alloc_array(nc, sizeof *w.it);
+    w.fr = jm_alloc_array(nc + nr + 1, sizeof *w.fr);
+    int rc = -1;
+    int64_t ops = 0, booked = 0;
+    if (!w.part || !w.indeg || !w.outdeg || !w.outc || !w.nxt || !w.prv ||
+        !w.pos || !w.path || !w.job || !w.jstart || !w.nalive || !w.cnt ||
+        !w.cplo || !w.cphi || !w.outg || !w.cap || !w.prof || !w.cpu ||
+        !w.mean || !w.ijob || !w.alive || !w.trail || !w.lo || !w.hi ||
+        !w.x || !w.sol || !w.it || !w.fr)
+        goto out;
+    rc = 0;
+    if (!sc_shape(m, ilo, ihi, xlp, tol, &w, &ops))
+        goto out;
+    int64_t budget_ops = MIP_SCHED_WORK * (m->num_nz + nc + nr);
+    if (limit > 0 && limit < budget_ops)
+        budget_ops = limit;
+    double zbest = zinc;
+    bool have = false;
+    while (ops < budget_ops) {
+        sc_undo(&w, 0);
+        if (isfinite(zbest)) {
+            const double zcut = zbest - MIP_SCHED_STEP * (1.0 + fabs(zbest));
+            if (zcut < zfloor ||
+                !sc_cut(m, ilo, ihi, zcut, sg, tol, w.lo, w.hi, &ops))
+                break;
+            for (int64_t t = 0; t < w.ni; t++)
+                if (w.alive[t] && w.hi[w.it[t].col] < 0.5)
+                    sc_kill(&w, t);
+            ops += w.ni;
+        }
+        const int64_t mark = w.ntrail;
+        int found = 0;
+        for (int64_t d = 0;; d++) {
+            w.limited = false;
+            found = sc_search(&w, d, budget_ops, tol, &ops);
+            if (found != 0 || !w.limited)
+                break;
+            sc_undo(&w, mark);
+        }
+        if (found != 1)
+            break;
+        for (int64_t j = 0; j < nc; j++)
+            w.x[j] = ilo[j] == ihi[j] ? ilo[j] : 0.0;
+        for (int64_t t = 0; t < w.ni; t++)
+            if (w.alive[t])
+                w.x[w.it[t].col] = 1.0;
+        ops += nc + w.ni;
+        *work += ops - booked;
+        booked = ops;
+        const int got = fixed_for_point(m, lp, w.x, w.sol, work, solves_done);
+        if (got < 0) {
+            rc = -1;
+            goto out;
+        }
+        if (got == 0)
+            break;
+        double z = sg * m->obj_offset;
+        for (int64_t j = 0; m->col_cost != nullptr && j < nc; j++)
+            z += sg * m->col_cost[j] * w.sol[j];
+        ops += nc;
+        if (isfinite(zbest) && !(z < zbest - tol * (1.0 + fabs(zbest))))
+            break;
+        memcpy(out, w.sol, (size_t)nc * sizeof *out);
+        zbest = z;
+        have = true;
+    }
+    rc = have ? 1 : 0;
+out:
+    *work += ops - booked;
+    sc_free(&w);
+    return rc;
+}
+
 static int locks_for_point(const jaos_model *m, const jaos_model *lp,
                            const double *x, bool to_side, double *out,
                            int64_t *work, int64_t *solves_done)
@@ -7694,6 +8354,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     double lb_key = 0.0;
     bool lb_seen = false;
     bool anneal_done = false;
+    bool sched_done = false;
     bool bigm_shape = true, bigm_root = false, bigm_seen = false;
     double bigm_key = 0.0;
     int64_t bigm_spent = 0, bigm_last = 0, bigm_wait = MIP_BIGM_EVERY;
@@ -8967,6 +9628,52 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         }
         if (outcome == JAOS_SOLVE_INTERRUPTED)
             break;
+
+        if (nodes == 1 && heur && !quadratic && branch >= 0 && !sched_done &&
+            !budget_gone(m, work)) {
+            sched_done = true;
+            int64_t room = MIP_SCHED_WORK * (m->num_nz + nc + nr);
+            if (m->cfg.work_limit > 0 && m->cfg.work_limit - work < room)
+                room = m->cfg.work_limit - work > 1 ? m->cfg.work_limit - work : 1;
+            const double zinc =
+                inc.have && inc.key < cut_key ? inc.key : cut_key;
+            const int got = sched_for_point(m, lp, ilo, ihi, x, zinc, key, room,
+                                            xr, &work, &solves);
+            if (got < 0)
+                goto done;
+            double hobj = 0.0;
+            if (got == 1)
+                work += m->num_nz + nc + nr;
+            if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                           &nfixed, &nperm, nodes,
+                                           depth_here, sigma * key, x2,
+                                           hobj, &work);
+                if (sc == STEER_ERR)
+                    goto done;
+                if (sc == STEER_STOP) {
+                    outcome = JAOS_SOLVE_INTERRUPTED;
+                    break;
+                }
+                const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+                if (sc == STEER_OK)
+                    spool_offer(&sp, x2, hkey, hobj);
+                if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                    if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+                        goto done;
+                    heur_points++;
+                    if (first_inc == 0)
+                        first_inc = nodes;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "root: incumbent %.17g by a search over the jobs' "
+                           "starts on the chain of profile columns", hobj);
+                    if (!incumbent_announce(m, &inc, nodes, sigma * key, true)) {
+                        outcome = JAOS_SOLVE_INTERRUPTED;
+                        break;
+                    }
+                }
+            }
+        }
 
         if (nodes == 1 && heur && !quadratic && !inc.have && branch >= 0 &&
             !budget_gone(m, work)) {

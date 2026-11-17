@@ -1,0 +1,19 @@
+csched008 SCSHAPE jobs=50 items=1284 chain=191
+csched008 SCROUND z=184 ops=418033 budget=37670000
+csched008 SCROUND z=176 ops=848558 budget=37670000
+csched008 SCROUND z=175 ops=1253195 budget=37670000
+csched008 SCEND ops=37673016 budget=37670000
+csched008 root: incumbent 175 by a search over the jobs' starts on the chain of profile columns
+csched008 SCSHAPE jobs=49 items=218 chain=191
+csched008 SCEND ops=37670543 budget=37670000
+csched008 work_units 6197592202
+csched007 SCSHAPE jobs=50 items=1457 chain=199
+csched007 SCROUND z=407 ops=938535 budget=42400000
+csched007 SCROUND z=407 ops=1874806 budget=42400000
+csched007 SCEND ops=1874806 budget=42400000
+csched007 root: incumbent 407 by a search over the jobs' starts on the chain of profile columns
+csched007 SCSHAPE jobs=35 items=137 chain=199
+csched007 SCROUND z=405 ops=217600 budget=42400000
+csched007 SCROUND z=405 ops=414531 budget=42400000
+csched007 SCEND ops=414531 budget=42400000
+csched007 work_units 559712803
