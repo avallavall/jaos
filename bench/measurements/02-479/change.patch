@@ -1,0 +1,48 @@
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 0a8bc6b3..9358795d 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -39,6 +39,7 @@ typedef struct {
+     bool node_keep;
+     bool node_probe;
+     bool node_no_presolve;
++    bool node_devex;
+     bool node_cutoff_set;
+     double node_cutoff;
+     bool no_cert_solve;
+diff --git a/src/mip.c b/src/mip.c
+index 75df8e57..7561100d 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1258,6 +1258,7 @@ static jaos_status bb_round_solve(const jaos_model *lp, const jaos_model *m,
+         budget(crew[k].lp, m, *work);
+         if (share > 0)
+             crew[k].lp->cfg.work_limit = share;
++        crew[k].lp->cfg.node_devex = !jm_model_has_quadratic(lp);
+     }
+     {
+         const int64_t threads = jaos_threads_of(m);
+@@ -9526,6 +9527,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
+         lp->cfg.node_cutoff_set = cut_at < INFINITY;
+         lp->cfg.node_cutoff = cut_at;
++        lp->cfg.node_devex = nodes > 1 && !quadratic;
+         lp->cutoff_hit = false;
+         st = jaos_solve(lp);
+         lp->cfg.node_cutoff_set = false;
+diff --git a/src/simplex.c b/src/simplex.c
+index 1cfcd3d2..7e34d6c9 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4226,6 +4226,11 @@ static jaos_status run(sx *s, jaos_solve_status *out)
+             *out = JAOS_SOLVE_NUMERICAL_ERROR;
+             return JAOS_OK;
+         }
++        if (s->m->cfg.node_devex && !s->dual_devex) {
++            s->dual_devex = true;
++            jm_log(s->m, JAOS_LOG_DETAIL,
++                   "a node solve below the root: pricing by dual Devex");
++        }
+         if (s->dual_devex)
+             dual_devex_reset(s);
+     }

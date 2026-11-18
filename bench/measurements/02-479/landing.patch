@@ -1,0 +1,286 @@
+diff --git a/SPECS.md b/SPECS.md
+index efaeb8f2..8a44b94a 100644
+--- a/SPECS.md
++++ b/SPECS.md
+@@ -35,7 +35,7 @@ there is a row here that is not done.
+ 
+ | | status | |
+ |---|---|---|
+-| Dual simplex | **done** | steepest-edge pricing (dual Devex once a weight drifts, outside the MIP tree), Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, a cost perturbation on the first stall and Bland's rule after. A solve whose perturbation stalls restarts once without it, and a numerical error on the aggregated model is solved again without the aggregator (`bench/measurements/02-278/`, `02-280/`) |
++| Dual simplex | **done** | steepest-edge pricing (dual Devex once a weight drifts outside the MIP tree, and from the first iteration in a node solve below the tree's root), Harris two-pass ratio test with bound flipping, phase 1 by artificial bounds, a cost perturbation on the first stall and Bland's rule after. A solve whose perturbation stalls restarts once without it, and a numerical error on the aggregated model is solved again without the aggregator (`bench/measurements/02-278/`, `02-280/`, `02-479/`) |
+ | Primal simplex | **partial** | steepest-edge pricing (Devex and Dantzig behind switches), composite phase 1, Harris ratio test; `jaos_set_algorithm` selects it. A run that reaches no answer, as phase 1 on an infeasible model, hands the model to the dual simplex, which certifies the verdict (`bench/measurements/02-396/`). Missing: 6 of the 94 standard instances run past 10x the dual's work (`bench/results/primal.txt`); seven remedies are refused (`bench/refusals.txt`, the primal-* lines) |
+ | Barrier (interior point) | **partial** | Mehrotra's predictor-corrector with bounds (`src/barrier.c`), the normal equations or the augmented system factored by the deterministic sparse Cholesky and quasi-definite LDL of `src/chol.c` (minimum degree, or nested dissection when it costs fewer operations); dense columns handled by a Sherman-Morrison-Woodbury correction. `--algorithm barrier`. Infeasible and unbounded models get their verdict from the dual simplex (`bench/results/barrier.txt`, `barrier-infeas.txt`, `bench/measurements/02-344/`). Missing: a rule that picks the augmented system for an LP, cheaper than the symbolic factorisation; a crossover cheaper than a crash (the row below) |
+ | Crossover from an interior point | **partial** | a basis guess ranked by distance against dual slack, repaired by the LU, then the primal push puts every nonbasic column on a bound and the primal simplex finishes (`crash_basis`, `push_basis`; `bench/measurements/02-287/`). Missing: 14 of the 94 standard instances run past 10x the dual's work (`bench/results/barrier.txt`) |
+diff --git a/TODO.md b/TODO.md
+index bda7b1e5..6bba4f8a 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -124,22 +124,34 @@ first:
+   (`lattice-round-columns`). Next for `gen-ip002`: a heuristic for the
+   reduced tree whose points hold the bound rows `V y >= 0`, so that the
+   first phase can be short. With 02-475's fixing at every node the first
+-  20,000 nodes no longer reach the optimum, and `gen-ip002` ends 0.0025
+-  away. Verify with `gen-ip002` holding its optimum and closing inside
++  20,000 nodes no longer reached the optimum, and `gen-ip002` ended 0.0025
++  away; with Devex at the nodes (02-479) it holds the optimum again, bound
++  -4805.67. Verify with `gen-ip002` holding its optimum and closing inside
+   1e10.
+ - `neos5` and `assign1-5-8` are out of reach at 1e10
+   (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
+-  and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work
+-  units, 38 LP iterations a solve against HiGHS's 12. Neither closes
+-  `assign1-5-8` in 600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at
+-  205.0 after 1.12M; without symmetry SCIP's bound at 20,000 nodes falls
+-  from 197.1 to 191.6. JAOS's search ran out before it found the exchange
+-  of the four groups; a second search before the first branch finds it,
+-  and the objective step takes the 26 cost columns as whole: 192.79 to
+-  196 at 1e10. Next for `assign1-5-8`: those implied integers in the cuts
+-  too (declared integer, its root reads 189.80 against 185.26); for
+-  `neos5`, the iterations of a node's relaxation. Verify at 1e10 on both
+-  and with `make miplib J=2`.
++  and SCIP has not after 2.48M. A node relaxation took 34 iterations
++  against HiGHS's 12.6: its steepest-edge weights started at 1 and
++  restarted at 13.7 of its pivots, so it priced by the largest
++  infeasibility; SCIP under partial pricing takes 35.8. Below the root the
++  dual now prices by Devex (`bench/measurements/02-479/`): 18 iterations
++  and 8.6e4 work units a node against 3.1e5, 116,376 nodes and bound 14.25
++  at 1e10 against 32,557 and 14. Closing in HiGHS's node count needs 4.9e4
++  a node. Of the node work, 63% is in up children (`x_j = 1` on its
++  covering rows) solved away from their parent, 34 iterations each; with
++  node presolve kept on every node it reaches 150,788 nodes, but MIPLIB 3
++  reads 1.225x (`node-presolve-always`). Neither closes `assign1-5-8` in
++  600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at 205.0 after 1.12M;
++  without symmetry SCIP's bound at 20,000 nodes falls from 197.1 to 191.6.
++  JAOS's search ran out before it found the exchange of the four groups; a
++  second search before the first branch finds it, and the objective step
++  takes the 26 cost columns as whole: 192.79 to 196 at 1e10, 198 with
++  Devex at the nodes. Next for `assign1-5-8`: those implied integers in
++  the cuts too (declared integer, its root reads 189.80 against 185.26);
++  for `neos5`, the up children's relaxations, and a node presolve rule
++  read per node, since `MIP_NODE_PRESOLVE_ITERS` was set on iteration
++  counts of the old pricing. Verify at 1e10 on both and with
++  `make miplib J=2`.
+ - Strong branching is on by default for a linear model: reliability 4,
+   the children on the node's kept factors, each capped at 1.5 times the
+   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against
+diff --git a/bench/refusals.txt b/bench/refusals.txt
+index b9dbd1a8..221ecdf0 100644
+--- a/bench/refusals.txt
++++ b/bench/refusals.txt
+@@ -65,7 +65,11 @@ D156 | MANUAL | The frozen-row width design D156 refused. Reopens if a frozen ro
+ # bench/measurements/02-169/ and 02-83/.
+ D176 | MANUAL | A more accurate accumulation of presolve's `obj_offset` (D176, bench/measurements/02-86/). Reopens if anything reads the reduced model's objective: a callback, a statistic or a postsolve path.
+ SPECS-crash-basis | MANUAL | A triangular crash basis in Bixby's order, with the dual started in Devex on it (bench/measurements/02-282/). Reopens with a crash that keeps the basis dual feasible, such as Koberstein's, or on a set whose slack basis is far from its optimum.
+-mip-node-devex | MANUAL | The dual Devex fallback inside the MIP tree's node solves (bench/measurements/02-278/). One instance, stein27, decided the verdict. Reopens on a set large enough that one instance cannot decide it, such as a MIPLIB 2017 reading.
++# mip-node-devex's refusal EXPIRED at 02-479 (2026-11-18): its reopen
++# condition, a MIPLIB 2017 reading, was met. Dual Devex from the first
++# iteration of every node solve below the root landed; stein27 reads 0.893x
++# (bench/measurements/02-479/).
++#mip-node-devex | MANUAL | The dual Devex fallback inside the MIP tree's node solves (bench/measurements/02-278/). One instance, stein27, decided the verdict. Reopens on a set large enough that one instance cannot decide it, such as a MIPLIB 2017 reading.
+ D93  | MANUAL | The timing question D93 could not settle on this host. Reopens on a controlled host that satisfies D17 for the 4.2% bar. tools/icount.sh answers the instruction half today.
+ D34  | MANUAL | The designs D34 refused. It never reopens while D34's two absolute premises stand.
+ D231 | MANUAL | Software prefetching at the indirect loads, after Ainsworth and Jones (D231, bench/measurements/02-144/). Reopens with an instrument that can see a software prefetch, or a host whose timing repeats to well under a few percent.
+@@ -206,3 +210,4 @@ node-rcfix-lp | MANUAL | Reduced-cost tightening of every node's bounds for its
+ strong-branch-node-pick | MANUAL | Strong branching on every node's eight best candidates, the branch picked from that node's own probes instead of the pseudocosts they feed, with no cap on probing's share of the work (bench/measurements/02-476/, proto.patch JAOS_SBSEL and JAOS_PSHARE). Under best bound at 20,000 nodes gen-ip054 reads 6788.38 against 6787.24 and gen-ip002 -4811.82 against -4813.92, for twelve times the work. Reopens with probes that cost near a node's own relaxation.
+ lattice-round-columns | MANUAL | Rounding each node's point of the reduced-basis tree in the original columns, checked on the model's rows and handed back in y (bench/measurements/02-476/, hook.patch). It costs 4% to 9% of the work; gen-ip002 reaches -4774.65 from a basis taken after 1 node and -4761.24 after 1000, short of its optimum, and the dense-row form finds the optimum only at node 153,026 with the bound down to -4805.92. Reopens with a rounding that holds the bound rows V y >= 0 at under 2% of the work.
+ symmetry-root-cap | MANUAL | The root's symmetry search under 1000 times the model's size in place of 250 (bench/measurements/02-477/, sym.patch). It finds assign1-5-8's exchange of its four groups, as the landed second search does, but air03, which closes at its root, pays 1.31x for it and MIPLIB 3 reads 1.002x in total; the landed form spends the larger cap only before the first branch (MIP_SYMMETRY_MORE). Reopens with a search that finishes air03 inside 250, such as a refinement that splits only the cells a change touches.
++node-presolve-always | MANUAL | Node relaxations that never skip the LP presolve (MIP_NODE_PRESOLVE_ITERS out of reach), on top of dual Devex at the nodes (bench/measurements/02-479/, landpre in read.sh). neos5 reaches 150,788 nodes and bound 14.33 at 1e10 against 116,376 and 14.25, but MIPLIB 3 reads 1.225x in total and 1.097x geometric, dcmulti 1.85x, l152lav 1.37x, stein45 1.35x. Reopens with a skip rule read per node, such as the share of the node's columns its bounds fix, that keeps neos5's presolve without dcmulti's, read on both sets.
+diff --git a/docs/tolerances.md b/docs/tolerances.md
+index 67729f1c..8d1e14e7 100644
+--- a/docs/tolerances.md
++++ b/docs/tolerances.md
+@@ -118,7 +118,7 @@ threshold.
+ | `PDLP_STEP_TRIES` | 64 | Times the adaptive step may shrink in one iteration; never reached on the standard 94. Not swept |
+ | `DSE_MIN` | 1e-12 | Floor on a steepest-edge weight, which cancellation can drive to zero |
+ | `DEVEX_RESET` | 3.0 | Primal Devex (`cfg.primal_devex`) resets its framework when a true weight and its estimate differ by more than this factor. Of 2, 3 and 10, 3 reaches the dual's answer most often |
+-| `DSE_DRIFT` | 10.0 | How far a carried steepest-edge weight may drift from the exact one before the set restarts. In the dual, a drift with exact weights hands pricing to dual Devex (`DUAL_DEVEX_RESET`); with guessed weights or in a MIP node, the set restarts (`bench/measurements/02-31/`) |
++| `DSE_DRIFT` | 10.0 | How far a carried steepest-edge weight may drift from the exact one before the set restarts. In the dual, a drift with exact weights hands pricing to dual Devex (`DUAL_DEVEX_RESET`); with guessed weights, the set restarts (`bench/measurements/02-31/`). A MIP node's solve below the root prices by dual Devex from its first iteration, since its weights would start at 1 and restart at nearly every second pivot (`bench/measurements/02-479/`) |
+ | `DUAL_DEVEX_RESET` | 10.0 | Dual Devex's reset factor. From 2 to 1000, 10 has the lowest work and `pilot` bounds it on both sides (`bench/measurements/02-278/`) |
+ | `PSE_CHEAP_RESTARTS` | 64 | How many drift restarts of the primal's steepest-edge weights use the cheap slack-basis reset before phase 2 rebuilds them exactly. Exact rebuilds in phase 1 made `pilot87` and `maros-r7` fail |
+ | `DSE_RESOLVE_EXACT` | 1 | A root re-solve after cuts takes exact weights once it has run this many times `nrow + ncol + 1` iterations. `csched008`'s cut rounds fall from 1.29e10 to 3.71e9 work units, MIPLIB 3 unchanged (`bench/measurements/02-334/`). Not swept |
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 0a8bc6b3..9358795d 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -39,6 +39,7 @@ typedef struct {
+     bool node_keep;
+     bool node_probe;
+     bool node_no_presolve;
++    bool node_devex;
+     bool node_cutoff_set;
+     double node_cutoff;
+     bool no_cert_solve;
+diff --git a/src/mip.c b/src/mip.c
+index 75df8e57..7561100d 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1258,6 +1258,7 @@ static jaos_status bb_round_solve(const jaos_model *lp, const jaos_model *m,
+         budget(crew[k].lp, m, *work);
+         if (share > 0)
+             crew[k].lp->cfg.work_limit = share;
++        crew[k].lp->cfg.node_devex = !jm_model_has_quadratic(lp);
+     }
+     {
+         const int64_t threads = jaos_threads_of(m);
+@@ -9526,6 +9527,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
+         lp->cfg.node_cutoff_set = cut_at < INFINITY;
+         lp->cfg.node_cutoff = cut_at;
++        lp->cfg.node_devex = nodes > 1 && !quadratic;
+         lp->cutoff_hit = false;
+         st = jaos_solve(lp);
+         lp->cfg.node_cutoff_set = false;
+diff --git a/src/simplex.c b/src/simplex.c
+index 1cfcd3d2..7e34d6c9 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4226,6 +4226,11 @@ static jaos_status run(sx *s, jaos_solve_status *out)
+             *out = JAOS_SOLVE_NUMERICAL_ERROR;
+             return JAOS_OK;
+         }
++        if (s->m->cfg.node_devex && !s->dual_devex) {
++            s->dual_devex = true;
++            jm_log(s->m, JAOS_LOG_DETAIL,
++                   "a node solve below the root: pricing by dual Devex");
++        }
+         if (s->dual_devex)
+             dual_devex_reset(s);
+     }
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index 29b4fbac..12554fc0 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -1637,7 +1637,6 @@ static void test_moves_over_big_m_disjunctions_order_one_machine(void)
+     TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
+     TEST_ASSERT_NOT_NULL(strstr(g_log, "node 1: incumbent 329 by moves over "
+                                        "the disjunctions of the big-M rows"));
+-    const int64_t nodes = rep.nodes;
+     jaos_model_free(m);
+ 
+     m = one_machine();
+@@ -1647,7 +1646,6 @@ static void test_moves_over_big_m_disjunctions_order_one_machine(void)
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+     TEST_ASSERT_DOUBLE_WITHIN(1e-6, 329.0, rep.incumbent);
+     TEST_ASSERT_TRUE(rep.first_incumbent_node > 1);
+-    TEST_ASSERT_TRUE(rep.nodes > nodes);
+     jaos_model_free(m);
+ }
+ 
+@@ -3223,6 +3221,70 @@ static void test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child(voi
+     }
+ }
+ 
++static int g_devex_lines;
++static void count_devex(void *user, jaos_log_level level, const char *line)
++{
++    (void)user; (void)level;
++    if (strstr(line, "pricing by dual Devex") != nullptr)
++        g_devex_lines++;
++}
++
++static void test_a_node_solve_below_the_root_prices_by_dual_devex(void)
++{
++    jaos_model *lp = probe_lp();
++    lp->cfg.node_solve = true;
++    lp->cfg.no_presolve = true;
++    g_devex_lines = 0;
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(lp, count_devex, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(lp, JAOS_LOG_DETAIL));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
++    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(lp));
++    TEST_ASSERT_EQUAL_INT(0, g_devex_lines);
++    double x[PROBE_NC];
++    jaos_basis_status cs[PROBE_NC], rs[PROBE_NR];
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(lp, x, nullptr, nullptr, nullptr));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(lp, cs, rs));
++    int64_t children = 0;
++    for (int64_t j = 0; j < PROBE_NC; j++) {
++        if (x[j] - floor(x[j]) < 1e-6 || ceil(x[j]) - x[j] < 1e-6)
++            continue;
++        const double lo0 = lp->col_lower[j], hi0 = lp->col_upper[j];
++        for (int d = 0; d < 2; d++) {
++            const double lo = d == 0 ? lo0 : ceil(x[j]);
++            const double hi = d == 0 ? floor(x[j]) : hi0;
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(lp, j, lo, hi));
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(lp, cs, rs));
++            lp->cfg.node_devex = true;
++            const int before = g_devex_lines;
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
++            lp->cfg.node_devex = false;
++            TEST_ASSERT_TRUE(g_devex_lines > before);
++            jaos_model *cold = nullptr;
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(lp, &cold));
++            cold->cfg.node_solve = false;
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(cold, nullptr, nullptr));
++            jaos_clear_basis(cold);
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(cold));
++            TEST_ASSERT_EQUAL_INT(jaos_status_of(cold), jaos_status_of(lp));
++            if (jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
++                double a = 0.0, b = 0.0, y[PROBE_NR], z[PROBE_NC];
++                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(lp, &a));
++                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(cold, &b));
++                TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(b)), b, a);
++                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(lp, z, nullptr, y, nullptr));
++                jaos_check_report rep;
++                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(lp, z, y, 1e-9, &rep));
++                TEST_ASSERT_TRUE(rep.primal_feasible && rep.dual_feasible);
++                children++;
++            }
++            jaos_model_free(cold);
++            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(lp, j, lo0, hi0));
++        }
++    }
++    TEST_ASSERT_TRUE(children >= 4);
++    jaos_model_free(lp);
++}
++
+ static void test_every_dive_child_rule_reaches_the_same_optimum(void)
+ {
+     const jaos_dive_child rules[4] = { JAOS_DIVE_NEARER, JAOS_DIVE_UP,
+@@ -6328,11 +6390,12 @@ static void test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent(vo
+ 
+ static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
+ {
+-    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
+-    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
+-                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
+-                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
+-    const double ru[3] = {97.5, 108.0, 88.2};
++    const double c[10] = {10, 19, 23, 25, 30, 23, 26, 16, 10, 21};
++    const double w[30] = {16, 28, 15, 26, 29, 27, 21, 16, 14, 12,
++                          28, 18, 25, 12, 10, 11, 19, 23, 19, 20,
++                          27, 28, 19, 26, 14, 26, 14, 23, 22, 24};
++    const double ru[3] = {112.2, 103.6, 91.4};
++    int64_t nodes[2] = {0, 0};
+     for (int on = 0; on < 2; on++) {
+         jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+@@ -6341,15 +6404,19 @@ static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
+         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+         double obj = 0.0;
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+-        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
++        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 104.0, obj);
+         const char *line = strstr(g_log, " column bounds tightened at the "
+                                          "nodes by their reduced costs");
++        jaos_mip_report rep;
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
++        nodes[on] = rep.nodes;
+         if (on)
+             TEST_ASSERT_NOT_NULL(line);
+         else
+             TEST_ASSERT_NULL(line);
+         jaos_model_free(m);
+     }
++    TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
+ }
+ 
+ static void test_reduced_costs_tighten_general_integer_bounds_at_the_nodes(void)
+@@ -7001,6 +7068,7 @@ int main(void)
+     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
+     RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
+     RUN_TEST(test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child);
++    RUN_TEST(test_a_node_solve_below_the_root_prices_by_dual_devex);
+     RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
+     RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
+     RUN_TEST(test_dropping_slack_cuts_keeps_the_optimum);

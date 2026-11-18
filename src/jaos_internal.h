@@ -39,6 +39,7 @@ typedef struct {
     bool node_keep;
     bool node_probe;
     bool node_no_presolve;
+    bool node_devex;
     bool node_cutoff_set;
     double node_cutoff;
     bool no_cert_solve;

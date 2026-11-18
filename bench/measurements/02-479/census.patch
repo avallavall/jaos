@@ -1,0 +1,96 @@
+diff -ru a/src/jaos_internal.h b/src/jaos_internal.h
+--- a/src/jaos_internal.h	2026-11-18 00:40:04.911045700 +0100
++++ b/src/jaos_internal.h	2026-11-18 00:40:05.269860200 +0100
+@@ -977,4 +977,5 @@
+                                       jm_exact_point *out);
+ typedef struct { int64_t iters, primal, refactor, wrestart, flips, perturb, shifted, infeas0, prework, facwork, work; bool presolved, warm; } jm_n5_t;
+ extern jm_n5_t jm_n5;
++extern int jm_n5_mode;
+ #endif
+diff -ru a/src/mip.c b/src/mip.c
+--- a/src/mip.c	2026-11-18 00:40:04.977229600 +0100
++++ b/src/mip.c	2026-11-18 00:40:05.234365200 +0100
+@@ -8874,6 +8874,7 @@
+     const double t0 = now_seconds();
+     m->mip_started = t0;
+     const bool n5_on = getenv("N5TRACE") != nullptr;
++    const bool n5_census = getenv("N5CENSUS") != nullptr;
+     int64_t n5_prev = -3;
+     const int64_t nc = m->num_col, nr = m->num_row;
+     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+@@ -9534,9 +9535,53 @@
+         lp->cfg.node_cutoff_set = cut_at < INFINITY;
+         lp->cfg.node_cutoff = cut_at;
+         lp->cutoff_hit = false;
++        bool n5_did = false;
++        if (n5_census && nodes > 1 && !quadratic && lp->start_col_status != nullptr &&
++            lp->start_row_status != nullptr) {
++            n5_did = true;
++            const int64_t cnr = lp->num_row;
++            jaos_basis_status *scs = malloc((size_t)(nc + 1) * sizeof *scs);
++            jaos_basis_status *srs = malloc((size_t)(cnr + 1) * sizeof *srs);
++            memcpy(scs, lp->start_col_status, (size_t)nc * sizeof *scs);
++            memcpy(srs, lp->start_row_status, (size_t)cnr * sizeof *srs);
++            const int base = jm_n5_mode < 0 ? 0 : jm_n5_mode;
++            static const int alts[] = { 1, 2, 4 };
++            fprintf(stderr, "C %lld", (long long)nodes);
++            for (int a = 0; a < 3; a++) {
++                jm_n5_mode = alts[a];
++                lp->cfg.node_cutoff_set = cut_at < INFINITY;
++                lp->cfg.node_cutoff = cut_at;
++                lp->cutoff_hit = false;
++                budget(lp, m, work);
++                const jaos_status cst = jaos_solve(lp);
++                double cobj = 0.0;
++                if (cst == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL)
++                    (void)jaos_objective(lp, &cobj);
++                fprintf(stderr, " | %d %lld %lld %d %d %.10g", alts[a],
++                        (long long)jaos_iterations(lp), (long long)jaos_work_units(lp),
++                        cst == JAOS_OK ? (int)jaos_status_of(lp) : -1, lp->cutoff_hit, cobj);
++                if (jaos_set_basis(lp, scs, srs) != JAOS_OK)
++                    goto done;
++            }
++            jm_n5_mode = base;
++            lp->cfg.node_cutoff_set = cut_at < INFINITY;
++            lp->cfg.node_cutoff = cut_at;
++            lp->cutoff_hit = false;
++            budget(lp, m, work);
++            free(scs);
++            free(srs);
++        }
+         memset(&jm_n5, 0, sizeof jm_n5);
+         st = jaos_solve(lp);
+         lp->cfg.node_cutoff_set = false;
++        if (n5_did) {
++            double cobj = 0.0;
++            if (st == JAOS_OK && jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL)
++                (void)jaos_objective(lp, &cobj);
++            fprintf(stderr, " | 0 %lld %lld %d %d %.10g\n",
++                    (long long)jaos_iterations(lp), (long long)jaos_work_units(lp),
++                    st == JAOS_OK ? (int)jaos_status_of(lp) : -1, lp->cutoff_hit, cobj);
++        }
+         if (n5_on) {
+             fprintf(stderr, "N %lld %lld %lld %lld %lld %d | %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %d %d %d %d %d %lld\n",
+                     (long long)nodes, (long long)(cur ? cur->id : -1), (long long)(cur ? cur->pid : -2),
+diff -ru a/src/simplex.c b/src/simplex.c
+--- a/src/simplex.c	2026-11-18 00:40:04.804054500 +0100
++++ b/src/simplex.c	2026-11-18 00:40:05.294116700 +0100
+@@ -280,14 +280,14 @@
+ } jm_parked;
+ 
+ jm_n5_t jm_n5;
++int jm_n5_mode = -1;
+ static int n5_mode(void)
+ {
+-    static int m = -1;
+-    if (m < 0) {
++    if (jm_n5_mode < 0) {
+         const char *e = getenv("N5DSE");
+-        m = e != nullptr ? atoi(e) : 0;
++        jm_n5_mode = e != nullptr ? atoi(e) : 0;
+     }
+-    return m;
++    return jm_n5_mode;
+ }
+ 
+ static inline void set_verified(sx *s, bool v)

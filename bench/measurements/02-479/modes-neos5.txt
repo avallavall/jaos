@@ -1,0 +1,15 @@
+N5DSE=0 at 2000000000              status work_limit iterations 227738 work_units 2000010198 nodes 6510 bound 13.875 incumbent 15 
+all                    n=  6459 iters=  34.4 weight-restarts=13.69 flips= 2.56 refactors=1.89 factor-work=  15251 before-run=  2081 work=  258933 presolved=0.00 depth= 17.2
+N5DSE=1 at 2000000000              status work_limit iterations 238736 work_units 2000005375 nodes 12254 bound 13.9375 incumbent 15 
+all                    n= 12203 iters=  19.4 weight-restarts= 0.00 flips= 2.26 refactors=1.65 factor-work=  12095 before-run=  2080 work=  140700 presolved=0.00 depth= 18.6
+N5DSE=2 at 2000000000              status work_limit iterations 157170 work_units 2000059707 nodes 11751 bound 14 incumbent 16 
+all                    n= 11700 iters=  13.3 weight-restarts= 0.00 flips= 2.20 refactors=1.52 factor-work=  10359 before-run=  4730 work=  144452 presolved=1.00 depth= 19.1
+N5DSE=4 at 2000000000              status work_limit iterations 326095 work_units 2000006215 nodes 17295 bound 14 incumbent 15.5 
+all                    n= 17244 iters=  18.8 weight-restarts= 0.33 flips= 3.39 refactors=1.66 factor-work=  11281 before-run=  4679 work=   99546 presolved=1.00 depth= 19.8
+the change at 2000000000           status work_limit iterations 286559 work_units 2000005978 nodes 15511 bound 14 incumbent 15 
+b53a1ff at 10000000000             status work_limit iterations 1260982 work_units 10000004839 nodes 32557 bound 14 incumbent 15 
+N5DSE=1 at 10000000000             status work_limit iterations 1385196 work_units 10000007311 nodes 83369 bound 14.166666666666666 incumbent 15 
+N5DSE=2 at 10000000000             status work_limit iterations 912327 work_units 10000034970 nodes 86305 bound 14.25 incumbent 15 
+N5DSE=4 at 10000000000             status work_limit iterations 1870984 work_units 10000006231 nodes 143223 bound 14.25 incumbent 15 
+the change at 10000000000          status work_limit iterations 1570794 work_units 10000007049 nodes 116376 bound 14.25 incumbent 15 
+the change, node presolve kept     status work_limit iterations 1900205 work_units 10000005357 nodes 150788 bound 14.333333333333334 incumbent 15 

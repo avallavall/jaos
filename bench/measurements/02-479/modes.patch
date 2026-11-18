@@ -1,0 +1,42 @@
+diff -ru a/src/simplex.c b/src/simplex.c
+--- a/src/simplex.c	2026-11-18 00:40:03.955349700 +0100
++++ b/src/simplex.c	2026-11-18 00:40:04.064805200 +0100
+@@ -280,6 +280,15 @@
+ } jm_parked;
+ 
+ jm_n5_t jm_n5;
++static int n5_mode(void)
++{
++    static int m = -1;
++    if (m < 0) {
++        const char *e = getenv("N5DSE");
++        m = e != nullptr ? atoi(e) : 0;
++    }
++    return m;
++}
+ 
+ static inline void set_verified(sx *s, bool v)
+ {
+@@ -2379,7 +2388,8 @@
+         }
+ 
+         if (jm_dse_update(s->nrow, s->dse, r, s->col, s->tau, exact,
+-                          DSE_DRIFT, sparse_col ? s->cpat : nullptr,
++                          s->m->cfg.node_solve && (n5_mode() & 1) ? INFINITY : DSE_DRIFT,
++                          sparse_col ? s->cpat : nullptr,
+                           s->ncpat)) {
+             s->n_weight_restart++;
+             if (s->dse_guess) {
+@@ -4240,8 +4250,12 @@
+             *out = JAOS_SOLVE_NUMERICAL_ERROR;
+             return JAOS_OK;
+         }
++        if (s->m->cfg.node_solve && (n5_mode() & 4))
++            s->dual_devex = true;
+         if (s->dual_devex)
+             dual_devex_reset(s);
++        else if (s->m->cfg.node_solve && (n5_mode() & 2))
++            exact_weights(s);
+     }
+     s->stage = STAGE_DUAL;
+ 

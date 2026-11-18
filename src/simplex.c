@@ -4226,6 +4226,11 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             *out = JAOS_SOLVE_NUMERICAL_ERROR;
             return JAOS_OK;
         }
+        if (s->m->cfg.node_devex && !s->dual_devex) {
+            s->dual_devex = true;
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "a node solve below the root: pricing by dual Devex");
+        }
         if (s->dual_devex)
             dual_devex_reset(s);
     }

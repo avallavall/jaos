@@ -1,0 +1,167 @@
+diff -ru a/src/jaos_internal.h b/src/jaos_internal.h
+--- a/src/jaos_internal.h	2026-11-18 00:40:02.736367100 +0100
++++ b/src/jaos_internal.h	2026-11-18 00:40:03.097243300 +0100
+@@ -975,4 +975,6 @@
+ 
+ JAOS_NODISCARD bool jm_exact_evaluate(jaos_model *m, const double *x,
+                                       jm_exact_point *out);
++typedef struct { int64_t iters, primal, refactor, wrestart, flips, perturb, shifted, infeas0, prework, facwork, work; bool presolved, warm; } jm_n5_t;
++extern jm_n5_t jm_n5;
+ #endif
+diff -ru a/src/mip.c b/src/mip.c
+--- a/src/mip.c	2026-11-18 00:40:02.936342200 +0100
++++ b/src/mip.c	2026-11-18 00:40:03.120501400 +0100
+@@ -6,6 +6,7 @@
+ #include <assert.h>
+ #include <float.h>
+ #include <math.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
+@@ -476,7 +477,9 @@
+     int64_t fcap;
+     double est;
+     int64_t hpos;
++    int64_t pid, pnode;
+ } bnode;
++static int64_t n5_nodes;
+ 
+ static void node_free(bnode *n)
+ {
+@@ -719,6 +722,8 @@
+     n->depth = d;
+     n->key = key;
+     n->id = id;
++    n->pid = parent ? parent->id : -1;
++    n->pnode = n5_nodes;
+     n->frac = frac;
+     n->up = up;
+     n->no_cuts = no_cuts;
+@@ -8868,6 +8873,8 @@
+ {
+     const double t0 = now_seconds();
+     m->mip_started = t0;
++    const bool n5_on = getenv("N5TRACE") != nullptr;
++    int64_t n5_prev = -3;
+     const int64_t nc = m->num_col, nr = m->num_row;
+     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+     const bool quadratic = jm_model_has_quadratic(m);
+@@ -9527,8 +9534,22 @@
+         lp->cfg.node_cutoff_set = cut_at < INFINITY;
+         lp->cfg.node_cutoff = cut_at;
+         lp->cutoff_hit = false;
++        memset(&jm_n5, 0, sizeof jm_n5);
+         st = jaos_solve(lp);
+         lp->cfg.node_cutoff_set = false;
++        if (n5_on) {
++            fprintf(stderr, "N %lld %lld %lld %lld %lld %d | %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %d %d %d %d %d %lld\n",
++                    (long long)nodes, (long long)(cur ? cur->id : -1), (long long)(cur ? cur->pid : -2),
++                    (long long)n5_prev, (long long)(cur ? cur->depth : 0), cur && cur->pid == n5_prev,
++                    (long long)jm_n5.iters, (long long)jm_n5.primal, (long long)jm_n5.refactor,
++                    (long long)jm_n5.wrestart, (long long)jm_n5.flips, (long long)jm_n5.perturb,
++                    (long long)jm_n5.shifted, (long long)jm_n5.infeas0, (long long)jm_n5.prework,
++                    (long long)jm_n5.facwork, (long long)jm_n5.work, jm_n5.presolved, jm_n5.warm,
++                    lp->cutoff_hit, (int)jaos_status_of(lp), cur ? (int)cur->up : -1,
++                    (long long)(cur ? nodes - cur->pnode : 0));
++            n5_prev = cur ? cur->id : -1;
++        }
++        n5_nodes = nodes;
+         solves++;
+         int64_t node_work = jaos_work_units(lp);
+         work += node_work;
+diff -ru a/src/simplex.c b/src/simplex.c
+--- a/src/simplex.c	2026-11-18 00:40:02.894556500 +0100
++++ b/src/simplex.c	2026-11-18 00:40:03.209821200 +0100
+@@ -262,6 +262,8 @@
+     bool cut_hit;
+     double zobj;
+     bool zobj_ok;
++    int64_t n_flips, n_shifted, infeas0, prework, facwork;
++    bool infeas0_done;
+ } sx;
+ 
+ enum { STAGE_NONE = 0, STAGE_DUAL, STAGE_PRIMAL_PHASE1, STAGE_PRIMAL,
+@@ -277,6 +279,8 @@
+     jm_config cfg;
+ } jm_parked;
+ 
++jm_n5_t jm_n5;
++
+ static inline void set_verified(sx *s, bool v)
+ {
+     s->verified = v;
+@@ -958,8 +962,10 @@
+     }
+     s->bs[s->nrow] = p;
+ 
++    const int64_t fw0 = s->work.units;
+     jaos_status st = jm_lu_factor(&s->lu, s->nrow, s->bs, s->bi, s->bv,
+                                   LU_PIVOT_TOL, &s->work);
++    s->facwork += s->work.units - fw0;
+     if (st != JAOS_OK)
+         return st;
+     s->needs_refactor = false;
+@@ -1425,10 +1431,12 @@
+     }
+ #endif
+ 
++    int64_t n5cnt = 0;
+     for (int64_t i = 0; i < s->nrow; i++) {
+         const double viol = s->pviol[i];
+         if (viol <= s->primal_tol)
+             continue;
++        n5cnt++;
+ 
+         const bool under = s->punder[i];
+         total += viol;
+@@ -1452,6 +1460,10 @@
+         }
+     }
+     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
++    if (!s->infeas0_done) {
++        s->infeas0_done = true;
++        s->infeas0 = n5cnt;
++    }
+ 
+     if (best >= 0 && total < s->infeas_best) {
+         s->infeas_best = total;
+@@ -1596,6 +1608,7 @@
+     const bool track = s->zobj_ok && s->cut_lag < INFINITY;
+     double dz = 0.0;
+ 
++    s->n_flips += n - at;
+     for (int64_t k = at; k < n; k++) {
+ 
+         assert(isfinite(s->rrange[k]));
+@@ -2087,6 +2100,7 @@
+     }
+     if (need == 0.0)
+         return;
++    s->n_shifted++;
+ 
+     const double before = s->cost[v];
+     s->cost[v] += need;
+@@ -5110,6 +5124,8 @@
+             s.cut_lag = !s.primal_run && m->cfg.node_cutoff_set
+                 ? m->cfg.node_cutoff - tsg * target->obj_offset : INFINITY;
+             s.cut_hit = false;
++            if (s.prework == 0)
++                s.prework = s.work.units;
+             st = s.primal_run ? run_primal(&s, &outcome)
+                               : run(&s, &outcome);
+         }
+@@ -5362,6 +5378,13 @@
+     m->solve_iters += barrier_iters;
+     m->solve_primal_iters = s.n_primal_iters;
+     m->solve_phase1_iters = s.n_phase1_iters;
++    jm_n5.iters = s.iters; jm_n5.primal = s.n_primal_iters;
++    jm_n5.refactor = s.n_refactor; jm_n5.wrestart = s.n_weight_restart;
++    jm_n5.flips = s.n_flips; jm_n5.perturb = s.n_perturb;
++    jm_n5.shifted = s.n_shifted; jm_n5.infeas0 = s.infeas0;
++    jm_n5.prework = s.prework; jm_n5.facwork = s.facwork;
++    jm_n5.work = s.work.units; jm_n5.presolved = target != m;
++    jm_n5.warm = warm;
+ 
+     if (st == JAOS_OK)
+         jm_log(m, JAOS_LOG_SUMMARY,

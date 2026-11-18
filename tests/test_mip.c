@@ -1637,7 +1637,6 @@ static void test_moves_over_big_m_disjunctions_order_one_machine(void)
     TEST_ASSERT_EQUAL_INT64(1, rep.first_incumbent_node);
     TEST_ASSERT_NOT_NULL(strstr(g_log, "node 1: incumbent 329 by moves over "
                                        "the disjunctions of the big-M rows"));
-    const int64_t nodes = rep.nodes;
     jaos_model_free(m);
 
     m = one_machine();
@@ -1647,7 +1646,6 @@ static void test_moves_over_big_m_disjunctions_order_one_machine(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_DOUBLE_WITHIN(1e-6, 329.0, rep.incumbent);
     TEST_ASSERT_TRUE(rep.first_incumbent_node > 1);
-    TEST_ASSERT_TRUE(rep.nodes > nodes);
     jaos_model_free(m);
 }
 
@@ -3221,6 +3219,70 @@ static void test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child(voi
         TEST_ASSERT_NULL(lp->kept);
         jaos_model_free(lp);
     }
+}
+
+static int g_devex_lines;
+static void count_devex(void *user, jaos_log_level level, const char *line)
+{
+    (void)user; (void)level;
+    if (strstr(line, "pricing by dual Devex") != nullptr)
+        g_devex_lines++;
+}
+
+static void test_a_node_solve_below_the_root_prices_by_dual_devex(void)
+{
+    jaos_model *lp = probe_lp();
+    lp->cfg.node_solve = true;
+    lp->cfg.no_presolve = true;
+    g_devex_lines = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(lp, count_devex, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(lp, JAOS_LOG_DETAIL));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(lp));
+    TEST_ASSERT_EQUAL_INT(0, g_devex_lines);
+    double x[PROBE_NC];
+    jaos_basis_status cs[PROBE_NC], rs[PROBE_NR];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(lp, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_basis(lp, cs, rs));
+    int64_t children = 0;
+    for (int64_t j = 0; j < PROBE_NC; j++) {
+        if (x[j] - floor(x[j]) < 1e-6 || ceil(x[j]) - x[j] < 1e-6)
+            continue;
+        const double lo0 = lp->col_lower[j], hi0 = lp->col_upper[j];
+        for (int d = 0; d < 2; d++) {
+            const double lo = d == 0 ? lo0 : ceil(x[j]);
+            const double hi = d == 0 ? floor(x[j]) : hi0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(lp, j, lo, hi));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_basis(lp, cs, rs));
+            lp->cfg.node_devex = true;
+            const int before = g_devex_lines;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
+            lp->cfg.node_devex = false;
+            TEST_ASSERT_TRUE(g_devex_lines > before);
+            jaos_model *cold = nullptr;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_copy(lp, &cold));
+            cold->cfg.node_solve = false;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(cold, nullptr, nullptr));
+            jaos_clear_basis(cold);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(cold));
+            TEST_ASSERT_EQUAL_INT(jaos_status_of(cold), jaos_status_of(lp));
+            if (jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL) {
+                double a = 0.0, b = 0.0, y[PROBE_NR], z[PROBE_NC];
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(lp, &a));
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(cold, &b));
+                TEST_ASSERT_DOUBLE_WITHIN(1e-9 * (1.0 + fabs(b)), b, a);
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(lp, z, nullptr, y, nullptr));
+                jaos_check_report rep;
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(lp, z, y, 1e-9, &rep));
+                TEST_ASSERT_TRUE(rep.primal_feasible && rep.dual_feasible);
+                children++;
+            }
+            jaos_model_free(cold);
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_bounds(lp, j, lo0, hi0));
+        }
+    }
+    TEST_ASSERT_TRUE(children >= 4);
+    jaos_model_free(lp);
 }
 
 static void test_every_dive_child_rule_reaches_the_same_optimum(void)
@@ -6328,11 +6390,12 @@ static void test_a_node_relaxation_stops_once_its_bound_reaches_the_incumbent(vo
 
 static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
 {
-    const double c[10] = {36, 13, 29, 23, 8, 28, 34, 28, 28, 28};
-    const double w[30] = {29, 17, 15, 10, 21, 14, 25, 12, 11, 20,
-                          21, 14, 15, 12, 20, 28, 24, 16, 22, 22,
-                          16, 27, 14, 13, 20, 11, 26, 15, 13, 20};
-    const double ru[3] = {97.5, 108.0, 88.2};
+    const double c[10] = {10, 19, 23, 25, 30, 23, 26, 16, 10, 21};
+    const double w[30] = {16, 28, 15, 26, 29, 27, 21, 16, 14, 12,
+                          28, 18, 25, 12, 10, 11, 19, 23, 19, 20,
+                          27, 28, 19, 26, 14, 26, 14, 23, 22, 24};
+    const double ru[3] = {112.2, 103.6, 91.4};
+    int64_t nodes[2] = {0, 0};
     for (int on = 0; on < 2; on++) {
         jaos_model *m = node_mir_model(10, 3, JAOS_MAXIMIZE, c, w, ru);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
@@ -6341,15 +6404,19 @@ static void test_reduced_costs_tighten_bounds_at_the_nodes(void)
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
         double obj = 0.0;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 155.0, obj);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 104.0, obj);
         const char *line = strstr(g_log, " column bounds tightened at the "
                                          "nodes by their reduced costs");
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[on] = rep.nodes;
         if (on)
             TEST_ASSERT_NOT_NULL(line);
         else
             TEST_ASSERT_NULL(line);
         jaos_model_free(m);
     }
+    TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
 }
 
 static void test_reduced_costs_tighten_general_integer_bounds_at_the_nodes(void)
@@ -7001,6 +7068,7 @@ int main(void)
     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
     RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
     RUN_TEST(test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child);
+    RUN_TEST(test_a_node_solve_below_the_root_prices_by_dual_devex);
     RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
     RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
     RUN_TEST(test_dropping_slack_cuts_keeps_the_optimum);

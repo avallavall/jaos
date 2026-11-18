@@ -1,0 +1,36 @@
+== b53a1ff, neos5 at 2e9
+b53a1ff                            status work_limit iterations 227738 work_units 2000010198 nodes 6510 bound 13.875 incumbent 15 
+all                    n=  6459 iters=  34.4 weight-restarts=13.69 flips= 2.56 refactors=1.89 factor-work=  15251 before-run=  2081 work=  258933 presolved=0.00 depth= 17.2
+child of the last      n=  2462 iters=  10.8 weight-restarts= 2.91 flips= 0.25 refactors=1.50 factor-work=  12028 before-run=  2080 work=   86781 presolved=0.00 depth= 18.7
+not its child          n=  3997 iters=  49.0 weight-restarts=20.32 flips= 3.98 refactors=2.13 factor-work=  17237 before-run=  2082 work=  364973 presolved=0.00 depth= 16.4
+child, down            n=  2369 iters=  10.8 weight-restarts= 2.88 flips= 0.24 refactors=1.50 factor-work=  12004 before-run=  2080 work=   86442 presolved=0.00 depth= 18.8
+child, up              n=    93 iters=  11.3 weight-restarts= 3.75 flips= 0.40 refactors=1.44 factor-work=  12629 before-run=  2085 work=   95395 presolved=0.00 depth= 15.7
+not child, down        n=  2236 iters=  22.2 weight-restarts= 8.10 flips= 1.50 refactors=1.70 factor-work=  13224 before-run=  2081 work=  166910 presolved=0.00 depth= 17.6
+not child, up          n=  1761 iters=  83.0 weight-restarts=35.83 flips= 7.12 refactors=2.68 factor-work=  22332 before-run=  2083 work=  616459 presolved=0.00 depth= 14.7
+parent 1-1 ago         n=  2462 iters=  10.8 weight-restarts= 2.91 flips= 0.25 refactors=1.50 factor-work=  12028 before-run=  2080 work=   86781 presolved=0.00 depth= 18.7
+parent 2-2 ago         n=   739 iters=  11.1 weight-restarts= 3.08 flips= 0.19 refactors=1.50 factor-work=  11923 before-run=  2079 work=   88340 presolved=0.00 depth= 19.3
+parent 3-5 ago         n=   228 iters=  31.8 weight-restarts=12.23 flips= 2.22 refactors=1.83 factor-work=  14599 before-run=  2082 work=  233865 presolved=0.00 depth= 18.3
+parent 6-20 ago        n=   338 iters=  45.0 weight-restarts=18.46 flips= 3.44 refactors=2.06 factor-work=  16604 before-run=  2085 work=  334008 presolved=0.00 depth= 17.4
+parent 21-100 ago      n=   251 iters=  44.6 weight-restarts=19.32 flips= 3.24 refactors=2.08 factor-work=  16671 before-run=  2094 work=  328422 presolved=0.00 depth= 16.9
+parent 101-1000 ago    n=  1161 iters=  57.3 weight-restarts=24.20 flips= 5.24 refactors=2.28 factor-work=  18804 before-run=  2083 work=  428932 presolved=0.00 depth= 13.9
+parent 1001-1000000000000 ago n=  1280 iters=  68.3 weight-restarts=28.88 flips= 5.61 refactors=2.44 factor-work=  19631 before-run=  2080 work=  505369 presolved=0.00 depth= 16.1
+weight restarts a solve (10 = 10 or more): [(0, 1548), (1, 768), (2, 665), (3, 559), (4, 436), (5, 338), (6, 236), (7, 172), (8, 128), (9, 112), (10, 1497)]
+rows infeasible at the start: [(1, 6410), (2, 44), (3, 1), (4, 2), (9, 1), (10, 1)]
+== the change, neos5 at 2e9
+change                             status work_limit iterations 286559 work_units 2000005978 nodes 15511 bound 14 incumbent 15 
+all                    n= 15460 iters=  18.4 weight-restarts= 0.32 flips= 2.73 refactors=1.65 factor-work=  11416 before-run=  2086 work=  111040 presolved=0.00 depth= 19.1
+child of the last      n=  4716 iters=   8.5 weight-restarts= 0.10 flips= 0.11 refactors=1.43 factor-work=  10311 before-run=  2087 work=   62913 presolved=0.00 depth= 20.4
+not its child          n= 10744 iters=  22.8 weight-restarts= 0.42 flips= 3.88 refactors=1.74 factor-work=  11902 before-run=  2086 work=  132166 presolved=0.00 depth= 18.5
+child, down            n=  4587 iters=   8.5 weight-restarts= 0.10 flips= 0.11 refactors=1.44 factor-work=  10303 before-run=  2087 work=   62774 presolved=0.00 depth= 20.4
+child, up              n=   129 iters=   8.6 weight-restarts= 0.09 flips= 0.37 refactors=1.33 factor-work=  10586 before-run=  2083 work=   67853 presolved=0.00 depth= 17.4
+not child, down        n=  5010 iters=   9.9 weight-restarts= 0.12 flips= 0.55 refactors=1.47 factor-work=  10044 before-run=  2085 work=   66954 presolved=0.00 depth= 19.6
+not child, up          n=  5734 iters=  34.0 weight-restarts= 0.68 flips= 6.79 refactors=1.97 factor-work=  13525 before-run=  2086 work=  189144 presolved=0.00 depth= 17.5
+parent 1-1 ago         n=  4716 iters=   8.5 weight-restarts= 0.10 flips= 0.11 refactors=1.43 factor-work=  10311 before-run=  2087 work=   62913 presolved=0.00 depth= 20.4
+parent 2-2 ago         n=  1447 iters=   8.7 weight-restarts= 0.08 flips= 0.16 refactors=1.43 factor-work=  10080 before-run=  2086 work=   62804 presolved=0.00 depth= 20.9
+parent 3-5 ago         n=   332 iters=  14.3 weight-restarts= 0.23 flips= 1.57 refactors=1.55 factor-work=  11000 before-run=  2089 work=   92379 presolved=0.00 depth= 19.0
+parent 6-20 ago        n=   567 iters=  20.1 weight-restarts= 0.36 flips= 2.82 refactors=1.70 factor-work=  12016 before-run=  2099 work=  120013 presolved=0.00 depth= 17.9
+parent 21-100 ago      n=   443 iters=  21.6 weight-restarts= 0.42 flips= 3.38 refactors=1.72 factor-work=  12489 before-run=  2101 work=  131692 presolved=0.00 depth= 16.5
+parent 101-1000 ago    n=  1843 iters=  20.9 weight-restarts= 0.41 flips= 3.38 refactors=1.72 factor-work=  12425 before-run=  2086 work=  125344 presolved=0.00 depth= 16.1
+parent 1001-1000000000000 ago n=  6112 iters=  27.4 weight-restarts= 0.52 flips= 5.17 refactors=1.83 factor-work=  12171 before-run=  2083 work=  153967 presolved=0.00 depth= 18.8
+weight restarts a solve (10 = 10 or more): [(0, 11474), (1, 3224), (2, 582), (3, 144), (4, 29), (5, 7)]
+rows infeasible at the start: [(1, 15425), (2, 30), (4, 4), (10, 1)]

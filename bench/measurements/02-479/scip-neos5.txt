@@ -1,0 +1,24 @@
+default              nodelimit  nodes    30000 bound 14.0000 primal 15.0000 lpiter    640069 time 23.6
+     dual LP          :       9.49      45072     598211      15.46   63003.47       0.25       6389
+     lex dual LP      :       0.00          0          0       0.00          -
+dfs                  nodelimit  nodes    30000 bound 13.4990 primal 15.5000 lpiter    189514 time 5.4
+     dual LP          :       0.87      35826     187482       5.96  215646.51       0.10       4391
+     lex dual LP      :       0.00          0          0       0.00          -
+bfs                  nodelimit  nodes    30000 bound 14.2582 primal 15.0000 lpiter    780757 time 34.3
+     dual LP          :      10.58      47684     706260      16.06   66766.39       0.15       3715
+     lex dual LP      :       0.00          0          0       0.00          -
+estimate-noplunge    nodelimit  nodes    30000 bound 14.1538 primal 15.0000 lpiter    710716 time 28.0
+     dual LP          :      11.23      45838     646463      16.09   57565.12       0.24       5666
+     lex dual LP      :       0.00          0          0       0.00          -
+devex                nodelimit  nodes    30000 bound 14.0000 primal 15.0000 lpiter    640069 time 22.4
+     dual LP          :       9.92      45072     598211      15.46   60275.38       0.27       6389
+     lex dual LP      :       0.00          0          0       0.00          -
+steepest             nodelimit  nodes    30000 bound 14.0833 primal 15.0000 lpiter    569929 time 26.8
+     dual LP          :      14.16      43406     528691      13.47   37339.54       0.19       4160
+     lex dual LP      :       0.00          0          0       0.00          -
+quickstart           nodelimit  nodes    30000 bound 14.0000 primal 15.0000 lpiter    773643 time 33.7
+     dual LP          :      16.96      45287     719680      17.81   42439.91       0.20       4887
+     lex dual LP      :       0.00          0          0       0.00          -
+partial              nodelimit  nodes    30000 bound 14.0000 primal 15.0000 lpiter   1493449 time 29.5
+     dual LP          :      17.70      45402    1413202      35.77   79843.43       0.20       5898
+     lex dual LP      :       0.00          0          0       0.00          -

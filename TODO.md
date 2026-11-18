@@ -124,22 +124,34 @@ first:
   (`lattice-round-columns`). Next for `gen-ip002`: a heuristic for the
   reduced tree whose points hold the bound rows `V y >= 0`, so that the
   first phase can be short. With 02-475's fixing at every node the first
-  20,000 nodes no longer reach the optimum, and `gen-ip002` ends 0.0025
-  away. Verify with `gen-ip002` holding its optimum and closing inside
+  20,000 nodes no longer reached the optimum, and `gen-ip002` ended 0.0025
+  away; with Devex at the nodes (02-479) it holds the optimum again, bound
+  -4805.67. Verify with `gen-ip002` holding its optimum and closing inside
   1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
   (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
-  and SCIP has not after 2.48M; 1e10 buys JAOS 33,482 nodes at 3e5 work
-  units, 38 LP iterations a solve against HiGHS's 12. Neither closes
-  `assign1-5-8` in 600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at
-  205.0 after 1.12M; without symmetry SCIP's bound at 20,000 nodes falls
-  from 197.1 to 191.6. JAOS's search ran out before it found the exchange
-  of the four groups; a second search before the first branch finds it,
-  and the objective step takes the 26 cost columns as whole: 192.79 to
-  196 at 1e10. Next for `assign1-5-8`: those implied integers in the cuts
-  too (declared integer, its root reads 189.80 against 185.26); for
-  `neos5`, the iterations of a node's relaxation. Verify at 1e10 on both
-  and with `make miplib J=2`.
+  and SCIP has not after 2.48M. A node relaxation took 34 iterations
+  against HiGHS's 12.6: its steepest-edge weights started at 1 and
+  restarted at 13.7 of its pivots, so it priced by the largest
+  infeasibility; SCIP under partial pricing takes 35.8. Below the root the
+  dual now prices by Devex (`bench/measurements/02-479/`): 18 iterations
+  and 8.6e4 work units a node against 3.1e5, 116,376 nodes and bound 14.25
+  at 1e10 against 32,557 and 14. Closing in HiGHS's node count needs 4.9e4
+  a node. Of the node work, 63% is in up children (`x_j = 1` on its
+  covering rows) solved away from their parent, 34 iterations each; with
+  node presolve kept on every node it reaches 150,788 nodes, but MIPLIB 3
+  reads 1.225x (`node-presolve-always`). Neither closes `assign1-5-8` in
+  600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at 205.0 after 1.12M;
+  without symmetry SCIP's bound at 20,000 nodes falls from 197.1 to 191.6.
+  JAOS's search ran out before it found the exchange of the four groups; a
+  second search before the first branch finds it, and the objective step
+  takes the 26 cost columns as whole: 192.79 to 196 at 1e10, 198 with
+  Devex at the nodes. Next for `assign1-5-8`: those implied integers in
+  the cuts too (declared integer, its root reads 189.80 against 185.26);
+  for `neos5`, the up children's relaxations, and a node presolve rule
+  read per node, since `MIP_NODE_PRESOLVE_ITERS` was set on iteration
+  counts of the old pricing. Verify at 1e10 on both and with
+  `make miplib J=2`.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

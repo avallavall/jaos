@@ -1258,6 +1258,7 @@ static jaos_status bb_round_solve(const jaos_model *lp, const jaos_model *m,
         budget(crew[k].lp, m, *work);
         if (share > 0)
             crew[k].lp->cfg.work_limit = share;
+        crew[k].lp->cfg.node_devex = !jm_model_has_quadratic(lp);
     }
     {
         const int64_t threads = jaos_threads_of(m);
@@ -9526,6 +9527,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
         lp->cfg.node_cutoff_set = cut_at < INFINITY;
         lp->cfg.node_cutoff = cut_at;
+        lp->cfg.node_devex = nodes > 1 && !quadratic;
         lp->cutoff_hit = false;
         st = jaos_solve(lp);
         lp->cfg.node_cutoff_set = false;

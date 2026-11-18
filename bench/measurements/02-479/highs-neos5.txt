@@ -1,0 +1,36 @@
+== simplex_dual_edge_weight_strategy default
+  Status            Solution limit reached
+  Primal bound      15
+  Dual bound        14
+  Nodes             30000
+  LP iterations     431708
+                    9754 (strong br.)
+                    7362 (separation)
+                    35427 (heuristics)
+== simplex_dual_edge_weight_strategy 0
+  Status            Solution limit reached
+  Primal bound      15
+  Dual bound        14
+  Nodes             30000
+  LP iterations     431708
+                    9754 (strong br.)
+                    7362 (separation)
+                    35427 (heuristics)
+== simplex_dual_edge_weight_strategy 1
+  Status            Solution limit reached
+  Primal bound      15
+  Dual bound        14
+  Nodes             30000
+  LP iterations     431708
+                    9754 (strong br.)
+                    7362 (separation)
+                    35427 (heuristics)
+== simplex_dual_edge_weight_strategy 2
+  Status            Solution limit reached
+  Primal bound      15
+  Dual bound        14
+  Nodes             30000
+  LP iterations     431708
+                    9754 (strong br.)
+                    7362 (separation)
+                    35427 (heuristics)
