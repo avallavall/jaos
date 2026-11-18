@@ -1,0 +1,60 @@
+assign1-5-8          last[by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows]
+    coefficient dive:515/0/109360260;pseudocost dive:515/0/101627171;dive guided by the incumbent:514/0/93440952;vector-length dive:514/0/97483173;line-search dive:514/0/97986938;
+beasleyC3            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:181/0/193092014;pseudocost dive:180/0/112375257;dive guided by the incumbent:180/0/93065697;line-search dive:180/0/101204053;
+binkar10_1           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:120/0/69378453;pseudocost dive:119/0/63069186;dive guided by the incumbent:119/0/62004991;line-search dive:119/0/58467878;
+csched007            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:126/0/170658190;pseudocost dive:126/0/79463781;dive guided by the incumbent:126/0/73104293;vector-length dive:126/0/97693392;line-search dive:125/0/78759127;
+csched008            last[by a search over the jobs' starts on the chain of profile columns]
+    coefficient dive:3/0/19304080;pseudocost dive:2/0/12048752;dive guided by the incumbent:2/0/65623523;vector-length dive:2/0/364678809;line-search dive:2/0/30555387;
+enlight_hard         last[]
+    
+exp-1-500-5-5        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:1/0/21273279;pseudocost dive:1/0/2295424;dive guided by the incumbent:1/0/624013;
+gen-ip002            last[by rounding]
+    coefficient dive:31/1/624929;pseudocost dive:23/0/501787;dive guided by the incumbent:23/0/870872;line-search dive:23/0/598167;coefficient dive:15/0/945459;pseudocost dive:15/0/626435;dive guided by the incumbent:15/0/567036;line-search dive:14/0/442517;coefficient dive:8262/0/120862331;pseudocost dive:8262/0/125260076;dive guided by the incumbent:8262/0/123542552;line-search dive:8262/0/124896818;
+gen-ip054            last[by the dive guided by the incumbent]
+    coefficient dive:25/0/793843;pseudocost dive:25/0/525925;dive guided by the incumbent:25/0/932239;line-search dive:25/0/650892;coefficient dive:679/0/13133645;pseudocost dive:729/1/13807508;dive guided by the incumbent:729/1/13696153;line-search dive:679/0/14542650;
+glass4               last[by moves over the disjunctions of the big-M rows]
+    coefficient dive:2651/0/101535466;pseudocost dive:2650/0/102957132;dive guided by the incumbent:2650/0/101391872;vector-length dive:2650/0/96392717;line-search dive:2650/0/97708997;
+graphdraw-domain     last[by moves over the disjunctions of the big-M rows]
+    coefficient dive:1170/0/105254446;pseudocost dive:1170/0/98145150;dive guided by the incumbent:1170/0/100130232;vector-length dive:1170/0/101192869;line-search dive:1169/0/95267052;
+ic97_potential       last[]
+    coefficient dive:14/0/299959387;pseudocost dive:13/0/88737115;line-search dive:13/0/106945129;
+mad                  last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:770/0/102755243;pseudocost dive:770/0/98876692;dive guided by the incumbent:770/0/102496152;vector-length dive:770/0/97615848;line-search dive:770/0/98050957;
+markshare2           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:16690/0/125746264;pseudocost dive:16689/0/124624426;dive guided by the incumbent:16689/0/124871505;line-search dive:16689/0/124745633;
+markshare_4_0        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:8209/0/125246558;pseudocost dive:8209/0/124967223;dive guided by the incumbent:8208/0/124209427;line-search dive:8208/0/125591119;
+mas74                last[by the line-search dive]
+    coefficient dive:7827/0/125932182;pseudocost dive:7827/0/123222541;dive guided by the incumbent:7826/0/126742264;line-search dive:8002/1/124095206;
+mas76                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:5386/0/81827693;pseudocost dive:5386/0/86484832;dive guided by the incumbent:5386/0/84145848;line-search dive:5386/0/81140417;
+neos-2657525-crna    last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:155/0/103961692;pseudocost dive:155/0/94637682;dive guided by the incumbent:155/0/101830238;vector-length dive:155/0/101738605;line-search dive:154/0/96671470;
+neos-3046615-murg    last[by the dive guided by the incumbent]
+    coefficient dive:2893/1/97971683;pseudocost dive:2800/0/99653529;dive guided by the incumbent:2893/1/101700197;vector-length dive:2799/0/96255992;line-search dive:2799/0/104409849;
+neos-3381206-awhea   last[by feasibility jump]
+    
+neos-3627168-kasai   last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:43/0/218548351;pseudocost dive:43/0/87240672;dive guided by the incumbent:42/0/103911357;line-search dive:42/0/88569151;
+neos-3754480-nidda   last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:2791/0/127510963;pseudocost dive:2790/0/124339336;dive guided by the incumbent:2790/0/124863329;line-search dive:2790/0/123279846;
+neos-911970          last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:45/0/114121236;pseudocost dive:45/0/100347364;dive guided by the incumbent:45/0/73296262;vector-length dive:45/0/139084320;line-search dive:44/0/72670034;
+neos5                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:2698/0/128117818;pseudocost dive:2698/0/122670903;dive guided by the incumbent:2698/0/127921948;line-search dive:2697/0/121239815;
+p200x1188c           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:1/0/60543;pseudocost dive:1/0/86039;dive guided by the incumbent:1/0/257946;line-search dive:1/0/116130;
+pk1                  last[by the dive guided by the incumbent]
+    coefficient dive:3360/0/95925560;pseudocost dive:3360/0/90810900;dive guided by the incumbent:3474/1/97503605;line-search dive:3359/0/91285150;
+sp150x300d           last[from the caller's starting point]
+    
+supportcase26        last[by moves over the disjunctions of the big-M rows]
+    coefficient dive:1435/0/124899193;pseudocost dive:1435/0/124409568;dive guided by the incumbent:1434/0/127120001;line-search dive:1434/0/123562231;
+timtab1              last[]
+    coefficient dive:4991/0/127579530;pseudocost dive:4991/0/124595859;dive guided by the incumbent:4991/0/126329872;line-search dive:4991/0/121483023;
+tr12-30              last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    coefficient dive:1098/0/137254624;pseudocost dive:1098/0/123406115;dive guided by the incumbent:1098/0/117314498;line-search dive:1098/0/121975514;

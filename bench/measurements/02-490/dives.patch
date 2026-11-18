@@ -1,0 +1,320 @@
+diff --git a/src/mip.c b/src/mip.c
+index 5262f678..97f06d81 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -186,6 +186,9 @@ constexpr double MIP_SUBMIP_ROOT = 0.5;
+ 
+ constexpr int64_t MIP_ZI_PASSES = 5;
+ constexpr int64_t MIP_ZI_TRIAL = 1000;
++constexpr int64_t MIP_GDIVE_SOLVES = 50;
++constexpr int64_t MIP_GDIVE_EVERY = 10;
++constexpr double MIP_GDIVE_SHARE = 0.05;
+ constexpr int64_t MIP_CROSS_POOL = 10;
+ constexpr int64_t MIP_CROSS_SOLS = 3;
+ constexpr double MIP_CROSS_FIXED = 0.5;
+@@ -8042,17 +8045,24 @@ static bool incumbent_take_point(incumbent *inc, const jaos_model *lp,
+ 
+ enum {
+     GH_ZI,
++    GH_COEF,
++    GH_PSCOST,
++    GH_GUIDED,
++    GH_LINE,
+     GH_CROSS,
+     GH_MUT,
+     GH_DINS,
+     GH_N
+ };
+ 
+-constexpr int GH_PHASES = 3;
++constexpr int GH_PHASES = 4;
++constexpr int GH_DIVES = GH_LINE - GH_COEF + 1;
+ 
+ typedef struct {
+     bool ready, have_root;
+-    double *xroot, *act;
++    double *xroot, *act, *cur;
++    int64_t *lk_up, *lk_dn;
++    int64_t dive_spent;
+     int64_t calls[GH_N], points[GH_N], spent[GH_N];
+     int64_t cross_spent, cross_last;
+     double cross_sig;
+@@ -8065,6 +8075,10 @@ static const char *gh_name(int h)
+ {
+     switch (h) {
+     case GH_ZI: return "ZI rounding";
++    case GH_COEF: return "the coefficient dive";
++    case GH_PSCOST: return "the pseudocost dive";
++    case GH_GUIDED: return "the dive guided by the incumbent";
++    case GH_LINE: return "the line-search dive";
+     case GH_CROSS: return "crossover over the pool";
+     case GH_MUT: return "mutation of the incumbent";
+     case GH_DINS: return "a sub-MIP boxed by the incumbent's distances";
+@@ -8076,17 +8090,36 @@ static void gh_free(ghstate *g)
+ {
+     free(g->xroot);
+     free(g->act);
++    free(g->cur);
++    free(g->lk_up);
++    free(g->lk_dn);
+ }
+ 
+-static bool gh_ready(const jaos_model *m, ghstate *g)
++static bool gh_ready(const jaos_model *m, ghstate *g, int64_t *work)
+ {
+     if (g->ready)
+         return true;
+     const int64_t nc = m->num_col, nr = m->num_row;
+     g->xroot = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->xroot);
+     g->act = jm_alloc_array(nr > 0 ? nr : 1, sizeof *g->act);
+-    if (g->xroot == nullptr || g->act == nullptr)
++    g->cur = jm_alloc_array(nc > 0 ? nc : 1, sizeof *g->cur);
++    g->lk_up = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->lk_up);
++    g->lk_dn = jm_calloc_array(nc > 0 ? nc : 1, sizeof *g->lk_dn);
++    if (g->xroot == nullptr || g->act == nullptr || g->cur == nullptr ||
++        g->lk_up == nullptr || g->lk_dn == nullptr)
+         return false;
++    for (int64_t j = 0; j < nc; j++)
++        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
++            const int64_t i = m->a_index[k];
++            const double a = m->a_value[k];
++            const bool hi = isfinite(m->row_upper[i]);
++            const bool lo = isfinite(m->row_lower[i]);
++            if ((a > 0.0 && hi) || (a < 0.0 && lo))
++                g->lk_up[j]++;
++            if ((a > 0.0 && lo) || (a < 0.0 && hi))
++                g->lk_dn[j]++;
++        }
++    *work += m->num_nz + nc;
+     g->rng = 0x9E3779B97F4A7C15u;
+     g->ready = true;
+     return true;
+@@ -8185,6 +8218,160 @@ static int zi_for_point(const jaos_model *m, const double *x,
+     return nfrac == 0;
+ }
+ 
++static int64_t gdive_pick(const jaos_model *m, const jaos_model *hv,
++                          const ghstate *g, int rule, const double *cur,
++                          const double *xinc, const double *pc_sum,
++                          const int64_t *pc_n, const double *pavg, bool *up)
++{
++    const int64_t nc = m->num_col;
++    int64_t pick = -1;
++    double b0 = 0.0, b1 = 0.0;
++    bool bu = false;
++    for (int64_t j = 0; j < nc; j++) {
++        if (!m->col_integer[j] || !(hv->col_lower[j] < hv->col_upper[j]))
++            continue;
++        const double v = cur[j], fl = floor(v), f = v - fl;
++        if (f <= MIP_INT_TOL || f >= 1.0 - MIP_INT_TOL)
++            continue;
++        bool u = f >= 0.5;
++        double s0 = 0.0, s1 = 0.0;
++        if (rule == GH_COEF) {
++            const int64_t lu = g->lk_up[j], ld = g->lk_dn[j];
++            u = lu < ld ? true : ld < lu ? false : f >= 0.5;
++            s0 = (double)(u ? lu : ld) + (lu == 0 || ld == 0 ? 1e30 : 0.0);
++            s1 = u ? 1.0 - f : f;
++        } else if (rule == GH_PSCOST) {
++            const double pd = pc_n[j] > 0 ? pc_sum[j] / (double)pc_n[j]
++                                          : pavg[0];
++            const double pu = pc_n[nc + j] > 0
++                ? pc_sum[nc + j] / (double)pc_n[nc + j] : pavg[1];
++            const double r = g->have_root ? g->xroot[j] : v;
++            if (v < r - 0.4)
++                u = false;
++            else if (v > r + 0.4)
++                u = true;
++            else if (f < 0.3)
++                u = false;
++            else if (f > 0.7)
++                u = true;
++            else
++                u = !(pd * f < pu * (1.0 - f));
++            const double cd = pd * f, cu = pu * (1.0 - f);
++            const double q = u ? (1.0 + cd) / (1.0 + cu)
++                               : (1.0 + cu) / (1.0 + cd);
++            const bool bin = m->col_lower[j] == 0.0 && m->col_upper[j] == 1.0;
++            s0 = bin ? 0.0 : 1.0;
++            s1 = -q;
++        } else if (rule == GH_GUIDED) {
++            const double t = jm_round(xinc[j]);
++            u = t > v;
++            s0 = fabs(v - t);
++        } else {
++            const double r = g->xroot[j];
++            if (v > r + MIP_INT_TOL) {
++                u = true;
++                s0 = (1.0 - f) / (v - r);
++            } else if (v < r - MIP_INT_TOL) {
++                u = false;
++                s0 = f / (r - v);
++            } else {
++                continue;
++            }
++        }
++        if (pick < 0 || s0 < b0 || (s0 == b0 && s1 < b1)) {
++            pick = j;
++            b0 = s0;
++            b1 = s1;
++            bu = u;
++        }
++    }
++    *up = bu;
++    return pick;
++}
++
++static int gdive_for_point(const jaos_model *m, const jaos_model *lp,
++                           ghstate *g, int rule, const double *x,
++                           const double *xinc, double inckey, double sigma,
++                           const double *pc_sum, const int64_t *pc_n,
++                           int64_t stop, double *out, double *xr, double *ra,
++                           int64_t *work, int64_t *solves_done)
++{
++    const int64_t nc = m->num_col;
++    double pavg[2] = {1.0, 1.0};
++    if (rule == GH_PSCOST) {
++        for (int d = 0; d < 2; d++) {
++            double sum = 0.0;
++            int64_t cnt = 0;
++            for (int64_t j = 0; j < nc; j++)
++                if (pc_n[d * nc + j] > 0) {
++                    sum += pc_sum[d * nc + j] / (double)pc_n[d * nc + j];
++                    cnt++;
++                }
++            if (cnt > 0)
++                pavg[d] = sum / (double)cnt;
++        }
++        *work += 2 * nc;
++    }
++    jaos_model *hv = nullptr;
++    if (jaos_model_copy(lp, &hv) != JAOS_OK)
++        return -1;
++    double *cur = g->cur;
++    if (nc > 0)
++        memcpy(cur, x, (size_t)nc * sizeof *cur);
++    int rc = 0;
++    for (int64_t s = 0;; s++) {
++        double obj = 0.0;
++        *work += m->num_nz + nc + m->num_row;
++        if (rounded_point(m, cur, xr, ra, &obj)) {
++            if (sigma * obj < inckey) {
++                if (nc > 0)
++                    memcpy(out, cur, (size_t)nc * sizeof *out);
++                rc = 1;
++            }
++            break;
++        }
++        if (s >= MIP_GDIVE_SOLVES)
++            break;
++        bool up = false;
++        *work += nc;
++        const int64_t j = gdive_pick(m, hv, g, rule, cur, xinc, pc_sum, pc_n,
++                                     pavg, &up);
++        if (j < 0)
++            break;
++        const double lo = hv->col_lower[j], hi = hv->col_upper[j];
++        const double fl = floor(cur[j]);
++        bool ok = false;
++        for (int t = 0; t < 2 && !ok; t++) {
++            const bool u = t == 0 ? up : !up;
++            if (jaos_set_col_bounds(hv, j, u ? fl + 1.0 : lo, u ? hi : fl) !=
++                JAOS_OK)
++                goto out;
++            if (!heur_budget(hv, m, *work, stop))
++                goto out;
++            if (jaos_solve(hv) != JAOS_OK)
++                goto out;
++            *work += jaos_work_units(hv);
++            (*solves_done)++;
++            const jaos_solve_status ns = jaos_status_of(hv);
++            if (ns == JAOS_SOLVE_OPTIMAL) {
++                double z = 0.0;
++                if (jaos_objective(hv, &z) != JAOS_OK ||
++                    jaos_solution(hv, cur, nullptr, nullptr, nullptr) !=
++                        JAOS_OK)
++                    goto out;
++                ok = sigma * z < inckey;
++            } else if (ns != JAOS_SOLVE_INFEASIBLE) {
++                goto out;
++            }
++        }
++        if (!ok)
++            break;
++    }
++out:
++    jaos_model_free(hv);
++    return rc;
++}
++
+ static int cross_for_point(const jaos_model *m, const double *ilo,
+                            const double *ihi, const double *pool, int64_t k,
+                            double incobj, int64_t limit, int64_t *work,
+@@ -8330,10 +8517,12 @@ static int gh_for_point(const jaos_model *m, const jaos_model *lp,
+                         const double *xinc, double sigma, double incobj,
+                         const double *pool,
+                         const double *pool_key, int64_t pool_n,
++                        const double *pc_sum, const int64_t *pc_n,
+                         const double *ilo, const double *ihi, double *out,
+-                        int64_t *work, int *which)
++                        double *xr, double *ra, int64_t *work,
++                        int64_t *solves_done, int *which)
+ {
+-    if (!gh_ready(m, g))
++    if (!gh_ready(m, g, work))
+         return -1;
+     if (phase == 0) {
+         if (g->calls[GH_ZI] >= MIP_ZI_TRIAL && g->points[GH_ZI] == 0)
+@@ -8356,12 +8545,29 @@ static int gh_for_point(const jaos_model *m, const jaos_model *lp,
+             memcpy(g->xroot, x, (size_t)m->num_col * sizeof *g->xroot);
+         g->have_root = true;
+     }
+-    if (xinc == nullptr)
+-        return 0;
+     const int64_t before = *work;
+     int got = 0;
+     if (phase == 1) {
+-        if (pool_n < 2)
++        if (nodes < 2 || nodes % MIP_GDIVE_EVERY != 0 ||
++            !((double)g->dive_spent < MIP_GDIVE_SHARE * (double)*work))
++            return 0;
++        int cand[GH_DIVES], nk = 0;
++        cand[nk++] = GH_COEF;
++        cand[nk++] = GH_PSCOST;
++        if (xinc != nullptr)
++            cand[nk++] = GH_GUIDED;
++        if (g->have_root)
++            cand[nk++] = GH_LINE;
++        const int rule = gh_pick(g, cand, nk);
++        *which = rule;
++        const int64_t room =
++            (int64_t)(MIP_GDIVE_SHARE * (double)*work) - g->dive_spent + 1;
++        got = gdive_for_point(m, lp, g, rule, x, xinc, sigma * incobj, sigma,
++                              pc_sum, pc_n, *work + room, out, xr, ra, work,
++                              solves_done);
++        g->dive_spent += *work - before;
++    } else if (phase == 2) {
++        if (xinc == nullptr || pool_n < 2)
+             return 0;
+         const int64_t k = pool_n < MIP_CROSS_SOLS ? pool_n : MIP_CROSS_SOLS;
+         double sig = (double)pool_n;
+@@ -8384,7 +8590,8 @@ static int gh_for_point(const jaos_model *m, const jaos_model *lp,
+         got = cross_for_point(m, ilo, ihi, pool, k, incobj, room, work, out);
+         g->cross_spent += *work - before;
+     } else {
+-        if (nodes < 2 || nodes - g->sub_last < MIP_MUT_EVERY ||
++        if (xinc == nullptr || nodes < 2 ||
++            nodes - g->sub_last < MIP_MUT_EVERY ||
+             !((double)g->sub_spent < MIP_MUT_SHARE * (double)*work))
+             return 0;
+         int cand[2], nk = 0;
+@@ -11366,7 +11573,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 gap_shift);
+             const int got = gh_for_point(
+                 m, lp, &gh, gp, nodes, x, inc.have ? inc.x : nullptr, sigma,
+-                sigma * gk, sp.x, sp.key, sp.n, ilo, ihi, xr, &work, &which);
++                sigma * gk, sp.x, sp.key, sp.n, pc_sum, pc_n, ilo, ihi, xr,
++                x2, ra, &work, &solves, &which);
+             if (got < 0)
+                 goto done;
+             double hobj = 0.0;

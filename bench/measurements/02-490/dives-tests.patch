@@ -1,0 +1,109 @@
+diff --git a/tests/cli.sh b/tests/cli.sh
+index e569c5af..7736ce67 100755
+--- a/tests/cli.sh
++++ b/tests/cli.sh
+@@ -367,8 +367,8 @@ expect_exit 0 "a thin slab of general integers closes on a reduced basis" \
+     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress
+ [ "$(line_of objective)" = "objective 426" ] && pass "to 426" \
+     || flunk "lattice: $(line_of objective)"
+-printf '%s\n' "$err" | grep -q "^lattice: after 1149 nodes the tree starts again on 6 integer combinations" \
+-    && pass "after 1149 nodes over the columns" \
++printf '%s\n' "$err" | grep -q "^lattice: after 1515 nodes the tree starts again on 6 integer combinations" \
++    && pass "after 1515 nodes over the columns" \
+     || flunk "no lattice line in the log"
+ expect_exit 0 "and --no-lattice closes it over the columns" \
+     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress --no-lattice
+diff --git a/tests/data/lattice_slab.lp b/tests/data/lattice_slab.lp
+index 72df969d..966660f4 100644
+--- a/tests/data/lattice_slab.lp
++++ b/tests/data/lattice_slab.lp
+@@ -1,6 +1,6 @@
+ \ The thin knapsack slab of tests/test_mip.c (02-476): six general integers
+ \ in 0..20 whose row allows one activity, 354323. The tree over the columns
+-\ takes 24407 nodes; at node 1149, its first incumbent past 1000 nodes, the
++\ takes 25320 nodes; at node 1515, its first incumbent past 1000 nodes, the
+ \ lattice branching starts it again on a reduced basis and closes it in a
+ \ few. The optimum is 426.
+ Maximize
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index 690acddf..5ce9afb0 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -1870,6 +1870,35 @@ static void test_zi_rounding_moves_columns_within_their_rows_slack(void)
+     jaos_model_free(m);
+ }
+ 
++static void test_the_coefficient_dive_bounds_the_column_fewest_rows_lock(void)
++{
++    jaos_model *m = market_split(2, 16, 52);
++    found_by(m, "node 10: incumbent 0 by the coefficient dive", 0.0);
++    jaos_model_free(m);
++}
++
++static void test_the_pseudocost_dive_bounds_by_the_branching_history(void)
++{
++    jaos_model *m = knapsack_rows(4, 20, 14);
++    found_by(m, "node 20: incumbent -1348 by the pseudocost dive", -1348.0);
++    jaos_model_free(m);
++}
++
++static void test_the_guided_dive_rounds_toward_the_incumbent(void)
++{
++    jaos_model *m = knapsack_rows(4, 20, 98);
++    found_by(m, "node 40: incumbent -2018 by the dive guided by the incumbent",
++             -2018.0);
++    jaos_model_free(m);
++}
++
++static void test_the_line_search_dive_follows_the_line_from_the_root(void)
++{
++    jaos_model *m = market_split(2, 16, 55);
++    found_by(m, "node 1120: incumbent 2 by the line-search dive", 0.0);
++    jaos_model_free(m);
++}
++
+ static void test_crossover_fixes_what_the_pool_agrees_on(void)
+ {
+     jaos_model *m = market_split(2, 16, 14);
+@@ -6549,7 +6578,7 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
+         nodes[on] = rep.nodes;
+         work[on] = jaos_work_units(m);
+         if (on)
+-            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the "
++            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1515 nodes the "
+                                                "tree starts again on 6 integer "
+                                                "combinations of the columns"));
+         else
+@@ -6565,10 +6594,10 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
+ static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
+ {
+     jaos_model *m = wide_slab(20.0);
+-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1165));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1531));
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+-    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the tree "
++    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1515 nodes the tree "
+                                        "starts again on 6 integer combinations "
+                                        "of the columns, a reduced basis of the "
+                                        "improving region at the incumbent 380,"));
+@@ -6576,7 +6605,7 @@ static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+     TEST_ASSERT_TRUE(rep.has_incumbent);
+     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 426.0, rep.incumbent);
+-    TEST_ASSERT_EQUAL_INT64(1165, rep.nodes);
++    TEST_ASSERT_EQUAL_INT64(1531, rep.nodes);
+     TEST_ASSERT_TRUE(rep.bound >= rep.incumbent);
+     double x[6], obj = 0.0, px[6], pobj = 0.0;
+     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &obj));
+@@ -7404,6 +7433,10 @@ int main(void)
+     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
+     RUN_TEST(test_threshold_accepting_with_an_lp_over_linking_columns);
+     RUN_TEST(test_zi_rounding_moves_columns_within_their_rows_slack);
++    RUN_TEST(test_the_coefficient_dive_bounds_the_column_fewest_rows_lock);
++    RUN_TEST(test_the_pseudocost_dive_bounds_by_the_branching_history);
++    RUN_TEST(test_the_guided_dive_rounds_toward_the_incumbent);
++    RUN_TEST(test_the_line_search_dive_follows_the_line_from_the_root);
+     RUN_TEST(test_crossover_fixes_what_the_pool_agrees_on);
+     RUN_TEST(test_mutation_fixes_a_seeded_share_of_the_incumbent);
+     RUN_TEST(test_dins_boxes_each_column_by_its_distance);

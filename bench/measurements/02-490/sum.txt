@@ -1,0 +1,4 @@
+before     solved 9 incumbents 29 primal 5.5284 dual 6.1232 sum 11.6517
+dives      solved 9 incumbents 29 primal 5.3176 dual 6.0477 sum 11.3654
+base       solved 9 incumbents 29 primal 5.1419 dual 6.1310 sum 11.2729
+attempt    solved 9 incumbents 29 primal 5.4372 dual 6.0618 sum 11.4990

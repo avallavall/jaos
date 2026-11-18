@@ -254,8 +254,8 @@ root's work, or a floor by the model's size (`MIP_HEUR_ROOT`,
 sum goes from 13.52 to 13.36. The second: in the tree, mutation and DINS
 share a slot, and the one with the higher score of incumbents per run
 runs (`MIP_GH_REWARD`, 02-488). Next: the same pick over every tree
-heuristic, RINS and the dives among them, scored by work as well as
-runs. Then, by what each reaches on the open
+heuristic, RINS among them, scored by work as well as runs, which
+02-490's dives would need. Then, by what each reaches on the open
 instances:
 
 - Made for a structure. 02-463's `census.py` sorts the open MIPLIB 2017
@@ -280,9 +280,10 @@ instances:
     (Berthold and Hendel); ZI round is in (02-489), and runs on for good
     once it has an incumbent: `gen-ip002` ran it at 309,127 nodes for
     two, 2.4e8 work units. Next: a stop at one incumbent per 1000 nodes;
-  - diving: fractional, coefficient, guided toward the incumbent,
-    pseudocost, vector-length (for covering and partitioning rows),
-    line-search, Farkas, conflict;
+  - diving: Farkas, conflict; the coefficient, pseudocost, guided,
+    vector-length and line-search dives in the tree were refused
+    (`tree-dives`, 02-490) until a dive costs less than its share or the
+    scheduler gives the dives work only while they find points;
   - neighbourhoods: a zero-objective sub-MIP, RENS at nodes, variable
     neighbourhood search over local branching; crossover, mutation and
     DINS are in (02-488); proximity search was refused on its own budget
