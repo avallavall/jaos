@@ -1,0 +1,7 @@
+branch and bound: 206357 node relaxations stopped once their bound reached the incumbent
+conflict pool: 206357 tried, 206077 made over 2419018 bounds, 0 without the gap, 171 refused by shape, 109 on local rows, 0 on infinite bounds, 0 with no bound, 205077 replaced, 87948 nodes cut, 3530338 bounds fixed, 1000 held, 440029 implied bounds kept
+status optimal
+work_units 129014277612
+nodes 1752259
+bound 14.99999999999992
+incumbent 14.99999999999992

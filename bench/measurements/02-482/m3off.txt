@@ -1,0 +1,31 @@
+name             off work   nodes              lit-pool100                    proof               proof-free                    prune                  r-proof             r-proof-free
+air03            56557588       1     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok 
+bell3a          359808071   26393     1.029x    26415    ok     1.029x    26415    ok     1.029x    26415    ok     1.029x    26415    ok     1.029x    26415    ok     1.029x    26415    ok 
+bell5           292160369   27699     1.021x    27437    ok     1.021x    27437    ok     1.021x    27437    ok     1.021x    27437    ok     1.021x    27437    ok     1.021x    27437    ok 
+blend2          362166410    5053     1.011x     5051    ok     0.983x     5038    ok     0.982x     5038    ok     0.999x     5051    ok     0.934x     5001    ok     0.932x     5001    ok 
+dcmulti          98185766     263     1.002x      263    ok     1.002x      263    ok     1.002x      263    ok     1.002x      263    ok     1.002x      263    ok     1.002x      263    ok 
+egout             1169208       1     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok 
+enigma            3681139       1     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok 
+flugpl            1207419      73     1.000x       73    ok     1.000x       73    ok     1.000x       73    ok     1.000x       73    ok     1.000x       73    ok     1.000x       73    ok 
+gen               4252098       2     1.000x        2    ok     1.000x        2    ok     1.000x        2    ok     1.000x        2    ok     1.000x        2    ok     1.000x        2    ok 
+gt2               2202322       5     1.000x        5    ok     1.000x        5    ok     1.000x        5    ok     1.000x        5    ok     1.000x        5    ok     1.000x        5    ok 
+khb05250         28287965      71     1.008x       69    ok     1.008x       69    ok     1.008x       69    ok     1.008x       69    ok     1.008x       69    ok     1.008x       69    ok 
+l152lav        1096086498     829     0.998x      799    ok     0.999x      799    ok     0.999x      799    ok     0.999x      799    ok     0.999x      799    ok     0.999x      799    ok 
+lseu             12372402     259     1.004x      259    ok     1.004x      259    ok     1.004x      259    ok     1.004x      259    ok     1.004x      259    ok     1.004x      259    ok 
+misc03           43202066     335     0.942x      307    ok     0.942x      307    ok     0.942x      307    ok     0.942x      307    ok     0.942x      307    ok     0.942x      307    ok 
+misc06           46041860      40     1.000x       40    ok     1.000x       40    ok     1.000x       40    ok     1.000x       40    ok     1.000x       40    ok     1.000x       40    ok 
+misc07         1579506221    8169     1.157x     9323    ok     1.108x     8779    ok     1.115x     8857    ok     1.112x     8789    ok     1.108x     8779    ok     1.115x     8857    ok 
+mod008           11559486      41     1.006x       41    ok     1.006x       41    ok     1.006x       41    ok     1.006x       41    ok     1.006x       41    ok     1.006x       41    ok 
+mod010           18885597       1     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok     1.000x        1    ok 
+p0033             2845483      11     1.000x       11    ok     1.000x       11    ok     1.000x       11    ok     1.000x       11    ok     1.000x       11    ok     1.000x       11    ok 
+p0201            27795995      80     1.002x       80    ok     1.002x       80    ok     1.002x       80    ok     1.002x       80    ok     1.002x       80    ok     1.002x       80    ok 
+p0282            28975123     214     1.057x      230    ok     1.057x      230    ok     1.057x      230    ok     1.057x      230    ok     1.057x      230    ok     1.057x      230    ok 
+rgn               9274319     193     1.006x      193    ok     1.006x      193    ok     1.006x      193    ok     1.006x      193    ok     1.006x      193    ok     1.006x      193    ok 
+stein27          19707953    1137     1.023x     1117    ok     1.096x     1149    ok     1.036x     1151    ok     1.111x     1185    ok     1.096x     1149    ok     1.036x     1151    ok 
+stein45        1860288516   54578     1.057x    55070    ok     1.088x    54379    ok     1.037x    53699    ok     1.088x    55146    ok     1.088x    54379    ok     1.037x    53699    ok 
+lit-pool100: geo 1.013x total 1.062x worst 1.157x misc07
+proof: geo 1.014x total 1.058x worst 1.108x misc07
+proof-free: geo 1.010x total 1.044x worst 1.115x misc07
+prune: geo 1.015x total 1.060x worst 1.112x misc07
+r-proof: geo 1.012x total 1.055x worst 1.108x misc07
+r-proof-free: geo 1.008x total 1.041x worst 1.115x misc07

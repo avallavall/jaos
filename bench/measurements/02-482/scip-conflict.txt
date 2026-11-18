@@ -1,0 +1,36 @@
+# mas76, at most 100000000 nodes or 600 s
+default          optimal    nodes   216712 bound 40005.0541 primal 40005.0541 lpiter   1088733 time 45.1
+no-conflict      optimal    nodes   334009 bound 40005.0541 primal 40005.0541 lpiter   1480236 time 59.0
+boundlp-off      optimal    nodes   303847 bound 40005.0541 primal 40005.0541 lpiter   1416858 time 50.3
+boundlp-graph    optimal    nodes   256477 bound 40005.0541 primal 40005.0541 lpiter   1216892 time 68.4
+boundlp-dual     optimal    nodes   272955 bound 40005.0541 primal 40005.0541 lpiter   1290369 time 88.6
+# pk1, at most 100000000 nodes or 600 s
+default          optimal    nodes   353721 bound 11.0000 primal 11.0000 lpiter   3266379 time 127.7
+no-conflict      optimal    nodes   390266 bound 11.0000 primal 11.0000 lpiter   3519573 time 127.9
+boundlp-off      optimal    nodes   394266 bound 11.0000 primal 11.0000 lpiter   3546388 time 112.9
+boundlp-graph    optimal    nodes   353721 bound 11.0000 primal 11.0000 lpiter   3266379 time 85.3
+boundlp-dual     optimal    nodes   394266 bound 11.0000 primal 11.0000 lpiter   3546388 time 94.9
+# mas74, at most 1000000 nodes or 600 s
+default          nodelimit  nodes  1000000 bound 11293.0682 primal 11801.0985 lpiter   6203566 time 347.5
+no-conflict      nodelimit  nodes  1000000 bound 11319.2618 primal 11801.1857 lpiter   5751116 time 372.7
+boundlp-off      nodelimit  nodes  1000000 bound 11319.4061 primal 11801.1857 lpiter   5755298 time 390.3
+boundlp-graph    nodelimit  nodes  1000000 bound 11273.1328 primal 11801.1857 lpiter   5770569 time 460.3
+boundlp-dual     nodelimit  nodes  1000000 bound 11294.6420 primal 11801.1857 lpiter   6242055 time 420.3
+# neos5, at most 300000 nodes or 600 s
+default          nodelimit  nodes   300000 bound 14.2273 primal 15.0000 lpiter   4605139 time 239.5
+no-conflict      nodelimit  nodes   300000 bound 14.2335 primal 15.0000 lpiter   4726354 time 257.2
+boundlp-off      nodelimit  nodes   300000 bound 14.2335 primal 15.0000 lpiter   4726354 time 213.3
+boundlp-graph    nodelimit  nodes   300000 bound 14.2500 primal 15.0000 lpiter   4746712 time 183.6
+boundlp-dual     nodelimit  nodes   300000 bound 14.2578 primal 15.0000 lpiter   4382454 time 136.0
+# gen-ip002, at most 1000000 nodes or 600 s
+default          nodelimit  nodes  1000000 bound -4806.6539 primal -4783.7334 lpiter   4574538 time 264.2
+no-conflict      nodelimit  nodes  1000000 bound -4806.3517 primal -4783.7334 lpiter   4456565 time 169.7
+boundlp-off      nodelimit  nodes  1000000 bound -4806.8983 primal -4783.7334 lpiter   4407585 time 259.9
+boundlp-graph    nodelimit  nodes  1000000 bound -4805.7785 primal -4783.7334 lpiter   4499707 time 224.6
+boundlp-dual     nodelimit  nodes  1000000 bound -4805.8626 primal -4783.7334 lpiter   4296438 time 234.6
+# assign1-5-8, at most 50000 nodes or 600 s
+default          nodelimit  nodes    50000 bound 199.0457 primal 212.0000 lpiter    909199 time 108.5
+no-conflict      nodelimit  nodes    50000 bound 199.4197 primal 212.0000 lpiter    776408 time 77.5
+boundlp-off      nodelimit  nodes    50000 bound 199.9384 primal 212.0000 lpiter    923614 time 87.6
+boundlp-graph    nodelimit  nodes    50000 bound 197.9651 primal 212.0000 lpiter    844331 time 106.1
+boundlp-dual     nodelimit  nodes    50000 bound 199.9384 primal 212.0000 lpiter    923614 time 114.1

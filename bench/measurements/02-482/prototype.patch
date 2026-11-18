@@ -1,0 +1,856 @@
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index cf5e757c..768d2888 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -42,6 +42,7 @@ typedef struct {
+     bool node_devex;
+     bool node_cutoff_set;
+     double node_cutoff;
++    bool node_stop_duals;
+     bool no_cert_solve;
+     bool no_flat_rows;
+     bool cut_resolve;
+@@ -345,6 +346,8 @@ struct jaos_model {
+     double stop_bound;
+     bool stop_bound_ok;
+     bool cutoff_hit;
++    bool stop_duals_ok;
++    bool stop_duals_reduced;
+ 
+     char **exact_col;
+     char **exact_dual;
+diff --git a/src/mip.c b/src/mip.c
+index f56f9a24..0a958410 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -43,6 +43,8 @@ constexpr int64_t MIP_SYMMETRY_WORK = 250;
+ constexpr int64_t MIP_SYMMETRY_MORE = 1000;
+ constexpr int64_t MIP_CONFLICT_MAX = 32;
+ constexpr double MIP_CONFLICT_GAP = 1e-9;
++constexpr double MIP_PROOF_RANGE = 1e8;
++constexpr double MIP_PROOF_ROUNDOFF = 1e-9;
+ constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
+ 
+ constexpr double MIP_CUT_STALL = 0.0;
+@@ -8280,6 +8282,591 @@ static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
+     return kept;
+ }
+ 
++static int64_t sc_rcf_lits;
++static bool sc_lp_bounds;
++static bool sc_roundoff;
++
++typedef struct {
++    int64_t cap, n, width;
++    int64_t *len, *used, *col;
++    double *val;
++    signed char *dir;
++    int64_t made, pruned, fixed, replaced, tried, lits;
++} cpool;
++
++static void cpool_free(cpool *p)
++{
++    free(p->len); free(p->used); free(p->col); free(p->val); free(p->dir);
++    memset(p, 0, sizeof *p);
++}
++
++static bool cpool_add(cpool *p, const int64_t *col, const double *val,
++                      const signed char *dir, int64_t n, int64_t node,
++                      int64_t *work)
++{
++    if (p->col == nullptr) {
++        const int64_t w = p->cap * p->width;
++        p->len = jm_alloc_array(p->cap, sizeof *p->len);
++        p->used = jm_alloc_array(p->cap, sizeof *p->used);
++        p->col = jm_alloc_array(w, sizeof *p->col);
++        p->val = jm_alloc_array(w, sizeof *p->val);
++        p->dir = jm_alloc_array(w, sizeof *p->dir);
++        if (!p->len || !p->used || !p->col || !p->val || !p->dir)
++            return false;
++    }
++    int64_t s = p->n;
++    if (p->n == p->cap) {
++        s = 0;
++        for (int64_t t = 1; t < p->n; t++)
++            if (p->used[t] < p->used[s])
++                s = t;
++        *work += p->n;
++        p->replaced++;
++    } else {
++        p->n++;
++    }
++    p->len[s] = n;
++    p->used[s] = node;
++    memcpy(p->col + s * p->width, col, (size_t)n * sizeof *col);
++    memcpy(p->val + s * p->width, val, (size_t)n * sizeof *val);
++    memcpy(p->dir + s * p->width, dir, (size_t)n * sizeof *dir);
++    p->made++;
++    p->lits += n;
++    return true;
++}
++
++static int64_t stop_conflict(const jaos_model *m, const jaos_model *lp,
++                             const bnode *cur, const double *ilo,
++                             const double *ihi, int64_t nperm, double sigma,
++                             double cutoff, int64_t most, bool binary_only,
++                             bool rcf_ok, bool local_ok, double *dcol,
++                             int64_t *last,
++                             double *blo, double *bhi, int64_t *lcol,
++                             double *lval, signed char *ldir, double *base,
++                             int64_t *work)
++{
++    const int64_t nc = m->num_col, nrl = lp->num_row;
++    if (cur == nullptr || cur->nfix == 0 || m->row_ind_col != nullptr ||
++        m->num_sos > 0 || !lp->stop_duals_ok)
++        return 0;
++    const double *y = lp->sol_dual;
++    *work += lp->num_nz + nc + nrl;
++    const int64_t np = nperm < nrl ? nperm : nrl;
++    bool local = false;
++    for (int64_t i = np; i < nrl; i++)
++        local = local || y[i] != 0.0;
++    if (local && !local_ok)
++        return -4;
++    double rows = 0.0;
++    for (int64_t i = 0; i < np; i++) {
++        const double yk = sigma * y[i];
++        if (yk > 0.0) {
++            if (!isfinite(lp->row_lower[i]))
++                return -5;
++            rows += yk * lp->row_lower[i];
++        } else if (yk < 0.0) {
++            if (!isfinite(lp->row_upper[i]))
++                return -5;
++            rows += yk * lp->row_upper[i];
++        }
++    }
++    for (int64_t j = 0; j < nc; j++) {
++        double a = sigma * lp->col_cost[j], mag = fabs(a);
++        for (int64_t p = lp->a_start[j]; p < lp->a_start[j + 1]; p++) {
++            const int64_t i = lp->a_index[p];
++            if (i < np) {
++                a -= lp->a_value[p] * sigma * y[i];
++                mag += fabs(lp->a_value[p] * y[i]);
++            }
++        }
++        const bool basic = !local &&
++                           lp->sol_col_status[j] == JAOS_BASIS_BASIC;
++        dcol[j] = basic && (!lp->stop_duals_reduced ||
++                            (sc_roundoff && fabs(a) <= MIP_PROOF_ROUNDOFF * mag))
++            ? 0.0 : a;
++        last[j] = -1;
++        blo[j] = ilo[j];
++        bhi[j] = ihi[j];
++    }
++    for (int64_t k = 0; k < cur->nfix; k++) {
++        const int64_t j = cur->col[k];
++        last[j] = k;
++        blo[j] = cur->lo[k];
++        bhi[j] = cur->hi[k];
++    }
++    if (sc_lp_bounds)
++        for (int64_t j = 0; j < nc; j++) {
++            if (lp->col_lower[j] > blo[j])
++                blo[j] = lp->col_lower[j];
++            if (lp->col_upper[j] < bhi[j])
++                bhi[j] = lp->col_upper[j];
++        }
++    double low = rows + sigma * lp->obj_offset;
++    *base = low;
++    for (int64_t j = 0; j < nc; j++) {
++        const double d = dcol[j];
++        if (d > 0.0) {
++            if (!isfinite(blo[j]))
++                return -5;
++            low += d * blo[j];
++        } else if (d < 0.0) {
++            if (!isfinite(bhi[j]))
++                return -5;
++            low += d * bhi[j];
++        }
++    }
++    const double tol = MIP_CONFLICT_GAP * (1.0 + fabs(cutoff));
++    double gap = low - cutoff;
++    if (!(gap > tol))
++        return -2;
++    int64_t kept = 0;
++    for (int64_t j = 0; sc_lp_bounds && j < nc; j++) {
++        if (last[j] >= 0)
++            continue;
++        const double d = dcol[j];
++        double delta = 0.0;
++        if (d > 0.0 && blo[j] > ilo[j])
++            delta = isfinite(ilo[j]) ? d * (blo[j] - ilo[j]) : INFINITY;
++        else if (d < 0.0 && bhi[j] < ihi[j])
++            delta = isfinite(ihi[j]) ? d * (bhi[j] - ihi[j]) : INFINITY;
++        else
++            continue;
++        if (gap - delta > tol) {
++            gap -= delta;
++            continue;
++        }
++        if (!m->col_integer[j] || !rcf_ok ||
++            (binary_only && (ilo[j] != 0.0 || ihi[j] != 1.0)) ||
++            kept == most)
++            return -3;
++        lcol[kept] = j;
++        ldir[kept] = d > 0.0 ? 1 : -1;
++        lval[kept] = d > 0.0 ? blo[j] : bhi[j];
++        kept++;
++        sc_rcf_lits++;
++    }
++    for (int64_t k = cur->nfix - 1; k >= 0; k--) {
++        const int64_t j = cur->col[k];
++        if (last[j] != k)
++            continue;
++        const double d = dcol[j];
++        double delta = 0.0;
++        if (d > 0.0)
++            delta = isfinite(ilo[j]) ? d * (blo[j] - ilo[j]) : INFINITY;
++        else if (d < 0.0)
++            delta = isfinite(ihi[j]) ? d * (bhi[j] - ihi[j]) : INFINITY;
++        if (gap - delta > tol) {
++            gap -= delta;
++            continue;
++        }
++        if (!m->col_integer[j] || (!rcf_ok && cur->rcf[k]) ||
++            (binary_only && (ilo[j] != 0.0 || ihi[j] != 1.0)) ||
++            kept == most)
++            return -3;
++        lcol[kept] = j;
++        ldir[kept] = d > 0.0 ? 1 : -1;
++        lval[kept] = d > 0.0 ? blo[j] : bhi[j];
++        kept++;
++        sc_rcf_lits += cur->rcf[k];
++    }
++    return kept;
++}
++
++static int cpool_propagate(cpool *p, const jaos_model *m, jaos_model *lp,
++                           bnode *cur, int64_t *pos, int64_t node,
++                           int64_t passes, int64_t *work)
++{
++    if (p->n == 0)
++        return 0;
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = k;
++    *work += cur->nfix;
++    int rc = 0;
++    for (int64_t pass = 0; pass < passes; pass++) {
++        bool moved = false;
++        for (int64_t s = 0; s < p->n && rc == 0; s++) {
++            const int64_t *col = p->col + s * p->width;
++            const double *val = p->val + s * p->width;
++            const signed char *dir = p->dir + s * p->width;
++            int64_t open = -1, opens = 0, t = 0;
++            for (; t < p->len[s]; t++) {
++                const int64_t j = col[t];
++                const double lo = lp->col_lower[j], hi = lp->col_upper[j];
++                const bool holds = dir[t] > 0 ? lo >= val[t] : hi <= val[t];
++                if (holds)
++                    continue;
++                const bool fails = dir[t] > 0 ? hi < val[t] : lo > val[t];
++                if (fails || ++opens > 1)
++                    break;
++                open = t;
++            }
++            *work += t + 1;
++            if (t < p->len[s])
++                continue;
++            p->used[s] = node;
++            if (opens == 0) {
++                p->pruned++;
++                rc = -1;
++                break;
++            }
++            const int64_t j = col[open];
++            double nlo = lp->col_lower[j], nhi = lp->col_upper[j];
++            if (dir[open] > 0)
++                nhi = val[open] - 1.0;
++            else
++                nlo = val[open] + 1.0;
++            if (nlo > nhi) {
++                p->pruned++;
++                rc = -1;
++                break;
++            }
++            if (jaos_set_col_bounds(lp, j, nlo, nhi) != JAOS_OK) {
++                rc = -2;
++                break;
++            }
++            if (pos[j] >= 0) {
++                cur->lo[pos[j]] = nlo;
++                cur->hi[pos[j]] = nhi;
++                cur->rcf[pos[j]] = true;
++            } else {
++                if (!node_add_fix(cur, j, nlo, nhi, true)) {
++                    rc = -2;
++                    break;
++                }
++                pos[j] = cur->nfix - 1;
++            }
++            p->fixed++;
++            moved = true;
++        }
++        if (rc != 0 || !moved)
++            break;
++    }
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = -1;
++    (void)m;
++    return rc;
++}
++
++typedef struct {
++    int64_t cap, n;
++    int64_t *len, *used;
++    int64_t **col;
++    double **val;
++    double *base;
++    int64_t made, pruned, fixed, replaced, refused, nz;
++    int64_t nc;
++    double *dense, *gmin, **pot;
++    bool prune_only;
++} ppool;
++
++static void ppool_free(ppool *p)
++{
++    for (int64_t s = 0; s < p->n; s++) {
++        free(p->col[s]);
++        free(p->val[s]);
++        if (p->pot != nullptr)
++            free(p->pot[s]);
++    }
++    free(p->len); free(p->used); free(p->col); free(p->val); free(p->base);
++    free(p->dense); free(p->gmin); free(p->pot);
++    memset(p, 0, sizeof *p);
++}
++
++static int pot_cmp(const void *a, const void *b)
++{
++    const double *x = a, *y = b;
++    if (x[0] != y[0])
++        return x[0] > y[0] ? -1 : 1;
++    return x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0;
++}
++
++static bool ppool_index(ppool *p, int64_t s, const double *ilo,
++                        const double *ihi, int64_t *work)
++{
++    const int64_t n = p->len[s], nc = p->nc;
++    if (p->dense == nullptr) {
++        p->dense = calloc((size_t)(p->cap * nc), sizeof *p->dense);
++        p->gmin = jm_alloc_array(p->cap, sizeof *p->gmin);
++        p->pot = calloc((size_t)p->cap, sizeof *p->pot);
++        if (!p->dense || !p->gmin || !p->pot)
++            return false;
++    }
++    free(p->pot[s]);
++    p->pot[s] = jm_alloc_array(n > 0 ? 2 * n : 1, sizeof **p->pot);
++    if (p->pot[s] == nullptr)
++        return false;
++    double *row = p->dense + s * nc;
++    memset(row, 0, (size_t)nc * sizeof *row);
++    double g = p->base[s];
++    double *pv = p->pot[s];
++    for (int64_t t = 0; t < n; t++) {
++        const int64_t j = p->col[s][t];
++        const double d = p->val[s][t];
++        row[j] = d;
++        g += d > 0.0 ? d * ilo[j] : d * ihi[j];
++        pv[2 * t] = fabs(d) * (ihi[j] - ilo[j]);
++        pv[2 * t + 1] = (double)t;
++    }
++    p->gmin[s] = g;
++    qsort(pv, (size_t)n, 2 * sizeof *pv, pot_cmp);
++    *work += nc + n;
++    return true;
++}
++
++static bool ppool_add(ppool *p, const jaos_model *m, const double *ilo,
++                      const double *ihi, const double *d, double base,
++                      int64_t node, int64_t *work)
++{
++    const int64_t nc = m->num_col;
++    if (p->cap <= 0)
++        return true;
++    if (p->len == nullptr) {
++        p->len = jm_alloc_array(p->cap, sizeof *p->len);
++        p->used = jm_alloc_array(p->cap, sizeof *p->used);
++        p->col = calloc((size_t)p->cap, sizeof *p->col);
++        p->val = calloc((size_t)p->cap, sizeof *p->val);
++        p->base = jm_alloc_array(p->cap, sizeof *p->base);
++        if (!p->len || !p->used || !p->col || !p->val || !p->base)
++            return false;
++    }
++    int64_t n = 0;
++    double amax = 0.0, amin = INFINITY;
++    for (int64_t j = 0; j < nc; j++) {
++        if (d[j] == 0.0)
++            continue;
++        if (ilo[j] == ihi[j]) {
++            base += d[j] * ilo[j];
++            continue;
++        }
++        n++;
++        const double a = fabs(d[j]);
++        amax = a > amax ? a : amax;
++        amin = a < amin ? a : amin;
++    }
++    *work += nc;
++    if (n == 0 || amax > MIP_PROOF_RANGE * amin) {
++        p->refused++;
++        return true;
++    }
++    int64_t s = p->n;
++    if (p->n == p->cap) {
++        s = 0;
++        for (int64_t t = 1; t < p->n; t++)
++            if (p->used[t] < p->used[s])
++                s = t;
++        *work += p->n;
++        free(p->col[s]);
++        free(p->val[s]);
++        p->col[s] = nullptr;
++        p->val[s] = nullptr;
++        p->replaced++;
++    } else {
++        p->n++;
++    }
++    p->col[s] = jm_alloc_array(n, sizeof **p->col);
++    p->val[s] = jm_alloc_array(n, sizeof **p->val);
++    if (p->col[s] == nullptr || p->val[s] == nullptr)
++        return false;
++    int64_t k = 0;
++    for (int64_t j = 0; j < nc; j++) {
++        if (d[j] == 0.0 || ilo[j] == ihi[j])
++            continue;
++        p->col[s][k] = j;
++        p->val[s][k] = d[j];
++        k++;
++    }
++    p->len[s] = n;
++    p->used[s] = node;
++    p->base[s] = base;
++    p->made++;
++    p->nz += n;
++    if (p->nc > 0 && !ppool_index(p, s, ilo, ihi, work))
++        return false;
++    return true;
++}
++
++static int ppool_propagate_fast(ppool *p, const jaos_model *m, jaos_model *lp,
++                                bnode *cur, int64_t *pos, int64_t node,
++                                double cutoff, int64_t passes,
++                                const double *ilo, const double *ihi,
++                                int64_t *work)
++{
++    if (p->n == 0 || !isfinite(cutoff) || p->dense == nullptr)
++        return 0;
++    const int64_t nc = p->nc;
++    const double tol = MIP_CONFLICT_GAP * (1.0 + fabs(cutoff));
++    int rc = 0;
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = k;
++    *work += cur->nfix;
++    for (int64_t pass = 0; pass < passes && rc == 0; pass++) {
++        bool moved = false;
++        for (int64_t s = 0; s < p->n && rc == 0; s++) {
++            if (!isfinite(p->gmin[s]))
++                continue;
++            const double *row = p->dense + s * nc;
++            double act = p->gmin[s];
++            for (int64_t k = 0; k < cur->nfix; k++) {
++                const int64_t j = cur->col[k];
++                if (pos[j] != k)
++                    continue;
++                const double d = row[j];
++                if (d > 0.0)
++                    act += d * (cur->lo[k] - ilo[j]);
++                else if (d < 0.0)
++                    act += d * (cur->hi[k] - ihi[j]);
++            }
++            *work += cur->nfix + 1;
++            if (act - cutoff > tol) {
++                p->used[s] = node;
++                p->pruned++;
++                rc = -1;
++                break;
++            }
++            const double slack = cutoff - act;
++            const double *pv = p->pot[s];
++            for (int64_t t = 0; !p->prune_only && t < p->len[s]; t++) {
++                *work += 1;
++                if (!(pv[2 * t] > slack))
++                    break;
++                const int64_t tt = (int64_t)pv[2 * t + 1];
++                const int64_t j = p->col[s][tt];
++                if (!m->col_integer[j])
++                    continue;
++                const double a = p->val[s][tt];
++                const double blo = pos[j] >= 0 ? cur->lo[pos[j]] : ilo[j];
++                const double bhi = pos[j] >= 0 ? cur->hi[pos[j]] : ihi[j];
++                double nlo = lp->col_lower[j], nhi = lp->col_upper[j];
++                if (a > 0.0) {
++                    const double h = blo + floor(slack / a + MIP_RCFIX_SLACK);
++                    if (!(h < nhi))
++                        continue;
++                    nhi = h;
++                } else {
++                    const double l = bhi - floor(slack / -a + MIP_RCFIX_SLACK);
++                    if (!(l > nlo))
++                        continue;
++                    nlo = l;
++                }
++                p->used[s] = node;
++                if (nlo > nhi) {
++                    p->pruned++;
++                    rc = -1;
++                    break;
++                }
++                if (jaos_set_col_bounds(lp, j, nlo, nhi) != JAOS_OK) {
++                    rc = -2;
++                    break;
++                }
++                if (pos[j] >= 0) {
++                    cur->lo[pos[j]] = nlo;
++                    cur->hi[pos[j]] = nhi;
++                    cur->rcf[pos[j]] = true;
++                } else {
++                    if (!node_add_fix(cur, j, nlo, nhi, true)) {
++                        rc = -2;
++                        break;
++                    }
++                    pos[j] = cur->nfix - 1;
++                }
++                p->fixed++;
++                moved = true;
++            }
++        }
++        if (!moved)
++            break;
++    }
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = -1;
++    return rc;
++}
++
++static int ppool_propagate(ppool *p, const jaos_model *m, jaos_model *lp,
++                           bnode *cur, int64_t *pos, int64_t node,
++                           double cutoff, int64_t passes, int64_t *work)
++{
++    if (p->n == 0 || !isfinite(cutoff))
++        return 0;
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = k;
++    *work += cur->nfix;
++    const double tol = MIP_CONFLICT_GAP * (1.0 + fabs(cutoff));
++    int rc = 0;
++    for (int64_t pass = 0; pass < passes && rc == 0; pass++) {
++        bool moved = false;
++        for (int64_t s = 0; s < p->n && rc == 0; s++) {
++            const int64_t *col = p->col[s];
++            const double *val = p->val[s];
++            double low = p->base[s];
++            bool finite = true;
++            for (int64_t t = 0; t < p->len[s] && finite; t++) {
++                const int64_t j = col[t];
++                const double b = val[t] > 0.0 ? lp->col_lower[j]
++                                              : lp->col_upper[j];
++                finite = isfinite(b);
++                low += val[t] * b;
++            }
++            *work += p->len[s];
++            if (!finite)
++                continue;
++            if (low - cutoff > tol) {
++                p->used[s] = node;
++                p->pruned++;
++                rc = -1;
++                break;
++            }
++            const double room = cutoff - low;
++            for (int64_t t = 0; t < p->len[s]; t++) {
++                const int64_t j = col[t];
++                if (!m->col_integer[j])
++                    continue;
++                double nlo = lp->col_lower[j], nhi = lp->col_upper[j];
++                const double a = val[t];
++                if (a > 0.0)
++                    nhi = nlo + floor(room / a + MIP_RCFIX_SLACK);
++                else
++                    nlo = nhi - floor(room / -a + MIP_RCFIX_SLACK);
++                if (!(nhi < lp->col_upper[j]) && !(nlo > lp->col_lower[j]))
++                    continue;
++                if (nhi > lp->col_upper[j])
++                    nhi = lp->col_upper[j];
++                if (nlo < lp->col_lower[j])
++                    nlo = lp->col_lower[j];
++                if (nlo > nhi) {
++                    p->used[s] = node;
++                    p->pruned++;
++                    rc = -1;
++                    break;
++                }
++                if (jaos_set_col_bounds(lp, j, nlo, nhi) != JAOS_OK) {
++                    rc = -2;
++                    break;
++                }
++                if (pos[j] >= 0) {
++                    cur->lo[pos[j]] = nlo;
++                    cur->hi[pos[j]] = nhi;
++                    cur->rcf[pos[j]] = true;
++                } else {
++                    if (!node_add_fix(cur, j, nlo, nhi, true)) {
++                        rc = -2;
++                        break;
++                    }
++                    pos[j] = cur->nfix - 1;
++                }
++                p->used[s] = node;
++                p->fixed++;
++                moved = true;
++            }
++            *work += p->len[s];
++        }
++        if (!moved)
++            break;
++    }
++    for (int64_t k = 0; k < cur->nfix; k++)
++        pos[cur->col[k]] = -1;
++    return rc;
++}
++
+ static jaos_callback_action steer_fire(const jaos_model *m, steer *sw,
+                                        int64_t node, int64_t depth, double obj,
+                                        double bound, const double *x,
+@@ -9090,6 +9677,32 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     double *cray = nullptr, *cacol = nullptr, *cblo = nullptr;
+     int64_t *clast = nullptr;
+     int64_t cray_cap = 0, conflicts = 0, conflict_lits = 0;
++    const char *sc_env = getenv("JAOS_SC");
++    const int64_t sc_mode = sc_env != nullptr ? atoll(sc_env) : 0;
++    const char *sc_pool_env = getenv("JAOS_SCPOOL");
++    const char *sc_max_env = getenv("JAOS_SCMAX");
++    const char *sc_pass_env = getenv("JAOS_SCPASS");
++    const bool stopc_on = (sc_mode & 1) != 0 && !quadratic;
++    cpool cp = {
++        .cap = sc_pool_env != nullptr ? atoll(sc_pool_env) : 1000,
++        .width = sc_max_env != nullptr ? atoll(sc_max_env) : MIP_CONFLICT_MAX,
++    };
++    const int64_t sc_passes = sc_pass_env != nullptr ? atoll(sc_pass_env) : 4;
++    int64_t *cpos = nullptr, *sc_col = nullptr;
++    double *sc_val = nullptr;
++    signed char *sc_dir = nullptr;
++    int64_t sc_gapless = 0, sc_shape = 0, sc_none = 0, sc_cut_nodes = 0;
++    int64_t sc_local = 0, sc_inf = 0, sc_prop_work = 0;
++    const char *sc_proofs_env = getenv("JAOS_SCPROOFS");
++    ppool pp = {
++        .cap = sc_proofs_env != nullptr ? atoll(sc_proofs_env) : 75,
++    };
++    if ((sc_mode & 128) != 0 && pp.cap * nc <= (int64_t)1 << 24)
++        pp.nc = nc;
++    sc_lp_bounds = (sc_mode & 256) != 0;
++    sc_roundoff = (sc_mode & 2048) != 0;
++    pp.prune_only = (sc_mode & 1024) != 0;
++    double sc_base = 0.0;
+     double *mu = nullptr;
+     double *mbest = nullptr, *mdelta = nullptr;
+     double *prnd = nullptr;
+@@ -9560,6 +10173,43 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             clique_fixed += got;
+         }
+ 
++        int64_t sc_w = 0;
++        if (nodes > 1 && cp.n > 0) {
++            const int got = cpool_propagate(&cp, m, lp, cur, cpos, nodes,
++                                            sc_passes, &sc_w);
++            sc_prop_work += sc_w;
++            if ((sc_mode & 512) == 0)
++                work += sc_w;
++            if (got == -2)
++                goto done;
++            if (got == -1) {
++                sc_cut_nodes++;
++                jm_log(m, JAOS_LOG_PROGRESS,
++                       "node %lld: infeasible by a conflict",
++                       (long long)nodes);
++                continue;
++            }
++        }
++        sc_w = 0;
++        if (nodes > 1 && pp.n > 0) {
++            const double pk = inc.have && inc.key < cut_key ? inc.key : cut_key;
++            const double pc = prune_at(&og, pk, gap, gap_shift);
++            const int got = pp.nc > 0
++                ? ppool_propagate_fast(&pp, m, lp, cur, cpos, nodes, pc,
++                                       sc_passes, ilo, ihi, &sc_w)
++                : ppool_propagate(&pp, m, lp, cur, cpos, nodes, pc, sc_passes,
++                                  &sc_w);
++            sc_prop_work += sc_w;
++            if ((sc_mode & 512) == 0)
++                work += sc_w;
++            if (got == -2)
++                goto done;
++            if (got == -1) {
++                sc_cut_nodes++;
++                continue;
++            }
++        }
++
+         const int64_t passes = propagate > 0 ? propagate
+                              : !inc.have && nodes >= MIP_NOINC_DIVE_AFTER
+                                    ? noinc_propagate : 0;
+@@ -9597,9 +10247,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         lp->cfg.node_cutoff_set = cut_at < INFINITY;
+         lp->cfg.node_cutoff = cut_at;
+         lp->cfg.node_devex = nodes > 1 && !quadratic;
++        lp->cfg.node_stop_duals = stopc_on && conflicts_on;
+         lp->cutoff_hit = false;
+         st = jaos_solve(lp);
+         lp->cfg.node_cutoff_set = false;
++        lp->cfg.node_stop_duals = false;
+         solves++;
+         int64_t node_work = jaos_work_units(lp);
+         work += node_work;
+@@ -9609,6 +10261,64 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (sol_bk - grid_up(&og, ck) <= gap * (gap_shift + fabs(sol_bk))) {
+                 pseudocost_learn(cur, ck, nc, pc_sum, pc_n);
+                 cutoff_nodes++;
++                if (stopc_on && conflicts_on && lp->stop_duals_ok &&
++                    (sc_mode & 64) != 0) {
++                    budget(lp, m, work);
++                    st = jaos_solve(lp);
++                    solves++;
++                    work += jaos_work_units(lp);
++                    iters += jaos_iterations(lp);
++                    lp->stop_duals_ok = st == JAOS_OK &&
++                        jaos_status_of(lp) == JAOS_SOLVE_OPTIMAL;
++                    lp->stop_duals_reduced = false;
++                }
++                if (stopc_on && conflicts_on && lp->stop_duals_ok) {
++                    phase_to(&ph, work, PH_PROP);
++                    if (cacol == nullptr) {
++                        cacol = jm_alloc_array(nc > 0 ? 3 * nc : 1,
++                                               sizeof *cacol);
++                        clast = jm_alloc_array(nc > 0 ? nc : 1, sizeof *clast);
++                        if (cacol == nullptr || clast == nullptr)
++                            goto done;
++                        cblo = cacol + nc;
++                    }
++                    if (cpos == nullptr) {
++                        const int64_t w = cp.width > 0 ? cp.width : 1;
++                        cpos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *cpos);
++                        sc_col = jm_alloc_array(w, sizeof *sc_col);
++                        sc_val = jm_alloc_array(w, sizeof *sc_val);
++                        sc_dir = jm_alloc_array(w, sizeof *sc_dir);
++                        if (!cpos || !sc_col || !sc_val || !sc_dir)
++                            goto done;
++                        for (int64_t j = 0; j < nc; j++)
++                            cpos[j] = -1;
++                    }
++                    cp.tried++;
++                    const int64_t got = stop_conflict(
++                        m, lp, cur, ilo, ihi, nfixed, sigma, cut_at, cp.width,
++                        (sc_mode & 2) != 0, (sc_mode & 4) == 0,
++                        (sc_mode & 32) != 0, cacol, clast,
++                        cblo, cblo + nc, sc_col, sc_val, sc_dir, &sc_base,
++                        &work);
++                    if ((sc_mode & 8) != 0 && (got >= 0 || got == -3) &&
++                        !ppool_add(&pp, m, ilo, ihi, cacol, sc_base, nodes,
++                                   &work))
++                        goto done;
++                    if (got == -2)
++                        sc_gapless++;
++                    else if (got == -3)
++                        sc_shape++;
++                    else if (got == -4)
++                        sc_local++;
++                    else if (got == -5)
++                        sc_inf++;
++                    else if (got == 0)
++                        sc_none++;
++                    else if (cp.cap > 0 && (sc_mode & 16) == 0 &&
++                             !cpool_add(&cp, sc_col, sc_val, sc_dir, got, nodes,
++                                        &work))
++                        goto done;
++                }
+                 continue;
+             }
+             budget(lp, m, work);
+@@ -11796,6 +12506,26 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: %lld node relaxations stopped once their "
+                "bound reached the incumbent", (long long)cutoff_nodes);
++    if (stopc_on)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "conflict pool: %lld tried, %lld made over %lld bounds, %lld "
++               "without the gap, %lld refused by shape, %lld on local rows, "
++               "%lld on infinite bounds, %lld with no bound, "
++               "%lld replaced, %lld nodes cut, %lld bounds fixed, %lld held, "
++               "%lld implied bounds kept",
++               (long long)cp.tried, (long long)cp.made, (long long)cp.lits,
++               (long long)sc_gapless, (long long)sc_shape,
++               (long long)sc_local, (long long)sc_inf, (long long)sc_none,
++               (long long)cp.replaced, (long long)sc_cut_nodes,
++               (long long)cp.fixed, (long long)cp.n, (long long)sc_rcf_lits);
++    if (stopc_on && (sc_mode & 8) != 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "proof pool: %lld made over %lld columns, %lld refused, %lld "
++               "replaced, %lld nodes cut, %lld bounds tightened, %lld held, "
++               "%lld work propagating",
++               (long long)pp.made, (long long)pp.nz, (long long)pp.refused,
++               (long long)pp.replaced, (long long)pp.pruned,
++               (long long)pp.fixed, (long long)pp.n, (long long)sc_prop_work);
+     if (node_rcfixed > 0)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: %lld column bounds tightened at the nodes "
+@@ -11901,6 +12631,12 @@ done:
+     free(cray);
+     free(cacol);
+     free(clast);
++    cpool_free(&cp);
++    ppool_free(&pp);
++    free(cpos);
++    free(sc_col);
++    free(sc_val);
++    free(sc_dir);
+     free(cstack);
+     free(pextra);
+     free(porder);
+diff --git a/src/simplex.c b/src/simplex.c
+index 7e34d6c9..ecd5cca5 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4866,6 +4866,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+     *units = 0;
+     *iters = 0;
+     m->cutoff_hit = false;
++    m->stop_duals_ok = false;
+     jm_presolve p;
+     jm_presolve_init(&p);
+     p.orig = m;
+@@ -5317,6 +5318,23 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+         polish_unscaled(&s);
+     if (st == JAOS_OK)
+         st = publish(&s, outcome, &p);
++    m->stop_duals_ok = false;
++    if (st == JAOS_OK && m->cutoff_hit && m->cfg.node_stop_duals) {
++        double lag = 0.0;
++        if (stop_bound_in(&s, s.tau, &lag)) {
++            const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++            memset(m->sol_dual, 0, (size_t)m->num_row * sizeof *m->sol_dual);
++            for (int64_t ri = 0; ri < target->num_row; ri++) {
++                const int64_t i = target == m ? ri : p.orig_row[ri];
++                m->sol_dual[i] = s.status[target->num_col + ri] == JM_BASIC
++                    ? 0.0 : sgn * s.tau[ri] * target->row_scale[ri];
++            }
++            m->stop_duals_ok = true;
++            m->stop_duals_reduced = target != m;
++        }
++        m->solve_work += (target->num_nz + s.nvar + m->num_row) *
++                         JM_WORK_NONZERO;
++    }
+     if (st == JAOS_OK && quad_probe && outcome == JAOS_SOLVE_INFEASIBLE) {
+         jaos_certificate_report rep = {0};
+         const bool certified =
