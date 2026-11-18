@@ -1,6 +1,6 @@
 # 02-489 — ZI rounding at the nodes
 
-Taken on 2026-11-18 on a8771841 (02-488's crossover, mutation and DINS),
+Taken on 2026-11-18 on the commit of 02-488 (crossover, mutation and DINS),
 for TODO row J32. `read.sh` takes the readings from copies of 37720d32
 with 02-488's `prototype.patch` (`JAOS_GH=1`, ZI rounding alone, `zi`)
 and of the landed commit (`land`, with 02-488's three):
