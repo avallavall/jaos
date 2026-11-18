@@ -31,6 +31,7 @@
 /bench/instances-infeas/
 /bench/instances-miplib/
 /bench/instances-miplib2017/
+/bench/instances-miplib2017-bench/
 /bench/instances-maros-meszaros/
 /bench/instances-cblib/
 /bench/instances-cblib-mip/

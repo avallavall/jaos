@@ -1,0 +1,45 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<HTML>
+<HEAD>
+<TITLE></TITLE>
+<META NAME="generator" CONTENT="HTML::TextToHTML v2.25">
+</HEAD>
+<BODY>
+<PRE>
+<P>28 Oct 2026     ======================================================
+                The MIPLIB2017 Benchmark Instances (preprocessed data)
+                ======================================================
+                         H. Mittelmann (<A HREF="mailto:mittelmann@asu.edu">mittelmann@asu.edu</A>)
+</PRE>
+<P>The benchmark instances (v1) of <a href="https://miplib.zib.de">MIPLIB2017</a> have been run by a number of codes.
+<br>The following codes were run with a limit of 2 hours on an AMD Ryzen 9 5900X (12 cores, 128GB)<p>
+ COPT-9.0.0:  <a href="https://www.shanshu.ai/copt/">COPT</a><br>
+ SCIP/spx-10.0.0:    <a href="https://github.com/scipopt/scip">SCIP</a><br>
+ FiberSCIP-11.0.0:    <a href="https://ug.zib.de">FSCIP</a><br>
+ SCIPCO/spx-11.0.0:    (SCIP-conc, parallel SCIP, forthcoming)<br>
+ HiGHS-1.15.0    <a href="https://github.com/ERGO-Code/HiGHS">HiGHS</a><br>
+ HiGHS-1.15.1    <a href="https://github.com/ERGO-Code/HiGHS">HiGHSp</a>(parallel)<br>
+ Optverse-2.0.1   <a href="https://www.huaweicloud.com/intl/en-us/product/optverse.html">OPTV</a><br>
+<p>
+<font color="red">The instances were preprocessed by using SCIP to randomly perturb rows/columns and performing a quick presolve. </font><p>
+<a href="https://plato.asu.edu/ftp/milp_tables/12threads.res">Table for 12 threads</a>,
+<a href="https://plato.asu.edu/ftp/milp_res12/"> Result files per solver</a>,
+<a href="https://plato.asu.edu/ftp/milp_log12/"> Log files per solver</a>,
+<a href="https://mipviz.mghannam.com/benchmarks.html">Detailed tables</a> (external)
+<p>
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++<br>
+<b> Unscaled and scaled shifted geometric means of run times </b>
+<pre>
+All non-successes are counted as max-time.
+The third line lists the number of problems (240 total) solved.
+
+        COPT   SCIP HiGHSp  HiGHS  OPTV FSCIP SCIPCO
+-----------------------------------------------------
+unscal    71   1003    549    763   173   688   586
+scaled     1   14.0   7.69   10.7  2.43  9.64  8.21
+solved   225    136    179    158   210   158   160
+-----------------------------------------------------
+</pre>
+
+</BODY>
+</HTML>

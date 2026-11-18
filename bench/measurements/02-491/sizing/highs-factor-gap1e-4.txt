@@ -1,0 +1,20 @@
+# JAOS against HiGHS on miplib2017-bench.manifest, 120 s each, one thread, gap: JAOS 1e-6 and HiGHS 1e-4 (their defaults), SCIP 1e-6
+# machine: Linux x86_64 AMD Ryzen 5 9600X 6-Core Processor under WSL
+# tree: unknown
+# solvers: [highs] HiGHS version 1.15.1 Githash n/a. Copyright (c) 2026 under MIT licence terms
+# jobs 2, heavy 1, cap 12 GB; load 14.01 9.24 7.93 at start, 10.23 10.24 8.63 at end; 246 s
+# instance solver status objective nodes seconds reference source wall_seconds peak_kb
+ex10	highs	Optimal	100	1	32.19	100	miplib2017	34.79	541444
+nw04	highs	Optimal	16862	1	43.16	16862	miplib2017	44.47	328860
+physiciansched6-2	highs	Optimal	49324	1	7.76	49324	miplib2017	7.2	179724
+mzzv42z	highs	Optimal	-20540	1	30.68	-20540	miplib2017	30.9	299312
+fiball	highs	Optimal	138	667	68.76	138	miplib2017	69.03	600592
+dano3_3	highs	Optimal	576.344633031	1	43.25	576.34463303	miplib2017	43.37	95068
+air05	highs	Optimal	26374	19	23.89	26374	miplib2017	24.01	144668
+swath1	highs	Optimal	379.07129575	107	12.82	379.07129575	miplib2017	12.92	198016
+neos-1582420	highs	Optimal	91	886	52.00	90.99999999999996	miplib2017	52.08	98912
+n5-3	highs	Optimal	8105	566	46.00	8104.999999993999	miplib2017	46.04	61564
+beasleyC3	highs	Optimal	754	378	14.82	753.9999999999128	miplib2017	14.86	38900
+binkar10_1	highs	Optimal	6742.200024	1547	17.92	6742.1998835	miplib2017	17.97	146760
+enlight_hard	highs	Optimal	37	2303	10.51	37	miplib2017	10.54	117080
+timtab1	highs	Optimal	764774	9046	44.44	764771.99999978	miplib2017	44.47	58952

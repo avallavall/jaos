@@ -1,0 +1,26 @@
+# JAOS against HiGHS on miplib2017-bench.manifest, 30 s each, one thread, gap: JAOS 1e-6 and HiGHS 1e-4 (their defaults), SCIP 1e-6
+# machine: Linux x86_64 AMD Ryzen 5 9600X 6-Core Processor under WSL
+# tree: unknown
+# solvers: [jaos] HiGHS not found
+# jobs 2, heavy 1, cap 12 GB; load 6.89 7.25 7.44 at start, 14.73 9.21 7.90 at end; 572 s
+# instance solver status objective nodes seconds reference source wall_seconds peak_kb
+neos-2075418-temuka	jaos	time_limit			31.187576	0	infeasible	32.89	1015772
+neos-3402454-bohle	jaos	fail				0	infeasible	99.98	1984
+square41	jaos	time_limit		1	30.611379	15	miplib2017	37.46	1698384
+square47	jaos	time_limit			34.145806	15.9999999997877	miplib2017	50.78	3200368
+supportcase19	jaos	time_limit		1	30.438181	12677205.99992052	miplib2017	32.63	1100432
+s100	jaos	time_limit		1	30.238703	-0.1697235270583	miplib2017	31.15	497340
+roi5alpha10n8	jaos	time_limit		1	30.183461	-52.322274351	miplib2017	30.42	382756
+neos-5114902-kasavu	jaos	time_limit			32.271060	655	miplib2017	31.69	1662692
+neos-4647030-tutaki	jaos	time_limit		1	40.389008	27265.70599999996	miplib2017	38.67	1034536
+neos-5052403-cygnet	jaos	time_limit		1	30.438623	182	miplib2017	30.8	937104
+savsched1	jaos	time_limit		1	30.303907	3217.7	miplib2017	30.27	750992
+supportcase12	jaos	time_limit		1	30.563925	-7559.533053817	miplib2017	30.65	1067100
+bab2	jaos	time_limit		1	30.291262	-357544.3115	miplib2017	29.83	402276
+co-100	jaos	time_limit		1	30.532467	2639942.06	miplib2017	29.91	564064
+supportcase7	jaos	time_limit		1	30.078668	-1132.223177	miplib2017	31.13	419352
+neos-3402294-bobin	jaos	time_limit		1	30.774361	0.06724999999999949	miplib2017	31.06	1172212
+ns1760995	jaos	time_limit		1	31.023093	-549.21438505	miplib2017	30.68	1187828
+supportcase22	jaos	time_limit		1	30.801609	110.0	best	30.4	1016332
+neos-5104907-jarama	jaos	time_limit		1	30.569191	935	miplib2017	30.13	1093168
+ns1644855	jaos	time_limit		1	30.329798	-1524.33333333333	miplib2017	29.36	451832
