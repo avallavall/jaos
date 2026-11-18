@@ -1,0 +1,1 @@
+default                                  nodelimit  nodes        1 bound 13.499050 primal 16.0000 lpiter       568 time 2.2

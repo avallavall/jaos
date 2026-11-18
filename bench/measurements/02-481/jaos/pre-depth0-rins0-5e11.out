@@ -1,0 +1,15 @@
+status optimal
+objective 15
+iterations 14023758
+work_units 60627061886
+nodes 1456423
+cuts 36
+heuristic_points 5
+first_incumbent 1
+fixed_cols 0
+tightened 0
+symmetry_generators 2
+symmetry_orbits 20
+bound 15
+incumbent 15
+time 676.154402

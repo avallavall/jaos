@@ -1,0 +1,15 @@
+alloff     Optimal  nodes 677327    restarts 0 root 13.31712948 last root 13.31712948 last bound 15          mip_detect_symmetry=false mip_allow_restart=false mip_heuristic_effort=0 mip_allow_cut_separation_at_nodes=false 
+bare-rel0  Optimal  nodes 1506798   restarts 0 root 13.28571429 last root 13.28571429 last bound 14          mip_detect_symmetry=false mip_allow_restart=false mip_pool_age_limit=0 mip_pool_soft_limit=1 mip_pscost_minreliable=0 mip_heuristic_effort=0 mip_allow_cut_separation_at_nodes=false 
+bare       Optimal  nodes 1612417   restarts 0 root 13.28571429 last root 13.28571429 last bound 14          mip_detect_symmetry=false mip_allow_restart=false mip_pool_age_limit=0 mip_pool_soft_limit=1 mip_heuristic_effort=0 mip_allow_cut_separation_at_nodes=false 
+default    Optimal  nodes 206031    restarts 2 root 13.31712948 last root 13.75       last bound 15          
+nodecuts   Optimal  nodes 352356    restarts 3 root 13.31712948 last root 13.75       last bound 15          mip_allow_cut_separation_at_nodes=false 
+noheur     Optimal  nodes 247767    restarts 1 root 13.31712948 last root 13.39569241 last bound 15          mip_heuristic_effort=0 
+norestart  Optimal  nodes 239035    restarts 0 root 13.31712948 last root 13.31712948 last bound 15          mip_allow_restart=false 
+nosym      Optimal  nodes 352311    restarts 0 root 13.31712948 last root 13.31712948 last bound 15          mip_detect_symmetry=false 
+pool0      Optimal  nodes 315809    restarts 2 root 13.28571429 last root 13.75       last bound 15          mip_pool_age_limit=0 mip_pool_soft_limit=1 
+probe-age0 Time     nodes 128904    restarts 0 root 13.31712948 last root 13.31712948 last bound 13.875      mip_detect_symmetry=false mip_allow_restart=false mip_pool_age_limit=0 mip_heuristic_effort=0 mip_allow_cut_separation_at_nodes=false 
+probe-soft1 Time     nodes 122774    restarts 0 root 13.28571429 last root 13.28571429 last bound 13.75       mip_detect_symmetry=false mip_allow_restart=false mip_pool_soft_limit=1 mip_heuristic_effort=0 mip_allow_cut_separation_at_nodes=false 
+rel0       Optimal  nodes 229473    restarts 2 root 13.31712948 last root 13.54771113 last bound 15          mip_pscost_minreliable=0 
+seed1      Optimal  nodes 127945    restarts 2 root 13.32302502 last root 13.4807057  last bound 15          random_seed=1 
+seed2      Optimal  nodes 179048    restarts 1 root 13.28475757 last root 13.75       last bound 15          random_seed=2 
+seed3      Optimal  nodes 110582    restarts 0 root 13.35169595 last root 13.35169595 last bound 15          random_seed=3 

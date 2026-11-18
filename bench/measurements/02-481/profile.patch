@@ -1,0 +1,68 @@
+diff -ruN a/src/jaos_internal.h b/src/jaos_internal.h
+--- a/src/jaos_internal.h	2026-11-18 07:25:43.731945354 +0100
++++ b/src/jaos_internal.h	2026-11-18 07:25:43.736631510 +0100
+@@ -579,6 +579,17 @@
+     if (w != nullptr)
+         w->units += n;
+ }
++extern int64_t jm_prof[64][16384];
++extern int jm_prof_on;
++static inline void jm_work_add_p(jm_work *w, int64_t n, int f, int line)
++{
++    if (w != nullptr) {
++        w->units += n;
++        if (jm_prof_on)
++            jm_prof[f][line] += n;
++    }
++}
++#define jm_work_add(w, n) jm_work_add_p(w, n, (__FILE__[4] * 31 + __FILE__[5]) & 63, __LINE__)
+ 
+ typedef enum {
+     JM_PS_FIXED_COL,
+diff -ruN a/src/mip.c b/src/mip.c
+--- a/src/mip.c	2026-11-18 07:25:43.732103853 +0100
++++ b/src/mip.c	2026-11-18 07:25:43.736780983 +0100
+@@ -8,6 +8,16 @@
+ #include <math.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <stdio.h>
++int64_t jm_prof[64][16384];
++int jm_prof_on;
++static void jm_prof_dump(void)
++{
++    for (int f = 0; f < 64; f++)
++        for (int l = 0; l < 16384; l++)
++            if (jm_prof[f][l])
++                fprintf(stderr, "P %d %d %lld\n", f, l, (long long)jm_prof[f][l]);
++}
+ 
+ constexpr double MIP_INT_TOL = 1e-6;
+ 
+@@ -8879,6 +8889,7 @@
+     const int64_t nc = m->num_col, nr = m->num_row;
+     const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+     const bool quadratic = jm_model_has_quadratic(m);
++    if (getenv("N5PROF")) atexit(jm_prof_dump);
+     const double gap = m->cfg.mip_gap_set ? m->cfg.mip_gap : MIP_GAP;
+     const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
+                                                                       : 1.0;
+@@ -9579,7 +9590,9 @@
+         lp->cfg.node_cutoff = cut_at;
+         lp->cfg.node_devex = nodes > 1 && !quadratic;
+         lp->cutoff_hit = false;
++        jm_prof_on = nodes > 51 && !m->cfg.mip_sub;
+         st = jaos_solve(lp);
++        jm_prof_on = 0;
+         lp->cfg.node_cutoff_set = false;
+         solves++;
+         int64_t node_work = jaos_work_units(lp);
+@@ -9599,7 +9612,7 @@
+             work += node_work;
+             iters += jaos_iterations(lp);
+         }
+-        if (nodes > 1 && !lp->cfg.node_no_presolve &&
++        if (nodes > 1 && !lp->cfg.node_no_presolve && !getenv("N5PRE") &&
+             npre_n < MIP_NODE_PRESOLVE_TRIAL) {
+             npre_n++;
+             npre_it += jaos_iterations(lp);

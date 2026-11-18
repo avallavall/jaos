@@ -1,0 +1,9 @@
+default    root: relaxation 13.231481481481428 after 36 cuts | work_units 15489257
+g5         root: relaxation 13.446993836743088 after 186 cuts | work_units 42361883
+g10        root: relaxation 13.471615080142854 after 329 cuts | work_units 87002082
+g20        root: relaxation 13.471615080142854 after 329 cuts | work_units 87002082
+g50        root: relaxation 13.471615080142854 after 329 cuts | work_units 87002082
+zh5        root: relaxation 13.259999999999945 after 36 cuts | work_units 16621552
+mir5       root: relaxation 13.231481481481428 after 36 cuts | work_units 15489257
+cov5       root: relaxation 13.231481481481428 after 36 cuts | work_units 15489257
+g20zh5mir5 root: relaxation 13.46484144726543 after 728 cuts | work_units 283793152

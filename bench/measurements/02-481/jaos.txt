@@ -1,0 +1,27 @@
+head-1e10              status work_limit work_units 10000007049 nodes 116376 bound 14.25 incumbent 15 
+pre-1e10               status work_limit work_units 10000005357 nodes 150788 bound 14.333333333333334 incumbent 15 
+head-1e11              status work_limit work_units 100000005615 nodes 1526036 bound 14.75 incumbent 14.999999999999947 
+pre-1e11               status work_limit work_units 100000006487 nodes 2232772 bound 14.75 incumbent 14.999999999999918 
+head-5e11              status optimal work_units 191275336827 nodes 2977069 bound 14.999999999999947 incumbent 14.999999999999947 
+pre-5e11               status optimal work_units 102377167246 nodes 2293837 bound 14.999999999999918 incumbent 14.999999999999918 
+depth0-5e11            status optimal work_units 68958235635 nodes 1496753 bound 15 incumbent 15 
+skip-depth0-5e11       status optimal work_units 113007957626 nodes 1741169 bound 14.999999999999883 incumbent 14.999999999999883 
+pre-depth0-rins0-5e11  status optimal work_units 60627061886 nodes 1456423 bound 15 incumbent 15 
+
+arm-cut5               status work_limit work_units 10000005578 nodes 115887 bound 14.25 incumbent 15 
+arm-depth0             status work_limit work_units 10000011199 nodes 157873 bound 14.375 incumbent 15 
+arm-depth10            status work_limit work_units 10000010638 nodes 101420 bound 14.25 incumbent 14.999999999999851 
+arm-depth60            status work_limit work_units 10000006328 nodes 29237 bound 14.158372611298621 incumbent 15 
+arm-depth60cap0        status work_limit work_units 10000004871 nodes 22659 bound 14.135322401139391 incumbent 15 
+arm-g10                status work_limit work_units 10000005556 nodes 118483 bound 14.25 incumbent 15 
+arm-mostfrac           status work_limit work_units 10000007479 nodes 107757 bound 14.199999999999999 incumbent 15 
+arm-noheur             status work_limit work_units 10000007871 nodes 134618 bound 14.25 incumbent 15 
+arm-noorb              status work_limit work_units 10000010773 nodes 103032 bound 14.041666666666666 incumbent 15 
+arm-rel0               status work_limit work_units 10000005901 nodes 115622 bound 14.25 incumbent 15 
+arm-rel8               status work_limit work_units 10000004592 nodes 119540 bound 14.25 incumbent 15 
+arm-restart            status work_limit work_units 10000007216 nodes 116376 bound 14.25 incumbent 15 
+arm-rins0              status work_limit work_units 10000010525 nodes 133528 bound 14.275 incumbent 15 
+arm-sel-bound          status work_limit work_units 10000008285 nodes 118538 bound 14.5 incumbent 15 
+
+head-1e10.log:branch and bound work: node relaxations 86.9%, cuts 0.0%, heuristics 12.5%, propagation, probing and conflicts 0.1%, strong branching 0.2%, the rest 0.3%
+depth0-5e11.log:branch and bound work: node relaxations 85.6%, cuts 0.0%, heuristics 13.8%, propagation, probing and conflicts 0.3%, strong branching 0.0%, the rest 0.3%

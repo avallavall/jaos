@@ -1,0 +1,84 @@
+== the record at 2e9
+nodes 15460, work 1716684662, work a node 111040
+all                        n= 15460 iters=  18.4 flips= 2.73 refactors=1.65 factor= 11416 work= 111040 share=1.000 rows= 63.1 cols= 63.0 ones= 5.4 zeros=15.0 obj=14.192 depth= 19.1
+child, down                n=  4587 iters=   8.5 flips= 0.11 refactors=1.44 factor= 10303 work=  62774 share=0.168 rows= 63.1 cols= 63.0 ones= 5.3 zeros=16.6 obj=14.081 depth= 20.4
+child, up                  n=   129 iters=   8.6 flips= 0.37 refactors=1.33 factor= 10586 work=  67853 share=0.005 rows= 63.1 cols= 63.0 ones= 5.8 zeros=13.2 obj=13.888 depth= 17.4
+not child, down            n=  5010 iters=   9.9 flips= 0.55 refactors=1.47 factor= 10044 work=  66954 share=0.195 rows= 63.1 cols= 63.0 ones= 5.0 zeros=16.2 obj=14.092 depth= 19.6
+not child, up              n=  5734 iters=  34.0 flips= 6.79 refactors=1.97 factor= 13525 work= 189144 share=0.632 rows= 63.1 cols= 63.0 ones= 5.9 zeros=12.8 obj=14.376 depth= 17.5
+down, step 0.0-0.2         n=  3879 iters=   6.8 flips= 0.05 refactors=1.29 factor=  9627 work=  57012 share=0.129 rows= 63.1 cols= 63.0 ones= 5.3 zeros=15.9 obj=14.071 depth= 19.8
+down, step 0.2-0.4         n=  4500 iters=   9.4 flips= 0.15 refactors=1.51 factor= 10036 work=  62998 share=0.165 rows= 63.1 cols= 63.0 ones= 5.2 zeros=17.8 obj=14.122 depth= 21.4
+down, step 0.4-0.6         n=   596 iters=  12.5 flips= 1.13 refactors=1.65 factor= 11658 work=  80596 share=0.028 rows= 63.2 cols= 63.0 ones= 4.5 zeros=11.0 obj=13.930 depth= 14.0
+down, step 0.6-0.8         n=   457 iters=  18.9 flips= 2.44 refactors=1.85 factor= 12954 work= 108337 share=0.029 rows= 63.1 cols= 63.0 ones= 4.6 zeros=13.4 obj=14.037 depth= 16.2
+down, step 0.8-1.0         n=   165 iters=  23.3 flips= 3.66 refactors=1.93 factor= 13354 work= 128463 share=0.012 rows= 63.1 cols= 63.0 ones= 5.0 zeros=15.5 obj=14.212 depth= 19.3
+up, step 0.0-0.2           n=   165 iters=   5.3 flips= 0.04 refactors=1.18 factor=  8942 work=  50874 share=0.005 rows= 63.1 cols= 63.0 ones= 6.1 zeros=14.8 obj=14.055 depth= 19.7
+up, step 0.2-0.4           n=   455 iters=   9.1 flips= 0.21 refactors=1.45 factor= 10878 work=  66884 share=0.018 rows= 63.1 cols= 63.0 ones= 5.6 zeros=12.5 obj=13.998 depth= 16.5
+up, step 0.4-0.6           n=   531 iters=  16.9 flips= 1.98 refactors=1.81 factor= 12776 work= 100735 share=0.031 rows= 63.3 cols= 63.0 ones= 5.4 zeros= 9.5 obj=13.964 depth= 13.4
+up, step 0.6-0.8           n=  2351 iters=  31.8 flips= 5.49 refactors=1.99 factor= 13158 work= 170103 share=0.233 rows= 63.1 cols= 63.0 ones= 6.0 zeros=14.1 obj=14.399 depth= 18.7
+up, step 0.8-1.0           n=  2361 iters=  45.5 flips=10.55 refactors=2.12 factor= 14729 work= 254584 share=0.350 rows= 63.1 cols= 63.0 ones= 6.1 zeros=12.2 obj=14.514 depth= 17.3
+ones 0-2                   n=   248 iters=  14.0 flips= 2.19 refactors=1.61 factor= 12802 work=  97296 share=0.014 rows= 63.5 cols= 63.0 ones= 1.8 zeros=12.7 obj=13.941 depth= 10.0
+ones 3-4                   n=  3525 iters=  13.2 flips= 1.55 refactors=1.55 factor= 11552 work=  87903 share=0.180 rows= 63.1 cols= 63.0 ones= 3.7 zeros=14.0 obj=14.054 depth= 16.0
+ones 5-6                   n=  8479 iters=  18.5 flips= 2.75 refactors=1.65 factor= 11407 work= 111511 share=0.551 rows= 63.1 cols= 63.0 ones= 5.5 zeros=14.9 obj=14.199 depth= 19.1
+ones 7-8                   n=  2881 iters=  24.3 flips= 4.02 refactors=1.76 factor= 11352 work= 137397 share=0.231 rows= 63.2 cols= 63.0 ones= 7.3 zeros=16.1 obj=14.369 depth= 22.3
+ones 9-99                  n=   327 iters=  23.1 flips= 3.97 refactors=1.67 factor=  9699 work= 126465 share=0.024 rows= 63.1 cols= 63.0 ones= 9.4 zeros=20.7 obj=14.134 depth= 28.9
+down 0-0.6: all            n=  8975 iters=   8.5 flips= 0.17 refactors=1.43 factor=  9967 work=  61579 share=0.322 rows= 63.1 cols= 63.0 ones= 5.2 zeros=16.5 obj=14.087 depth= 20.2
+  stopped at the cutoff    n=     3 iters=   2.0 flips= 0.00 refactors=1.00 factor=  4356 work=  16443 share=0.000 rows= 63.0 cols= 63.0 ones=10.3 zeros=35.7 obj= 0.000 depth= 43.3
+  other end                n=     0
+  optimal, at 15           n=     1 iters=  33.0 flips= 6.00 refactors=2.00 factor= 11484 work= 169649 share=0.000 rows= 63.0 cols= 63.0 ones= 3.0 zeros=21.0 obj=15.000 depth= 14.0
+  optimal, under 15        n=  8971 iters=   8.5 flips= 0.17 refactors=1.43 factor=  9969 work=  61582 share=0.322 rows= 63.1 cols= 63.0 ones= 5.2 zeros=16.5 obj=14.091 depth= 20.2
+down 0.6-1.01: all         n=   622 iters=  20.0 flips= 2.77 refactors=1.87 factor= 13060 work= 113676 share=0.041 rows= 63.1 cols= 63.0 ones= 4.7 zeros=13.9 obj=14.083 depth= 17.0
+  stopped at the cutoff    n=     3 iters=   2.7 flips= 1.67 refactors=1.00 factor=  5687 work=  23015 share=0.000 rows= 63.0 cols= 63.0 ones= 5.7 zeros=23.3 obj= 0.000 depth= 27.3
+  other end                n=     0
+  optimal, at 15           n=    32 iters=  24.5 flips= 5.69 refactors=1.97 factor= 10499 work= 121283 share=0.002 rows= 63.2 cols= 63.0 ones= 6.0 zeros=23.4 obj=15.005 depth= 28.0
+  optimal, under 15        n=   587 iters=  19.9 flips= 2.61 refactors=1.87 factor= 13237 work= 113724 share=0.039 rows= 63.1 cols= 63.0 ones= 4.6 zeros=13.4 obj=14.105 depth= 16.4
+up 0-0.6: all              n=  1151 iters=  12.1 flips= 1.00 refactors=1.58 factor= 11476 work=  80206 share=0.054 rows= 63.2 cols= 63.0 ones= 5.6 zeros=11.5 obj=13.990 depth= 15.5
+  stopped at the cutoff    n=     3 iters=   7.7 flips= 0.00 refactors=1.00 factor=  4383 work=  26353 share=0.000 rows= 63.0 cols= 63.0 ones=10.3 zeros=34.0 obj= 0.000 depth= 40.3
+  other end                n=     0
+  optimal, at 15           n=     1 iters=  16.0 flips= 0.00 refactors=2.00 factor=  8638 work=  59211 share=0.000 rows= 63.0 cols= 63.0 ones=10.0 zeros=34.0 obj=15.000 depth= 41.0
+  optimal, under 15        n=  1147 iters=  12.2 flips= 1.01 refactors=1.58 factor= 11497 work=  80365 share=0.054 rows= 63.2 cols= 63.0 ones= 5.5 zeros=11.4 obj=14.026 depth= 15.4
+up 0.6-1.01: all           n=  4712 iters=  38.6 flips= 8.03 refactors=2.05 factor= 13945 work= 212434 share=0.583 rows= 63.1 cols= 63.0 ones= 6.0 zeros=13.2 obj=14.456 depth= 18.0
+  stopped at the cutoff    n=    18 iters=   2.6 flips= 0.78 refactors=1.00 factor=  5401 work=  22363 share=0.000 rows= 63.0 cols= 63.0 ones= 7.4 zeros=21.9 obj= 0.000 depth= 28.6
+  other end                n=     1 iters=  32.0 flips= 0.00 refactors=1.00 factor=  8478 work= 149350 share=0.000 rows= 63.0 cols= 63.0 ones= 5.0 zeros=13.0 obj= 0.000 depth= 18.0
+  optimal, at 15           n=   142 iters=  29.6 flips= 6.46 refactors=2.01 factor= 10875 work= 143775 share=0.012 rows= 63.0 cols= 63.0 ones= 7.3 zeros=21.5 obj=15.000 depth= 27.5
+  optimal, under 15        n=  4551 iters=  39.1 flips= 8.10 refactors=2.06 factor= 14076 work= 215341 share=0.571 rows= 63.1 cols= 63.0 ones= 6.0 zeros=12.9 obj=14.500 depth= 17.6
+== node presolve on every node at 2e9
+nodes 17638, work 1713047527, work a node 97123
+all                        n= 17638 iters=  18.8 flips= 3.32 refactors=1.68 factor= 11188 work=  97123 share=1.000 rows= 58.1 cols= 42.9 ones= 5.6 zeros=15.5 obj=14.257 depth= 19.9
+child, down                n=  5191 iters=   9.2 flips= 0.17 refactors=1.48 factor= 10258 work=  58045 share=0.176 rows= 59.0 cols= 42.0 ones= 5.3 zeros=16.8 obj=14.113 depth= 21.0
+child, up                  n=   140 iters=   6.7 flips= 0.45 refactors=1.25 factor=  9554 work=  51847 share=0.004 rows= 57.3 cols= 44.2 ones= 5.9 zeros=13.9 obj=14.046 depth= 18.9
+not child, down            n=  5326 iters=  10.5 flips= 0.67 refactors=1.51 factor=  9872 work=  61543 share=0.191 rows= 58.9 cols= 42.0 ones= 5.2 zeros=16.7 obj=14.149 depth= 20.6
+not child, up              n=  6981 iters=  32.5 flips= 7.74 refactors=1.97 factor= 12917 work= 154233 share=0.629 rows= 56.9 cols= 44.2 ones= 6.1 zeros=13.7 obj=14.451 depth= 18.7
+down, step 0.0-0.2         n=  3210 iters=   6.9 flips= 0.07 refactors=1.30 factor=  9551 work=  51857 share=0.097 rows= 58.4 cols= 43.0 ones= 5.5 zeros=15.5 obj=14.083 depth= 19.9
+down, step 0.2-0.4         n=  5624 iters=   9.7 flips= 0.20 refactors=1.53 factor=  9847 work=  56397 share=0.185 rows= 59.1 cols= 40.6 ones= 5.2 zeros=18.2 obj=14.163 depth= 22.2
+down, step 0.4-0.6         n=  1008 iters=  12.6 flips= 1.06 refactors=1.65 factor= 10792 work=  70007 share=0.041 rows= 59.2 cols= 44.8 ones= 5.1 zeros=14.1 obj=14.061 depth= 17.5
+down, step 0.6-0.8         n=   493 iters=  19.7 flips= 2.28 refactors=1.92 factor= 13005 work=  99792 share=0.029 rows= 60.2 cols= 45.2 ones= 4.7 zeros=14.1 obj=14.174 depth= 17.3
+down, step 0.8-1.0         n=   182 iters=  27.5 flips= 5.12 refactors=1.97 factor= 13745 work= 141139 share=0.015 rows= 59.6 cols= 43.8 ones= 4.8 zeros=15.4 obj=14.275 depth= 18.9
+up, step 0.0-0.2           n=   177 iters=   5.5 flips= 0.04 refactors=1.20 factor=  9051 work=  46803 share=0.005 rows= 56.9 cols= 43.5 ones= 5.9 zeros=14.6 obj=14.058 depth= 19.3
+up, step 0.2-0.4           n=   472 iters=   8.3 flips= 0.13 refactors=1.42 factor= 10264 work=  56853 share=0.016 rows= 57.8 cols= 45.4 ones= 5.7 zeros=12.9 obj=14.035 depth= 17.1
+up, step 0.4-0.6           n=   748 iters=  16.8 flips= 1.99 refactors=1.84 factor= 12381 work=  86885 share=0.038 rows= 58.0 cols= 47.2 ones= 5.8 zeros=11.1 obj=14.095 depth= 15.1
+up, step 0.6-0.8           n=  3271 iters=  31.4 flips= 6.69 refactors=2.00 factor= 12689 work= 142671 share=0.272 rows= 57.1 cols= 42.9 ones= 6.1 zeros=15.0 obj=14.498 depth= 20.0
+up, step 0.8-1.0           n=  2453 iters=  44.0 flips=12.49 refactors=2.10 factor= 13982 work= 210832 share=0.302 rows= 56.2 cols= 44.8 ones= 6.4 zeros=12.8 obj=14.582 depth= 18.3
+ones 0-2                   n=   276 iters=  15.8 flips= 2.48 refactors=1.63 factor= 12656 work= 102862 share=0.017 rows= 63.4 cols= 49.3 ones= 1.8 zeros=13.0 obj=13.995 depth= 11.4
+ones 3-4                   n=  3911 iters=  14.8 flips= 1.83 refactors=1.62 factor= 11645 work=  89324 share=0.204 rows= 62.6 cols= 45.9 ones= 3.7 zeros=14.4 obj=14.108 depth= 16.4
+ones 5-6                   n=  8708 iters=  18.2 flips= 2.71 refactors=1.67 factor= 11216 work=  97563 share=0.496 rows= 59.5 cols= 43.3 ones= 5.5 zeros=15.2 obj=14.236 depth= 19.7
+ones 7-8                   n=  4097 iters=  23.6 flips= 5.18 refactors=1.76 factor= 10963 work= 107240 share=0.256 rows= 52.6 cols= 40.3 ones= 7.3 zeros=16.4 obj=14.424 depth= 22.9
+ones 9-99                  n=   646 iters=  22.2 flips= 9.04 refactors=1.73 factor=  8852 work=  71778 share=0.027 rows= 44.7 cols= 33.2 ones= 9.3 zeros=21.5 obj=14.501 depth= 29.5
+down 0-0.6: all            n=  9842 iters=   9.1 flips= 0.24 refactors=1.47 factor=  9847 work=  56310 share=0.324 rows= 58.9 cols= 41.8 ones= 5.3 zeros=16.9 obj=14.127 depth= 21.0
+  stopped at the cutoff    n=     5 iters=   1.0 flips= 0.20 refactors=1.00 factor=  4484 work=  12421 share=0.000 rows= 53.2 cols= 26.4 ones= 7.0 zeros=30.6 obj= 0.000 depth= 35.0
+  other end                n=     0
+  optimal, at 15           n=    20 iters=  17.6 flips= 4.75 refactors=1.60 factor=  8045 work=  78207 share=0.001 rows= 53.4 cols= 28.1 ones= 6.5 zeros=29.5 obj=15.012 depth= 31.6
+  optimal, under 15        n=  9817 iters=   9.0 flips= 0.23 refactors=1.47 factor=  9853 work=  56288 share=0.323 rows= 58.9 cols= 41.8 ones= 5.3 zeros=16.9 obj=14.132 depth= 21.0
+down 0.6-1.01: all         n=   675 iters=  21.8 flips= 3.05 refactors=1.93 factor= 13204 work= 110941 share=0.044 rows= 60.1 cols= 44.8 ones= 4.8 zeros=14.4 obj=14.201 depth= 17.7
+  stopped at the cutoff    n=     0
+  other end                n=     0
+  optimal, at 15           n=    50 iters=  21.3 flips= 3.94 refactors=2.00 factor= 10390 work=  85537 share=0.002 rows= 55.9 cols= 33.5 ones= 6.0 zeros=24.6 obj=15.015 depth= 28.7
+  optimal, under 15        n=   625 iters=  21.9 flips= 2.97 refactors=1.93 factor= 13429 work= 112973 share=0.041 rows= 60.4 cols= 45.7 ones= 4.7 zeros=13.6 obj=14.136 depth= 16.8
+up 0-0.6: all              n=  1397 iters=  12.5 flips= 1.11 refactors=1.61 factor= 11244 work=  71660 share=0.058 rows= 57.8 cols= 46.1 ones= 5.8 zeros=12.1 obj=14.070 depth= 16.3
+  stopped at the cutoff    n=     2 iters=   8.5 flips= 8.50 refactors=1.00 factor=  4096 work=  13662 share=0.000 rows= 40.5 cols= 21.0 ones=10.0 zeros=33.0 obj= 0.000 depth= 37.5
+  other end                n=     0
+  optimal, at 15           n=    13 iters=  17.4 flips= 8.38 refactors=1.92 factor=  8365 work=  37227 share=0.000 rows= 43.3 cols= 24.4 ones= 9.5 zeros=30.0 obj=15.000 depth= 36.8
+  optimal, under 15        n=  1382 iters=  12.4 flips= 1.03 refactors=1.61 factor= 11281 work=  72067 share=0.058 rows= 57.9 cols= 46.3 ones= 5.7 zeros=11.9 obj=14.082 depth= 16.1
+up 0.6-1.01: all           n=  5724 iters=  36.8 flips= 9.18 refactors=2.04 factor= 13243 work= 171881 share=0.574 rows= 56.7 cols= 43.7 ones= 6.2 zeros=14.1 obj=14.534 depth= 19.3
+  stopped at the cutoff    n=    11 iters=   7.6 flips= 7.36 refactors=1.00 factor=  5018 work=  22088 share=0.000 rows= 51.0 cols= 32.8 ones= 7.6 zeros=23.5 obj= 0.000 depth= 30.5
+  other end                n=     1 iters=   2.0 flips= 0.00 refactors=1.00 factor=  6008 work=  17073 share=0.000 rows= 56.0 cols= 36.0 ones= 7.0 zeros=21.0 obj= 0.000 depth= 26.0
+  optimal, at 15           n=   321 iters=  25.0 flips= 8.77 refactors=1.99 factor=  9947 work=  84014 share=0.016 rows= 51.7 cols= 33.6 ones= 7.5 zeros=22.9 obj=15.000 depth= 29.3
+  optimal, under 15        n=  5391 iters=  37.6 flips= 9.21 refactors=2.05 factor= 13458 work= 177448 share=0.558 rows= 57.0 cols= 44.4 ones= 6.1 zeros=13.5 obj=14.538 depth= 18.6

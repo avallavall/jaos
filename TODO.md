@@ -131,18 +131,26 @@ first:
   node order and the basis move it by under 5. Verify with `gen-ip002`
   closing inside 1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
-  (`bench/measurements/02-477/`, `02-479/`, `02-480/`). HiGHS closes
-  `neos5` in 206,031 nodes and SCIP has not after 2.48M. A node
-  relaxation took 34 iterations against HiGHS's 12.6: its steepest-edge
-  weights started at 1 and restarted at 13.7 of its pivots, so it priced
-  by the largest infeasibility; SCIP under partial pricing takes 35.8.
-  Below the root the dual now prices by Devex (`bench/measurements/02-479/`):
-  18 iterations and 8.6e4 work units a node against 3.1e5, 116,376 nodes
-  and bound 14.25 at 1e10 against 32,557 and 14. Closing in HiGHS's node
-  count needs 4.9e4 a node. Of the node work, 63% is in up children
-  (`x_j = 1` on its covering rows) solved away from their parent, 34
-  iterations each; with node presolve kept on every node it reaches
-  150,788 nodes, but MIPLIB 3 reads 1.225x (`node-presolve-always`).
+  (`bench/measurements/02-477/`, `02-479/`, `02-480/`, `02-481/`). For
+  `neos5` it is the tree, not the node (`bench/measurements/02-481/`).
+  Below the root the dual prices by Devex since 02-479: 116,376 nodes and
+  bound 14.25 at 1e10, 8.6e4 work units a node. JAOS's tree is not
+  HiGHS's: the record closes `neos5` at 1.91e11 in 2,977,069 nodes, and
+  at its smallest here, with no cuts below the root, node presolve on
+  every node and `--rins 0`, at 6.1e10 in 1,456,423. The local Gomory cuts
+  to depth 3 make the tree 1.5x to 1.7x larger, and node presolve on every
+  node 1.2x to 1.3x smaller with a node 0.7x as dear (refused for MIPLIB
+  3's 1.225x, `node-presolve-always`). Inside 1e10 those
+  trees need 3.4e3 and 6.9e3 work units a node, under the 1.4e4 a node of
+  one pivot costs, so the node relaxations cannot close it
+  (`neos5-node-cost`).
+  HiGHS closes it in 110,582 to 206,031 nodes over four seeds, and SCIP
+  is at 14.75 after 2.48M. With its symmetry, node cuts, restarts,
+  heuristics and pools off, HiGHS takes 1,612,417 nodes, JAOS's size; its
+  pools, conflicts above all, are the largest single part, 2.4x on that
+  bare tree, and the other four each cost it 1.1x to 1.7x, inside its
+  seeds' spread, 3.3x together. JAOS's tree leans on orbital branching: without it the
+  explored share at 100,000 nodes is 0.008% against 1.1%.
   Neither HiGHS nor SCIP closes `assign1-5-8` in 600 s (200.0 and 205.0).
   Its gap is the tree's: the LP reads 183.36, the products of its columns
   with the triangle rows 184.53, its 26 cost columns alone made integer
@@ -159,10 +167,15 @@ first:
   Next for `assign1-5-8`: integral slacks on the all-integer equality rows
   with Gomory rounds past the first, 198.7–199.0 at 1e10, in a form that
   keeps `bell5`'s tree (`gomory-integral-slacks`, `gomory-rounds-implied`);
-  then reliability branching's probes. Next for `neos5`: the up children's
-  relaxations, and a node presolve rule read per node, since
-  `MIP_NODE_PRESOLVE_ITERS` was set on iteration counts of the old
-  pricing. Verify at 1e10 on both and with `make miplib J=2`.
+  then reliability branching's probes. Next for `neos5`: the conflicts
+  from nodes whose relaxation reached the incumbent, above, HiGHS's
+  largest part here, read against SCIP, which analyses bound-exceeding
+  LPs too and holds 14.75 after 2.48M; then symmetry handling that
+  reaches below the shallow nodes where orbital branching acts now, and
+  cuts at the nodes that hold for the whole tree in place of local ones
+  that enlarge it.
+  Verify by the nodes `neos5` closes in against 2,977,069, at 1e10 on both
+  and with `make miplib J=2`.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

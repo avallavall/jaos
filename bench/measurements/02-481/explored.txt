@@ -1,0 +1,73 @@
+== def
+  node    10000  open    9955  explored 0.0000  bound 13.9444
+  node    20000  open   19127  explored 0.0001  bound 14.0000
+  node    30000  open   27711  explored 0.0019  bound 14.0000
+  node    40000  open   35737  explored 0.0020  bound 14.0357
+  node    50000  open   41225  explored 0.0034  bound 14.0833
+  node    60000  open   46806  explored 0.0054  bound 14.1250
+  node    70000  open   53052  explored 0.0063  bound 14.1667
+  node    80000  open   59542  explored 0.0073  bound 14.1750
+  node    90000  open   66100  explored 0.0095  bound 14.2083
+  node   100000  open   72338  explored 0.0114  bound 14.2500
+  node   110000  open   78742  explored 0.0124  bound 14.2500
+== depth0
+  node    10000  open    9999  explored 0.0000  bound 14.0000
+  node    20000  open   19359  explored 0.0000  bound 14.0000
+  node    30000  open   28369  explored 0.0001  bound 14.0000
+  node    50000  open   41993  explored 0.0041  bound 14.1111
+  node    60000  open   47300  explored 0.0052  bound 14.1667
+  node    70000  open   52794  explored 0.0057  bound 14.1875
+  node    90000  open   63886  explored 0.0107  bound 14.2500
+  node   100000  open   69207  explored 0.0141  bound 14.2500
+  node   110000  open   74489  explored 0.0251  bound 14.2500
+  node   120000  open   79420  explored 0.0270  bound 14.2976
+  node   130000  open   84121  explored 0.0328  bound 14.3125
+  node   140000  open   88292  explored 0.0366  bound 14.3333
+== depth60
+  node    10000  open    9835  explored 0.0143  bound 14.0000
+  node    20000  open   18995  explored 0.0406  bound 14.1062
+== depth60cap0
+  node    10000  open    9755  explored 0.0530  bound 14.0464
+  node    20000  open   18875  explored 0.0691  bound 14.1214
+== g10
+  node    10000  open    9999  explored 0.0000  bound 13.9167
+  node    20000  open   19915  explored 0.0000  bound 14.0000
+  node    30000  open   28443  explored 0.0005  bound 14.0000
+  node    40000  open   36114  explored 0.0006  bound 14.0417
+  node    50000  open   42766  explored 0.0012  bound 14.0833
+  node    70000  open   56500  explored 0.0059  bound 14.1667
+  node    80000  open   63311  explored 0.0073  bound 14.1875
+  node   100000  open   76200  explored 0.0103  bound 14.2500
+  node   110000  open   82529  explored 0.0115  bound 14.2500
+== mostfrac
+  node    10000  open    9999  explored 0.0000  bound 13.8750
+  node    20000  open   19917  explored 0.0040  bound 14.0000
+  node    30000  open   29275  explored 0.0046  bound 14.0000
+  node    40000  open   38235  explored 0.0096  bound 14.0000
+  node    50000  open   46077  explored 0.0118  bound 14.0625
+  node    70000  open   61617  explored 0.0138  bound 14.1250
+  node    80000  open   69097  explored 0.0153  bound 14.1667
+  node    90000  open   76556  explored 0.0204  bound 14.1667
+  node   100000  open   83722  explored 0.0213  bound 14.1818
+== noorb
+  node    10000  open    9999  explored 0.0001  bound 13.8750
+  node    20000  open   19999  explored 0.0000  bound 13.9750
+  node    30000  open   29631  explored 0.0000  bound 14.0000
+  node    40000  open   38691  explored 0.0000  bound 14.0000
+  node    50000  open   47679  explored 0.0000  bound 14.0000
+  node    60000  open   56683  explored 0.0000  bound 14.0000
+  node    70000  open   65663  explored 0.0000  bound 14.0000
+  node    80000  open   74101  explored 0.0001  bound 14.0000
+  node    90000  open   82349  explored 0.0001  bound 14.0000
+  node   100000  open   90103  explored 0.0001  bound 14.0278
+== selbound
+  node    10000  open    9995  explored 0.0083  bound 14.0000
+  node    20000  open   19649  explored 0.0090  bound 14.0833
+  node    30000  open   27775  explored 0.0096  bound 14.1364
+  node    40000  open   35323  explored 0.0116  bound 14.2000
+  node    50000  open   42779  explored 0.0147  bound 14.2500
+  node    60000  open   49207  explored 0.0156  bound 14.3000
+  node    70000  open   55007  explored 0.0171  bound 14.3611
+  node    80000  open   61407  explored 0.0245  bound 14.3750
+  node    90000  open   67157  explored 0.0271  bound 14.4167
+  node   110000  open   76505  explored 0.0371  bound 14.5000

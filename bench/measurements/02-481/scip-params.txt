@@ -1,0 +1,7 @@
+conflict/useboundlp b
+conflict/usegenres False
+conflict/useinflp b
+conflict/uselocalrows True
+conflict/useprop True
+conflict/usepseudo True
+conflict/usesb True

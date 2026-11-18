@@ -1,0 +1,6 @@
+branch and bound: 53 integer columns of 63, 1 rounds of cuts, 5 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliability 4, probe cap 1.5x, cut stall 0 at the root and 0 below it, root cuts dropped when slack, covers extended
+symmetry: 2 generators, 20 orbits of more than one column, the largest of 4
+root: relaxation 13.231481481481428 after 36 cuts, 1 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+root: MIR aggregation kept 0 cuts after 0 probes on a copy
+branch and bound work: node relaxations 4.9%, cuts 1.2%, heuristics 41.7%, propagation, probing and conflicts 0.0%, strong branching 51.6%, the rest 0.6%
+branch and bound: node limit reached after 1 nodes, 107 solves, 36 cuts (0 below the root), 2 points by rounding, 0 of them by the dive heuristic, 1 by RINS, 0 by local branching and 0 by the pump, 16 probes, 0 of them capped, 0 columns fixed by cliques and 0 nodes cut by them, the callback fired 0 times, added 0 rows, rejected 0 points, chose 0 branches, handed 0 incumbents and 0 points refused, 0 conflicts over 0 binaries, 0 branchings widened to an orbit, 0 columns fixed by orbits and 0 nodes the relaxation failed on set aside with their bound

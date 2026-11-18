@@ -1,0 +1,26 @@
+work units counted 1835337623
+ 0.176  lu.c:jm_lu_btran_sparse
+ 0.141  lu.c:ftran_u_dense
+ 0.098  simplex.c:price_all
+ 0.096  lu.c:jm_lu_factor
+ 0.091  lu.c:lu_update
+ 0.071  lu.c:ftran_any
+ 0.061  lu.c:ftran_prefix
+ 0.038  simplex.c:price_entry
+ 0.036  lu.c:btran_l_pattern
+ 0.029  lu.c:btran_u_pattern
+ 0.029  simplex.c:dual_devex_update
+ 0.029  simplex.c:pivot
+ 0.018  simplex.c:pr_rebuild
+ 0.014  simplex.c:dual_ratio_test
+ 0.011  simplex.c:price_row
+ 0.010  simplex.c:polish_unscaled
+ 0.008  simplex.c:compute_duals
+ 0.008  simplex.c:refine_published_duals
+ 0.007  simplex.c:subtract_basis_times
+ 0.007  simplex.c:pr_turn
+ 0.006  lu.c:ftran_reach
+ 0.005  simplex.c:compute_primal
+ 0.003  simplex.c:apply_flips
+ 0.003  simplex.c:bfrt_walk
+ 0.002  simplex.c:repair_dual_infeasibility

@@ -1,0 +1,14 @@
+status work_limit
+iterations 21449336
+work_units 100000006487
+nodes 2232772
+cuts 92
+heuristic_points 4
+first_incumbent 1
+fixed_cols 0
+tightened 0
+symmetry_generators 2
+symmetry_orbits 20
+bound 14.75
+incumbent 14.999999999999918
+time 619.852322
