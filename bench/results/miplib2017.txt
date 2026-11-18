@@ -1,7 +1,7 @@
-markshare_4_0 work limit reached rows=4 cols=34 shape=ok iters=1461841 work=10000001112 nodes=619916 cuts=90 heur=5 inc=2.9999999999935949 bound=0 ref=1 | 
-markshare2   work limit reached rows=7 cols=74 shape=ok iters=3131704 work=10000002307 nodes=720121 cuts=109 heur=6 inc=121 bound=0 ref=1 | 
+markshare_4_0 work limit reached rows=4 cols=34 shape=ok iters=1458656 work=10000024462 nodes=617263 cuts=90 heur=5 inc=1.9999999999814466 bound=0 ref=1 | 
+markshare2   work limit reached rows=7 cols=74 shape=ok iters=3132042 work=10000007915 nodes=719997 cuts=109 heur=8 inc=138 bound=0 ref=1 | 
 enlight_hard optimal    rows=100 cols=200 shape=ok iters=0 work=29384 nodes=1 cuts=0 heur=0 first=1 obj=37 ref=37[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=1d73f1198c33ca7a basis=8b6c297a59c09b40
-pk1          optimal    rows=45 cols=86 shape=ok iters=2066599 work=8953133902 nodes=220268 cuts=71 heur=5 first=1 obj=11 ref=11[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=8565df27ccccd390 basis=ea787c44b42cb958
+pk1          optimal    rows=45 cols=86 shape=ok iters=1711247 work=7419054431 nodes=181251 cuts=71 heur=6 first=1 obj=10.999999999998094 ref=11[miplib2017] objective=ok checker=ok (col=0 row=2.16e-12 int=0) det=ok digest=311390e8ccccdc06 basis=ecc33c0d6214fa1d
 neos5        work limit reached rows=63 cols=63 shape=ok iters=1570794 work=10000007049 nodes=116376 cuts=92 heur=3 inc=15 bound=14.25 ref=15 | 
 gen-ip054    optimal    rows=27 cols=30 shape=ok iters=412966 work=2165656944 nodes=76495 cuts=51578 heur=6 first=1 obj=6840.9656417920005 ref=6840.9656417899996[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=ad7bcb61e4fd5ab6 basis=33b2f8555803f61b
 timtab1      work limit reached rows=171 cols=397 shape=ok iters=1608795 work=10000004311 nodes=257892 cuts=2270 heur=0 inc=1216453.999999827 bound=557458.02394525416 ref=764771.99999977998 | 
@@ -12,7 +12,7 @@ mas74        work limit reached rows=13 cols=151 shape=ok iters=2077126 work=100
 gen-ip002    work limit reached rows=24 cols=41 shape=ok iters=1689357 work=10000005461 nodes=231318 cuts=157 heur=8 inc=-4783.7333915999998 bound=-4805.6711739942939 ref=-4783.7333920000001 | 
 neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=706911 work=10000007964 nodes=158187 cuts=3 heur=3 inc=13013.083116331791 bound=-386500.98470371449 ref=12941.73838561778 | 
 neos-2657525-crna work limit reached rows=342 cols=524 shape=ok iters=564311 work=10000008056 nodes=8239 cuts=317 heur=1 inc=825.05686100000003 bound=0 ref=1.810748 | 
-assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=718495 work=10000011163 nodes=61150 cuts=170 heur=3 inc=211.99999999999989 bound=198 ref=211.99999999999801 | 
+assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=795245 work=10000019859 nodes=58435 cuts=197 heur=2 inc=212 bound=198 ref=211.99999999999801 | 
 glass4       work limit reached rows=396 cols=322 shape=ok iters=1312629 work=10000006774 nodes=164300 cuts=158 heur=4 inc=1625015083.3333333 bound=800005025.71428573 ref=1200012599.972384 | 
 supportcase26 work limit reached rows=870 cols=436 shape=ok iters=535276 work=10000040091 nodes=81099 cuts=0 heur=3 inc=1802.1905794805218 bound=1476.0731037312644 ref=1745.1238129999999 | 
 neos-911970  work limit reached rows=107 cols=888 shape=ok iters=694847 work=10000013788 nodes=3040 cuts=728 heur=5 inc=54.959999999997386 bound=52.879018648981791 ref=54.759999999999998 | 
@@ -21,11 +21,11 @@ graphdraw-domain work limit reached rows=865 cols=254 shape=ok iters=1162908 wor
 exp-1-500-5-5 optimal    rows=550 cols=990 shape=ok iters=32278 work=510263387 nodes=61 cuts=2181 heur=2 first=1 obj=65887 ref=65887[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=693e4edeebe1429a basis=85376030358b28d7
 tr12-30      work limit reached rows=750 cols=1080 shape=ok iters=420731 work=10000021773 nodes=53850 cuts=2089 heur=5 inc=130637.99999999981 bound=130275.14062092618 ref=130595.9999999999 | 
 neos-3381206-awhea optimal    rows=479 cols=2375 shape=ok iters=16377 work=531313071 nodes=1 cuts=3178 heur=1 first=1 obj=453 ref=453[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=c47ba92fc818aea3 basis=8207123a0ee33138
-ic97_potential work limit reached rows=1046 cols=728 shape=ok iters=422323 work=10000051343 nodes=25394 cuts=541 heur=0 inc=none bound=3869 ref=3941.9999309022501 | 
+ic97_potential work limit reached rows=1046 cols=728 shape=ok iters=501759 work=10000056565 nodes=22102 cuts=490 heur=0 inc=none bound=3869 ref=3941.9999309022501 | 
 neos-3627168-kasai work limit reached rows=1655 cols=1462 shape=ok iters=308394 work=10000028185 nodes=1586 cuts=2283 heur=6 inc=1005884.04 bound=960248.4631193789 ref=988585.61999999976 | 
 binkar10_1   optimal    rows=1026 cols=2298 shape=ok iters=239603 work=5156578032 nodes=7162 cuts=20244 heur=5 first=1 obj=6742.2000239999998 ref=6742.1998835000004[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=5952269967a75bd7 basis=04261607236779ea
-csched008    work limit reached rows=351 cols=1536 shape=ok iters=169077 work=10000057202 nodes=142 cuts=358 heur=1 inc=175 bound=171 ref=173 | 
-csched007    work limit reached rows=351 cols=1758 shape=ok iters=384357 work=10000057460 nodes=6287 cuts=301 heur=3 inc=398 bound=305 ref=350.99999999999551 | 
+csched008    work limit reached rows=351 cols=1536 shape=ok iters=173823 work=10000053525 nodes=157 cuts=410 heur=1 inc=175 bound=171 ref=173 | 
+csched007    work limit reached rows=351 cols=1758 shape=ok iters=395719 work=10000053087 nodes=6832 cuts=350 heur=5 inc=389 bound=306 ref=350.99999999999551 | 
 beasleyC3    work limit reached rows=1750 cols=2500 shape=ok iters=353132 work=10000064352 nodes=8682 cuts=4437 heur=9 inc=824 bound=743 ref=753.9999999999128 | 
 p200x1188c   optimal    rows=1388 cols=2376 shape=ok iters=42129 work=2210918144 nodes=50 cuts=288 heur=1 first=1 obj=15078 ref=15078[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=4627a65b7fb548df basis=eb83eb29a3f324a7
 

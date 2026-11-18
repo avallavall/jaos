@@ -1,0 +1,27 @@
+# assign1-5-8 at 1e10 work units under prototype.patch (JAOS_GISL unset), b53a1ffd.
+# JAOS_IMPL bits: 1 Gomory (root and nodes), 2 the root's other separators, 4 node MIR and its rows.
+# "last" is the last progress line's open bound, before the objective step rounds it.
+arm                          status      nodes  bound  last     at 20000  at 30000  root
+impl0 root                   node_limit      1  186    -        -         -         185.25800492598 (118 cuts)
+impl1 root                   node_limit      1  190    -        -         -         189.79891169677489 (152 cuts)
+impl2 root                   node_limit      1  186    -        -         -         185.25800492598 (118 cuts)
+impl4 root                   node_limit      1  186    -        -         -         185.25800492598 (118 cuts)
+impl5 root                   node_limit      1  190    -        -         -         189.79891169677489 (152 cuts)
+impl7 root                   node_limit      1  190    -        -         -         189.79891169677489 (152 cuts)
+impl0 (b53a1ffd)             work_limit  50359  196    195.904  194.508   195.146
+impl1                        work_limit  37202  197    196.841  196.164   196.600
+impl2                        work_limit  47942  196
+impl4                        work_limit  49299  197    196.058  194.501   195.176
+impl5                        work_limit  28555  197    196.959  196.571
+impl7                        work_limit  32403  197
+impl0 --no-orbital           work_limit  14552  193    192.109
+impl1 --no-orbital           work_limit   6363  194    193.960
+impl0 --node-select bound    work_limit  18703  197    196.755
+impl1 --node-select bound    work_limit  16911  198    197.442
+impl5 --node-select bound    work_limit  16690  198    197.509
+impl1 reliability 8          work_limit  36448  197    196.821  196.183   196.608
+impl1 --cut-depth 10         work_limit  22980  197    196.836  196.712
+impl1 --cut-rounds 5         work_limit  33602  198    197.774  197.104   197.630   191.92331640596049
+zint.mps impl0               work_limit  31110  197    196.707  196.236   196.665   189.79891169677489
+sparse.mps impl0             work_limit  66931  197    196.903  194.880   195.508   185.25800492598043
+sparse.mps impl1             work_limit  58857  198    197.858  196.346             189.79891169677649

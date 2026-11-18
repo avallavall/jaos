@@ -1,0 +1,30 @@
+# assign1-5-8.mps, SCIP 10.0, one thread, bound at 50,000 nodes unless the line says
+default                  nodelimit  nodes    50000 bound 199.0457 primal 212.0000 lpiter    909199 time 53.2
+no-implint               nodelimit  nodes    50000 bound 191.3620 primal 212.0000 lpiter    751224 time 41.2
+no-symmetry              nodelimit  nodes    50000 bound 192.9740 primal 212.0000 lpiter    875194 time 60.8
+no-implint-no-symmetry   nodelimit  nodes    50000 bound 191.2519 primal 212.0000 lpiter    776494 time 59.7
+sym-polyhedral           nodelimit  nodes    50000 bound 199.0754 primal 212.0000 lpiter    952226 time 66.8
+sym-orbital              nodelimit  nodes    50000 bound 198.6777 primal 212.0000 lpiter    961252 time 52.4
+sym-sst                  nodelimit  nodes    50000 bound 193.2666 primal 212.0000 lpiter   1068776 time 62.2
+no-orbitopes             nodelimit  nodes    50000 bound 199.0457 primal 212.0000 lpiter    909199 time 48.5
+no-dynamic-prop          nodelimit  nodes    50000 bound 194.3509 primal 212.0000 lpiter    785710 time 37.2
+no-node-sepa             nodelimit  nodes    50000 bound 196.7861 primal 212.0000 lpiter    552263 time 23.0
+no-conflict              nodelimit  nodes    50000 bound 199.4197 primal 212.0000 lpiter    776408 time 53.2
+no-propagation           nodelimit  nodes    50000 bound 192.5125 primal 212.0000 lpiter   1226083 time 52.6
+pscost-branching         nodelimit  nodes    50000 bound 194.8024 primal 212.0000 lpiter    659882 time 41.8
+bfs                      nodelimit  nodes    50000 bound 202.8389 primal 212.0000 lpiter   1957222 time 99.1
+no-implint+objlim211.5       nodelimit  nodes    50000 bound 191.4757 primal 211.5000 lpiter    813336 time 69.2
+default+objlim211.5          nodelimit  nodes    50000 bound 199.9182 primal 211.5000 lpiter    830911 time 65.8
+no-implint-no-symmetry+objlim211.5 nodelimit  nodes    50000 bound 191.6634 primal 211.5000 lpiter    738549 time 72.0
+no-implint-no-node-sepa      nodelimit  nodes    50000 bound 191.6820 primal 212.0000 lpiter    595331 time 33.6
+no-gomory                    nodelimit  nodes    50000 bound 196.9953 primal 212.0000 lpiter    612550 time 33.9
+no-cmir                      nodelimit  nodes    50000 bound 198.9797 primal 212.0000 lpiter    926236 time 61.7
+no-zerohalf                  nodelimit  nodes    50000 bound 198.2332 primal 212.0000 lpiter    745134 time 64.7
+no-impliedbounds             nodelimit  nodes    50000 bound 199.0457 primal 212.0000 lpiter    909199 time 67.9
+no-pseudoobj                 nodelimit  nodes    50000 bound 199.7232 primal 212.0000 lpiter    894294 time 68.4
+no-redcost                   nodelimit  nodes    50000 bound 199.3825 primal 212.0000 lpiter    924184 time 55.2
+zint.mps default                      nodelimit  nodes    50000 bound 202.0335 primal 212.0000 lpiter   1065368 time 54.5
+zint.mps no-implint                   nodelimit  nodes    50000 bound 202.5904 primal 212.0000 lpiter   1173025 time 69.4
+zint.mps binary-first     nodelimit  nodes    50000 bound 201.2532 primal 212.0000 lpiter    941704 time 74.4
+zint.mps general-first    nodelimit  nodes    50000 bound 197.0000 primal 214.0000 lpiter   1028903 time 99.7
+zint.mps 20,000 nodes: default                      nodelimit  nodes    20000 bound 200.9365 primal 212.0000 lpiter    514154 time 45.6

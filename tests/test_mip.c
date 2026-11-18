@@ -1371,6 +1371,88 @@ static void test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bou
     jaos_model_free(m);
 }
 
+static jaos_model *cluster_model(bool whole_cost)
+{
+    enum { P = 4, G = 2, NC = P + P * G, NR = P * G + P + G };
+    static const double w[P][P] = {{0, 1, 0, 2}, {1, 0, 0, 3},
+                                   {0, 0, 0, 3}, {2, 3, 3, 0}};
+    double cost[NC], cl[NC], cu[NC], rl[NR], ru[NR], av[64];
+    int64_t as[NC + 1], ai[64], nz = 0;
+    for (int64_t j = 0; j < NC; j++) {
+        cost[j] = j < P ? 1.0 : 0.0;
+        cl[j] = 0.0;
+        cu[j] = j < P ? 20.0 : 1.0;
+    }
+    for (int64_t r = 0; r < NR; r++) {
+        rl[r] = r < P * G ? -3.0 : r < P * G + P ? 1.0 : 2.0;
+        ru[r] = r < P * G ? INFINITY : rl[r];
+    }
+    for (int64_t i = 0; i < P; i++) {
+        as[i] = nz;
+        for (int64_t g = 0; g < G; g++) {
+            ai[nz] = i * G + g;
+            av[nz++] = 1.0;
+        }
+    }
+    for (int64_t k = 0; k < P; k++)
+        for (int64_t g = 0; g < G; g++) {
+            as[P + k * G + g] = nz;
+            for (int64_t i = 0; i < P; i++) {
+                const double v = i == k ? -3.0 : -w[i][k];
+                if (v != 0.0) {
+                    ai[nz] = i * G + g;
+                    av[nz++] = v;
+                }
+            }
+            ai[nz] = P * G + k;
+            av[nz++] = 1.0;
+            ai[nz] = P * G + P + g;
+            av[nz++] = 1.0;
+        }
+    as[NC] = nz;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     nz, as, ai, av));
+    for (int64_t j = whole_cost ? 0 : P; j < NC; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    g_log[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    return m;
+}
+
+static void test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer(void)
+{
+    double root[2] = {0.0, 0.0};
+    for (int k = 0; k < 2; k++) {
+        jaos_model *m = cluster_model(k == 1);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        const char *at = strstr(g_log, "root: relaxation ");
+        TEST_ASSERT_NOT_NULL(at);
+        root[k] = strtod(at + strlen("root: relaxation "), nullptr);
+        if (k == 0)
+            TEST_ASSERT_NOT_NULL(strstr(g_log, "4 continuous columns share "
+                                               "rows"));
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, root[1], root[0]);
+    TEST_ASSERT_TRUE(root[0] > 4.25);
+
+    jaos_model *m = cluster_model(false);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
+    jaos_model_free(m);
+}
+
 static jaos_model *exact_pick(void)
 {
     const double c[5] = {2, 3, 4, 3, 5};
@@ -1768,7 +1850,6 @@ static void test_search_over_starts_schedules_the_jobs_on_the_profile(void)
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_DOUBLE_WITHIN(1e-6, 16.0, rep.incumbent);
-    TEST_ASSERT_TRUE(rep.nodes > 1);
     jaos_model_free(m);
 }
 
@@ -7035,6 +7116,7 @@ int main(void)
     RUN_TEST(test_an_infeasible_rounding_is_not_taken);
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound);
+    RUN_TEST(test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer);
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);

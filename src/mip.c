@@ -976,7 +976,8 @@ static int64_t ui_find(int64_t *p, int64_t a)
     return a;
 }
 
-static int64_t integral_continuous(const jaos_model *m, int64_t *spent)
+static int64_t integral_continuous(const jaos_model *m, int64_t *spent,
+                                   bool *mark)
 {
     const int64_t nc = m->num_col, nr = m->num_row;
     bool costed = false;
@@ -1070,18 +1071,20 @@ static int64_t integral_continuous(const jaos_model *m, int64_t *spent)
             }
         }
     }
+    for (int64_t j = 0; mark != nullptr && j < nc && out > 0; j++)
+        mark[j] = !m->col_integer[j] && hot[ui_find(par, j)];
 done:
     free(par); free(first); free(beta); free(pos); free(neg); free(hot);
     return out;
 }
 
 static objgrid objective_grid(const jaos_model *m, double sigma,
-                              int64_t *spent)
+                              int64_t *spent, bool *mark)
 {
     objgrid g = {0.0, 0.0, 0};
     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
         return g;
-    const int64_t implied = integral_continuous(m, spent);
+    const int64_t implied = integral_continuous(m, spent, mark);
     if (implied < 0)
         return g;
     int64_t lcm = 1;
@@ -1882,7 +1885,8 @@ static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
     return 1;
 }
 
-static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+static int64_t gomory_round(jaos_model *lp, const bool *integer,
+                            const bool *row_whole, int64_t whole_rows,
                             const double *x, cutbuf *cb, double *row,
                             double *cut, int64_t *work)
 {
@@ -1901,7 +1905,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
     }
     int64_t added = 0;
     for (int64_t j = 0; j < nc; j++) {
-        if (!m->col_integer[j])
+        if (!integer[j])
             continue;
         const int64_t p = jm_tableau_position(tb, j);
         if (p < 0)
@@ -1943,8 +1947,11 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
                 ok = false;
                 break;
             }
-            const bool integral = structural && m->col_integer[v] &&
-                                  floor(shift) == shift;
+            const bool integral =
+                (structural ? integer[v]
+                            : row_whole != nullptr && i < whole_rows &&
+                                  row_whole[i]) &&
+                floor(shift) == shift;
             double g;
             if (integral) {
                 const double f = ap - floor(ap);
@@ -8876,7 +8883,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
                                                                       : 1.0;
     int64_t og_work = 0;
-    const objgrid og = objective_grid(m, sigma, &og_work);
+    bool *implied = jm_calloc_array(nc > 0 ? nc : 1, sizeof *implied);
+    const objgrid og = objective_grid(m, sigma, &og_work, implied);
+    bool *gom_int = nullptr, *gom_row = nullptr;
+    const bool *gint = m->col_integer;
     const bool net = !quadratic && network_shape(m);
     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
                                                      : MIP_CUT_ROUNDS;
@@ -9177,9 +9187,30 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         ilo == nullptr ||
         ihi == nullptr || pc_sum == nullptr || pc_n == nullptr ||
         cand == nullptr || pcs == nullptr || fcol == nullptr ||
-        flo == nullptr || fhi == nullptr ||
+        flo == nullptr || fhi == nullptr || implied == nullptr ||
         !spool_init(&sp, pool_size, nc, m->col_integer))
         goto done;
+    if (og.implied > 0) {
+        gom_int = jm_alloc_array(nc > 0 ? nc : 1, sizeof *gom_int);
+        gom_row = jm_calloc_array(nr > 0 ? nr : 1, sizeof *gom_row);
+        if (gom_int == nullptr || gom_row == nullptr ||
+            jm_model_ensure_rowwise(m) != JAOS_OK)
+            goto done;
+        for (int64_t j = 0; j < nc; j++)
+            gom_int[j] = m->col_integer[j] || implied[j];
+        for (int64_t i = 0; i < nr; i++) {
+            bool whole = true, held = false;
+            for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1] && whole;
+                 k++) {
+                const int64_t j = m->ar_index[k];
+                whole = gom_int[j] && m->ar_value[k] == floor(m->ar_value[k]);
+                held = held || implied[j];
+            }
+            gom_row[i] = whole && held;
+        }
+        work += m->num_nz + nc + nr;
+        gint = gom_int;
+    }
 
     for (int64_t j = 0; j < nc; j++) {
         ilo[j] = m->col_integer[j] ? ceil(m->col_lower[j]) : m->col_lower[j];
@@ -9257,7 +9288,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                    "at an optimum, since those rows hold them alone or as "
                    "differences with whole sides; the objective is a "
                    "multiple of %.17g from %.17g, so a bound rounds up to "
-                   "the next one",
+                   "the next one, and the Gomory cuts read those columns "
+                   "as integer, and the slack of a row they leave all "
+                   "integer with whole coefficients",
                    (long long)og.implied, og.step, sigma * og.off);
         if (net)
             jm_log(m, JAOS_LOG_SUMMARY,
@@ -9985,7 +10018,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     row_cap = nc + lp->num_row + 1;
                 }
                 if (r < rounds) {
-                    got = gomory_round(lp, m, x, &cb, row, cut, &work);
+                    got = gomory_round(lp, gint, gom_row, nr, x, &cb, row,
+                                       cut, &work);
                     if (got < 0)
                         goto done;
                 }
@@ -10916,7 +10950,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 goto done;
             cb.n = cb.nnz = 0;
             int64_t got = gomory_here
-                ? gomory_round(lp, m, x, &cb, row, cut, &work) : 0;
+                ? gomory_round(lp, gint, gom_row, nr, x, &cb, row, cut, &work)
+                : 0;
             if (got < 0)
                 goto done;
             const double key_before = key;
@@ -11825,6 +11860,9 @@ done:
     free(mu);
     free(mbest);
     free(mir_rows);
+    free(implied);
+    free(gom_int);
+    free(gom_row);
     free(mdelta);
     free(prnd);
     free(pprev);

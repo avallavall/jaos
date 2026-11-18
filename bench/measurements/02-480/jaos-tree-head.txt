@@ -1,0 +1,14 @@
+symmetry: 5 generators, 18 orbits of more than one column, the largest of 4
+root: relaxation 185.25800492598 after 118 cuts, 4 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+symmetry: the root's search ran out, and again before the first branch: 12 generators, 29 orbits of more than one column, the largest of 16
+node 20000: 6142 open, bound 194.50821572148044, incumbent yes
+node 30000: 9096 open, bound 195.14641695511241, incumbent yes
+node 40000: 11852 open, bound 195.57479161975556, incumbent yes
+branch and bound work: node relaxations 82.8%, cuts 0.1%, heuristics 14.1%, propagation, probing and conflicts 0.5%, strong branching 2.0%, the rest 0.4%
+status work_limit
+work_units 10000010407
+nodes 50359
+symmetry_generators 12
+symmetry_orbits 29
+bound 196
+incumbent 212

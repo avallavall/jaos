@@ -129,29 +129,38 @@ first:
   -4805.67. Verify with `gen-ip002` holding its optimum and closing inside
   1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
-  (`bench/measurements/02-477/`). HiGHS closes `neos5` in 206,031 nodes
-  and SCIP has not after 2.48M. A node relaxation took 34 iterations
-  against HiGHS's 12.6: its steepest-edge weights started at 1 and
-  restarted at 13.7 of its pivots, so it priced by the largest
-  infeasibility; SCIP under partial pricing takes 35.8. Below the root the
-  dual now prices by Devex (`bench/measurements/02-479/`): 18 iterations
-  and 8.6e4 work units a node against 3.1e5, 116,376 nodes and bound 14.25
-  at 1e10 against 32,557 and 14. Closing in HiGHS's node count needs 4.9e4
-  a node. Of the node work, 63% is in up children (`x_j = 1` on its
-  covering rows) solved away from their parent, 34 iterations each; with
-  node presolve kept on every node it reaches 150,788 nodes, but MIPLIB 3
-  reads 1.225x (`node-presolve-always`). Neither closes `assign1-5-8` in
-  600 s, HiGHS at 200.0 after 427,093 nodes and SCIP at 205.0 after 1.12M;
-  without symmetry SCIP's bound at 20,000 nodes falls from 197.1 to 191.6.
-  JAOS's search ran out before it found the exchange of the four groups; a
-  second search before the first branch finds it, and the objective step
-  takes the 26 cost columns as whole: 192.79 to 196 at 1e10, 198 with
-  Devex at the nodes. Next for `assign1-5-8`: those implied integers in
-  the cuts too (declared integer, its root reads 189.80 against 185.26);
-  for `neos5`, the up children's relaxations, and a node presolve rule
-  read per node, since `MIP_NODE_PRESOLVE_ITERS` was set on iteration
-  counts of the old pricing. Verify at 1e10 on both and with
-  `make miplib J=2`.
+  (`bench/measurements/02-477/`, `02-479/`, `02-480/`). HiGHS closes
+  `neos5` in 206,031 nodes and SCIP has not after 2.48M. A node
+  relaxation took 34 iterations against HiGHS's 12.6: its steepest-edge
+  weights started at 1 and restarted at 13.7 of its pivots, so it priced
+  by the largest infeasibility; SCIP under partial pricing takes 35.8.
+  Below the root the dual now prices by Devex (`bench/measurements/02-479/`):
+  18 iterations and 8.6e4 work units a node against 3.1e5, 116,376 nodes
+  and bound 14.25 at 1e10 against 32,557 and 14. Closing in HiGHS's node
+  count needs 4.9e4 a node. Of the node work, 63% is in up children
+  (`x_j = 1` on its covering rows) solved away from their parent, 34
+  iterations each; with node presolve kept on every node it reaches
+  150,788 nodes, but MIPLIB 3 reads 1.225x (`node-presolve-always`).
+  Neither HiGHS nor SCIP closes `assign1-5-8` in 600 s (200.0 and 205.0).
+  Its gap is the tree's: the LP reads 183.36, the products of its columns
+  with the triangle rows 184.53, its 26 cost columns alone made integer
+  193, the optimum 212. A second symmetry search before the first branch
+  finds the exchange of the four groups, and the objective step takes the
+  26 cost columns as whole (02-477); the Gomory rounds now read those
+  columns, and the slacks of their rows, as integer (02-480): the root
+  goes from 185.26 to 189.80 and the bound at 1e10 from 195.9–196.3 to
+  197.6–198.1 over five null readings, some 0.6 under SCIP's at the same
+  nodes. JAOS's bound gains 0.9 a doubling of the nodes (200.25 at
+  500,000), SCIP's 1.3; past 211 takes about 2e9 nodes at JAOS's rate and
+  2.5e7 at SCIP's, against 40,000 at 1e10. Of SCIP's 199.05 at 50,000
+  nodes symmetry is 6.1, reliability branching 4.2 and node cuts 2.3.
+  Next for `assign1-5-8`: integral slacks on the all-integer equality rows
+  with Gomory rounds past the first, 198.7–199.0 at 1e10, in a form that
+  keeps `bell5`'s tree (`gomory-integral-slacks`, `gomory-rounds-implied`);
+  then reliability branching's probes. Next for `neos5`: the up children's
+  relaxations, and a node presolve rule read per node, since
+  `MIP_NODE_PRESOLVE_ITERS` was set on iteration counts of the old
+  pricing. Verify at 1e10 on both and with `make miplib J=2`.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

@@ -328,7 +328,9 @@ its solve as any solve. Symmetry detection (`src/symmetry.c`) searches
 under a cap and bills what it spent of it; a search that ran out at the
 root searches again under a larger cap before the first branch, and bills
 that too. The objective step's reading of the rows over a costed
-continuous column bills one unit per entry it reads. Under `--tree-batch N` above 1,
+continuous column bills one unit per entry it reads, and the scan for the
+rows its columns leave all integer, read by the Gomory rounds, bills
+`nnz + nc + nr` once. Under `--tree-batch N` above 1,
 each node of a round is solved on its own copy of the tree's LP with
 `(work_limit - work) / n` of the budget, and its work is added. The tree
 then solves each node again from the round's basis, and that solve is

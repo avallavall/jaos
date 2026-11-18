@@ -1,0 +1,3 @@
+before     solved 9 incumbents 29 primal 5.4067 dual 6.3032 sum 11.7099
+impl       solved 9 incumbents 29 primal 4.4067 dual 6.2985 sum 10.7051
+land       solved 9 incumbents 29 primal 5.4067 dual 6.2880 sum 11.6947

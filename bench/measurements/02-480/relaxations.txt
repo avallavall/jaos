@@ -1,0 +1,6 @@
+# HiGHS 1.15.1 on the relaxations rlt.py writes (interior point, no crossover), and on zonly.py's model
+lp Objective value     :  1.8336255498e+02
+same Objective value     :  1.8392764185e+02
+full Objective value     :  1.8428838646e+02
+tri Objective value     :  1.8453413214e+02
+zonly  Nodes | B&B Tree | Objective Bounds | Dynamic Constraints | Work   Primal bound 193  Dual bound 193  Nodes 1 

@@ -744,7 +744,14 @@ settings of this call and of `jaos_set_mip_dive_backtrack` hold instead.
 `jaos_status jaos_set_mip_cut_rounds(jaos_model *m, int64_t rounds)`\
 Sets the rounds of Gomory mixed-integer cuts at the root. Each round adds
 one cut per fractional integer column of the relaxation's basis, and the
-cuts stay for the whole tree. The default is 1, and 0 turns them off.
+cuts stay for the whole tree. The default is 1, and 0 turns them off. A
+continuous column that the objective step finds whole at an optimum (its
+rows hold the continuous columns as a network's transpose, with whole
+sides and bounds, `MIP_OBJ_DENOM` in `docs/tolerances.md`) counts as
+integer in these cuts and in the nodes' rounds, and so does the slack of a
+model row that holds such a column and otherwise only integer columns,
+with whole coefficients. The cuts may then cut off points where that
+column is fractional, never every optimum.
 
 **`jaos_set_mip_cut_depth`**\
 `jaos_status jaos_set_mip_cut_depth(jaos_model *m, int64_t depth)`\

@@ -1,0 +1,194 @@
+diff --git a/src/mip.c b/src/mip.c
+index 75df8e57..ffa4df42 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -976,7 +976,8 @@ static int64_t ui_find(int64_t *p, int64_t a)
+     return a;
+ }
+ 
+-static int64_t integral_continuous(const jaos_model *m, int64_t *spent)
++static int64_t integral_continuous(const jaos_model *m, int64_t *spent,
++                                   bool *mark)
+ {
+     const int64_t nc = m->num_col, nr = m->num_row;
+     bool costed = false;
+@@ -1070,18 +1071,20 @@ static int64_t integral_continuous(const jaos_model *m, int64_t *spent)
+             }
+         }
+     }
++    for (int64_t j = 0; mark != nullptr && j < nc && out > 0; j++)
++        mark[j] = !m->col_integer[j] && hot[ui_find(par, j)];
+ done:
+     free(par); free(first); free(beta); free(pos); free(neg); free(hot);
+     return out;
+ }
+ 
+ static objgrid objective_grid(const jaos_model *m, double sigma,
+-                              int64_t *spent)
++                              int64_t *spent, bool *mark)
+ {
+     objgrid g = {0.0, 0.0, 0};
+     if (jm_model_has_quadratic(m) || m->col_cost == nullptr)
+         return g;
+-    const int64_t implied = integral_continuous(m, spent);
++    const int64_t implied = integral_continuous(m, spent, mark);
+     if (implied < 0)
+         return g;
+     int64_t lcm = 1;
+@@ -1881,6 +1884,7 @@ static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
+     return 1;
+ }
+ 
++static const bool *g_int_real;
+ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+                             const double *x, cutbuf *cb, double *row,
+                             double *cut, int64_t *work)
+@@ -1899,6 +1903,26 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+         }
+     }
+     int64_t added = 0;
++    const int gisl = getenv("JAOS_GISL") != nullptr ? atoi(getenv("JAOS_GISL")) : 0;
++    bool *rint = calloc((size_t)(nr > 0 ? nr : 1), sizeof *rint);
++    if (rint == nullptr || jm_model_ensure_rowwise(lp) != JAOS_OK) {
++        free(rint);
++        jm_tableau_free(tb);
++        return -1;
++    }
++    for (int64_t i = 0; gisl != 0 && i < nr; i++) {
++        bool in = m->row_ind_col == nullptr || i >= m->num_row ||
++                  m->row_ind_col[i] < 0;
++        bool touched = false;
++        for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && in; k++) {
++            const int64_t c = lp->ar_index[k];
++            in = m->col_integer[c] && floor(lp->ar_value[k]) == lp->ar_value[k];
++            touched = touched || (g_int_real != nullptr && !g_int_real[c]);
++        }
++        rint[i] = in && ((gisl & 2) == 0 || touched);
++    }
++    if (gisl != 0)
++        *work += lp->ar_start[nr];
+     for (int64_t j = 0; j < nc; j++) {
+         if (!m->col_integer[j])
+             continue;
+@@ -1942,7 +1966,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+                 ok = false;
+                 break;
+             }
+-            const bool integral = structural && m->col_integer[v] &&
++            const bool integral = (structural ? m->col_integer[v] : rint[i]) &&
+                                   floor(shift) == shift;
+             double g;
+             if (integral) {
+@@ -1974,6 +1998,7 @@ static int64_t gomory_round(jaos_model *lp, const jaos_model *m,
+     }
+     *work += jm_tableau_work(tb);
+     jm_tableau_free(tb);
++    free(rint);
+     return added;
+ }
+ 
+@@ -8875,7 +8900,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     const double gap_shift = m->cfg.mip_gap_rule == JAOS_GAP_RELATIVE ? 0.0
+                                                                       : 1.0;
+     int64_t og_work = 0;
+-    const objgrid og = objective_grid(m, sigma, &og_work);
++    bool *cint = calloc((size_t)(nc > 0 ? nc : 1), sizeof *cint);
++    bool *const int_real = m->col_integer;
++    g_int_real = int_real;
++    const objgrid og = objective_grid(m, sigma, &og_work, cint);
++    const char *impl_env = getenv("JAOS_IMPL");
++    const int impl_bits = impl_env != nullptr ? atoi(impl_env) : 0;
++    bool impl_any = false;
++    for (int64_t j = 0; cint != nullptr && j < nc; j++) {
++        impl_any = impl_any || cint[j];
++        cint[j] = cint[j] || int_real[j];
++    }
++    if (!impl_any || og.implied <= 0) {
++        free(cint);
++        cint = nullptr;
++    }
++#define CINT_ON(b) do { if (cint != nullptr && (impl_bits & (b))) m->col_integer = cint; } while (0)
++#define CINT_OFF() (m->col_integer = int_real)
+     const bool net = !quadratic && network_shape(m);
+     const int64_t rounds = m->cfg.mip_cut_rounds_set ? m->cfg.mip_cut_rounds
+                                                      : MIP_CUT_ROUNDS;
+@@ -9288,6 +9329,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         mir_rows = jm_calloc_array(nr > 0 ? nr : 1, sizeof *mir_rows);
+         if (mir_rows == nullptr)
+             goto done;
++        CINT_ON(4);
+         for (int64_t i = 0; i < nr; i++) {
+             bool all_int = true, step = false;
+             for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+@@ -9305,6 +9347,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 mir_nz += m->ar_start[i + 1] - m->ar_start[i];
+             }
+         }
++        CINT_OFF();
+         mir_live = mir_nrows > 0;
+     }
+ 
+@@ -9983,10 +10026,13 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     row_cap = nc + lp->num_row + 1;
+                 }
+                 if (r < rounds) {
++                    CINT_ON(1);
+                     got = gomory_round(lp, m, x, &cb, row, cut, &work);
++                    CINT_OFF();
+                     if (got < 0)
+                         goto done;
+                 }
++                CINT_ON(2);
+                 if (r < cover_rounds) {
+                     const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+                                                    items, cut, mu, cover_lift,
+@@ -10064,6 +10110,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     if (agb.n == 0)
+                         agg_live = false;
+                 }
++                CINT_OFF();
+                 if (got == 0 && agb.n == 0)
+                     break;
+                 if (net) {
+@@ -10195,6 +10242,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+         if (nodes == 1) {
+             best_bound = key;
++            if (getenv("JAOS_NULL") != nullptr)
++                work += atoll(getenv("JAOS_NULL")) * (m->num_nz + nc + nr);
+ 
+             nfixed = root_cut_drop ? nperm : lp->num_row;
+             jm_log(m, JAOS_LOG_SUMMARY,
+@@ -10913,8 +10962,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (cut == nullptr)
+                 goto done;
+             cb.n = cb.nnz = 0;
++            CINT_ON(1);
+             int64_t got = gomory_here
+                 ? gomory_round(lp, m, x, &cb, row, cut, &work) : 0;
++            CINT_OFF();
+             if (got < 0)
+                 goto done;
+             const double key_before = key;
+@@ -10930,10 +10981,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     magg = jm_alloc_array(nc > 0 ? nc : 1, sizeof *magg);
+                 if (mbest == nullptr || mdelta == nullptr || magg == nullptr)
+                     goto done;
++                CINT_ON(4);
+                 const int64_t mv = mir_round(m, lp, x, lp->col_lower,
+                                              lp->col_upper, &cb, cut, mbest,
+                                              mdelta, magg, nullptr, mir_rows,
+                                              mir_nz, &work);
++                CINT_OFF();
+                 if (mv < 0)
+                     goto done;
+                 got += mv;
+@@ -11823,6 +11876,8 @@ done:
+     free(mu);
+     free(mbest);
+     free(mir_rows);
++    m->col_integer = int_real;
++    free(cint);
+     free(mdelta);
+     free(prnd);
+     free(pprev);
