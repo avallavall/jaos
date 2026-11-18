@@ -39,10 +39,22 @@ lift, it finished only 1357 (`barrier-far-qp-switches`). A push proximal
 term that follows each column's curvature broke two
 (`push-reg-by-curvature`). Next: that refinement step in a QP walk,
 read on every QP set; then a push solve that keeps the rows exact when
-its weights span 1e-6 to 1e10, for the seven that converge. A ray test
-that weighs a ray's curvature against its slope changes the checker's
-contract and is the maintainer's decision. Verify with `netqp_read.py`
+its weights span 1e-6 to 1e10, for the seven that converge. The checker's
+ray test stays as it is: on 2026-11-18 the maintainer chose to keep its
+contract and push the solver instead. Verify with `netqp_read.py`
 on the same seeds and 02-398's `read.sh`.
+
+J34. **A work limit that the symmetry search, presolve and the root's
+separators do not read.** `neos-3402454-bohle` at `--work-limit 1e8` ends
+at 3.04e9 work units after 167 s, nearly all of it in the root's symmetry
+search; 02-494 made those steps read the time limit only, since a work
+check there also stops the sub-MIPs and strong-branching probes, which
+run under small work caps, and so moves the default records
+(`bench/measurements/02-494/`). On 2026-11-18 the maintainer chose the
+check with the records rebased. Next: the work check in those steps, the
+MIPLIB 3 and 2017 diffs read and both rebased with their targets. Verify
+with `bohle` and the 20 largest of `bench/miplib2017-bench.manifest`
+under `--work-limit 1e8`, each ending within a few percent of it.
 
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and
