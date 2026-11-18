@@ -245,3 +245,37 @@ that disagree with the manifest), its shifted mean and its peak, then F
 and his seven solvers beside the local ones, all at 300 / F s on his
 machine. The instances are read from `/mnt/c`; the whole set reads in 86
 s, so a copy on the WSL disk (`-d`) saves nothing worth having.
+
+## The reading of 2026-11-18
+
+`full/record.txt` is JAOS on all 240 at 21fdf4d3 under `--threads 1`, 5
+jobs, 16368 s, load 0.9 at the start. `full-highs/record.txt` is HiGHS on
+`factor.txt`, 942 s; builds for the eil33-2 reading below ran beside it
+(load 2.2 to 4.2 at its end), so its F is indicative. `summarise.py`:
+
+```
+solver    ran solved harness mismatch  sgm10 s  peak GB
+highs      61     58      58        0     53.5     1.08
+jaos      240     20      20        1    251.0    11.26
+machine factor 0.995 (58 instances, spread x1.56)
+
+On Mittelmann's machine at 302 s, over the 240:
+M:copt 188, M:optverse 146, M:scipco 97, M:highsp 93, M:fscip 90,
+M:highs 82, M:scip 73, here:jaos 20
+```
+
+- **One wrong answer.** `eil33-2` ended optimal at 1295.81 in 3 nodes,
+  its optimum 934.008. The LP presolve called two of its `= 1` rows
+  forcing at a node and fixed the column the optimum takes to 0: its test
+  widened the lower side's tolerance by the upper side's bounds, which
+  reduced-cost fixing had set near 1e14. Fixed in 02-496; `eil33-2` then
+  solves in 33 s.
+- **213 at the limit.** 96 of them are still at the root, one node, and
+  97 hold no incumbent. 18 hold the reference objective and lack the bound.
+- **6 end `numerical_error`**, five of them at the root: `leo1`, `leo2`,
+  `ns1830653`, `sp97ar`, `sp98ar` (an incumbent at node 2) and
+  `supportcase42`.
+- **Memory.** `markshare2`, `markshare_4_0` and `mas74` passed the 2.6 GB
+  cap of 5 jobs, against the 30 s sizing; alone at 13 GB they reach the
+  limit (`mas74` at 4.8 GB). The largest peak is `opm2-z10-s4`, 11.8 GB.
+- `neos859080` is infeasible, and JAOS says so in 5 s.

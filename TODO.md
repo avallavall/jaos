@@ -56,6 +56,13 @@ MIPLIB 3 and 2017 diffs read and both rebased with their targets. Verify
 with `bohle` and the 20 largest of `bench/miplib2017-bench.manifest`
 under `--work-limit 1e8`, each ending within a few percent of it.
 
+J35. **Six MIPLIB 2017 benchmark instances that end `numerical_error`.**
+`leo1`, `leo2`, `ns1830653`, `sp98ar` and `supportcase42` at the root,
+`sp97ar` at node 2 with an incumbent, all within 90 s of a 300 s limit
+(`bench/measurements/02-491/`, the reading of 2026-11-18). Next: read
+which solve fails on each and what it reports, root LP or a node's.
+Verify with 02-491's `run.sh -n` on the six.
+
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and
 cones with no interior are held (`bench/measurements/02-446/`,
@@ -75,6 +82,14 @@ every conic gate, since it moves every conic iterate. Verify with
 02-452's `read.sh`.
 
 ## Tier 3: the largest performance gaps
+
+J36. **MIP: 96 of MIPLIB 2017's 240 benchmark instances never leave the
+root in 300 s.** JAOS solves 20 of the 240 at 300 s on one thread, where
+Mittelmann's table at the same time reads serial HiGHS 82 and SCIP 73;
+97 end with no incumbent (`bench/measurements/02-491/`, the reading of
+2026-11-18). Next: split each of the 96's root into the LP, the cuts,
+the heuristics and the symmetry search with `--log detail`, and take the
+largest share first. Verify with 02-491's `run.sh` on the 96.
 
 J7. **MIP: MIPLIB 2017, 9 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
