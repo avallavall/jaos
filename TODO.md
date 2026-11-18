@@ -382,18 +382,26 @@ incumbent past node 1000 (`02-407/`). Each needs a form that pays on
 MIPLIB 3 and the 2017 set.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
-the default where a node takes a few pivots (`bench/measurements/02-290/`).
-The round size cannot follow the thread count, because the answer must not
-depend on the machine. A solve takes every core and a node's
-strong-branching probes run on them, the tree the same at every count, but
-probing is at most a tenth of the tree's work and gives no speedup a loaded
-machine can tell from noise; the node relaxations are 50% to 99% of it
-(`bench/measurements/02-492/`). Next: rounds whose lanes run the node's
-propagation and cutoff and keep their solved copy, which the tree takes in
-place of the second solve. Without the second solve, rounds of 8 would
-read about 1.03x MIPLIB 3's work (geometric mean), 0.52x to 1.61x per
-instance (02-492's `rounds.txt`). Verify with `make miplib J=2` at
-`--tree-batch 8` against the baseline, then 02-492's `speedup.sh`.
+the default where a node takes a few pivots. The round size cannot follow
+the thread count, because the answer must not depend on the machine. A
+solve takes every core for a node's strong-branching probes, but probing
+is at most a tenth of the tree's work; the node relaxations are 50% to 99%
+of it (`bench/measurements/02-492/`). Under `--tree-batch N` each node is
+solved twice, on a fresh copy without its fixings and cutoff and again in
+the tree's LP: rounds of 8 cost 1.21x MIPLIB 3's work, and without the
+second solve about 1.035x (02-492's `rounds.txt`). The design is in
+`bench/measurements/02-495/`. Next, its stage 1: one LP per round
+position, whose lane runs the node's fixings, propagation and solve with
+the cutoff at the round's starting incumbent; the tree then takes each
+node in round order on that LP, with no second solve. Strong branching,
+heuristics, cuts, conflicts and children stay in round order, and the
+default round stays 1. Verify: the default reads its records unchanged;
+at `-O mip_tree_batch=8` the records are byte-identical at 1, 2, 4 and
+12 threads; MIPLIB 3 at batch 8 on one thread reads at most 1.05x the
+baseline's work (geometric mean); and on a quiet machine 02-492's
+`speedup.sh` at `--tree-batch 8` reads at least 1.8x at 8 threads. Then
+stage 2: rounds of 8 by default where a tree's node relaxations are
+expensive, by a rule in work units.
 
 ## Tier 5: the features SPECS still lists
 
