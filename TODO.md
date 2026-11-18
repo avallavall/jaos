@@ -279,7 +279,11 @@ instances:
   - rounding: shifting, seeded randomized rounding, shift-and-propagate
     (Berthold and Hendel); ZI round is in (02-489), and runs on for good
     once it has an incumbent: `gen-ip002` ran it at 309,127 nodes for
-    two, 2.4e8 work units. Next: a stop at one incumbent per 1000 nodes;
+    two, 2.4e8 work units. Next: a stop at one incumbent per 1000 nodes,
+    and the cost on MIPLIB 3: with 02-488's sub-MIPs, ZI and 02-492's
+    probes it reads 1.037x geometric and 1.078x in total against
+    02-483's baseline, `misc06` 1.43x at the same 40 nodes, `misc07`
+    1.20x and `p0282` 1.21x;
   - diving: Farkas, conflict; the coefficient, pseudocost, guided,
     vector-length and line-search dives in the tree were refused
     (`tree-dives`, 02-490) until a dive costs less than its share or the
