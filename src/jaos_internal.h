@@ -863,12 +863,16 @@ JAOS_NODISCARD jaos_status jm_ldlt_numeric(jm_chol *c, const double *value,
 void jm_ldlt_solve(const jm_chol *c, double *b, jm_work *w);
 
 #ifndef JM_EXACT_LIMBS
-#define JM_EXACT_LIMBS 128
+#define JM_EXACT_LIMBS 4096
 #endif
 
 typedef struct {
-    uint32_t w[JM_EXACT_LIMBS];
-    int64_t  n;
+    int64_t n;
+    int64_t cap;
+    union {
+        uint32_t  in[2];
+        uint32_t *w;
+    };
 } jm_nat;
 
 typedef struct {
@@ -881,28 +885,38 @@ typedef struct {
     jm_nat    den;
 } jm_rational;
 
+void    jm_nat_free(jm_nat *a);
+void    jm_nat_swap(jm_nat *a, jm_nat *b);
+int64_t jm_nat_bytes(const jm_nat *a);
 void    jm_nat_set_zero(jm_nat *a);
 void    jm_nat_set_u64(jm_nat *a, uint64_t v);
 bool    jm_nat_is_zero(const jm_nat *a);
+bool    jm_nat_is_one(const jm_nat *a);
 int64_t jm_nat_bits(const jm_nat *a);
+int64_t jm_nat_twos(const jm_nat *a);
 int     jm_nat_cmp(const jm_nat *a, const jm_nat *b);
 
-void    jm_nat_sub(jm_nat *r, const jm_nat *a, const jm_nat *b);
-void    jm_nat_shr(jm_nat *r, const jm_nat *a, int64_t bits);
-
+JAOS_NODISCARD bool jm_nat_copy(jm_nat *r, const jm_nat *a);
 JAOS_NODISCARD bool jm_nat_add(jm_nat *r, const jm_nat *a, const jm_nat *b);
+JAOS_NODISCARD bool jm_nat_sub(jm_nat *r, const jm_nat *a, const jm_nat *b);
 JAOS_NODISCARD bool jm_nat_mul(jm_nat *r, const jm_nat *a, const jm_nat *b);
 JAOS_NODISCARD bool jm_nat_shl(jm_nat *r, const jm_nat *a, int64_t bits);
+JAOS_NODISCARD bool jm_nat_shr(jm_nat *r, const jm_nat *a, int64_t bits);
+JAOS_NODISCARD bool jm_nat_divexact(jm_nat *q, const jm_nat *a,
+                                    const jm_nat *b);
 JAOS_NODISCARD bool jm_nat_divmod(jm_nat *q, jm_nat *rem, const jm_nat *a,
                                   const jm_nat *b);
 JAOS_NODISCARD bool jm_nat_gcd(jm_nat *r, const jm_nat *a, const jm_nat *b);
 
+void    jm_bigint_free(jm_bigint *a);
+void    jm_bigint_swap(jm_bigint *a, jm_bigint *b);
 void    jm_bigint_set_zero(jm_bigint *a);
 void    jm_bigint_set_i64(jm_bigint *a, int64_t v);
 bool    jm_bigint_is_zero(const jm_bigint *a);
 int32_t jm_bigint_sign(const jm_bigint *a);
 void    jm_bigint_neg(jm_bigint *a);
 int     jm_bigint_cmp(const jm_bigint *a, const jm_bigint *b);
+JAOS_NODISCARD bool jm_bigint_copy(jm_bigint *r, const jm_bigint *a);
 JAOS_NODISCARD bool jm_bigint_add(jm_bigint *r, const jm_bigint *a,
                                   const jm_bigint *b);
 JAOS_NODISCARD bool jm_bigint_sub(jm_bigint *r, const jm_bigint *a,
@@ -916,11 +930,18 @@ JAOS_NODISCARD bool jm_bigint_shl(jm_bigint *r, const jm_bigint *a,
 JAOS_NODISCARD bool jm_bigint_divexact(jm_bigint *q, const jm_bigint *a,
                                        const jm_bigint *b);
 
+void    jm_rational_free(jm_rational *r);
+void    jm_rational_swap(jm_rational *a, jm_rational *b);
 void    jm_rational_set_zero(jm_rational *r);
 void    jm_rational_set_i64(jm_rational *r, int64_t v);
 bool    jm_rational_is_zero(const jm_rational *r);
 int32_t jm_rational_sign(const jm_rational *r);
 void    jm_rational_neg(jm_rational *r);
+void    jm_rational_free_array(jm_rational *r, int64_t n);
+JAOS_NODISCARD bool jm_rational_copy(jm_rational *r, const jm_rational *a);
+JAOS_NODISCARD bool jm_rational_from_bigint(jm_rational *r,
+                                            const jm_bigint *v);
+JAOS_NODISCARD bool jm_rational_scale2(jm_rational *r, int64_t e);
 
 int     jm_rational_cmp(const jm_rational *a, const jm_rational *c);
 
@@ -951,6 +972,7 @@ typedef struct {
     int64_t   e;
 } jm_dyadic;
 
+void    jm_dyadic_free(jm_dyadic *d);
 void    jm_dyadic_set_zero(jm_dyadic *d);
 bool    jm_dyadic_is_zero(const jm_dyadic *d);
 int32_t jm_dyadic_sign(const jm_dyadic *d);

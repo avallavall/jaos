@@ -768,7 +768,7 @@ status optimal
 proof optimal
 stage none
 bound_bits 2
-capacity_bits 4096
+capacity_bits 131072
 blocks 3
 largest_block 1
 bytes_held 0
@@ -776,9 +776,12 @@ terms 10
 ```
 
 - `proof` is `optimal`, `broken` or `refused`. `refused` means a number
-  outgrew the arithmetic's limb budget. `bound_bits` is a worst-case
-  estimate of the size the proof needs, reported only, and `capacity_bits`
-  is the size the arithmetic holds.
+  outgrew the arithmetic's limb budget, or a dense block of the basis its
+  memory or work budget (`VERIFY_BLOCK_BYTES`, `VERIFY_BLOCK_WORK`).
+  `bound_bits` is a worst-case estimate of the size the proof needs,
+  reported only, and `capacity_bits` is the size one number may grow to.
+  `bytes_held` is the most a dense block held, its table and the limbs of
+  its numbers.
 - `stage` says which check a `broken` verdict came from: `rank`, `primal`
   or `dual`. It is `none` otherwise.
 - On `broken`, `at_row` or `at_col` gives the 0-based index of the row or
@@ -795,17 +798,17 @@ exactly from the basis the solve stopped on:
 ```
 status infeasible
 certificate exact
-bound_bits 76
-capacity_bits 4096
-blocks 17
-largest_block 2
-at_row 13
-bytes_held 3168
-terms 46
+bound_bits 110
+capacity_bits 131072
+blocks 169
+largest_block 15
+at_row 173
+bytes_held 7680
+terms 1690
 ```
 
 - `certificate` is `exact` or `refused`. `refused` means a number outgrew
-  the limb budget.
+  the limb budget or a dense block its own.
 - `at_row` is the 0-based index of the row whose own logical the ray
   leaves the basis on. It is absent when a structural column holds that
   position.
@@ -861,11 +864,11 @@ $ jaos verify model.mps --basis other-solver.bas
 proof optimal
 stage none
 bound_bits 1169
-capacity_bits 4096
+capacity_bits 131072
 blocks 24
 largest_block 4
-bytes_held 10560
-terms 221
+bytes_held 768
+terms 209
 ```
 
 There is no `status` line, because nothing was solved. The verdicts and the

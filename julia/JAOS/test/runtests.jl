@@ -492,7 +492,7 @@ function test_exact_verification_and_proof_files()
     m = _lp([-1, -1], [0, 0], [3, Inf], [-Inf], [4], [0, 1, 2], [0, 0], [1, 1])
     JAOS.solve(m)
     r = JAOS.verify(m)
-    @test r.capacity_bits == 4096.0
+    @test r.capacity_bits == 131072.0
     @test r.status == 0 && r.stage == 0
     @test JAOS.exact_objective(m) == -4 // 1
     @test JAOS.exact_row_dual(m, 0) == -1 // 1

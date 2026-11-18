@@ -342,9 +342,16 @@ static void test_names_the_rank_stage_when_there_is_no_transversal(void)
 
 static void test_a_bound_past_the_limbs_no_longer_refuses_before_the_work(void)
 {
-    enum { N = 100 };
-    double cost[N], cl[N], cu[N], rl[N], ru[N], value[N];
-    int64_t start[N + 1], index[N];
+    const int64_t N = 32 * (int64_t)JM_EXACT_LIMBS / 52 + 100;
+    double *cost = malloc((size_t)N * sizeof *cost);
+    double *cl = malloc((size_t)N * sizeof *cl);
+    double *cu = malloc((size_t)N * sizeof *cu);
+    double *rl = malloc((size_t)N * sizeof *rl);
+    double *ru = malloc((size_t)N * sizeof *ru);
+    double *value = malloc((size_t)N * sizeof *value);
+    int64_t *start = malloc((size_t)(N + 1) * sizeof *start);
+    int64_t *index = malloc((size_t)N * sizeof *index);
+    TEST_ASSERT_TRUE(cost && cl && cu && rl && ru && value && start && index);
     for (int64_t j = 0; j < N; j++) {
         cost[j] = -1.0;
         cl[j] = 0.0;
@@ -370,6 +377,8 @@ static void test_a_bound_past_the_limbs_no_longer_refuses_before_the_work(void)
         "a basis whose numbers fit is refused for its bound alone");
     TEST_ASSERT_TRUE(r.terms > 0);
     jaos_model_free(m);
+    free(cost); free(cl); free(cu); free(rl); free(ru); free(value);
+    free(start); free(index);
 }
 
 static jaos_model *model_eleven(void)
@@ -880,17 +889,19 @@ static void test_a_double_reads_as_its_shortest_decimal(void)
         { 123456789.0, "123456789" },
     };
     for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
-        jm_rational r;
+        jm_rational r = {0};
         TEST_ASSERT_TRUE(jm_rational_from_double_decimal(&r, cases[k].d));
         char *s = jm_rational_decimal(&r);
         TEST_ASSERT_NOT_NULL(s);
         TEST_ASSERT_EQUAL_STRING(cases[k].want, s);
         free(s);
+        jm_rational_free(&r);
     }
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double_decimal(&r, 0.0));
     TEST_ASSERT_TRUE(jm_rational_is_zero(&r));
     TEST_ASSERT_FALSE(jm_rational_from_double_decimal(&r, INFINITY));
+    jm_rational_free(&r);
 }
 
 static jaos_model *model_tenths(void)

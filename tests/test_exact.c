@@ -35,9 +35,21 @@ static uint64_t rng_upto(uint64_t bound)
 
 static jm_nat nat_of(uint64_t v)
 {
-    jm_nat a;
+    jm_nat a = {0};
     jm_nat_set_u64(&a, v);
     return a;
+}
+
+static void nat_random(jm_nat *a, int64_t limbs)
+{
+    jm_nat_set_zero(a);
+    jm_nat chunk = {0};
+    for (int64_t k = 0; k < limbs; k++) {
+        TEST_ASSERT_TRUE(jm_nat_shl(a, a, 32));
+        jm_nat_set_u64(&chunk, (rng_next() >> 32) | (k == 0 ? 1u : 0u));
+        TEST_ASSERT_TRUE(jm_nat_add(a, a, &chunk));
+    }
+    jm_nat_free(&chunk);
 }
 
 static void test_a_natural_holds_what_a_u64_holds(void)
@@ -52,16 +64,18 @@ static void test_a_natural_holds_what_a_u64_holds(void)
         for (uint64_t v = cases[i]; v; v >>= 1)
             bits++;
         TEST_ASSERT_EQUAL_INT64(bits, jm_nat_bits(&a));
+        TEST_ASSERT_EQUAL_INT64(0, jm_nat_bytes(&a));
     }
 }
 
 static void test_add_sub_mul_agree_with_u64_where_u64_is_exact(void)
 {
     rng_reset();
+    jm_nat r = {0};
     for (int k = 0; k < 4000; k++) {
 
         const uint64_t x = rng_next() >> 32, y = rng_next() >> 32;
-        jm_nat a = nat_of(x), b = nat_of(y), r;
+        jm_nat a = nat_of(x), b = nat_of(y);
 
         TEST_ASSERT_TRUE(jm_nat_add(&r, &a, &b));
         jm_nat want = nat_of(x + y);
@@ -73,13 +87,14 @@ static void test_add_sub_mul_agree_with_u64_where_u64_is_exact(void)
 
         const uint64_t hi = x > y ? x : y, lo = x > y ? y : x;
         jm_nat ha = nat_of(hi), la = nat_of(lo);
-        jm_nat_sub(&r, &ha, &la);
+        TEST_ASSERT_TRUE(jm_nat_sub(&r, &ha, &la));
         want = nat_of(hi - lo);
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&r, &want));
 
         TEST_ASSERT_EQUAL_INT(x < y ? -1 : x > y ? 1 : 0,
                               jm_nat_cmp(&a, &b));
     }
+    jm_nat_free(&r);
 }
 
 static void test_divmod_agrees_with_u64(void)
@@ -87,17 +102,89 @@ static void test_divmod_agrees_with_u64(void)
     rng_reset();
     for (int k = 0; k < 2000; k++) {
         const uint64_t x = rng_next(), y = rng_upto(0xffffffffull);
-        jm_nat a = nat_of(x), b = nat_of(y), q, rem;
+        jm_nat a = nat_of(x), b = nat_of(y), q = {0}, rem = {0};
         TEST_ASSERT_TRUE(jm_nat_divmod(&q, &rem, &a, &b));
         jm_nat wq = nat_of(x / y), wr = nat_of(x % y);
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&q, &wq));
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&rem, &wr));
+
+        const uint64_t z = rng_upto(UINT64_MAX - 1) | 0x100000000ull;
+        jm_nat c = nat_of(z);
+        TEST_ASSERT_TRUE(jm_nat_divmod(&q, &rem, &a, &c));
+        wq = nat_of(x / z);
+        wr = nat_of(x % z);
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&q, &wq));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&rem, &wr));
+        jm_nat_free(&q);
+        jm_nat_free(&rem);
     }
+}
+
+static void test_long_division_rebuilds_its_dividend(void)
+{
+    rng_reset();
+    jm_nat a = {0}, b = {0}, q = {0}, rem = {0}, back = {0};
+    for (int k = 0; k < 400; k++) {
+        const int64_t bl = (int64_t)(rng_next() % 40) + 1;
+        const int64_t al = bl + (int64_t)(rng_next() % 40);
+        nat_random(&a, al);
+        nat_random(&b, bl);
+        if (k % 3 == 0)
+            TEST_ASSERT_TRUE(jm_nat_shl(&b, &b, (int64_t)(rng_next() % 31)));
+        TEST_ASSERT_TRUE(jm_nat_divmod(&q, &rem, &a, &b));
+        TEST_ASSERT_EQUAL_INT(-1, jm_nat_cmp(&rem, &b));
+        TEST_ASSERT_TRUE(jm_nat_mul(&back, &q, &b));
+        TEST_ASSERT_TRUE(jm_nat_add(&back, &back, &rem));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&back, &a));
+
+        TEST_ASSERT_TRUE(jm_nat_divmod(&a, &rem, &a, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&a, &q));
+    }
+    jm_nat_free(&a);
+    jm_nat_free(&b);
+    jm_nat_free(&q);
+    jm_nat_free(&rem);
+    jm_nat_free(&back);
+}
+
+static void test_an_exact_quotient_comes_back_and_a_remainder_is_refused(void)
+{
+    rng_reset();
+    jm_nat q = {0}, b = {0}, a = {0}, got = {0}, one = nat_of(1);
+    for (int k = 0; k < 400; k++) {
+        nat_random(&q, (int64_t)(rng_next() % 30) + 1);
+        nat_random(&b, (int64_t)(rng_next() % 30) + 1);
+        if (k % 2 == 0)
+            TEST_ASSERT_TRUE(jm_nat_shl(&b, &b, (int64_t)(rng_next() % 90)));
+        if (k % 5 == 0)
+            TEST_ASSERT_TRUE(jm_nat_shl(&q, &q, (int64_t)(rng_next() % 40)));
+        TEST_ASSERT_TRUE(jm_nat_mul(&a, &q, &b));
+        TEST_ASSERT_TRUE(jm_nat_divexact(&got, &a, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got, &q));
+        TEST_ASSERT_TRUE(jm_nat_divexact(&got, &a, &q));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got, &b));
+
+        TEST_ASSERT_TRUE(jm_nat_add(&a, &a, &one));
+        if (!jm_nat_is_one(&b))
+            TEST_ASSERT_FALSE(jm_nat_divexact(&got, &a, &b));
+        TEST_ASSERT_TRUE(jm_nat_sub(&a, &a, &one));
+
+        TEST_ASSERT_TRUE(jm_nat_divexact(&a, &a, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&a, &q));
+    }
+    jm_nat_set_zero(&a);
+    TEST_ASSERT_TRUE(jm_nat_divexact(&got, &a, &b));
+    TEST_ASSERT_TRUE(jm_nat_is_zero(&got));
+    TEST_ASSERT_FALSE(jm_nat_divexact(&got, &b, &a));
+    jm_nat_free(&q);
+    jm_nat_free(&b);
+    jm_nat_free(&a);
+    jm_nat_free(&got);
 }
 
 static void test_divmod_refuses_a_zero_divisor(void)
 {
-    jm_nat a = nat_of(7), z = nat_of(0), q, rem;
+    jm_nat a = nat_of(7), z = nat_of(0), q = {0}, rem = {0};
     TEST_ASSERT_FALSE(jm_nat_divmod(&q, &rem, &a, &z));
 }
 
@@ -106,7 +193,7 @@ static void test_gcd_agrees_with_euclid_in_u64(void)
     rng_reset();
     for (int k = 0; k < 2000; k++) {
         uint64_t x = rng_upto(0xffffffffull), y = rng_upto(0xffffffffull);
-        jm_nat a = nat_of(x), b = nat_of(y), g;
+        jm_nat a = nat_of(x), b = nat_of(y), g = {0};
         TEST_ASSERT_TRUE(jm_nat_gcd(&g, &a, &b));
         while (y) {
             const uint64_t t = x % y;
@@ -117,41 +204,85 @@ static void test_gcd_agrees_with_euclid_in_u64(void)
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&g, &want));
     }
 
-    jm_nat z = nat_of(0), n = nat_of(12), g;
+    jm_nat z = nat_of(0), n = nat_of(12), g = {0};
     TEST_ASSERT_TRUE(jm_nat_gcd(&g, &z, &n));
     TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&g, &n));
     TEST_ASSERT_TRUE(jm_nat_gcd(&g, &n, &z));
     TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&g, &n));
 }
 
+static void slow_gcd(jm_nat *r, const jm_nat *a, const jm_nat *b)
+{
+    jm_nat u = {0}, v = {0}, t = {0};
+    TEST_ASSERT_TRUE(jm_nat_copy(&u, a));
+    TEST_ASSERT_TRUE(jm_nat_copy(&v, b));
+    while (!jm_nat_is_zero(&v)) {
+        TEST_ASSERT_TRUE(jm_nat_divmod(nullptr, &t, &u, &v));
+        jm_nat_swap(&u, &v);
+        jm_nat_swap(&v, &t);
+    }
+    jm_nat_swap(r, &u);
+    jm_nat_free(&u);
+    jm_nat_free(&v);
+    jm_nat_free(&t);
+}
+
+static void test_a_wide_gcd_agrees_with_euclid_by_division(void)
+{
+    rng_reset();
+    jm_nat a = {0}, b = {0}, c = {0}, g = {0}, want = {0};
+    for (int k = 0; k < 300; k++) {
+        nat_random(&c, (int64_t)(rng_next() % 12) + 1);
+        nat_random(&a, (int64_t)(rng_next() % 30) + 1);
+        nat_random(&b, (int64_t)(rng_next() % 30) + 1);
+        TEST_ASSERT_TRUE(jm_nat_mul(&a, &a, &c));
+        TEST_ASSERT_TRUE(jm_nat_mul(&b, &b, &c));
+        if (k % 4 == 0)
+            TEST_ASSERT_TRUE(jm_nat_shl(&a, &a, (int64_t)(rng_next() % 70)));
+        TEST_ASSERT_TRUE(jm_nat_gcd(&g, &a, &b));
+        slow_gcd(&want, &a, &b);
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&g, &want));
+        TEST_ASSERT_TRUE(jm_nat_gcd(&a, &a, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&a, &want));
+    }
+    jm_nat_free(&a);
+    jm_nat_free(&b);
+    jm_nat_free(&c);
+    jm_nat_free(&g);
+    jm_nat_free(&want);
+}
+
 static void test_shifting_is_multiplying_and_dividing_by_a_power_of_two(void)
 {
     rng_reset();
+    jm_nat r = {0}, two = {0}, want = {0}, back = {0};
     for (int k = 0; k < 1000; k++) {
         const uint64_t x = rng_next() >> 20;
         const int64_t s = (int64_t)(rng_next() % 40);
-        jm_nat a = nat_of(x), r;
+        jm_nat a = nat_of(x);
         TEST_ASSERT_TRUE(jm_nat_shl(&r, &a, s));
-        jm_nat two = nat_of(1);
+        jm_nat_set_u64(&two, 1);
         TEST_ASSERT_TRUE(jm_nat_shl(&two, &two, s));
-        jm_nat want;
         TEST_ASSERT_TRUE(jm_nat_mul(&want, &a, &two));
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&r, &want));
 
-        jm_nat back;
-        jm_nat_shr(&back, &r, s);
+        TEST_ASSERT_TRUE(jm_nat_shr(&back, &r, s));
         TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&back, &a));
     }
 
-    jm_nat a = nat_of(0xdeadbeefu), r;
-    jm_nat_shr(&r, &a, 64);
+    jm_nat a = nat_of(0xdeadbeefu);
+    TEST_ASSERT_TRUE(jm_nat_shr(&r, &a, 64));
     TEST_ASSERT_TRUE(jm_nat_is_zero(&r));
+    jm_nat_free(&r);
+    jm_nat_free(&two);
+    jm_nat_free(&want);
+    jm_nat_free(&back);
 }
 
 static void test_running_out_of_limbs_is_reported_and_not_wrapped(void)
 {
 
-    jm_nat a = nat_of(1), b;
+    jm_nat a = nat_of(1), b = {0};
     TEST_ASSERT_TRUE(jm_nat_shl(&a, &a, JM_EXACT_LIMBS * 32 - 1));
     TEST_ASSERT_EQUAL_INT64(JM_EXACT_LIMBS * 32, jm_nat_bits(&a));
     TEST_ASSERT_FALSE(jm_nat_shl(&b, &a, 1));
@@ -165,6 +296,132 @@ static void test_running_out_of_limbs_is_reported_and_not_wrapped(void)
     TEST_ASSERT_TRUE(jm_nat_shl(&b, &c, 1));
     TEST_ASSERT_TRUE(jm_nat_add(&b, &c, &c));
     TEST_ASSERT_TRUE(jm_nat_mul(&b, &c, &two));
+    jm_nat_free(&a);
+    jm_nat_free(&b);
+    jm_nat_free(&c);
+}
+
+static void test_storage_follows_the_size_of_the_number(void)
+{
+    jm_nat a = nat_of(UINT64_MAX);
+    TEST_ASSERT_EQUAL_INT64(0, jm_nat_bytes(&a));
+    TEST_ASSERT_TRUE(jm_nat_shl(&a, &a, 4096));
+    TEST_ASSERT_EQUAL_INT64(4160, jm_nat_bits(&a));
+    TEST_ASSERT_TRUE(jm_nat_bytes(&a) >= 4160 / 8);
+    TEST_ASSERT_TRUE(jm_nat_bytes(&a) <= 2 * (4160 / 8 + 4));
+
+    jm_nat b = {0};
+    TEST_ASSERT_TRUE(jm_nat_copy(&b, &a));
+    TEST_ASSERT_TRUE(jm_nat_shr(&a, &a, 4096));
+    jm_nat want = nat_of(UINT64_MAX);
+    TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&a, &want));
+    TEST_ASSERT_EQUAL_INT64(4160, jm_nat_bits(&b));
+
+    jm_nat_swap(&a, &b);
+    TEST_ASSERT_EQUAL_INT64(4160, jm_nat_bits(&a));
+    TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&b, &want));
+    jm_nat_free(&a);
+    jm_nat_free(&b);
+    TEST_ASSERT_TRUE(jm_nat_is_zero(&a));
+    TEST_ASSERT_EQUAL_INT64(0, jm_nat_bytes(&a));
+}
+
+static void test_a_result_may_be_one_of_its_operands(void)
+{
+    rng_reset();
+    jm_nat a = {0}, b = {0}, s = {0}, p = {0}, t = {0};
+    for (int k = 0; k < 200; k++) {
+        nat_random(&a, (int64_t)(rng_next() % 20) + 1);
+        nat_random(&b, (int64_t)(rng_next() % 20) + 1);
+        TEST_ASSERT_TRUE(jm_nat_add(&s, &a, &b));
+        TEST_ASSERT_TRUE(jm_nat_mul(&p, &a, &b));
+
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &a));
+        TEST_ASSERT_TRUE(jm_nat_add(&t, &t, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &s));
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &b));
+        TEST_ASSERT_TRUE(jm_nat_add(&t, &a, &t));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &s));
+
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &a));
+        TEST_ASSERT_TRUE(jm_nat_mul(&t, &t, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &p));
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &b));
+        TEST_ASSERT_TRUE(jm_nat_mul(&t, &a, &t));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &p));
+
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &s));
+        TEST_ASSERT_TRUE(jm_nat_sub(&t, &t, &b));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &a));
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &b));
+        TEST_ASSERT_TRUE(jm_nat_sub(&t, &s, &t));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &a));
+
+        TEST_ASSERT_TRUE(jm_nat_copy(&t, &a));
+        TEST_ASSERT_TRUE(jm_nat_mul(&t, &t, &t));
+        TEST_ASSERT_TRUE(jm_nat_mul(&p, &a, &a));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&t, &p));
+    }
+    jm_nat_free(&a);
+    jm_nat_free(&b);
+    jm_nat_free(&s);
+    jm_nat_free(&p);
+    jm_nat_free(&t);
+}
+
+static void slow_mul(jm_nat *r, const jm_nat *a, const jm_nat *b)
+{
+    jm_nat rest = {0}, limb = {0}, part = {0};
+    TEST_ASSERT_TRUE(jm_nat_copy(&rest, b));
+    jm_nat_set_zero(r);
+    for (int64_t k = 0; !jm_nat_is_zero(&rest); k++) {
+        TEST_ASSERT_TRUE(jm_nat_divmod(&rest, &limb, &rest,
+                                       &(jm_nat){.n = 2, .in = {0, 1}}));
+        TEST_ASSERT_TRUE(jm_nat_mul(&part, a, &limb));
+        TEST_ASSERT_TRUE(jm_nat_shl(&part, &part, 32 * k));
+        TEST_ASSERT_TRUE(jm_nat_add(r, r, &part));
+    }
+    jm_nat_free(&rest);
+    jm_nat_free(&limb);
+    jm_nat_free(&part);
+}
+
+static void test_wide_products_agree_with_limb_by_limb_products(void)
+{
+    rng_reset();
+    jm_nat a = {0}, b = {0}, p = {0}, want = {0}, q = {0}, rem = {0};
+    const int64_t sizes[][2] = {{31, 31}, {32, 32}, {33, 64}, {64, 64},
+                                {65, 33}, {100, 40}, {157, 151}, {300, 32},
+                                {256, 255}, {400, 399}, {513, 129}};
+    for (size_t s = 0; s < sizeof sizes / sizeof *sizes; s++) {
+        for (int k = 0; k < 3; k++) {
+            nat_random(&a, sizes[s][0]);
+            nat_random(&b, sizes[s][1]);
+            TEST_ASSERT_TRUE(jm_nat_mul(&p, &a, &b));
+            slow_mul(&want, &a, &b);
+            TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&p, &want));
+            TEST_ASSERT_TRUE(jm_nat_divmod(&q, &rem, &p, &b));
+            TEST_ASSERT_TRUE(jm_nat_is_zero(&rem));
+            TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&q, &a));
+
+            TEST_ASSERT_TRUE(jm_nat_mul(&p, &a, &a));
+            slow_mul(&want, &a, &a);
+            TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&p, &want));
+            TEST_ASSERT_TRUE(jm_nat_copy(&q, &b));
+            TEST_ASSERT_TRUE(jm_nat_mul(&q, &q, &q));
+            TEST_ASSERT_TRUE(jm_nat_mul(&p, &b, &b));
+            TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&p, &q));
+        }
+    }
+    jm_nat_set_u64(&a, UINT64_MAX);
+    for (int k = 0; k < 6; k++)
+        TEST_ASSERT_TRUE(jm_nat_mul(&a, &a, &a));
+    TEST_ASSERT_TRUE(jm_nat_shl(&want, &(jm_nat){.n = 1, .in = {1, 0}}, 64 * 64));
+    TEST_ASSERT_EQUAL_INT64(64 * 64, jm_nat_bits(&a));
+    TEST_ASSERT_EQUAL_INT(-1, jm_nat_cmp(&a, &want));
+    jm_nat *nats[] = {&a, &b, &p, &want, &q, &rem};
+    for (size_t k = 0; k < sizeof nats / sizeof *nats; k++)
+        jm_nat_free(nats[k]);
 }
 
 static void test_a_signed_integer_agrees_with_i64(void)
@@ -173,7 +430,7 @@ static void test_a_signed_integer_agrees_with_i64(void)
     for (int k = 0; k < 4000; k++) {
         const int64_t x = (int64_t)(rng_next() >> 34) - (1 << 29);
         const int64_t y = (int64_t)(rng_next() >> 34) - (1 << 29);
-        jm_bigint a, b, r, want;
+        jm_bigint a = {0}, b = {0}, r = {0}, want = {0};
         jm_bigint_set_i64(&a, x);
         jm_bigint_set_i64(&b, y);
 
@@ -196,7 +453,7 @@ static void test_a_signed_integer_agrees_with_i64(void)
 
 static void test_zero_has_one_representation_and_one_sign(void)
 {
-    jm_bigint a, b, r;
+    jm_bigint a = {0}, b = {0}, r = {0};
     jm_bigint_set_i64(&a, 5);
     jm_bigint_set_i64(&b, -5);
     TEST_ASSERT_TRUE(jm_bigint_add(&r, &a, &b));
@@ -206,7 +463,7 @@ static void test_zero_has_one_representation_and_one_sign(void)
     jm_bigint_neg(&r);
     TEST_ASSERT_EQUAL_INT(0, jm_bigint_sign(&r));
 
-    jm_bigint z;
+    jm_bigint z = {0};
     jm_bigint_set_i64(&z, 0);
     TEST_ASSERT_TRUE(jm_bigint_mul(&r, &b, &z));
     TEST_ASSERT_EQUAL_INT(0, jm_bigint_sign(&r));
@@ -215,12 +472,12 @@ static void test_zero_has_one_representation_and_one_sign(void)
 static void test_the_most_negative_i64_survives_its_own_negation(void)
 {
 
-    jm_bigint a, r, want;
+    jm_bigint a = {0}, r = {0}, want = {0};
     jm_bigint_set_i64(&a, INT64_MIN);
     TEST_ASSERT_EQUAL_INT(-1, jm_bigint_sign(&a));
     TEST_ASSERT_EQUAL_INT64(64, jm_nat_bits(&a.mag));
 
-    jm_bigint one;
+    jm_bigint one = {0};
     jm_bigint_set_i64(&one, 1);
     TEST_ASSERT_TRUE(jm_bigint_add(&r, &a, &one));
     jm_bigint_set_i64(&want, INT64_MIN + 1);
@@ -229,7 +486,7 @@ static void test_the_most_negative_i64_survives_its_own_negation(void)
 
 static jm_rational rat_of(int64_t num, int64_t den)
 {
-    jm_rational n, d, r;
+    jm_rational n = {0}, d = {0}, r = {0};
     jm_rational_set_i64(&n, num);
     jm_rational_set_i64(&d, den);
     TEST_ASSERT_TRUE(jm_rational_div(&r, &n, &d));
@@ -266,19 +523,22 @@ static void test_arithmetic_agrees_with_cross_multiplied_i64(void)
         const int64_t d = (int64_t)rng_upto(30000);
 
         const jm_rational x = rat_of(a, b), y = rat_of(c, d);
-        jm_rational got;
+        jm_rational got = {0};
 
         TEST_ASSERT_TRUE(jm_rational_add(&got, &x, &y));
         jm_rational want = rat_of(a * d + c * b, b * d);
         TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&got, &want));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got.den, &want.den));
 
         TEST_ASSERT_TRUE(jm_rational_sub(&got, &x, &y));
         want = rat_of(a * d - c * b, b * d);
         TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&got, &want));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got.den, &want.den));
 
         TEST_ASSERT_TRUE(jm_rational_mul(&got, &x, &y));
         want = rat_of(a * c, b * d);
         TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&got, &want));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got.den, &want.den));
 
         const int64_t diff = a * d - c * b;
         TEST_ASSERT_EQUAL_INT(diff < 0 ? -1 : diff > 0 ? 1 : 0,
@@ -288,24 +548,109 @@ static void test_arithmetic_agrees_with_cross_multiplied_i64(void)
             TEST_ASSERT_TRUE(jm_rational_div(&got, &x, &y));
             want = rat_of(a * d, b * c);
             TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&got, &want));
+            TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&got.den, &want.den));
         }
+        jm_rational_free(&got);
     }
+}
+
+static void rat_ratio(jm_rational *r, const jm_nat *n, const jm_nat *d,
+                      int32_t sign)
+{
+    jm_rational a = {0}, b = {0};
+    TEST_ASSERT_TRUE(jm_nat_copy(&a.num.mag, n));
+    a.num.sign = jm_nat_is_zero(n) ? 0 : sign;
+    jm_nat_set_u64(&a.den, 1);
+    TEST_ASSERT_TRUE(jm_nat_copy(&b.num.mag, d));
+    b.num.sign = 1;
+    jm_nat_set_u64(&b.den, 1);
+    TEST_ASSERT_TRUE(jm_rational_div(r, &a, &b));
+    jm_rational_free(&a);
+    jm_rational_free(&b);
+}
+
+static void lowest_terms(const jm_rational *r)
+{
+    jm_nat g = {0};
+    TEST_ASSERT_TRUE(jm_nat_gcd(&g, &r->num.mag, &r->den));
+    TEST_ASSERT_TRUE(jm_rational_is_zero(r) || jm_nat_is_one(&g));
+    jm_nat_free(&g);
+}
+
+static void test_wide_rationals_stay_in_lowest_terms(void)
+{
+    rng_reset();
+    jm_rational x = {0}, y = {0}, s = {0}, back = {0}, want = {0};
+    jm_nat xn = {0}, xd = {0}, yn = {0}, yd = {0}, f = {0}, p = {0}, q = {0};
+    for (int k = 0; k < 200; k++) {
+        nat_random(&xn, (int64_t)(rng_next() % 8) + 1);
+        nat_random(&xd, (int64_t)(rng_next() % 8) + 1);
+        nat_random(&yn, (int64_t)(rng_next() % 8) + 1);
+        nat_random(&f, (int64_t)(rng_next() % 4) + 1);
+        TEST_ASSERT_TRUE(jm_nat_mul(&yd, &xd, &f));
+        const int32_t sx = (rng_next() & 1) ? 1 : -1;
+        rat_ratio(&x, &xn, &xd, sx);
+        rat_ratio(&y, &yn, &yd, 1);
+        lowest_terms(&x);
+        lowest_terms(&y);
+
+        TEST_ASSERT_TRUE(jm_rational_add(&s, &x, &y));
+        lowest_terms(&s);
+        TEST_ASSERT_TRUE(jm_nat_mul(&p, &xn, &yd));
+        TEST_ASSERT_TRUE(jm_nat_mul(&q, &yn, &xd));
+        TEST_ASSERT_TRUE(jm_nat_mul(&f, &xd, &yd));
+        if (sx > 0) {
+            TEST_ASSERT_TRUE(jm_nat_add(&p, &p, &q));
+            rat_ratio(&want, &p, &f, 1);
+        } else if (jm_nat_cmp(&q, &p) >= 0) {
+            TEST_ASSERT_TRUE(jm_nat_sub(&p, &q, &p));
+            rat_ratio(&want, &p, &f, 1);
+        } else {
+            TEST_ASSERT_TRUE(jm_nat_sub(&p, &p, &q));
+            rat_ratio(&want, &p, &f, -1);
+        }
+        TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&s, &want));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&s.den, &want.den));
+        TEST_ASSERT_TRUE(jm_rational_sub(&back, &s, &y));
+        TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&back, &x));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&back.den, &x.den));
+
+        TEST_ASSERT_TRUE(jm_rational_mul(&s, &x, &y));
+        lowest_terms(&s);
+        TEST_ASSERT_TRUE(jm_rational_div(&back, &s, &y));
+        TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&back, &x));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&back.den, &x.den));
+
+        TEST_ASSERT_TRUE(jm_rational_copy(&back, &x));
+        TEST_ASSERT_TRUE(jm_rational_add(&back, &back, &back));
+        TEST_ASSERT_TRUE(jm_rational_scale2(&back, -1));
+        TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&back, &x));
+        TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&back.den, &x.den));
+    }
+    jm_rational_free(&x);
+    jm_rational_free(&y);
+    jm_rational_free(&s);
+    jm_rational_free(&back);
+    jm_rational_free(&want);
+    jm_nat *nats[] = {&xn, &xd, &yn, &yd, &f, &p, &q};
+    for (size_t k = 0; k < sizeof nats / sizeof *nats; k++)
+        jm_nat_free(nats[k]);
 }
 
 static void test_dividing_by_zero_is_refused(void)
 {
     const jm_rational a = rat_of(3, 4), z = rat_of(0, 5);
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_FALSE(jm_rational_div(&r, &a, &z));
 }
 
 static void test_it_separates_two_values_one_double_cannot(void)
 {
     const jm_rational third = rat_of(1, 3);
-    jm_rational tiny;
+    jm_rational tiny = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double(&tiny, ldexp(1.0, -80)));
 
-    jm_rational sum;
+    jm_rational sum = {0};
     TEST_ASSERT_TRUE(jm_rational_add(&sum, &third, &tiny));
     TEST_ASSERT_EQUAL_INT(-1, jm_rational_cmp(&third, &sum));
     TEST_ASSERT_EQUAL_INT(1, jm_rational_cmp(&sum, &third));
@@ -314,20 +659,24 @@ static void test_it_separates_two_values_one_double_cannot(void)
     const double b = jm_rational_to_double(&sum);
     TEST_ASSERT_EQUAL_MEMORY(&a, &b, sizeof a);
 
-    jm_rational three, back;
+    jm_rational three = {0}, back = {0};
     jm_rational_set_i64(&three, 3);
     TEST_ASSERT_TRUE(jm_rational_mul(&back, &third, &three));
-    jm_rational one;
+    jm_rational one = {0};
     jm_rational_set_i64(&one, 1);
     TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&back, &one));
+    jm_rational_free(&tiny);
+    jm_rational_free(&sum);
+    jm_rational_free(&back);
 }
 
 static void round_trips(double d)
 {
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double(&r, d));
     const double back = jm_rational_to_double(&r);
     TEST_ASSERT_EQUAL_MEMORY(&d, &back, sizeof d);
+    jm_rational_free(&r);
 }
 
 static void test_every_named_double_round_trips_bit_for_bit(void)
@@ -358,7 +707,7 @@ static void test_random_doubles_round_trip_bit_for_bit(void)
 
 static void test_a_non_finite_double_is_refused_rather_than_approximated(void)
 {
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_FALSE(jm_rational_from_double(&r, HUGE_VAL));
     TEST_ASSERT_FALSE(jm_rational_from_double(&r, -HUGE_VAL));
     TEST_ASSERT_FALSE(jm_rational_from_double(&r, NAN));
@@ -366,7 +715,7 @@ static void test_a_non_finite_double_is_refused_rather_than_approximated(void)
 
 static void test_minus_zero_arrives_as_zero(void)
 {
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double(&r, -0.0));
     TEST_ASSERT_TRUE(jm_rational_is_zero(&r));
     TEST_ASSERT_EQUAL_INT(0, jm_rational_sign(&r));
@@ -378,15 +727,15 @@ static void test_minus_zero_arrives_as_zero(void)
 static void test_a_halfway_value_rounds_to_even(void)
 {
 
-    const jm_rational a = rat_of((int64_t)1 << 53, 1);
-    jm_rational one, half, sum;
+    jm_rational a = rat_of((int64_t)1 << 53, 1);
+    jm_rational one = {0}, half = {0}, sum = {0};
     jm_rational_set_i64(&one, 1);
     TEST_ASSERT_TRUE(jm_rational_add(&sum, &a, &one));
     double got = jm_rational_to_double(&sum);
     double want = ldexp(1.0, 53);
     TEST_ASSERT_EQUAL_MEMORY(&want, &got, sizeof want);
 
-    jm_rational three;
+    jm_rational three = {0};
     jm_rational_set_i64(&three, 3);
     TEST_ASSERT_TRUE(jm_rational_add(&sum, &a, &three));
     got = jm_rational_to_double(&sum);
@@ -398,6 +747,8 @@ static void test_a_halfway_value_rounds_to_even(void)
     got = jm_rational_to_double(&sum);
     want = ldexp(1.0, 53);
     TEST_ASSERT_EQUAL_MEMORY(&want, &got, sizeof want);
+    jm_rational_free(&sum);
+    jm_rational_free(&a);
 }
 
 static void test_the_round_trip_would_notice_a_dropped_bit(void)
@@ -406,43 +757,43 @@ static void test_the_round_trip_would_notice_a_dropped_bit(void)
     const double d = 9007199254740991.0;
     round_trips(d);
 
-    jm_rational r;
+    jm_rational r = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double(&r, d));
 
     jm_nat one = nat_of(1);
     TEST_ASSERT_EQUAL_INT(0, jm_nat_cmp(&r.den, &one));
-    TEST_ASSERT_EQUAL_INT(1, (int)(r.num.mag.w[0] & 1u));
+    TEST_ASSERT_EQUAL_INT64(0, jm_nat_twos(&r.num.mag));
+    jm_rational_free(&r);
 }
 
 static void test_a_long_sum_of_halves_stays_exact_and_small(void)
 {
-    jm_rational sum;
+    jm_rational sum = {0}, term = {0};
     jm_rational_set_zero(&sum);
     const int k = 400;
     for (int i = 1; i <= k; i++) {
-        jm_rational term;
         TEST_ASSERT_TRUE(jm_rational_from_double(&term, ldexp(1.0, -i)));
         TEST_ASSERT_TRUE(jm_rational_add(&sum, &sum, &term));
     }
 
-    jm_rational one, tail, want;
+    jm_rational one = {0}, tail = {0}, want = {0};
     jm_rational_set_i64(&one, 1);
-    jm_nat p = nat_of(1);
-    TEST_ASSERT_TRUE(jm_nat_shl(&p, &p, k));
-    tail.num.mag = nat_of(1);
-    tail.num.sign = 1;
-    tail.den = p;
+    jm_rational_set_i64(&tail, 1);
+    TEST_ASSERT_TRUE(jm_nat_shl(&tail.den, &tail.den, k));
     TEST_ASSERT_TRUE(jm_rational_sub(&want, &one, &tail));
     TEST_ASSERT_EQUAL_INT(0, jm_rational_cmp(&sum, &want));
 
     TEST_ASSERT_EQUAL_INT64(k + 1, jm_nat_bits(&sum.den));
+    jm_rational_free(&sum);
+    jm_rational_free(&term);
+    jm_rational_free(&tail);
+    jm_rational_free(&want);
 }
 
 static jm_rational rat_from_dyadic(const jm_dyadic *d)
 {
-    jm_rational r;
-    r.num = d->m;
-    jm_nat_set_u64(&r.den, 1);
+    jm_rational r = {0};
+    TEST_ASSERT_TRUE(jm_rational_from_bigint(&r, &d->m));
     if (d->e >= 0)
         TEST_ASSERT_TRUE(jm_nat_shl(&r.num.mag, &r.num.mag, d->e));
     else
@@ -452,10 +803,11 @@ static jm_rational rat_from_dyadic(const jm_dyadic *d)
 
 static void dyadic_round_trips(double v)
 {
-    jm_dyadic d;
+    jm_dyadic d = {0};
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&d, v));
     const double back = jm_dyadic_to_double(&d);
     TEST_ASSERT_EQUAL_MEMORY(&v, &back, sizeof v);
+    jm_dyadic_free(&d);
 }
 
 static void test_a_dyadic_round_trips_every_double_bit_for_bit(void)
@@ -467,7 +819,7 @@ static void test_a_dyadic_round_trips_every_double_bit_for_bit(void)
     for (size_t i = 0; i < sizeof named / sizeof named[0]; i++)
         dyadic_round_trips(named[i]);
 
-    jm_dyadic z;
+    jm_dyadic z = {0};
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&z, -0.0));
     TEST_ASSERT_TRUE(jm_dyadic_is_zero(&z));
     const double zback = jm_dyadic_to_double(&z);
@@ -497,6 +849,8 @@ static void test_a_dyadic_agrees_with_the_general_rational(void)
 {
     rng_reset();
     int checked = 0;
+    jm_dyadic da = {0}, db = {0}, dr = {0};
+    jm_rational ra = {0}, rb = {0}, rr = {0};
     for (int k = 0; k < 2000; k++) {
         uint64_t ba = rng_next(), bb = rng_next();
         double a, b;
@@ -505,8 +859,6 @@ static void test_a_dyadic_agrees_with_the_general_rational(void)
         if (!isfinite(a) || !isfinite(b))
             continue;
 
-        jm_dyadic da, db, dr;
-        jm_rational ra, rb, rr;
         TEST_ASSERT_TRUE(jm_dyadic_from_double(&da, a));
         TEST_ASSERT_TRUE(jm_dyadic_from_double(&db, b));
         TEST_ASSERT_TRUE(jm_rational_from_double(&ra, a));
@@ -516,17 +868,25 @@ static void test_a_dyadic_agrees_with_the_general_rational(void)
         TEST_ASSERT_TRUE(jm_rational_add(&rr, &ra, &rb));
         jm_rational conv = rat_from_dyadic(&dr);
         rationals_must_agree(&conv, &rr, 0);
+        jm_rational_free(&conv);
         checked++;
 
         TEST_ASSERT_TRUE(jm_dyadic_mul(&dr, &da, &db));
         TEST_ASSERT_TRUE(jm_rational_mul(&rr, &ra, &rb));
         conv = rat_from_dyadic(&dr);
         rationals_must_agree(&conv, &rr, 0);
+        jm_rational_free(&conv);
 
         int c = 0;
         TEST_ASSERT_TRUE(jm_dyadic_cmp(&da, &db, &c));
         rationals_must_agree(&ra, &rb, c);
     }
+    jm_dyadic_free(&da);
+    jm_dyadic_free(&db);
+    jm_dyadic_free(&dr);
+    jm_rational_free(&ra);
+    jm_rational_free(&rb);
+    jm_rational_free(&rr);
 
     TEST_ASSERT_TRUE(checked > 100);
 }
@@ -534,12 +894,12 @@ static void test_a_dyadic_agrees_with_the_general_rational(void)
 static void test_a_dyadic_keeps_its_mantissa_odd(void)
 {
 
-    jm_dyadic d;
+    jm_dyadic d = {0};
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&d, 4.0));
     TEST_ASSERT_EQUAL_INT64(1, jm_nat_bits(&d.m.mag));
     TEST_ASSERT_EQUAL_INT64(2, d.e);
 
-    jm_dyadic a, b, r;
+    jm_dyadic a = {0}, b = {0}, r = {0};
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&a, 0.75));
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&b, 0.25));
     TEST_ASSERT_TRUE(jm_dyadic_add(&r, &a, &b));
@@ -550,13 +910,14 @@ static void test_a_dyadic_keeps_its_mantissa_odd(void)
     TEST_ASSERT_TRUE(jm_dyadic_is_zero(&r));
     TEST_ASSERT_EQUAL_INT64(0, r.e);
     TEST_ASSERT_EQUAL_INT(0, jm_dyadic_sign(&r));
+    jm_dyadic_free(&r);
 }
 
 static void test_a_rational_subnormal_is_rounded_once(void)
 {
 
-    jm_rational r;
-    jm_nat one, big;
+    jm_rational r = {0};
+    jm_nat one = {0}, big = {0};
     jm_nat_set_u64(&big, 37);
     TEST_ASSERT_TRUE(jm_nat_shl(&big, &big, 125));
     jm_nat_set_u64(&one, 1);
@@ -571,11 +932,13 @@ static void test_a_rational_subnormal_is_rounded_once(void)
 
     TEST_ASSERT_EQUAL_MEMORY(&(double){ldexp(18.0, -1074)},
                              &(double){ldexp(18.5, -1074)}, sizeof(double));
+    jm_rational_free(&r);
+    jm_nat_free(&big);
 }
 
 static void test_an_exponent_that_does_not_fit_is_refused(void)
 {
-    jm_dyadic hi, lo, r;
+    jm_dyadic hi = {0}, lo = {0}, r = {0};
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&hi, 1.0));
     hi.e = INT64_MAX / 2 + 2;
     TEST_ASSERT_FALSE(jm_dyadic_mul(&r, &hi, &hi));
@@ -588,6 +951,7 @@ static void test_an_exponent_that_does_not_fit_is_refused(void)
     TEST_ASSERT_TRUE(jm_dyadic_from_double(&lo, 0.5));
     TEST_ASSERT_TRUE(jm_dyadic_mul(&r, &hi, &lo));
     TEST_ASSERT_EQUAL_DOUBLE(1.5, jm_dyadic_to_double(&r));
+    jm_dyadic_free(&r);
 }
 
 static void dyadic_pow2(jm_dyadic *d, int64_t e)
@@ -599,7 +963,7 @@ static void dyadic_pow2(jm_dyadic *d, int64_t e)
 static void test_a_subnormal_result_is_rounded_once(void)
 {
 
-    jm_dyadic v, t;
+    jm_dyadic v = {0}, t = {0};
     dyadic_pow2(&v, -1073);
     dyadic_pow2(&t, -1075);
     TEST_ASSERT_TRUE(jm_dyadic_add(&v, &v, &t));
@@ -630,6 +994,8 @@ static void test_a_subnormal_result_is_rounded_once(void)
     TEST_ASSERT_EQUAL_MEMORY(&(double){-0.0},
                              &(double){jm_dyadic_to_double(&v)},
                              sizeof(double));
+    jm_dyadic_free(&v);
+    jm_dyadic_free(&t);
 }
 
 static jaos_model *two_column_model(const double *cost, const double *cl,
@@ -663,16 +1029,16 @@ static jaos_model *one_row_model(double a0, double a1)
     return m;
 }
 
-static void test_a_row_wider_than_the_limbs_refuses_and_says_so(void)
+static void test_a_row_as_wide_as_the_doubles_reach_is_evaluated(void)
 {
     const double tiny = 0x1p-1074;
     jaos_model *m = one_row_model(DBL_MAX, tiny);
     const double x[] = {DBL_MAX, tiny};
     jm_exact_point p;
-    TEST_ASSERT_FALSE(jm_exact_evaluate(m, x, &p));
-    TEST_ASSERT_TRUE(isnan(p.row_violation));
-    TEST_ASSERT_TRUE(isnan(p.objective));
-    TEST_ASSERT_EQUAL_INT64(-1, p.row_at);
+    TEST_ASSERT_TRUE(jm_exact_evaluate(m, x, &p));
+    TEST_ASSERT_EQUAL_INT64(2, p.terms);
+    TEST_ASSERT_TRUE(isinf(p.row_violation));
+    TEST_ASSERT_EQUAL_INT64(0, p.row_at);
     jaos_model_free(m);
 
     m = one_row_model(1e150, 1e-150);
@@ -798,7 +1164,7 @@ static void test_a_comparison_that_does_not_fit_says_so(void)
 {
     const int64_t cap = 32 * JM_EXACT_LIMBS;
 
-    jm_rational a, c;
+    jm_rational a = {0}, c = {0};
     jm_rational_set_i64(&a, 1);
     TEST_ASSERT_TRUE(jm_nat_shl(&a.num.mag, &a.num.mag, cap - 100));
     a.num.sign = 1;
@@ -819,7 +1185,7 @@ static void test_a_comparison_that_does_not_fit_says_so(void)
         "the plain form no longer reports equal on an overflow, so every "
         "caller of it needs rereading");
 
-    jm_rational one, two;
+    jm_rational one = {0}, two = {0};
     jm_rational_set_i64(&one, 1);
     jm_rational_set_i64(&two, 2);
     int ord = 0;
@@ -829,6 +1195,8 @@ static void test_a_comparison_that_does_not_fit_says_so(void)
     TEST_ASSERT_EQUAL_INT(1, ord);
     TEST_ASSERT_TRUE(jm_rational_cmp_checked(&one, &one, &ord));
     TEST_ASSERT_EQUAL_INT(0, ord);
+    jm_rational_free(&a);
+    jm_rational_free(&c);
 }
 
 static void test_a_rational_spells_itself_in_decimal(void)
@@ -841,7 +1209,7 @@ static void test_a_rational_spells_itself_in_decimal(void)
         {INT64_MIN + 1, 1, "-9223372036854775807"},
     };
     for (size_t k = 0; k < sizeof small / sizeof *small; k++) {
-        jm_rational a, b, r;
+        jm_rational a = {0}, b = {0}, r = {0};
         jm_rational_set_i64(&a, small[k].num);
         jm_rational_set_i64(&b, small[k].den);
         TEST_ASSERT_TRUE(jm_rational_div(&r, &a, &b));
@@ -849,9 +1217,10 @@ static void test_a_rational_spells_itself_in_decimal(void)
         TEST_ASSERT_NOT_NULL(s);
         TEST_ASSERT_EQUAL_STRING(small[k].want, s);
         free(s);
+        jm_rational_free(&r);
     }
 
-    jm_rational p;
+    jm_rational p = {0};
     jm_rational_set_i64(&p, 1);
     TEST_ASSERT_TRUE(jm_nat_shl(&p.num.mag, &p.num.mag, 100));
     p.num.sign = 1;
@@ -859,14 +1228,14 @@ static void test_a_rational_spells_itself_in_decimal(void)
     TEST_ASSERT_NOT_NULL(s);
     TEST_ASSERT_EQUAL_STRING("1267650600228229401496703205376", s);
     free(s);
-    jm_rational one, inv;
+    jm_rational one = {0}, inv = {0};
     jm_rational_set_i64(&one, 1);
     TEST_ASSERT_TRUE(jm_rational_div(&inv, &one, &p));
     s = jm_rational_decimal(&inv);
     TEST_ASSERT_NOT_NULL(s);
     TEST_ASSERT_EQUAL_STRING("1/1267650600228229401496703205376", s);
     free(s);
-    jm_rational ten, big;
+    jm_rational ten = {0}, big = {0};
     jm_rational_set_i64(&ten, 10);
     jm_rational_set_i64(&big, 1);
     for (int e = 0; e < 30; e++)
@@ -876,12 +1245,26 @@ static void test_a_rational_spells_itself_in_decimal(void)
     TEST_ASSERT_EQUAL_STRING("1000000000000000000000000000000", s);
     free(s);
 
-    jm_rational tenth;
+    jm_rational back = {0};
+    TEST_ASSERT_TRUE(jm_rational_from_decimal(
+        &back, "-12345678901234567890123456789012345678901/1000000000000000"));
+    s = jm_rational_decimal(&back);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING(
+        "-12345678901234567890123456789012345678901/1000000000000000", s);
+    free(s);
+
+    jm_rational tenth = {0};
     TEST_ASSERT_TRUE(jm_rational_from_double(&tenth, 0.1));
     s = jm_rational_decimal(&tenth);
     TEST_ASSERT_NOT_NULL(s);
     TEST_ASSERT_EQUAL_STRING("3602879701896397/36028797018963968", s);
     free(s);
+    jm_rational_free(&p);
+    jm_rational_free(&inv);
+    jm_rational_free(&big);
+    jm_rational_free(&back);
+    jm_rational_free(&tenth);
 }
 
 int main(void)
@@ -890,15 +1273,22 @@ int main(void)
     RUN_TEST(test_a_natural_holds_what_a_u64_holds);
     RUN_TEST(test_add_sub_mul_agree_with_u64_where_u64_is_exact);
     RUN_TEST(test_divmod_agrees_with_u64);
+    RUN_TEST(test_long_division_rebuilds_its_dividend);
+    RUN_TEST(test_an_exact_quotient_comes_back_and_a_remainder_is_refused);
     RUN_TEST(test_divmod_refuses_a_zero_divisor);
     RUN_TEST(test_gcd_agrees_with_euclid_in_u64);
+    RUN_TEST(test_a_wide_gcd_agrees_with_euclid_by_division);
     RUN_TEST(test_shifting_is_multiplying_and_dividing_by_a_power_of_two);
     RUN_TEST(test_running_out_of_limbs_is_reported_and_not_wrapped);
+    RUN_TEST(test_storage_follows_the_size_of_the_number);
+    RUN_TEST(test_a_result_may_be_one_of_its_operands);
+    RUN_TEST(test_wide_products_agree_with_limb_by_limb_products);
     RUN_TEST(test_a_signed_integer_agrees_with_i64);
     RUN_TEST(test_zero_has_one_representation_and_one_sign);
     RUN_TEST(test_the_most_negative_i64_survives_its_own_negation);
     RUN_TEST(test_a_rational_is_kept_in_lowest_terms);
     RUN_TEST(test_arithmetic_agrees_with_cross_multiplied_i64);
+    RUN_TEST(test_wide_rationals_stay_in_lowest_terms);
     RUN_TEST(test_dividing_by_zero_is_refused);
     RUN_TEST(test_it_separates_two_values_one_double_cannot);
     RUN_TEST(test_every_named_double_round_trips_bit_for_bit);
@@ -914,7 +1304,7 @@ int main(void)
     RUN_TEST(test_a_rational_subnormal_is_rounded_once);
     RUN_TEST(test_an_exponent_that_does_not_fit_is_refused);
     RUN_TEST(test_a_subnormal_result_is_rounded_once);
-    RUN_TEST(test_a_row_wider_than_the_limbs_refuses_and_says_so);
+    RUN_TEST(test_a_row_as_wide_as_the_doubles_reach_is_evaluated);
     RUN_TEST(test_the_evaluator_keeps_a_product_a_double_sum_cannot);
     RUN_TEST(test_the_evaluator_names_the_worst_row_and_column);
     RUN_TEST(test_an_infinite_bound_is_not_a_violation);

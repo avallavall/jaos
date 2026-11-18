@@ -422,7 +422,7 @@ m <- solve1()
 check(fails(jaos_verify(m)), "the proof needs an optimum")
 jaos_solve(m)
 v <- jaos_verify(m)
-check(v$capacity_bits == 4096 && v$status == "optimal" && v$stage == "none" &&
+check(v$capacity_bits == 131072 && v$status == "optimal" && v$stage == "none" &&
       is.na(v$at_row) && is.na(v$at_col) && v$violation == 0,
       "solve1's optimum is proved, with each field where jaos.h puts it")
 third <- function() {

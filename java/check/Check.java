@@ -936,7 +936,7 @@ public final class Check {
             m.solve();
             VerifyReport r = m.verify();
             check(r.status() == Proof.OPTIMAL && r.stage() == ProofStage.NONE
-                  && r.capacityBits() == 4096.0 && r.blocks() >= 1 && r.atRow() == -1
+                  && r.capacityBits() == 131072.0 && r.blocks() >= 1 && r.atRow() == -1
                   && r.atCol() == -1 && r.violation() == 0.0,
                   "min x with 3x >= 1 is proved, the report field by field");
             check(m.exactColValue(0).equals("1/3") && m.exactRowDual(0).equals("1/3")

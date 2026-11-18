@@ -1,0 +1,29 @@
+--- a/src/verify.c
++++ b/src/verify.c
+@@ -4,4 +4,5 @@
+
+ #include <math.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -669,6 +670,10 @@
+             jm_bigint_set_zero(bat(B, i, p));
+         }
+         prev = pivot;
++        if (getenv("J485_TRACE") && (p % 16 == 0))
++            fprintf(stderr, "j485 step %lld of %lld work %lld bytes %lld\n",
++                    (long long)p, (long long)k, (long long)B->work,
++                    (long long)B->bytes);
+     }
+
+     if (res == VBLOCK_SOLVED) {
+@@ -905,6 +910,9 @@
+         V->terms += B.terms;
+         if ((size_t)B.held > V->held)
+             V->held = (size_t)B.held;
++        if (getenv("J485_TRACE"))
++            fprintf(stderr, "j485 block k %lld work %lld held %lld ok %d\n",
++                    (long long)k, (long long)B.work, (long long)B.held, (int)ok);
+
+         if (ok) {
+             ok = jm_nat_mul(&fr.num.mag, &det.mag, &den);

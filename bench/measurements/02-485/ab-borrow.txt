@@ -1,0 +1,16 @@
+grow7 new optimal 265f49054a33 1.14
+grow7 bl optimal 265f49054a33 1.37
+grow7 new optimal 265f49054a33 1.66
+grow7 bl optimal 265f49054a33 1.07
+modszk1 new optimal 9c5d196b7a1b 5.88
+modszk1 bl optimal 9c5d196b7a1b 5.28
+modszk1 new optimal 9c5d196b7a1b 5.82
+modszk1 bl optimal 9c5d196b7a1b 4.57
+grow15 new optimal 6fb83e96bfa7 17.77
+grow15 bl optimal 6fb83e96bfa7 17.43
+grow15 new optimal 6fb83e96bfa7 17.55
+grow15 bl optimal 6fb83e96bfa7 16.57
+grow22 new optimal cac2bb50307c 39.51
+grow22 bl optimal cac2bb50307c 35.13
+grow22 new optimal cac2bb50307c 30.70
+grow22 bl optimal cac2bb50307c 25.97

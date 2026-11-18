@@ -1,0 +1,30 @@
+d2q06c biggest block k 892 work 415694084164 held 536871240 ok 0
+d2q06c last step 608 of 892 work 391208071757 bytes 526424708
+d2q06c exact solving: a dense block of the proof outgrew its memory budget
+d2q06c exit 4 secs 242
+dfl001 biggest block k 3129 work 4542218435 held 336662736 ok 1
+dfl001 last step 1488 of 3129 work 34846734 bytes 313400640
+dfl001 exit 143 secs 740
+perold biggest block k 428 work 204284672097 held 76277020 ok 1
+perold last step 0 of 2 work 360 bytes 1148
+perold exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts
+perold exit 0 secs 325
+pilot-ja biggest block k 544 work 804289053559 held 152828312 ok 1
+pilot-ja last step 320 of 544 work 179914268153 bytes 112584312
+pilot-ja exit 124 secs 872
+pilot-we biggest block k 519 work 275414301432 held 126238336 ok 1
+pilot-we last step 0 of 5 work 1512 bytes 6184
+pilot-we exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts
+pilot-we exit 0 secs 438
+pilot biggest block k 1103 work 708071770331 held 536871024 ok 0
+pilot last step 448 of 1103 work 646589664944 bytes 511556536
+pilot exact solving: a dense block of the proof outgrew its memory budget
+pilot exit 4 secs 411
+pilot87 biggest block k 1487 work 256016071638 held 536871172 ok 0
+pilot87 last step 240 of 1487 work 237142798061 bytes 521931480
+pilot87 exact solving: a dense block of the proof outgrew its memory budget
+pilot87 exit 4 secs 176
+stair biggest block k 324 work 21918117776 held 18721832 ok 1
+stair last step 320 of 324 work 21856296330 bytes 18721780
+stair exact: optimum proved over the rationals after 0 exact pivots, 0 bound flips and 0 cost shifts
+stair exit 0 secs 46

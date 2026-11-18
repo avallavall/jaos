@@ -279,8 +279,11 @@ and no setting of them changes an answer.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `JM_EXACT_LIMBS` | 128 | 32-bit limbs per magnitude in `src/exact.c` (4096 bits); one double needs 34. More limbs prove more bases, but 1024 take about 18x the time of 512. `-DJM_EXACT_LIMBS=N` widens it (`bench/measurements/02-180/`, `bench/measurements/02-358/`) |
-| `VERIFY_BLOCK_BYTES` | 536870912 | 512 MiB, the most one verify call may hold for a block's dense elimination: a block of 1007 rows at 528 bytes a number. It refuses an oversized block before allocating. Bounded only by the machine |
+| `JM_EXACT_LIMBS` | 4096 | The most 32-bit limbs one number of `src/exact.c` may grow to (131072 bits). A number holds only the limbs its size needs, so the budget costs nothing until a number reaches it. It is twice the largest Hadamard bound of the 94 Netlib bases, 65136 bits on `pilot87`, so a product of two numbers that size still fits, and no proof of the 94 reaches it. `-DJM_EXACT_LIMBS=N` changes it (`bench/measurements/02-485/`) |
+| `NAT_INLINE` | 2 | Limbs a number holds in place, with no heap: a 64-bit integer fits, so a number made from a double's mantissa, a count or a small constant never allocates and never fails. Not swept |
+| `NAT_BASE` | 2^32 | The radix of a limb. Arithmetic |
+| `VERIFY_BLOCK_BYTES` | 536870912 | 512 MiB, the most one block's dense elimination may hold: its table of numbers at 32 bytes each and every limb they grow to, counted as they grow. A block whose table alone passes it is refused before it is allocated, and one whose numbers pass it during the elimination is refused then. On the 94 Netlib models no block reaches it: the three that do not prove stop at `VERIFY_BLOCK_WORK` first, at most 644 MiB resident, and none that proves passes 348 MiB (`dfl001`) (`bench/measurements/02-485/`) |
+| `VERIFY_BLOCK_WORK` | 2^40 | The most limb products one block's dense elimination may take, counting each product of two numbers as the product of their limb counts and each exact division as the dividend's limbs times the divisor's. The costliest solve of a block that proves on the 94, `pilot-ja`'s 544 rows, takes 8.0e11, so the budget leaves it a third more; the blocks of `d2q06c`, `pilot` and `pilot87`, 892 to 1487 rows, reach it after 370 to 450 seconds (`bench/measurements/02-485/`) |
 | `EXACT_PIVOT_CAP` | 1000 | Exact pivots, flips and shifts `jaos_set_exact` may take to repair one basis. The largest repair on the standard 94 took 82 pivots (`bench/measurements/02-358/`). Not swept |
 
 There is no `VERIFY_BOUND_MARGIN`: the width test it padded is gone, and the
@@ -473,6 +476,7 @@ box too. The first three constants cost rounds, never an answer.
 | `RELAX_BOX_ROUNDS` | 16 | How many boxes the search over the columns may try, so a model with no integer point in any box stops (`tests/data/relax_runaway.mps`). Not swept |
 | `RELAX_ROUND_WORK` | 64 | A later round's work as a multiple of the first's; a box twice as wide costs about four times the work on an infeasible model. The caps change nothing where an answer exists (`bench/measurements/02-297/`). Not swept |
 | `RELAX_LATTICE_CELLS` | 4096 | The most numbers, rows times (columns + 1), a block of equality rows may hold for the Hermite-form proof that no box holds an integer point; a larger block is skipped. The proof never claims infeasible on 4000 models with a planted point, and settles 2198 of 4000 with the point moved by a half (`bench/measurements/02-362/`). Not swept |
+| `RELAX_LATTICE_BITS` | 4096 | The most bits a number of that proof may hold; a block whose numbers pass it is skipped. It is the limb budget every exact number had before numbers grew with their size (`bench/measurements/02-485/`), kept so the proof skips the same blocks. Not swept |
 
 ## The conic interior point
 

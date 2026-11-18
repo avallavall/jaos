@@ -11,10 +11,10 @@
 
 static char *rational_of_double(double v)
 {
-    jm_rational r;
-    if (!jm_rational_from_double(&r, v))
-        return nullptr;
-    return jm_rational_decimal(&r);
+    jm_rational r = {0};
+    char *s = jm_rational_from_double(&r, v) ? jm_rational_decimal(&r) : nullptr;
+    jm_rational_free(&r);
+    return s;
 }
 
 static bool write_ray(FILE *f, const jaos_model *m, const double *v,
@@ -191,52 +191,58 @@ static bool within(const jm_rational *v, double lo, double hi,
 static bool farkas_holds(const jaos_model *m, const jm_rational *y,
                          bool decimal, jaos_proof_report *out, int64_t *terms)
 {
-    jm_rational acc, term, a, b, sup, inf;
+    jm_rational acc = {0}, term = {0}, a = {0}, b = {0}, sup = {0}, inf = {0};
     jm_rational_set_zero(&sup);
     jm_rational_set_zero(&inf);
-    for (int64_t j = 0; j < m->num_col; j++) {
+    bool ok = true, open = true;
+    for (int64_t j = 0; ok && open && j < m->num_col; j++) {
         jm_rational_set_zero(&acc);
-        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+        for (int64_t k = m->a_start[j]; ok && k < m->a_start[j + 1]; k++) {
             const int64_t i = m->a_index[k];
             if (jm_rational_is_zero(&y[i]))
                 continue;
-            if (!jm_rational_from_value(&a, m->a_value[k], decimal) ||
-                !jm_rational_mul(&term, &a, &y[i]) ||
-                !jm_rational_add(&acc, &acc, &term))
-                return false;
-            (*terms)++;
+            ok = jm_rational_from_value(&a, m->a_value[k], decimal) &&
+                 jm_rational_mul(&term, &a, &y[i]) &&
+                 jm_rational_add(&acc, &acc, &term);
+            if (ok)
+                (*terms)++;
         }
         const int32_t sg = jm_rational_sign(&acc);
-        if (sg == 0)
+        if (!ok || sg == 0)
             continue;
         const double bnd = sg > 0 ? m->col_upper[j] : m->col_lower[j];
         if (!isfinite(bnd)) {
             out->bad_col = j;
-            return true;
+            open = false;
+            break;
         }
-        if (!jm_rational_from_value(&a, bnd, decimal) ||
-            !jm_rational_mul(&term, &acc, &a) ||
-            !jm_rational_add(&sup, &sup, &term))
-            return false;
+        ok = jm_rational_from_value(&a, bnd, decimal) &&
+             jm_rational_mul(&term, &acc, &a) &&
+             jm_rational_add(&sup, &sup, &term);
     }
-    for (int64_t i = 0; i < m->num_row; i++) {
+    for (int64_t i = 0; ok && open && i < m->num_row; i++) {
         const int32_t sg = jm_rational_sign(&y[i]);
         if (sg == 0)
             continue;
         const double bnd = sg > 0 ? m->row_lower[i] : m->row_upper[i];
         if (!isfinite(bnd)) {
             out->bad_row = i;
-            return true;
+            open = false;
+            break;
         }
-        if (!jm_rational_from_value(&a, bnd, decimal) ||
-            !jm_rational_mul(&term, &y[i], &a) ||
-            !jm_rational_add(&inf, &inf, &term))
-            return false;
+        ok = jm_rational_from_value(&a, bnd, decimal) &&
+             jm_rational_mul(&term, &y[i], &a) &&
+             jm_rational_add(&inf, &inf, &term);
     }
-    if (!jm_rational_sub(&b, &inf, &sup))
-        return false;
-    out->certified = jm_rational_sign(&b) > 0;
-    return true;
+    if (ok && open) {
+        ok = jm_rational_sub(&b, &inf, &sup);
+        if (ok)
+            out->certified = jm_rational_sign(&b) > 0;
+    }
+    jm_rational *temps[] = {&acc, &term, &a, &b, &sup, &inf};
+    for (size_t k = 0; k < sizeof temps / sizeof *temps; k++)
+        jm_rational_free(temps[k]);
+    return ok;
 }
 
 static bool ray_holds(const jaos_model *m, const jm_rational *x, bool decimal,
@@ -252,43 +258,50 @@ static bool ray_holds(const jaos_model *m, const jm_rational *x, bool decimal,
             return true;
         }
     }
-    jm_rational acc, term, a;
-    for (int64_t i = 0; i < m->num_row; i++) {
+    jm_rational acc = {0}, term = {0}, a = {0};
+    bool ok = true, open = true;
+    for (int64_t i = 0; ok && open && i < m->num_row; i++) {
         jm_rational_set_zero(&acc);
-        for (int64_t k = m->ar_start[i]; k < m->ar_start[i + 1]; k++) {
+        for (int64_t k = m->ar_start[i]; ok && k < m->ar_start[i + 1]; k++) {
             const int64_t j = m->ar_index[k];
             if (jm_rational_is_zero(&x[j]))
                 continue;
-            if (!jm_rational_from_value(&a, m->ar_value[k], decimal) ||
-                !jm_rational_mul(&term, &a, &x[j]) ||
-                !jm_rational_add(&acc, &acc, &term))
-                return false;
-            (*terms)++;
+            ok = jm_rational_from_value(&a, m->ar_value[k], decimal) &&
+                 jm_rational_mul(&term, &a, &x[j]) &&
+                 jm_rational_add(&acc, &acc, &term);
+            if (ok)
+                (*terms)++;
         }
         const int32_t sg = jm_rational_sign(&acc);
-        if (sg == 0)
+        if (!ok || sg == 0)
             continue;
         const double bnd = sg > 0 ? m->row_upper[i] : m->row_lower[i];
         if (isfinite(bnd)) {
             out->bad_row = i;
-            return true;
+            open = false;
         }
     }
-    jm_rational_set_zero(&acc);
-    for (int64_t j = 0; j < m->num_col; j++) {
-        if (m->col_cost[j] == 0.0 || jm_rational_is_zero(&x[j]))
-            continue;
-        if (!jm_rational_from_value(&a, m->col_cost[j], decimal) ||
-            !jm_rational_mul(&term, &a, &x[j]) ||
-            !jm_rational_add(&acc, &acc, &term))
-            return false;
-        (*terms)++;
+    if (ok && open) {
+        jm_rational_set_zero(&acc);
+        for (int64_t j = 0; ok && j < m->num_col; j++) {
+            if (m->col_cost[j] == 0.0 || jm_rational_is_zero(&x[j]))
+                continue;
+            ok = jm_rational_from_value(&a, m->col_cost[j], decimal) &&
+                 jm_rational_mul(&term, &a, &x[j]) &&
+                 jm_rational_add(&acc, &acc, &term);
+            if (ok)
+                (*terms)++;
+        }
+        int32_t rate = jm_rational_sign(&acc);
+        if (m->sense == JAOS_MAXIMIZE)
+            rate = -rate;
+        if (ok)
+            out->certified = rate < 0;
     }
-    int32_t rate = jm_rational_sign(&acc);
-    if (m->sense == JAOS_MAXIMIZE)
-        rate = -rate;
-    out->certified = rate < 0;
-    return true;
+    jm_rational_free(&acc);
+    jm_rational_free(&term);
+    jm_rational_free(&a);
+    return ok;
 }
 
 jaos_status jm_exact_judge(jaos_model *m, bool *holds)
@@ -313,7 +326,7 @@ jaos_status jm_exact_judge(jaos_model *m, bool *holds)
         ok = infeasible
             ? farkas_holds(m, r, m->cfg.exact_decimal, &rep, &terms)
             : ray_holds(m, r, m->cfg.exact_decimal, &rep, &terms);
-    free(r);
+    jm_rational_free_array(r, n);
     if (!ok)
         return JAOS_ERR_NUMERICAL;
     *holds = rep.certified;
@@ -349,7 +362,8 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
     FILE *f = nullptr;
     jm_rational *x = nullptr, *y = nullptr;
     bool *seen_col = nullptr, *seen_row = nullptr;
-    jm_rational claimed;
+    jm_rational claimed = {0}, acc = {0}, term = {0}, a = {0}, b = {0},
+                lo = {0}, hi = {0};
     bool have_obj = false, decimal = false;
     int64_t terms = 0;
 
@@ -591,7 +605,6 @@ jaos_status jaos_check_proof(jaos_model *m, const char *path,
         goto done;
 
     const bool maximize = m->sense == JAOS_MAXIMIZE;
-    jm_rational acc, term, a, b, lo, hi;
     jm_rational_set_zero(&lo);
     jm_rational_set_zero(&hi);
 
@@ -714,8 +727,11 @@ no_limbs:
 done:
     if (f != nullptr)
         fclose(f);
-    free(x);
-    free(y);
+    jm_rational_free_array(x, nc);
+    jm_rational_free_array(y, nr);
+    jm_rational *temps[] = {&claimed, &acc, &term, &a, &b, &lo, &hi};
+    for (size_t k = 0; k < sizeof temps / sizeof *temps; k++)
+        jm_rational_free(temps[k]);
     free(seen_col);
     free(seen_row);
     return rc;

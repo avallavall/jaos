@@ -1320,8 +1320,8 @@ class TestVerify(unittest.TestCase):
     ctypes Structure that does not match the C layout reads adjacent fields
     as its own and every assertion after it is about the wrong bytes.
     `capacity_bits` is the only field whose exact value is known from
-    outside -- 32 * JM_EXACT_LIMBS, 4096 at the shipping setting -- so it is
-    what pins the layout."""
+    outside -- 32 * JM_EXACT_LIMBS, 131072 at the shipping setting -- so it
+    is what pins the layout."""
 
     def test_the_struct_matches_the_c_layout(self):
         with jaos.Model() as m:
@@ -1329,7 +1329,7 @@ class TestVerify(unittest.TestCase):
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             r = m.verify()
 
-            self.assertEqual(r.capacity_bits, 4096.0,
+            self.assertEqual(r.capacity_bits, 131072.0,
                              "the report's field order does not match "
                              "jaos_verify_report in jaos.h")
             self.assertGreaterEqual(r.bound_bits, 0.0)

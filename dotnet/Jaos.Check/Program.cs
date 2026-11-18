@@ -715,7 +715,7 @@ using (var m = Model.Read(D("solve1.mps")))
     Check(Throws<JaosException>(() => m.Verify()), "verify needs an optimum");
     m.Solve();
     var r = m.Verify();
-    Check(r.CapacityBits == 4096.0 && r.Status == Proof.Optimal && r.Stage == ProofStage.None &&
+    Check(r.CapacityBits == 131072.0 && r.Status == Proof.Optimal && r.Stage == ProofStage.None &&
           r.AtRow == -1 && r.AtCol == -1 && r.Violation == 0.0 && r.Blocks >= 1 &&
           r.LargestBlock <= m.NumRow, "a small optimum is proved, and the report's layout holds");
     Check(Throws<JaosException>(() => m.ExactCertificate()),

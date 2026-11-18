@@ -1,0 +1,12 @@
+grow15 new optimal 6fb83e96bfa7 17.35
+grow15 kara optimal 6fb83e96bfa7 24.45
+grow15 new optimal 6fb83e96bfa7 19.12
+grow15 kara optimal 6fb83e96bfa7 19.43
+grow22 new optimal cac2bb50307c 40.09
+grow22 kara optimal cac2bb50307c 50.54
+grow22 new optimal cac2bb50307c 57.40
+grow22 kara optimal cac2bb50307c 63.78
+25fv47 new optimal ba6457275229 46.14
+25fv47 kara optimal ba6457275229 53.22
+25fv47 new optimal ba6457275229 58.15
+25fv47 kara optimal ba6457275229 56.33

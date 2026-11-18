@@ -2321,12 +2321,16 @@ Fills the same two intervals for the bounds of each column.
 
 ## Exact verification
 
-These calls work in exact rational arithmetic with a fixed budget of
-`JM_EXACT_LIMBS` limbs of 32 bits, which is 4096 bits in a default build. A
-report's `bound_bits` is the size a result needs, and `capacity_bits` is the
-size the arithmetic holds. `bound_bits` is a worst-case estimate that is reported but refuses nothing: the arithmetic runs, every
-operation checks its limbs, and the call refuses only when a number really
-outgrows the budget. The exact getters return decimal strings that
+These calls work in exact rational arithmetic whose numbers hold only the
+32-bit limbs their size needs, up to `JM_EXACT_LIMBS` limbs, which is
+131072 bits in a default build. A dense block of the basis may hold at most
+`VERIFY_BLOCK_BYTES` and take at most `VERIFY_BLOCK_WORK` limb products in
+its elimination (`docs/tolerances.md`). A report's `bound_bits` is the size
+a result needs, and `capacity_bits` is the size one number may grow to.
+`bound_bits` is a worst-case estimate that is reported but refuses nothing:
+the arithmetic runs, every operation checks its limbs, and the call refuses
+only when a number really outgrows the budget or a block passes one of its
+own. The exact getters return decimal strings that
 the model owns. Each string is an integer or a ratio of two integers.
 `jaos_verify` and `jaos_verify_basis` refuse a quadratic objective, cones,
 quadratic rows and integer structure.
@@ -2355,7 +2359,8 @@ loaded: when presolve decided, reduced or aggregated the model, it is
 solved again with both off. The certificate or direction is judged by the
 proof file's exact test before the answer stands. Anything that cannot be proved ends
 `JAOS_SOLVE_NUMERICAL_ERROR` with the reason in `jaos_model_error`: a
-number past the limb budget, or `EXACT_PIVOT_CAP` (1000) exact pivots.
+number past the limb budget, a dense block past its memory or work
+budget, or `EXACT_PIVOT_CAP` (1000) exact pivots.
 The model's data are its doubles: an MPS value such as 0.1 is the double
 nearest 0.1, and the proof is about those numbers, unless
 `jaos_set_exact_decimal` is on.
@@ -2386,8 +2391,8 @@ or `at_col` names the row or column that breaks it, and the other one is
 or the magnitude of the reduced cost or row dual whose sign is wrong.
 `blocks` and `largest_block` give the number and the largest size of the
 diagonal blocks the basis splits into. `terms` counts the exact products
-the proof took, and `bytes_held` is the size in bytes of the largest dense
-block it held. The call fails unless the last solve ended optimal with a
+the proof took, and `bytes_held` is the most bytes a dense block held, its
+table and the limbs of its numbers. The call fails unless the last solve ended optimal with a
 basis, and it returns `JAOS_ERR_NUMERICAL` when it cannot judge.
 
 **`jaos_verify_basis`**\

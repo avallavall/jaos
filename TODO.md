@@ -397,8 +397,13 @@ rows' case and the single ranged row's case are proved
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**
 
-J19. **Exact solving with no tolerances.** Numbers past the limbs, and MIPs
-(an exact branch and bound). With decimal data, 20 of Netlib's 94 still
-outgrow the limbs; builds with 512 or 1024 limbs prove four of them
-(`bench/measurements/02-358/`, `02-418/`, `02-419/`). Next: numbers whose
-storage follows their size.
+J19. **Exact solving with no tolerances.** Large dense blocks, and MIPs
+(an exact branch and bound). With decimal data and numbers whose storage
+follows their size, 91 of Netlib's 94 prove; `d2q06c`, `pilot` and
+`pilot87` hold a block of 892 to 1487 rows whose fraction-free elimination
+passes `VERIFY_BLOCK_WORK` after 370 to 450 seconds, and `dfl001` takes 36
+minutes, since each of its 6 exact pivots sweeps its block of 3129 rows
+again (`bench/measurements/02-358/`, `02-418/`, `02-485/`). Next: an
+elimination that neither holds nor sweeps the whole block, such as Dixon's
+p-adic lifting, and one factorization of a block for all its solves; read
+on those four and on the 91 against 02-485's seconds.

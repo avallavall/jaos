@@ -243,13 +243,14 @@ cells here are rows `SPECS.md` marks out of scope.
   model alone, with tolerances, and shares no algorithm with the solver.
   SCIP's `viprchk` checks certificates SCIP emits.
 - *Exact rational LP solutions*: after `jaos_verify` proves a basis, its
-  values and duals are exact rationals (`jaos verify --values`). A basis
-  whose numbers outgrow the limb budget gets none
-  (`bench/measurements/02-358/`).
+  values and duals are exact rationals (`jaos verify --values`). The
+  numbers hold only the limbs their size needs; a basis whose dense block
+  passes its memory or work budget gets none
+  (`bench/measurements/02-485/`).
 - *Exact solving*: `jaos solve --exact` proves an LP's answer over the
   rationals and repairs its basis by exact pivots. `--exact-decimal` reads
   each number as the decimal a file wrote rather than as its double. MIPs,
-  QPs, cones and numbers past the limb budget are not covered
+  QPs, cones and bases with a dense block past its budget are not covered
   (`SPECS.md` §6).
 - *Machine-checkable certificate*: `jaos_write_proof` writes an exact proof
   of an optimum, an infeasibility or a ray, and `jaos_check_proof` judges
