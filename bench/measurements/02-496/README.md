@@ -36,3 +36,15 @@ its scale changed. `tests/test_presolve.c` holds the two-column model.
 After it: the two-column model is optimal at 1, node 2's LP at 816.524
 with presolve on, and `eil33-2` optimal at 934.007916 in 13071 nodes and
 33 s.
+
+## The gates
+
+`make test`, `sanitize`, `netlib netlib-infeas`, `netlib-kennington` and
+`primal barrier pdlp concurrent warm` leave every record as it was.
+MIPLIB 3 keeps all 24 at the same nodes; six move by at most 1.0% of
+their work (`gt2` 2246124 to 2268539, the largest). MIPLIB 2017 at 1e10
+keeps 9 solved and 29 incumbents, with `m17sum.py`'s sum from 11.2357 to
+11.2624: 18 instances move, `exp-1-500-5-5` solves in 55 nodes from 57,
+`markshare2` ends at 74 from 95, `neos-2657525-crna` at 77.33 from
+56.52, `beasleyC3` at 762 from 757, `graphdraw-domain`'s bound at 14814
+from 15209.
