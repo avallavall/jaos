@@ -1,0 +1,319 @@
+diff --git a/SPECS.md b/SPECS.md
+index d35a5de5..b1b74679 100644
+--- a/SPECS.md
++++ b/SPECS.md
+@@ -70,7 +70,7 @@ there is a row here that is not done.
+ | Branch and bound | **done** | best estimate first with the best bound every fifth pick, each node warm from its parent's basis on one private copy of the model. Stops at the gap `mip_gap`, absolute or relative (`jaos_set_mip_gap_rule`). Rounds a bound up to the objective's step when every cost sits on one, a continuous column counting when its rows hold it as a difference with whole data; below the root a node's dual simplex stops once its bound closes the node (`bench/measurements/02-475/`). A failed node relaxation is set aside with its bound. An unbounded relaxation ends `UNBOUNDED` only when an integer point exists, with SOS sets and indicator rows split first (`bench/measurements/02-326/`, `02-328/`, `02-352/`) |
+ | Pseudocost branching | **done** | most-fractional as an option (`--branching`, `jaos_set_mip_branching`); on a small dense model of general integers whose tree outlives 1000 nodes, the tree starts again on an LLL-reduced basis of the improving region, and goes back to the columns when its bound has not passed theirs after as much work (`--lattice`, `jaos_set_mip_lattice`, `bench/measurements/02-476/`, `02-478/`) |
+ | Strong branching | **done** | reliability branching by default on a linear model, reliability 4 and each child capped at 1.5 times the node's work (`--reliability N`, `--probe-cap`, `--probe-depth`). The children run on the node's kept factors, a capped child gives its Lagrangian bound, and probing pauses past a tenth of the tree's work (`bench/measurements/02-461/`, `02-464/`) |
+-| Gomory, knapsack cover and MIR cuts | **done** | Gomory cuts at the root and to depth 3, reading as integer the continuous columns the objective step finds whole at an optimum, and the slack of a row those columns leave all integer (`bench/measurements/02-480/`); knapsack covers and MIR at the root, the MIR rounds going on while they lift the bound; MIR over each node's bounds at every depth on the all-integer rows, with complementation and divisor halving, while it lifts a quarter of the branching gain (`bench/measurements/02-474/`); aggregated MIR with Marchand and Wolsey's bound flips on rows with a continuous column; a network mode with c-MIR, variable-bound substitution and a cut pool for fixed-charge networks; hull cuts on short all-integer rows (`--hull-rounds`). Slack cuts are dropped (`bench/measurements/02-328/`, `02-341/`, `02-342/`, `02-347/`, `02-356/`, `02-357/`) |
++| Gomory, knapsack cover and MIR cuts | **done** | Gomory cuts at the root and to depth 3, reading as integer the continuous columns the objective step finds whole at an optimum, and the slack of a row those columns leave all integer (`bench/measurements/02-480/`), and on such a model the root's rounds going past the first while they lift the bound and their cuts stay under ten times the model's nonzeros (`bench/measurements/02-483/`); knapsack covers and MIR at the root, the MIR rounds going on while they lift the bound; MIR over each node's bounds at every depth on the all-integer rows, with complementation and divisor halving, while it lifts a quarter of the branching gain (`bench/measurements/02-474/`); aggregated MIR with Marchand and Wolsey's bound flips on rows with a continuous column; a network mode with c-MIR, variable-bound substitution and a cut pool for fixed-charge networks; hull cuts on short all-integer rows (`--hull-rounds`). Slack cuts are dropped (`bench/measurements/02-328/`, `02-341/`, `02-342/`, `02-347/`, `02-356/`, `02-357/`) |
+ | Clique cuts | **done** | four rounds at the root from the conflicts of the all-binary rows (`--clique-rounds`) |
+ | Flow cover, zero-half, lifted cover cuts | **partial** | flow covers on at 5 rounds (`bench/measurements/02-317/`); zero-half (`--zero-half-rounds`) and lifted covers (`--cover-lift`) behind switches, off by measurement (`bench/measurements/02-361/`). Missing: a reading that lands zero-half or lifted covers on |
+ | Rounding heuristic, root dive, feasibility pump | **done** | the relaxation rounded, a dive at the root (`--dive-heuristic`), and the feasibility pump (`--feaspump`); every point passes the incumbent's acceptance |
+diff --git a/TODO.md b/TODO.md
+index e0d7f0c7..4069fdcd 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -148,18 +148,24 @@ first:
+   with the triangle rows 184.53, its 26 cost columns alone made integer
+   193, the optimum 212. A second symmetry search before the first branch
+   finds the exchange of the four groups, and the objective step takes the
+-  26 cost columns as whole (02-477); the Gomory rounds now read those
+-  columns, and the slacks of their rows, as integer (02-480): the root
+-  goes from 185.26 to 189.80 and the bound at 1e10 from 195.9–196.3 to
+-  197.6–198.1 over five null readings, some 0.6 under SCIP's at the same
+-  nodes. JAOS's bound gains 0.9 a doubling of the nodes (200.25 at
+-  500,000), SCIP's 1.3; past 211 takes about 2e9 nodes at JAOS's rate and
+-  2.5e7 at SCIP's, against 40,000 at 1e10. Of SCIP's 199.05 at 50,000
++  26 cost columns as whole (02-477); the Gomory rounds read those
++  columns, and the slacks of their rows, as integer (02-480), and on such
++  a model the root's rounds go past the first while they lift the bound
++  and a round's cuts hold under ten times the model's nonzeros (02-483):
++  the root goes from 189.80 to 192.30 after eight rounds and the bound at
++  1e10 from 197.32–197.52 to 199.04–199.36 over five null readings, in
++  26,000 to 40,000 nodes against 58,000. At 20,000 nodes it reads
++  198.5–199.0 against SCIP's 197.12, at 50,000 199.71 against 199.05.
++  JAOS's bound still gains 0.9 a doubling of the nodes (202.93 at
++  570,000), SCIP's 1.3; past 211 takes about 2e8 nodes at JAOS's rate and
++  2.5e7 at SCIP's, against 30,000 at 1e10. Of SCIP's 199.05 at 50,000
+   nodes symmetry is 6.1, reliability branching 4.2 and node cuts 2.3.
+-  Next for `assign1-5-8`: integral slacks on the all-integer equality rows
+-  with Gomory rounds past the first, 198.7–199.0 at 1e10, in a form that
+-  keeps `bell5`'s tree (`gomory-integral-slacks`, `gomory-rounds-implied`);
+-  then reliability branching's probes. Next for `neos5`: the up children's
++  The equality rows' integral slacks only rewrite a cut, since the slack
++  is fixed, and grow `misc07` (`gomory-equality-slacks`); `bell5` grew
++  under rounds past the first, not under integral slacks, and has no
++  implied integers. The root now spends 2.2e9 of the 1e10 against 3.6e8,
++  its heuristics' share with it. Next for `assign1-5-8`: reliability
++  branching's probes. Next for `neos5`: the up children's
+   relaxations, and a node presolve rule read per node, since
+   `MIP_NODE_PRESOLVE_ITERS` was set on iteration counts of the old
+   pricing. Verify at 1e10 on both and with `make miplib J=2`.
+diff --git a/bench/refusals.txt b/bench/refusals.txt
+index 1fa2d217..f9c6a484 100644
+--- a/bench/refusals.txt
++++ b/bench/refusals.txt
+@@ -180,8 +180,8 @@ mir-agg-row-slack | MANUAL | Adding abs(lambda) times the added row's slack to t
+ cr-early-stop | MANUAL | Stopping Curtis-Reid's conjugate gradients early, at a looser residual or fewer iterations, so a MIP node scales for less (bench/measurements/02-354/). The power-of-2 factors change and so do the trees. Reopens with a node LP that takes its scale from the root's factors through presolve's maps.
+ root-cut-select-every-model | MANUAL | Network mode's per-round cut selection (cutbuf_select) run on every model (bench/measurements/02-359/). Its cosine test and cap drop cuts that flat roots need. Reopens with a selection that keeps every cut a flat root builds on, testing a cut by what the LP loses without it.
+ cycle-cuts-two-potentials | MANUAL | Root cuts from cycles over rows with two continuous columns of opposite sign, summed so the continuous columns cancel and passed to the single-row MIR (bench/measurements/02-363/). Reopens with a separation that also targets the cycle's rounding gap, read first on ic97_potential's root.
+-gomory-integral-slacks | MANUAL | Gomory cuts that treat a row's slack as integer when its columns are integer and its coefficients whole (bench/measurements/02-364/, JAOS_GISL). The cuts are valid, and bell5's tree grows. Reopens with a cut selection that keeps those cuts from growing bell5's tree.
+-gomory-rounds-while-lifting | MANUAL | Gomory rounds past MIP_CUT_ROUNDS while the bound still lifts, up to 20 (bench/measurements/02-364/). Reopens with cuts that leave the node relaxations when they go slack, read on MIPLIB 3 and the 2017 set.
++gomory-integral-slacks | MANUAL | Gomory cuts that treat a row's slack as integer when its columns are integer and its coefficients whole (bench/measurements/02-364/, JAOS_GISL). The cuts are valid, and bell5's tree grew. At 1235543a bell5 keeps its tree under them (15,313 to 19,455 nodes against 14,073 to 27,699 over five null readings), but MIPLIB 3 reads 1.091x, enigma 46.5x and gt2 3.86x (bench/measurements/02-483/, JAOS_GE=11). Reopens with a reading on MIPLIB 3 under 1x with no instance past 2x.
++gomory-rounds-while-lifting | MANUAL | Gomory rounds past MIP_CUT_ROUNDS while the bound still lifts, up to 20, on every model (bench/measurements/02-364/); since 02-483 they run on the models with implied integers. On every model at 1235543a two rounds read 1.288x on MIPLIB 3 and five 1.966x, bell5 7.5x and 68x (bench/measurements/02-483/). Reopens with cuts that leave the node relaxations when they go slack, read on MIPLIB 3 and the 2017 set.
+ node-scale-from-parent | MANUAL | A MIP node's presolved model given the tree's LP scale through presolve's maps instead of its own Curtis-Reid scale (bench/measurements/02-368/). The trees moved up to 14x and the time a node takes did not fall. Reopens with a scale the node can reuse that leaves its vertices unchanged
+ node-presolve-trial | MANUAL | A trial of 10 or 25 node relaxations instead of MIP_NODE_PRESOLVE_TRIAL (50) before the nodes skip presolve (bench/measurements/02-370/). enigma's tree went past 2x at both lengths. Reopens with a skip rule that does not move enigma's tree, read on MIPLIB 3 and the 2017 set
+ conic-tree-bound-point | MANUAL | At the conic tree's root, with no incumbent after the rounding and the dive, a solve with every integer column at its lower bound and one at its upper bound (bench/measurements/02-379/, bound-point.patch). No instance of CBLIB's 80 mixed-integer set or QPLIB's 14 mixed-integer QCQPs gained an incumbent, and 02-255's generated trees cost 11.6% to 12.5% more work for the same answers. Reopens with a set whose models have a feasible point at a bound and no incumbent from the rounding or the dive.
+@@ -212,7 +212,7 @@ lattice-round-columns | MANUAL | Rounding each node's point of the reduced-basis
+ symmetry-root-cap | MANUAL | The root's symmetry search under 1000 times the model's size in place of 250 (bench/measurements/02-477/, sym.patch). It finds assign1-5-8's exchange of its four groups, as the landed second search does, but air03, which closes at its root, pays 1.31x for it and MIPLIB 3 reads 1.002x in total; the landed form spends the larger cap only before the first branch (MIP_SYMMETRY_MORE). Reopens with a search that finishes air03 inside 250, such as a refinement that splits only the cells a change touches.
+ node-presolve-always | MANUAL | Node relaxations that never skip the LP presolve (MIP_NODE_PRESOLVE_ITERS out of reach), on top of dual Devex at the nodes (bench/measurements/02-479/, landpre in read.sh). neos5 reaches 150,788 nodes and bound 14.33 at 1e10 against 116,376 and 14.25, but MIPLIB 3 reads 1.225x in total and 1.097x geometric, dcmulti 1.85x, l152lav 1.37x, stein45 1.35x. Reopens with a skip rule read per node, such as the share of the node's columns its bounds fix, that keeps neos5's presolve without dcmulti's, read on both sets.
+ node-mir-implied-rows | MANUAL | Node MIR reading as integer the columns the objective step finds whole at an optimum, so that their rows join its all-integer rows, beside the landed Gomory form (bench/measurements/02-480/, prototype.patch JAOS_IMPL=5). assign1-5-8 reads 196.96 at 1e10 against 196.84 with the Gomory form alone, and pk1 stops closing: bound 10 after 232,430 nodes at 1e10. Reopens with a node MIR stop that keeps pk1 closing.
+-gomory-rounds-implied | MANUAL | Five root Gomory rounds over the landed form that reads the implied integers as integer, and the same with the integral slacks extended to cut rows (bench/measurements/02-480/, null.patch, cutrows.patch). Over five null readings at 1e10 assign1-5-8 reads 197.38 to 197.52 and 197.47 to 197.53 against 197.61 to 198.07 with one round; cut rows at one round read 197.70 to 198.35. With every all-integer row's slack integral as well, gomory-integral-slacks over the implied integers, five rounds read 198.66 to 199.04. Reopens with a form of gomory-integral-slacks that keeps bell5's tree.
++gomory-equality-slacks | MANUAL | Gomory cuts that read as integer the slack of an all-integer equality row with whole coefficients, beside 02-480's rows that hold an implied column (bench/measurements/02-483/, prototype.patch JAOS_GE=1). The slack is fixed, so any coefficient gives the same cut on the relaxation and only its written form changes: assign1-5-8 reads 197.69 to 198.22 at 1e10 against 197.32 to 197.52 and 199.11 to 199.57 beside the landed rounds against 199.04 to 199.36, but misc07 grows from 8,375-9,915 nodes to 13,133-15,098 over five null readings; on every model MIPLIB 3 reads 1.121x and enigma 46.5x. Reopens with a reason to prefer one written form of a cut over another, read on misc07 and enigma.
+ lattice-node-rounding | MANUAL | A heuristic for the reduced-basis tree from its nodes' points, tried from outside the tool on gen-ip002's 47,126 reduced nodes at 4e9 work units after 20000 nodes over the columns (bench/measurements/02-478/, offline.py, rad.py, dives.py, center.py). No node gives a point past the incumbent -4771.64 by rounding y, by rounding x = V y to nearest, down or at random, which holds V y >= 0, by every pattern of up to 12 fractional coordinates or by one column moved by one; two such moves reach the optimum at one node. Dives, RENS and a 500-node sub-MIP over the mapped point's zero columns at 94 of the nodes find -4774.65 twice, and central rounding none in 3000 LPs. Reopens with a heuristic whose points do not start from the node relaxation's vertex.
+ round-one-column-moved | MANUAL | Rounding each node's point with one column moved by one when plain rounding breaks rows: among the integer columns of the shortest broken row, the move that mends every broken row and breaks none, best objective first (bench/measurements/02-478/, proto.patch JAOS_REPAIR). On gen-ip002's first 20000 columns' nodes it would reach the optimum at node 10,403 from outside the tool, but in a run the path moves: its first 20000 nodes still end at -4771.64, gen-ip054 closes at 2.49e9 against 2.05e9, and with 02-478's check after those 20000 nodes gen-ip002 finds the optimum at node 31,510 of the columns' second tree against 12,996. Read only on those two, with b53a1ffd's 20000 nodes first. Reopens with a reading on MIPLIB 3 and MIPLIB 2017.
+ lattice-tree-by-bound | MANUAL | The reduced-basis tree taking its nodes by bound alone (bench/measurements/02-478/, proto.patch JAOS_LATBOUND, 20000 nodes first). Without 02-478's check gen-ip002's bound at 1e10 moves from -4807.19 to -4802.60, but gen-ip054 closes at 2.19e9 against 2.05e9, and 2.56e9 with the reduced tree's heuristics off too; with the check gen-ip002 leaves the reduced tree. Reopens on a model that keeps the reduced tree with its bound still open at the budget.
+diff --git a/docs/api.md b/docs/api.md
+index 88d6a072..a03862b9 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -134,7 +134,7 @@ value `jaos_get_option` reports before any setter runs.
+ | `jaos_set_mip_reliability` | `mip_reliability` | integer | 4; 0 with a quadratic objective |
+ | `jaos_set_mip_probe_cap` | `mip_probe_cap` | number | 1.5 |
+ | `jaos_set_mip_probe_depth` | `mip_probe_depth` | integer | -1, every depth |
+-| `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1 |
++| `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1; up to 20 while they lift on a model with implied integers |
+ | `jaos_set_mip_cut_depth` | `mip_cut_depth` | integer | 3 |
+ | `jaos_set_mip_cut_drop` | `mip_cut_drop` | boolean | true |
+ | `jaos_set_mip_node_cut_cap` | `mip_node_cut_cap` | integer | 4 |
+@@ -751,7 +751,12 @@ sides and bounds, `MIP_OBJ_DENOM` in `docs/tolerances.md`) counts as
+ integer in these cuts and in the nodes' rounds, and so does the slack of a
+ model row that holds such a column and otherwise only integer columns,
+ with whole coefficients. The cuts may then cut off points where that
+-column is fractional, never every optimum.
++column is fractional, never every optimum. On a model with such columns,
++and unless this call set the rounds, the root's rounds go past the first,
++up to `MIP_GOMORY_MORE`, while the round before lifted the bound by
++`MIP_GOMORY_MORE_STALL` of it and its cuts held at most
++`MIP_GOMORY_MORE_NZ` times the model's nonzeros; the summary log gives
++the count.
+ 
+ **`jaos_set_mip_cut_depth`**\
+ `jaos_status jaos_set_mip_cut_depth(jaos_model *m, int64_t depth)`\
+diff --git a/docs/cli.md b/docs/cli.md
+index 49c28123..978e4425 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -219,7 +219,7 @@ again: `bench/refusals.txt` says what would reopen each one, and
+ | `--partial-start POINT` | gives the tree the values of the columns a point file names (`#` starts a comment). At the root, a copy of the model with every given integer column fixed at its rounded value is solved as a tree of at most `MIP_START_NODES` nodes, and its best point is judged as `--mip-start` judges one. The given values of continuous columns are not used. A name the model does not have, or a value that is not finite, is a usage error. |
+ | `--cutoff V` | prunes every node that cannot beat objective `V`, in the model's own sense, from node 1. No point that fails to beat `V` becomes the incumbent, so a cutoff better than the optimum ends `infeasible` with exit 1. |
+ | `--node-limit N` | stops the tree when its node count reaches `N`, as `node_limit`, keeping its incumbent. `N` must be a positive integer. |
+-| `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root, kept for the whole tree. Default 1; `0` turns them off. A negative count is a usage error. |
++| `--cut-rounds N` | rounds of Gomory mixed-integer cuts at the root, kept for the whole tree. Default 1, and on a model with implied integers up to 20 while they lift the bound (`jaos_set_mip_cut_rounds` in `docs/api.md`); `0` turns them off. A negative count is a usage error. |
+ | `--cut-depth D` | one round of Gomory cuts at every node down to depth `D`; each cut holds in its node's subtree. Default 3; `0` keeps the cuts at the root. A negative depth is a usage error. |
+ | `--node-cut-cap K` | keeps at most `K` cuts per node below the root, the most efficacious. Default 4; `0` is no cap. A negative count is a usage error. |
+ | `--no-cut-drop` | keeps a node's cut in every node under it. By default a cut that does not bind at a node leaves the relaxation under it. |
+diff --git a/docs/tolerances.md b/docs/tolerances.md
+index b861421e..cff8b522 100644
+--- a/docs/tolerances.md
++++ b/docs/tolerances.md
+@@ -345,7 +345,10 @@ the root's cut mode for a model with many continuous columns under binaries
+ | `MIP_CLIQUE_FIX` | on | At each node, a binary fixed to one value fixes the literals in conflict with it in the root's clique table (the all-binary rows' conflicts and probing's implications), cascading; a node holding both sides of a conflict is cut without a solve. With RINS on, MIPLIB 3 reads 0.735x in summed work and 1.002x in the geometric mean, and the 2017 set 0.994x (`bench/measurements/02-325/`) |
+ | `MIP_CLIQUE_ROW_CAP` | 64 | The largest literals of a row and side that feed the conflict graph; it bounds the work per row. Not swept |
+ | `MIP_GAP` | 1e-6 | The relative gap that closes the search: no open node beats the incumbent by more than `MIP_GAP * (1 + \|incumbent\|)`. Under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Below the root of a linear model, a node's dual simplex stops once the Lagrangian bound of its duals closes the node by this test, and the cut-off child's pseudocost learns that bound; MIPLIB 3 reads 0.935x and `mas76` takes 0.68x the work (`bench/measurements/02-475/`). Not swept: every MIPLIB 3 instance closes with bound equal to incumbent |
+-| `MIP_CUT_ROUNDS` | 1 | Rounds of Gomory mixed-integer cuts at the root. Swept at 0 to 5: 1 has the best mean with every instance under 2x, and 2 and 3 put several past 2x. A later reading of 2 gave 1.111x (`bench/measurements/02-351/`) |
++| `MIP_CUT_ROUNDS` | 1 | Rounds of Gomory mixed-integer cuts at the root. Swept at 0 to 5: 1 has the best mean with every instance under 2x, and 2 and 3 put several past 2x. A later reading of 2 gave 1.111x (`bench/measurements/02-351/`); on every model 2 read 1.288x and 5 read 1.966x, `bell5` 7.5x and 68x (`bench/measurements/02-483/`) |
++| `MIP_GOMORY_MORE` | 20 | On a model whose objective step finds implied integers, and unless the rounds are set, the root's Gomory rounds go past `MIP_CUT_ROUNDS`, up to this many: a round runs while the one before lifted the bound by `MIP_GOMORY_MORE_STALL` and its cuts held at most `MIP_GOMORY_MORE_NZ` times the model's nonzeros. `MIP_MIR_MORE`'s value. `assign1-5-8` stops at the stall after 8 rounds, its root from 189.80 to 192.30 and its bound at 1e10 from 197.32–197.52 to 199.04–199.36 over five null readings; MIPLIB 3, where only `misc03` and `misc07` have implied integers and their first round lifts nothing, reads 0.996x (`bench/measurements/02-483/`) |
++| `MIP_GOMORY_MORE_STALL` | 1e-4 | The share of (1 + \|bound\|) a round must lift the bound by for the next Gomory round to run; `MIP_MIR_MORE_STALL`'s value. `assign1-5-8`'s second to seventh rounds lift 5.7e-3 to 3.1e-4 of it and its eighth 8.6e-5. Not swept |
++| `MIP_GOMORY_MORE_NZ` | 10 | The most nonzeros a round's cuts may hold, as a multiple of the model's, for the next Gomory round to run. `assign1-5-8`'s rounds hold 3.5 to 4.9 times its nonzeros; `csched007`'s first holds 18 and each after it 23 to 41: with five rounds a node costs 2.8 times as much and its bound at 1e10 falls from 306 to 302, and under the stall alone its root takes the whole 1e10 and reads 296 (`bench/measurements/02-483/`). Not swept |
+ | `MIP_CUT_AWAY` | 0.01 | A basic integer column is cut only when its fraction lies in `[AWAY, 1 - AWAY]`, since the cut divides by the fraction and its complement. Balas, Ceria, Cornuejols and Natraj's bound. Not swept |
+ | `MIP_CUT_DROP` | 1e-9 | A coefficient below `DROP` times the cut's largest is folded into the right-hand side through its column's bound, which keeps the cut valid; kept when that bound is infinite. Not swept |
+ | `MIP_CUT_SLACK` | 1e-15 | How far a cut's right-hand side is pulled back, in units of its span `1 + \|rhs\| + Σ_j \|a_j\| max(1, \|l_j\|, \|u_j\|)`. A rounded-up side can cut off the integer points on it and make a feasible model read infeasible; pulling back only keeps points. Over 20000 generated models checked by enumeration it removes every false infeasible. 1e-15 covers one rounding step; 1e-11 loosened the bound enough to lose `misc03` |
+diff --git a/python/jaos/model.py b/python/jaos/model.py
+index 4be820fe..e3b359e8 100644
+--- a/python/jaos/model.py
++++ b/python/jaos/model.py
+@@ -781,7 +781,8 @@ class Model:
+ 
+     def set_mip_cut_rounds(self, rounds):
+         """Rounds of Gomory cuts at the root (D289): 0 for none, a
+-        negative value for the default of 1."""
++        negative value for the default of 1, or up to 20 while they lift
++        on a model with implied integers."""
+         self._check(_lib.jaos_set_mip_cut_rounds(self._handle(), int(rounds)))
+ 
+     def set_mip_cut_depth(self, depth):
+diff --git a/python/jaos/problem.py b/python/jaos/problem.py
+index 7227af7b..d944ba2e 100644
+--- a/python/jaos/problem.py
++++ b/python/jaos/problem.py
+@@ -978,7 +978,8 @@ class Problem:
+ 
+     def set_mip_cut_rounds(self, rounds):
+         """Rounds of Gomory cuts at the root: 0 for none, negative for the
+-        default of 1 (D289)."""
++        default of 1, or up to 20 while they lift on a model with implied
++        integers (D289)."""
+         self._m.set_mip_cut_rounds(rounds)
+         return self
+ 
+diff --git a/src/mip.c b/src/mip.c
+index 22236893..f56f9a24 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -14,6 +14,9 @@ constexpr double MIP_INT_TOL = 1e-6;
+ constexpr double MIP_GAP = 1e-6;
+ 
+ constexpr int64_t MIP_CUT_ROUNDS = 1;
++constexpr int64_t MIP_GOMORY_MORE = 20;
++constexpr double MIP_GOMORY_MORE_STALL = 1e-4;
++constexpr double MIP_GOMORY_MORE_NZ = 10.0;
+ 
+ constexpr int64_t MIP_CUT_DEPTH = 3;
+ 
+@@ -8901,6 +8904,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
+     if (mir_rounds > root_rounds)
+         root_rounds = mir_rounds;
++    const bool gomory_more = og.implied > 0 && !m->cfg.mip_cut_rounds_set &&
++                             !net && !quadratic;
++    const int64_t gomory_rounds = gomory_more && MIP_GOMORY_MORE > rounds
++                                      ? MIP_GOMORY_MORE : rounds;
++    if (gomory_rounds > root_rounds)
++        root_rounds = gomory_rounds;
++    bool gomory_live = true;
++    int64_t gomory_done = 0;
+     if (clique_rounds > root_rounds)
+         root_rounds = clique_rounds;
+     const int64_t zh_rounds = m->cfg.mip_zero_half_rounds_set
+@@ -9292,6 +9303,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    "as integer, and the slack of a row they leave all "
+                    "integer with whole coefficients",
+                    (long long)og.implied, og.step, sigma * og.off);
++        if (gomory_more)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: the root's Gomory rounds go past the "
++                   "first, up to %lld, while a round lifts the bound by "
++                   "%g of it and its cuts hold at most %g times the "
++                   "model's nonzeros",
++                   (long long)gomory_rounds, MIP_GOMORY_MORE_STALL,
++                   MIP_GOMORY_MORE_NZ);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9918,6 +9937,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             lp->cfg.cut_resolve = true;
+             for (int64_t r = 0; r < root_rounds && !stop; r++) {
+                 phase_to(&ph, work, PH_CUTS);
++                const int64_t round_nz = lp->num_nz;
+                 if (net && root_cut_drop && r > 0) {
+                     assert(lp->num_row == nfixed + in_copy.n);
+                     int64_t nd = 0, kept = 0;
+@@ -10034,11 +10054,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     row = g2;
+                     row_cap = nc + lp->num_row + 1;
+                 }
+-                if (r < rounds) {
++                if (r < rounds || (r < gomory_rounds && gomory_live)) {
+                     got = gomory_round(lp, gint, gom_row, nr, x, &cb, row,
+                                        cut, &work);
+                     if (got < 0)
+                         goto done;
++                    gomory_done++;
+                 }
+                 if (r < cover_rounds) {
+                     const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+@@ -10223,6 +10244,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root cuts, round %lld: %lld cuts, relaxation %.17g, "
+                        "%lld rows", (long long)(r + 1), (long long)got,
+                        sigma * key, (long long)lp->num_row);
++                if (r + 1 >= rounds &&
++                    (key - key_before <
++                         MIP_GOMORY_MORE_STALL * (1.0 + fabs(key_before)) ||
++                     (double)(lp->num_nz - round_nz) >
++                         MIP_GOMORY_MORE_NZ * (double)m->num_nz))
++                    gomory_live = false;
+                 if (stop || got == 0)
+                     break;
+                 branch = select_branch(m, x, rule, pc_sum, pc_n);
+@@ -10257,6 +10284,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    obj, (long long)cuts, (long long)covers,
+                    (long long)cliques, (long long)zero_halves,
+                    (long long)flow_covers, (long long)hulls, (long long)mirs);
++            if (gomory_more)
++                jm_log(m, JAOS_LOG_SUMMARY, "root: %lld rounds of Gomory cuts",
++                       (long long)gomory_done);
+             if (mir_aggregate > 0 && !jm_model_has_quadratic(m))
+                 jm_log(m, JAOS_LOG_SUMMARY,
+                        "root: MIR aggregation kept %lld cuts after %lld "
+diff --git a/tests/test_mip.c b/tests/test_mip.c
+index 478b21bb..73b64020 100644
+--- a/tests/test_mip.c
++++ b/tests/test_mip.c
+@@ -1429,6 +1429,7 @@ static void test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer(void)
+         jaos_model *m = cluster_model(k == 1);
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 1));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+@@ -1453,6 +1454,48 @@ static void test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer(void)
+     jaos_model_free(m);
+ }
+ 
++static double cluster_root(bool whole_cost, int64_t rounds, int64_t *gomory)
++{
++    jaos_model *m = cluster_model(whole_cost);
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
++    if (rounds >= 0)
++        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, rounds));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
++    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
++    const char *at = strstr(g_log, "root: relaxation ");
++    TEST_ASSERT_NOT_NULL(at);
++    const double root = strtod(at + strlen("root: relaxation "), nullptr);
++    const char *g = strstr(g_log, " rounds of Gomory cuts");
++    *gomory = 0;
++    if (g != nullptr) {
++        while (g > g_log && g[-1] >= '0' && g[-1] <= '9')
++            g--;
++        *gomory = strtoll(g, nullptr, 10);
++    }
++    jaos_model_free(m);
++    return root;
++}
++
++static void test_gomory_rounds_go_past_the_first_while_they_lift(void)
++{
++    int64_t more = 0, one = 0, whole = 0;
++    const double r_more = cluster_root(false, -1, &more);
++    TEST_ASSERT_NOT_NULL(strstr(g_log, "the root's Gomory rounds go past "
++                                       "the first"));
++    const double r_one = cluster_root(false, 1, &one);
++    TEST_ASSERT_NULL(strstr(g_log, "rounds of Gomory cuts"));
++    const double r_whole = cluster_root(true, -1, &whole);
++    TEST_ASSERT_NULL(strstr(g_log, "rounds of Gomory cuts"));
++    TEST_ASSERT_TRUE(more > 1);
++    TEST_ASSERT_EQUAL_INT64(0, one);
++    TEST_ASSERT_EQUAL_INT64(0, whole);
++    TEST_ASSERT_TRUE(r_more > r_one + 1e-6);
++    TEST_ASSERT_DOUBLE_WITHIN(1e-9, r_one, r_whole);
++}
++
+ static jaos_model *exact_pick(void)
+ {
+     const double c[5] = {2, 3, 4, 3, 5};
+@@ -7149,6 +7192,7 @@ int main(void)
+     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
+     RUN_TEST(test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound);
+     RUN_TEST(test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer);
++    RUN_TEST(test_gomory_rounds_go_past_the_first_while_they_lift);
+     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
+     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
+     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);

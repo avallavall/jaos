@@ -978,7 +978,8 @@ class Problem:
 
     def set_mip_cut_rounds(self, rounds):
         """Rounds of Gomory cuts at the root: 0 for none, negative for the
-        default of 1 (D289)."""
+        default of 1, or up to 20 while they lift on a model with implied
+        integers (D289)."""
         self._m.set_mip_cut_rounds(rounds)
         return self
 

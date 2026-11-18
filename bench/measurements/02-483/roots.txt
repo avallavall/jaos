@@ -1,0 +1,90 @@
+# root rounds: rounds.txt is the bound round by round; glog the lift and nonzeros a round (JAOS_GM=20, JAOS_GLOG)
+bell5 p0: r1 16c 8653018.0302832704 107rows;
+bell5 p0r5: r1 16c 8653018.0302832704 107rows;r2 4c 8653892.9319971409 111rows;r3 2c 8653995.3483723793 113rows;r4 1c 8654025.3676167596 114rows;
+bell5 ge1r5: r1 16c 8653018.0302832704 107rows;r2 4c 8653892.9319971409 111rows;r3 2c 8653995.3483723793 113rows;r4 1c 8654025.3676167596 114rows;
+bell5 ge9r5: r1 16c 8653018.0302832704 107rows;r2 4c 8653892.9319971409 111rows;r3 2c 8653995.3483723793 113rows;r4 1c 8654025.3676167596 114rows;
+misc03 p0: r1 14c 1910 110rows;r2 7c 1910 117rows;r3 7c 1910 124rows;r4 7c 1910 131rows;
+misc03 p0r5: r1 14c 1910 110rows;r2 30c 1910 140rows;r3 20c 1952.1428571427764 160rows;r4 27c 2036.2499999996542 187rows;r5 37c 2051.2499999995721 224rows;
+misc03 ge1r5: r1 14c 1910 110rows;r2 31c 1997.4999999999729 141rows;r3 40c 2078.3333333332853 181rows;r4 46c 2164.9999999999263 227rows;r5 31c 2164.9999999999295 258rows;
+misc03 ge9r5: r1 14c 1910 110rows;r2 31c 1997.4999999999729 141rows;r3 40c 2078.3333333332853 181rows;r4 46c 2164.9999999999263 227rows;r5 31c 2164.9999999999295 258rows;
+misc07 p0: r1 21c 1415 233rows;r2 1c 1415 234rows;r3 1c 1415 235rows;r4 1c 1415 236rows;
+misc07 p0r5: r1 21c 1415 233rows;r2 39c 1418.3333333333267 272rows;r3 41c 1424.9999999999611 313rows;r4 41c 1424.9999999999588 354rows;r5 37c 1424.9999999999618 391rows;
+misc07 ge1r5: r1 21c 1415 233rows;r2 46c 1415 279rows;r3 46c 1415 325rows;r4 47c 1415 372rows;r5 37c 1424.9999999999952 409rows;
+misc07 ge9r5: r1 21c 1415 233rows;r2 46c 1415 279rows;r3 46c 1415 325rows;r4 47c 1415 372rows;r5 37c 1424.9999999999952 409rows;
+mod008 p0: r1 15c 296.30833353688053 21rows;r2 11c 297.50648502357336 32rows;r3 10c 297.81074327781363 42rows;r4 9c 298.68477604459622 51rows;r5 4c 298.77876487137297 55rows;r6 4c 298.93142711621141 59rows;r7 4c 299.13159790633068 63rows;r8 1c 299.13825818560292 64rows;
+mod008 p0r5: r1 15c 296.30833353688053 21rows;r2 19c 298.94991247458705 40rows;r3 19c 299.85746916747428 59rows;r4 19c 300.21101973280435 78rows;r5 18c 300.35682223265025 96rows;r6 5c 300.46445558921101 101rows;r7 5c 300.51330187377243 106rows;r8 5c 300.52678436112524 111rows;
+mod008 ge1r5: r1 15c 296.30833353688053 21rows;r2 19c 298.94991247458705 40rows;r3 19c 299.85746916747428 59rows;r4 19c 300.21101973280435 78rows;r5 18c 300.35682223265025 96rows;r6 5c 300.46445558921101 101rows;r7 5c 300.51330187377243 106rows;r8 5c 300.52678436112524 111rows;
+mod008 ge9r5: r1 15c 296.30833353688053 21rows;r2 19c 298.94991247458705 40rows;r3 19c 299.85746916747428 59rows;r4 19c 300.21101973280435 78rows;r5 18c 300.35682223265025 96rows;r6 5c 300.46445558921101 101rows;r7 5c 300.51330187377243 106rows;r8 5c 300.52678436112524 111rows;
+p0201 p0: r1 37c 7149.0418118466732 170rows;r2 15c 7149.8187633262096 185rows;r3 19c 7153.6567164178932 204rows;r4 13c 7157.4324324324116 217rows;
+p0201 p0r5: r1 37c 7149.0418118466732 170rows;r2 73c 7201.4584185133335 243rows;r3 84c 7215.1032218108594 327rows;r4 96c 7241.8540303185082 423rows;r5 72c 7256.2697129240396 495rows;r6 6c 7257.7127173919689 501rows;
+p0201 ge1r5: r1 37c 7149.0418118466732 170rows;r2 73c 7201.4584185133335 243rows;r3 84c 7215.1032218108594 327rows;r4 96c 7241.8540303185082 423rows;r5 72c 7256.2697129240396 495rows;r6 6c 7257.7127173919689 501rows;
+p0201 ge9r5: r1 37c 7149.0418118466732 170rows;r2 73c 7201.4584185133335 243rows;r3 84c 7215.1032218108594 327rows;r4 96c 7241.8540303185082 423rows;r5 72c 7256.2697129240396 495rows;r6 6c 7257.7127173919689 501rows;
+p0033 p0: r1 25c 2844.9394615384585 41rows;r2 8c 2888.9233333333327 49rows;r3 11c 2935.0399999999977 60rows;r4 8c 2954.4151710839128 68rows;r5 5c 2960.3476861812619 73rows;r6 3c 2962.1094764172349 76rows;r7 2c 2970.7872717937726 78rows;r8 1c 2971.0587320346617 79rows;
+p0033 p0r5: r1 25c 2844.9394615384585 41rows;r2 13c 2888.9233333333327 54rows;r3 24c 2935.0399999999977 78rows;r4 12c 2968.2078474098575 90rows;r5 23c 2972.0932930364993 113rows;r6 4c 2976.9006546646292 117rows;r7 3c 2990.6161328027397 120rows;r8 2c 2990.6161328027397 122rows;
+p0033 ge1r5: r1 25c 2844.9394615384585 41rows;r2 13c 2888.9233333333327 54rows;r3 24c 2935.0399999999977 78rows;r4 12c 2968.2078474098575 90rows;r5 23c 2972.0932930364993 113rows;r6 4c 2976.9006546646292 117rows;r7 3c 2990.6161328027397 120rows;r8 2c 2990.6161328027397 122rows;
+p0033 ge9r5: r1 25c 2844.9394615384585 41rows;r2 13c 2888.9233333333327 54rows;r3 24c 2935.0399999999977 78rows;r4 12c 2968.2078474098575 90rows;r5 23c 2972.0932930364993 113rows;r6 4c 2976.9006546646292 117rows;r7 3c 2990.6161328027397 120rows;r8 2c 2990.6161328027397 122rows;
+assign1-5-8 p0: r1 138c 189.79891169677492 299rows;r2 5c 189.79891169677495 304rows;r3 3c 189.79891169677495 307rows;r4 3c 189.79891169677495 310rows;
+assign1-5-8 p0r5: r1 138c 189.79891169677492 299rows;r2 107c 190.88497720985794 406rows;r3 106c 191.5235771833253 512rows;r4 91c 191.77928515235575 603rows;r5 87c 192.13339488695516 690rows;
+assign1-5-8 ge1r5: r1 138c 189.79891169677492 299rows;r2 104c 190.88497720985993 403rows;r3 106c 191.52357718332658 509rows;r4 93c 191.77928515235556 602rows;r5 97c 192.1333948869549 699rows;
+assign1-5-8 ge9r5: r1 138c 189.79891169677492 299rows;r2 104c 190.88497720985993 403rows;r3 106c 191.52357718332658 509rows;r4 93c 191.77928515235556 602rows;r5 97c 192.1333948869549 699rows;
+
+== instances-miplib2017/assign1-5-8
+gomory more: round 1 lift 3.491e-02 nz 21897 model nz 3720 rows 299 model rows 161 live 1
+gomory more: round 2 lift 5.692e-03 nz 37378 model nz 3720 rows 406 model rows 161 live 1
+gomory more: round 3 lift 3.328e-03 nz 52961 model nz 3720 rows 512 model rows 161 live 1
+gomory more: round 4 lift 1.328e-03 nz 66807 model nz 3720 rows 603 model rows 161 live 1
+gomory more: round 5 lift 1.837e-03 nz 80173 model nz 3720 rows 690 model rows 161 live 1
+gomory more: round 6 lift 4.540e-04 nz 93237 model nz 3720 rows 775 model rows 161 live 1
+gomory more: round 7 lift 3.075e-04 nz 107686 model nz 3720 rows 869 model rows 161 live 1
+gomory more: round 8 lift 8.639e-05 nz 122286 model nz 3720 rows 964 model rows 161 live 1
+root: relaxation 192.29719575451972 after 803 cuts, 16 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+work_units 2224552272
+== instances-miplib2017/csched007
+gomory more: round 1 lift 5.793e-02 nz 123716 model nz 6375 rows 545 model rows 349 live 1
+gomory more: round 2 lift 9.603e-03 nz 272134 model nz 6375 rows 729 model rows 349 live 1
+gomory more: round 3 lift 1.803e-02 nz 426140 model nz 6375 rows 907 model rows 349 live 1
+gomory more: round 4 lift 4.462e-03 nz 578324 model nz 6375 rows 1077 model rows 349 live 1
+gomory more: round 5 lift 2.925e-03 nz 806760 model nz 6375 rows 1249 model rows 349 live 1
+gomory more: round 6 lift 5.765e-04 nz 1041534 model nz 6375 rows 1413 model rows 349 live 1
+gomory more: round 7 lift 3.097e-04 nz 1296792 model nz 6375 rows 1597 model rows 349 live 1
+gomory more: round 8 lift 2.098e-04 nz 1513964 model nz 6375 rows 1746 model rows 349 live 1
+gomory more: round 9 lift 2.633e-04 nz 1777520 model nz 6375 rows 1925 model rows 349 live 1
+gomory more: round 10 lift 1.469e-04 nz 1989219 model nz 6375 rows 2079 model rows 349 live 1
+gomory more: round 11 lift 6.111e-05 nz 2202444 model nz 6375 rows 2225 model rows 349 live 1
+root: relaxation 295.49696220775206 after 1876 cuts, 16 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 168 MIR
+work_units 10076389150
+== instances-miplib2017/csched008
+gomory more: round 1 lift 0.000e+00 nz 71084 model nz 5667 rows 496 model rows 341 live 1
+gomory more: round 2 lift 0.000e+00 nz 71873 model nz 5667 rows 546 model rows 341 live 0
+gomory more: round 3 lift 0.000e+00 nz 72648 model nz 5667 rows 600 model rows 341 live 0
+gomory more: round 4 lift 0.000e+00 nz 73268 model nz 5667 rows 646 model rows 341 live 0
+gomory more: round 5 lift 0.000e+00 nz 73803 model nz 5667 rows 685 model rows 341 live 0
+gomory more: round 6 lift 0.000e+00 nz 74016 model nz 5667 rows 703 model rows 341 live 0
+root: relaxation 171 after 362 cuts, 16 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 260 MIR
+work_units 6359527091
+== instances-miplib2017/ic97_potential
+gomory more: round 1 lift 1.196e-04 nz 4886 model nz 3138 rows 1345 model rows 1046 live 1
+gomory more: round 2 lift 5.418e-04 nz 11352 model nz 3138 rows 1752 model rows 1046 live 1
+gomory more: round 3 lift 1.041e-03 nz 26736 model nz 3138 rows 2256 model rows 1046 live 1
+gomory more: round 4 lift 5.506e-04 nz 48839 model nz 3138 rows 2677 model rows 1046 live 1
+gomory more: round 5 lift 0.000e+00 nz 62940 model nz 3138 rows 2996 model rows 1046 live 1
+gomory more: round 6 lift 0.000e+00 nz 63036 model nz 3138 rows 3043 model rows 1046 live 0
+root: relaxation 3876.722534018892 after 1997 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 479 MIR
+work_units 3279138886
+== instances-miplib2017/markshare2
+gomory more: round 1 lift 0.000e+00 nz 1544 model nz 434 rows 28 model rows 7 live 1
+gomory more: round 2 lift 0.000e+00 nz 1940 model nz 434 rows 36 model rows 7 live 0
+gomory more: round 3 lift 0.000e+00 nz 2549 model nz 434 rows 48 model rows 7 live 0
+gomory more: round 4 lift 0.000e+00 nz 3117 model nz 434 rows 58 model rows 7 live 0
+gomory more: round 5 lift 0.000e+00 nz 3220 model nz 434 rows 60 model rows 7 live 0
+root: relaxation 0 after 53 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 46 MIR
+work_units 4874749
+== instances-miplib2017/markshare_4_0
+gomory more: round 1 lift 0.000e+00 nz 421 model nz 123 rows 16 model rows 4 live 1
+gomory more: round 2 lift 0.000e+00 nz 605 model nz 123 rows 24 model rows 4 live 0
+gomory more: round 3 lift 0.000e+00 nz 723 model nz 123 rows 28 model rows 4 live 0
+gomory more: round 4 lift 0.000e+00 nz 822 model nz 123 rows 32 model rows 4 live 0
+gomory more: round 5 lift 0.000e+00 nz 927 model nz 123 rows 36 model rows 4 live 0
+gomory more: round 6 lift 0.000e+00 nz 983 model nz 123 rows 38 model rows 4 live 0
+root: relaxation 0 after 34 cuts, 0 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 30 MIR
+work_units 1085416

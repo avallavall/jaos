@@ -1,0 +1,33 @@
+# bell5, one line a reading. b5p0 is 1235543a, b5geN JAOS_GE=N, r2 and r5 two and five rounds
+# on every model, nomir node MIR off, cut a cutoff of 8966420, bb best-bound node selection
+b5ge10-n0                          nodes   17487 bound 8966406.49 last 8965884.2 root 8653018.0302832704 (16 cuts) status optimal work 188500144
+b5ge10-n150                        nodes   17983 bound 8966413.70 last 8965051.9 root 8653018.0302832704 (16 cuts) status optimal work 195299172
+b5ge10-n300                        nodes   18993 bound 8966413.70 last 8965672.3 root 8653018.0302832704 (16 cuts) status optimal work 204271328
+b5ge10-n450                        nodes   17041 bound 8966406.49 last 8965302.4 root 8653018.0302832704 (16 cuts) status optimal work 182589563
+b5ge10-n600                        nodes   15313 bound 8966406.49 last 8965416.0 root 8653018.0302832704 (16 cuts) status optimal work 167201769
+b5ge11-n0                          nodes   17487 bound 8966406.49 last 8965884.2 root 8653018.0302832704 (16 cuts) status optimal work 188500144
+b5ge11-n150                        nodes   17983 bound 8966413.70 last 8965051.9 root 8653018.0302832704 (16 cuts) status optimal work 195299172
+b5ge11-n300                        nodes   18993 bound 8966413.70 last 8965672.3 root 8653018.0302832704 (16 cuts) status optimal work 204271328
+b5ge11-n450                        nodes   17041 bound 8966406.49 last 8965302.4 root 8653018.0302832704 (16 cuts) status optimal work 182589563
+b5ge11-n600                        nodes   15313 bound 8966406.49 last 8965416.0 root 8653018.0302832704 (16 cuts) status optimal work 167201769
+b5ge15-n0                          nodes   17485 bound 8966406.49 last 8965416.0 root 8653018.0302832704 (16 cuts) status optimal work 188238143
+b5ge15-n150                        nodes   17983 bound 8966413.70 last 8965051.9 root 8653018.0302832704 (16 cuts) status optimal work 195299920
+b5ge15-n300                        nodes   19455 bound 8966413.70 last 8965644.7 root 8653018.0302832704 (16 cuts) status optimal work 210728526
+b5ge15-n450                        nodes   17041 bound 8966406.49 last 8965302.4 root 8653018.0302832704 (16 cuts) status optimal work 182668820
+b5ge15-n600                        nodes   15313 bound 8966406.49 last 8965416.0 root 8653018.0302832704 (16 cuts) status optimal work 167197941
+b5p0-n0                            nodes   27699 bound 8966406.49 last 8965577.0 root 8653018.0302832704 (16 cuts) status optimal work 292160369
+b5p0-n150                          nodes   21325 bound 8966413.70 last 8965365.0 root 8653018.0302832704 (16 cuts) status optimal work 233206655
+b5p0-n300                          nodes   16531 bound 8966413.70 last 8966295.6 root 8653018.0302832704 (16 cuts) status optimal work 176406489
+b5p0-n450                          nodes   14073 bound 8966413.70 last 8965084.1 root 8653018.0302832704 (16 cuts) status optimal work 151258403
+b5p0-n600                          nodes   15299 bound 8966406.49 last 8965644.7 root 8653018.0302832704 (16 cuts) status optimal work 166194165
+b5p0r5-n0                          nodes  913461 bound 8962632.32 last 8962632.2 root 8654025.3676167596 (23 cuts) status work_limit work 10000001906
+b5p0r5-n150                        nodes  884866 bound 8962457.61 last 8962457.4 root 8654025.3676167596 (23 cuts) status work_limit work 10000001097
+b5p0r5-n300                        nodes  911075 bound 8962498.74 last 8962498.4 root 8654025.3676167596 (23 cuts) status work_limit work 10000001303
+b5p0-nomir                         nodes   20393 bound 8966406.49 last 8965556.7 root 8653018.0302832704 (16 cuts) status optimal work 220801675
+b5r5-nomir                         nodes  930717 bound 8962606.44 last 8962606.4 root 8654025.3676167596 (23 cuts) status work_limit work 10000001622
+b5r2                               nodes  194705 bound 8966406.49 last 8965957.6 root 8653892.9319971409 (20 cuts) status optimal work 2177644784
+b5r2-nomir                         nodes  278559 bound 8966406.49 last 8965931.9 root 8653892.9319971409 (20 cuts) status optimal work 3067873795
+b5p0-cut                           nodes  523285 bound 8966406.49 last 8966051.0 root 8653018.0302832704 (16 cuts) status optimal work 5589172287
+b5r2-cut                           nodes  503870 bound 8966406.49 last 8965699.2 root 8653892.9319971409 (20 cuts) status optimal work 5130265432
+b5r2-bb                            nodes  500331 bound 8966406.49 last 8966375.0 root 8653892.9319971409 (20 cuts) status optimal work 4972118269
+b5p0-bb                            nodes  517861 bound 8966406.49 last 8966378.0 root 8653018.0302832704 (16 cuts) status optimal work 5329577609

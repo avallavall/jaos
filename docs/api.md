@@ -134,7 +134,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_reliability` | `mip_reliability` | integer | 4; 0 with a quadratic objective |
 | `jaos_set_mip_probe_cap` | `mip_probe_cap` | number | 1.5 |
 | `jaos_set_mip_probe_depth` | `mip_probe_depth` | integer | -1, every depth |
-| `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1 |
+| `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1; up to 20 while they lift on a model with implied integers |
 | `jaos_set_mip_cut_depth` | `mip_cut_depth` | integer | 3 |
 | `jaos_set_mip_cut_drop` | `mip_cut_drop` | boolean | true |
 | `jaos_set_mip_node_cut_cap` | `mip_node_cut_cap` | integer | 4 |
@@ -751,7 +751,12 @@ sides and bounds, `MIP_OBJ_DENOM` in `docs/tolerances.md`) counts as
 integer in these cuts and in the nodes' rounds, and so does the slack of a
 model row that holds such a column and otherwise only integer columns,
 with whole coefficients. The cuts may then cut off points where that
-column is fractional, never every optimum.
+column is fractional, never every optimum. On a model with such columns,
+and unless this call set the rounds, the root's rounds go past the first,
+up to `MIP_GOMORY_MORE`, while the round before lifted the bound by
+`MIP_GOMORY_MORE_STALL` of it and its cuts held at most
+`MIP_GOMORY_MORE_NZ` times the model's nonzeros; the summary log gives
+the count.
 
 **`jaos_set_mip_cut_depth`**\
 `jaos_status jaos_set_mip_cut_depth(jaos_model *m, int64_t depth)`\

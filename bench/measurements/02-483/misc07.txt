@@ -1,0 +1,11 @@
+# misc07, one line a reading
+misc07-c-p0                        nodes    8375 bound 2810       last 2628.5714 root 1415 (24 cuts)               status optimal work 1601964882
+misc07-c-ge1                       nodes   14315 bound 2810       last 2622.8571 root 1415 (39 cuts)               status optimal work 2633705943
+m7p0-n150                          nodes    8869 bound 2810       last 2661.1111 root 1415 (24 cuts)               status optimal work 1670982184
+m7p0-n300                          nodes    9915 bound 2810       last 2666.0317 root 1415 (24 cuts)               status optimal work 1853849225
+m7p0-n450                          nodes    8439 bound 2810       last 2622.8571 root 1415 (24 cuts)               status optimal work 1629700871
+m7p0-n600                          nodes    8887 bound 2810       last 2668.1547 root 1415 (24 cuts)               status optimal work 1718791257
+m7ge1-n150                         nodes   13684 bound 2810       last 2677.4999 root 1415 (39 cuts)               status optimal work 2436413556
+m7ge1-n300                         nodes   15098 bound 2810       last 2643.3333 root 1415 (39 cuts)               status optimal work 2680646581
+m7ge1-n450                         nodes   13805 bound 2810       last 2638.1547 root 1415 (39 cuts)               status optimal work 2414230042
+m7ge1-n600                         nodes   13133 bound 2810       last 2656      root 1415 (39 cuts)               status optimal work 2308857477

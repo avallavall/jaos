@@ -156,18 +156,24 @@ first:
   with the triangle rows 184.53, its 26 cost columns alone made integer
   193, the optimum 212. A second symmetry search before the first branch
   finds the exchange of the four groups, and the objective step takes the
-  26 cost columns as whole (02-477); the Gomory rounds now read those
-  columns, and the slacks of their rows, as integer (02-480): the root
-  goes from 185.26 to 189.80 and the bound at 1e10 from 195.9–196.3 to
-  197.6–198.1 over five null readings, some 0.6 under SCIP's at the same
-  nodes. JAOS's bound gains 0.9 a doubling of the nodes (200.25 at
-  500,000), SCIP's 1.3; past 211 takes about 2e9 nodes at JAOS's rate and
-  2.5e7 at SCIP's, against 40,000 at 1e10. Of SCIP's 199.05 at 50,000
+  26 cost columns as whole (02-477); the Gomory rounds read those
+  columns, and the slacks of their rows, as integer (02-480), and on such
+  a model the root's rounds go past the first while they lift the bound
+  and a round's cuts hold under ten times the model's nonzeros (02-483):
+  the root goes from 189.80 to 192.30 after eight rounds and the bound at
+  1e10 from 197.32–197.52 to 199.04–199.36 over five null readings, in
+  26,000 to 40,000 nodes against 58,000. At 20,000 nodes it reads
+  198.5–199.0 against SCIP's 197.12, at 50,000 199.71 against 199.05.
+  JAOS's bound still gains 0.9 a doubling of the nodes (202.93 at
+  570,000), SCIP's 1.3; past 211 takes about 2e8 nodes at JAOS's rate and
+  2.5e7 at SCIP's, against 30,000 at 1e10. Of SCIP's 199.05 at 50,000
   nodes symmetry is 6.1, reliability branching 4.2 and node cuts 2.3.
-  Next for `assign1-5-8`: integral slacks on the all-integer equality rows
-  with Gomory rounds past the first, 198.7–199.0 at 1e10, in a form that
-  keeps `bell5`'s tree (`gomory-integral-slacks`, `gomory-rounds-implied`);
-  then reliability branching's probes. Next for `neos5`: the conflicts
+  The equality rows' integral slacks only rewrite a cut, since the slack
+  is fixed, and grow `misc07` (`gomory-equality-slacks`); `bell5` grew
+  under rounds past the first, not under integral slacks, and has no
+  implied integers. The root now spends 2.2e9 of the 1e10 against 3.6e8,
+  its heuristics' share with it. Next for `assign1-5-8`: reliability
+  branching's probes. Next for `neos5`: the conflicts
   from nodes whose relaxation reached the incumbent, above, HiGHS's
   largest part here, read against SCIP, which analyses bound-exceeding
   LPs too and holds 14.75 after 2.48M; then symmetry handling that

@@ -1,0 +1,2 @@
+before     solved 9 incumbents 29 primal 5.4828 dual 6.1347 sum 11.6175
+change       solved 9 incumbents 29 primal 5.5284 dual 6.1232 sum 11.6517

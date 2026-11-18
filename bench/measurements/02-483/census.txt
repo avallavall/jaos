@@ -1,0 +1,49 @@
+# the models with implied integers at 1e10, one line a reading. c-p0 is 1235543a, c-ge1 JAOS_GE=1,
+# c-gm5 and c-gm20 JAOS_GM=5 and 20, c-ge1gm5 and c-ge1gm20 the same with JAOS_GE=1,
+# c-k10 and c-k15 JAOS_GM=20 with JAOS_GNZ=10 and 15, c-land the change
+csched007-c-ge1                    nodes    6382 bound 304        last 303.58237 root 287.99205877019307 (300 cuts status work_limit work 10000047188
+csched007-c-ge1gm20                nodes       1 bound 291        last           root 290.14760320549385 (2101 cut status work_limit work 10093501361
+csched007-c-ge1gm5                 nodes    1967 bound 294        last 293.19427 root 289.57296981378408 (963 cuts status work_limit work 10000056996
+csched007-c-gm20                   nodes       1 bound 296        last           root 295.49696220775206 (1876 cut status work_limit work 10076389150
+csched007-c-gm5                    nodes    2466 bound 302        last 301.17881 root 295.03271237097107 (905 cuts status work_limit work 10000062131
+csched007-c-k10                    nodes    6566 bound 306        last 305.15004 root 287.98808224991774 (294 cuts status work_limit work 10000057873
+csched007-c-k15                    nodes    6742 bound 306        last 305.22504 root 287.98808224991774 (294 cuts status work_limit work 10000055117
+csched007-c-land                   nodes    6569 bound 306        last 305.15674 root 287.98808224991774 (294 cuts status work_limit work 10000282622
+csched007-c-p0                     nodes    6832 bound 306        last 305.23866 root 287.98808224991774 (294 cuts status work_limit work 10000053087
+csched008-c-ge1                    nodes     197 bound 171        last 171       root 171 (360 cuts)               status work_limit work 10000076680
+csched008-c-ge1gm20                nodes     197 bound 171        last 171       root 171 (360 cuts)               status work_limit work 10000058025
+csched008-c-ge1gm5                 nodes     197 bound 171        last 171       root 171 (360 cuts)               status work_limit work 10000058025
+csched008-c-land                   nodes     157 bound 171        last 170.99999 root 171 (362 cuts)               status work_limit work 10000053525
+csched008-c-p0                     nodes     157 bound 171        last 170.99999 root 171 (362 cuts)               status work_limit work 10000053525
+ic97_potential-c-ge1               nodes   22102 bound 3869       last 3868.4626 root 3868.4626063591572 (438 cuts status work_limit work 10000056565
+ic97_potential-c-ge1gm20           nodes     487 bound 3877       last 3876.7225 root 3876.722534018892 (1997 cuts status work_limit work 10000012037
+ic97_potential-c-ge1gm5            nodes     487 bound 3877       last 3876.7225 root 3876.722534018892 (1997 cuts status work_limit work 10000012037
+ic97_potential-c-k10               nodes     599 bound 3877       last 3876.7225 root 3876.722534018892 (1760 cuts status work_limit work 10000016574
+ic97_potential-c-k15               nodes     487 bound 3877       last 3876.7225 root 3876.722534018892 (1997 cuts status work_limit work 10000012037
+ic97_potential-c-land              nodes     487 bound 3877       last 3876.7225 root 3876.722534018892 (1997 cuts status work_limit work 10000012037
+ic97_potential-c-p0                nodes   22102 bound 3869       last 3868.4626 root 3868.4626063591572 (438 cuts status work_limit work 10000056565
+markshare2-c-ge1                   nodes  719997 bound 0          last 0         root 0 (53 cuts)                  status work_limit work 10000007915
+markshare2-c-ge1gm20               nodes  719997 bound 0          last 0         root 0 (53 cuts)                  status work_limit work 10000007915
+markshare2-c-ge1gm5                nodes  719997 bound 0          last 0         root 0 (53 cuts)                  status work_limit work 10000007915
+markshare2-c-land                  nodes  719997 bound 0          last 0         root 0 (53 cuts)                  status work_limit work 10000007915
+markshare2-c-p0                    nodes  719997 bound 0          last 0         root 0 (53 cuts)                  status work_limit work 10000007915
+markshare_4_0-c-ge1                nodes  617263 bound 0          last 0         root 0 (34 cuts)                  status work_limit work 10000024462
+markshare_4_0-c-ge1gm20            nodes  613261 bound 0          last 0         root 0 (34 cuts)                  status work_limit work 10000162574
+markshare_4_0-c-ge1gm5             nodes  613261 bound 0          last 0         root 0 (34 cuts)                  status work_limit work 10000162574
+markshare_4_0-c-land               nodes  613261 bound 0          last 0         root 0 (34 cuts)                  status work_limit work 10000162574
+markshare_4_0-c-p0                 nodes  617263 bound 0          last 0         root 0 (34 cuts)                  status work_limit work 10000024462
+misc03-c-ge1                       nodes     161 bound 3360       last 2909.9999 root 1910 (20 cuts)               status optimal work 33199827
+misc03-c-ge1gm20                   nodes     161 bound 3360       last 2909.9999 root 1910 (20 cuts)               status optimal work 33607117
+misc03-c-ge1gm5                    nodes     161 bound 3360       last 2909.9999 root 1910 (20 cuts)               status optimal work 33974815
+misc03-c-land                      nodes     335 bound 3360       last           root 1910 (35 cuts)               status optimal work 43202066
+misc03-c-p0                        nodes     307 bound 3360       last 3006.5624 root 1910 (35 cuts)               status optimal work 43985345
+misc07-c-ge1                       nodes   14315 bound 2810       last 2622.8571 root 1415 (39 cuts)               status optimal work 2633705943
+misc07-c-ge1gm20                   nodes   13437 bound 2810       last 2657.1249 root 1415 (39 cuts)               status optimal work 2338480450
+misc07-c-ge1gm5                    nodes   14376 bound 2810       last 2637      root 1415 (39 cuts)               status optimal work 2570312177
+misc07-c-land                      nodes    8169 bound 2810       last 2655.6249 root 1415 (24 cuts)               status optimal work 1579506221
+misc07-c-p0                        nodes    8375 bound 2810       last 2628.5714 root 1415 (24 cuts)               status optimal work 1601964882
+pk1-c-ge1                          nodes  181251 bound 10.9999999 last 9.6328491 root 0 (15 cuts)                  status optimal work 7419054431
+pk1-c-ge1gm20                      nodes  191637 bound 11         last 9.5489250 root 0 (15 cuts)                  status optimal work 7883405617
+pk1-c-ge1gm5                       nodes  197660 bound 11         last 9.4356074 root 0 (15 cuts)                  status optimal work 8121726706
+pk1-c-land                         nodes  191637 bound 11         last 9.5489250 root 0 (15 cuts)                  status optimal work 7883405617
+pk1-c-p0                           nodes  181251 bound 10.9999999 last 9.6328491 root 0 (15 cuts)                  status optimal work 7419054431

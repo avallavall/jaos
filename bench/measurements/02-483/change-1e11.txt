@@ -1,0 +1,56 @@
+root: relaxation 192.29719575451972 after 803 cuts, 16 of them covers, 0 cliques, 0 zero-half, 0 flow covers, 0 hull cuts and 0 MIR
+node 10000: 9599 open, bound 197.80132785808928, incumbent yes
+node 20000: 17897 open, bound 198.62796782670728, incumbent yes
+node 30000: 24653 open, bound 199.12396963202559, incumbent yes
+node 40000: 30613 open, bound 199.44636842274389, incumbent yes
+node 50000: 36331 open, bound 199.70930627152961, incumbent yes
+node 60000: 41867 open, bound 199.91374116563827, incumbent yes
+node 70000: 47139 open, bound 200.0870746481921, incumbent yes
+node 80000: 52659 open, bound 200.24093570762091, incumbent yes
+node 90000: 57723 open, bound 200.37751980988671, incumbent yes
+node 100000: 62907 open, bound 200.50487603380466, incumbent yes
+node 110000: 68327 open, bound 200.62062301513578, incumbent yes
+node 120000: 73555 open, bound 200.73227999628975, incumbent yes
+node 130000: 78681 open, bound 200.83446836919524, incumbent yes
+node 140000: 83943 open, bound 200.92939726602177, incumbent yes
+node 150000: 89189 open, bound 201.01989083271957, incumbent yes
+node 160000: 94663 open, bound 201.10267161652038, incumbent yes
+node 170000: 100111 open, bound 201.18662415125661, incumbent yes
+node 180000: 105561 open, bound 201.26447488976768, incumbent yes
+node 190000: 111173 open, bound 201.33434756142054, incumbent yes
+node 200000: 116785 open, bound 201.40602180330768, incumbent yes
+node 210000: 122537 open, bound 201.47195884516375, incumbent yes
+node 220000: 128235 open, bound 201.53791772598126, incumbent yes
+node 230000: 133745 open, bound 201.59703046352814, incumbent yes
+node 240000: 139431 open, bound 201.65446372084577, incumbent yes
+node 250000: 145091 open, bound 201.71026941677323, incumbent yes
+node 260000: 150889 open, bound 201.76379018809055, incumbent yes
+node 270000: 156495 open, bound 201.81617247795583, incumbent yes
+node 280000: 162191 open, bound 201.86928589380219, incumbent yes
+node 320000: 184447 open, bound 202.06258170113767, incumbent yes
+node 330000: 189923 open, bound 202.10711716213672, incumbent yes
+node 340000: 195305 open, bound 202.149568420132, incumbent yes
+node 360000: 205987 open, bound 202.23518346319801, incumbent yes
+node 370000: 211221 open, bound 202.27626450821924, incumbent yes
+node 380000: 216691 open, bound 202.31755820471651, incumbent yes
+node 390000: 221863 open, bound 202.35634257033851, incumbent yes
+node 400000: 227285 open, bound 202.39230702597547, incumbent yes
+node 410000: 232583 open, bound 202.43050974054526, incumbent yes
+node 420000: 237769 open, bound 202.46690569267167, incumbent yes
+node 430000: 243093 open, bound 202.50101112748087, incumbent yes
+node 440000: 248411 open, bound 202.53645505153975, incumbent yes
+node 450000: 253681 open, bound 202.57116403913142, incumbent yes
+node 460000: 258939 open, bound 202.60524135318602, incumbent yes
+node 470000: 264295 open, bound 202.63750322097783, incumbent yes
+node 480000: 269519 open, bound 202.66862981049741, incumbent yes
+node 490000: 274857 open, bound 202.69905751195091, incumbent yes
+node 500000: 280005 open, bound 202.73091783256316, incumbent yes
+node 510000: 285371 open, bound 202.76049779326644, incumbent yes
+node 530000: 296039 open, bound 202.81879790194111, incumbent yes
+node 540000: 301087 open, bound 202.84827169693608, incumbent yes
+node 550000: 306205 open, bound 202.87588189240751, incumbent yes
+node 560000: 311251 open, bound 202.90379035058496, incumbent yes
+node 570000: 316515 open, bound 202.92939593157027, incumbent yes
+work_units 100000023301
+nodes 579446
+bound 203

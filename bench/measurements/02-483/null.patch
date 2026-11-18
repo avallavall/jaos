@@ -1,0 +1,98 @@
+diff --git a/src/mip.c b/src/mip.c
+index 22236893..444f244f 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -14,6 +14,9 @@ constexpr double MIP_INT_TOL = 1e-6;
+ constexpr double MIP_GAP = 1e-6;
+ 
+ constexpr int64_t MIP_CUT_ROUNDS = 1;
++constexpr int64_t MIP_GOMORY_MORE = 20;
++constexpr double MIP_GOMORY_MORE_STALL = 1e-4;
++constexpr double MIP_GOMORY_MORE_NZ = 10.0;
+ 
+ constexpr int64_t MIP_CUT_DEPTH = 3;
+ 
+@@ -8901,6 +8904,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
+     if (mir_rounds > root_rounds)
+         root_rounds = mir_rounds;
++    const bool gomory_more = og.implied > 0 && !m->cfg.mip_cut_rounds_set &&
++                             !net && !quadratic;
++    const int64_t gomory_rounds = gomory_more && MIP_GOMORY_MORE > rounds
++                                      ? MIP_GOMORY_MORE : rounds;
++    if (gomory_rounds > root_rounds)
++        root_rounds = gomory_rounds;
++    bool gomory_live = true;
++    int64_t gomory_done = 0;
+     if (clique_rounds > root_rounds)
+         root_rounds = clique_rounds;
+     const int64_t zh_rounds = m->cfg.mip_zero_half_rounds_set
+@@ -9292,6 +9303,14 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    "as integer, and the slack of a row they leave all "
+                    "integer with whole coefficients",
+                    (long long)og.implied, og.step, sigma * og.off);
++        if (gomory_more)
++            jm_log(m, JAOS_LOG_SUMMARY,
++                   "branch and bound: the root's Gomory rounds go past the "
++                   "first, up to %lld, while a round lifts the bound by "
++                   "%g of it and its cuts hold at most %g times the "
++                   "model's nonzeros",
++                   (long long)gomory_rounds, MIP_GOMORY_MORE_STALL,
++                   MIP_GOMORY_MORE_NZ);
+         if (net)
+             jm_log(m, JAOS_LOG_SUMMARY,
+                    "branch and bound: a third or more of the continuous "
+@@ -9918,6 +9937,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             lp->cfg.cut_resolve = true;
+             for (int64_t r = 0; r < root_rounds && !stop; r++) {
+                 phase_to(&ph, work, PH_CUTS);
++                const int64_t round_nz = lp->num_nz;
+                 if (net && root_cut_drop && r > 0) {
+                     assert(lp->num_row == nfixed + in_copy.n);
+                     int64_t nd = 0, kept = 0;
+@@ -10034,11 +10054,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     row = g2;
+                     row_cap = nc + lp->num_row + 1;
+                 }
+-                if (r < rounds) {
++                if (r < rounds || (r < gomory_rounds && gomory_live)) {
+                     got = gomory_round(lp, gint, gom_row, nr, x, &cb, row,
+                                        cut, &work);
+                     if (got < 0)
+                         goto done;
++                    gomory_done++;
+                 }
+                 if (r < cover_rounds) {
+                     const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+@@ -10223,6 +10244,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root cuts, round %lld: %lld cuts, relaxation %.17g, "
+                        "%lld rows", (long long)(r + 1), (long long)got,
+                        sigma * key, (long long)lp->num_row);
++                if (r + 1 >= rounds &&
++                    (key - key_before <
++                         MIP_GOMORY_MORE_STALL * (1.0 + fabs(key_before)) ||
++                     (double)(lp->num_nz - round_nz) >
++                         MIP_GOMORY_MORE_NZ * (double)m->num_nz))
++                    gomory_live = false;
+                 if (stop || got == 0)
+                     break;
+                 branch = select_branch(m, x, rule, pc_sum, pc_n);
+@@ -10248,6 +10275,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+         if (nodes == 1) {
+             best_bound = key;
++            if (getenv("JAOS_NULL") != nullptr)
++                work += atoll(getenv("JAOS_NULL")) * (m->num_nz + nc + nr);
+ 
+             nfixed = root_cut_drop ? nperm : lp->num_row;
+             jm_log(m, JAOS_LOG_SUMMARY,
+@@ -10257,6 +10286,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    obj, (long long)cuts, (long long)covers,
+                    (long long)cliques, (long long)zero_halves,
+                    (long long)flow_covers, (long long)hulls, (long long)mirs);
++            if (gomory_more)
++                jm_log(m, JAOS_LOG_SUMMARY, "root: %lld rounds of Gomory cuts",
++                       (long long)gomory_done);
+             if (mir_aggregate > 0 && !jm_model_has_quadratic(m))
+                 jm_log(m, JAOS_LOG_SUMMARY,
+                        "root: MIR aggregation kept %lld cuts after %lld "

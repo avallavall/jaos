@@ -781,7 +781,8 @@ class Model:
 
     def set_mip_cut_rounds(self, rounds):
         """Rounds of Gomory cuts at the root (D289): 0 for none, a
-        negative value for the default of 1."""
+        negative value for the default of 1, or up to 20 while they lift
+        on a model with implied integers."""
         self._check(_lib.jaos_set_mip_cut_rounds(self._handle(), int(rounds)))
 
     def set_mip_cut_depth(self, depth):

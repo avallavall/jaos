@@ -1,0 +1,57 @@
+air03 grid[a multiple of 2] implied[] E-rows 124 root 340159.99999999744 37
+bell3a grid[] implied[] E-rows 0 root 870924.06316433218 9
+bell5 grid[] implied[] E-rows 0 root 8653018.0302832704 16
+blend2 grid[] implied[] E-rows 89 root 6.915675114009086 5
+dcmulti grid[] implied[] E-rows 78 root 185215.9511701841 46
+egout grid[] implied[] E-rows 43 root 568.10068588538309 53
+enigma grid[a multiple of 1] implied[] E-rows 21 root 0 12
+flugpl grid[] implied[] E-rows 6 root 1171213.7169218406 10
+gen grid[] implied[] E-rows 150 root 112312.59591387096 33
+112313.362718 19
+gt2 grid[a multiple of 1] implied[] E-rows 0 root 20592.918361101885 50
+khb05250 grid[] implied[] E-rows 77 root 104174745.68839464 19
+l152lav grid[a multiple of 1] implied[] E-rows 96 root 4661.2284072543325 78
+lseu grid[a multiple of 1] implied[] E-rows 0 root 1021.8925184260563 49
+misc03 grid[a multiple of 1] implied[1 continuous columns share] E-rows 27 root 1910 35
+misc06 grid[] implied[] E-rows 250 root 12842.665499934983 3
+misc07 grid[a multiple of 1] implied[1 continuous columns share] E-rows 35 root 1415 24
+mod008 grid[a multiple of 1] implied[] E-rows 0 root 299.13825818560292 58
+mod010 grid[a multiple of 1] implied[] E-rows 145 root 6547.9999999999327 45
+p0033 grid[a multiple of 1] implied[] E-rows 0 root 2971.0587320346617 63
+p0201 grid[a multiple of 5] implied[] E-rows 0 root 7157.4324324324116 84
+p0282 grid[a multiple of 1] implied[] E-rows 0 root 253951.05865175501 243
+rgn grid[] implied[] E-rows 20 root 67.999998799995439 103
+stein27 grid[a multiple of 1] implied[] E-rows 0 root 13 27
+stein45 grid[a multiple of 1] implied[] E-rows 0 root 22 37
+assign1-5-8 grid[a multiple of 1] implied[26 continuous columns share] E-rows 31 root 189.79891169677495 149
+beasleyC3 grid[a multiple of 1] implied[] E-rows 500 root 737.96439891344949 4398
+binkar10_1 grid[] implied[] E-rows 1016 root 6693.1632777494333 96
+csched007 grid[a multiple of 1] implied[100 continuous columns share] E-rows 301 root 287.98808224991774 294
+csched008 grid[a multiple of 1] implied[51 continuous columns share] E-rows 301 root 
+enlight_hard grid[a multiple of 1] implied[] E-rows 100 root 37 0
+exp-1-500-5-5 grid[] implied[] E-rows 250 root 65618.460471348051 2162
+gen-ip002 grid[] implied[] E-rows 0 root -4839.3215688027012 18
+gen-ip054 grid[] implied[] E-rows 0 root 6766.9360454617063 16
+glass4 grid[] implied[] E-rows 36 root 800002400 110
+graphdraw-domain grid[] implied[] E-rows 45 root 12717.020910973071 151
+ic97_potential grid[a multiple of 1] implied[205 continuous columns share] E-rows 0 root 3868.4626063591572 438
+mad grid[] implied[] E-rows 30 root 0 58
+markshare2 grid[a multiple of 1] implied[14 continuous columns share] E-rows 7 root 0 53
+markshare_4_0 grid[a multiple of 1] implied[4 continuous columns share] E-rows 4 root 0 34
+mas74 grid[] implied[] E-rows 0 root 10570.7189830516 13
+mas76 grid[] implied[] E-rows 0 root 38965.287360286376 11
+neos-2657525-crna grid[] implied[] E-rows 254 root 0 121
+neos-3046615-murg grid[] implied[] E-rows 240 root 192 0
+neos-3381206-awhea grid[a multiple of 1] implied[] E-rows 4 root 452.24999999999773 3178
+neos-3627168-kasai grid[] implied[] E-rows 465 root 959365.80351337767 2227
+neos-3754480-nidda grid[] implied[] E-rows 0 root -1216923.2701044036 0
+neos-911970 grid[] implied[] E-rows 35 root 51.564268851092891 672
+neos5 grid[] implied[] E-rows 0 root 13.231481481481428 36
+p200x1188c grid[a multiple of 1] implied[] E-rows 200 root 14839.079640034637 1520
+pk1 grid[a multiple of 1] implied[31 continuous columns share] E-rows 15 root 0 15
+sp150x300d grid[a multiple of 1] implied[] E-rows 150 root 68.540531216141403 248
+68.540531163588227 169
+supportcase26 grid[] implied[] E-rows 0 root 1288.1021611356973 0
+timtab1 grid[] implied[] E-rows 171 root 442304.87003316591 2214
+tr12-30 grid[] implied[] E-rows 360 root 129858.29874601286 2056
+GRID-END

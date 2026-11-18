@@ -1,0 +1,112 @@
+diff --git a/src/mip.c b/src/mip.c
+index 22236893..795d5ee6 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -1885,6 +1885,7 @@ static int cut_finish(const jaos_model *lp, cutbuf *cb, double *cut,
+     return 1;
+ }
+ 
++static int g_ge;
+ static int64_t gomory_round(jaos_model *lp, const bool *integer,
+                             const bool *row_whole, int64_t whole_rows,
+                             const double *x, cutbuf *cb, double *row,
+@@ -1947,11 +1948,21 @@ static int64_t gomory_round(jaos_model *lp, const bool *integer,
+                 ok = false;
+                 break;
+             }
+-            const bool integral =
+-                (structural ? integer[v]
+-                            : row_whole != nullptr && i < whole_rows &&
+-                                  row_whole[i]) &&
+-                floor(shift) == shift;
++            bool rw = false;
++            if (!structural && row_whole != nullptr && i < whole_rows)
++                rw = row_whole[i];
++            else if (!structural && (g_ge & 4) && i >= whole_rows) {
++                rw = true;
++                for (int64_t k = lp->ar_start[i]; k < lp->ar_start[i + 1] && rw; k++)
++                    rw = integer[lp->ar_index[k]] &&
++                         lp->ar_value[k] == floor(lp->ar_value[k]);
++                *work += lp->ar_start[i + 1] - lp->ar_start[i];
++            }
++            const bool fixedrow = !structural && lp->row_lower[i] == lp->row_upper[i];
++            if (fixedrow && (g_ge & 16))
++                continue;
++            const bool integral = ((structural ? integer[v] : rw) &&
++                floor(shift) == shift) || (fixedrow && (g_ge & 32));
+             double g;
+             if (integral) {
+                 const double f = ap - floor(ap);
+@@ -8899,6 +8910,15 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                                : net ? MIP_NET_ROUNDS
+                                      : MIP_MIR_MORE;
+     int64_t root_rounds = rounds > cover_rounds ? rounds : cover_rounds;
++    const char *gm_env = getenv("JAOS_GM");
++    const bool gm_all = getenv("JAOS_GMALL") != nullptr;
++    const int64_t gom_more = gm_env != nullptr && (og.implied > 0 || gm_all) &&
++                             !m->cfg.mip_cut_rounds_set && !net
++                                 ? atoll(gm_env) : rounds;
++    const double gom_stall = getenv("JAOS_GS") != nullptr ? atof(getenv("JAOS_GS")) : 1e-4;
++    bool gom_live = true;
++    if (gom_more > root_rounds)
++        root_rounds = gom_more;
+     if (mir_rounds > root_rounds)
+         root_rounds = mir_rounds;
+     if (clique_rounds > root_rounds)
+@@ -9190,7 +9210,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         flo == nullptr || fhi == nullptr || implied == nullptr ||
+         !spool_init(&sp, pool_size, nc, m->col_integer))
+         goto done;
+-    if (og.implied > 0) {
++    g_ge = getenv("JAOS_GE") != nullptr ? atoi(getenv("JAOS_GE")) : 0;
++    if (og.implied > 0 || (g_ge & 8)) {
+         gom_int = jm_alloc_array(nc > 0 ? nc : 1, sizeof *gom_int);
+         gom_row = jm_calloc_array(nr > 0 ? nr : 1, sizeof *gom_row);
+         if (gom_int == nullptr || gom_row == nullptr ||
+@@ -9206,7 +9227,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 whole = gom_int[j] && m->ar_value[k] == floor(m->ar_value[k]);
+                 held = held || implied[j];
+             }
+-            gom_row[i] = whole && held;
++            const bool eq = m->row_lower[i] == m->row_upper[i];
++            const bool ind = m->row_ind_col != nullptr && m->row_ind_col[i] >= 0;
++            gom_row[i] = whole && !ind && (held || ((g_ge & 1) && eq) ||
++                                           ((g_ge & 2) && !eq));
+         }
+         work += m->num_nz + nc + nr;
+         gint = gom_int;
+@@ -10034,7 +10058,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     row = g2;
+                     row_cap = nc + lp->num_row + 1;
+                 }
+-                if (r < rounds) {
++                if (r < rounds || (r < gom_more && gom_live)) {
+                     got = gomory_round(lp, gint, gom_row, nr, x, &cb, row,
+                                        cut, &work);
+                     if (got < 0)
+@@ -10223,6 +10247,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root cuts, round %lld: %lld cuts, relaxation %.17g, "
+                        "%lld rows", (long long)(r + 1), (long long)got,
+                        sigma * key, (long long)lp->num_row);
++                if (getenv("JAOS_GLOG") != nullptr)
++                    jm_log(m, JAOS_LOG_SUMMARY, "gomory more: round %lld lift %.3e nz %lld model nz %lld rows %lld model rows %lld live %d",
++                           (long long)(r + 1), (key - key_before) / (1.0 + fabs(key_before)),
++                           (long long)lp->num_nz, (long long)m->num_nz, (long long)lp->num_row, (long long)m->num_row, (int)gom_live);
++                if (r + 1 >= rounds &&
++                    key - key_before < gom_stall * (1.0 + fabs(key_before)))
++                    gom_live = false;
++                if (getenv("JAOS_GNZ") != nullptr &&
++                    (double)(lp->num_nz - m->num_nz) > atof(getenv("JAOS_GNZ")) * (double)m->num_nz)
++                    gom_live = false;
+                 if (stop || got == 0)
+                     break;
+                 branch = select_branch(m, x, rule, pc_sum, pc_n);
+@@ -10248,6 +10282,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+         if (nodes == 1) {
+             best_bound = key;
++            if (getenv("JAOS_NULL") != nullptr)
++                work += atoll(getenv("JAOS_NULL")) * (m->num_nz + nc + nr);
+ 
+             nfixed = root_cut_drop ? nperm : lp->num_row;
+             jm_log(m, JAOS_LOG_SUMMARY,

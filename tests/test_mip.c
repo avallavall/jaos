@@ -1429,6 +1429,7 @@ static void test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer(void)
         jaos_model *m = cluster_model(k == 1);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 1));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
@@ -1451,6 +1452,48 @@ static void test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 6.0, obj);
     jaos_model_free(m);
+}
+
+static double cluster_root(bool whole_cost, int64_t rounds, int64_t *gomory)
+{
+    jaos_model *m = cluster_model(whole_cost);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    if (rounds >= 0)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, rounds));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    const char *at = strstr(g_log, "root: relaxation ");
+    TEST_ASSERT_NOT_NULL(at);
+    const double root = strtod(at + strlen("root: relaxation "), nullptr);
+    const char *g = strstr(g_log, " rounds of Gomory cuts");
+    *gomory = 0;
+    if (g != nullptr) {
+        while (g > g_log && g[-1] >= '0' && g[-1] <= '9')
+            g--;
+        *gomory = strtoll(g, nullptr, 10);
+    }
+    jaos_model_free(m);
+    return root;
+}
+
+static void test_gomory_rounds_go_past_the_first_while_they_lift(void)
+{
+    int64_t more = 0, one = 0, whole = 0;
+    const double r_more = cluster_root(false, -1, &more);
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "the root's Gomory rounds go past "
+                                       "the first"));
+    const double r_one = cluster_root(false, 1, &one);
+    TEST_ASSERT_NULL(strstr(g_log, "rounds of Gomory cuts"));
+    const double r_whole = cluster_root(true, -1, &whole);
+    TEST_ASSERT_NULL(strstr(g_log, "rounds of Gomory cuts"));
+    TEST_ASSERT_TRUE(more > 1);
+    TEST_ASSERT_EQUAL_INT64(0, one);
+    TEST_ASSERT_EQUAL_INT64(0, whole);
+    TEST_ASSERT_TRUE(r_more > r_one + 1e-6);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, r_one, r_whole);
 }
 
 static jaos_model *exact_pick(void)
@@ -7149,6 +7192,7 @@ int main(void)
     RUN_TEST(test_the_tree_logs_its_start_root_and_end);
     RUN_TEST(test_a_costed_continuous_column_bounded_by_whole_rows_rounds_the_bound);
     RUN_TEST(test_gomory_cuts_read_a_column_whole_at_an_optimum_as_integer);
+    RUN_TEST(test_gomory_rounds_go_past_the_first_while_they_lift);
     RUN_TEST(test_a_feasibility_jump_finds_a_point_on_an_equality_row);
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
