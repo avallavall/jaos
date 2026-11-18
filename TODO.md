@@ -224,7 +224,7 @@ Verify with `make miplib J=2`, `make miplib2017` and
 spread: six readings of one code, with only the root's work moved,
 span 10.85 to 11.88, so a change is judged instance by instance.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 19:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 22:
 - for linear MIPs:
   - node rounding, lock rounding;
   - the search over the starts of a time-indexed schedule, the
@@ -234,6 +234,8 @@ J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 19:
     big-M rows;
   - the root dive, the feasibility pump, a RENS sub-MIP, a RINS sub-MIP,
     the RINS dive;
+  - crossover over the pool, mutation of the incumbent and DINS, the last
+    two picked by their incumbents per run (`bench/measurements/02-488/`);
   - local branching (off), and the dive from node 1000 with no
     incumbent;
 - for MIQPs: the relaxation rounded, and a halving dive;
@@ -248,7 +250,11 @@ seeded rule, so the portfolio stays deterministic. Its first piece is in:
 at a root with no incumbent, the dive and the pump each get half the
 root's work, or a floor by the model's size (`MIP_HEUR_ROOT`,
 `MIP_HEUR_FLOOR`, 02-466). MIPLIB 3 reads its baseline, and the 2017 gap
-sum goes from 13.52 to 13.36. Then, by what each reaches on the open
+sum goes from 13.52 to 13.36. The second: in the tree, mutation and DINS
+share a slot, and the one with the higher score of incumbents per run
+runs (`MIP_GH_REWARD`, 02-488). Next: the same pick over every tree
+heuristic, RINS and the dives among them, scored by work as well as
+runs. Then, by what each reaches on the open
 instances:
 
 - Made for a structure. 02-463's `census.py` sorts the open MIPLIB 2017
@@ -274,9 +280,9 @@ instances:
   - diving: fractional, coefficient, guided toward the incumbent,
     pseudocost, vector-length (for covering and partitioning rows),
     line-search, Farkas, conflict;
-  - neighbourhoods: crossover and mutation over the pool, DINS, a
-    zero-objective sub-MIP, RENS at nodes, variable neighbourhood search
-    over local branching; proximity search was refused on its own budget
+  - neighbourhoods: a zero-objective sub-MIP, RENS at nodes, variable
+    neighbourhood search over local branching; crossover, mutation and
+    DINS are in (02-488); proximity search was refused on its own budget
     (`proximity-search`, 02-467) until the scheduler can give it work only
     while it improves;
   - improvement: 2-opt, polishing by evolution over the pool (Rothberg);

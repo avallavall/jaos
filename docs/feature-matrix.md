@@ -176,8 +176,9 @@ cells here are rows `SPECS.md` marks out of scope.
   feasibility jump, exchanges between assignment rows, threshold
   accepting over the items of partitioning rows, priced in closed form
   or by an LP over the columns that link rows, moves over the
-  disjunctions of big-M rows, RINS and RENS run by default. Local
-  branching is off by measurement (`bench/measurements/02-325/`).
+  disjunctions of big-M rows, RINS, RENS, crossover over the pool,
+  mutation of the incumbent and DINS run by default. Local branching is
+  off by measurement (`bench/measurements/02-325/`).
 - *MIP start and cutoff*: HiGHS documents no MIP cutoff. Hexaly takes a
   start, and its `objective_threshold` stops the search instead of cutting
   it off.

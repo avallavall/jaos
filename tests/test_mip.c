@@ -1697,6 +1697,130 @@ static void test_threshold_accepting_over_items_balances_the_groups(void)
     jaos_model_free(m);
 }
 
+static char g_found[8192];
+static void capture_found(void *user, jaos_log_level level, const char *line)
+{
+    (void)level; (void)user;
+    if (strstr(line, ": incumbent ") == nullptr)
+        return;
+    const size_t have = strlen(g_found);
+    snprintf(g_found + have, sizeof g_found - have, "%s\n", line);
+}
+
+static jaos_model *market_split(int64_t nrow, int64_t nbin, uint32_t seed)
+{
+    uint32_t s = seed * 2654435761u;
+    if (s == 0)
+        s = 1;
+    const int64_t nc = nbin + 2 * nrow;
+    double *a = malloc((size_t)(nrow * nbin) * sizeof *a);
+    double *c = malloc((size_t)nc * sizeof *c);
+    double *cl = malloc((size_t)nc * sizeof *cl);
+    double *cu = malloc((size_t)nc * sizeof *cu);
+    double *rl = malloc((size_t)nrow * sizeof *rl);
+    double *av = malloc((size_t)(nrow * nbin + 2 * nrow) * sizeof *av);
+    int64_t *as = malloc((size_t)(nc + 1) * sizeof *as);
+    int64_t *ai = malloc((size_t)(nrow * nbin + 2 * nrow) * sizeof *ai);
+    TEST_ASSERT_NOT_NULL(a);
+    TEST_ASSERT_NOT_NULL(c);
+    TEST_ASSERT_NOT_NULL(cl);
+    TEST_ASSERT_NOT_NULL(cu);
+    TEST_ASSERT_NOT_NULL(rl);
+    TEST_ASSERT_NOT_NULL(av);
+    TEST_ASSERT_NOT_NULL(as);
+    TEST_ASSERT_NOT_NULL(ai);
+    for (int64_t i = 0; i < nrow; i++) {
+        double sum = 0.0;
+        for (int64_t j = 0; j < nbin; j++) {
+            s ^= s << 13;
+            s ^= s >> 17;
+            s ^= s << 5;
+            a[i * nbin + j] = (double)(s % 100u);
+            sum += a[i * nbin + j];
+        }
+        rl[i] = floor(sum / 2.0);
+    }
+    int64_t p = 0;
+    for (int64_t j = 0; j < nbin; j++) {
+        as[j] = p;
+        c[j] = 0.0;
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        for (int64_t i = 0; i < nrow; i++) {
+            if (a[i * nbin + j] == 0.0)
+                continue;
+            ai[p] = i;
+            av[p++] = a[i * nbin + j];
+        }
+    }
+    for (int64_t i = 0; i < nrow; i++)
+        for (int64_t k = 0; k < 2; k++) {
+            const int64_t q = nbin + 2 * i + k;
+            as[q] = p;
+            c[q] = 1.0;
+            cl[q] = 0.0;
+            cu[q] = INFINITY;
+            ai[p] = i;
+            av[p++] = k == 0 ? 1.0 : -1.0;
+        }
+    as[nc] = p;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, nc, nrow, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, rl, p, as,
+                     ai, av));
+    for (int64_t j = 0; j < nbin; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    free(a); free(c); free(cl); free(cu); free(rl); free(av); free(as); free(ai);
+    return m;
+}
+
+static void found_by(jaos_model *m, const char *what, double optimum)
+{
+    g_found[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_found, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, optimum, rep.incumbent);
+    TEST_ASSERT_NOT_NULL(strstr(g_found, what));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, nullptr, nullptr));
+}
+
+static void test_crossover_fixes_what_the_pool_agrees_on(void)
+{
+    jaos_model *m = market_split(2, 16, 14);
+    found_by(m, "by crossover over the pool", 0.0);
+    jaos_model_free(m);
+}
+
+static void test_mutation_fixes_a_seeded_share_of_the_incumbent(void)
+{
+    jaos_model *m = market_split(2, 16, 13);
+    found_by(m, "by mutation of the incumbent", 0.0);
+    jaos_model_free(m);
+}
+
+static void test_dins_boxes_each_column_by_its_distance(void)
+{
+    jaos_model *m = market_split(2, 16, 23);
+    found_by(m, "by a sub-MIP boxed by the incumbent's distances", 1.0);
+    jaos_model_free(m);
+
+    m = market_split(2, 16, 23);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    g_found[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_found, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_NULL(strstr(g_found, "boxed by"));
+    TEST_ASSERT_NULL(strstr(g_found, "crossover"));
+    TEST_ASSERT_NULL(strstr(g_found, "mutation"));
+    jaos_model_free(m);
+}
+
 static jaos_model *one_machine(void)
 {
     constexpr int64_t N = 8;
@@ -7197,6 +7321,9 @@ int main(void)
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
     RUN_TEST(test_threshold_accepting_with_an_lp_over_linking_columns);
+    RUN_TEST(test_crossover_fixes_what_the_pool_agrees_on);
+    RUN_TEST(test_mutation_fixes_a_seeded_share_of_the_incumbent);
+    RUN_TEST(test_dins_boxes_each_column_by_its_distance);
     RUN_TEST(test_search_over_starts_schedules_the_jobs_on_the_profile);
     RUN_TEST(test_moves_over_big_m_disjunctions_order_one_machine);
     RUN_TEST(test_parity_rows_fix_every_press_of_a_lights_out_board);

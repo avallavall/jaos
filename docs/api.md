@@ -1289,8 +1289,23 @@ plus the optimum of the LP with one elastic column per finite row bound.
 It takes a move that does not raise it, and gives up after four LPs per
 partitioning row without a fall. It fixes the best assignment it finds
 and solves the rest, as a sub-MIP over the general integer columns when
-there are any. The dive heuristic, RINS and the pump have their own
-setters.
+there are any. Three sub-MIPs search around the points already found,
+in the tree of a linear model, each with a node limit of 500, a cutoff
+just below the incumbent and a share of the tree's work. Crossover fixes
+the integer columns on which the three best points of the pool agree,
+when they agree on at least half of them. It runs at the root once the
+pool holds two points, under half the root's work, and in the tree
+when the pool has changed, at most every 100 nodes and under 5% of the
+tree's work. Mutation fixes a seeded random 80% of the integer columns
+at the incumbent's values. DINS fixes the integer columns where the
+incumbent is within a half of both the node's relaxation and the root's,
+and bounds each other one to its incumbent's value plus or minus its
+distance to the node's relaxation, rounded up. Every 200 nodes, while
+the two have spent under 5% of the tree's work together, the scheduler
+runs one of them: the one whose incumbents per run, with a reach that
+grows as the square root of their runs, score higher. The tree keeps
+its ten best distinct points for crossover, whatever the pool size. The
+dive heuristic, RINS and the pump have their own setters.
 
 **`jaos_set_mip_node_limit`**\
 `jaos_status jaos_set_mip_node_limit(jaos_model *m, int64_t nodes)`\

@@ -104,7 +104,9 @@ fixes the integer columns that its rows' implied bounds fix, and the
 binaries that its parity rows fix by elimination mod 2. A bound rounds up to
 the objective's step when every cost sits on one. A rounding heuristic, lock
 rounding, a feasibility jump, a root dive, a feasibility pump and a sub-MIP
-heuristic (RENS at the root, RINS at the root and in the tree). A tree that
+heuristic (RENS at the root, RINS at the root and in the tree), and in the
+tree crossover over a pool of the best points, mutation of the incumbent
+and DINS. A tree that
 has no incumbent after 1000 nodes dives until it finds one. A solution pool
 of distinct integer assignments, a MIP start, a cutoff, a node limit, an
 incumbent callback, and a node callback that adds lazy constraints and user

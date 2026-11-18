@@ -432,6 +432,16 @@ the root's cut mode for a model with many continuous columns under binaries
 | `MIP_SUBMIP_EVERY` | 100 | The fewest nodes between two sub-MIPs below the root. Not swept |
 | `MIP_SUBMIP_SHARE` | 0.1 | The share of the tree's work the sub-MIPs below the root may take. Not swept |
 | `MIP_SUBMIP_ROOT` | 0.5 | A root sub-MIP's work as a share of the root's work. 0.5, 2 and no share read 1.040x, 1.090x and 1.101x on MIPLIB 3 with the same 2017 points (`bench/measurements/02-328/`) |
+| `MIP_CROSS_POOL` | 10 | The distinct points the tree keeps for crossover, best first; the caller's pool is still the first `mip_pool_size` of them. Not swept |
+| `MIP_CROSS_SOLS` | 3 | How many of the pool's best points crossover fixes the integer columns over, or all of them when the pool holds fewer. Not swept |
+| `MIP_CROSS_FIXED` | 0.5 | The share of the integer columns those points must agree on for crossover to run. Not swept |
+| `MIP_CROSS_EVERY` | 100 | The fewest nodes between two crossovers below the root; one also needs a pool that changed since the last. Not swept |
+| `MIP_CROSS_SHARE` | 0.05 | The share of the tree's work past which crossover stops running below the root. At the root it has `MIP_SUBMIP_ROOT`'s share. With mutation and DINS, MIPLIB 2017's primal gap sum goes from 5.53 to 5.20 and MIPLIB 3 reads 1.004x (`bench/measurements/02-488/`). Not swept |
+| `MIP_MUT_FIXED` | 0.8 | The share of the integer columns mutation fixes at the incumbent's values, each drawn with a seeded generator. Not swept |
+| `MIP_MUT_EVERY` | 200 | The fewest nodes between two runs of mutation or DINS. Not swept |
+| `MIP_MUT_SHARE` | 0.05 | The share of the tree's work past which mutation and DINS, together, stop running. Where both run, a run of DINS costs more than one of mutation on 20 of MIPLIB 2017's 23 models, so DINS takes most of it (`bench/measurements/02-488/`). Not swept |
+| `GH_PHASES` | 2 | The slots a node of the tree offers these sub-MIPs, in order: crossover, then mutation or DINS. Structure |
+| `MIP_GH_REWARD` | 4 | What one incumbent counts for in the pick between mutation and DINS: each scores (4 incumbents + 1 + the square root of their runs + 1) over its own runs + 1, and the higher runs. Not swept |
 | `MIP_FJ_WORK` | 20000 | The most work one feasibility jump may spend, in units of (nonzeros + columns + rows). The jump runs at the root of a linear model with no incumbent. Not swept |
 | `MIP_FJ_SAMPLE` | 25 | How many violated rows one jump step draws, with a seeded generator. Not swept |
 | `MIP_SWAP_WORK` | 5000 | The most work one search of exchanges between assignment rows may spend, in units of (nonzeros + columns + rows), within `MIP_FJ_ROOT`'s share of the root's work. It runs at the root of a linear model with no incumbent once the feasibility jump finds none, when at least half the free columns are binaries in exactly two partitioning rows. On `enigma`, the one such model in MIPLIB 3 and 2017, it reaches the optimum in 192,697 units, 0.094 of this budget (`bench/measurements/02-463/`). Not swept |

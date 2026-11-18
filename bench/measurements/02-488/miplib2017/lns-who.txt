@@ -1,0 +1,60 @@
+assign1-5-8          last[by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows]
+    crossover over pool:1/0/82045428;mutation of incumbent:78/0/14107989;a sub-MIP over distances:77/0/482846669;
+beasleyC3            last[by a sub-MIP over the distances of the incumbent]
+    crossover over pool:11/2/174532230;mutation of incumbent:13/3/136024961;a sub-MIP over distances:18/5/224337928;
+binkar10_1           last[by mutation of the incumbent]
+    crossover over pool:6/1/18769609;mutation of incumbent:23/1/17312449;a sub-MIP over distances:14/0/130349811;
+csched007            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:2/0/3370943;mutation of incumbent:17/0/29104812;a sub-MIP over distances:16/0/73539419;
+csched008            last[by a search over the jobs' starts on the chain of profile columns]
+    
+enlight_hard         last[]
+    
+exp-1-500-5-5        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:1/0/2286619;
+gen-ip002            last[by rounding]
+    crossover over pool:5/1/2722243;mutation of incumbent:3/0/1474203;a sub-MIP over distances:2/0/1177915;mutation of incumbent:2/0/1579423;a sub-MIP over distances:1/0/805784;crossover over pool:24/0/5414655;mutation of incumbent:835/0/130245991;a sub-MIP over distances:913/1/363733302;
+gen-ip054            last[by rounding]
+    crossover over pool:7/0/1769049;mutation of incumbent:3/0/1235471;a sub-MIP over distances:2/0/1304264;crossover over pool:2/0/150;mutation of incumbent:141/0/11192795;a sub-MIP over distances:141/0/49075254;
+glass4               last[by moves over the disjunctions of the big-M rows]
+    crossover over pool:3/0/28055208;mutation of incumbent:346/0/264283968;a sub-MIP over distances:345/0/235499241;
+graphdraw-domain     last[by crossover over the pool]
+    crossover over pool:6/2/112598583;mutation of incumbent:135/1/31270294;a sub-MIP over distances:135/1/469428668;
+ic97_potential       last[]
+    
+mad                  last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:2/0/49481528;mutation of incumbent:104/0/49380074;a sub-MIP over distances:103/0/448605187;
+markshare2           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:6/0/38590286;mutation of incumbent:1784/2/209525168;a sub-MIP over distances:1570/0/290463864;
+markshare_4_0        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:9/1/3975275;mutation of incumbent:1567/2/43051811;a sub-MIP over distances:1369/0/456705812;
+mas74                last[by a sub-MIP over the distances of the incumbent]
+    crossover over pool:8/0/9085862;mutation of incumbent:776/1/202275171;a sub-MIP over distances:776/1/297579174;
+mas76                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:8/2/12450054;mutation of incumbent:1088/3/158216310;a sub-MIP over distances:937/1/164577142;
+neos-2657525-crna    last[by mutation of the incumbent]
+    crossover over pool:11/2/44245129;mutation of incumbent:47/4/3977973;a sub-MIP over distances:55/5/467475328;
+neos-3046615-murg    last[by crossover over the pool]
+    crossover over pool:19/4/91328392;mutation of incumbent:470/0/245425647;a sub-MIP over distances:469/0/254915875;
+neos-3381206-awhea   last[by feasibility jump]
+    
+neos-3627168-kasai   last[by mutation of the incumbent]
+    crossover over pool:9/1/355098836;mutation of incumbent:7/6/180877453;a sub-MIP over distances:1/0/115200794;
+neos-3754480-nidda   last[by moves over the disjunctions of the big-M rows]
+    crossover over pool:3/0/75193665;mutation of incumbent:375/1/253592150;a sub-MIP over distances:327/0/245421537;
+neos-911970          last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:4/0/32059236;mutation of incumbent:11/0/2649647;a sub-MIP over distances:10/0/5250111;
+neos5                last[by crossover over the pool]
+    crossover over pool:9/1/25968144;mutation of incumbent:249/0/85157569;a sub-MIP over distances:290/1/414326324;
+p200x1188c           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    crossover over pool:1/0/1647450;
+pk1                  last[by RINS]
+    crossover over pool:3/1/24202627;mutation of incumbent:476/0/180091953;a sub-MIP over distances:476/0/236601153;
+sp150x300d           last[from the caller's starting point]
+    crossover over pool:1/0/1153787;
+supportcase26        last[by moves over the disjunctions of the big-M rows]
+    crossover over pool:6/0/120915938;mutation of incumbent:168/0/216045591;a sub-MIP over distances:168/0/283375021;
+timtab1              last[by mutation of the incumbent]
+    crossover over pool:8/1/8325409;mutation of incumbent:795/7/334148885;a sub-MIP over distances:449/0/165692526;
+tr12-30              last[by mutation of the incumbent]
+    crossover over pool:4/1/119267202;mutation of incumbent:143/3/350353765;a sub-MIP over distances:82/0/148967378;
