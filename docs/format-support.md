@@ -297,66 +297,142 @@ freely.
 AMPL's `.nl` format in its text form (the file starts with `g`), read by
 `jaos_read_nl` and by the tool for a name ending in `.nl` or `.nl.gz`.
 
-**What the reader takes.** A model of degree two: the ten header lines,
-`C` rows and `O` objectives whose body is a form of degree two or less (the
-first objective is taken, its sense from the flag), `r` and `b` bounds in
-the five codes 0 to 4, `J` and `G` coefficients, and the binary and integer
-counts of header line 7, which name the last columns as integer. The
-nonlinear counts of header lines 3 and 5 decide nothing, because JuMP
-declares a constant objective nonlinear there; every body is judged where
-it is read. The `x` segment, the starting values, is the MIP start of a
-model with integer columns, a column it does not name starting at 0. `d`,
+**What the reader takes.** The ten header lines, `C` rows and `O`
+objectives whose body is of degree two or is one of the forms a cone holds
+(below; the first objective is taken, its sense from the flag), `r` and
+`b` bounds in the five codes 0 to 4, `J` and `G` coefficients, and the
+integer counts of header line 7. Its binary and integer counts name the
+last columns as integer. Its counts of integer variables in nonlinear
+terms are placed by the order of Gay's "Hooking Your Solver to AMPL"
+(Tables 3 and 4) from the counts `nlvc nlvo nlvb` of line 5: those
+nonlinear in both the constraints and the objectives end the first `nlvb`
+columns, those nonlinear in the constraints only end the first `nlvc`, and
+those nonlinear in the objectives only end the first `nlvo` when `nlvo`
+passes `nlvc`. Otherwise the nonlinear counts of header lines 3 and 5
+decide nothing, because JuMP declares a constant objective nonlinear
+there; every body is judged where it is read. The `x` segment, the starting
+values, is the MIP start of a model with integer columns, a column it does
+not name starting at 0 and a column the reader adds having no start. `d`,
 `k` and `S` segments are read and dropped.
 
 **Names.** The column names come from the `.col` file beside the file and
 the row names from the `.row` file, each when it is there and complete. A
 missing or short one leaves that side with positional names. The
 objective's name is the line after the rows in `.row`, and a file with no
-objective has a `.row` of the rows alone.
+objective has a `.row` of the rows alone. The columns and rows the reader
+adds have positional names, and a row that becomes a cone takes its name
+with it.
 
 **Bodies.** A body is read in prefix form over `n` constants, `v` columns,
-`o0` plus, `o1` minus, `o2` times, `o3` divide, `o5` power, `o16` unary
-minus and `o54`, the sum of a counted list. Its constant moves into the
-row's bounds or becomes the objective's. In the objective, its linear part
-is added to the `G` coefficients. In a row, its linear terms are added to
-the `J` coefficients of the same column, in the order the file gives them,
-so `(x+1)^2 + 3*x <= 5` reads as `x^2 + 5x <= 4`. A sum that comes out
-exactly 0 leaves no entry; a zero the `J` segment writes alone stays one.
-The body's quadratic part becomes the row's `Q` or the objective's: a body
-term `b x_i x_i` is `Q_ii = 2b` and `a x_i x_j` is `Q_ij = a`, since a
-model's objective is `c'x + ½ x'Qx` and a row's quadratic part is read the
-same way. A quadratic pair the body gives twice is summed. Pyomo writes a
-quadratic objective this way.
+`o0` plus, `o1` minus, `o2` times, `o3` divide, `o5` power, `o15` abs,
+`o16` unary minus, `o39` sqrt and `o54`, the sum of a counted list. Each
+node is expanded, and the like terms of an operand are merged before a
+product, a division or a power judges it, so `(x - x)*y*z` is 0,
+`x/(y - y + 2)` divides by the constant 2 and `(x+1)*(x-1) - x*x` is -1.
+A power of a column takes the exponents 0, 1 and 2; a constant raised to a
+whole power or to 0.5 is folded by repeated multiplication or by `sqrt`,
+never by `pow`. A product or power of degree three or more is refused at
+its own node, so `(x+1)^3 - x^3`, whose cubes would cancel, is refused.
+The body's constant moves into the row's bounds or becomes the
+objective's. In the objective, its linear part is added to the `G`
+coefficients. In a row, its linear terms are added to the `J` coefficients
+of the same column, in the order the file gives them, so
+`(x+1)^2 + 3*x <= 5` reads as `x^2 + 5x <= 4`. A coefficient that comes out
+exactly 0 leaves no entry, and so does the 0 that `J` and `G` give a column
+of the nonlinear part. The body's quadratic part becomes the row's `Q` or
+the objective's: a body term `b x_i x_i` is `Q_ii = 2b` and `a x_i x_j` is
+`Q_ij = a`, since a model's objective is `c'x + ½ x'Qx` and a row's
+quadratic part is read the same way. A quadratic pair the body gives twice
+is summed, in the order the body gives it. Pyomo writes a quadratic
+objective this way.
+
+**Bodies a cone holds.** A body may add, each with a constant coefficient
+`c`, any number of these terms to its quadratic and linear parts. A sum of
+squares `S` is `Σ w_k (a_k'x + b_k)^2 + w_0` with every `w_k > 0` and
+`w_0 >= 0`, each square written as a power 2 or as a product of two equal
+linear forms.
+
+| term | is | becomes | cone |
+|---|---|---|---|
+| `sqrt(S)`, `abs(a'x + b)` | convex | `c·s` | quadratic `(s, √w_k (a_k'x + b_k), √w_0)` |
+| `S / (d'x + e)`, `(d'x + e)^-1` | convex | `2c·u` | rotated `(d'x + e, u, √w_k (a_k'x + b_k), √w_0)` |
+| `sqrt(d'x + e)`, `(d'x + e)^0.5` | concave | `c·√(1/2)·h` | rotated `(d'x + e, 1, h)` |
+| `sqrt(w (a'x + b)(d'x + e))`, `w > 0` | concave | `c·√(w/2)·h` | rotated `(a'x + b, d'x + e, h)` |
+
+`s`, `u` and `h` are new columns. A cone member that is a column with
+coefficient 1 is that column; any other is a new column `m` with a new
+equality row `m - (its form) = 0`, and a constant member is a new fixed
+column. A denominator or a factor that is a positive multiple of one column
+is that column, the multiple moved into the coefficient. A row whose one
+finite bound is an upper one, and a minimized objective, take a convex term
+with `c > 0` and a concave one with `c < 0`; a row whose one finite bound
+is a lower one, and a maximized objective, take the opposite. A row with
+two finite bounds is refused, and a free row's terms are dropped, since
+the row bounds nothing. A ratio's denominator must be held at or above 0
+by the column bounds, and so must both factors of a product under `sqrt`,
+because the original function is defined where they are negative and the
+cone is not; `sqrt(d'x + e)` needs no such bound, since it is undefined
+there. The new columns come after the file's, and the new rows after the
+file's that stay, in the order the file is read.
+
+**Rows that are cones.** A row of degree two whose quadratic part is not
+convex would be refused at the solve. One with no linear part, one finite
+bound, and that bound 0, is read as a cone when its quadratic part, taken
+in the sign of `<= 0`, is `Σ a_k x_k^2 - a_0 x_0^2` with `x_0` held at or
+above 0, giving the quadratic cone `(x_0, √(a_k/a_0) x_k)`, or
+`Σ a_k x_k^2 - c x_0 x_1` with `x_0` and `x_1` held at or above 0 and
+neither squared, giving the rotated cone `(x_0, x_1, √(2 a_k/c) x_k)`.
+Every `a_k` and `c` is above 0. A column is held at or above 0 by its lower
+bound or by a linear row of that column alone. The members are made as
+above, and the row leaves the model. Pyomo's kernel `conic.quadratic` and
+`conic.rotated_quadratic` write these rows, and so does the writer below.
 
 **Refused by line**: a binary `.nl` (starts with `b`; write it with the
 text option); a body that starts with anything but `n`, `v` or `o` (such
-as a function call `f` or a string `h`); a body that divides by anything
-but a nonzero constant, takes a power other than one or two, uses any
-other operator (named by its number), or whose products reach degree
-three; the network constraint counts of header line 4; integer columns in
-nonlinear terms (header line 7); user functions; common expressions counted
-on header line 10; defined variables (`V`); logical constraints (`L`);
-complementarity bounds (code 5); an unknown segment letter; and a file with
-columns and no `b` segment, or with rows and no `r` segment.
+as a function call `f` or a string `h`); any other operator, named by its
+number and its name, such as `o44 (exp)`; a product or a power of degree
+three or more; a power of a column other than 0, 1, 2, 0.5 and -1, and a
+power whose exponent is not a constant; a constant power other than a whole
+one or 0.5; a division by 0, by a quadratic, or of something other than a
+sum of squares by a linear form; `sqrt` of a negative constant, or of a
+quadratic that is neither a sum of squares nor a product of two linear
+forms; `abs` of a quadratic; a `sqrt`, `abs` or ratio inside another, or
+multiplied by anything but a constant; such a term of the wrong curvature
+for its side, in a row with two finite bounds, or over a denominator or
+factors the bounds do not hold at or above 0; the network constraint counts
+of header line 4; integer counts on line 7 that do not fit the nonlinear
+counts of line 5, or that need a line 5 with fewer than three counts; user
+functions; common expressions counted on header line 10; defined variables
+(`V`); logical constraints (`L`); complementarity bounds (code 5); an
+unknown segment letter; and a file with columns and no `b` segment, or with
+rows and no `r` segment.
 
 **The writer.** `jaos_write_nl`, and the tool for an output name ending in
 `.nl` or `.nl.gz`, writes the same text form: the ten header lines, a `C`
-row with body `n0` per row, `O0` with the sense flag and the objective
-constant, `r` and `b` in the five bound codes, `k` with the cumulative
-column counts, `J` per row and `G0`. The names go to `.col` and `.row`
-beside the file, the objective's name last in `.row`, so the file reads
-back with them. A `.gz` output writes the names files uncompressed under
-the name without `.gz`. The format lists the integer columns last, so the
-writer orders the columns continuous, then binary (integer with bounds 0
-and 1), then general integer, and header line 7 carries the two counts. A
-model whose integer columns are not already last reads back with its
-columns in that order, names carried, and everything else the same. SOS
-sets, semi-continuous columns and indicator rows have no place in the
-linear part of the format and are refused; the message names the column
-or the row, or gives the count of SOS sets. A quadratic objective,
-quadratic rows and cones are refused as well, because the format carries a
-quadratic part only as a nonlinear body and the writer does not write one.
-Write MPS, LP, QPLIB or OSiL for a quadratic model, and MPS for cones.
+body per row, `O0` with the sense flag and its body, `r` and `b` in the five
+bound codes, `k` with the cumulative column counts, `J` per row and `G0`. A
+linear row's body is `n0`. A quadratic row's body and the objective's are
+their terms, `(Q_ii/2) x_i^2` and `Q_ij x_i x_j`, with the objective's
+constant, which read back as the same `Q`. Each cone is one more row,
+`Σ x_k^2 - x_0^2 <= 0` or `Σ x_k^2 - 2 x_0 x_1 <= 0`, named `_cone1`,
+`_cone2` and on in `.row`, whose heads are written with a lower bound of at
+least 0, which the cone implies; the reader takes each back as the same
+cone. `J` and `G` list each column of a row's or the objective's nonlinear
+part, with coefficient 0 where it has no linear one, as the format's
+sparsity requires, and header lines 3, 5 and 7 carry the nonlinear counts.
+The format orders the rows nonlinear first, so the quadratic rows go first
+in the model's order, then the cones, then the linear rows. It orders the
+columns as "Hooking Your Solver to AMPL" does: those nonlinear in both the
+constraints and the objective, in the constraints only, in the objective
+only, each group continuous then integer, then the linear ones continuous,
+binary (integer with bounds 0 and 1) and general integer. A model in another
+order reads back in the file's, names carried, and everything else the
+same. The names go to `.col` and `.row` beside the file, the objective's
+name last in `.row`, so the file reads back with them. A `.gz` output writes
+the names files uncompressed under the name without `.gz`. SOS sets,
+semi-continuous columns and indicator rows have no place in the format and
+are refused; the message names the column or the row, or gives the count of
+SOS sets.
 
 **AMPL's `.sol` file.** The reader keeps the option values of the first
 line (`g3 1 1 0` holds three: 1, 1 and 0) for the `.sol` file AMPL expects
@@ -369,7 +445,15 @@ refused keeps its header's counts and options, so the `.sol` reports the
 failure with as many rows and columns as the file has. The duals are sent
 for a continuous optimum and the values for an optimum or a stop that left
 a point; `CODE` and the rest are in `docs/cli.md` under `STUB -AMPL`.
-Pyomo and JuMP read the file back (`bench/measurements/02-257/`).
+While a model read from `.nl` keeps the rows, columns and cones the reader
+gave it, the `.sol` has the file's rows and columns, not the ones the
+reader added. A row that kept its place keeps its dual, which for a row
+with a cone term is the multiplier of its own body. A row that became a
+cone `k` gets the multiplier of its body from the cone's dual `z`:
+`-z_0/(2 a_0 x_0)` or `-z_0/(c x_1)` in the sign of `<= 0`, `z_1` and
+`x_0` standing in when `x_1` is 0, and 0 at the cone's tip. Pyomo and JuMP
+read the file back (`bench/measurements/02-257/`), and Pyomo reads the
+duals of rows that became cones (`bench/measurements/02-487/`).
 
 ## QPLIB
 
@@ -547,7 +631,8 @@ row or the column, and no file is left behind.
   named them. Reading the file back gives the same indices and the same
   names, because every format that carries names lists rows and columns in
   index order and its reader assigns indices in order of first appearance.
-  Two rows (the objective among them) or two columns called the same are
+  `.nl` is the exception: the format orders the columns and rows by kind,
+  and its section above says how they read back. Two rows (the objective among them) or two columns called the same are
   refused by name in every format, because no reader can tell them apart.
   A positional name takes part, so a column named `C2` beside an unnamed
   second column is such a pair. MPS has one more refusal, a row named

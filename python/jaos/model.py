@@ -220,10 +220,14 @@ class Model:
         return self
 
     def read_nl(self, path):
-        """Reads an AMPL .nl file in its text form: a linear model with
-        its bounds and integer columns, and the names from the .col and
-        .row files beside it when both are there. A nonlinear expression,
-        a defined variable or a complementarity condition is refused by
+        """Reads an AMPL .nl file in its text form: its bounds and integer
+        columns, bodies of degree two as quadratic parts, and the bodies a
+        cone holds (sqrt of a sum of squares, abs, a sum of squares over
+        a linear form, sqrt of a linear form or of a product of two, and
+        sum x_k^2 <= x0^2 or <= 2 x0 x1 with the heads held at or above
+        0) as cones over added columns. The names come from the .col and
+        .row files beside it when both are there. Any other function, a
+        defined variable or a complementarity condition is refused by
         line. gzip is accepted here too."""
         self._check(_lib.jaos_read_nl(self._handle(), _path(path)))
         return self
@@ -238,11 +242,14 @@ class Model:
 
     def write_nl(self, path):
         """Writes an AMPL .nl file in its text form, with the names in
-        .col and .row files beside it. The format lists the integer
-        columns last, so a model with an integer column before a
-        continuous one reads back with its columns in that order, names
-        carried. SOS sets, semi-continuous columns and indicator rows
-        are refused; write MPS for those."""
+        .col and .row files beside it. Quadratic parts go out as bodies
+        of degree two and each cone as one more row, sum x_k^2 <= x0^2 or
+        <= 2 x0 x1, which read back as the same cone. The format lists
+        the nonlinear columns first and the integer ones last in each
+        group, and the nonlinear rows first, so a model in another order
+        reads back in that order, names carried. SOS sets,
+        semi-continuous columns and indicator rows are refused; write
+        MPS for those."""
         self._check(_lib.jaos_write_nl(self._handle(), _path(path)))
         return self
 

@@ -389,10 +389,11 @@ QPLIB text format, `.osil` OSiL XML, and `.cbf` the Conic Benchmark Format
 without names. Any other extension is a usage error. The output name is
 checked before the input is read.
 
-The `.nl` writer lists the integer columns last, as the format does, and
-refuses SOS sets, semi-continuous columns, indicator rows, cones, quadratic
-rows and a quadratic objective. Write MPS, LP, QPLIB or OSiL for a
-quadratic objective, and MPS for cones or quadratic rows.
+The `.nl` writer writes a quadratic objective and quadratic rows as bodies
+of degree two and each cone as one more row that reads back as the same
+cone, puts the nonlinear rows first and the columns in the format's order
+(nonlinear first, integer last within each kind), and refuses SOS sets,
+semi-continuous columns and indicator rows; write MPS for those.
 
 What JAOS writes, JAOS reads back as the same model, names included. A row
 or column the input did not name is written by its position, `R<I+1>`,
@@ -950,8 +951,12 @@ AMPL's:
 
 The exit code is 0 whenever `STUB.sol` was written, because AMPL reads the
 file only after a 0, and 5 when it could not be written. The `.nl` reader
-takes bodies of degree two or less. A body of any other kind ends with
-code 500 and the reader's message.
+takes bodies of degree two or less and the terms a cone holds, `sqrt` of a
+sum of squares, `abs`, a sum of squares over a linear form and `sqrt` of a
+linear form or of a product of two (`docs/format-support.md`). A body of
+any other kind ends with code 500 and the reader's message. `STUB.sol`
+gives a dual for each of `STUB.nl`'s rows, a row the reader made a cone
+included, and a value for each of its columns.
 
 ## Which reader is used
 

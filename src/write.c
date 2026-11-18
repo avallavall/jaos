@@ -1019,15 +1019,15 @@ static void nl_bound_line(FILE *f, double lo, double hi)
     }
 }
 
-static void nl_names_file(wr *w, const char *base, const char *ext,
-                          int64_t n, const int64_t *order)
+static bool nl_names_file(wr *w, const char *base, const char *ext,
+                          int64_t n, const int64_t *order, bool rows)
 {
     if (w->st != JAOS_OK)
-        return;
+        return false;
     char *path = malloc(strlen(base) + strlen(ext) + 1);
     if (path == nullptr) {
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
-        return;
+        return false;
     }
     strcpy(path, base);
     strcat(path, ext);
@@ -1035,17 +1035,19 @@ static void nl_names_file(wr *w, const char *base, const char *ext,
     if (f == nullptr) {
         wr_fail(w, JAOS_ERR_IO, "cannot open '%s' for writing", path);
         free(path);
-        return;
+        return false;
     }
     char nm[NAME_LEN];
     for (int64_t k = 0; k < n; k++) {
-        if (order != nullptr)
+        if (!rows)
             col_name(w->m, nm, order[k]);
+        else if (order[k] >= 0)
+            row_name(w->m, nm, order[k]);
         else
-            row_name(w->m, nm, k);
+            snprintf(nm, sizeof nm, "_cone%" PRId64, -order[k]);
         fprintf(f, "%s\n", nm);
     }
-    if (order == nullptr)
+    if (rows)
         fprintf(f, "%s\n", jm_obj_name(w->m));
     if (ferror(f))
         wr_fail(w, JAOS_ERR_IO, "writing '%s' failed", path);
@@ -1054,6 +1056,7 @@ static void nl_names_file(wr *w, const char *base, const char *ext,
     if (w->st != JAOS_OK)
         remove(path);
     free(path);
+    return w->st == JAOS_OK;
 }
 
 static bool nl_binary(const jaos_model *m, int64_t j)
@@ -1065,6 +1068,116 @@ static bool nl_binary(const jaos_model *m, int64_t j)
 static bool nl_general_integer(const jaos_model *m, int64_t j)
 {
     return m->col_integer != nullptr && m->col_integer[j] && !nl_binary(m, j);
+}
+
+typedef struct {
+    int64_t i, j;
+    double v;
+} nl_wterm;
+
+static void nl_monomial(FILE *f, const int64_t *pos, int64_t i, int64_t j)
+{
+    if (i == j)
+        fprintf(f, "o5\nv%" PRId64 "\nn2\n", pos[i]);
+    else
+        fprintf(f, "o2\nv%" PRId64 "\nv%" PRId64 "\n", pos[i], pos[j]);
+}
+
+static void nl_write_body(FILE *f, const int64_t *pos, int64_t n,
+                          const nl_wterm *t, double c)
+{
+    char num[NUM_LEN];
+    const int64_t count = n + (c != 0.0 ? 1 : 0);
+    if (count == 0) {
+        fputs("n0\n", f);
+        return;
+    }
+    if (count == 2)
+        fputs("o0\n", f);
+    else if (count > 2)
+        fprintf(f, "o54\n%" PRId64 "\n", count);
+    for (int64_t k = 0; k < n; k++) {
+        if (t[k].v == -1.0) {
+            fputs("o16\n", f);
+        } else if (t[k].v != 1.0) {
+            wr_num(num, t[k].v);
+            fprintf(f, "o2\nn%s\n", num);
+        }
+        nl_monomial(f, pos, t[k].i, t[k].j);
+    }
+    if (c != 0.0) {
+        wr_num(num, c);
+        fprintf(f, "n%s\n", num);
+    }
+}
+
+static int64_t nl_quad_terms(const jaos_model *m, int64_t row, nl_wterm *t,
+                             int64_t *ri, int64_t *ci, double *vi)
+{
+    const int64_t n = row < 0 ? jaos_quadratic_nz(m)
+                              : jaos_row_quadratic_nz(m, row);
+    if (n == 0)
+        return 0;
+    if ((row < 0 ? jaos_quadratic(m, ri, ci, vi)
+                 : jaos_row_quadratic(m, row, ri, ci, vi)) != JAOS_OK)
+        return 0;
+    for (int64_t k = 0; k < n; k++)
+        t[k] = (nl_wterm){ri[k], ci[k],
+                          ri[k] == ci[k] ? vi[k] / 2.0 : vi[k]};
+    return n;
+}
+
+static int64_t nl_cone_terms(const jaos_model *m, int64_t k, nl_wterm *t)
+{
+    const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+    const bool rot = m->cone_type[k] == JAOS_CONE_ROTATED;
+    int64_t n = 0;
+    for (int64_t p = b + (rot ? 2 : 1); p < e; p++)
+        t[n++] = (nl_wterm){m->cone_col[p], m->cone_col[p], 1.0};
+    if (rot)
+        t[n++] = (nl_wterm){m->cone_col[b], m->cone_col[b + 1], -2.0};
+    else
+        t[n++] = (nl_wterm){m->cone_col[b], m->cone_col[b], -1.0};
+    return n;
+}
+
+typedef struct {
+    int64_t pos;
+    double v;
+} nl_jent;
+
+static int nl_jent_cmp(const void *a, const void *b)
+{
+    const nl_jent *x = a, *y = b;
+    return x->pos < y->pos ? -1 : x->pos > y->pos;
+}
+
+static int64_t nl_jacobian(const jaos_model *m, int64_t at, const int64_t *pos,
+                           const nl_wterm *t, int64_t nt, double *mark,
+                           nl_jent *out)
+{
+    int64_t n = 0;
+    if (at >= 0)
+        for (int64_t p = m->ar_start[at]; p < m->ar_start[at + 1]; p++) {
+            const int64_t j = m->ar_index[p];
+            out[n++] = (nl_jent){pos[j], m->ar_value[p]};
+            mark[j] = 1.0;
+        }
+    for (int64_t k = 0; k < nt; k++) {
+        const int64_t c[2] = {t[k].i, t[k].j};
+        for (int s = 0; s < 2; s++)
+            if (mark[c[s]] == 0.0) {
+                mark[c[s]] = 1.0;
+                out[n++] = (nl_jent){pos[c[s]], 0.0};
+            }
+    }
+    for (int64_t k = 0; k < nt; k++)
+        mark[t[k].i] = mark[t[k].j] = 0.0;
+    if (at >= 0)
+        for (int64_t p = m->ar_start[at]; p < m->ar_start[at + 1]; p++)
+            mark[m->ar_index[p]] = 0.0;
+    qsort(out, (size_t)n, sizeof *out, nl_jent_cmp);
+    return n;
 }
 
 jaos_status jaos_write_nl(jaos_model *m, const char *path)
@@ -1080,7 +1193,7 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
 
     wr ww = {.f = nullptr, .m = m, .st = JAOS_OK};
     wr *w = &ww;
-    const int64_t nc = m->num_col, nr = m->num_row;
+    const int64_t nc = m->num_col, nr = m->num_row, nk = m->num_cone;
     char nm[NAME_LEN], num[NUM_LEN];
 
     if (m->num_sos > 0)
@@ -1088,11 +1201,6 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
                 "the model has %" PRId64 " SOS sets, which .nl carries only "
                 "as solver suffixes JAOS does not write; write MPS instead",
                 m->num_sos);
-    if (w->st == JAOS_OK && jm_model_has_conic(m))
-        wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                "the model has second-order cones or quadratic rows, which "
-                ".nl carries only as nonlinear bodies JAOS does not write; "
-                "write MPS instead");
     for (int64_t j = 0; w->st == JAOS_OK && j < nc; j++) {
         if (m->col_semi != nullptr && m->col_semi[j]) {
             col_name(m, nm, j);
@@ -1109,44 +1217,107 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
                     "express; write MPS instead", nm);
         }
     }
-    if (w->st == JAOS_OK && jm_model_has_quadratic(m))
-        wr_fail(w, JAOS_ERR_INVALID_INPUT,
-                "the objective has a quadratic term, which .nl carries only "
-                "as a nonlinear body JAOS does not write; write MPS, LP, "
-                "QPLIB or OSiL instead");
     if (w->st == JAOS_OK)
         names_unique(w);
     if (w->st != JAOS_OK)
         return w->st;
 
+    int64_t qmax = jaos_quadratic_nz(m), conemax = 0;
+    for (int64_t i = 0; i < nr; i++)
+        if (jaos_row_quadratic_nz(m, i) > qmax)
+            qmax = jaos_row_quadratic_nz(m, i);
+    for (int64_t k = 0; k < nk; k++)
+        if (m->cone_start[k + 1] - m->cone_start[k] > conemax)
+            conemax = m->cone_start[k + 1] - m->cone_start[k];
+    const int64_t tmax = (qmax > conemax ? qmax : conemax) + 1;
+    const int64_t nrf = nr + nk;
     int64_t *order = jm_alloc_array(nc > 0 ? nc : 1, sizeof *order);
     int64_t *pos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pos);
-    if (order == nullptr || pos == nullptr) {
-        free(order);
-        free(pos);
+    int64_t *rorder = jm_alloc_array(nrf > 0 ? nrf : 1, sizeof *rorder);
+    uint8_t *use = jm_calloc_array(nc > 0 ? nc : 1, sizeof *use);
+    double *lower = jm_alloc_array(nc > 0 ? nc : 1, sizeof *lower);
+    double *mark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *mark);
+    int64_t *colnz = jm_calloc_array(nc > 0 ? nc : 1, sizeof *colnz);
+    nl_wterm *t = jm_alloc_array(tmax, sizeof *t);
+    int64_t *ti = jm_alloc_array(tmax, sizeof *ti);
+    int64_t *tj = jm_alloc_array(tmax, sizeof *tj);
+    double *tv = jm_alloc_array(tmax, sizeof *tv);
+    nl_jent *je = jm_alloc_array(nc + tmax, sizeof *je);
+    if (order == nullptr || pos == nullptr || rorder == nullptr ||
+        use == nullptr || lower == nullptr || mark == nullptr ||
+        colnz == nullptr || t == nullptr || ti == nullptr || tj == nullptr ||
+        tv == nullptr || je == nullptr) {
         wr_fail(w, JAOS_ERR_OUT_OF_MEMORY, "out of memory");
-        return w->st;
+        goto out;
     }
-    int64_t n = 0, nbv = 0, niv = 0;
+
     for (int64_t j = 0; j < nc; j++)
-        if (!nl_binary(m, j) && !nl_general_integer(m, j)) {
+        lower[j] = m->col_lower[j];
+    {
+        const int64_t n = nl_quad_terms(m, -1, t, ti, tj, tv);
+        for (int64_t k = 0; k < n; k++)
+            use[t[k].i] |= 2u, use[t[k].j] |= 2u;
+    }
+    for (int64_t i = 0; i < nr; i++) {
+        const int64_t n = nl_quad_terms(m, i, t, ti, tj, tv);
+        for (int64_t k = 0; k < n; k++)
+            use[t[k].i] |= 1u, use[t[k].j] |= 1u;
+    }
+    for (int64_t k = 0; k < nk; k++) {
+        const int64_t b = m->cone_start[k], e = m->cone_start[k + 1];
+        const int64_t heads = m->cone_type[k] == JAOS_CONE_ROTATED ? 2 : 1;
+        for (int64_t p = b; p < e; p++) {
+            use[m->cone_col[p]] |= 1u;
+            if (p < b + heads && !(lower[m->cone_col[p]] >= 0.0))
+                lower[m->cone_col[p]] = 0.0;
+        }
+    }
+
+    int64_t n = 0, nbv = 0, niv = 0;
+    int64_t cat[6] = {0};
+    for (int g = 0; g < 6; g++) {
+        const uint8_t want = g < 2 ? 3u : g < 4 ? 1u : 2u;
+        for (int64_t j = 0; j < nc; j++) {
+            const bool integer = m->col_integer != nullptr && m->col_integer[j];
+            if (use[j] == want && integer == (g % 2 == 1)) {
+                pos[j] = n;
+                order[n++] = j;
+                cat[g]++;
+            }
+        }
+    }
+    for (int64_t j = 0; j < nc; j++)
+        if (use[j] == 0 && !nl_binary(m, j) && !nl_general_integer(m, j)) {
             pos[j] = n;
             order[n++] = j;
         }
     for (int64_t j = 0; j < nc; j++)
-        if (nl_binary(m, j)) {
+        if (use[j] == 0 && nl_binary(m, j)) {
             pos[j] = n;
             order[n++] = j;
             nbv++;
         }
     for (int64_t j = 0; j < nc; j++)
-        if (nl_general_integer(m, j)) {
+        if (use[j] == 0 && nl_general_integer(m, j)) {
             pos[j] = n;
             order[n++] = j;
             niv++;
         }
+    const int64_t nlvb = cat[0] + cat[1], nlvc = nlvb + cat[2] + cat[3];
+    const int64_t nlvo = cat[4] + cat[5] > 0 ? nlvc + cat[4] + cat[5] : nlvb;
 
-    int64_t nranges = 0, neqns = 0, nzo = 0;
+    int64_t fr = 0, nlc = 0;
+    for (int64_t i = 0; i < nr; i++)
+        if (jaos_row_quadratic_nz(m, i) > 0)
+            rorder[fr++] = i;
+    for (int64_t k = 0; k < nk; k++)
+        rorder[fr++] = -1 - k;
+    nlc = fr;
+    for (int64_t i = 0; i < nr; i++)
+        if (jaos_row_quadratic_nz(m, i) == 0)
+            rorder[fr++] = i;
+
+    int64_t nranges = 0, neqns = 0, nzc = 0, nzo = 0;
     for (int64_t i = 0; i < nr; i++) {
         const double rl = m->row_lower[i], ru = m->row_upper[i];
         if (rl == ru)
@@ -1154,12 +1325,35 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
         else if (rl != -INFINITY && ru != INFINITY)
             nranges++;
     }
-    for (int64_t j = 0; j < nc; j++)
-        if (m->col_cost[j] != 0.0)
-            nzo++;
+    for (int64_t r = 0; r < nrf; r++) {
+        const int64_t at = rorder[r];
+        const int64_t q = at >= 0 ? nl_quad_terms(m, at, t, ti, tj, tv)
+                                  : nl_cone_terms(m, -1 - at, t);
+        const int64_t k = nl_jacobian(m, at, pos, t, q, mark, je);
+        nzc += k;
+        for (int64_t s = 0; s < k; s++)
+            colnz[je[s].pos]++;
+    }
+    const int64_t nqo = nl_quad_terms(m, -1, t, ti, tj, tv);
+    {
+        for (int64_t j = 0; j < nc; j++)
+            if (m->col_cost[j] != 0.0)
+                mark[j] = 1.0;
+        for (int64_t k = 0; k < nqo; k++)
+            mark[t[k].i] = mark[t[k].j] = 1.0;
+        for (int64_t j = 0; j < nc; j++) {
+            nzo += mark[j] != 0.0;
+            mark[j] = 0.0;
+        }
+    }
     size_t maxrow = strlen(jm_obj_name(m)), maxcol = 0;
     for (int64_t i = 0; i < nr; i++) {
         row_name(m, nm, i);
+        if (strlen(nm) > maxrow)
+            maxrow = strlen(nm);
+    }
+    if (nk > 0) {
+        snprintf(nm, sizeof nm, "_cone%" PRId64, nk);
         if (strlen(nm) > maxrow)
             maxrow = strlen(nm);
     }
@@ -1170,54 +1364,70 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
     }
 
     jm_locale loc = {0};
-    if (!wr_open(w, path, &loc)) {
-        free(order);
-        free(pos);
-        return w->st;
-    }
+    if (!wr_open(w, path, &loc))
+        goto out;
     FILE *f = w->f;
     fprintf(f, "g3 1 1 0\t# written by JAOS %s\n", JAOS_VERSION_STRING);
     fprintf(f, " %" PRId64 " %" PRId64 " 1 %" PRId64 " %" PRId64 " 0\n",
-            nc, nr, nranges, neqns);
-    fputs(" 0 0\n 0 0\n 0 0 0\n 0 0 0 1\n", f);
-    fprintf(f, " %" PRId64 " %" PRId64 " 0 0 0\n", nbv, niv);
-    fprintf(f, " %" PRId64 " %" PRId64 "\n", m->num_nz, nzo);
+            nc, nrf, nranges, neqns);
+    fprintf(f, " %" PRId64 " %d\n 0 0\n", nlc, nqo > 0 ? 1 : 0);
+    fprintf(f, " %" PRId64 " %" PRId64 " %" PRId64 "\n 0 0 0 1\n", nlvc, nlvo,
+            nlvb);
+    fprintf(f, " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
+            "\n", nbv, niv, cat[1], cat[3], cat[5]);
+    fprintf(f, " %" PRId64 " %" PRId64 "\n", nzc, nzo);
     fprintf(f, " %zu %zu\n", maxrow, maxcol);
     fputs(" 0 0 0 0 0\n", f);
 
-    for (int64_t i = 0; i < nr; i++)
-        fprintf(f, "C%" PRId64 "\nn0\n", i);
-    wr_num(num, m->obj_offset);
-    fprintf(f, "O0 %d\nn%s\n", m->sense == JAOS_MAXIMIZE ? 1 : 0, num);
+    for (int64_t r = 0; r < nrf; r++) {
+        const int64_t at = rorder[r];
+        const int64_t q = at >= 0 ? nl_quad_terms(m, at, t, ti, tj, tv)
+                                  : nl_cone_terms(m, -1 - at, t);
+        fprintf(f, "C%" PRId64 "\n", r);
+        nl_write_body(f, pos, q, t, 0.0);
+    }
+    fprintf(f, "O0 %d\n", m->sense == JAOS_MAXIMIZE ? 1 : 0);
+    nl_quad_terms(m, -1, t, ti, tj, tv);
+    nl_write_body(f, pos, nqo, t, m->obj_offset);
 
     fputs("r\n", f);
-    for (int64_t i = 0; i < nr; i++)
-        nl_bound_line(f, m->row_lower[i], m->row_upper[i]);
+    for (int64_t r = 0; r < nrf; r++) {
+        const int64_t at = rorder[r];
+        if (at >= 0)
+            nl_bound_line(f, m->row_lower[at], m->row_upper[at]);
+        else
+            fputs("1 0\n", f);
+    }
     fputs("b\n", f);
     for (int64_t k = 0; k < nc; k++)
-        nl_bound_line(f, m->col_lower[order[k]], m->col_upper[order[k]]);
+        nl_bound_line(f, lower[order[k]], m->col_upper[order[k]]);
 
     if (nc > 0) {
         fprintf(f, "k%" PRId64 "\n", nc - 1);
         int64_t cum = 0;
         for (int64_t k = 0; k + 1 < nc; k++) {
-            const int64_t j = order[k];
-            cum += m->a_start[j + 1] - m->a_start[j];
+            cum += colnz[k];
             fprintf(f, "%" PRId64 "\n", cum);
         }
     }
-    for (int64_t i = 0; i < nr; i++) {
-        fprintf(f, "J%" PRId64 " %" PRId64 "\n", i,
-                m->ar_start[i + 1] - m->ar_start[i]);
-        for (int64_t p = m->ar_start[i]; p < m->ar_start[i + 1]; p++) {
-            wr_num(num, m->ar_value[p]);
-            fprintf(f, "%" PRId64 " %s\n", pos[m->ar_index[p]], num);
+    for (int64_t r = 0; r < nrf; r++) {
+        const int64_t at = rorder[r];
+        const int64_t q = at >= 0 ? nl_quad_terms(m, at, t, ti, tj, tv)
+                                  : nl_cone_terms(m, -1 - at, t);
+        const int64_t k = nl_jacobian(m, at, pos, t, q, mark, je);
+        fprintf(f, "J%" PRId64 " %" PRId64 "\n", r, k);
+        for (int64_t s = 0; s < k; s++) {
+            wr_num(num, je[s].v);
+            fprintf(f, "%" PRId64 " %s\n", je[s].pos, num);
         }
     }
     fprintf(f, "G0 %" PRId64 "\n", nzo);
+    nl_quad_terms(m, -1, t, ti, tj, tv);
+    for (int64_t k = 0; k < nqo; k++)
+        mark[t[k].i] = mark[t[k].j] = 1.0;
     for (int64_t k = 0; k < nc; k++) {
         const int64_t j = order[k];
-        if (m->col_cost[j] == 0.0)
+        if (m->col_cost[j] == 0.0 && mark[j] == 0.0)
             continue;
         wr_num(num, m->col_cost[j]);
         fprintf(f, "%" PRId64 " %s\n", k, num);
@@ -1236,9 +1446,8 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
             }
             if (len > 3 && strcmp(base + len - 3, ".nl") == 0)
                 base[len - 3] = '\0';
-            nl_names_file(w, base, ".col", nc, order);
-            nl_names_file(w, base, ".row", nr, nullptr);
-            if (w->st != JAOS_OK) {
+            if (nl_names_file(w, base, ".col", nc, order, false) &&
+                !nl_names_file(w, base, ".row", nrf, rorder, true)) {
                 char *col = malloc(strlen(base) + 5);
                 if (col != nullptr) {
                     strcpy(col, base);
@@ -1252,8 +1461,19 @@ jaos_status jaos_write_nl(jaos_model *m, const char *path)
         if (w->st != JAOS_OK)
             remove(path);
     }
+out:
     free(order);
     free(pos);
+    free(rorder);
+    free(use);
+    free(lower);
+    free(mark);
+    free(colnz);
+    free(t);
+    free(ti);
+    free(tj);
+    free(tv);
+    free(je);
     return w->st;
 }
 
@@ -3185,9 +3405,14 @@ jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
 
     const jaos_solve_status ss = m->solve_status;
     const bool empty = m->num_col == 0 && m->num_row == 0;
-    const int64_t nc = empty ? m->nl_cols : m->num_col;
-    const int64_t nr = empty ? m->nl_rows : m->num_row;
+    const bool mapped = !empty && m->nl_row_at != nullptr &&
+                        m->num_row == m->nl_kept_rows &&
+                        m->num_col == m->nl_kept_cols &&
+                        m->num_cone == m->nl_kept_cones;
+    const int64_t nc = empty || mapped ? m->nl_cols : m->num_col;
+    const int64_t nr = empty || mapped ? m->nl_rows : m->num_row;
     const double *x = nullptr, *y = nullptr;
+    double *ymap = nullptr;
     double obj = 0.0;
     if (!empty && ss == JAOS_SOLVE_OPTIMAL && m->sol_col != nullptr) {
         x = m->sol_col;
@@ -3198,6 +3423,39 @@ jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
                m->mip_inc_x != nullptr) {
         x = m->mip_inc_x;
         obj = m->mip_inc_obj;
+    }
+    if (y != nullptr && mapped) {
+        ymap = jm_alloc_array(nr > 0 ? nr : 1, sizeof *ymap);
+        if (ymap == nullptr) {
+            jm_set_err(m, "out of memory");
+            return JAOS_ERR_OUT_OF_MEMORY;
+        }
+        for (int64_t i = 0; i < nr && y != nullptr; i++) {
+            const int64_t at = m->nl_row_at[i];
+            if (at >= 0) {
+                ymap[i] = y[at];
+                continue;
+            }
+            if (!m->cone_ok || m->sol_cone == nullptr) {
+                y = nullptr;
+                break;
+            }
+            const int64_t b = m->cone_start[-1 - at];
+            const double *z = m->sol_cone + b;
+            const double *v = m->sol_col;
+            const int64_t h = m->cone_col[b];
+            double num = z[0], den = v[h];
+            if (m->cone_type[-1 - at] == JAOS_CONE_ROTATED) {
+                den = v[m->cone_col[b + 1]];
+                if (den == 0.0) {
+                    num = z[1];
+                    den = v[h];
+                }
+            }
+            ymap[i] = den == 0.0 ? 0.0 : -m->nl_row_scale[i] * num / den;
+        }
+        if (y != nullptr)
+            y = ymap;
     }
     for (int64_t j = 0; x != nullptr && j < nc; j++)
         if (!isfinite(x[j]))
@@ -3210,8 +3468,10 @@ jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
     wr *w = &ww;
     char a[NUM_LEN];
     jm_locale loc = {0};
-    if (!wr_open(w, path, &loc))
+    if (!wr_open(w, path, &loc)) {
+        free(ymap);
         return w->st;
+    }
 
     if (message != nullptr && message[0] != '\0') {
         for (const char *s = message; *s != '\0'; s++)
@@ -3246,5 +3506,6 @@ jaos_status jaos_write_sol_ampl(jaos_model *m, const char *path,
         fprintf(w->f, "%s\n", a);
     }
     fprintf(w->f, "objno 0 %d\n", ampl_result(ss, x != nullptr));
+    free(ymap);
     return wr_close(w, path, &loc);
 }

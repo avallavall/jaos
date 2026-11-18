@@ -427,10 +427,13 @@ class TestReadingFiles(unittest.TestCase):
             m.set_quadratic([(0, 0, 2.0), (1, 1, 2.0), (1, 0, 1.0)])
             self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
             path = os.path.join(d, "q.nl")
-            with self.assertRaises(jaos.JaosError) as ctx:
-                m.write_nl(path)
-            self.assertIn("quadratic", str(ctx.exception))
-            self.assertFalse(os.path.exists(path))
+            m.write_nl(path)
+            with jaos.Model() as back:
+                back.read_nl(path)
+                self.assertEqual(back.quadratic_nz(), 3)
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), m.objective(),
+                                       places=7)
             with self.assertRaises(jaos.JaosError) as ctx:
                 m.cost_ranging()
             self.assertIn("quadratic", str(ctx.exception))
@@ -446,10 +449,12 @@ class TestReadingFiles(unittest.TestCase):
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "q.nl")
-            with self.assertRaises(jaos.JaosError) as ctx:
-                p.write_nl(path)
-            self.assertIn("quadratic", str(ctx.exception))
-            self.assertFalse(os.path.exists(path))
+            p.write_nl(path)
+            with jaos.Model() as back:
+                back.read_nl(path)
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), p.objective_value,
+                                       places=7)
         with self.assertRaises(jaos.JaosError) as ctx:
             p.cost_ranging()
         self.assertIn("quadratic", str(ctx.exception))
@@ -487,6 +492,50 @@ class TestReadingFiles(unittest.TestCase):
         with self.assertRaises(jaos.JaosError) as ctx:
             p.verify()
         self.assertIn("MIP", str(ctx.exception))
+
+    def test_an_nl_body_above_degree_two_reads_as_a_cone_at_both_layers(self):
+        with jaos.Model() as m:
+            m.read_nl(data("t_nl_norm.nl"))
+            self.assertEqual(m.num_cones(), 1)
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), math.sqrt(2.0), places=7)
+        with jaos.Model() as m:
+            m.read_nl(data("t_nl_soc.nl"))
+            self.assertEqual((m.num_row, m.num_cones()), (1, 1))
+            self.assertEqual(m.row_name(0), "l")
+            self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(m.objective(), math.sqrt(2.0), places=7)
+        with jaos.Model() as m:
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.read_nl(data("e_nl_exp.nl"))
+            self.assertIn("o44 (exp)", str(ctx.exception))
+        with jaos.Model() as m:
+            with self.assertRaises(jaos.JaosError) as ctx:
+                m.read_nl(data("e_nl_side.nl"))
+            self.assertIn("not a convex set", str(ctx.exception))
+
+        p = jaos.Problem()
+        t = p.add_var(name="t")
+        x = p.add_var(name="x")
+        y = p.add_var(name="y")
+        u = p.add_var(name="u")
+        p.add(x + 2 * y >= 3, name="reach")
+        p.add(u == 1, name="unit")
+        p.add_cone([t, x, y])
+        p.add_cone([u, t, x], rotated=True)
+        p.minimize(t + x * x)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "cone.nl")
+            p.write_nl(path)
+            with jaos.Model() as back:
+                back.read_nl(path)
+                self.assertEqual((back.num_row, back.num_cones()), (2, 2))
+                self.assertEqual(back.quadratic_nz(), 1)
+                self.assertEqual(back.row_name(0), "reach")
+                self.assertIs(back.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(back.objective(), p.objective_value,
+                                       places=6)
 
     def test_a_written_nl_reads_back_with_its_names_and_integers_last(self):
         with jaos.Model() as m, tempfile.TemporaryDirectory() as d:

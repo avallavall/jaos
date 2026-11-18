@@ -254,6 +254,9 @@ struct jaos_model {
     int nl_nopt;
     int64_t nl_opt[JM_NL_OPTIONS];
     int64_t nl_rows, nl_cols;
+    int64_t *nl_row_at;
+    double *nl_row_scale;
+    int64_t nl_kept_rows, nl_kept_cols, nl_kept_cones;
 
     bool *col_integer;
     bool *col_semi;

@@ -381,8 +381,7 @@ dual fixing, and the substitution of a column the equality does not imply
 free. Each waits for a set where it removes 5% of the rows or columns
 (D101, D246, D97 in `bench/refusals.txt`; `bench/measurements/02-312/`).
 
-J16. **Links.** GAMS, which needs a link library of its own; `.nl` bodies
-above degree two.
+J16. **Links.** GAMS, which needs a link library of its own.
 
 J17. **The feasibility relaxation's proof that no box holds a point, where
 several inequality rows together leave no integer point.** The equality

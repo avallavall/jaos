@@ -1549,19 +1549,32 @@ objective and in constraints.
 
 **`jaos_read_nl`**\
 `jaos_status jaos_read_nl(jaos_model *m, const char *path)`\
-Reads AMPL's text `.nl` format. It reads a body of degree two or less:
-sums, differences, products, division by a nonzero constant, powers 1 and
-2, unary minus and sumlist. The body's constant moves into the row's bounds
-or the objective's constant. Its quadratic part becomes the objective's `Q`
-or the row's quadratic part. In the objective, its linear part is added to
-the `G` coefficients. In a row, its linear terms are added to the `J`
-coefficients of the same column, so `(x+1)^2 + 3*x <= 5` reads as
-`x^2 + 5x <= 4`; a sum that comes out exactly 0 leaves no entry. The column names come from the `.col`
-file beside the file and the row names from the `.row` file, each when it
-is there and complete. The `x` segment becomes the MIP start of a model
-with integer columns. The call refuses a binary `.nl` file, any other
-operator, a product of degree three or more, and integer variables in
-nonlinear terms.
+Reads AMPL's text `.nl` format. It reads a body of degree two or less over
+sums, differences, products, divisions, powers 0, 1 and 2, unary minus and
+sumlist, merging like terms before it judges a product, so a node whose
+operands collapse reads at the degree they come to. The body's constant
+moves into the row's bounds or the objective's constant. Its quadratic part
+becomes the objective's `Q` or the row's quadratic part. In the objective,
+its linear part is added to the `G` coefficients. In a row, its linear terms
+are added to the `J` coefficients of the same column, so
+`(x+1)^2 + 3*x <= 5` reads as `x^2 + 5x <= 4`; a coefficient that comes
+out exactly 0 leaves no entry. It also reads the terms a cone holds, each
+times a constant: `sqrt` of a sum of squares, `abs` of a linear form, a sum
+of squares over a linear form, and `sqrt` of a linear form or of a product
+of two. Each becomes a new column in a new cone, with new columns and
+equality rows for members that are not single columns, after the file's
+columns and rows. A row `Σ a_k x_k^2 - a_0 x_0^2 <= 0` or
+`Σ a_k x_k^2 - c x_0 x_1 <= 0`, its heads held at or above 0, becomes a
+cone and leaves the model. The integer counts of header line 7 mark the
+last columns and, placed by the nonlinear counts of line 5, the integer
+columns in nonlinear terms. The column names come from the `.col` file
+beside the file and the row names from the `.row` file, each when it is
+there and complete. The `x` segment becomes the MIP start of a model with
+integer columns. The call refuses a binary `.nl` file, any other operator
+or function, a product or power of degree three or more, and a cone term
+of the wrong curvature for its row's side, in a row with two finite bounds,
+or over a denominator or factors the column bounds do not hold at or
+above 0. `docs/format-support.md` gives every form taken and refused.
 
 **`jaos_write_mps`**\
 `jaos_status jaos_write_mps(jaos_model *m, const char *path)`\
@@ -1584,10 +1597,14 @@ columns.
 **`jaos_write_nl`**\
 `jaos_status jaos_write_nl(jaos_model *m, const char *path)`\
 Writes AMPL's text `.nl` format, with the names in `.col` and `.row` files
-beside it. The format lists integer columns last, so a model whose integer
-columns are not last reads back with its columns in that order. The writer
-refuses SOS sets, semi-continuous columns, indicator rows, a quadratic
-objective, quadratic rows and cones.
+beside it. A quadratic objective and quadratic rows are written as bodies
+of degree two, and each cone as one more row, `Σ x_k^2 - x_0^2 <= 0` or
+`Σ x_k^2 - 2 x_0 x_1 <= 0` with its heads' lower bounds raised to 0, which
+`jaos_read_nl` reads back as the same cone. The format lists the nonlinear
+rows first and orders the columns nonlinear first and integer last within
+each kind, so a model in another order reads back in that order, names
+carried. The writer refuses SOS sets, semi-continuous columns and
+indicator rows.
 
 **`jaos_read_qplib`**\
 `jaos_status jaos_read_qplib(jaos_model *m, const char *path)`\
@@ -1642,7 +1659,10 @@ Writes the `.sol` text file that AMPL reads after a solve, whatever the
 outcome. A `message` that is neither null nor empty opens the file.
 Otherwise the file opens with the version, the status and the objective.
 The file carries the row duals of a continuous optimum, and the column
-values of an optimum or of a stopped tree's incumbent.
+values of an optimum or of a stopped tree's incumbent. For a model read
+from `.nl` that keeps the rows, columns and cones the reader gave it, the
+file has the `.nl` file's rows and columns, and a row the reader turned
+into a cone gets the multiplier of its own body from the cone's dual.
 
 ## The error message
 

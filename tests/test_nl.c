@@ -4,6 +4,7 @@
 #include "unity.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void setUp(void) {}
@@ -170,6 +171,13 @@ static void test_what_the_nl_reader_refuses_is_named_by_line(void)
         {"tests/data/e_compl.nl", "complementarity"},
         {"tests/data/e_nl_huge.nl", "only from a file at least that many"},
         {"tests/data/e_nl_intcount.nl", "9223372036854775807 binary"},
+        {"tests/data/e_nl_exp.nl", "operator o44 (exp)"},
+        {"tests/data/e_nl_cube.nl", "the power 3 of a variable"},
+        {"tests/data/e_nl_side.nl", "positive coefficient on its lower side"},
+        {"tests/data/e_nl_ratio.nl", "do not hold at or above 0"},
+        {"tests/data/e_nl_sqrtq.nl", "neither a sum of squares nor a product"},
+        {"tests/data/e_nl_range.nl", "two finite bounds"},
+        {"tests/data/e_nl_varexp.nl", "exponent is not a constant"},
     };
     for (size_t k = 0; k < sizeof bad / sizeof *bad; k++) {
         jaos_model *m = fresh();
@@ -408,32 +416,249 @@ static void test_the_nl_writer_refuses_what_the_format_has_no_place_for(void)
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_nl(nullptr, "x"));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_write_nl(m, nullptr));
     jaos_model_free(m);
+}
 
-    m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
-                     2, as, ai, av));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_quadratic(m, 0, 2.0));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_write_nl(m, "build/tn_bad.nl"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
-    TEST_ASSERT_FALSE(file_exists("build/tn_bad.nl"));
+static const char *slurp_sol(const char *path);
+
+static double solved(jaos_model *m)
+{
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_solve(m), jaos_model_error(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = NAN;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    return obj;
+}
+
+static void test_bodies_above_degree_two_read_as_cones(void)
+{
+    const struct {
+        const char *file;
+        int64_t rows, cols, cones;
+        double obj;
+    } c[] = {
+        {"tests/data/t_nl_norm.nl", 2, 4, 1, 1.4142135623730951},
+        {"tests/data/t_nl_soc.nl", 1, 3, 1, 1.4142135623730951},
+        {"tests/data/t_nl_headrow.nl", 2, 3, 1, 1.4142135623730951},
+        {"tests/data/t_nl_rsoc.nl", 3, 4, 1, 4.0},
+        {"tests/data/t_nl_ratio.nl", 3, 5, 1, 1.0},
+        {"tests/data/t_nl_root.nl", 1, 4, 1, 6.0},
+        {"tests/data/t_nl_objnorm.nl", 3, 8, 2, 2.1602468994692869},
+    };
+    for (size_t k = 0; k < sizeof c / sizeof *c; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_read_nl(m, c[k].file),
+                                      jaos_model_error(m));
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(c[k].rows, jaos_num_row(m), c[k].file);
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(c[k].cols, jaos_num_col(m), c[k].file);
+        TEST_ASSERT_EQUAL_INT64_MESSAGE(c[k].cones, jaos_num_cones(m),
+                                        c[k].file);
+        TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-7, c[k].obj, solved(m), c[k].file);
+        jaos_model_free(m);
+    }
+
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_nl_soc.nl"));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(m, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("l", nm);
+    jaos_cone_type type = 0;
+    int64_t n = 0, cols[3] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(m, 0, &type, &n, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_CONE_QUADRATIC, type);
+    TEST_ASSERT_EQUAL_INT64(3, n);
+    TEST_ASSERT_EQUAL_INT64(0, cols[0]);
+    TEST_ASSERT_EQUAL_INT64(1, cols[1]);
+    TEST_ASSERT_EQUAL_INT64(2, cols[2]);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_row_quadratic_nz(m, 0));
     jaos_model_free(m);
 
-    const int64_t qr[] = {0, 1, 1};
-    const int64_t qc[] = {0, 0, 1};
-    const double  qv[] = {2.0, 1.0, 2.0};
-
     m = fresh();
-    TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
-                     2, as, ai, av));
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 3, qr, qc, qv));
-    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT,
-                          jaos_write_nl(m, "build/tn_bad.nl"));
-    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "quadratic"));
-    TEST_ASSERT_FALSE(file_exists("build/tn_bad.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, "tests/data/t_nl_rsoc.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(m, 0, &type, &n, cols));
+    TEST_ASSERT_EQUAL_INT(JAOS_CONE_ROTATED, type);
+    TEST_ASSERT_EQUAL_INT64(0, cols[0]);
+    TEST_ASSERT_EQUAL_INT64(2, cols[1]);
+    TEST_ASSERT_EQUAL_INT64(3, cols[2]);
+    double lo = 0.0, hi = 0.0, a = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_bounds(m, 2, &lo, &hi));
+    TEST_ASSERT_TRUE(lo == 0.0 && hi == 0.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 2, 1, &a));
+    TEST_ASSERT_TRUE(a == -sqrt(2.0));
     jaos_model_free(m);
+}
+
+static void test_a_polynomial_that_collapses_reads_at_degree_two(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+                                  jaos_read_nl(m, "tests/data/t_nl_poly.nl"),
+                                  jaos_model_error(m));
+    double a = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 0, 0, &a));
+    TEST_ASSERT_TRUE(a == 0.5);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 0, 1, &a));
+    TEST_ASSERT_TRUE(a == 1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_coefficient(m, 0, 2, &a));
+    TEST_ASSERT_TRUE(a == 8.0);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_row_quadratic_nz(m, 0));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_row_quadratic_nz(m, 1));
+    int64_t qr = -1, qc = -1;
+    double qv = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_quadratic(m, 1, &qr, &qc, &qv));
+    TEST_ASSERT_TRUE(qr == 0 && qc == 0 && qv == 2.0);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_quadratic_nz(m));
+    TEST_ASSERT_EQUAL_INT64(3, jaos_num_nz(m));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, 13.125, solved(m));
+    jaos_model_free(m);
+}
+
+static void test_integer_columns_in_nonlinear_terms_follow_the_header(void)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK,
+                                  jaos_read_nl(m, "tests/data/t_nl_miqp.nl"),
+                                  jaos_model_error(m));
+    const bool want[4] = {false, true, true, true};
+    for (int64_t j = 0; j < 4; j++) {
+        bool isint = !want[j];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(m, j, &isint));
+        TEST_ASSERT_EQUAL_INT(want[j], isint);
+    }
+    TEST_ASSERT_DOUBLE_WITHIN(1e-7, -9.84, solved(m));
+    jaos_model_free(m);
+}
+
+static void cone_model(jaos_model *m)
+{
+    const double inf = jaos_infinity();
+    const double cost[7] = {1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0};
+    const double cl[7] = {-inf, -inf, -inf, -inf, -inf, -3.0, 0.0};
+    const double cu[7] = {inf, inf, inf, inf, inf, 3.0, inf};
+    const double rl[4] = {2.0, 1.0, 1.5, -inf};
+    const double ru[4] = {inf, 1.0, inf, 0.0};
+    const int64_t as[8] = {0, 0, 1, 3, 3, 4, 6, 7};
+    const int64_t ai[7] = {0, 0, 3, 1, 2, 3, 3};
+    const double av[7] = {1.0, 1.0, -0.5, 1.0, 1.0, 0.25, -1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 7, 4, JAOS_MINIMIZE, 0.5, cost, cl, cu, rl, ru, 7,
+                     as, ai, av));
+    const int64_t soc[3] = {0, 1, 2}, rot[3] = {3, 4, 5};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_QUADRATIC, 3, soc));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_add_cone(m, JAOS_CONE_ROTATED, 3, rot));
+    const int64_t qi[1] = {1}, qj[1] = {1};
+    const double qv[1] = {1.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_quadratic(m, 1, qi, qj, qv));
+    const int64_t ri[3] = {2, 5, 5}, rj[3] = {2, 5, 2};
+    const double rv[3] = {2.0, 1.0, 0.5};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_quadratic(m, 3, 3, ri, rj, rv));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, 5, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_name(m, 6, "spare"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_row_name(m, 3, "bowl"));
+}
+
+static void test_a_quadratic_and_conic_model_writes_to_nl_and_reads_back(void)
+{
+    jaos_model *a = fresh();
+    cone_model(a);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_write_nl(a, "build/tn_cone.nl"),
+                                  jaos_model_error(a));
+    const char *text = slurp_sol("build/tn_cone.nl");
+    TEST_ASSERT_NOT_NULL(strstr(text, "\n 7 6 1 0 1 0\n 3 1\n 0 0\n 6 1 1\n"));
+    TEST_ASSERT_NOT_NULL(strstr(text, "\n 0 0 0 1 0\n"));
+    jaos_model *b = fresh();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(JAOS_OK, jaos_read_nl(b, "build/tn_cone.nl"),
+                                  jaos_model_error(b));
+    TEST_ASSERT_EQUAL_INT64(7, jaos_num_col(b));
+    TEST_ASSERT_EQUAL_INT64(4, jaos_num_row(b));
+    TEST_ASSERT_EQUAL_INT64(2, jaos_num_cones(b));
+    TEST_ASSERT_EQUAL_INT64(1, jaos_quadratic_nz(b));
+    char nm[JAOS_NAME_MAX + 1];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_row_name(b, 0, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("bowl", nm);
+    TEST_ASSERT_EQUAL_INT64(3, jaos_row_quadratic_nz(b, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_name(b, 6, nm, sizeof nm));
+    TEST_ASSERT_EQUAL_STRING("spare", nm);
+    bool isint = false;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_integer(b, 5, &isint));
+    TEST_ASSERT_TRUE(isint);
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, solved(a), solved(b));
+    jaos_model_free(a);
+    jaos_model_free(b);
+    remove("build/tn_cone.nl");
+    remove("build/tn_cone.col");
+    remove("build/tn_cone.row");
+
+    a = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(a, "tests/data/t_nl_soc.nl"));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_write_nl(a, "build/tn_soc.nl"));
+    b = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(b, "build/tn_soc.nl"));
+    assert_same_model(a, b);
+    jaos_cone_type ta = 0, tb = 0;
+    int64_t na = 0, nb = 0, ca[3] = {0}, cb[3] = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(a, 0, &ta, &na, ca));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_cone(b, 0, &tb, &nb, cb));
+    TEST_ASSERT_TRUE(ta == tb && na == nb && ca[0] == cb[0] && ca[1] == cb[1] &&
+                     ca[2] == cb[2]);
+    jaos_model_free(a);
+    jaos_model_free(b);
+    remove("build/tn_soc.nl");
+    remove("build/tn_soc.col");
+    remove("build/tn_soc.row");
+}
+
+static int sol_values(const char *path, double *v, int max)
+{
+    const char *s = strstr(slurp_sol(path), "Options\n");
+    TEST_ASSERT_NOT_NULL(s);
+    s += 8;
+    char *end;
+    const long nopt = strtol(s, &end, 10);
+    s = end;
+    for (long k = 0; k < nopt + 4; k++)
+        strtod(s, &end), s = end;
+    int n = 0;
+    while (n < max) {
+        while (*s == '\n')
+            s++;
+        if (*s == 'o' || *s == '\0')
+            break;
+        v[n++] = strtod(s, &end);
+        s = end;
+    }
+    return n;
+}
+
+static void test_an_ampl_sol_gives_a_cone_row_its_multiplier(void)
+{
+    const struct {
+        const char *file;
+        int n;
+        double want[6];
+    } c[] = {
+        {"tests/data/t_nl_soc.nl", 5,
+         {-0.35355339059327373, 0.70710678118654757, 1.4142135623730951,
+          1.0, 1.0}},
+        {"tests/data/t_nl_norm.nl", 5,
+         {-1.0, 0.70710678118654757, 1.0, 1.0, 1.4142135623730951}},
+        {"tests/data/t_nl_rsoc.nl", 6, {-1.0, 4.0, -4.0, 4.0, 2.0, 1.0}},
+    };
+    for (size_t k = 0; k < sizeof c / sizeof *c; k++) {
+        jaos_model *m = fresh();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_nl(m, c[k].file));
+        solved(m);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_write_sol_ampl(m, "build/tn_cone.sol",
+                                                  nullptr));
+        double v[8];
+        TEST_ASSERT_EQUAL_INT_MESSAGE(c[k].n, sol_values("build/tn_cone.sol",
+                                                         v, 8), c[k].file);
+        for (int t = 0; t < c[k].n; t++)
+            TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, c[k].want[t], v[t],
+                                              c[k].file);
+        jaos_model_free(m);
+    }
+    remove("build/tn_cone.sol");
 }
 
 static const char *slurp_sol(const char *path)
@@ -596,5 +821,10 @@ int main(void)
     RUN_TEST(test_a_written_nl_reads_back_as_the_same_model);
     RUN_TEST(test_the_nl_writer_puts_the_integer_columns_last);
     RUN_TEST(test_the_nl_writer_refuses_what_the_format_has_no_place_for);
+    RUN_TEST(test_bodies_above_degree_two_read_as_cones);
+    RUN_TEST(test_a_polynomial_that_collapses_reads_at_degree_two);
+    RUN_TEST(test_integer_columns_in_nonlinear_terms_follow_the_header);
+    RUN_TEST(test_a_quadratic_and_conic_model_writes_to_nl_and_reads_back);
+    RUN_TEST(test_an_ampl_sol_gives_a_cone_row_its_multiplier);
     return UNITY_END();
 }

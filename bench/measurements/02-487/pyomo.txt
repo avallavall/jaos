@@ -1,0 +1,35 @@
+Pyomo 6.10.1
+sqrt(x^2 + y^2) <= t: optimal, objective 1.41421356237, expected 1.41421356237, off by 0.0e+00
+   x 1, y 1, t 1.41421
+   duals c -1, l 0.707107
+x^2 + y^2 <= t^2, t >= 0: optimal, objective 1.41421356237, expected 1.41421356237, off by 0.0e+00
+   x 1, y 1, t 1.41421
+   duals c -0.353553, l 0.707107
+x^2 <= y z, y, z >= 0: optimal, objective 4, expected 4, off by 1.8e-15
+   x 2, y 1, z 4
+   duals c -1, l 4, k -4
+(x - 1)^2 / y <= t: optimal, objective 1, expected 1, off by 4.4e-16
+   x 3, y 4, t 1
+   duals c -1, l 1
+max t, sqrt(x y) >= t: optimal, objective 6, expected 6, off by 8.9e-16
+   x 4, y 9, t 6
+   duals c 1
+max sum sqrt(x + k) - x/2: optimal, objective 4.99074789597, expected 4.99074789597, off by 8.9e-16
+   x 8.05546
+min sqrt((x-1)^2 + 2(y+2)^2 + 4) + |x + y|: optimal, objective 2.16024689947, expected 2.16024689947, off by 0.0e+00
+   x 1.66667, y -1.66667
+max return, sqrt(sum (s_i w_i)^2) <= 0.08, against the quadratic row: optimal, objective 0.0909402324587, expected 0.0909402324587, off by 0.0e+00
+   w[0] 0.236217, w[1] 0.326687, w[2] 0.420314, w[3] 0.0167811
+MIQP, integer x inside the square: optimal, objective -9.84, expected -9.84, off by 0.0e+00
+   x 1, y 0.3, b 1, z 9
+integer point nearest (3.4, 6.6): optimal, objective 0.565685424949, expected 0.565685424949, off by 0.0e+00
+   x 3, y 7, t 0.565685
+min (x+1)(x-1) - x^2 + (x-x) y y + y/(x-x+4) + 2^3 x^0: optimal, objective 7, expected 7, off by 0.0e+00
+   x 0, y 0
+kernel conic.quadratic: optimal, objective 2.2360679775, expected 2.2360679775, off by 0.0e+00
+kernel conic.rotated_quadratic: optimal, objective 1, expected 1, off by 0.0e+00
+exp: internalSolverError; JAOS 0.5.0\x3a cannot read /tmp/tmph4m3_754.pyomo.nl\x3a line 12\x3a objective 0 uses operator o44 (exp), which JAOS does not read; it reads + - * / ^ sum neg abs and sqrt, in a body that is of degree two or that a cone holds
+x^3: internalSolverError; JAOS 0.5.0\x3a cannot read /tmp/tmprporlv4_.pyomo.nl\x3a line 12\x3a objective 0 takes the power 3 of a variable, which has degree three or more, and JAOS reads a polynomial of degree two at most
+sqrt(x) in a minimization: internalSolverError; JAOS 0.5.0\x3a cannot read /tmp/tmp6novcucx.pyomo.nl\x3a line 12\x3a the objective has sqrt of a linear form or of a product of two, which is concave, with a positive coefficient in a minimization, so the objective is not convex
+x^1.5: internalSolverError; JAOS 0.5.0\x3a cannot read /tmp/tmptpnjiksc.pyomo.nl\x3a line 12\x3a objective 0 takes the power 1.5 of a variable, and JAOS reads the powers 0, 1, 2, 0.5 and -1 only
+largest gap to the expected optimum: 1.8e-15

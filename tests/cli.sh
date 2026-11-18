@@ -547,6 +547,37 @@ expect_exit 0 "an .nl quadratic objective reads and solves" \
     "$JAOS" solve "$DATA/t_quad.nl"
 [ "$(line_of objective)" = "objective 0" ] && pass "to 0" \
     || flunk "nl quadratic objective: $(line_of objective)"
+expect_exit 0 "an .nl sqrt of a sum of squares reads as a cone and solves" \
+    "$JAOS" solve "$DATA/t_nl_norm.nl"
+case "$(line_of objective)" in
+    "objective 1.41421356"*) pass "to sqrt 2" ;;
+    *) flunk "nl norm row: $(line_of objective)" ;;
+esac
+expect_exit 0 "an .nl sum of squares over a linear form solves" \
+    "$JAOS" solve "$DATA/t_nl_ratio.nl"
+case "$(line_of objective)" in
+    "objective 1"|"objective 0.99999999"*|"objective 1.00000000"*) pass "to 1" ;;
+    *) flunk "nl ratio row: $(line_of objective)" ;;
+esac
+expect_exit 5 "an .nl body with exp is refused by name" \
+    "$JAOS" solve "$DATA/e_nl_exp.nl"
+case "$err" in
+    *"o44 (exp)"*) pass "and the message names the operator" ;;
+    *) flunk "the exp refusal said '$err'" ;;
+esac
+expect_exit 5 "an .nl norm on a row's lower side is refused" \
+    "$JAOS" solve "$DATA/e_nl_side.nl"
+case "$err" in
+    *"not a convex set"*) pass "and the message says why" ;;
+    *) flunk "the lower-side refusal said '$err'" ;;
+esac
+cp "$DATA/t_nl_soc.nl" "$tmp/ampsoc.nl"
+expect_exit 0 "jaos STUB -AMPL solves a row that reads as a cone" \
+    "$JAOS" "$tmp/ampsoc" -AMPL
+[ "$(sed -n '8,11p' "$tmp/ampsoc.sol" | tr '\n' ' ')" = "2 2 3 3 " ] \
+    && [ "$(tail -1 "$tmp/ampsoc.sol")" = "objno 0 0" ] \
+    && pass "and STUB.sol gives a dual for each of the file's rows" \
+    || flunk "ampsoc.sol: $(tr '\n' ' ' < "$tmp/ampsoc.sol")"
 cp "$DATA/t_ampl_lp.nl" "$tmp/amp.nl"
 expect_exit 0 "jaos STUB -AMPL solves STUB.nl for AMPL" \
     "$JAOS" "$tmp/amp" -AMPL
@@ -1247,14 +1278,24 @@ case "$(line_of objective)" in
     "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
     *) flunk "OSiL QP objective '$(line_of objective)'" ;;
 esac
-expect_exit 5 "a QP does not convert to .nl" \
+expect_exit 0 "a QP converts to .nl" \
     "$JAOS" convert "$DATA/g_quad.lp" "$tmp/gq.nl"
-case "$err" in
-    *quadratic*) pass "and says the objective has a quadratic term" ;;
-    *) flunk "the refused convert said '$err'" ;;
+expect_exit 0 "and the .nl QP solves" "$JAOS" solve "$tmp/gq.nl"
+case "$(line_of objective)" in
+    "objective 4"|"objective 4.0000"*|"objective 3.9999"*) pass "to objective 4" ;;
+    *) flunk ".nl QP objective '$(line_of objective)'" ;;
 esac
-[ -f "$tmp/gq.nl" ] && flunk "the refused convert left a .nl behind" \
-    || pass "and wrote no .nl"
+expect_exit 0 "a cone model converts to .nl" \
+    "$JAOS" convert "$DATA/g_cone.mps" "$tmp/gcone.nl"
+expect_exit 0 "and the .nl cone model solves" "$JAOS" solve "$tmp/gcone.nl"
+case "$(line_of objective)" in
+    "objective 5"|"objective 5.0000"*|"objective 4.9999"*) pass "to t = 5" ;;
+    *) flunk ".nl cone objective '$(line_of objective)'" ;;
+esac
+[ "$(head -1 "$tmp/gcone.row")" = "_cone1" ] \
+    && [ "$(sed -n 3p "$tmp/gcone.nl")" = " 1 0" ] \
+    && pass "with the cone as the file's first row, nonlinear, named _cone1" \
+    || flunk "gcone.nl: $(head -12 "$tmp/gcone.nl" | tr '\n' ' ')"
 expect_exit 0 "an OSiL name with spaces converts to MPS" \
     "$JAOS" convert "$DATA/g_osil_spaces.osil" "$tmp/spaces.mps"
 expect_exit 0 "and the MPS is the same model, names with underscores" \

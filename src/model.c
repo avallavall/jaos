@@ -82,6 +82,8 @@ static void model_release_arrays(jaos_model *m)
     free(m->mip_inc_x);
     free(m->mip_pool_x);
     free(m->mip_pool_obj);
+    free(m->nl_row_at);
+    free(m->nl_row_scale);
 
     const jm_config cfg = m->cfg;
     memset(m, 0, sizeof *m);
@@ -3824,6 +3826,20 @@ jaos_status jaos_model_copy(const jaos_model *src, jaos_model **out)
     memcpy(m->nl_opt, src->nl_opt, sizeof m->nl_opt);
     m->nl_rows = src->nl_rows;
     m->nl_cols = src->nl_cols;
+    if (src->nl_row_at != nullptr && src->nl_rows > 0) {
+        m->nl_row_at = jm_alloc_array(src->nl_rows, sizeof *m->nl_row_at);
+        m->nl_row_scale = jm_alloc_array(src->nl_rows,
+                                         sizeof *m->nl_row_scale);
+        if (m->nl_row_at == nullptr || m->nl_row_scale == nullptr)
+            goto oom;
+        memcpy(m->nl_row_at, src->nl_row_at,
+               (size_t)src->nl_rows * sizeof *m->nl_row_at);
+        memcpy(m->nl_row_scale, src->nl_row_scale,
+               (size_t)src->nl_rows * sizeof *m->nl_row_scale);
+        m->nl_kept_rows = src->nl_kept_rows;
+        m->nl_kept_cols = src->nl_kept_cols;
+        m->nl_kept_cones = src->nl_kept_cones;
+    }
     if (src->col_integer != nullptr) {
         m->col_integer = jm_alloc_array(src->num_col > 0 ? src->num_col : 1,
                                         sizeof *m->col_integer);
