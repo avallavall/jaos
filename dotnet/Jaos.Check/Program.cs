@@ -1194,6 +1194,7 @@ using (var p = new Problem())
     p.Model.SetMipCoverRounds(0);
     p.Model.SetMipMirRounds(0);
     p.Model.SetMipHullRounds(0);
+    p.Model.SetMipNodeMir(0);
     p.Model.SetMipCutDepth(0);
     p.Model.SetMipDive(true);
     p.Model.SetMipHeuristics(false);

@@ -587,7 +587,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.presolve_report(m).num_col <= 3
     @test JAOS.solve_time(m) >= 0.0
     names = JAOS.option_names()
-    @test length(names) == 62
+    @test length(names) == 63
     @test "mip_gap" in names
     mktempdir() do dir
         path = joinpath(dir, "opts.txt")
