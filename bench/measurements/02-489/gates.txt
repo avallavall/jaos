@@ -1,0 +1,31 @@
+== make test, make sanitize, make python-test
+tests/cli.sh ok lines: 926
+unit tests: 1015 failures: 0
+sanitize unit tests: 1015 failures: 0
+Ran 225 tests in 1.958s
+OK
+== netlib
+94 instances: 94 solved, 94 shape ok, 94 objective ok, 94 checker ok, 94 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+== netlib-infeas
+29 instances: 29 correctly refused, 29 shape ok, 29 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+== netlib-kennington
+16 instances: 16 solved, 16 shape ok, 16 objective ok, 16 checker ok, 16 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+== miplib
+24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 12 at other nodes
+== miplib2017
+30 instances: 9 solved, 30 shape ok, 9 objective ok, 9 checker ok, 9 deterministic, 21 failed
+gate: NOT MET
+baseline: NOT COMPARED (no baseline given)
+== MIPLIB 3 against bench/miplib.baseline
+head: geo 1.039x total 1.046x worst 1.43x misc06
+== MIPLIB 2017 against bench/results/miplib2017.txt
+before     solved 9 incumbents 29 primal 5.5284 dual 6.1232 sum 11.6517
+head       solved 9 incumbents 29 primal 5.1419 dual 6.1310 sum 11.2729

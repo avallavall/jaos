@@ -8,7 +8,12 @@ and of the landed commit (`land`, with 02-488's three):
 - `miplib2017/*.txt`, `*-who.txt`, `m17cmp.txt`, `sum.txt`: MIPLIB 2017
   at 1e10 through the CLI, as in 02-488;
 - `miplib3/*.txt`, `m3cmp.txt`: MIPLIB 3 through `bench/run`;
-- `g394/*.txt`: 02-394's 34 general-integer models at 5e8.
+- `g394/*.txt`: 02-394's 34 general-integer models at 5e8;
+- `gates.txt`, `miplib3/gate.txt`, `miplib2017/gate.txt`: the landing
+  gates on the rebased branch: `make test`, `make sanitize`, `make python-test`,
+  the netlib, infeasible netlib, Kennington and MIPLIB 3 sets through
+  `bench/run` against their baselines, and MIPLIB 2017 through `bench/run`
+  at 1e10, two solves at once, which reads as the CLI's `land` exactly.
 
 ## What was built
 
