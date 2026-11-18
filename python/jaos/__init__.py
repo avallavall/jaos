@@ -140,6 +140,7 @@ from ._native import (
     _path,
     _sig,
     build_commit,
+    clock,
     library_path,
     version,
 )
@@ -163,7 +164,7 @@ __all__ = [
     "Model", "JaosError", "Status", "SolveStatus", "ObjSense", "LogLevel",
     "BasisStatus", "CallbackAction", "Solution", "Basis", "INFINITY",
     "NodeEvent",
-    "NAME_MAX", "version", "build_commit", "library_path",
+    "NAME_MAX", "version", "build_commit", "clock", "library_path",
     "LibraryNotFound", "GapRule",
     "Problem", "Var", "LinExpr", "Constraint", "quicksum",
     "CheckReport", "CertificateReport", "RayReport", "Progress",

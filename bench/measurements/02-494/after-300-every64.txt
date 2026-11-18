@@ -1,0 +1,9 @@
+# 02-494, on 6cda6d89, the change with the simplex still reading the clock every 64 iterations:
+# run.sh BIN 300 OUT six-300.txt 2 (bohle and square47 first, then two by two)
+# instance status jaos_time wall_seconds first_log_line work_units
+neos-3402454-bohle	time_limit	296.798836	302.84	12.61	21997474572
+square47	time_limit	288.247700	300.57	16.33	156399808012
+neos-4647030-tutaki	time_limit	299.503926	301.11	2.62	86382510513
+neos-5114902-kasavu	time_limit	298.556896	301.06	2.66	43494364038
+neos-2075418-temuka	time_limit	298.494201	300.95	2.76	47153652983
+supportcase19	time_limit	298.391477	301.01	2.91	327899009832

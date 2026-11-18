@@ -364,6 +364,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
     int64_t rounds_done = 0;
 
     for (int64_t round = 0; round < cap; round++) {
+        if (jm_past(p->deadline))
+            break;
         bool changed = false;
 
         for (int64_t i = 0; i < nr; i++) {

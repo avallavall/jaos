@@ -25,6 +25,19 @@ bool jm_declared_fits(int64_t count, int64_t bytes)
     return count >= 0 && (count <= JM_READ_DECLARED_FLOOR || count <= bytes);
 }
 
+double jm_deadline(double started, double limit)
+{
+    if (!(limit > 0.0))
+        return 0.0;
+    const double at = started + limit;
+    return at > DBL_MIN ? at : DBL_MIN;
+}
+
+bool jm_past(double deadline)
+{
+    return deadline > 0.0 && jm_monotonic_seconds() >= deadline;
+}
+
 bool jm_grow(void **arr, int64_t *cap, int64_t need, size_t elsize)
 {
     if (need <= *cap)

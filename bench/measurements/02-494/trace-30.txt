@@ -1,0 +1,155 @@
+# 02-494, where the time went before the change: trace.patch on 6cda6d89 at 30 s, two at a time.
+# Each line: seconds since the run started, then the line. 'trace: X at T s, W work' is T seconds
+# after the tree started and W its work units so far; 'trace lp' lines are an LP's presolve or set-up
+# past 0.3 s; 'trace mip presolve' is the MIP presolve's seconds, outside the tree.
+== bab2
+    1.09 trace mip presolve: 0.044 s
+    1.17 trace: tighten and parity at 0.070 s, 10014714 work
+    6.61 symmetry: 3 generators, 18492 orbits of more than one column, the largest of 2
+    6.61 trace: symmetry at 5.513 s, 296520655 work
+    6.61 trace: node mir rows at 5.515 s, 296520655 work
+    6.62 trace: root LP start at 5.520 s, 296520655 work
+   31.36 trace: root LP end at 30.266 s, 19110061696 work
+   31.37 status time_limit
+   31.38 time 30.265975
+== neos-2075418-temuka
+    2.65 trace mip presolve: 0.273 s
+    2.95 trace: tighten and parity at 0.214 s, 23652291 work
+   27.20 trace: symmetry at 24.456 s, 2044194291 work
+   27.20 trace: node mir rows at 24.462 s, 2044194291 work
+   27.20 trace: root LP start at 24.465 s, 2044194291 work
+   27.66 trace lp: init 0.455 s
+   33.24 trace: root LP end at 30.504 s, 3385973955 work
+   33.30 status time_limit
+   33.30 time 30.503691
+== neos-4647030-tutaki
+    2.31 trace mip presolve: 0.935 s
+    2.57 trace: tighten and parity at 0.132 s, 23762256 work
+   16.17 symmetry: 5 generators, 9 orbits of more than one column, the largest of 6
+   16.18 trace: symmetry at 13.733 s, 1017355006 work
+   16.18 trace: node mir rows at 13.734 s, 1017355006 work
+   16.18 trace: root LP start at 13.734 s, 1017355006 work
+   24.14 trace: root LP end at 21.707 s, 2913298970 work
+   24.14 trace: clique table at 21.708 s, 2917357340 work
+   24.14 clique table: 14000 conflicts over 7000 literals, 0 of the conflicts from probing
+   24.27 trace: gomory at 21.834 s, 2924680389 work
+   24.27 trace: cover at 21.834 s, 2928654759 work
+   24.42 trace: clique at 21.984 s, 2928707834 work
+   24.47 trace: flow cover at 22.030 s, 2936652392 work
+   24.47 trace: hull at 22.030 s, 2936680392 work
+   24.48 trace: mir at 22.040 s, 2972449722 work
+   37.41 trace: mir aggregate at 34.975 s, 26094754031 work
+   37.74 trace: round LP at 35.308 s, 26107648450 work
+   37.76 status time_limit
+   37.76 time 36.379108
+== neos-5052403-cygnet
+    1.57 trace mip presolve: 0.253 s
+    1.82 trace: tighten and parity at 0.175 s, 14804316 work
+   20.69 trace: symmetry at 19.052 s, 1257164566 work
+   20.70 trace: node mir rows at 19.057 s, 1257164566 work
+   20.70 trace: root LP start at 19.058 s, 1257164566 work
+   32.05 trace: root LP end at 30.406 s, 2936475504 work
+   32.07 status time_limit
+   32.08 time 30.405648
+== neos-5104907-jarama
+    1.02 trace mip presolve: 0.073 s
+    1.21 trace: tighten and parity at 0.084 s, 15189566 work
+   11.60 trace: symmetry at 10.474 s, 658325316 work
+   11.61 trace: node mir rows at 10.478 s, 658325316 work
+   11.61 trace: root LP start at 10.479 s, 658325316 work
+   31.64 trace: root LP end at 30.512 s, 4585678158 work
+   31.70 status time_limit
+   31.71 time 30.746821
+== neos-5114902-kasavu
+    2.24 trace mip presolve: 0.095 s
+    2.49 trace: tighten and parity at 0.217 s, 34466642 work
+   32.31 trace: symmetry at 30.028 s, 1512394392 work
+   32.31 trace: node mir rows at 30.034 s, 1512394392 work
+   32.34 status time_limit
+   32.34 time 30.033798
+== ns1760995
+    0.97 trace mip presolve: 0.071 s
+    1.09 trace: tighten and parity at 0.043 s, 13585894 work
+   13.47 symmetry: 2 generators, 0 orbits of more than one column, the largest of 1
+   13.47 trace: symmetry at 12.423 s, 635425144 work
+   13.47 trace: node mir rows at 12.425 s, 635425144 work
+   13.47 trace: root LP start at 12.426 s, 635425144 work
+   31.70 trace: root LP end at 30.653 s, 3339158385 work
+   31.76 status time_limit
+   31.77 time 30.861404
+== s100
+    2.05 trace mip presolve: 0.069 s
+    2.18 trace: tighten and parity at 0.108 s, 6791732 work
+   13.12 trace: symmetry at 11.047 s, 546058732 work
+   13.12 trace: node mir rows at 11.049 s, 546058732 work
+   13.13 trace: root LP start at 11.057 s, 546058732 work
+   32.26 trace: root LP end at 30.186 s, 22353223931 work
+   32.27 status time_limit
+   32.27 time 30.185898
+== square41
+    7.27 trace mip presolve: 1.167 s
+    7.97 trace: tighten and parity at 0.603 s, 40883219 work
+   22.74 symmetry: 1 generators, 30340 orbits of more than one column, the largest of 2
+   22.74 trace: symmetry at 15.380 s, 639956237 work
+   22.76 trace: node mir rows at 15.396 s, 639956237 work
+   22.76 trace: root LP start at 15.398 s, 639956237 work
+   23.12 trace lp: init 0.355 s
+   37.85 trace: root LP end at 30.483 s, 12447913617 work
+   37.88 status time_limit
+   37.88 time 30.483173
+== supportcase19
+    2.92 trace mip presolve: 0.128 s
+    3.28 trace: tighten and parity at 0.287 s, 15751517 work
+    4.39 trace: symmetry at 1.400 s, 45793514 work
+    4.39 trace: node mir rows at 1.403 s, 45793514 work
+    4.42 trace: root LP start at 1.433 s, 45793514 work
+   33.37 trace: root LP end at 30.383 s, 28649394875 work
+   33.41 status time_limit
+   33.42 time 30.383313
+== supportcase22
+    1.18 trace mip presolve: 0.296 s
+    1.35 trace: tighten and parity at 0.154 s, 239827737 work
+    2.76 trace: symmetry at 1.569 s, 287081607 work
+    2.77 trace: node mir rows at 1.571 s, 287081607 work
+    2.77 trace: root LP start at 1.571 s, 287081607 work
+   31.68 trace: root LP end at 30.489 s, 6634586458 work
+   31.74 status time_limit
+   31.75 time 30.489158
+== neos-3402454-bohle, the plain tool at --log detail, before the change
+   15.03 branch and bound: 2616 integer columns of 2904, 1 rounds of cuts, 20 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, ps
+  141.88 branch and bound work: node relaxations 0.0%, cuts 0.0%, heuristics 0.0%, propagation, probing and conflicts 0.0%, strong branching 0.0%, the rest 100.0%
+  141.89 branch and bound: time limit reached after 0 nodes, 0 solves, 0 cuts (0 below the root), 0 points by rounding, 0 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pu
+  141.95 status time_limit
+  141.95 iterations 0
+  141.95 work_units 3040692694
+  141.95 time 127.252223
+== co-100, the same trace, taken alone while the change was read (the trace's code is 6cda6d89's)
+    1.02 trace mip presolve: 0.043 s
+    1.11 trace: tighten and parity at 0.064 s, 7802914 work
+   17.81 trace: symmetry at 16.769 s, 519408414 work
+   17.81 trace: node mir rows at 16.771 s, 519408414 work
+   17.81 trace: root LP start at 16.773 s, 519408414 work
+   18.23 trace: root LP end at 17.188 s, 769504030 work
+   18.33 trace: clique table at 17.286 s, 772854329 work
+   18.47 trace: gomory at 17.432 s, 772881020 work
+   18.65 trace: cover at 17.598 s, 774927441 work
+   23.11 trace: clique at 22.071 s, 776644483 work
+   23.17 trace: flow cover at 22.133 s, 780922053 work
+   23.18 trace: hull at 22.133 s, 780922483 work
+   23.20 trace: mir at 22.161 s, 799340272 work
+   23.21 trace: mir aggregate at 22.169 s, 821750783 work
+   24.21 trace: round LP at 23.169 s, 1260259579 work
+   24.43 trace: cover at 23.386 s, 1262306000 work
+   27.38 trace: clique at 26.343 s, 1263994670 work
+   27.44 trace: flow cover at 26.397 s, 1268272240 work
+   27.44 trace: hull at 26.397 s, 1268272670 work
+   27.46 trace: mir at 26.415 s, 1286690459 work
+   27.87 trace: round LP at 26.825 s, 1466661730 work
+   28.06 trace: cover at 27.019 s, 1468708151 work
+   30.92 trace: clique at 29.880 s, 1470407492 work
+   30.98 trace: flow cover at 29.934 s, 1474685062 work
+   30.98 trace: hull at 29.934 s, 1474685492 work
+   31.00 trace: mir at 29.960 s, 1493103281 work
+   31.25 trace: round LP at 30.210 s, 1552891910 work
+   31.27 status time_limit
+   31.27 time 30.209858

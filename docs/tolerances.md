@@ -346,6 +346,7 @@ the root's cut mode for a model with many continuous columns under binaries
 | `MIP_ORBITAL` | on | Orbital branching and fixing (Ostrowski, Linderoth, Rossi and Smriglio): the zero side of a branch zeroes the binary's whole orbit under the node's stabiliser, and node entry zeroes every orbit the path zeroed. 0.835x the work on MIPLIB 3, none past 2x (`bench/measurements/02-31/`) |
 | `SYM_MAX_DEPTH` | 64 | The levels of the first leaf's path the search revisits. Not swept |
 | `SYM_LEAF_CAP` | 64 | The leaves the backtracking under one alternative vertex may visit before giving it up. Not swept |
+| `SYM_CLOCK_STRIDE` | 65536 | Adjacency entries a refinement pass keys between two reads of the clock; without a time limit the clock is never read. Read once a pass, `square41`'s search ended 3.2 s past a 30 s limit on a loaded machine and `square47`'s 1.4 s; read every 65536 entries, both runs end at 30.5 s, the read and the exit included, at one read every fraction of a millisecond. Not swept (`bench/measurements/02-494/`) |
 | `MIP_CLIQUE_FIX` | on | At each node, a binary fixed to one value fixes the literals in conflict with it in the root's clique table (the all-binary rows' conflicts and probing's implications), cascading; a node holding both sides of a conflict is cut without a solve. With RINS on, MIPLIB 3 reads 0.735x in summed work and 1.002x in the geometric mean, and the 2017 set 0.994x (`bench/measurements/02-325/`) |
 | `MIP_CLIQUE_ROW_CAP` | 64 | The largest literals of a row and side that feed the conflict graph; it bounds the work per row. Not swept |
 | `MIP_GAP` | 1e-6 | The relative gap that closes the search: no open node beats the incumbent by more than `MIP_GAP * (1 + \|incumbent\|)`. Under `jaos_set_mip_gap_rule`'s relative rule the 1 drops out. Below the root of a linear model, a node's dual simplex stops once the Lagrangian bound of its duals closes the node by this test, and the cut-off child's pseudocost learns that bound; MIPLIB 3 reads 0.935x and `mas76` takes 0.68x the work (`bench/measurements/02-475/`). Not swept: every MIPLIB 3 instance closes with bound equal to incumbent |
@@ -585,7 +586,6 @@ sets, and cadences of checks and output.
 | `BIG` | 2^996 | Above it `jm_two_product_residue` returns 0, since `SPLIT` times the factor could overflow. Arithmetic |
 | `SPLIT` | 134217729 | `2^27 + 1`, Dekker's constant for the exact product. Arithmetic |
 | `CONCURRENT_ARMS` | 3 | The concurrent solve's arms: dual, primal, barrier |
-| `TIME_CHECK_EVERY` | 64 | Simplex iterations between clock reads for a time limit |
 | `PROGRESS_EVERY` | 64 | Simplex iterations between progress callbacks |
 | `LOG_EVERY` | 1000 | Simplex iterations between log lines |
 | `MIP_LOG_EVERY` | 100 | Branch-and-bound nodes between log lines |

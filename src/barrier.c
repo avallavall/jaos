@@ -3085,7 +3085,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     if (st != JAOS_OK)
         return st;
     s.work = *work;
-    s.started = jm_monotonic_seconds();
+    s.started = p->started > 0.0 ? p->started : jm_monotonic_seconds();
 
     jm_log(m, JAOS_LOG_SUMMARY,
            "barrier: %lld rows, %lld columns, %lld nonzeros, tolerance %.3g, "

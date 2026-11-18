@@ -1,0 +1,9 @@
+# 02-494, after the change, rebased on 64fa237b: run.sh BIN 300 OUT six-300.txt 2 --threads 1,
+# beside the default gates; load at start 4.40, 5.94, 6.69, at end 3.79, 4.45, 5.47
+# instance status jaos_time wall_seconds first_log_line work_units
+neos-3402454-bohle	time_limit	295.092432	301.38	13.94	25962792748
+neos-4647030-tutaki	time_limit	298.870553	300.31	2.21	84476025822
+square47	time_limit	286.186460	300.46	19.02	158138933857
+neos-5114902-kasavu	time_limit	297.957518	300.51	2.73	39548268501
+neos-2075418-temuka	time_limit	297.869638	300.30	2.85	55503813674
+supportcase19	time_limit	297.406361	300.21	3.18	357903123482

@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
 #include <math.h>
 #include <signal.h>
@@ -117,7 +118,8 @@ static const char U_SOLVE_A[] =
     "                   infeasible, which is the honest answer to the\n"
     "                   question it asks\n"
     "  --work-limit N   stop after N deterministic work units (N > 0)\n"
-    "  --time-limit S   stop after S seconds of wall clock (S > 0)\n"
+    "  --time-limit S   stop after S seconds of wall clock (S > 0), counted\n"
+    "                   from the start of the read\n"
     "  --threads N      the thread count, 0 for every core the machine\n"
     "                   has. Five things run more than one:\n"
     "                   `--algorithm concurrent`, the barrier's Cholesky\n"
@@ -1402,6 +1404,18 @@ static const char *proof_word(jaos_proof p)
     return "unknown";
 }
 
+static jaos_status count_the_read(jaos_model *m, double started)
+{
+    char buf[64];
+    if (jaos_get_option(m, "time_limit", buf, (int64_t)sizeof buf) != JAOS_OK)
+        return JAOS_ERR_INVALID_INPUT;
+    const double limit = strtod(buf, nullptr);
+    if (!(limit > 0.0))
+        return JAOS_OK;
+    const double left = limit - (jaos_clock() - started);
+    return jaos_set_time_limit(m, left > 0.0 ? left : DBL_MIN);
+}
+
 static int cmd_solve(int argc, char **argv)
 {
     struct solve_options o;
@@ -1714,6 +1728,7 @@ static int cmd_solve(int argc, char **argv)
     }
     signal(SIGINT, on_sigint);
 
+    const double started = jaos_clock();
     if (read_model(m, o.file) != JAOS_OK) {
         rc = library_error("read", o.file, m);
         goto out;
@@ -1783,6 +1798,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.has_cutoff && jaos_set_mip_cutoff(m, o.cutoff) != JAOS_OK) {
         rc = library_error("set the cutoff for", o.file, m);
+        goto out;
+    }
+    if (count_the_read(m, started) != JAOS_OK) {
+        rc = library_error("set the time limit for", o.file, m);
         goto out;
     }
 

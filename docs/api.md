@@ -1,6 +1,6 @@
 # The C API
 
-`include/jaos.h` is the public header of JAOS. It declares 201 functions,
+`include/jaos.h` is the public header of JAOS. It declares 210 functions,
 the enums and structs they use, and the version macros. This page describes
 every function in the order the header declares them. Each statement comes
 from the code in `src/`. `docs/cli.md` shows the same calls behind the
@@ -1732,9 +1732,16 @@ reports when none was set.
 Stops a solve after `seconds` of wall-clock time, and the solve ends
 `JAOS_SOLVE_TIME_LIMIT`. The default is 0, and 0 or a negative value means
 no limit. The call fails when `seconds` is NaN. This is the one setting that
-makes a result depend on the machine. In a MIP, every relaxation the tree
-solves, at a node, in a cut round or in a heuristic, gets only the time that
-is left.
+makes a result depend on the machine. The seconds count from the start of
+`jaos_solve`, and every step before and around the tree reads them: the
+presolve between its rounds, the aggregator between its passes, the MIP
+presolve, the symmetry search, the root's relaxation, its cut rounds, its
+separators and its heuristics, strong branching, and each sub-MIP a
+heuristic starts. In a MIP, every relaxation the tree solves, at a node, in
+a cut round or in a heuristic, gets only the time that is left. A solve the
+limit stops keeps what it proved: its incumbent, if it has one, and as its
+bound the root relaxation's once that relaxation is solved. Without a time
+limit no step reads the clock to decide anything.
 
 **`jaos_set_primal_tolerance`**\
 `jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol)`\
@@ -2158,6 +2165,15 @@ Returns the iterations of the last solve, counted the same way.
 `double jaos_solve_time(const jaos_model *m)`\
 Returns the wall-clock seconds of the last solve. It is the one number that
 JAOS reports and that changes between runs.
+
+**`jaos_clock`**\
+`double jaos_clock(void)`\
+Returns the seconds of the monotonic clock that the time limit and
+`jaos_solve_time` read, from an arbitrary origin: only the difference of two
+readings means anything. The clock never runs back. To count work done
+before `jaos_solve` against the limit, reading the file for one, a caller
+reads the clock before that work and then sets the limit to what is left;
+`jaos solve` does so (`docs/cli.md`).
 
 ## Checking answers and certificates
 

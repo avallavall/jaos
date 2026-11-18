@@ -1,0 +1,10 @@
+# 02-494, the change on 6cda6d89: jaos solve neos-3402454-bohle.mps --work-limit 100000000,
+# alone beside two 300 s runs; wall seconds on CLOCK_MONOTONIC. The work limit is
+# unchanged, so the symmetry search still spends its whole cap before the tree's
+# first check.
+status work_limit
+iterations 0
+work_units 3040692694
+time 166.787733
+exit 3
+wall 173.04

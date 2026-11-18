@@ -147,6 +147,42 @@ expect_exit 3 "a solve stopped by --work-limit exits 3" \
     && pass "no objective line for a stopped solve" \
     || flunk "a stopped solve printed '$(line_of objective)'"
 
+awk -v n=2000 'BEGIN {
+    print "NAME CHAIN"; print "ROWS"; print " N COST"
+    for (i = 0; i < n; i++) print " E R" i
+    print "COLUMNS"
+    for (j = 0; j < n; j++) {
+        printf "    X%d COST 1 R%d 1\n", j, j
+        if (j < n - 1) printf "    X%d R%d -1\n", j, j + 1
+    }
+    print "RHS"; print "    RHS R0 1"; print "BOUNDS"
+    for (j = 0; j < n; j++) printf " UP BND X%d 100\n", j
+    print "ENDATA" }' > "$tmp/chain.mps"
+expect_exit 0 "a chain of 2000 equalities solves" "$JAOS" solve "$tmp/chain.mps"
+if [ "$nopresolve" -eq 0 ]; then
+  [ -n "$(line_of presolve_rounds)" ] && pass "and presolve runs its rounds" \
+      || flunk "no presolve rounds on the chain: $out"
+fi
+expect_exit 3 "a time limit the read spends stops the solve with exit 3" \
+    "$JAOS" solve "$tmp/chain.mps" --time-limit 0.000001
+[ "$(line_of status)" = "status time_limit" ] \
+    && pass "it prints 'status time_limit'" \
+    || flunk "status line is '$(line_of status)'"
+[ -z "$(line_of presolve_rounds)" ] && pass "and presolve runs no round" \
+    || flunk "presolve ran under a spent limit: $(line_of presolve_rounds)"
+[ "$(line_of iterations)" = "iterations 0" ] && pass "and the simplex none" \
+    || flunk "iterations under a spent limit: $(line_of iterations)"
+expect_exit 3 "a time limit from --opt counts the read too" \
+    "$JAOS" solve "$tmp/chain.mps" --opt time_limit=0.000001
+[ "$(line_of status)" = "status time_limit" ] \
+    && pass "it prints 'status time_limit'" \
+    || flunk "status line is '$(line_of status)'"
+expect_exit 3 "a time limit the read spends stops a MIP before its root" \
+    "$JAOS" solve "$DATA/t4_int.mps" --time-limit 0.000001
+[ "$(line_of status)" = "status time_limit" ] && [ -z "$(line_of nodes)" ] \
+    && pass "it prints 'status time_limit' and no node" \
+    || flunk "a spent limit on a MIP printed: $out"
+
 expect_exit 1 "an infeasible model exits 1" "$JAOS" solve "$DATA/t1.mps"
 [ "$(line_of status)" = "status infeasible" ] \
     && pass "it prints 'status infeasible'" \

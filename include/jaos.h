@@ -663,6 +663,7 @@ JAOS_NODISCARD JAOS_API int64_t jaos_work_units(const jaos_model *m);
 JAOS_NODISCARD JAOS_API int64_t jaos_iterations(const jaos_model *m);
 
 JAOS_NODISCARD JAOS_API double jaos_solve_time(const jaos_model *m);
+JAOS_NODISCARD JAOS_API double jaos_clock(void);
 
 typedef struct jaos_check_report {
     double max_col_violation;

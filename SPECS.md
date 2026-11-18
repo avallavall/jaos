@@ -137,7 +137,7 @@ there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| C API, one header | **done** | `include/jaos.h`, 209 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
+| C API, one header | **done** | `include/jaos.h`, 210 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
 | Command-line tool | **done** | `docs/cli.md` |
 | Python: ctypes wrapper and modeling layer | **done** | `python/jaos/`, standard library only: `Model` over every C call and `Problem` on top, which edits the model in place and re-solves warm |
 | Python package installable with pip | **done** | `pyproject.toml` and `setup.py`; a tag builds the wheels and the sdist into a GitHub Release, and the PyPI upload is off until the project is registered (`docs/build.md`) |
@@ -153,7 +153,7 @@ there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| Work limit and time limit | **done** | `jaos_set_work_limit`, `jaos_set_time_limit`, `--work-limit`, `--time-limit`; every sub-solve of a tree runs under what is left (`bench/measurements/02-242/`) |
+| Work limit and time limit | **done** | `jaos_set_work_limit`, `jaos_set_time_limit`, `--work-limit`, `--time-limit`; every sub-solve of a tree runs under what is left (`bench/measurements/02-242/`); the time limit is read by every step before and around the tree, presolve and the symmetry search among them, and the tool's counts the read (`jaos_clock`, `02-494/`) |
 | Primal and dual tolerances | **done** | `jaos_set_primal_tolerance`, `jaos_set_dual_tolerance`, `--primal-tol`, `--dual-tol`; zero means the default (`docs/tolerances.md`, `bench/measurements/02-244/`) |
 | Logging with levels | **done** | `jaos_set_log_callback`, `jaos_set_log_level` (`off`, `summary`, `progress`, `detail`), `--log`, `--quiet` (`bench/measurements/02-243/`) |
 | Progress callback that can stop | **done** | `jaos_set_progress_callback`: iterations, work, primal infeasibility, and for a MIP nodes, bound and incumbent; a `STOP` ends the solve `INTERRUPTED` and the next solve continues (`bench/measurements/02-232/`) |

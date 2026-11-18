@@ -62,16 +62,6 @@ from the linearised primal rows, read on 02-453's 8 models, then on
 every conic gate, since it moves every conic iterate. Verify with
 02-452's `read.sh`.
 
-J33. **A time limit that presolve and the root do not read.** On MIPLIB
-2017's `neos-3402454-bohle`, `--time-limit 30` ends `time_limit` after
-149 s with no node, at 3.04e9 work units, all of it before the tree
-(`bench/measurements/02-491/sizing/bohle-30s.txt`). The 240-instance run
-of 02-491 stops each solve at its limit, so an overrun there reads as
-JAOS's time. Next: find which steps before the first node never look at
-the limit, from a log of where the 149 s go. Verify with `bohle` and the
-20 largest of `bench/miplib2017-bench.manifest` at 30 s, each ending
-within a few seconds of it.
-
 ## Tier 3: the largest performance gaps
 
 J7. **MIP: MIPLIB 2017, 9 of 30 at 1e10 work units, 29 with an

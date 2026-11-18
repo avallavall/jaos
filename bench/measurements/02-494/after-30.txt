@@ -1,0 +1,23 @@
+# 02-494, after the change, rebased on 64fa237b: run.sh BIN 30 OUT top20.txt 2 --threads 1,
+# beside the default gates; load at start 1.79, 4.04, 6.25, at end 4.40, 5.94, 6.69
+# instance status jaos_time wall_seconds first_log_line work_units
+square47	time_limit	18.752505	30.51	15.53	630591001
+neos-3402454-bohle	time_limit	24.319312	30.31	12.62	430905472
+square41	time_limit	23.314836	30.48	8.87	558455287
+neos-2075418-temuka	time_limit	27.737079	30.42	3.10	1499212429
+neos-5114902-kasavu	time_limit	23.628159	30.21	7.52	736631910
+neos-4647030-tutaki	time_limit	26.472860	30.17	7.10	986932398
+neos-5052403-cygnet	time_limit	28.723105	30.25	1.92	3152083126
+supportcase19	time_limit	27.366730	30.21	3.18	27024089093
+supportcase7	time_limit	29.125027	30.06	1.05	12111857906
+roi5alpha10n8	time_limit	28.750316	30.06	1.43	3783053795
+supportcase12	time_limit	28.626369	30.16	1.71	2374304823
+supportcase22	time_limit	29.235725	30.15	1.18	5658338796
+ns1644855	time_limit	29.442617	30.10	0.69	14257152775
+neos-5104907-jarama	time_limit	29.254845	30.26	0.99	3709517110
+neos-3402294-bobin	time_limit	28.804792	30.25	1.93	1922175750
+bab2	time_limit	28.592095	30.07	1.55	16529555564
+co-100	time_limit	29.188989	30.08	0.96	3180640572
+ns1760995	time_limit	29.132489	30.20	1.09	3523104527
+s100	time_limit	28.089180	30.11	2.06	19360899045
+savsched1	time_limit	28.872892	30.25	1.44	3482642473

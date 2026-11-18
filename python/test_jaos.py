@@ -704,6 +704,32 @@ class TestFailuresBecomeExceptions(unittest.TestCase):
         self.assertIn("closed", repr(m))
 
 class TestLimitsAndOutput(unittest.TestCase):
+    def test_the_clock_never_runs_back(self):
+        last = jaos.clock()
+        for _ in range(1000):
+            now = jaos.clock()
+            self.assertGreaterEqual(now, last)
+            last = now
+
+    def test_a_time_limit_the_read_spent_stops_a_model_before_its_root(self):
+        with jaos.Model() as m:
+            start = jaos.clock()
+            m.read_mps(data("t4_int.mps"))
+            m.set_time_limit(max(1e-6 - (jaos.clock() - start), 1e-300))
+            self.assertIs(m.solve(), jaos.SolveStatus.TIME_LIMIT)
+            self.assertEqual(m.iterations, 0)
+
+    def test_a_spent_time_limit_stops_a_problem_before_its_root(self):
+        p = jaos.Problem()
+        v = [p.add_var(binary=True, name=f"x{k}") for k in range(5)]
+        p.add(3 * v[0] + 5 * v[1] + 2 * v[2] + 4 * v[3] + 2 * v[4] <= 8)
+        p.maximize(10 * v[0] + 13 * v[1] + 7 * v[2] + 9 * v[3] + 5 * v[4])
+        p.set_time_limit(1e-300)
+        self.assertIs(p.solve(), jaos.SolveStatus.TIME_LIMIT)
+        p.set_time_limit(0)
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertEqual(p.objective_value, 23)
+
     def test_a_work_limit_stops_the_solve_and_says_so(self):
         with jaos.Model() as m:
             m.read_mps(data("solve1.mps"))

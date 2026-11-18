@@ -1,0 +1,218 @@
+diff --git a/src/mip.c b/src/mip.c
+index f56f9a24..4ece4162 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -4,6 +4,7 @@
+ #include "jaos_sys.h"
+ 
+ #include <assert.h>
++#include <stdio.h>
+ #include <float.h>
+ #include <math.h>
+ #include <stdlib.h>
+@@ -1171,6 +1172,13 @@ static bool budget_gone(const jaos_model *m, int64_t work)
+            time_gone(m);
+ }
+ 
++static void trace_at(const jaos_model *m, const char *what, int64_t work)
++{
++    if (m->cfg.log_cb != nullptr)
++        jm_log(m, JAOS_LOG_SUMMARY, "trace: %s at %.3f s, %lld work", what,
++               now_seconds() - m->mip_started, (long long)work);
++}
++
+ static void budget(jaos_model *lp, const jaos_model *m, int64_t work)
+ {
+     if (m->cfg.work_limit > 0) {
+@@ -9265,6 +9273,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (m->col_integer[j] && ilo[j] > ihi[j])
+                 outcome = JAOS_SOLVE_INFEASIBLE;
+     }
++    trace_at(m, "tighten and parity", work);
+     if (jm_logging_at(m, JAOS_LOG_SUMMARY)) {
+         int64_t nint = 0;
+         for (int64_t j = 0; j < nc; j++)
+@@ -9334,6 +9343,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                    (long long)sym.ngen, (long long)sym.norbit,
+                    (long long)sym.largest);
+     }
++    trace_at(m, "symmetry", work);
+ 
+     if (node_mir) {
+         if (jm_model_ensure_rowwise(m) != JAOS_OK)
+@@ -9360,6 +9370,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+         mir_live = mir_nrows > 0;
+     }
++    trace_at(m, "node mir rows", work);
+ 
+     for (; outcome == JAOS_SOLVE_NOT_RUN;) {
+         phase_to(&ph, work, PH_OTHER);
+@@ -9598,7 +9609,11 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         lp->cfg.node_cutoff = cut_at;
+         lp->cfg.node_devex = nodes > 1 && !quadratic;
+         lp->cutoff_hit = false;
++        if (nodes == 1)
++            trace_at(m, "root LP start", work);
+         st = jaos_solve(lp);
++        if (nodes == 1)
++            trace_at(m, "root LP end", work + jaos_work_units(lp));
+         lp->cfg.node_cutoff_set = false;
+         solves++;
+         int64_t node_work = jaos_work_units(lp);
+@@ -9803,6 +9818,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             if (clique_table_build(m, lp, ilo, ihi, items, pextra, npextra,
+                                    &ctab, &work) < 0)
+                 goto done;
++            trace_at(m, "clique table", work);
+             if (ctab.ne > 0 && clique_fix_on) {
+                 cstack = jm_alloc_array(2 * nc, sizeof *cstack);
+                 if (cstack == nullptr)
+@@ -10057,6 +10073,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < rounds || (r < gomory_rounds && gomory_live)) {
+                     got = gomory_round(lp, gint, gom_row, nr, x, &cb, row,
+                                        cut, &work);
++                    trace_at(m, "gomory", work);
+                     if (got < 0)
+                         goto done;
+                     gomory_done++;
+@@ -10065,6 +10082,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     const int64_t cv = cover_round(m, lp, x, ilo, ihi, &cb,
+                                                    items, cut, mu, cover_lift,
+                                                    &work);
++                    trace_at(m, "cover", work);
+                     if (cv < 0)
+                         goto done;
+                     covers += cv;
+@@ -10073,6 +10091,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < clique_rounds) {
+                     const int64_t qv = clique_round(m, &ctab, x, &cb, cut,
+                                                     &work);
++                    trace_at(m, "clique", work);
+                     if (qv < 0)
+                         goto done;
+                     cliques += qv;
+@@ -10081,6 +10100,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < zh_rounds) {
+                     const int64_t zv = zero_half_round(m, lp, x, &cb, cut,
+                                                        &work);
++                    trace_at(m, "zero half", work);
+                     if (zv < 0)
+                         goto done;
+                     zero_halves += zv;
+@@ -10089,6 +10109,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < fc_rounds) {
+                     const int64_t fv = flow_cover_round(m, lp, x, ilo, ihi,
+                                                         &cb, cut, &work);
++                    trace_at(m, "flow cover", work);
+                     if (fv < 0)
+                         goto done;
+                     flow_covers += fv;
+@@ -10098,6 +10119,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                 if (r < hull_rounds) {
+                     const int64_t hv = hull_round(m, lp, x, ilo, ihi, &cb, cut,
+                                                   &work);
++                    trace_at(m, "hull", work);
+                     if (hv < 0)
+                         goto done;
+                     hulls += hv;
+@@ -10114,6 +10136,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     const int64_t mv = mir_round(m, lp, x, ilo, ihi, &cb, cut,
+                                                  mbest, mdelta, magg, cxp,
+                                                  nullptr, 0, &work);
++                    trace_at(m, "mir", work);
+                     if (mv < 0)
+                         goto done;
+                     mirs += mv;
+@@ -10127,6 +10150,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                         m, lp, x, ilo, ihi, &agb, cut, mbest, mdelta, magg,
+                         mcmag, mused, mpicked, mir_aggregate, cxp, false,
+                         &work);
++                    trace_at(m, "mir aggregate", work);
+                     if (av < 0)
+                         goto done;
+                     if (net &&
+@@ -10244,6 +10268,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        "root cuts, round %lld: %lld cuts, relaxation %.17g, "
+                        "%lld rows", (long long)(r + 1), (long long)got,
+                        sigma * key, (long long)lp->num_row);
++                trace_at(m, "round LP", work);
+                 if (r + 1 >= rounds &&
+                     (key - key_before <
+                          MIP_GOMORY_MORE_STALL * (1.0 + fabs(key_before)) ||
+@@ -10300,6 +10325,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        (long long)rp_back, (long long)lp->num_row);
+         }
+ 
++        if (nodes == 1)
++            trace_at(m, "root cuts done", work);
+         phase_to(&ph, work, PH_HEUR);
+         if (nodes == 1 && heur_cap > 0.0)
+             heur_amount = (int64_t)(heur_cap * (double)work) + 1;
+@@ -10460,6 +10487,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         if (outcome == JAOS_SOLVE_INTERRUPTED)
+             break;
+ 
++        if (nodes == 1)
++            trace_at(m, "locks", work);
+         if (nodes == 1 && heur && !quadratic && branch >= 0 && !sched_done &&
+             !budget_gone(m, work)) {
+             sched_done = true;
+@@ -11515,6 +11544,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                        (long long)sym.ngen, (long long)sym.norbit,
+                        (long long)sym.largest);
+         }
++        if (nodes == 1)
++            trace_at(m, "root branch", work);
+         const double v = branch >= 0 ? x[branch] : 0.0;
+         int64_t nfd = 1, nfu = 1;
+         double f = 0.5, frac_d = 0.0, frac_u = 0.0;
+@@ -13402,6 +13433,8 @@ jaos_status jm_branch_and_bound(jaos_model *m)
+     jaos_status st = JAOS_ERR_OUT_OF_MEMORY;
+     if (mp_contract(m, &s, &passes, &pre_work) != 0)
+         goto out;
++    if (m->cfg.log_cb != nullptr)
++        fprintf(stderr, "trace mip presolve: %.3f s\n", now_seconds() - t0);
+     if (s.nsub == 0 && s.nflip == 0) {
+         mp_free(&s);
+         st = bb_run_marked(m);
+diff --git a/src/simplex.c b/src/simplex.c
+index 7e34d6c9..8f2d228e 100644
+--- a/src/simplex.c
++++ b/src/simplex.c
+@@ -4,6 +4,7 @@
+ #include "jaos_sys.h"
+ 
+ #include <assert.h>
++#include <stdio.h>
+ #include <float.h>
+ #include <math.h>
+ #include <stdlib.h>
+@@ -4861,6 +4862,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+                                      bool *by_presolve, int64_t *units,
+                                      int64_t *iters)
+ {
++    const double trace_t0 = jm_monotonic_seconds();
+     *aggregated = false;
+     *by_presolve = false;
+     *units = 0;
+@@ -4980,6 +4982,10 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+         }
+ 
+         m->presolve_counts = p.counts;
++        if (jm_monotonic_seconds() - trace_t0 > 0.3)
++            fprintf(stderr, "trace lp: presolve %.3f s, %lld rounds, %lld rows\n",
++                    jm_monotonic_seconds() - trace_t0,
++                    (long long)p.counts.rounds, (long long)m->num_row);
+ 
+         if (p.outcome == JM_PRESOLVE_NONE) {
+             if (!quadratic)
+@@ -5082,6 +5088,8 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
+ 
+         s.work = pre_work;
+         s.started = jm_monotonic_seconds();
++        if (s.started - trace_t0 > 0.3)
++            fprintf(stderr, "trace lp: init %.3f s\n", s.started - trace_t0);
+ 
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "%s simplex: %lld rows, %lld columns, %lld nonzeros, "

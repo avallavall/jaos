@@ -1,0 +1,9 @@
+# 02-494, after the change, rebased on 64fa237b: run.sh BIN 30 OUT threads.txt 1, every core
+# (12 threads, the default); load at start 3.79, 4.45, 5.47, at end 1.15, 2.91, 4.68
+# instance status jaos_time wall_seconds first_log_line work_units
+neos-3402454-bohle	time_limit	24.754313	30.28	12.10	576560660
+square47	time_limit	19.085235	30.43	14.59	795040000
+neos-4647030-tutaki	time_limit	28.862019	30.13	2.03	21727713793
+co-100	time_limit	29.383855	30.22	0.91	3716017664
+supportcase19	time_limit	27.891738	30.19	2.60	30883146473
+bab2	time_limit	29.173093	30.07	0.95	21228091101

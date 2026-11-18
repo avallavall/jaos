@@ -420,6 +420,8 @@ JAOS_NODISCARD jaos_status jm_aggregate(jm_presolve *p, const jaos_model *src,
 
     int64_t live_col = nc;
     for (int64_t pass = 0; pass < AGG_PASSES; pass++) {
+        if (jm_past(p->deadline))
+            break;
         bool changed = false;
         for (int64_t i = 0; i < nr; i++) {
             if (row_dead[i] || !isfinite(rl[i]) || rl[i] != ru[i])

@@ -31,7 +31,7 @@ static void test_three_alike_columns_are_one_orbit(void)
     jaos_model *m = covering(c);
     jm_symmetry s;
     int64_t work = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, &s, &work));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, 0.0, &s, &work));
     TEST_ASSERT_TRUE(s.ngen >= 1);
     TEST_ASSERT_EQUAL_INT64(1, s.norbit);
     TEST_ASSERT_EQUAL_INT64(3, s.largest);
@@ -69,7 +69,7 @@ static void test_a_negated_row_is_coloured_as_its_twin(void)
             TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
         jm_symmetry s;
         int64_t work = 0;
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, &s, &work));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, 0.0, &s, &work));
         TEST_ASSERT_EQUAL_INT64_MESSAGE(1, s.norbit,
             "x0 + 2 x1 <= 3 and -2 x0 - x1 >= -3 swap with their columns");
         TEST_ASSERT_EQUAL_INT64(2, s.largest);
@@ -84,7 +84,7 @@ static void test_different_costs_leave_no_symmetry(void)
     jaos_model *m = covering(c);
     jm_symmetry s;
     int64_t work = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, &s, &work));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, 0.0, &s, &work));
     TEST_ASSERT_EQUAL_INT64(0, s.ngen);
     TEST_ASSERT_EQUAL_INT64(0, s.norbit);
     TEST_ASSERT_NULL(s.orbit);
@@ -98,7 +98,7 @@ static void test_two_alike_columns_beside_a_third(void)
     jaos_model *m = covering(c);
     jm_symmetry s;
     int64_t work = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, &s, &work));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 100000, 0.0, &s, &work));
     TEST_ASSERT_EQUAL_INT64(1, s.ngen);
     TEST_ASSERT_EQUAL_INT64(1, s.norbit);
     TEST_ASSERT_EQUAL_INT64(2, s.largest);
@@ -153,7 +153,7 @@ static void test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
     jm_symmetry s;
     int64_t work = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 1000000, &s, &work));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 1000000, 0.0, &s, &work));
     TEST_ASSERT_TRUE(s.ngen >= 2);
     TEST_ASSERT_EQUAL_INT64(1, s.norbit);
     TEST_ASSERT_EQUAL_INT64(6, s.largest);
@@ -230,8 +230,28 @@ static void test_a_work_cap_of_nothing_finds_nothing_and_says_so(void)
     jaos_model *m = covering(c);
     jm_symmetry s;
     int64_t work = 0;
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 0, &s, &work));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_symmetry_find(m, 0, 0.0, &s, &work));
     TEST_ASSERT_EQUAL_INT64(0, s.ngen);
+    jm_symmetry_free(&s);
+    jaos_model_free(m);
+}
+
+static void test_a_deadline_already_past_ends_the_search_at_once(void)
+{
+    const double c[3] = {1.0, 1.0, 1.0};
+    jaos_model *m = covering(c);
+    jm_symmetry s;
+    int64_t work = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jm_symmetry_find(m, 100000, jm_monotonic_seconds(), &s, &work));
+    TEST_ASSERT_EQUAL_INT64(0, s.ngen);
+    TEST_ASSERT_EQUAL_INT64(0, work);
+    jm_symmetry_free(&s);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jm_symmetry_find(m, 100000, jm_monotonic_seconds() + 3600.0, &s,
+                         &work));
+    TEST_ASSERT_TRUE(s.ngen >= 1);
+    TEST_ASSERT_TRUE(work > 0);
     jm_symmetry_free(&s);
     jaos_model_free(m);
 }
@@ -260,7 +280,7 @@ static void test_an_off_diagonal_q_pair_is_an_edge(void)
     jm_symmetry s;
     int64_t work = 0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK,
-        jm_symmetry_find(m, 1000000, &s, &work));
+        jm_symmetry_find(m, 1000000, 0.0, &s, &work));
     TEST_ASSERT_TRUE(s.ngen >= 1);
     TEST_ASSERT_EQUAL_INT64(s.orbit[0], s.orbit[1]);
     TEST_ASSERT_EQUAL_INT64(s.orbit[0], s.orbit[2]);
@@ -370,6 +390,7 @@ int main(void)
     RUN_TEST(test_a_six_cycle_is_one_orbit_with_a_rotation_and_a_reflection);
     RUN_TEST(test_orbital_branching_shortens_a_symmetric_tree);
     RUN_TEST(test_a_work_cap_of_nothing_finds_nothing_and_says_so);
+    RUN_TEST(test_a_deadline_already_past_ends_the_search_at_once);
     RUN_TEST(test_an_off_diagonal_q_pair_is_an_edge);
     RUN_TEST(test_a_negated_row_is_coloured_as_its_twin);
     RUN_TEST(test_trees_in_parallel_threads_find_what_one_thread_finds);

@@ -7,6 +7,7 @@
 
 constexpr int64_t SYM_MAX_DEPTH = 64;
 constexpr int64_t SYM_LEAF_CAP = 64;
+constexpr int64_t SYM_CLOCK_STRIDE = 65536;
 
 typedef struct {
     int64_t n, nc, nr;
@@ -15,6 +16,7 @@ typedef struct {
     int64_t *order, *key_start, *key;
     int64_t *cells, *inv, *perm, *uf;
     int64_t budget;
+    double deadline;
     int64_t *gen;
     int64_t ngen, gcap;
 } sg;
@@ -51,9 +53,12 @@ static bool vertex_same(const vx_ctx *c, int64_t a, int64_t b)
                   (size_t)la * sizeof(int64_t)) == 0;
 }
 
-static void vertex_sort(int64_t *a, int64_t *tmp, int64_t n, const vx_ctx *c)
+static bool vertex_sort(int64_t *a, int64_t *tmp, int64_t n, const vx_ctx *c,
+                        double deadline)
 {
     for (int64_t w = 1; w < n; w *= 2) {
+        if (jm_past(deadline))
+            return false;
         for (int64_t lo = 0; lo < n; lo += 2 * w) {
             const int64_t mid = lo + w < n ? lo + w : n;
             const int64_t hi = lo + 2 * w < n ? lo + 2 * w : n;
@@ -67,12 +72,18 @@ static void vertex_sort(int64_t *a, int64_t *tmp, int64_t n, const vx_ctx *c)
         }
         memcpy(a, tmp, (size_t)n * sizeof *a);
     }
+    return true;
 }
 
 static int i64_cmp(const void *pa, const void *pb)
 {
     const int64_t a = *(const int64_t *)pa, b = *(const int64_t *)pb;
     return a < b ? -1 : a > b;
+}
+
+static bool sg_spent(const sg *g)
+{
+    return g->budget <= 0 || jm_past(g->deadline);
 }
 
 static int64_t sg_count_colors(const sg *g, const int64_t *color)
@@ -89,9 +100,10 @@ static bool sg_refine(sg *g, int64_t *color)
     const int64_t n = g->n;
     int64_t ncol = sg_count_colors(g, color);
     for (;;) {
-        if (g->budget <= 0)
+        if (sg_spent(g))
             return false;
         const int64_t stride = ncol + 1;
+        int64_t keyed = 0;
         for (int64_t v = 0; v < n; v++) {
             int64_t *k = g->key + g->adj_start[v];
             for (int64_t p = g->adj_start[v]; p < g->adj_start[v + 1]; p++)
@@ -100,10 +112,17 @@ static bool sg_refine(sg *g, int64_t *color)
             if (d > 1)
                 qsort(k, (size_t)d, sizeof *k, i64_cmp);
             g->order[v] = v;
+            keyed += d + 1;
+            if (keyed >= SYM_CLOCK_STRIDE) {
+                if (jm_past(g->deadline))
+                    return false;
+                keyed = 0;
+            }
         }
         g->budget -= g->adj_start[n] + n;
         const vx_ctx ctx = {g->key, g->adj_start, color};
-        vertex_sort(g->order, g->inv, n, &ctx);
+        if (!vertex_sort(g->order, g->inv, n, &ctx, g->deadline))
+            return false;
         int64_t rank = 0;
         g->inv[g->order[0]] = 0;
         for (int64_t t = 1; t < n; t++) {
@@ -498,7 +517,7 @@ void jm_symmetry_free(jm_symmetry *s)
 }
 
 jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
-                             jm_symmetry *out, int64_t *work)
+                             double deadline, jm_symmetry *out, int64_t *work)
 {
     memset(out, 0, sizeof *out);
     out->nc = m->num_col;
@@ -512,6 +531,7 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
     }
     const int64_t n = g.n;
     g.budget = work_cap;
+    g.deadline = deadline;
     int64_t *color = jm_alloc_array(n, sizeof *color);
     int64_t *members = jm_alloc_array(n, sizeof *members);
     int64_t *leaf1 = jm_alloc_array(n, sizeof *leaf1);
@@ -560,9 +580,9 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
         leaf1[v] = color[v];
         inv1[color[v]] = v;
     }
-    for (int64_t lev = depth - 1; lev >= 0 && g.budget > 0; lev--) {
+    for (int64_t lev = depth - 1; lev >= 0 && !sg_spent(&g); lev--) {
         const int64_t m0 = cellstart[lev], m1 = cellstart[lev + 1];
-        for (int64_t t = m0; t < m1 && g.budget > 0; t++) {
+        for (int64_t t = m0; t < m1 && !sg_spent(&g); t++) {
             const int64_t w = cellv[t];
             if (w == chosen[lev])
                 continue;
@@ -577,7 +597,7 @@ jaos_status jm_symmetry_find(const jaos_model *m, int64_t work_cap,
             const int r = sg_find_under(&g, color, inv1, &leaves_left);
             if (r == 1 && !sg_add_generator(&g, g.perm))
                 goto out;
-            if (g.budget <= 0)
+            if (sg_spent(&g))
                 break;
         }
     }

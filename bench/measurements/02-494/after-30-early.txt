@@ -1,0 +1,23 @@
+# 02-494, on 6cda6d89, the change before the separators read the clock and before SYM_CLOCK_STRIDE:
+# run.sh BIN 30 OUT top20.txt 2, beside the miplib2017 gate and make test; load 8 to 10 on 12 threads
+# instance status jaos_time wall_seconds first_log_line work_units
+square47	time_limit	17.719602	31.20	18.27	466142002
+neos-3402454-bohle	time_limit	23.739466	30.62	15.45	347673936
+square41	time_limit	20.994464	34.14	15.27	503984795
+neos-2075418-temuka	time_limit	24.928318	31.94	8.22	965669877
+neos-5114902-kasavu	time_limit	24.460844	30.38	6.32	899065286
+neos-4647030-tutaki	time_limit	27.338520	30.32	5.99	1768928843
+neos-5052403-cygnet	time_limit	28.034027	30.24	2.69	2189866280
+supportcase19	time_limit	26.576948	30.26	4.12	21139227747
+supportcase7	time_limit	29.012098	30.06	1.23	9962713744
+roi5alpha10n8	time_limit	28.482838	30.07	1.76	1557374889
+supportcase12	time_limit	28.415987	30.18	1.86	2231091673
+supportcase22	time_limit	29.258334	30.19	1.25	5417465452
+ns1644855	time_limit	29.345877	30.11	0.86	12176094294
+neos-5104907-jarama	time_limit	28.731425	30.17	1.55	2957276347
+neos-3402294-bobin	time_limit	28.754231	30.35	1.98	999297955
+bab2	time_limit	28.958944	30.09	1.19	13164146953
+co-100	time_limit	31.567564	32.54	1.05	1818418377
+ns1760995	time_limit	28.857110	30.20	1.36	2236536604
+s100	time_limit	27.983160	30.19	2.18	17171628500
+savsched1	time_limit	28.724433	30.21	1.47	2255527382

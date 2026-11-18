@@ -2479,6 +2479,7 @@ jaos_status jaos_objective(const jaos_model *m, double *out)
 int64_t jaos_work_units(const jaos_model *m) { return m ? m->solve_work : 0; }
 int64_t jaos_iterations(const jaos_model *m) { return m ? m->solve_iters : 0; }
 double  jaos_solve_time(const jaos_model *m) { return m ? m->solve_time : 0.0; }
+double  jaos_clock(void) { return jm_monotonic_seconds(); }
 
 jaos_status jaos_solution(const jaos_model *m, double *col_value,
     double *row_activity, double *row_dual, double *col_dual)

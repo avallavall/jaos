@@ -49,8 +49,6 @@ constexpr int64_t VERIFY_UPDATES = 8;
 
 constexpr double LU_AGREE_TOL = 1e-5;
 
-constexpr int64_t TIME_CHECK_EVERY = 64;
-
 constexpr int64_t LOG_EVERY = 1000;
 
 constexpr int64_t PROGRESS_EVERY = 64;
@@ -3802,7 +3800,7 @@ static jaos_status run_primal_phase1(sx *s, jaos_solve_status *out,
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
         }
-        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
+        if (out_of_time(s)) {
             *out = JAOS_SOLVE_TIME_LIMIT;
             return JAOS_OK;
         }
@@ -4132,7 +4130,7 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
         }
-        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
+        if (out_of_time(s)) {
             *out = JAOS_SOLVE_TIME_LIMIT;
             return JAOS_OK;
         }
@@ -4336,7 +4334,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
             *out = JAOS_SOLVE_WORK_LIMIT;
             return JAOS_OK;
         }
-        if (s->iters % TIME_CHECK_EVERY == 0 && out_of_time(s)) {
+        if (out_of_time(s)) {
             *out = JAOS_SOLVE_TIME_LIMIT;
             return JAOS_OK;
         }
@@ -4918,6 +4916,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                                      bool *by_presolve, int64_t *units,
                                      int64_t *iters)
 {
+    const double entered = jm_monotonic_seconds();
     *aggregated = false;
     *by_presolve = false;
     *units = 0;
@@ -4926,6 +4925,8 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     jm_presolve p;
     jm_presolve_init(&p);
     p.orig = m;
+    p.started = entered;
+    p.deadline = jm_deadline(entered, m->cfg.time_limit);
 
     sx s;
     jaos_status st = JAOS_OK;
@@ -5138,7 +5139,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         }
 
         s.work = pre_work;
-        s.started = jm_monotonic_seconds();
+        s.started = entered;
 
         jm_log(m, JAOS_LOG_SUMMARY,
                "%s simplex: %lld rows, %lld columns, %lld nonzeros, "

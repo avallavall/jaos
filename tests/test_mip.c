@@ -4832,6 +4832,30 @@ static void test_a_time_limit_stops_the_root_between_its_solves(void)
     jaos_model_free(m);
 }
 
+static void test_a_spent_time_limit_stops_the_tree_before_its_root(void)
+{
+    jaos_model *m = binary_cover();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+    const int64_t whole = jaos_work_units(m);
+    jaos_model_free(m);
+
+    m = binary_cover();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, DBL_MIN));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_TIME_LIMIT, jaos_status_of(m));
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(0, rep.lp_solves);
+    TEST_ASSERT_EQUAL_INT64(0, rep.symmetry_generators);
+    TEST_ASSERT_FALSE(rep.has_incumbent);
+    TEST_ASSERT_TRUE(isinf(rep.bound) && rep.bound < 0.0);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+    TEST_ASSERT_TRUE(jaos_work_units(m) < whole);
+    jaos_model_free(m);
+}
+
 static void test_local_branching_searches_the_incumbents_neighbourhood(void)
 {
     const int64_t size[2] = { 0, 3 };
@@ -7576,6 +7600,7 @@ int main(void)
     RUN_TEST(test_the_pump_perturbs_a_rounding_that_repeats);
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_time_limit_stops_the_root_between_its_solves);
+    RUN_TEST(test_a_spent_time_limit_stops_the_tree_before_its_root);
     RUN_TEST(test_local_branching_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_estimate_order_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);

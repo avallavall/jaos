@@ -3,6 +3,7 @@
 
 #include "jaos.h"
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 #include "unity.h"
 
 #include <math.h>
@@ -2253,6 +2254,58 @@ static void test_the_round_cap_is_the_one_its_sweep_set(void)
     jaos_model_free(m);
 }
 
+static void test_a_deadline_already_past_runs_no_round(void)
+{
+    jaos_model *m = make_cascading_chain(40);
+    jm_presolve p;
+    jm_presolve_init(&p);
+    p.deadline = jm_monotonic_seconds();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_NONE, p.outcome);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.rounds);
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.fixed_col);
+    jm_presolve_free(&p);
+
+    jm_presolve_init(&p);
+    p.deadline = jm_monotonic_seconds() + 3600.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT64(16, p.counts.rounds);
+    jm_presolve_free(&p);
+    jaos_model_free(m);
+}
+
+static void test_a_spent_time_limit_stops_the_lp_before_presolve(void)
+{
+#if defined(JAOS_NO_PRESOLVE)
+    TEST_IGNORE_MESSAGE("presolve is compiled out");
+#else
+    jaos_model *m = make_cascading_chain(40);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, DBL_MIN));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_TIME_LIMIT, jaos_status_of(m));
+    jaos_presolve_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(m, &rep));
+    TEST_ASSERT_EQUAL_INT64(0, rep.rounds);
+    TEST_ASSERT_EQUAL_INT64(0, jaos_iterations(m));
+
+    jaos_model *f = make_cascading_chain(40);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(f));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(f));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_presolve_result(f, &rep));
+    TEST_ASSERT_TRUE(rep.rounds > 0);
+    double want = 0.0, got = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(f, &want));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, 0.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &got));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9, want, got);
+    jaos_model_free(f);
+    jaos_model_free(m);
+#endif
+}
+
 static void test_the_fold_window_is_rounding_and_nothing_more(void)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
@@ -3371,6 +3424,8 @@ int main(void)
     RUN_TEST(test_an_optimum_on_the_tightening_boundary_survives);
     RUN_TEST(test_activity_range_counters_are_exact);
     RUN_TEST(test_the_round_cap_is_the_one_its_sweep_set);
+    RUN_TEST(test_a_deadline_already_past_runs_no_round);
+    RUN_TEST(test_a_spent_time_limit_stops_the_lp_before_presolve);
     RUN_TEST(test_the_fold_window_is_rounding_and_nothing_more);
 
     RUN_TEST(test_an_emptied_row_missed_by_more_than_rounding_is_refused);

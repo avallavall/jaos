@@ -108,9 +108,9 @@ time 0.000087
   was proved over the rationals. It is an integer or a ratio of two
   integers.
 - `iterations` and `work_units` are the solve's own counts.
-- `time` is the solve's wall-clock seconds. It is the last line of the
-  solve's own report. The lines of `--check`, `--pool-out` and `--proof`
-  come after it.
+- `time` is the solve's wall-clock seconds, the read not included. It is
+  the last line of the solve's own report. The lines of `--check`,
+  `--pool-out` and `--proof` come after it.
 
 Where presolve fired, four more lines follow the counts. `presolve_rows`,
 `presolve_columns` and `presolve_nonzeros` give the size of the model the
@@ -156,7 +156,8 @@ with the same options, on any machine. `grep -v '^time '` removes the
 
 A run that stops on `--time-limit` or on Ctrl-C stops where the clock
 says, so its `iterations` and `work_units` lines can differ between runs. A
-run that stops on `--work-limit` is reproducible.
+run that stops on `--work-limit` is reproducible. Without either, the clock
+decides nothing.
 
 In the library, a stopped solve can go on from where it stopped (see
 `jaos_solve` in `docs/api.md`). The tool cannot resume, because its
@@ -181,7 +182,7 @@ not change an answer.
 | `--exact` | proves an LP's answer over the rationals and repairs a basis the proof breaks by exact pivots (`jaos_set_exact` in `docs/api.md`; measured in `bench/measurements/02-358/`). A proved optimum prints `objective_exact`, and its published values are the exact ones rounded to the nearest double. A model that turns out infeasible over the rationals ends `infeasible` with an exact certificate. An answer that cannot be proved ends `numerical_error` with the reason. A MIP, a quadratic objective or a model with cones is a usage error. |
 | `--exact-decimal` | the exact arithmetic of `--exact`, `--proof` and `verify` reads each number of the model as the shortest decimal that rounds to it, as `exact_decimal` (`jaos_set_exact_decimal` in `docs/api.md`; measured in `bench/measurements/02-418/`). An MPS value of 0.1 is then 1/10, not the double nearest 0.1, so a model whose rows hold only in decimal, such as `x = 0.1`, `y = 0.2`, `x + y = 0.3`, is optimal instead of infeasible. A proof file written this way carries `data decimal`. |
 | `--work-limit N` | stops the solve after `N` deterministic work units, as `work_limit`. `N` must be a positive integer. In a MIP every sub-solve runs under what is left of `N`. |
-| `--time-limit SECONDS` | stops the solve after that many wall-clock seconds, as `time_limit`. Must be positive; fractions are fine. It is the one input that breaks bit-identity. |
+| `--time-limit SECONDS` | stops the run after that many wall-clock seconds, as `time_limit`. The seconds count from the start of reading the file, so the read and the solve share them; the solve gets what the read left, and a read that spends them all leaves the solve none, which then stops at once. A limit set by `--opt` or `--params` counts the read the same way. Must be positive; fractions are fine. It is the one input that breaks bit-identity. |
 | `--primal-tol T` | how far a variable may sit outside its bounds and still count as feasible. Default 1e-7. |
 | `--dual-tol T` | how far a reduced cost may sit on the wrong side of zero. Default 1e-9, `DUAL_TOL` in `docs/tolerances.md`. |
 | `--algorithm A` | the method for a continuous model: `dual`, the default, `primal`, `barrier`, `pdlp` or `concurrent`. [Which method solves what](#which-method-solves-what) says which models each one takes. |

@@ -51,6 +51,17 @@ static void test_infinity_is_ieee_infinity(void)
     TEST_ASSERT_TRUE(jaos_infinity() > 0.0);
 }
 
+static void test_the_clock_never_runs_back(void)
+{
+    double last = jaos_clock();
+    TEST_ASSERT_TRUE(isfinite(last));
+    for (int k = 0; k < 1000; k++) {
+        const double now = jaos_clock();
+        TEST_ASSERT_TRUE(now >= last);
+        last = now;
+    }
+}
+
 static void test_load_drops_zeros_and_sorts_columns(void)
 {
     jaos_model *m = nullptr;
@@ -1788,6 +1799,7 @@ int main(void)
     RUN_TEST(test_the_statistics_count_what_the_model_is);
     RUN_TEST(test_null_model_queries_read_as_empty);
     RUN_TEST(test_infinity_is_ieee_infinity);
+    RUN_TEST(test_the_clock_never_runs_back);
     RUN_TEST(test_load_drops_zeros_and_sorts_columns);
     RUN_TEST(test_load_rejects_bad_input);
     RUN_TEST(test_failed_load_leaves_model_untouched);

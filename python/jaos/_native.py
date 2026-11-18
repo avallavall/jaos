@@ -1008,6 +1008,8 @@ _sig("jaos_iterations", _I64, _VP)
 
 _sig("jaos_solve_time", _D, _VP)
 
+_sig("jaos_clock", _D)
+
 INFINITY = _lib.jaos_infinity()
 
 NAME_MAX = 255
@@ -1025,6 +1027,13 @@ def build_commit():
     when it was built outside a git checkout. Two builds between tags
     carry the same version() and differ here."""
     return _lib.jaos_build_commit().decode("utf-8")
+
+def clock():
+    """Seconds on the monotonic clock the time limit reads, from an
+    arbitrary origin; only the difference of two readings means anything.
+    To count work done before a solve against the limit, reading the file
+    for one, read the clock before it and set the limit to what is left."""
+    return _lib.jaos_clock()
 
 def _doubles(seq, name, want=None):
     if seq is None:

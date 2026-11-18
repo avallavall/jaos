@@ -508,7 +508,7 @@ typedef struct {
     int64_t *orbit;
 } jm_symmetry;
 JAOS_NODISCARD jaos_status jm_symmetry_find(const jaos_model *m,
-                                            int64_t work_cap,
+                                            int64_t work_cap, double deadline,
                                             jm_symmetry *out, int64_t *work);
 void jm_symmetry_free(jm_symmetry *s);
 bool jm_model_has_integer(const jaos_model *m);
@@ -537,6 +537,9 @@ JAOS_NODISCARD jaos_status jm_slurp(jaos_model *m, const char *path,
 
 constexpr int64_t JM_READ_DECLARED_FLOOR = (int64_t)1 << 20;
 bool jm_declared_fits(int64_t count, int64_t bytes);
+
+double jm_deadline(double started, double limit);
+bool jm_past(double deadline);
 
 JAOS_NODISCARD bool jm_gzip(const char *data, int64_t n, char **out,
                             int64_t *out_n);
@@ -652,6 +655,8 @@ typedef struct {
     int64_t proof_index;
     double proof_sign;
     jaos_model *orig;
+
+    double started, deadline;
 
     bool aggregated;
     jaos_model stage1;
