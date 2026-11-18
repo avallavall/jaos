@@ -112,22 +112,24 @@ first:
   node whose relaxation stopped at the incumbent, its proof the stopped
   duals over the path's bounds, read on `mas76`, `mas74` and the four,
   since JAOS draws conflicts from infeasible nodes only (02-475).
-- `gen-ip054` closes at 2.8e9 work units in 75,989 nodes on an
-  LLL-reduced basis of the improving region (`--lattice`, 02-476), where
-  the columns' tree is open at 1e11. The tree first runs 20,000 nodes over
-  the columns for an incumbent: the reduced tree finds few points of its
-  own, and with 1000 first `gen-ip002` lost its optimum (found by the
-  columns' tree at node 10,326) and ended at -4754.42. `gen-ip002` holds
-  the optimum and its bound at 1e10 moves from -4804.34 to -4802.43; best
-  bound first on the columns reads -4801.21. Rounding each node's point in
-  the columns costs 4% to 9% of the work and finds better points late
-  (`lattice-round-columns`). Next for `gen-ip002`: a heuristic for the
-  reduced tree whose points hold the bound rows `V y >= 0`, so that the
-  first phase can be short. With 02-475's fixing at every node the first
-  20,000 nodes no longer reached the optimum, and `gen-ip002` ended 0.0025
-  away; with Devex at the nodes (02-479) it holds the optimum again, bound
-  -4805.67. Verify with `gen-ip002` holding its optimum and closing inside
-  1e10.
+- `gen-ip054` closes at 1.4e9 work units on an LLL-reduced basis of the
+  improving region taken after 1000 nodes (`--lattice`, 02-476, 02-478),
+  where the columns' tree is open at 1e11. `gen-ip002` holds its optimum
+  at 1e10 with its bound at -4803.89 (`bench/measurements/02-478/`): the
+  reduced tree matches the columns' bound a node at twice the work a node,
+  so once it has spent the first tree's work without passing its bound the
+  tree goes back to the columns, which find the optimum. No rounding of
+  the reduced tree's own points reaches a point past the first tree's
+  incumbent (`lattice-node-rounding`). The check is a knife edge where the
+  two trees' bounds a unit of work are alike: on `gen-ip002` it fails by
+  0.95 after 1000 nodes and passes by 0.24 after 5000, and by 1.00 under
+  `--node-select bound`, which then end at -4771.08 and -4737.98. Closing
+  `gen-ip002` needs the bound at -4783.73: with the optimum given from the
+  root, best bound first reads -4800.75 on the columns and -4800.93 on the
+  reduced basis at 1e10, and SCIP -4801.29 after 2.27M nodes in 300 s.
+  Next for `gen-ip002`: a relaxation that lifts the bound per node, since
+  node order and the basis move it by under 5. Verify with `gen-ip002`
+  closing inside 1e10.
 - `neos5` and `assign1-5-8` are out of reach at 1e10
   (`bench/measurements/02-477/`, `02-479/`, `02-480/`). HiGHS closes
   `neos5` in 206,031 nodes and SCIP has not after 2.48M. A node

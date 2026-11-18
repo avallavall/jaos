@@ -1,0 +1,32 @@
+gen-ip002  base                         work_limit nodes  194427 work  10000013002 bound -4807.1870730082583  inc -4771.6363915000002
+    node 1620: incumbent -4766.4447485000001 by rounding
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+gen-ip002  base --no-lattice            work_limit nodes  347338 work  10000054714 bound -4804.1983441652465  inc -4783.7333915999998
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+    node 74569: incumbent -4783.7333916000007 by rounding
+gen-ip002  change                       work_limit nodes  351892 work  10000007120 bound -4804.3176904750499  inc -4783.7333915999998
+    lattice: after 52544898 work units the reduced tree's bound -4830.1243634523016 has not passed -4829.165115072381, the columns' bound after as many, so the tree starts again on the columns from the incumbent
+    node 1744: incumbent -4771.0821614999995 by rounding
+    node 43939: incumbent -4783.7333916000007 by rounding
+gen-ip002  change --node-select bound   work_limit nodes  163344 work  10000008039 bound -4800.76765615351    inc -4737.9797786999998
+    node 109: incumbent -4706.2460986000015 by rounding
+    node 178: incumbent -4737.9797786999998 by rounding
+    lattice: after 57309713 work units the reduced tree's bound -4826.2225104317586 has passed -4827.2182801943272, the columns' bound after as many
+gen-ip054  base                         optimal    nodes   65993 work   2053190503 bound 6840.9656417920005   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  base --no-lattice            work_limit nodes  218292 work  10000003275 bound 6806.7664359063983   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  change                       optimal    nodes   59222 work   1362630841 bound 6840.9656417920005   inc 6840.9656417920005
+    node 18924: incumbent 6849.9856487400039 by rounding
+    node 25608: incumbent 6840.9656417920032 by rounding
+    lattice: after 54729501 work units the reduced tree's bound 6806.3981302720968 has passed 6778.4201039203554, the columns' bound after as many
+gen-ip054  change --node-select bound   optimal    nodes   61359 work   1542958979 bound 6840.9656417920005   inc 6840.9656417920005
+    node 155: incumbent 6917.3036478350004 by rounding
+    node 45445: incumbent 6840.9656417920032 by rounding
+    lattice: after 31421735 work units the reduced tree's bound 6804.8373513785173 has passed 6777.5407982932566, the columns' bound after as many

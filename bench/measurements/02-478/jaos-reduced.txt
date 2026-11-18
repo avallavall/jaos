@@ -1,0 +1,56 @@
+gen-ip002  no trial                     work_limit nodes  194427 work  10000013002 bound -4807.1870730082583  inc -4771.6363915000002
+    node 1620: incumbent -4766.4447485000001 by rounding
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+gen-ip002  no trial, bound              work_limit nodes  169282 work  10000003973 bound -4802.6046830571531  inc -4771.6363915000002
+    node 1620: incumbent -4766.4447485000001 by rounding
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+gen-ip002  no trial, bound, no heur     work_limit nodes  185353 work  10000004515 bound -4801.9303253537473  inc -4771.6363915000002
+    node 1620: incumbent -4766.4447485000001 by rounding
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+gen-ip002  no trial, no heur            work_limit nodes  219499 work  10000004584 bound -4806.4972201612391  inc -4773.2035154000005
+    node 5819: incumbent -4769.7405888000003 by rounding
+    node 18410: incumbent -4771.6363915000011 by rounding
+    node 192470: incumbent -4773.2035154000123, integral
+gen-ip002  no trial, repair             work_limit nodes  191400 work  10000007074 bound -4806.9247889478556  inc -4771.6363915000002
+    node 601: incumbent -4754.4235292000003 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    node 1879: incumbent -4769.7405888000003 by rounding with one column moved by one
+    node 18720: incumbent -4771.6363915000011 by rounding
+gen-ip002  no trial, bound, repair      work_limit nodes  171274 work  10000588656 bound -4801.5494771907333  inc -4771.6363915000002
+    node 601: incumbent -4754.4235292000003 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    node 1879: incumbent -4769.7405888000003 by rounding with one column moved by one
+    node 18720: incumbent -4771.6363915000011 by rounding
+gen-ip002  trial, repair                work_limit nodes  312418 work  10000006521 bound -4805.2615542192889  inc -4783.7333915999998
+    lattice: after 737432248 work units the reduced tree's bound -4819.2241368199839 has not passed -4817.4555261773958, the columns' bound after as many, so the tree starts again on the columns from the incumbent
+    node 24753: incumbent -4774.6474389000005 by rounding with one column moved by one
+    node 31510: incumbent -4783.7333916000007 by rounding
+gen-ip054  no trial                     optimal    nodes   65993 work   2053190503 bound 6840.9656417920005   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  no trial, bound              optimal    nodes   73161 work   2191581692 bound 6840.9656417920005   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  no trial, bound, no heur     optimal    nodes   92433 work   2562595473 bound 6840.9656417920005   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  no trial, no heur            optimal    nodes   70495 work   1996974886 bound 6840.9656417920005   inc 6840.9656417920005
+    node 2075: incumbent 6913.3911291380009 by rounding
+    node 3188: incumbent 6902.1080344210004 by rounding
+    node 4524: incumbent 6840.9656417919996 by rounding
+gen-ip054  no trial, repair             optimal    nodes   80975 work   2485722281 bound 6840.9656417920005   inc 6840.9656417920005
+    node 6700: incumbent 6858.2629060579993 by rounding with one column moved by one
+    node 11601: incumbent 6857.3637318940009 by rounding with one column moved by one
+    node 18005: incumbent 6840.9656417919996 by rounding with one column moved by one
+gen-ip054  no trial, bound, repair      optimal    nodes   75341 work   2371297271 bound 6840.9656417920005   inc 6840.9656417920005
+    node 6700: incumbent 6858.2629060579993 by rounding with one column moved by one
+    node 11601: incumbent 6857.3637318940009 by rounding with one column moved by one
+    node 18005: incumbent 6840.9656417919996 by rounding with one column moved by one
+gen-ip054  trial, repair                optimal    nodes   80975 work   2485722281 bound 6840.9656417920005   inc 6840.9656417920005
+    node 11601: incumbent 6857.3637318940009 by rounding with one column moved by one
+    node 18005: incumbent 6840.9656417919996 by rounding with one column moved by one
+    lattice: after 998307329 work units the reduced tree's bound 6831.6310624765665 has passed 6794.1038437127754, the columns' bound after as many

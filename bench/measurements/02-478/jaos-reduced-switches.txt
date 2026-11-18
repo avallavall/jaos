@@ -1,0 +1,8 @@
+reduced    default                      work_limit nodes   86597 work   5000006804 bound -4810.5950331998702  inc -4771.6363915000129
+reduced    dive                         work_limit nodes   99940 work   5000005606 bound -4812.0737495049971  inc -4771.6363915000129
+reduced    bound                        work_limit nodes   76684 work   5000008187 bound -4806.0289453706164  inc -4771.6363915000129
+reduced    dive heuristic to depth 5    work_limit nodes   88269 work   5000008763 bound -4809.7582472222903  inc -4771.6363915000129
+reduced    rins 50                      work_limit nodes   86597 work   5000006804 bound -4810.5950331998702  inc -4771.6363915000129
+reduced    no heuristics                work_limit nodes  103322 work   5000016656 bound -4809.4842601328119  inc -4771.6363915000129
+reduced    dive, 5 backtracks           work_limit nodes  104246 work   5000005740 bound -4815.4655350882576  inc -4771.6363915000129
+reduced    pump 20, general             work_limit nodes   93180 work   5000007274 bound -4809.2706009128833  inc -4771.6363915000129

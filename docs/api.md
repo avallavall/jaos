@@ -894,9 +894,15 @@ incumbent and the pool as a limited tree publishes them. A region with no
 interior, a mapped point that breaks a row, a basis that is the identity,
 or a reduction past `MIP_LATTICE_ENTRY` or `MIP_LATTICE_SWAPS` keeps the
 columns, and the tree starts again on them.
-The summary log says how many nodes ran first, at which incumbent, and how
-long the combinations are. A node limit of `MIP_LATTICE_NODES` or fewer
-keeps the columns. On by default; -1 restores the default.
+Once the tree on the combinations has spent as much work as the first tree
+took, its bound must have passed the bound the first tree ended with. If it
+has not, that tree stops and the tree starts again on the columns, from the
+better of the two trees' incumbents; the report's counts add all three
+trees, and at a limit the bound published is the best any of them proved.
+The summary log says how many nodes ran first, at which incumbent, how
+long the combinations are, and the two bounds that check compared. A node
+limit of `MIP_LATTICE_NODES` or fewer keeps the columns. On by default; -1
+restores the default.
 
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\

@@ -1,0 +1,2 @@
+nodes 47126 zinc -4771.6363915
+frac y: mean 16.2, <=12 at 8367 nodes; frac x: mean 22.0, <=12 at 0

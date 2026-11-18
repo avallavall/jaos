@@ -6300,7 +6300,7 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
         nodes[on] = rep.nodes;
         work[on] = jaos_work_units(m);
         if (on)
-            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 20000 nodes the "
+            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 2092 nodes the "
                                                "tree starts again on 6 integer "
                                                "combinations of the columns"));
         else
@@ -6316,10 +6316,10 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
 static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
 {
     jaos_model *m = wide_slab(20.0);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 20007));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 2099));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
-    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 20000 nodes the tree "
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 2092 nodes the tree "
                                        "starts again on 6 integer combinations "
                                        "of the columns, a reduced basis of the "
                                        "improving region at the incumbent 400,"));
@@ -6327,7 +6327,7 @@ static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_TRUE(rep.has_incumbent);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 426.0, rep.incumbent);
-    TEST_ASSERT_EQUAL_INT64(20007, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(2099, rep.nodes);
     TEST_ASSERT_TRUE(rep.bound >= rep.incumbent);
     double x[6], obj = 0.0, px[6], pobj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &obj));
@@ -6350,6 +6350,38 @@ static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
     jaos_model_free(m);
 }
 
+static void test_a_tree_stops_at_its_work_mark_unless_its_bound_has_passed(void)
+{
+    int64_t nodes[2] = {0, 0};
+    for (int pass = 0; pass < 2; pass++) {
+        jaos_model *m = wide_slab(20.0);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_lattice(m, 0));
+        m->mip_soft_work = 1000000;
+        m->mip_soft_bound = pass == 0 ? 426.0 : 1e9;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT64(0, m->mip_soft_work);
+        TEST_ASSERT_TRUE(m->mip_soft_bound >= 426.0);
+        TEST_ASSERT_TRUE(m->mip_soft_bound < 1e9);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[pass] = rep.nodes;
+        if (pass == 0) {
+            TEST_ASSERT_TRUE(m->mip_soft_lost);
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
+            TEST_ASSERT_TRUE(jaos_work_units(m) >= 1000000);
+            TEST_ASSERT_TRUE(rep.bound >= 426.0);
+        } else {
+            TEST_ASSERT_FALSE(m->mip_soft_lost);
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, 426.0, obj);
+        }
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[0] < nodes[1]);
+}
+
 static void test_lattice_branching_leaves_binaries_and_short_trees_alone(void)
 {
     jaos_model *m = wide_slab(1.0);
@@ -6357,7 +6389,7 @@ static void test_lattice_branching_leaves_binaries_and_short_trees_alone(void)
     TEST_ASSERT_NULL(strstr(g_log, "lattice:"));
     jaos_model_free(m);
     m = wide_slab(20.0);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 20000));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1000));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
     TEST_ASSERT_NULL(strstr(g_log, "lattice:"));
@@ -6366,13 +6398,13 @@ static void test_lattice_branching_leaves_binaries_and_short_trees_alone(void)
     const double a[6] = {702, 535, 651, 752, 550, 565};
     int64_t nodes[2] = {0, 0};
     for (int on = 0; on < 2; on++) {
-        m = slab_model(20.0, c, a, 33638.0);
+        m = slab_model(15.0, c, a, 33638.0);
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_lattice(m, on));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
         TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
         double obj = 0.0;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 327.0, obj);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 314.0, obj);
         TEST_ASSERT_NULL(strstr(g_log, "lattice:"));
         jaos_mip_report rep;
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
@@ -7212,6 +7244,7 @@ int main(void)
     RUN_TEST(test_lattice_branching_closes_a_thin_knapsack_slab);
     RUN_TEST(test_lattice_branching_publishes_its_point_at_a_node_limit);
     RUN_TEST(test_lattice_branching_leaves_binaries_and_short_trees_alone);
+    RUN_TEST(test_a_tree_stops_at_its_work_mark_unless_its_bound_has_passed);
     RUN_TEST(test_a_flow_cover_cut_closes_the_fixed_charge_row_at_the_root);
     RUN_TEST(test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root);
     RUN_TEST(test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound);

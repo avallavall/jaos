@@ -1,0 +1,13 @@
+reduced
+r0   nodes-with-improving      0  -4771.636:- -4774.640:- -4783.733:-
+r1   nodes-with-improving      0  -4771.636:- -4774.640:- -4783.733:-
+r2   nodes-with-improving      2  -4771.636:22925 -4774.640:22925 -4783.733:34953
+columns, first 20000 nodes
+r0   nodes-with-improving     40  -4754.420:1620 -4774.640:- -4783.733:-
+r1   nodes-with-improving     60  -4754.420:591 -4774.640:9913 -4783.733:10403
+r2   nodes-with-improving    172  -4754.420:602 -4774.640:3689 -4783.733:3689
+columns, first 20000 nodes, running incumbent
+r0 [(1620, np.float64(-4766.4447), 'feasible'), (5819, np.float64(-4769.7406), 'feasible'), (18410, np.float64(-4771.6364), 'feasible')]
+r1 [(591, np.float64(-4759.6494), 'repair of 2 rows'), (1287, np.float64(-4763.5727), 'repair of 1 rows'), (1314, np.float64(-4766.4447), 'repair of 19 rows'), (5819, np.float64(-4769.7406), 'x_r feasible'), (9913, np.float64(-4774.6474), 'repair of 14 rows'), (10403, np.float64(-4783.7334), 'repair of 14 rows')]
+rep1 [(591, np.float64(-4759.6494), 'repair of 2 rows'), (1287, np.float64(-4763.5727), 'repair of 1 rows'), (1314, np.float64(-4766.4447), 'repair of 19 rows'), (6991, np.float64(-4769.7406), 'repair of 1 rows'), (9913, np.float64(-4774.6474), 'repair of 14 rows'), (10403, np.float64(-4783.7334), 'repair of 14 rows')]
+r1desc [(11, np.float64(-4754.4235), ''), (285, np.float64(-4755.1917), ''), (353, np.float64(-4759.9058), ''), (900, np.float64(-4767.7954), ''), (5819, np.float64(-4769.7406), ''), (7406, np.float64(-4775.4009), ''), (10403, np.float64(-4783.7334), '')]

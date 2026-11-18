@@ -1,0 +1,4 @@
+gen-ip002  optimum given, lattice       work_limit nodes  210645 work  10000004241 bound -4804.7544308227198  inc -4783.7333915999998
+gen-ip002  optimum given, columns       work_limit nodes  353463 work  10000002384 bound -4804.4127924277964  inc -4783.7333915999998
+gen-ip002  optimum given, lattice --node-select bound work_limit nodes  179755 work  10000005337 bound -4800.9296183148117  inc -4783.7333915999998
+gen-ip002  optimum given, columns --node-select bound work_limit nodes  323959 work  10000002335 bound -4800.7504476883232  inc -4783.7333915999998

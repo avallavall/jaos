@@ -1,0 +1,444 @@
+a_00       base                         optimal    nodes   42943 work    835767347 bound -4691.4890733000002  inc -4691.4890733000002
+    node 2594: incumbent -4686.4859088000003 by rounding
+    node 2830: incumbent -4687.5214114 by rounding
+    node 3189: incumbent -4691.4890733000002 by rounding
+a_00       change                       optimal    nodes   27703 work    670412069 bound -4691.4890733000002  inc -4691.4890733000002
+    node 7444: incumbent -4687.5214114000082 by rounding
+    node 14977: incumbent -4691.4890733000075 by rounding
+    lattice: after 22040848 work units the reduced tree's bound -4722.0901872243858 has passed -4729.7834697623794, the columns' bound after as many
+a_00       c20000                       optimal    nodes   42943 work    835767347 bound -4691.4890733000002  inc -4691.4890733000002
+    node 2830: incumbent -4687.5214114 by rounding
+    node 3189: incumbent -4691.4890733000002 by rounding
+    lattice: after 320726526 work units the reduced tree's bound -4700.5994300247212 has passed -4714.6341089665411, the columns' bound after as many
+a_01       base                         optimal    nodes   40875 work    696801775 bound -5016.5258065999997  inc -5016.5258065999997
+    node 23: incumbent -4993.7601106700013 by RINS
+    node 117: incumbent -5001.4499929900003 by rounding
+    node 807: incumbent -5016.5258066000006 by rounding
+a_01       change                       optimal    nodes   21875 work    420733226 bound -5016.5258065999997  inc -5016.5258065999997
+    node 117: incumbent -5001.4499929900003 by rounding
+    node 807: incumbent -5016.5258066000006 by rounding
+    lattice: after 21076421 work units the reduced tree's bound -5047.8542835536473 has passed -5059.3223946239523, the columns' bound after as many
+a_01       c20000                       optimal    nodes   40875 work    696801775 bound -5016.5258065999997  inc -5016.5258065999997
+    node 117: incumbent -5001.4499929900003 by rounding
+    node 807: incumbent -5016.5258066000006 by rounding
+    lattice: after 297144970 work units the reduced tree's bound -5025.3709751968036 has passed -5041.4305613189499, the columns' bound after as many
+a_02       base                         optimal    nodes   64559 work   1388773063 bound -4749.5280123000002  inc -4749.5280123000002
+    node 3042: incumbent -4736.847621500001 by rounding
+    node 6480: incumbent -4743.8342503000003 by rounding
+    node 13155: incumbent -4749.5280123000011 by rounding
+a_02       change                       optimal    nodes   61365 work   1488233390 bound -4749.5280123000002  inc -4749.5280123000002
+    node 40641: incumbent -4745.887348700001 by rounding
+    node 41137: incumbent -4749.5280122999993 by rounding
+    lattice: after 26144237 work units the reduced tree's bound -4786.2507535338209 has passed -4789.2741991845778, the columns' bound after as many
+a_02       c20000                       optimal    nodes   64559 work   1388773063 bound -4749.5280123000002  inc -4749.5280123000002
+    node 6480: incumbent -4743.8342503000003 by rounding
+    node 13155: incumbent -4749.5280123000011 by rounding
+    lattice: after 347482919 work units the reduced tree's bound -4766.1314975729947 has passed -4772.2681083335519, the columns' bound after as many
+a_03       base                         optimal    nodes   25131 work    365062955 bound -4774.6546574000004  inc -4774.6546574000004
+    node 2214: incumbent -4762.3867743999999 by rounding
+    node 7050: incumbent -4767.1549384 by rounding
+    node 10408: incumbent -4774.6546574000004 by rounding
+a_03       change                       optimal    nodes    8512 work    172825143 bound -4774.6546574000004  inc -4774.6546574000004
+    node 4632: incumbent -4767.2634034000157 by rounding
+    node 5121: incumbent -4774.6546574000158 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    lattice: after 19389805 work units the reduced tree's bound -4789.0011867299263 has passed -4800.7519798101557, the columns' bound after as many
+a_03       c20000                       optimal    nodes   25131 work    365062955 bound -4774.6546574000004  inc -4774.6546574000004
+    node 2214: incumbent -4762.3867743999999 by rounding
+    node 7050: incumbent -4767.1549384 by rounding
+    node 10408: incumbent -4774.6546574000004 by rounding
+a_04       base                         work_limit nodes   66824 work   2000003827 bound -4791.6035827120913  inc -4782.2780742000004
+    node 1049: incumbent -4754.2696568000001 by rounding
+    node 2466: incumbent -4780.0883307999993 by rounding
+    node 19864: incumbent -4782.2780741999995 by rounding
+a_04       change                       work_limit nodes   70723 work   2000003337 bound -4785.1070450408833  inc -4782.2780742000004
+    node 19270: incumbent -4750.952506899991 by rounding
+    node 26204: incumbent -4782.2780741999895 by rounding
+    lattice: after 36939248 work units the reduced tree's bound -4819.7941751815351 has passed -4822.4650351205437, the columns' bound after as many
+a_04       c20000                       work_limit nodes   96829 work   2000006758 bound -4793.4143700922632  inc -4782.2780742000004
+    node 2466: incumbent -4780.0883307999993 by rounding
+    node 19864: incumbent -4782.2780741999995 by rounding
+    lattice: after 431917744 work units the reduced tree's bound -4803.5829921663581 has not passed -4802.9374358330115, the columns' bound after as many, so the tree starts again on the columns from the incumbent
+a_05       base                         optimal    nodes   29323 work    476158119 bound -5118.9293169800003  inc -5118.9293169800003
+    node 83: incumbent -5058.8473678600003 by rounding
+    node 143: incumbent -5111.9269717000006 by rounding
+    node 5108: incumbent -5118.9293169800003 by rounding
+a_05       change                       optimal    nodes   14077 work    310877500 bound -5118.9293169800003  inc -5118.9293169800003
+    node 6156: incumbent -5112.5344240800259 by rounding
+    node 9793: incumbent -5118.9293169800258 by rounding
+    lattice: after 19861650 work units the reduced tree's bound -5138.7366623465377 has passed -5152.2718033522151, the columns' bound after as many
+a_05       c20000                       optimal    nodes   29323 work    476158119 bound -5118.9293169800003  inc -5118.9293169800003
+    node 83: incumbent -5058.8473678600003 by rounding
+    node 143: incumbent -5111.9269717000006 by rounding
+    node 5108: incumbent -5118.9293169800003 by rounding
+a_06       base                         optimal    nodes   41335 work    870643130 bound -4889.2174341        inc -4889.2174341
+    node 334: incumbent -4886.4947673999995 by rounding
+    node 667: incumbent -4888.0825630500003 by rounding
+    node 8748: incumbent -4889.2174341 by rounding
+a_06       change                       optimal    nodes   20969 work    536573112 bound -4889.2174341        inc -4889.2174341
+    node 667: incumbent -4888.0825630500003 by rounding
+    node 6886: incumbent -4889.2174341000136 by rounding
+    lattice: after 22884523 work units the reduced tree's bound -4913.7948166892811 has passed -4927.0412045557559, the columns' bound after as many
+a_06       c20000                       optimal    nodes   41335 work    870643130 bound -4889.2174341        inc -4889.2174341
+    node 667: incumbent -4888.0825630500003 by rounding
+    node 8748: incumbent -4889.2174341 by rounding
+    lattice: after 324696535 work units the reduced tree's bound -4897.6565618494687 has passed -4911.8317491350381, the columns' bound after as many
+a_07       base                         optimal    nodes   26075 work    374833336 bound -5587.7185347499999  inc -5587.7185347499999
+    node 88: incumbent -5580.2175434500004 by rounding
+    node 753: incumbent -5580.8876700499995 by rounding
+    node 2828: incumbent -5587.7185347499999 by rounding
+a_07       change                       optimal    nodes    9180 work    191310837 bound -5587.7185347499999  inc -5587.7185347499999
+    node 753: incumbent -5580.8876700499995 by rounding
+    node 5966: incumbent -5587.7185347499999 by rounding
+    lattice: after 18027905 work units the reduced tree's bound -5613.3673259336801 has passed -5625.2474928506272, the columns' bound after as many
+a_07       c20000                       optimal    nodes   26075 work    374833336 bound -5587.7185347499999  inc -5587.7185347499999
+    node 88: incumbent -5580.2175434500004 by rounding
+    node 753: incumbent -5580.8876700499995 by rounding
+    node 2828: incumbent -5587.7185347499999 by rounding
+a_08       base                         optimal    nodes   23481 work    328626916 bound -5346.5682681999997  inc -5346.5682681999997
+    node 444: incumbent -5325.6824643400014 by rounding
+    node 707: incumbent -5330.1205620600003 by rounding
+    node 3442: incumbent -5346.5682681999997 by rounding
+a_08       change                       optimal    nodes    6431 work    145784159 bound -5346.5682681999997  inc -5346.5682681999997
+    node 707: incumbent -5330.1205620600003 by rounding
+    node 3682: incumbent -5346.5682681999915 by rounding
+    lattice: after 21037137 work units the reduced tree's bound -5366.4498981077004 has passed -5378.2727477537073, the columns' bound after as many
+a_08       c20000                       optimal    nodes   23481 work    328626916 bound -5346.5682681999997  inc -5346.5682681999997
+    node 444: incumbent -5325.6824643400014 by rounding
+    node 707: incumbent -5330.1205620600003 by rounding
+    node 3442: incumbent -5346.5682681999997 by rounding
+a_09       base                         optimal    nodes   26643 work    509055255 bound -4859.5538471999998  inc -4859.5538471999998
+    node 3241: incumbent -4847.0758359999991 by rounding
+    node 7719: incumbent -4848.3556355999999 by rounding
+    node 16470: incumbent -4859.5538471999998 by rounding
+a_09       change                       optimal    nodes   14216 work    362632903 bound -4859.5538471999998  inc -4859.5538471999998
+    node 350: incumbent -4836.4994854999995 by rounding
+    node 8088: incumbent -4859.5538472000117 by rounding
+    lattice: after 23994085 work units the reduced tree's bound -4882.7986363911696 has passed -4888.0513889572394, the columns' bound after as many
+a_09       c20000                       optimal    nodes   26643 work    509055255 bound -4859.5538471999998  inc -4859.5538471999998
+    node 3241: incumbent -4847.0758359999991 by rounding
+    node 7719: incumbent -4848.3556355999999 by rounding
+    node 16470: incumbent -4859.5538471999998 by rounding
+a_10       base                         optimal    nodes   33427 work    533963710 bound -4919.4680015000004  inc -4919.4680015000004
+    node 103: incumbent -4902.4479581000005 by rounding
+    node 734: incumbent -4916.0164241000011 by rounding
+    node 2446: incumbent -4919.4680015000004 by rounding
+a_10       change                       optimal    nodes   15360 work    288950477 bound -4919.4680015000004  inc -4919.4680015000004
+    node 734: incumbent -4916.0164241000011 by rounding
+    node 1921: incumbent -4919.4680014999894 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    lattice: after 21385165 work units the reduced tree's bound -4957.1452999480962 has passed -4964.0869772828137, the columns' bound after as many
+a_10       c20000                       optimal    nodes   33427 work    533963710 bound -4919.4680015000004  inc -4919.4680015000004
+    node 734: incumbent -4916.0164241000011 by rounding
+    node 2446: incumbent -4919.4680015000004 by rounding
+    lattice: after 257419988 work units the reduced tree's bound -4925.9216112170716 has passed -4938.239666290985, the columns' bound after as many
+a_11       base                         work_limit nodes   61508 work   2000004183 bound -4772.4210277079192  inc -4750.5475899000003
+    node 9281: incumbent -4748.7311756600011 by rounding
+    node 16658: incumbent -4750.5440471000011 by rounding
+    node 19916: incumbent -4750.5475899000003 by rounding
+a_11       change                       work_limit nodes   55900 work   2000005242 bound -4773.5233479152657  inc -4753.1820354000001
+    node 20609: incumbent -4743.6308516500148 by rounding
+    node 44989: incumbent -4753.1820354000147 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    lattice: after 31641994 work units the reduced tree's bound -4796.0263588627658 has passed -4799.3307236245801, the columns' bound after as many
+a_11       c20000                       work_limit nodes   61508 work   2000004183 bound -4772.4210277079192  inc -4750.5475899000003
+    node 16658: incumbent -4750.5440471000011 by rounding
+    node 19916: incumbent -4750.5475899000003 by rounding
+    lattice: after 436624790 work units the reduced tree's bound -4779.582368005209 has passed -4784.2543393322176, the columns' bound after as many
+a_12       base                         optimal    nodes   72655 work   1674709891 bound -4774.6474389000005  inc -4774.6474389000005
+    node 294: incumbent -4761.3251801800006 by rounding
+    node 605: incumbent -4763.6113897000014 by rounding
+    node 10711: incumbent -4774.6474389000005 by rounding
+a_12       change                       optimal    nodes   53460 work   1437218371 bound -4774.6474389000005  inc -4774.6474389000005
+    node 605: incumbent -4763.6113897000014 by rounding
+    node 11410: incumbent -4774.6474388999995 by rounding
+    lattice: after 30760416 work units the reduced tree's bound -4809.6010493577178 has passed -4810.8891693095647, the columns' bound after as many
+a_12       c20000                       optimal    nodes   72655 work   1674709891 bound -4774.6474389000005  inc -4774.6474389000005
+    node 605: incumbent -4763.6113897000014 by rounding
+    node 10711: incumbent -4774.6474389000005 by rounding
+    lattice: after 399200128 work units the reduced tree's bound -4789.516796276248 has passed -4793.789344414783, the columns' bound after as many
+a_13       base                         work_limit nodes   85151 work   2000006609 bound -5156.8798709412431  inc -5151.8787171000004
+    node 6126: incumbent -5144.9249434000003 by rounding
+    node 6469: incumbent -5149.2576617199993 by rounding
+    node 10273: incumbent -5151.8787171000013 by rounding
+a_13       change                       optimal    nodes   67362 work   1621118510 bound -5151.8787171000004  inc -5151.8787171000004
+    node 17486: incumbent -5151.20647878001 by rounding
+    node 26698: incumbent -5151.8787171000104 by rounding
+    lattice: after 23968721 work units the reduced tree's bound -5183.2811840202448 has passed -5196.0781378836236, the columns' bound after as many
+a_13       c20000                       work_limit nodes   85151 work   2000006609 bound -5156.8798709412431  inc -5151.8787171000004
+    node 6469: incumbent -5149.2576617199993 by rounding
+    node 10273: incumbent -5151.8787171000013 by rounding
+    lattice: after 347142361 work units the reduced tree's bound -5168.9274113880565 has passed -5182.3731918074136, the columns' bound after as many
+a_14       base                         work_limit nodes   64730 work   2000007072 bound -4790.8446515447658  inc -4769.974295
+    node 893: incumbent -4752.6019096999999 by rounding
+    node 3141: incumbent -4767.1150043000007 by rounding
+    node 5295: incumbent -4769.974295 by rounding
+a_14       change                       work_limit nodes  107276 work   2000002457 bound -4788.0214550243973  inc -4769.974295
+    node 2138: incumbent -4759.4864140999998 by rounding
+    node 2253: incumbent -4769.1600786999998 by rounding
+    node 26471: incumbent -4769.974295 by rounding
+a_14       c20000                       work_limit nodes   87020 work   2000001825 bound -4792.2663531705766  inc -4769.974295
+    node 3141: incumbent -4767.1150043000007 by rounding
+    node 5295: incumbent -4769.974295 by rounding
+    lattice: after 445773065 work units the reduced tree's bound -4799.0211637243028 has not passed -4798.4784076401911, the columns' bound after as many, so the tree starts again on the columns from the incumbent
+a_15       base                         optimal    nodes   61145 work   1267465163 bound -4753.7766601000003  inc -4753.7766601000003
+    node 1: incumbent -4728.2927235999996 by RINS
+    node 167: incumbent -4737.8833181500004 by rounding
+    node 1599: incumbent -4753.7766601000012 by rounding
+a_15       change                       optimal    nodes   62764 work   1529342339 bound -4753.7766601000003  inc -4753.7766601000003
+    node 22321: incumbent -4753.2531755000045 by rounding
+    node 35852: incumbent -4753.7766601000039 by rounding
+    lattice: after 24959709 work units the reduced tree's bound -4791.0549843592853 has passed -4795.9122064817075, the columns' bound after as many
+a_15       c20000                       optimal    nodes   61145 work   1267465163 bound -4753.7766601000003  inc -4753.7766601000003
+    node 167: incumbent -4737.8833181500004 by rounding
+    node 1599: incumbent -4753.7766601000012 by rounding
+    lattice: after 339274130 work units the reduced tree's bound -4769.612529483752 has passed -4776.0813061678909, the columns' bound after as many
+a_16       base                         work_limit nodes   86468 work   2000004730 bound -4781.9407900648539  inc -4775.1747608000005
+    node 343: incumbent -4771.2729967500009 by rounding
+    node 3214: incumbent -4774.713055700001 by rounding
+    node 32110: incumbent -4775.1747608000142 by rounding
+a_16       change                       work_limit nodes   74809 work   2000003067 bound -4785.1627861605612  inc -4774.4797648000003
+    node 343: incumbent -4771.2729967500009 by rounding
+    node 65169: incumbent -4774.4797647999903 by rounding
+    lattice: after 26537410 work units the reduced tree's bound -4817.0060250958077 has passed -4819.0430792915477, the columns' bound after as many
+a_16       c20000                       work_limit nodes   86468 work   2000004730 bound -4781.9407900648539  inc -4775.1747608000005
+    node 3214: incumbent -4774.713055700001 by rounding
+    node 32110: incumbent -4775.1747608000142 by rounding
+    lattice: after 368423553 work units the reduced tree's bound -4794.3170427780906 has passed -4803.7601237372437, the columns' bound after as many
+a_17       base                         work_limit nodes   64870 work   2000003597 bound -4750.2258631907807  inc -4737.9350879000003
+    node 4233: incumbent -4727.9705198000001 by rounding
+    node 8208: incumbent -4733.9916330000005 by rounding
+    node 10177: incumbent -4737.9350879000003 by rounding
+a_17       change                       work_limit nodes   59491 work   2000006420 bound -4746.5278298991643  inc -4737.9350879000003
+    node 285: incumbent -4713.7592679000018 by rounding
+    node 44236: incumbent -4737.9350879000185 by rounding
+    lattice: after 30769769 work units the reduced tree's bound -4772.4694185457602 has passed -4778.8892744692002, the columns' bound after as many
+a_17       c20000                       work_limit nodes   64870 work   2000003597 bound -4750.2258631907807  inc -4737.9350879000003
+    node 8208: incumbent -4733.9916330000005 by rounding
+    node 10177: incumbent -4737.9350879000003 by rounding
+    lattice: after 424350245 work units the reduced tree's bound -4758.9306666334369 has passed -4762.5823634997032, the columns' bound after as many
+a_18       base                         optimal    nodes   54955 work   1362357219 bound -4764.6588524999997  inc -4764.6588524999997
+    node 8: incumbent -4702.9397095000004 by rounding
+    node 66: incumbent -4749.4124617000007 by rounding
+    node 2465: incumbent -4764.6588525000006 by rounding
+a_18       change                       optimal    nodes   40908 work   1217801448 bound -4764.6588524999997  inc -4764.6588524999997
+    node 66: incumbent -4749.4124617000007 by rounding
+    node 15926: incumbent -4764.6588525000225 by rounding
+    lattice: after 30352565 work units the reduced tree's bound -4794.6464123512997 has passed -4800.4368992832979, the columns' bound after as many
+a_18       c20000                       optimal    nodes   54955 work   1362357219 bound -4764.6588524999997  inc -4764.6588524999997
+    node 66: incumbent -4749.4124617000007 by rounding
+    node 2465: incumbent -4764.6588525000006 by rounding
+    lattice: after 387939051 work units the reduced tree's bound -4777.1356810853822 has passed -4784.9596236063508, the columns' bound after as many
+a_19       base                         work_limit nodes   73722 work   2000002906 bound -4635.2537762923848  inc -4622.5621772499999
+    node 2809: incumbent -4615.9644057000005 by rounding
+    node 11811: incumbent -4616.6794266999996 by rounding
+    node 8863: incumbent -4622.5621772500353 by rounding
+a_19       change                       work_limit nodes   71130 work   2000003564 bound -4635.0146562971186  inc -4617.8974378499997
+    node 44057: incumbent -4615.964405699975 by rounding
+    node 46641: incumbent -4617.8974378499752 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    lattice: after 27222100 work units the reduced tree's bound -4658.9575120398886 has passed -4664.4616662320495, the columns' bound after as many
+a_19       c20000                       work_limit nodes   73722 work   2000002906 bound -4635.2537762923848  inc -4622.5621772499999
+    node 11811: incumbent -4616.6794266999996 by rounding
+    node 8863: incumbent -4622.5621772500353 by rounding
+    lattice: after 381133610 work units the reduced tree's bound -4644.2703430570318 has passed -4653.2821923057982, the columns' bound after as many
+b_00       base                         optimal    nodes    1023 work     18378565 bound 6475.1033871599993   inc 6475.1033871599993
+    node 105: incumbent 6496.1354739799999 by rounding
+    node 114: incumbent 6494.3746414799998 by rounding
+    node 339: incumbent 6475.1033871600002 by rounding
+b_00       change                       optimal    nodes    1381 work     25419884 bound 6475.1033871599993   inc 6475.1033871599993
+    node 105: incumbent 6496.1354739799999 by rounding
+    node 114: incumbent 6494.3746414799998 by rounding
+    node 339: incumbent 6475.1033871600002 by rounding
+b_00       c20000                       optimal    nodes    1023 work     18378565 bound 6475.1033871599993   inc 6475.1033871599993
+    node 105: incumbent 6496.1354739799999 by rounding
+    node 114: incumbent 6494.3746414799998 by rounding
+    node 339: incumbent 6475.1033871600002 by rounding
+b_01       base                         optimal    nodes    8003 work    155862861 bound 6892.9696129499998   inc 6892.9696129499998
+    node 429: incumbent 6936.0431397499988 by rounding
+    node 434: incumbent 6895.2372468899994 by rounding
+    node 6503: incumbent 6892.969612949998 by rounding
+b_01       change                       optimal    nodes    2105 work     50110634 bound 6892.9696129499998   inc 6892.9696129499998
+    node 429: incumbent 6936.0431397499988 by rounding
+    node 434: incumbent 6895.2372468899994 by rounding
+    node 899: incumbent 6892.9696129500253 by rounding
+b_01       c20000                       optimal    nodes    8003 work    155862861 bound 6892.9696129499998   inc 6892.9696129499998
+    node 429: incumbent 6936.0431397499988 by rounding
+    node 434: incumbent 6895.2372468899994 by rounding
+    node 6503: incumbent 6892.969612949998 by rounding
+b_02       base                         optimal    nodes   21517 work    498062946 bound 6870.4133104599996   inc 6870.4133104599996
+    node 5791: incumbent 6875.6412923499993 by rounding
+    node 7503: incumbent 6871.8191238999989 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    node 17444: incumbent 6870.4133104599987 by rounding
+b_02       change                       optimal    nodes    2568 work     61641511 bound 6870.4133104599996   inc 6870.4133104599996
+    node 493: incumbent 6895.3926753499991 by rounding
+    node 543: incumbent 6890.9189835499756 by rounding
+    node 563: incumbent 6870.4133104599759 by rounding
+b_02       c20000                       optimal    nodes   21517 work    498062946 bound 6870.4133104599996   inc 6870.4133104599996
+    node 5791: incumbent 6875.6412923499993 by rounding
+    node 7503: incumbent 6871.8191238999989 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+    node 17444: incumbent 6870.4133104599987 by rounding
+b_03       base                         infeasible nodes       1 work         2151 bound -inf                 inc 
+b_03       change                       infeasible nodes       1 work         2151 bound -inf                 inc 
+b_03       c20000                       infeasible nodes       1 work         2151 bound -inf                 inc 
+b_04       base                         infeasible nodes       1 work         2019 bound -inf                 inc 
+b_04       change                       infeasible nodes       1 work         2019 bound -inf                 inc 
+b_04       c20000                       infeasible nodes       1 work         2019 bound -inf                 inc 
+b_05       base                         infeasible nodes       1 work         2363 bound -inf                 inc 
+b_05       change                       infeasible nodes       1 work         2363 bound -inf                 inc 
+b_05       c20000                       infeasible nodes       1 work         2363 bound -inf                 inc 
+b_06       base                         optimal    nodes   20927 work    519077342 bound 6830.25751425        inc 6830.25751425
+    node 3846: incumbent 6838.3724581799988 by rounding
+    node 3918: incumbent 6830.6875695599656, integral
+    node 13072: incumbent 6830.2575142499991 by rounding
+b_06       change                       optimal    nodes    2119 work     50611097 bound 6830.25751425        inc 6830.25751425
+    node 744: incumbent 6862.4375848299997 by rounding
+    node 854: incumbent 6859.0263239499991 by rounding
+    node 108: incumbent 6830.2575142499936 by rounding
+b_06       c20000                       optimal    nodes   20927 work    519077342 bound 6830.25751425        inc 6830.25751425
+    node 3846: incumbent 6838.3724581799988 by rounding
+    node 3918: incumbent 6830.6875695599656, integral
+    node 13072: incumbent 6830.2575142499991 by rounding
+b_07       base                         optimal    nodes     565 work     14337476 bound 7092.2277857199997   inc 7092.2277857199997
+    root: incumbent 13501.57083848 by feasibility jump
+    node 15: incumbent 7198.5078711699998 by rounding
+    node 25: incumbent 7092.2277857200015 by rounding
+b_07       change                       optimal    nodes     565 work     14337476 bound 7092.2277857199997   inc 7092.2277857199997
+    root: incumbent 13501.57083848 by feasibility jump
+    node 15: incumbent 7198.5078711699998 by rounding
+    node 25: incumbent 7092.2277857200015 by rounding
+b_07       c20000                       optimal    nodes     565 work     14337476 bound 7092.2277857199997   inc 7092.2277857199997
+    root: incumbent 13501.57083848 by feasibility jump
+    node 15: incumbent 7198.5078711699998 by rounding
+    node 25: incumbent 7092.2277857200015 by rounding
+b_08       base                         optimal    nodes    9116 work     72209828 bound 6973.2974904399998   inc 6973.2974904399998
+    node 605: incumbent 7016.4549182800001 by rounding
+    node 615: incumbent 6989.5557804800001 by rounding
+    node 1598: incumbent 6973.2974904400007 by rounding
+b_08       change                       optimal    nodes    2470 work     33238813 bound 6973.2974904399998   inc 6973.2974904399998
+    node 575: incumbent 6983.4751867299947 by rounding
+    node 1331: incumbent 6973.2974904399953 by rounding
+    lattice: after 12432152 work units the reduced tree's bound 6941.9639312628169 has passed 6905.7998642658677, the columns' bound after as many
+b_08       c20000                       optimal    nodes    9116 work     72209828 bound 6973.2974904399998   inc 6973.2974904399998
+    node 605: incumbent 7016.4549182800001 by rounding
+    node 615: incumbent 6989.5557804800001 by rounding
+    node 1598: incumbent 6973.2974904400007 by rounding
+b_09       base                         optimal    nodes     527 work      9400480 bound 7156.4433440799994   inc 7156.4433440799994
+    node 131: incumbent 7177.7975070399998 by rounding
+    node 189: incumbent 7163.8652778699743, integral
+    node 233: incumbent 7156.4433440800003 by rounding
+b_09       change                       optimal    nodes     527 work      9400480 bound 7156.4433440799994   inc 7156.4433440799994
+    node 131: incumbent 7177.7975070399998 by rounding
+    node 189: incumbent 7163.8652778699743, integral
+    node 233: incumbent 7156.4433440800003 by rounding
+b_09       c20000                       optimal    nodes     527 work      9400480 bound 7156.4433440799994   inc 7156.4433440799994
+    node 131: incumbent 7177.7975070399998 by rounding
+    node 189: incumbent 7163.8652778699743, integral
+    node 233: incumbent 7156.4433440800003 by rounding
+b_10       base                         infeasible nodes       1 work         3044 bound -inf                 inc 
+b_10       change                       infeasible nodes       1 work         3044 bound -inf                 inc 
+b_10       c20000                       infeasible nodes       1 work         3044 bound -inf                 inc 
+b_11       base                         optimal    nodes   22619 work    480182768 bound 6923.2328742499994   inc 6923.2328742499994
+    node 6168: incumbent 6937.5752052000007 by rounding
+    node 6405: incumbent 6923.735662699999 by rounding
+    node 9407: incumbent 6923.2328742499994 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+b_11       change                       optimal    nodes    6495 work    104404091 bound 6923.2328742499994   inc 6923.2328742499994
+    node 999: incumbent 6928.2393642500028 by rounding
+    node 1020: incumbent 6923.2328742500022 by rounding
+    lattice: after 31457196 work units the reduced tree's bound 6893.4287588643638 has passed 6861.5171026074986, the columns' bound after as many
+b_11       c20000                       optimal    nodes   22619 work    480182768 bound 6923.2328742499994   inc 6923.2328742499994
+    node 6168: incumbent 6937.5752052000007 by rounding
+    node 6405: incumbent 6923.735662699999 by rounding
+    node 9407: incumbent 6923.2328742499994 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+b_12       base                         optimal    nodes   23719 work    414206427 bound 6988.3199361999996   inc 6988.3199361999996
+    root: incumbent 7031.0478890299992 by feasibility jump
+    node 348: incumbent 7016.0915842299983 by rounding
+    node 3504: incumbent 6988.3199361999996 by rounding
+b_12       change                       optimal    nodes    5330 work     93498479 bound 6988.3199361999996   inc 6988.3199361999996
+    node 3742: incumbent 6991.760397549996 by rounding
+    node 3942: incumbent 6988.3199361999959 by rounding
+    lattice: after 25528530 work units the reduced tree's bound 6960.4879684520993 has passed 6921.6301562851268, the columns' bound after as many
+b_12       c20000                       optimal    nodes   23719 work    414206427 bound 6988.3199361999996   inc 6988.3199361999996
+    root: incumbent 7031.0478890299992 by feasibility jump
+    node 348: incumbent 7016.0915842299983 by rounding
+    node 3504: incumbent 6988.3199361999996 by rounding
+b_13       base                         optimal    nodes   21555 work    719842234 bound 6853.0123109400001   inc 6853.0123109400001
+    node 3993: incumbent 6889.2452742599999 by rounding
+    node 12716: incumbent 6856.2311393899981 by rounding
+    node 1140: incumbent 6853.0123109400465 by rounding
+b_13       change                       optimal    nodes    2516 work     70021646 bound 6853.0123109400001   inc 6853.0123109400001
+    root: incumbent 7380.7342840000001 by feasibility jump
+    node 1: incumbent 6938.6014734000009 by the dive heuristic
+    node 320: incumbent 6853.012310940001 by rounding
+b_13       c20000                       optimal    nodes   21555 work    719842234 bound 6853.0123109400001   inc 6853.0123109400001
+    node 3993: incumbent 6889.2452742599999 by rounding
+    node 12716: incumbent 6856.2311393899981 by rounding
+    node 1140: incumbent 6853.0123109400465 by rounding
+b_14       base                         optimal    nodes     847 work     16757321 bound 6969.9706827700002   inc 6969.9706827700002
+    node 27: incumbent 7070.1492800199994 by RINS
+    node 286: incumbent 6973.7928512200006 by rounding
+    node 360: incumbent 6969.9706827700002 by rounding
+b_14       change                       optimal    nodes     847 work     16757321 bound 6969.9706827700002   inc 6969.9706827700002
+    node 27: incumbent 7070.1492800199994 by RINS
+    node 286: incumbent 6973.7928512200006 by rounding
+    node 360: incumbent 6969.9706827700002 by rounding
+b_14       c20000                       optimal    nodes     847 work     16757321 bound 6969.9706827700002   inc 6969.9706827700002
+    node 27: incumbent 7070.1492800199994 by RINS
+    node 286: incumbent 6973.7928512200006 by rounding
+    node 360: incumbent 6969.9706827700002 by rounding
+b_15       base                         optimal    nodes     175 work      3757296 bound 7205.5145799000002   inc 7205.5145799000002
+    node 11: incumbent 7302.6291431999989 by rounding
+    node 12: incumbent 7272.4341627000003 by RINS
+    node 31: incumbent 7205.5145798999865, integral
+b_15       change                       optimal    nodes     175 work      3757296 bound 7205.5145799000002   inc 7205.5145799000002
+    node 11: incumbent 7302.6291431999989 by rounding
+    node 12: incumbent 7272.4341627000003 by RINS
+    node 31: incumbent 7205.5145798999865, integral
+b_15       c20000                       optimal    nodes     175 work      3757296 bound 7205.5145799000002   inc 7205.5145799000002
+    node 11: incumbent 7302.6291431999989 by rounding
+    node 12: incumbent 7272.4341627000003 by RINS
+    node 31: incumbent 7205.5145798999865, integral
+b_16       base                         optimal    nodes    1021 work     21229954 bound 7106.3282803399998   inc 7106.3282803399998
+    node 1: incumbent 7145.2451471799995 by the dive heuristic
+    node 101: incumbent 7126.5788240900001 by rounding
+    node 286: incumbent 7106.3282803399998 by rounding
+b_16       change                       optimal    nodes    1361 work     28532338 bound 7106.3282803399998   inc 7106.3282803399998
+    node 1: incumbent 7145.2451471799995 by the dive heuristic
+    node 101: incumbent 7126.5788240900001 by rounding
+    node 286: incumbent 7106.3282803399998 by rounding
+b_16       c20000                       optimal    nodes    1021 work     21229954 bound 7106.3282803399998   inc 7106.3282803399998
+    node 1: incumbent 7145.2451471799995 by the dive heuristic
+    node 101: incumbent 7126.5788240900001 by rounding
+    node 286: incumbent 7106.3282803399998 by rounding
+b_17       base                         optimal    nodes   14901 work    282147552 bound 7400.3122052499994   inc 7400.3122052499994
+    root: incumbent 18954.613068819996 by feasibility jump
+    node 21: incumbent 7439.9855974399998 by rounding
+    node 1244: incumbent 7400.3122052499994 by rounding
+b_17       change                       optimal    nodes    2075 work     43823571 bound 7400.3122052499994   inc 7400.3122052499994
+    node 21: incumbent 7439.9855974399998 by rounding
+    node 461: incumbent 7408.4385733599811 by rounding
+    node 569: incumbent 7400.3122052499793, integral
+b_17       c20000                       optimal    nodes   14901 work    282147552 bound 7400.3122052499994   inc 7400.3122052499994
+    root: incumbent 18954.613068819996 by feasibility jump
+    node 21: incumbent 7439.9855974399998 by rounding
+    node 1244: incumbent 7400.3122052499994 by rounding
+b_18       base                         optimal    nodes    1855 work     34522606 bound 7045.7037947499994   inc 7045.7037947499994
+    node 32: incumbent 7087.127599649998 by rounding
+    node 441: incumbent 7051.3208078499956, integral
+    node 600: incumbent 7045.7037947500003 by rounding
+b_18       change                       optimal    nodes    1617 work     33177432 bound 7045.7037947499994   inc 7045.7037947499994
+    node 32: incumbent 7087.127599649998 by rounding
+    node 441: incumbent 7051.3208078499956, integral
+    node 600: incumbent 7045.7037947500003 by rounding
+b_18       c20000                       optimal    nodes    1855 work     34522606 bound 7045.7037947499994   inc 7045.7037947499994
+    node 32: incumbent 7087.127599649998 by rounding
+    node 441: incumbent 7051.3208078499956, integral
+    node 600: incumbent 7045.7037947500003 by rounding
+b_19       base                         optimal    nodes    1525 work     29600726 bound 7062.9634509999996   inc 7062.9634509999996
+    node 10: incumbent 7109.7202847999997 by RINS
+    node 85: incumbent 7083.7650695000002 by rounding
+    node 541: incumbent 7062.9634510000005 by rounding
+b_19       change                       optimal    nodes    1383 work     30491558 bound 7062.9634509999996   inc 7062.9634509999996
+    node 10: incumbent 7109.7202847999997 by RINS
+    node 85: incumbent 7083.7650695000002 by rounding
+    node 541: incumbent 7062.9634510000005 by rounding
+b_19       c20000                       optimal    nodes    1525 work     29600726 bound 7062.9634509999996   inc 7062.9634509999996
+    node 10: incumbent 7109.7202847999997 by RINS
+    node 85: incumbent 7083.7650695000002 by rounding
+    node 541: incumbent 7062.9634510000005 by rounding

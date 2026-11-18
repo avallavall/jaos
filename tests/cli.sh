@@ -367,8 +367,8 @@ expect_exit 0 "a thin slab of general integers closes on a reduced basis" \
     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress
 [ "$(line_of objective)" = "objective 426" ] && pass "to 426" \
     || flunk "lattice: $(line_of objective)"
-printf '%s\n' "$err" | grep -q "^lattice: after 20000 nodes the tree starts again on 6 integer combinations" \
-    && pass "after 20000 nodes over the columns" \
+printf '%s\n' "$err" | grep -q "^lattice: after 2092 nodes the tree starts again on 6 integer combinations" \
+    && pass "after 2092 nodes over the columns" \
     || flunk "no lattice line in the log"
 expect_exit 0 "and --no-lattice closes it over the columns" \
     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress --no-lattice

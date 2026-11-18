@@ -1,0 +1,11 @@
+root: incumbent -4178.8854246000001 by rounding the relaxation away from its locks and solving the rest
+node 1: incumbent -4217.1585803000007 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 7: incumbent -4453.2337498999996 by rounding
+node 10: incumbent -4632.6838200999991 by rounding
+node 11: incumbent -4754.4235292000003 by RINS
+node 2158: incumbent -4759.2297311000002 by rounding
+node 2551: incumbent -4769.7405888000003 by rounding
+node 10326: incumbent -4783.7333916000007 by rounding
+root: incumbent -4783.7333916000098 from the caller's starting point
+bound -4802.4291565564499
+incumbent -4783.7333915999998

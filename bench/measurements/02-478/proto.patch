@@ -1,0 +1,366 @@
+diff --git a/src/jaos_internal.h b/src/jaos_internal.h
+index 0a8bc6b3..b04ab645 100644
+--- a/src/jaos_internal.h
++++ b/src/jaos_internal.h
+@@ -299,6 +299,9 @@ struct jaos_model {
+     double *mip_pool_obj;
+     int64_t mip_pool_n;
+     const void *mip_user;
++    int64_t mip_soft_work;
++    double mip_soft_bound;
++    bool mip_soft_lost;
+ 
+     int64_t *a_start;
+     int64_t *a_index;
+diff --git a/src/mip.c b/src/mip.c
+index 75df8e57..b571602f 100644
+--- a/src/mip.c
++++ b/src/mip.c
+@@ -7956,8 +7956,8 @@ out_free:
+     return rc;
+ }
+ 
+-static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+-                          double *ra, double *obj)
++static int round_rows(const jaos_model *m, const double *x, double *xr,
++                      double *ra, double *obj)
+ {
+     const int64_t nc = m->num_col, nr = m->num_row;
+     const double tol = jm_primal_tolerance(m);
+@@ -7973,7 +7973,7 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+         }
+         if (!(semi && v == 0.0) &&
+             (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol))
+-            return false;
++            return -1;
+         xr[j] = v;
+     }
+     for (int64_t i = 0; i < nr; i++)
+@@ -7995,10 +7995,72 @@ static bool rounded_point(const jaos_model *m, const double *x, double *xr,
+     for (int64_t i = 0; i < nr; i++)
+         if (!ind_inactive(m, xr, i) &&
+             (ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol))
+-            return false;
++            return 0;
+     if (sos_violated(m, xr, 0, nullptr, nullptr) >= 0)
+-        return false;
++        return -1;
+     *obj = z;
++    return 1;
++}
++
++static bool rounded_point(const jaos_model *m, const double *x, double *xr,
++                          double *ra, double *obj)
++{
++    return round_rows(m, x, xr, ra, obj) == 1;
++}
++
++static bool repaired_point(const jaos_model *m, double sigma, double *xr,
++                           const double *ra, int64_t *work)
++{
++    const int64_t nr = m->num_row;
++    if (!m->rowwise_valid || m->num_sos > 0 || m->row_ind_col != nullptr ||
++        jm_model_has_quadratic(m))
++        return false;
++    const double tol = jm_primal_tolerance(m);
++    int64_t nv = 0, i0 = -1;
++    for (int64_t i = 0; i < nr; i++) {
++        if (!(ra[i] < m->row_lower[i] - tol || ra[i] > m->row_upper[i] + tol))
++            continue;
++        nv++;
++        if (i0 < 0 || m->ar_start[i + 1] - m->ar_start[i] <
++                          m->ar_start[i0 + 1] - m->ar_start[i0])
++            i0 = i;
++    }
++    *work += nr;
++    if (i0 < 0)
++        return false;
++    const bool over = ra[i0] > m->row_upper[i0] + tol;
++    int64_t best = -1;
++    double best_d = 0.0, best_gain = INFINITY;
++    for (int64_t k = m->ar_start[i0]; k < m->ar_start[i0 + 1]; k++) {
++        const int64_t j = m->ar_index[k];
++        if (!m->col_integer[j] || (m->col_semi != nullptr && m->col_semi[j]))
++            continue;
++        const double d = (m->ar_value[k] > 0.0) == over ? -1.0 : 1.0;
++        const double v = xr[j] + d;
++        if (v < m->col_lower[j] - tol || v > m->col_upper[j] + tol)
++            continue;
++        int64_t fixed = 0;
++        bool ok = true;
++        for (int64_t t = m->a_start[j]; t < m->a_start[j + 1] && ok; t++) {
++            const int64_t i = m->a_index[t];
++            const double lo = m->row_lower[i] - tol, hi = m->row_upper[i] + tol;
++            const double r = ra[i] + d * m->a_value[t];
++            ok = r >= lo && r <= hi;
++            fixed += ra[i] < lo || ra[i] > hi;
++        }
++        *work += m->a_start[j + 1] - m->a_start[j] + 1;
++        if (!ok || fixed < nv)
++            continue;
++        const double gain = sigma * d * m->col_cost[j];
++        if (gain < best_gain) {
++            best_gain = gain;
++            best = j;
++            best_d = d;
++        }
++    }
++    if (best < 0)
++        return false;
++    xr[best] += best_d;
+     return true;
+ }
+ 
+@@ -9027,7 +9089,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+     jaos_basis_status *pcs = nullptr, *prs = nullptr;
+     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
+     int64_t probes = 0, capped = 0, cutoff_nodes = 0;
+-    int64_t node_rcfixed = 0;
++    int64_t node_rcfixed = 0, repair_points = 0;
+     int64_t dive_points = 0;
+     int64_t rins_points = 0;
+     int64_t pump_points = 0;
+@@ -9425,6 +9487,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+             outcome = JAOS_SOLVE_NODE_LIMIT;
+             break;
+         }
++        if (m->mip_soft_work > 0 && nodes > 0 && work >= m->mip_soft_work) {
++            double ok = open_bound(&heap, &kh, dstack, dstack_n);
++            if (parked_key < ok)
++                ok = parked_key;
++            if (best_bound < ok)
++                ok = best_bound;
++            if (cur != nullptr && cur->key < ok)
++                ok = cur->key;
++            const bool lost = !(grid_up(&og, ok) > sigma * m->mip_soft_bound);
++            m->mip_soft_work = 0;
++            m->mip_soft_bound = sigma * grid_up(&og, ok);
++            if (lost) {
++                m->mip_soft_lost = true;
++                outcome = JAOS_SOLVE_NODE_LIMIT;
++                break;
++            }
++        }
+ 
+         if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr, &pool,
+                        nfixed, &in_copy) != JAOS_OK)
+@@ -11091,11 +11170,39 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         }
+ 
+         phase_to(&ph, work, PH_HEUR);
++        if (getenv("JAOS_NODEDUMP") != nullptr && branch >= 0 &&
++            (getenv("JAOS_NODECOLS") != nullptr ||
++             (m->cfg.mip_presolved &&
++            m->cfg.mip_lattice_set && !m->cfg.mip_lattice))) {
++            static FILE *nd = nullptr;
++            if (nd == nullptr)
++                nd = fopen(getenv("JAOS_NODEDUMP"), "w");
++            if (nd != nullptr) {
++                fprintf(nd, "%lld %lld %.10g", (long long)nodes,
++                        (long long)depth_here, sigma * key);
++                for (int64_t j = 0; j < nc; j++)
++                    fprintf(nd, " %.10g", x[j]);
++                fprintf(nd, "\n");
++            }
++        }
+         if (heur && branch >= 0 && !budget_gone(m, work)) {
+             double hobj = 0.0;
+ 
+             work += m->num_nz + nc + nr;
+-            if (rounded_point(m, x, xr, ra, &hobj)) {
++            const int rr = round_rows(m, x, xr, ra, &hobj);
++            bool fits = rr == 1, moved = false;
++            if (rr == 0 && getenv("JAOS_REPAIR") != nullptr) {
++                if (!m->rowwise_valid && jm_model_ensure_rowwise(m) != JAOS_OK)
++                    goto done;
++                if (repaired_point(m, sigma, xr, ra, &work)) {
++                    work += m->num_nz + nc + nr;
++                    fits = rounded_point(m, xr, x2, ra, &hobj);
++                    if (fits && nc > 0)
++                        memcpy(xr, x2, (size_t)nc * sizeof *xr);
++                    moved = fits;
++                }
++            }
++            if (fits) {
+                 const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+                                            &nfixed, &nperm, nodes,
+                                            depth_here, sigma * key, xr,
+@@ -11115,9 +11222,12 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+                     heur_points++;
+                     if (first_inc == 0)
+                         first_inc = nodes;
++                    if (moved)
++                        repair_points++;
+                     jm_log(m, JAOS_LOG_PROGRESS,
+-                           "node %lld: incumbent %.17g by rounding",
+-                           (long long)nodes, hobj);
++                           "node %lld: incumbent %.17g by rounding%s",
++                           (long long)nodes, hobj,
++                           moved ? " with one column moved by one" : "");
+                     const double ok = open_bound(&heap, &kh, dstack, dstack_n);
+                     if (!incumbent_announce(m, &inc, nodes,
+                             sigma * (ok < key ? ok : key), true)) {
+@@ -11712,6 +11822,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: %lld node relaxations stopped once their "
+                "bound reached the incumbent", (long long)cutoff_nodes);
++    if (repair_points > 0)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "branch and bound: %lld incumbents by rounding with one column "
++               "moved by one", (long long)repair_points);
+     if (node_rcfixed > 0)
+         jm_log(m, JAOS_LOG_SUMMARY,
+                "branch and bound: %lld column bounds tightened at the nodes "
+@@ -12413,6 +12527,53 @@ static jaos_status lat_fallback(jaos_model *m, int64_t spent)
+     return st;
+ }
+ 
++typedef struct {
++    int64_t work, iters, nodes, solves, cuts, heur, first, rcfix, prop;
++    double seconds, floor;
++} lat_spent;
++
++static jaos_status lat_again(jaos_model *m, const lat_spent *sp, double *start)
++{
++    const int64_t limit = m->cfg.work_limit, nlimit = m->cfg.mip_node_limit;
++    const double tlimit = m->cfg.time_limit;
++    if (limit > 0)
++        m->cfg.work_limit = limit > sp->work ? limit - sp->work : 1;
++    if (nlimit > 0)
++        m->cfg.mip_node_limit = nlimit > sp->nodes ? nlimit - sp->nodes : 1;
++    if (tlimit > 0.0)
++        m->cfg.time_limit = tlimit > sp->seconds ? tlimit - sp->seconds
++                                                 : DBL_MIN;
++    double *start0 = m->mip_start;
++    const bool taken = m->mip_start_taken;
++    m->mip_start = start;
++    const jaos_status st = bb_run_plain(m);
++    m->mip_start = start0;
++    m->mip_start_taken = taken;
++    m->cfg.work_limit = limit;
++    m->cfg.mip_node_limit = nlimit;
++    m->cfg.time_limit = tlimit;
++    m->solve_work += sp->work;
++    m->solve_iters += sp->iters;
++    m->solve_time += sp->seconds;
++    m->mip_nodes += sp->nodes;
++    m->mip_solves += sp->solves;
++    m->mip_cuts += sp->cuts;
++    m->mip_heur += sp->heur;
++    m->mip_rcfix_n += sp->rcfix;
++    m->mip_prop_n += sp->prop;
++    if (sp->first > 0)
++        m->mip_first_inc = sp->first;
++    const jaos_solve_status s = m->solve_status;
++    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++    if (st == JAOS_OK && m->mip_has_incumbent &&
++        (s == JAOS_SOLVE_WORK_LIMIT || s == JAOS_SOLVE_TIME_LIMIT ||
++         s == JAOS_SOLVE_NODE_LIMIT || s == JAOS_SOLVE_INTERRUPTED) &&
++        sigma * sp->floor > sigma * m->mip_bound)
++        m->mip_bound = sigma * sp->floor < sigma * m->mip_inc_obj
++                           ? sp->floor : m->mip_inc_obj;
++    return st;
++}
++
+ static jaos_status lat_run(jaos_model *m)
+ {
+     const double t0 = now_seconds();
+@@ -12425,6 +12586,8 @@ static jaos_status lat_run(jaos_model *m)
+         (node_limit > 0 && m->mip_nodes >= node_limit))
+         return st;
+     int64_t spent = m->solve_work;
++    const int64_t first_work = spent;
++    const double first_bound = m->mip_bound;
+     const int64_t root_iters = m->solve_iters, root_nodes = m->mip_nodes;
+     const int64_t root_solves = m->mip_solves, root_cuts = m->mip_cuts;
+     const int64_t root_heur = m->mip_heur, root_first = m->mip_first_inc;
+@@ -12462,6 +12625,21 @@ static jaos_status lat_run(jaos_model *m)
+         st = lat_fallback(m, spent + lw);
+         goto out;
+     }
++    if (getenv("JAOS_LATDUMP") != nullptr) {
++        FILE *df = fopen(getenv("JAOS_LATDUMP"), "w");
++        if (df != nullptr) {
++            fprintf(df, "%lld\n", (long long)n);
++            for (int64_t i = 0; i < n * n; i++)
++                fprintf(df, "%lld%c", (long long)u[i], (i % n == n - 1) ? '\n' : ' ');
++            for (int64_t i = 0; i < n * n; i++)
++                fprintf(df, "%lld%c", (long long)v[i], (i % n == n - 1) ? '\n' : ' ');
++            for (int64_t i = 0; i < n; i++)
++                fprintf(df, "%.17g%c", xinc[i], i == n - 1 ? '\n' : ' ');
++            fclose(df);
++        }
++        if (getenv("JAOS_LATMPS") != nullptr && m2 != nullptr)
++            (void)jaos_write_mps(m2, getenv("JAOS_LATMPS"));
++    }
+     int64_t terms = 0, big = 0;
+     for (int64_t k = 0; k < n; k++) {
+         int64_t tk = 0;
+@@ -12493,11 +12671,67 @@ static jaos_status lat_run(jaos_model *m)
+     if (node_limit > 0)
+         m2->cfg.mip_node_limit = node_limit > root_nodes
+                                      ? node_limit - root_nodes : 1;
++    if (getenv("JAOS_LATBOUND") != nullptr) {
++        m2->cfg.mip_node_select_set = true;
++        m2->cfg.mip_node_select = 0;
++    }
++    if (getenv("JAOS_LATNOHEUR") != nullptr)
++        m2->cfg.mip_no_heuristics = true;
++    if (getenv("JAOS_NOTRIAL") == nullptr) {
++        m2->mip_soft_work = first_work;
++        m2->mip_soft_bound = first_bound;
++    }
+     st = jm_branch_and_bound(m2);
+     if (st != JAOS_OK) {
+         jm_set_err(m, "%s", m2->err);
+         goto out;
+     }
++    if (m2->mip_soft_lost) {
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "lattice: after %lld work units the reduced tree's bound "
++               "%.17g has not passed %.17g, the columns' bound after as many, "
++               "so the tree starts again on the columns from the incumbent",
++               (long long)first_work, m2->mip_soft_bound, first_bound);
++        const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
++        double *start = xinc;
++        double sobj = jm_model_objective_at(m, xinc);
++        x = jm_alloc_array(n, sizeof *x);
++        if (x == nullptr) {
++            st = JAOS_ERR_OUT_OF_MEMORY;
++            goto out;
++        }
++        if (m2->mip_has_incumbent && m2->mip_inc_x != nullptr) {
++            double xobj = 0.0;
++            lat_point(n, v, m2->mip_inc_x, x);
++            spent += m->num_nz + n + nr;
++            if (rounded_point(m, x, xr, ra, &xobj) &&
++                sigma * xobj < sigma * sobj) {
++                memcpy(x, xr, (size_t)n * sizeof *x);
++                start = x;
++            }
++        }
++        const lat_spent sp = {
++            .work = spent + m2->solve_work,
++            .iters = root_iters + m2->solve_iters,
++            .nodes = root_nodes + m2->mip_nodes,
++            .solves = root_solves + m2->mip_solves,
++            .cuts = root_cuts + m2->mip_cuts,
++            .heur = root_heur + m2->mip_heur,
++            .first = root_first,
++            .rcfix = root_rcfix + m2->mip_rcfix_n,
++            .prop = root_prop + m2->mip_prop_n,
++            .seconds = now_seconds() - t0,
++            .floor = sigma * m2->mip_soft_bound > sigma * first_bound
++                         ? m2->mip_soft_bound : first_bound,
++        };
++        st = lat_again(m, &sp, start);
++        goto out;
++    }
++    if (m2->mip_soft_work == 0 && getenv("JAOS_NOTRIAL") == nullptr)
++        jm_log(m, JAOS_LOG_SUMMARY,
++               "lattice: after %lld work units the reduced tree's bound "
++               "%.17g has passed %.17g, the columns' bound after as many",
++               (long long)first_work, m2->mip_soft_bound, first_bound);
+     const jaos_solve_status outcome = m2->solve_status;
+     if ((outcome != JAOS_SOLVE_OPTIMAL && outcome != JAOS_SOLVE_WORK_LIMIT &&
+          outcome != JAOS_SOLVE_TIME_LIMIT &&

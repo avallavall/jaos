@@ -198,7 +198,7 @@ constexpr int64_t MIP_NODE_MIR_TRIAL = 50;
 constexpr double MIP_NODE_MIR_PAYS = 0.25;
 
 constexpr bool MIP_LATTICE = true;
-constexpr int64_t MIP_LATTICE_NODES = 20000;
+constexpr int64_t MIP_LATTICE_NODES = 1000;
 constexpr int64_t MIP_LATTICE_COLS = 100;
 constexpr double MIP_LATTICE_DENSITY = 0.5;
 constexpr double MIP_LATTICE_DELTA = 0.99;
@@ -9459,6 +9459,23 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             outcome = JAOS_SOLVE_NODE_LIMIT;
             break;
         }
+        if (m->mip_soft_work > 0 && nodes > 0 && work >= m->mip_soft_work) {
+            double ok = open_bound(&heap, &kh, dstack, dstack_n);
+            if (parked_key < ok)
+                ok = parked_key;
+            if (best_bound < ok)
+                ok = best_bound;
+            if (cur != nullptr && cur->key < ok)
+                ok = cur->key;
+            const bool lost = !(grid_up(&og, ok) > sigma * m->mip_soft_bound);
+            m->mip_soft_work = 0;
+            m->mip_soft_bound = sigma * grid_up(&og, ok);
+            if (lost) {
+                m->mip_soft_lost = true;
+                outcome = JAOS_SOLVE_NODE_LIMIT;
+                break;
+            }
+        }
 
         if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr, &pool,
                        nfixed, &in_copy) != JAOS_OK)
@@ -12453,6 +12470,53 @@ static jaos_status lat_fallback(jaos_model *m, int64_t spent)
     return st;
 }
 
+typedef struct {
+    int64_t work, iters, nodes, solves, cuts, heur, first, rcfix, prop;
+    double seconds, floor;
+} lat_spent;
+
+static jaos_status lat_again(jaos_model *m, const lat_spent *sp, double *start)
+{
+    const int64_t limit = m->cfg.work_limit, nlimit = m->cfg.mip_node_limit;
+    const double tlimit = m->cfg.time_limit;
+    if (limit > 0)
+        m->cfg.work_limit = limit > sp->work ? limit - sp->work : 1;
+    if (nlimit > 0)
+        m->cfg.mip_node_limit = nlimit > sp->nodes ? nlimit - sp->nodes : 1;
+    if (tlimit > 0.0)
+        m->cfg.time_limit = tlimit > sp->seconds ? tlimit - sp->seconds
+                                                 : DBL_MIN;
+    double *start0 = m->mip_start;
+    const bool taken = m->mip_start_taken;
+    m->mip_start = start;
+    const jaos_status st = bb_run_plain(m);
+    m->mip_start = start0;
+    m->mip_start_taken = taken;
+    m->cfg.work_limit = limit;
+    m->cfg.mip_node_limit = nlimit;
+    m->cfg.time_limit = tlimit;
+    m->solve_work += sp->work;
+    m->solve_iters += sp->iters;
+    m->solve_time += sp->seconds;
+    m->mip_nodes += sp->nodes;
+    m->mip_solves += sp->solves;
+    m->mip_cuts += sp->cuts;
+    m->mip_heur += sp->heur;
+    m->mip_rcfix_n += sp->rcfix;
+    m->mip_prop_n += sp->prop;
+    if (sp->first > 0)
+        m->mip_first_inc = sp->first;
+    const jaos_solve_status s = m->solve_status;
+    const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+    if (st == JAOS_OK && m->mip_has_incumbent &&
+        (s == JAOS_SOLVE_WORK_LIMIT || s == JAOS_SOLVE_TIME_LIMIT ||
+         s == JAOS_SOLVE_NODE_LIMIT || s == JAOS_SOLVE_INTERRUPTED) &&
+        sigma * sp->floor > sigma * m->mip_bound)
+        m->mip_bound = sigma * sp->floor < sigma * m->mip_inc_obj
+                           ? sp->floor : m->mip_inc_obj;
+    return st;
+}
+
 static jaos_status lat_run(jaos_model *m)
 {
     const double t0 = now_seconds();
@@ -12465,6 +12529,8 @@ static jaos_status lat_run(jaos_model *m)
         (node_limit > 0 && m->mip_nodes >= node_limit))
         return st;
     int64_t spent = m->solve_work;
+    const int64_t first_work = spent;
+    const double first_bound = m->mip_bound;
     const int64_t root_iters = m->solve_iters, root_nodes = m->mip_nodes;
     const int64_t root_solves = m->mip_solves, root_cuts = m->mip_cuts;
     const int64_t root_heur = m->mip_heur, root_first = m->mip_first_inc;
@@ -12533,11 +12599,58 @@ static jaos_status lat_run(jaos_model *m)
     if (node_limit > 0)
         m2->cfg.mip_node_limit = node_limit > root_nodes
                                      ? node_limit - root_nodes : 1;
+    m2->mip_soft_work = first_work;
+    m2->mip_soft_bound = first_bound;
     st = jm_branch_and_bound(m2);
     if (st != JAOS_OK) {
         jm_set_err(m, "%s", m2->err);
         goto out;
     }
+    if (m2->mip_soft_lost) {
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "lattice: after %lld work units the reduced tree's bound "
+               "%.17g has not passed %.17g, the columns' bound after as many, "
+               "so the tree starts again on the columns from the incumbent",
+               (long long)first_work, m2->mip_soft_bound, first_bound);
+        const double sigma = m->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+        double *start = xinc;
+        x = jm_alloc_array(n, sizeof *x);
+        if (x == nullptr) {
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto out;
+        }
+        if (m2->mip_has_incumbent && m2->mip_inc_x != nullptr) {
+            double xobj = 0.0;
+            lat_point(n, v, m2->mip_inc_x, x);
+            spent += m->num_nz + n + nr;
+            if (rounded_point(m, x, xr, ra, &xobj) &&
+                sigma * xobj < sigma * jm_model_objective_at(m, xinc)) {
+                memcpy(x, xr, (size_t)n * sizeof *x);
+                start = x;
+            }
+        }
+        const lat_spent sp = {
+            .work = spent + m2->solve_work,
+            .iters = root_iters + m2->solve_iters,
+            .nodes = root_nodes + m2->mip_nodes,
+            .solves = root_solves + m2->mip_solves,
+            .cuts = root_cuts + m2->mip_cuts,
+            .heur = root_heur + m2->mip_heur,
+            .first = root_first,
+            .rcfix = root_rcfix + m2->mip_rcfix_n,
+            .prop = root_prop + m2->mip_prop_n,
+            .seconds = now_seconds() - t0,
+            .floor = sigma * m2->mip_soft_bound > sigma * first_bound
+                         ? m2->mip_soft_bound : first_bound,
+        };
+        st = lat_again(m, &sp, start);
+        goto out;
+    }
+    if (m2->mip_soft_work == 0)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "lattice: after %lld work units the reduced tree's bound "
+               "%.17g has passed %.17g, the columns' bound after as many",
+               (long long)first_work, m2->mip_soft_bound, first_bound);
     const jaos_solve_status outcome = m2->solve_status;
     if ((outcome != JAOS_SOLVE_OPTIMAL && outcome != JAOS_SOLVE_WORK_LIMIT &&
          outcome != JAOS_SOLVE_TIME_LIMIT &&

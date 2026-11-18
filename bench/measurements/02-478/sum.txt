@@ -1,0 +1,2 @@
+mine       solved 9 incumbents 29 primal 5.4042 dual 6.3026 sum 11.7067
+before     solved 9 incumbents 29 primal 5.4067 dual 6.3032 sum 11.7099

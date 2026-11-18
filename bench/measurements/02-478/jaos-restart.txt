@@ -1,0 +1,5 @@
+gen-ip002  columns from -4771.64        work_limit nodes  303651 work   8800004921 bound -4805.0547071447663  inc -4783.7333915999998
+    node 12996: incumbent -4783.7333916000007 by rounding
+gen-ip002  columns from -4771.64 --node-select bound work_limit nodes  274141 work   8800178109 bound -4801.5561479726821  inc -4783.7333915999998
+    node 108371: incumbent -4778.1844607000012 by rounding
+    node 161242: incumbent -4783.7333916000007 by rounding

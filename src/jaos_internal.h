@@ -300,6 +300,9 @@ struct jaos_model {
     double *mip_pool_obj;
     int64_t mip_pool_n;
     const void *mip_user;
+    int64_t mip_soft_work;
+    double mip_soft_bound;
+    bool mip_soft_lost;
 
     int64_t *a_start;
     int64_t *a_index;
