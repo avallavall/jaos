@@ -1,0 +1,60 @@
+assign1-5-8          last[by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows]
+    ZI rounding:1000/0/13435796;
+beasleyC3            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:7472/9/31469324;
+binkar10_1           last[by RINS]
+    ZI rounding:1000/0/3306580;
+csched007            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/4491848;
+csched008            last[by a search over the jobs' starts on the chain of profile columns]
+    ZI rounding:155/0/776681;
+enlight_hard         last[]
+    
+exp-1-500-5-5        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:44/0/78494;
+gen-ip002            last[by rounding]
+    ZI rounding:1000/7/957856;ZI rounding:1000/0/5480659;
+gen-ip054            last[by rounding]
+    ZI rounding:1000/4/770822;ZI rounding:1000/0/2899708;
+glass4               last[by moves over the disjunctions of the big-M rows]
+    ZI rounding:1000/0/1348319;
+graphdraw-domain     last[by moves over the disjunctions of the big-M rows]
+    ZI rounding:1000/0/9948222;
+ic97_potential       last[]
+    ZI rounding:476/0/2160730;
+mad                  last[by threshold accepting over the items of the partitioning rows]
+    ZI rounding:1000/0/2735758;
+markshare2           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/504346;
+markshare_4_0        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/151732;
+mas74                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/672817;
+mas76                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/584388;
+neos-2657525-crna    last[by feasibility jump]
+    ZI rounding:1000/0/4073638;
+neos-3046615-murg    last[]
+    ZI rounding:1000/0/1531579;
+neos-3381206-awhea   last[by feasibility jump]
+    ZI rounding:1/0/2936;
+neos-3627168-kasai   last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/7307554;
+neos-3754480-nidda   last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/1452450;
+neos-911970          last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/2535368;
+neos5                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/1451376;
+p200x1188c           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:23/0/87520;
+pk1                  last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/1503530;
+sp150x300d           last[from the caller's starting point]
+    ZI rounding:1/0/968;
+supportcase26        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/1988264;
+timtab1              last[]
+    ZI rounding:1000/0/1013123;
+tr12-30              last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/2286700;

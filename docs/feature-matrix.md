@@ -171,8 +171,8 @@ cells here are rows `SPECS.md` marks out of scope.
   (`bench/measurements/02-335/`), except from node 1000 while the tree has
   no incumbent (`bench/measurements/02-407/`). Hexaly names "propagation
   methods" and no reduced-cost fixing.
-- *Primal heuristics*: rounding, dives, the feasibility pump, lock
-  rounding, a search over the starts of time-indexed schedules, a
+- *Primal heuristics*: rounding, ZI rounding, dives, the feasibility
+  pump, lock rounding, a search over the starts of time-indexed schedules, a
   feasibility jump, exchanges between assignment rows, threshold
   accepting over the items of partitioning rows, priced in closed form
   or by an LP over the columns that link rows, moves over the

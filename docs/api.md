@@ -1289,7 +1289,13 @@ plus the optimum of the LP with one elastic column per finite row bound.
 It takes a move that does not raise it, and gives up after four LPs per
 partitioning row without a fall. It fixes the best assignment it finds
 and solves the rest, as a sub-MIP over the general integer columns when
-there are any. Three sub-MIPs search around the points already found,
+there are any. ZI rounding (Wallace, 2010) runs at every node of a
+linear model's tree: each fractional integer column of the relaxation
+moves, within the slack its rows and bounds leave, toward the integer
+that leaves it least fractional, the cheaper side on a tie, in up to five
+passes, and the point is offered when every integer column ends whole.
+It stops for good after 1000 nodes that gave it no incumbent. Three
+sub-MIPs search around the points already found,
 in the tree of a linear model, each with a node limit of 500, a cutoff
 just below the incumbent and a share of the tree's work. Crossover fixes
 the integer columns on which the three best points of the pool agree,

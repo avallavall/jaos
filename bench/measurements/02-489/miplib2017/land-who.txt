@@ -1,0 +1,60 @@
+assign1-5-8          last[by threshold accepting over the items of the partitioning rows, an LP pricing the columns that link the rows]
+    ZI rounding:1000/0/13820412;crossover over pool:1/0/82049127;mutation of incumbent:62/0/10459335;a sub-MIP boxed by incumbent's distances:62/0/487897175;
+beasleyC3            last[by a sub-MIP boxed by the incumbent's distances]
+    ZI rounding:6556/9/27504246;crossover over pool:9/1/282307141;mutation of incumbent:5/0/48817157;a sub-MIP boxed by incumbent's distances:27/6/438478915;
+binkar10_1           last[by crossover over the pool]
+    ZI rounding:1000/0/3311172;crossover over pool:7/2/22790316;mutation of incumbent:20/1/14875735;a sub-MIP boxed by incumbent's distances:13/0/94045378;
+csched007            last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/4485120;crossover over pool:2/0/3357861;mutation of incumbent:17/0/28309840;a sub-MIP boxed by incumbent's distances:17/0/43529831;
+csched008            last[by a search over the jobs' starts on the chain of profile columns]
+    ZI rounding:155/0/776681;
+enlight_hard         last[]
+    
+exp-1-500-5-5        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:44/0/81144;crossover over pool:1/0/2288163;
+gen-ip002            last[by rounding]
+    ZI rounding:1000/6/960084;crossover over pool:7/1/1688748;mutation of incumbent:3/0/1475452;a sub-MIP boxed by incumbent's distances:2/0/1260149;ZI rounding:612/0/3416429;mutation of incumbent:2/0/720230;a sub-MIP boxed by incumbent's distances:1/0/1711429;ZI rounding:309127/2/242985394;crossover over pool:23/0/12838189;mutation of incumbent:812/0/140364071;a sub-MIP boxed by incumbent's distances:812/0/353558650;
+gen-ip054            last[by rounding]
+    ZI rounding:1000/2/747193;crossover over pool:5/0/630599;mutation of incumbent:3/0/662938;a sub-MIP boxed by incumbent's distances:2/0/1852240;ZI rounding:1000/0/2708260;crossover over pool:9/0/2296356;mutation of incumbent:116/0/10018820;a sub-MIP boxed by incumbent's distances:168/2/53843195;
+glass4               last[by moves over the disjunctions of the big-M rows]
+    ZI rounding:1000/0/1350422;crossover over pool:3/0/28018191;mutation of incumbent:360/0/265178103;a sub-MIP boxed by incumbent's distances:360/0/235006071;
+graphdraw-domain     last[by moves over the disjunctions of the big-M rows]
+    ZI rounding:1000/0/10152840;crossover over pool:2/0/74618628;mutation of incumbent:134/0/24169896;a sub-MIP boxed by incumbent's distances:133/0/475776453;
+ic97_potential       last[]
+    ZI rounding:476/0/2160730;
+mad                  last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/2656600;crossover over pool:2/0/30433441;mutation of incumbent:141/0/53753118;a sub-MIP boxed by incumbent's distances:141/0/443897660;
+markshare2           last[by crossover over the pool]
+    ZI rounding:1000/0/504346;crossover over pool:7/2/32545714;mutation of incumbent:1572/0/176656718;a sub-MIP boxed by incumbent's distances:1786/2/323270113;
+markshare_4_0        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/151732;crossover over pool:8/0/2439849;mutation of incumbent:1551/2/42127487;a sub-MIP boxed by incumbent's distances:1354/0/457891953;
+mas74                last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/674113;crossover over pool:9/1/6992248;mutation of incumbent:846/2/231906610;a sub-MIP boxed by incumbent's distances:707/0/268054250;
+mas76                last[by crossover over the pool]
+    ZI rounding:1000/0/581881;crossover over pool:4/2/3025186;mutation of incumbent:895/1/124770948;a sub-MIP boxed by incumbent's distances:894/1/143437506;
+neos-2657525-crna    last[by a sub-MIP boxed by the incumbent's distances]
+    ZI rounding:1000/0/4073638;crossover over pool:8/0/24350389;mutation of incumbent:13/2/1087797;a sub-MIP boxed by incumbent's distances:26/6/482518582;
+neos-3046615-murg    last[by crossover over the pool]
+    ZI rounding:1000/0/1510780;crossover over pool:14/5/71977492;mutation of incumbent:469/0/244925842;a sub-MIP boxed by incumbent's distances:468/0/255443557;
+neos-3381206-awhea   last[by feasibility jump]
+    ZI rounding:1/0/2936;
+neos-3627168-kasai   last[by mutation of the incumbent]
+    ZI rounding:1000/0/7139666;crossover over pool:10/2/210929981;mutation of incumbent:8/6/188358320;a sub-MIP boxed by incumbent's distances:1/0/114729932;
+neos-3754480-nidda   last[by moves over the disjunctions of the big-M rows]
+    ZI rounding:1000/0/1418021;crossover over pool:1/0/12287572;mutation of incumbent:391/0/243501310;a sub-MIP boxed by incumbent's distances:391/0/256068355;
+neos-911970          last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/2554444;crossover over pool:5/0/57081468;mutation of incumbent:8/0/2174684;a sub-MIP boxed by incumbent's distances:7/0/3531601;
+neos5                last[by a sub-MIP boxed by the incumbent's distances]
+    ZI rounding:1000/0/1469232;crossover over pool:4/0/21701928;mutation of incumbent:254/0/89460563;a sub-MIP boxed by incumbent's distances:295/1/409591436;
+p200x1188c           last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:29/0/110154;crossover over pool:1/0/1749498;
+pk1                  last[by a sub-MIP boxed by the incumbent's distances]
+    ZI rounding:1000/0/1485155;crossover over pool:4/1/24102946;mutation of incumbent:440/0/164812385;a sub-MIP boxed by incumbent's distances:495/1/244455822;
+sp150x300d           last[from the caller's starting point]
+    ZI rounding:1/0/968;crossover over pool:1/0/1154729;
+supportcase26        last[by a sub-MIP over the columns the incumbent and the relaxation disagree on]
+    ZI rounding:1000/0/2012122;crossover over pool:9/2/240059459;mutation of incumbent:177/0/229015014;a sub-MIP boxed by incumbent's distances:176/0/270956056;
+timtab1              last[by mutation of the incumbent]
+    ZI rounding:1000/0/1013123;crossover over pool:7/1/6975451;mutation of incumbent:704/6/326058586;a sub-MIP boxed by incumbent's distances:414/0/173570855;
+tr12-30              last[by mutation of the incumbent]
+    ZI rounding:1000/0/2272374;crossover over pool:4/1/149245898;mutation of incumbent:141/3/349302700;a sub-MIP boxed by incumbent's distances:80/0/149337482;

@@ -432,6 +432,8 @@ the root's cut mode for a model with many continuous columns under binaries
 | `MIP_SUBMIP_EVERY` | 100 | The fewest nodes between two sub-MIPs below the root. Not swept |
 | `MIP_SUBMIP_SHARE` | 0.1 | The share of the tree's work the sub-MIPs below the root may take. Not swept |
 | `MIP_SUBMIP_ROOT` | 0.5 | A root sub-MIP's work as a share of the root's work. 0.5, 2 and no share read 1.040x, 1.090x and 1.101x on MIPLIB 3 with the same 2017 points (`bench/measurements/02-328/`) |
+| `MIP_ZI_PASSES` | 5 | The passes ZI rounding makes over a node's fractional integer columns; a pass that moves none ends it. Not swept |
+| `MIP_ZI_TRIAL` | 1000 | The nodes ZI rounding runs at before it stops for good if it has found no incumbent. Alone on MIPLIB 2017 it spends at most 3.1e7 work units of 1e10, on `beasleyC3`, where its nine incumbents keep it running; once it has found any it never stops, and on `gen-ip002`, with two, it ran at 309,127 nodes for 2.4e8 (`bench/measurements/02-489/`). Not swept |
 | `MIP_CROSS_POOL` | 10 | The distinct points the tree keeps for crossover, best first; the caller's pool is still the first `mip_pool_size` of them. Not swept |
 | `MIP_CROSS_SOLS` | 3 | How many of the pool's best points crossover fixes the integer columns over, or all of them when the pool holds fewer. Not swept |
 | `MIP_CROSS_FIXED` | 0.5 | The share of the integer columns those points must agree on for crossover to run. Not swept |
@@ -440,7 +442,7 @@ the root's cut mode for a model with many continuous columns under binaries
 | `MIP_MUT_FIXED` | 0.8 | The share of the integer columns mutation fixes at the incumbent's values, each drawn with a seeded generator. Not swept |
 | `MIP_MUT_EVERY` | 200 | The fewest nodes between two runs of mutation or DINS. Not swept |
 | `MIP_MUT_SHARE` | 0.05 | The share of the tree's work past which mutation and DINS, together, stop running. Where both run, a run of DINS costs more than one of mutation on 20 of MIPLIB 2017's 23 models, so DINS takes most of it (`bench/measurements/02-488/`). Not swept |
-| `GH_PHASES` | 2 | The slots a node of the tree offers these sub-MIPs, in order: crossover, then mutation or DINS. Structure |
+| `GH_PHASES` | 3 | The slots a node of the tree offers ZI rounding and these sub-MIPs, in order: ZI rounding, crossover, then mutation or DINS. Structure |
 | `MIP_GH_REWARD` | 4 | What one incumbent counts for in the pick between mutation and DINS: each scores (4 incumbents + 1 + the square root of their runs + 1) over its own runs + 1, and the higher runs. Not swept |
 | `MIP_FJ_WORK` | 20000 | The most work one feasibility jump may spend, in units of (nonzeros + columns + rows). The jump runs at the root of a linear model with no incumbent. Not swept |
 | `MIP_FJ_SAMPLE` | 25 | How many violated rows one jump step draws, with a seeded generator. Not swept |

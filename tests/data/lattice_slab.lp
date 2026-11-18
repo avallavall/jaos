@@ -1,6 +1,6 @@
 \ The thin knapsack slab of tests/test_mip.c (02-476): six general integers
 \ in 0..20 whose row allows one activity, 354323. The tree over the columns
-\ takes 26239 nodes; at node 2092, its first incumbent past 1000 nodes, the
+\ takes 24407 nodes; at node 1149, its first incumbent past 1000 nodes, the
 \ lattice branching starts it again on a reduced basis and closes it in a
 \ few. The optimum is 426.
 Maximize

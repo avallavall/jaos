@@ -224,9 +224,10 @@ Verify with `make miplib J=2`, `make miplib2017` and
 spread: six readings of one code, with only the root's work moved,
 span 10.85 to 11.88, so a change is judged instance by instance.
 
-J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 22:
+J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 23:
 - for linear MIPs:
-  - node rounding, lock rounding;
+  - node rounding, ZI rounding at every node (`bench/measurements/02-489/`),
+    lock rounding;
   - the search over the starts of a time-indexed schedule, the
     feasibility jump, the exchanges between assignment rows, threshold
     accepting over the items of partitioning rows, the same priced by an
@@ -275,8 +276,10 @@ instances:
   `bench/measurements/02-471/`). The rest, largest first, follow below.
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
-  - rounding: shifting, ZI round, seeded randomized rounding,
-    shift-and-propagate (Berthold and Hendel);
+  - rounding: shifting, seeded randomized rounding, shift-and-propagate
+    (Berthold and Hendel); ZI round is in (02-489), and runs on for good
+    once it has an incumbent: `gen-ip002` ran it at 309,127 nodes for
+    two, 2.4e8 work units. Next: a stop at one incumbent per 1000 nodes;
   - diving: fractional, coefficient, guided toward the incumbent,
     pseudocost, vector-length (for covering and partitioning rows),
     line-search, Farkas, conflict;

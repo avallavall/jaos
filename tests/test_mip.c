@@ -1774,6 +1774,68 @@ static jaos_model *market_split(int64_t nrow, int64_t nbin, uint32_t seed)
     return m;
 }
 
+static jaos_model *knapsack_rows(int64_t nrow, int64_t ncol, uint32_t seed)
+{
+    uint32_t s = seed * 2654435761u;
+    if (s == 0)
+        s = 1;
+    double *c = malloc((size_t)ncol * sizeof *c);
+    double *cl = malloc((size_t)ncol * sizeof *cl);
+    double *cu = malloc((size_t)ncol * sizeof *cu);
+    double *rl = malloc((size_t)nrow * sizeof *rl);
+    double *ru = malloc((size_t)nrow * sizeof *ru);
+    double *av = malloc((size_t)(nrow * ncol) * sizeof *av);
+    int64_t *as = malloc((size_t)(ncol + 1) * sizeof *as);
+    int64_t *ai = malloc((size_t)(nrow * ncol) * sizeof *ai);
+    TEST_ASSERT_NOT_NULL(c);
+    TEST_ASSERT_NOT_NULL(cl);
+    TEST_ASSERT_NOT_NULL(cu);
+    TEST_ASSERT_NOT_NULL(rl);
+    TEST_ASSERT_NOT_NULL(ru);
+    TEST_ASSERT_NOT_NULL(av);
+    TEST_ASSERT_NOT_NULL(as);
+    TEST_ASSERT_NOT_NULL(ai);
+    for (int64_t i = 0; i < nrow; i++) {
+        rl[i] = -INFINITY;
+        ru[i] = 0.0;
+    }
+    int64_t p = 0;
+    for (int64_t j = 0; j < ncol; j++) {
+        as[j] = p;
+        cl[j] = 0.0;
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        cu[j] = (double)(1u + s % 6u);
+        double w = 0.0;
+        for (int64_t i = 0; i < nrow; i++) {
+            s ^= s << 13;
+            s ^= s >> 17;
+            s ^= s << 5;
+            const double a = (double)(1u + s % 30u);
+            ai[p] = i;
+            av[p++] = a;
+            ru[i] += a * cu[j];
+            w += a;
+        }
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        c[j] = -(w + (double)(s % 20u));
+    }
+    as[ncol] = p;
+    for (int64_t i = 0; i < nrow; i++)
+        ru[i] = floor(ru[i] / 3.0);
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, ncol, nrow, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, p,
+                     as, ai, av));
+    for (int64_t j = 0; j < ncol; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    free(c); free(cl); free(cu); free(rl); free(ru); free(av); free(as); free(ai);
+    return m;
+}
+
 static void found_by(jaos_model *m, const char *what, double optimum)
 {
     g_found[0] = '\0';
@@ -1786,6 +1848,26 @@ static void found_by(jaos_model *m, const char *what, double optimum)
     TEST_ASSERT_DOUBLE_WITHIN(1e-6, optimum, rep.incumbent);
     TEST_ASSERT_NOT_NULL(strstr(g_found, what));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, nullptr, nullptr));
+}
+
+static void test_zi_rounding_moves_columns_within_their_rows_slack(void)
+{
+    jaos_model *m = knapsack_rows(4, 20, 7);
+    found_by(m, "node 1: incumbent -1518 by ZI rounding", -1582.0);
+    jaos_model_free(m);
+
+    m = knapsack_rows(4, 20, 7);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    g_found[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_found, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_PROGRESS));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    jaos_mip_report rep = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, -1582.0, rep.incumbent);
+    TEST_ASSERT_NULL(strstr(g_found, "ZI rounding"));
+    jaos_model_free(m);
 }
 
 static void test_crossover_fixes_what_the_pool_agrees_on(void)
@@ -1804,11 +1886,11 @@ static void test_mutation_fixes_a_seeded_share_of_the_incumbent(void)
 
 static void test_dins_boxes_each_column_by_its_distance(void)
 {
-    jaos_model *m = market_split(2, 16, 23);
-    found_by(m, "by a sub-MIP boxed by the incumbent's distances", 1.0);
+    jaos_model *m = market_split(2, 16, 15);
+    found_by(m, "by a sub-MIP boxed by the incumbent's distances", 0.0);
     jaos_model_free(m);
 
-    m = market_split(2, 16, 23);
+    m = market_split(2, 16, 15);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
     g_found[0] = '\0';
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_found, nullptr));
@@ -6467,7 +6549,7 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
         nodes[on] = rep.nodes;
         work[on] = jaos_work_units(m);
         if (on)
-            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 2092 nodes the "
+            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the "
                                                "tree starts again on 6 integer "
                                                "combinations of the columns"));
         else
@@ -6483,18 +6565,18 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
 static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
 {
     jaos_model *m = wide_slab(20.0);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 2099));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1165));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
-    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 2092 nodes the tree "
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the tree "
                                        "starts again on 6 integer combinations "
                                        "of the columns, a reduced basis of the "
-                                       "improving region at the incumbent 400,"));
+                                       "improving region at the incumbent 380,"));
     jaos_mip_report rep;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_TRUE(rep.has_incumbent);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 426.0, rep.incumbent);
-    TEST_ASSERT_EQUAL_INT64(2099, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(1165, rep.nodes);
     TEST_ASSERT_TRUE(rep.bound >= rep.incumbent);
     double x[6], obj = 0.0, px[6], pobj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &obj));
@@ -7321,6 +7403,7 @@ int main(void)
     RUN_TEST(test_exchanges_between_assignment_rows_find_a_permutation);
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
     RUN_TEST(test_threshold_accepting_with_an_lp_over_linking_columns);
+    RUN_TEST(test_zi_rounding_moves_columns_within_their_rows_slack);
     RUN_TEST(test_crossover_fixes_what_the_pool_agrees_on);
     RUN_TEST(test_mutation_fixes_a_seeded_share_of_the_incumbent);
     RUN_TEST(test_dins_boxes_each_column_by_its_distance);
