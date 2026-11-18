@@ -85,6 +85,9 @@ comment.
 - **A BOUNDS, RHS or RANGES line without a set name** is taken as written:
   `UP x 3.0`, `FR y`, and an RHS line of `row value` pairs alone. A line
   with a set name still belongs to the first set seen.
+- **A value after `FR`, `MI`, `PL` or `BV`** on a line with a set name is
+  read and ignored, as MIPLIB 2017's `leo1` and `leo2` write
+  ` FR BOUND1 C0000001 .000000`.
 - **Row types**: the first `N` row is the objective. Further `N` rows are
   kept as free rows (bounds ±inf), never dropped.
 - **RHS on the objective row** sets the objective constant to the

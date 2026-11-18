@@ -202,6 +202,34 @@ static void test_a_bound_or_rhs_line_may_leave_the_set_name_out(void)
     remove("build/tm_noset.mps");
 }
 
+static void test_a_free_bound_with_a_value_reads_as_free(void)
+{
+    write_text("build/tm_frval.mps",
+               "NAME          FRVAL\n"
+               "ROWS\n"
+               " N  obj\n"
+               " G  r1\n"
+               "COLUMNS\n"
+               "    x         obj       1.0   r1        1.0\n"
+               "    y         obj       1.0   r1        1.0\n"
+               "RHS\n"
+               "    RHS       r1        1.0\n"
+               "BOUNDS\n"
+               " FR BOUND1    x         .000000\n"
+               " MI BOUND1    y         0\n"
+               "ENDATA\n");
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, "build/tm_frval.mps"));
+    double lo = 0.0, up = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 0, &lo, &up));
+    TEST_ASSERT_FALSE(isfinite(lo));
+    TEST_ASSERT_FALSE(isfinite(up));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_col_bounds(m, 1, &lo, &up));
+    TEST_ASSERT_FALSE(isfinite(lo));
+    jaos_model_free(m);
+    remove("build/tm_frval.mps");
+}
+
 static void test_a_fixed_layout_name_with_a_space_reads_with_an_underscore(void)
 {
     write_text("build/tm_fixed.mps",
@@ -391,6 +419,7 @@ int main(void)
     RUN_TEST(test_objname_on_the_next_line_is_the_same_model);
     RUN_TEST(test_t2_free_layout_objsense_ranges_wart);
     RUN_TEST(test_rejections_carry_line_numbers);
+    RUN_TEST(test_a_free_bound_with_a_value_reads_as_free);
     RUN_TEST(test_rejection_reasons_are_specific);
     RUN_TEST(test_missing_file_is_io_error);
     RUN_TEST(test_failed_read_preserves_previous_model);

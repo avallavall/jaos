@@ -655,8 +655,11 @@ static jaos_status rd_bounds_line(rd *r, char **tok, int nt)
     if (!needs_value && !no_value)
         FAIL("line %" PRId64 ": unknown bound type '%s'", r->lno, type);
     int off = 1;
+    double ignored = 0.0;
     if (nt == (needs_value ? 3 : 2))
         off = 0;
+    else if (no_value && nt == 4 && parse_num(tok[3], &ignored))
+        off = 1;
     else if (nt != (needs_value ? 4 : 3))
         FAIL("line %" PRId64 ": bound type '%s' takes %s", r->lno, type,
              needs_value ? "exactly one value" : "no value");
