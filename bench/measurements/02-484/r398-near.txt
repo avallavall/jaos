@@ -1,0 +1,37 @@
+== 1104
+J24 stalled push at 40, worst 5.283e-04
+barrier 40: within 1.0e-06 of converged with mu below 1.0e-30; the push did not settle, and the walk goes on
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 28 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+the push with the duals' shift dropped and a pin freed in each row its pins break did not settle either
+the push that pins only the variables whose dual is 1000 times their slack did not settle either
+status numerical_error
+== 1156
+J24 stalled push at 41, worst 4.324e-04
+barrier 41: within 1.0e-06 of converged with mu below 1.0e-30; the push did not settle, and the walk goes on
+the push did not settle at 1.0e-08; the walk could not reach 1.0e-10 in 50 more iterations but stayed within 1.0e-08, at 3.46e-09, so its last point stands
+the push from the variables the barrier reads at a bound alone did not settle either
+status optimal
+== 1163
+J24 stalled push at 68, worst 5.339e-09
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 6 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+status optimal
+== 1282
+J24 stalled push at 58, worst 1.031e-08
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 6 more iterations and the push settled
+the push that pins only the variables whose dual is 1000 times their slack settled
+status numerical_error
+== 1340
+J24 stalled push at 70, worst 2.786e-10
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 13 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone did not settle either
+the push with the duals' shift dropped and a pin freed in each row its pins break settled
+status optimal
+== 1357
+J24 stalled push at 54, worst 1.265e-08
+the push did not settle at 1.0e-08, so the walk went on to 1.0e-10 in 7 more iterations and the push did not settle there either
+the push from the variables the barrier reads at a bound alone settled
+status optimal
+== 1308
+status optimal

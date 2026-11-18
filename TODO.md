@@ -15,41 +15,34 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can carry flows of 1e11 to 1e13. 10 of seeds 1 to 400
-and 18 of seeds 1001 to 1800 at 12 nodes end `numerical_error`, and 1 of
-seeds 1 to 120 and 1 of seeds 1001 to 1200 at 40 nodes
-(`bench/measurements/02-448/`). Seed 1611 has ended optimal since the
-checker judges a reduced cost against its terms. Of the 31 before it
-(`02-400/`, `02-413/`, `02-416/`), 16 stop on the barrier's growth stop,
-3 at its iteration cap,
-and 12 converge but no push gives a point the checker passes; the conic
-walk then reports, on 30, an improving direction the ray checker refuses
-(`02-414/`). On six of the 12, only the reduced-cost test refuses a
-point whose gap is certified. On five of those, a column sits 4e-5 to 80
-off a bound with a reduced cost of 1e4 to 5e4 toward it, as large as its
-terms, so a relative test would refuse them too (`02-417/`). HiGHS calls seven of them optimal at
-points from which the objective still falls along a cycle, so it cannot
-judge this family (`02-398/`). The six of seeds 1001 to 1400 stop in the
-barrier on `BARRIER_DIVERGE_QP`. With that stop lifted, seed 1156's walk
-is within 1e-5 by iteration 40; then a set of rows closed off by arcs at
-their bounds keeps a residual near 1, and the walk drives those rows'
-duals to 1e13. On seed 1282 the walk then converges and the push stalls,
-because its proximal term, `QP_PUSH_REG`, is larger than the curvatures
-of the free columns near 1e-9 (`02-400/`). A proximal term that follows
-each column's curvature solves four more and breaks two
-(`push-reg-by-curvature`); with it, seed 1380 reaches the conic walk,
-which publishes a ray the checker takes, though every arc's curvature is
-positive and the model is bounded: the ray test reads 1e-11 as zero
-(`02-401/`). Seven barrier switches each finish seed 1340 or 1357 and no
-other (`barrier-far-qp-switches`), and the augmented system solves none
-(`02-401/`). Next: a walk that lifts an arc off its bound when a closed
-set of rows keeps a residual, since all six stop in the walk before any
-push;
-then a push solve that keeps the rows exact when its weights span 1e-6
-to 1e10. A ray test that weighs a
-ray's curvature against its slope changes the checker's contract and is
-the maintainer's decision. Verify with `netqp_read.py` on the same seeds
-and 02-398's `read.sh`.
+so their optimum can carry flows of 1e11 to 1e13. 4 of seeds 1 to 400
+and 11 of seeds 1001 to 1800 at 12 nodes end `numerical_error`, and none
+of seeds 1 to 120 and 1 of seeds 1001 to 1200 at 40 nodes, from 10, 18,
+1 and 1 before the walk lifted a column off the bound that closes rows
+only the regularisation moves, stopped reading a growing dual over rows
+within 1e-2 as divergence, and kept its second leg's last point within
+1e-8 (`bench/measurements/02-484/`). Of the 16 left, seven stop on the
+growth stop: 288, 1411 and 1537 on a primal iterate past 1e10 of the
+data, and 110, 1163, 1514 and 1746 on a dual one while their rows are
+off by 1.6e-2 to 2.4. Seeds 127 and 1535 reach the iteration cap. On
+195, 1104, 1282, 1458, 1504, 1624 and 40-node 1076 the walk converges
+and no push or polish gives a point the checker passes. On all 16 the conic
+walk then reports an improving direction the ray checker refuses. 02-417
+found that on 195 and 1624 only the reduced-cost test refused a point
+whose gap is certified, with a column off its bound by a reduced cost as
+large as its terms. HiGHS calls such models optimal at points from which
+the objective still falls along a cycle, so it cannot judge this family
+(`02-398/`). On 02-398's seven, now four solved, one refinement step on
+the normal equations finishes 1104 and 1282 as well, and with the growth
+stop lifted all seven (`02-484/`, `r398-knobs.txt`); alone, before the
+lift, it finished only 1357 (`barrier-far-qp-switches`). A push proximal
+term that follows each column's curvature broke two
+(`push-reg-by-curvature`). Next: that refinement step in a QP walk,
+read on every QP set; then a push solve that keeps the rows exact when
+its weights span 1e-6 to 1e10, for the seven that converge. A ray test
+that weighs a ray's curvature against its slope changes the checker's
+contract and is the maintainer's decision. Verify with `netqp_read.py`
+on the same seeds and 02-398's `read.sh`.
 
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and

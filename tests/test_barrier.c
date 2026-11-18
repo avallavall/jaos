@@ -390,6 +390,69 @@ static void test_a_push_row_holds_at_its_rounding_level(void)
 }
 
 typedef struct {
+    const char *what;
+    int seen;
+} log_hit;
+
+static void catch_hit(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    log_hit *h = user;
+    if (strstr(line, h->what) != nullptr)
+        h->seen++;
+}
+
+static void solve_far_circulation(const char *path, double reach,
+                                  const char *what, int *seen)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
+    log_hit h = {what, 0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, catch_hit, &h));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    double far = 0.0;
+    for (int j = 0; j < 30; j++)
+        if (fabs(x[j]) > far)
+            far = fabs(x[j]);
+    TEST_ASSERT_TRUE(far > reach);
+    *seen = h.seen;
+    jaos_model_free(m);
+}
+
+static void test_rows_closed_off_by_columns_at_bounds_lift_one_off(void)
+{
+    int seen = 0;
+    solve_far_circulation("tests/data/qp_far_lift.mps", 1e7,
+                          "lifted off the bound", &seen);
+    TEST_ASSERT_TRUE(seen > 0);
+}
+
+static void test_a_second_leg_that_stays_near_keeps_its_last_point(void)
+{
+    int seen = 0;
+    solve_far_circulation("tests/data/qp_far_leg_end.mps", 1e10,
+                          "so its last point stands", &seen);
+    TEST_ASSERT_EQUAL_INT(1, seen);
+}
+
+static void test_duals_that_grow_over_feasible_rows_are_not_divergence(void)
+{
+    int seen = 0;
+    solve_far_circulation("tests/data/qp_far_dual_growth.mps", 1e10,
+                          "grew past", &seen);
+    TEST_ASSERT_EQUAL_INT(0, seen);
+}
+
+typedef struct {
     int settled, failed;
 } push_count;
 
@@ -1003,6 +1066,9 @@ int main(void)
     RUN_TEST(test_a_row_its_held_columns_break_frees_one);
     RUN_TEST(test_a_polished_point_passes_on_the_size_of_its_terms);
     RUN_TEST(test_a_push_row_holds_at_its_rounding_level);
+    RUN_TEST(test_rows_closed_off_by_columns_at_bounds_lift_one_off);
+    RUN_TEST(test_a_second_leg_that_stays_near_keeps_its_last_point);
+    RUN_TEST(test_duals_that_grow_over_feasible_rows_are_not_divergence);
     RUN_TEST(test_a_push_release_undone_at_once_frees_one_pin);
     return UNITY_END();
 }

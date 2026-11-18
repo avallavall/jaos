@@ -1,0 +1,4 @@
+work, same status: 137 instances, geometric mean 1.0000x, 1 cheaper, 2 dearer
+dtoc3      1.0007x 586537228 -> 586918988
+qpcboei2   1.0000x 5508971 -> 5509141
+powell20   0.9999x 147583452 -> 147563452

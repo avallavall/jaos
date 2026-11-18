@@ -1,0 +1,30 @@
+q12-110 | numerical_error 865955  | numerical_error 865955 
+q12-1104 | numerical_error 3686327  | numerical_error 3686327 
+q12-1156 | optimal 1179200 yes  | optimal 1129765 yes 
+q12-1163 | numerical_error 779846  | numerical_error 779846 
+q12-127 | numerical_error 2013340  | numerical_error 2013340 
+q12-1282 | numerical_error 2479405  | numerical_error 2479405 
+q12-1340 | optimal 1182389 yes  | optimal 1005666 yes 
+q12-1357 | optimal 501338 yes  | optimal 501338 yes 
+q12-1411 | numerical_error 701516  | numerical_error 701516 
+q12-1450 | optimal 1428308 yes  | optimal 1178991 yes 
+q12-1458 | numerical_error 2155553  | numerical_error 2155553 
+q12-1504 | numerical_error 1354974  | numerical_error 1354974 
+q12-1514 | numerical_error 831545  | numerical_error 831545 
+q12-1535 | numerical_error 2975392  | numerical_error 2975392 
+q12-1537 | numerical_error 564844  | numerical_error 564844 
+q12-1551 | optimal 778045 yes  | optimal 778045 yes 
+q12-1596 | optimal 1398101 yes  | optimal 1145339 yes 
+q12-1624 | numerical_error 2049591  | numerical_error 2049591 
+q12-1735 | optimal 1132314 yes  | optimal 1092286 yes 
+q12-1746 | numerical_error 800960  | numerical_error 800960 
+q12-18 | optimal 446627 yes  | optimal 446627 yes 
+q12-195 | numerical_error 2130306  | numerical_error 2130306 
+q12-199 | optimal 1216770 yes  | optimal 1166692 yes 
+q12-201 | optimal 1393324 yes  | optimal 1343739 yes 
+q12-25 | optimal 1092897 yes  | optimal 1053073 yes 
+q12-287 | optimal 501355 yes  | optimal 501355 yes 
+q12-288 | numerical_error 593718  | numerical_error 593718 
+q12-64 | optimal 1300970 yes  | optimal 1030432 yes 
+q40-1076 | numerical_error 5898993  | numerical_error 5898993 
+q40-95 | optimal 3151474 yes  | optimal 2256408 yes 

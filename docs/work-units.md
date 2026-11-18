@@ -235,7 +235,15 @@ augmented system, when the barrier takes it, is factored and solved by the
 LDL above. Every sweep over the variables (the residuals, the scaling, the
 two directions, the step lengths, the neighbourhood check and the update)
 charges one per variable. Nothing is charged per iteration beyond what the
-iteration touches.
+iteration touches. When a QP walk stalls with its rows off, the search
+for rows that only the regularisation moves (`bx_lift`) first charges one
+per row and one per entry of the columns in the rows that are off. When
+one of those rows has only held columns, it charges `nnz + nrow`, then
+per round `3 * nvar` for the weights, a product with the rows, three
+solves with the normal matrix (the first round reuses the walk's last
+factor when there is one, and every other round factors it again), a product with its transpose,
+`2 * nvar` for the ratio test, and `2 * nvar + 3 * nrow` when the round
+lifts a column, up to one round per row.
 
 *The QP push* (`qp_push`) finishes a quadratic model's point. Each round
 factors and solves its own system at the LDL's rates and charges one per

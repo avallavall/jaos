@@ -1,0 +1,17 @@
+QPLIB_10050  work_limit      obj=                       inc=-25.697661633058075    bound=-26.229618505821822    nodes=851     work=10000247765
+QPLIB_10056  work_limit      obj=                       inc=-33.856788663747835    bound=-34.169467828798368    nodes=533     work=10002300397
+QPLIB_10069  optimal         obj=0                      inc=0                      bound=0                      nodes=1       work=378360770
+QPLIB_3547   work_limit      obj=                       inc=-0.55400985801750002   bound=-0.71452794731497393   nodes=286     work=10001255542
+QPLIB_3694   work_limit      obj=                       inc=450.52146354857308     bound=96.938058198521034     nodes=7       work=10000169067
+QPLIB_3698   work_limit      obj=                       inc=601.77345381767373     bound=136.01350617123492     nodes=25      work=10000109085
+QPLIB_3708   work_limit      obj=                       inc=-9216.3368216573908    bound=-9544.4566638867127    nodes=3       work=10003317928
+QPLIB_3792   work_limit      obj=                       inc=887.53725422137813     bound=270.1717233759818      nodes=48      work=10000590583
+QPLIB_3861   work_limit      obj=                       inc=608.65414246173168     bound=171.65536460449994     nodes=10      work=10000505435
+QPLIB_3871   work_limit      obj=                       inc=250.89987245497304     bound=106.1183118229869      nodes=153     work=10000178074
+QPLIB_3913   work_limit      obj=                       inc=56.924999998650001     bound=32.908673993700496     nodes=231     work=10001146118
+QPLIB_3980   work_limit      obj=                       inc=                       bound=-2.5879044486999656    nodes=214     work=10000068100
+QPLIB_4270   work_limit      obj=                       inc=105.88227173187082     bound=97.600177742027014     nodes=1       work=10249590541
+QPLIB_5527   work_limit      obj=                       inc=                       bound=-inf                   nodes=1       work=10678926315
+QPLIB_5543   work_limit      obj=                       inc=                       bound=-inf                   nodes=1       work=10931487567
+QPLIB_5577   work_limit      obj=                       inc=                       bound=-inf                   nodes=1       work=10095935872
+QPLIB_5924   work_limit      obj=                       inc=                       bound=76632.786322328553     nodes=1       work=10167488985

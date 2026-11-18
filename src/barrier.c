@@ -36,6 +36,7 @@ constexpr double  CROSS_PUSH_FEAS = 1e-9;
 constexpr double  CROSS_PUSH_UPDATE_TOL = 1e-9;
 constexpr double  BARRIER_DIVERGE  = 1e6;
 constexpr double  BARRIER_DIVERGE_QP = 1e10;
+constexpr double  BARRIER_DIVERGE_FEAS = 1e-2;
 constexpr double  BARRIER_DENSE_FACTOR = 10.0;
 constexpr int64_t BARRIER_DENSE_MIN    = 30;
 constexpr int64_t BARRIER_DENSE_MAX    = 100;
@@ -114,6 +115,8 @@ typedef struct {
     bool handoff;
     double best_worst, reg_floor;
     int64_t stalled;
+    double last_worst;
+    bool factored;
     bool equal_steps, near, pushed, delta_locked;
     double tol_stop;
     bool early_push, early;
@@ -1159,6 +1162,188 @@ static jaos_status bx_pick_system(bx *s)
     return JAOS_OK;
 }
 
+static void bx_null_part(bx *s, double *v)
+{
+    for (int k = 0; k < 3; k++) {
+        solve_normal(s, v);
+        for (int64_t i = 0; i < s->nrow; i++)
+            v[i] *= s->delta;
+    }
+}
+
+static bool bx_held(const bx *s, int64_t j)
+{
+    const jaos_model *m = s->m;
+    const uint8_t k = s->kind[j];
+    if (k == FIXED)
+        return true;
+    if (k == 0)
+        return false;
+    double big = 1.0;
+    if (j < s->ncol) {
+        big = 0.0;
+        for (int64_t q = m->a_start[j]; q < m->a_start[j + 1]; q++)
+            if (fabs(s->av[q]) > big)
+                big = fabs(s->av[q]);
+    }
+    const double bl = (k & HAS_LO) ? s->zl[j] / s->w[j] : 0.0;
+    const double bu = (k & HAS_UP) ? s->zu[j] / s->v[j] : 0.0;
+    const double theta = 1.0 / (s->quad[j] + (bl + bu));
+    return theta * big * big < s->delta;
+}
+
+static bool bx_closed_row(bx *s, double tol)
+{
+    const jaos_model *m = s->m;
+    int64_t read = 0;
+    bool closed = false;
+    for (int64_t i = 0; !closed && i < s->nrow; i++) {
+        if (!(fabs(s->rp[i]) > tol))
+            continue;
+        closed = bx_held(s, s->ncol + i);
+        for (int64_t p = m->ar_start[i]; closed && p < m->ar_start[i + 1];
+             p++) {
+            const int64_t j = m->ar_index[p];
+            closed = bx_held(s, j);
+            read += m->a_start[j + 1] - m->a_start[j];
+        }
+    }
+    jm_work_add(&s->work, (s->nrow + read) * JM_WORK_NONZERO);
+    return closed;
+}
+
+static int64_t bx_lift(bx *s)
+{
+    const jaos_model *m = s->m;
+    const int64_t nv = s->nvar, nr = s->nrow;
+    const double tol = s->tol_stop * (1.0 + s->norm_b);
+    if (s->augmented || nr == 0 || !bx_closed_row(s, tol))
+        return 0;
+    double *g = jm_alloc_array(nr, sizeof *g);
+    double *u = jm_alloc_array(nr, sizeof *u);
+    double *h = jm_alloc_array(nv, sizeof *h);
+    double *zb = jm_alloc_array(nv, sizeof *zb);
+    double *amax = jm_calloc_array(nv, sizeof *amax);
+    int8_t *side = jm_calloc_array(nv, sizeof *side);
+    int64_t lifted = 0;
+    if (!g || !u || !h || !zb || !amax || !side)
+        goto out;
+    for (int64_t j = 0; j < s->ncol; j++)
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+            if (fabs(s->av[k]) > amax[j])
+                amax[j] = fabs(s->av[k]);
+    for (int64_t i = 0; i < nr; i++)
+        amax[s->ncol + i] = 1.0;
+    jm_work_add(&s->work, (m->num_nz + nr) * JM_WORK_NONZERO);
+    for (int64_t round = 0; round < nr; round++) {
+        int64_t nblocked = 0;
+        for (int64_t j = 0; j < nv; j++) {
+            const uint8_t k = s->kind[j];
+            side[j] = PUSH_FREE;
+            zb[j] = s->z[j];
+            if (k == FIXED) {
+                s->theta[j] = 0.0;
+                continue;
+            }
+            double inv = s->quad[j] + (k == 0 ? BARRIER_FREE_REG : 0.0);
+            const double bl = (k & HAS_LO) ? s->zl[j] / s->w[j] : 0.0;
+            const double bu = (k & HAS_UP) ? s->zu[j] / s->v[j] : 0.0;
+            inv += bl + bu;
+            s->theta[j] = 1.0 / inv;
+            if (k == 0 || !(s->theta[j] * amax[j] * amax[j] < s->delta))
+                continue;
+            side[j] = (k & HAS_LO) && (!(k & HAS_UP) || bl >= bu) ? PUSH_LOWER
+                                                                 : PUSH_UPPER;
+            zb[j] = side[j] == PUSH_LOWER ? s->lo[j] : s->up[j];
+            nblocked++;
+        }
+        jm_work_add(&s->work, 3 * nv * JM_WORK_NONZERO);
+        if (nblocked == 0)
+            break;
+        mul_e(s, zb, g);
+        for (int64_t i = 0; i < nr; i++)
+            g[i] = -g[i];
+        if (!(round == 0 && s->factored)) {
+            s->factored = false;
+            if (form_normal(s) != JAOS_OK)
+                break;
+        }
+        memcpy(u, g, (size_t)nr * sizeof *u);
+        bx_null_part(s, u);
+        double ug = 0.0;
+        for (int64_t i = 0; i < nr; i++)
+            ug += u[i] * g[i];
+        if (!(inf_norm(u, nr) > tol) || !(ug > 0.0))
+            break;
+        mul_et(s, u, h);
+        int64_t e = -1;
+        double best = HUGE_VAL;
+        for (int64_t j = 0; j < nv; j++) {
+            if (side[j] == PUSH_FREE)
+                continue;
+            double r = HUGE_VAL;
+            if (side[j] == PUSH_LOWER && h[j] > 0.0)
+                r = s->zl[j] / h[j];
+            else if (side[j] == PUSH_UPPER && h[j] < 0.0)
+                r = s->zu[j] / -h[j];
+            if (r < best) {
+                best = r;
+                e = j;
+            }
+        }
+        jm_work_add(&s->work, 2 * nv * JM_WORK_NONZERO);
+        if (e < 0)
+            break;
+        const uint8_t ke = s->kind[e];
+        const bool lo_side = side[e] == PUSH_LOWER;
+        double d = ug / h[e];
+        double room = HUGE_VAL;
+        if (lo_side && (ke & HAS_UP))
+            room = 0.5 * s->v[e];
+        else if (!lo_side && (ke & HAS_LO))
+            room = 0.5 * s->w[e];
+        if (fabs(d) > room)
+            d = d > 0.0 ? room : -room;
+        const double gap_old = lo_side ? s->w[e] : s->v[e];
+        const double dual_old = lo_side ? s->zl[e] : s->zu[e];
+        const double gap_new = gap_old + fabs(d);
+        const double dual_new = gap_old * dual_old / gap_new;
+        if (!(gap_old < fabs(d)) ||
+            !(gap_new / dual_new * amax[e] * amax[e] >= s->delta))
+            break;
+        double t = best - dual_new / fabs(h[e]);
+        if (!(t > 0.0))
+            t = 0.0;
+        double ybig = 0.0, ynew = 0.0;
+        for (int64_t i = 0; i < nr; i++) {
+            if (fabs(s->y[i]) > ybig)
+                ybig = fabs(s->y[i]);
+            if (fabs(s->y[i] + t * u[i]) > ynew)
+                ynew = fabs(s->y[i] + t * u[i]);
+        }
+        if (!(ynew <= ybig))
+            break;
+        for (int64_t i = 0; i < nr; i++)
+            s->y[i] += t * u[i];
+        for (int64_t j = 0; j < nv; j++) {
+            if (side[j] == PUSH_LOWER)
+                s->zl[j] -= t * h[j];
+            else if (side[j] == PUSH_UPPER)
+                s->zu[j] += t * h[j];
+        }
+        s->z[e] += d;
+        if (ke & HAS_LO)
+            s->w[e] += d;
+        if (ke & HAS_UP)
+            s->v[e] -= d;
+        jm_work_add(&s->work, (2 * nv + 3 * nr) * JM_WORK_NONZERO);
+        lifted++;
+    }
+out:
+    free(g); free(u); free(h); free(zb); free(amax); free(side);
+    return lifted;
+}
+
 static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
 {
     jaos_model *m = s->m;
@@ -1171,6 +1356,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
         if (st != JAOS_OK)
             return st;
     }
+    s->factored = false;
 
     for (;;) {
         double pobj, dobj, mu;
@@ -1187,6 +1373,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
         if (gap > worst_now)
             worst_now = gap;
         const bool progressed = worst_now < BARRIER_STALL_DROP * s->best_worst;
+        s->last_worst = worst_now;
 
         jm_log(m, JAOS_LOG_PROGRESS,
                "barrier %lld: primal %.3e dual %.3e gap %.3e mu %.3e "
@@ -1227,7 +1414,29 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
                    pgrow, dgrow);
             const double far = s->quadratic ? BARRIER_DIVERGE_QP
                                             : BARRIER_DIVERGE;
-            if ((pgrow > far || dgrow > far) && !progressed) {
+            const bool grown = pgrow > far ||
+                               (dgrow > far && (!s->quadratic ||
+                                                rel_p > BARRIER_DIVERGE_FEAS));
+            const bool held = s->quadratic && dgrow > BARRIER_DIVERGE &&
+                              s->stalled >= BARRIER_STALL_ITERS &&
+                              s->stalled % BARRIER_STALL_ITERS == 0 &&
+                              pres > s->tol_stop * (1.0 + s->norm_b);
+            if (s->quadratic && ((grown && !progressed) || held)) {
+                const int64_t got = bx_lift(s);
+                if (got > 0) {
+                    jm_log(m, JAOS_LOG_SUMMARY,
+                           "barrier %lld: rows that only the regularisation "
+                           "moves keep a residual; %lld column%s lifted off "
+                           "the bound%s that close%s them",
+                           (long long)s->iters, (long long)got,
+                           got == 1 ? "" : "s", got == 1 ? "" : "s",
+                           got == 1 ? "s" : "");
+                    s->best_worst = HUGE_VAL;
+                    s->stalled = 0;
+                    continue;
+                }
+            }
+            if (grown && !progressed) {
                 jm_set_err(m, "the barrier's iterate grew past %.3g times "
                               "the data after %lld iterations (primal %.3e, "
                               "dual %.3e): the model may be infeasible or "
@@ -1339,6 +1548,7 @@ static jaos_status bx_run(bx *s, jaos_solve_status *out, bool resume)
                    "regularisation of %.1e",
                    (long long)s->aug.replaced, s->reg_floor);
         }
+        s->factored = !s->augmented;
 
         complementarity(s, 0.0, false);
         direction(s, s->dwa, s->dva, s->dzla, s->dzua);
@@ -2143,11 +2353,7 @@ static bool bx_drop_dual_shift(bx *s)
     bool dropped = false;
     if (form_normal(s) == JAOS_OK) {
         memcpy(v, s->y, (size_t)nr * sizeof *v);
-        for (int k = 0; k < 3; k++) {
-            solve_normal(s, v);
-            for (int64_t i = 0; i < nr; i++)
-                v[i] *= QP_PUSH_DELTA;
-        }
+        bx_null_part(s, v);
         mul_et(s, v, t);
         double worst = 0.0, big = 0.0;
         for (int64_t j = 0; j < s->ncol; j++)
@@ -3018,7 +3224,20 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
             s.handoff = false;
             jaos_solve_status again = JAOS_SOLVE_NUMERICAL_ERROR;
             st = bx_run(&s, &again, true);
-            if (st == JAOS_OK && again == JAOS_SOLVE_OPTIMAL) {
+            const bool stayed = st == JAOS_OK &&
+                              again == JAOS_SOLVE_NUMERICAL_ERROR &&
+                              s.last_worst <= BARRIER_TOL;
+            if (stayed) {
+                s.handoff = false;
+                target->err[0] = '\0';
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "the push did not settle at %.1e; the walk could not "
+                       "reach %.1e in %lld more iterations but stayed within "
+                       "%.1e, at %.3g, so its last point stands",
+                       BARRIER_TOL, BARRIER_TOL_QP,
+                       (long long)(s.iters - first_iters), BARRIER_TOL,
+                       s.last_worst);
+            } else if (st == JAOS_OK && again == JAOS_SOLVE_OPTIMAL) {
                 st = qp_push(&s);
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "the push did not settle at %.1e, so the walk went on "
