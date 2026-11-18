@@ -108,10 +108,11 @@ first:
   and `assign1-5-8`. In 20 s JAOS takes 1.5 to 9 times the nodes of
   HiGHS and SCIP on `gen-ip002`, `gen-ip054` and `assign1-5-8` (02-465);
   on `gen-ip002` and `gen-ip054` JAOS's bound per node leads, and neither
-  HiGHS nor SCIP closes them in 300 s (02-476). Next: a conflict from a
-  node whose relaxation stopped at the incumbent, its proof the stopped
-  duals over the path's bounds, read on `mas76`, `mas74` and the four,
-  since JAOS draws conflicts from infeasible nodes only (02-475).
+  HiGHS nor SCIP closes them in 300 s (02-476). Conflicts from node
+  relaxations stopped at the incumbent, as bounds or as dual proofs,
+  lift none of the open three at 1e10: 4% to 6% of their nodes stop
+  there, the conflicts hold 14 to 19 bounds, and `assign1-5-8`'s proofs
+  need its local cuts (`stop-conflicts`, `bench/measurements/02-482/`).
 - `gen-ip054` closes at 1.4e9 work units on an LLL-reduced basis of the
   improving region taken after 1000 nodes (`--lattice`, 02-476, 02-478),
   where the columns' tree is open at 1e11. `gen-ip002` holds its optimum
@@ -173,13 +174,14 @@ first:
   under rounds past the first, not under integral slacks, and has no
   implied integers. The root now spends 2.2e9 of the 1e10 against 3.6e8,
   its heuristics' share with it. Next for `assign1-5-8`: reliability
-  branching's probes. Next for `neos5`: the conflicts
-  from nodes whose relaxation reached the incumbent, above, HiGHS's
-  largest part here, read against SCIP, which analyses bound-exceeding
-  LPs too and holds 14.75 after 2.48M; then symmetry handling that
-  reaches below the shallow nodes where orbital branching acts now, and
-  cuts at the nodes that hold for the whole tree in place of local ones
-  that enlarge it.
+  branching's probes. On `neos5` the dual proofs of stopped relaxations,
+  their sides tightened as the incumbent improves, close it in 1,264,193
+  nodes and 7.4e10 work units against 2,977,069 and 1.9e11, HiGHS's
+  size; the same tightening grows `pk1` and `misc07` (02-482). Next for
+  `neos5`: a rule that tells its tightenings from `pk1`'s and
+  `misc07`'s, then symmetry handling that reaches below the shallow
+  nodes where orbital branching acts now, and cuts at the nodes that
+  hold for the whole tree in place of local ones that enlarge it.
   Verify by the nodes `neos5` closes in against 2,977,069, at 1e10 on both
   and with `make miplib J=2`.
 - Strong branching is on by default for a linear model: reliability 4,
