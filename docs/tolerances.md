@@ -229,7 +229,7 @@ caller's units.
 
 | Name | Value | What it decides |
 |---|---|---|
-| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, as this many `DBL_EPSILON` times the scale that produced it. Four sites read it: the solve's entry (`jm_box_inverted`), the singleton row's fold, the emptied row and the frozen row, plus a postsolve debug assertion. No feasible gate model leaves a residue between 0 and 3.69e8 ulps, so 1 to 256 give the same results; 8 matches `ps_row_tol` (`bench/measurements/02-09/`) |
+| `PRESOLVE_ROUND_ULPS` | 8 | Whether a residue left by a running difference is a number, as this many `DBL_EPSILON` times the scale that produced it. Four sites read it: the solve's entry (`jm_box_inverted`), the singleton row's fold, the emptied row and the frozen row, plus a postsolve debug assertion. No feasible gate model leaves a residue between 0 and 3.69e8 ulps, so 1 to 256 give the same results; 8 matches `ps_side_tol` (`bench/measurements/02-09/`) |
 | `PRESOLVE_IMPLIED_FREE_ULPS` | 8 | The window, in `DBL_EPSILON` times `max(1, \|b\|, traffic) / \|a_ij\|`, by which a singleton column's implied box must sit inside its own box to be substituted out. It declines at exact equality, since a wrong yes drops a real bound. Only 0 reads differently, and it costs `d2q06c` 2.2x (`bench/measurements/02-12/`) |
 | `AGG_ROW_MAX` | 3 | The longest equality the aggregator substitutes a column out of; longer rows spread fill. 3 is the longest that passes all four gates; 4, 5 and 8 each put an instance past 2x. Models with integer columns are not aggregated (`bench/measurements/02-285/`, `bench/measurements/02-301/`) |
 | `AGG_PIVOT_REL` | 0.5 | How large the substituted coefficient must be against its row's largest, so the multipliers stay at most 2. With rows of 3 only 0.5 passes all four gates; the pilot family moves erratically with it (`bench/measurements/02-285/`) |
@@ -249,8 +249,11 @@ rows (`bench/measurements/02-73/`). The simplex's `compute_primal` and the
 published objective are compensated sums for the same reason
 (`bench/measurements/02-78/`, `bench/measurements/02-79/`).
 
-`ps_row_tol` judges whether a row's activity range makes it infeasible,
-forced or redundant. It keeps its own literal 8: routed through
+`ps_side_tol` judges whether a row's activity range makes it infeasible,
+forced or redundant, one side at a time: the minimum activity against the
+traffic of the terms that make it, the maximum against theirs, so a huge
+bound on one side does not widen the other's test
+(`bench/measurements/02-496/`). It keeps its own literal 8: routed through
 `PRESOLVE_ROUND_ULPS` at 64 it made `pilot` INFEASIBLE
 (`bench/measurements/02-04/`, `bench/measurements/02-09/`). Presolve has no
 bound tightening; all six variants built returned INFEASIBLE on feasible

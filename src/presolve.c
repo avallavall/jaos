@@ -103,7 +103,7 @@ static void ps_free_rowwise(ps_rowwise *rw)
 typedef struct {
     double lo_sum, hi_sum;
     int64_t lo_inf, hi_inf;
-    double traffic;
+    double traffic, lo_traffic, hi_traffic;
 } ps_range;
 
 static bool ps_row_reads_up(const jaos_model *m, const ps_rowwise *rw,
@@ -132,7 +132,8 @@ static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
                              const bool *col_dead, int64_t skip)
 {
     ps_acc lo = {0.0, 0.0}, hi = {0.0, 0.0}, tr = {0.0, 0.0};
-    ps_range r = {0.0, 0.0, 0, 0, 0.0};
+    ps_acc ltr = {0.0, 0.0}, htr = {0.0, 0.0};
+    ps_range r = {0.0, 0.0, 0, 0, 0.0, 0.0, 0.0};
 
     for (int64_t k = rw->rs[i]; k < rw->rs[i + 1]; k++) {
         const int64_t j = rw->ridx[k];
@@ -147,12 +148,14 @@ static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
         if (isfinite(t_lo)) {
             ps_acc_add(&lo, a * t_lo);
             ps_acc_add(&tr, fabs(a * t_lo));
+            ps_acc_add(&ltr, fabs(a * t_lo));
         } else {
             r.lo_inf++;
         }
         if (isfinite(t_hi)) {
             ps_acc_add(&hi, a * t_hi);
             ps_acc_add(&tr, fabs(a * t_hi));
+            ps_acc_add(&htr, fabs(a * t_hi));
         } else {
             r.hi_inf++;
         }
@@ -161,6 +164,8 @@ static ps_range ps_row_range(const ps_rowwise *rw, int64_t i,
     r.lo_sum = ps_acc_value(&lo);
     r.hi_sum = ps_acc_value(&hi);
     r.traffic = ps_acc_value(&tr);
+    r.lo_traffic = ps_acc_value(&ltr);
+    r.hi_traffic = ps_acc_value(&htr);
     return r;
 }
 
@@ -179,9 +184,9 @@ static double ps_round_tol(double scale)
     return PRESOLVE_ROUND_ULPS * DBL_EPSILON * (scale > 1.0 ? scale : 1.0);
 }
 
-static double ps_row_tol(const ps_range *r)
+static double ps_side_tol(double traffic)
 {
-    return 8.0 * DBL_EPSILON * (r->traffic > 1.0 ? r->traffic : 1.0);
+    return 8.0 * DBL_EPSILON * (traffic > 1.0 ? traffic : 1.0);
 }
 
 #ifndef JAOS_PRESOLVE_IMPLIED_FREE_ULPS_VALUE
@@ -709,31 +714,31 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 ps_row_range(&rw, i, cur_cl, cur_cu, col_dead, -1);
             jm_work_add(w, row_deg[i] * JM_WORK_NONZERO);
 
-            const double rtol = ps_row_tol(&rg);
+            const double lo_tol = ps_side_tol(rg.lo_traffic);
+            const double hi_tol = ps_side_tol(rg.hi_traffic);
             const double min_act = ps_min_act(&rg);
             const double max_act = ps_max_act(&rg);
             const double rl = cur_rl[i], ru = cur_ru[i];
 
             assert(ps_traffic_usable(rl, ru, row_traffic[i]));
 
-            double iact = rg.traffic > 1.0 ? rg.traffic : 1.0;
             double ibnd = 1.0;
             if (isfinite(row_traffic[i]) && row_traffic[i] > ibnd)
                 ibnd = row_traffic[i];
-            const double itol = 8.0 * DBL_EPSILON * iact +
-                                8.0 * DBL_EPSILON * ibnd;
-            if ((isfinite(ru) && min_act > ru + itol) ||
-                (isfinite(rl) && max_act < rl - itol)) {
+            const double itol_lo = lo_tol + 8.0 * DBL_EPSILON * ibnd;
+            const double itol_hi = hi_tol + 8.0 * DBL_EPSILON * ibnd;
+            const bool over = isfinite(ru) && min_act > ru + itol_lo;
+            const bool under = isfinite(rl) && max_act < rl - itol_hi;
+            if (over || under) {
                 p->outcome = JM_PRESOLVE_INFEASIBLE;
 
                 p->proof_index = i;
-                p->proof_sign =
-                    (isfinite(ru) && min_act > ru + itol) ? -1.0 : 1.0;
+                p->proof_sign = over ? -1.0 : 1.0;
                 goto done;
             }
 
-            const bool forced_hi = isfinite(ru) && min_act >= ru - rtol;
-            const bool force_lo = isfinite(rl) && max_act <= rl + rtol;
+            const bool forced_hi = isfinite(ru) && min_act >= ru - lo_tol;
+            const bool force_lo = isfinite(rl) && max_act <= rl + hi_tol;
             const bool force_hi =
                 forced_hi && (!force_lo || ps_row_reads_up(m, &rw, i));
             if (force_hi || force_lo) {
@@ -821,8 +826,8 @@ JAOS_NODISCARD jaos_status jm_presolve_run(const jaos_model *m, jm_presolve *p,
                 }
             }
 
-            if ((!isfinite(rl) || min_act >= rl - rtol) &&
-                (!isfinite(ru) || max_act <= ru + rtol)) {
+            if ((!isfinite(rl) || min_act >= rl - lo_tol) &&
+                (!isfinite(ru) || max_act <= ru + hi_tol)) {
                 if (!ps_push(p, (jm_presolve_rec){
                         .tag = JM_PS_REDUNDANT_ROW, .index = i })) {
                     ret = JAOS_ERR_OUT_OF_MEMORY;

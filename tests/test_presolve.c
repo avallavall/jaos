@@ -3186,6 +3186,37 @@ static void test_a_row_forcing_on_both_sides_reads_the_same_negated(void)
 #endif
 }
 
+static void test_a_huge_upper_bound_does_not_make_a_row_forcing(void)
+{
+    const double c[] = {1.0, 2.0};
+    const double cl[] = {0.0, 0.0}, cu[] = {1e15, 1.0};
+    const double rl[] = {1.0}, ru[] = {1.0};
+    const int64_t s[] = {0, 1, 2};
+    const int64_t ix[] = {0, 0};
+    const double v[] = {1.0, 1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 2, 1, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     2, s, ix, v));
+    jm_presolve p;
+    jm_presolve_init(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT64_MESSAGE(0, p.counts.forcing_row,
+        "x1 + x2 = 1 at zero lower bounds reaches 1 only above them; the "
+        "upper bound of 1e15 must not widen the test on the lower side");
+    TEST_ASSERT_EQUAL_INT64(0, p.counts.redundant_row);
+    jm_presolve_free(&p);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double obj = 0.0, x[2];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_TRUE(obj == 1.0);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, nullptr, nullptr));
+    TEST_ASSERT_TRUE(x[0] == 1.0 && x[1] == 0.0);
+    jaos_model_free(m);
+}
+
 static void test_a_maximised_forcing_row_is_owed_its_multiplier(void)
 {
     const double c[]  = {1.0, 1.0};
@@ -3450,6 +3481,7 @@ int main(void)
     RUN_TEST(test_an_empty_free_column_rests_on_no_bound);
     RUN_TEST(test_a_maximised_empty_column_takes_its_upper_bound);
     RUN_TEST(test_a_maximised_empty_column_is_not_unbounded_downwards);
+    RUN_TEST(test_a_huge_upper_bound_does_not_make_a_row_forcing);
     RUN_TEST(test_a_maximised_forcing_row_is_owed_its_multiplier);
     RUN_TEST(test_a_row_forcing_on_both_sides_reads_the_same_negated);
     return UNITY_END();
