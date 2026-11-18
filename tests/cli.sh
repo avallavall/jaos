@@ -1803,6 +1803,15 @@ case "$err" in
     *) flunk "the capped relax proved nothing: '$err'" ;;
 esac
 fi
+expect_exit 5 "relax --cols on Pugh's four one-sided rows ends by itself" \
+    "$JAOS" relax "$DATA/relax_pugh.mps" --cols
+if [ "$faulty" -eq 0 ]; then
+case "$err" in
+    *"none in any box: the rows together"*"leave no integer point")
+        pass "and proves from the rows together that no box holds a point" ;;
+    *) flunk "relax --cols on relax_pugh.mps said '$err'" ;;
+esac
+fi
 expect_exit 5 "relax --work-limit needs a number" \
     "$JAOS" relax "$DATA/t1.mps" --work-limit x
 expect_exit 5 "relax --work-limit needs a positive number" \

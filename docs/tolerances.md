@@ -467,7 +467,9 @@ total comes out at or below it; that total is then the answer for the free
 box too. The first three constants cost rounds, never an answer.
 `RELAX_BOX_ROUNDS` and `RELAX_ROUND_WORK` stop the search with
 `JAOS_ERR_NUMERICAL`, naming the widest box tried, and
-`RELAX_LATTICE_CELLS` sizes the proof that runs then.
+`RELAX_LATTICE_CELLS` sizes the proofs that run then. `RELAX_SHADOW_CELLS`
+and `RELAX_SHADOW_WORK` stop the proof over the rows together; a stopped
+proof claims nothing.
 
 | Name | Value | What it decides |
 |---|---|---|
@@ -476,8 +478,10 @@ box too. The first three constants cost rounds, never an answer.
 | `RELAX_BOX_GROWTH` | 2 | The factor `M` grows by. On 12000 generated models no total moves past 1e-9 against the free box (`bench/measurements/02-230/`). Not swept: it only sets how many extra solves run |
 | `RELAX_BOX_ROUNDS` | 16 | How many boxes the search over the columns may try, so a model with no integer point in any box stops (`tests/data/relax_runaway.mps`). Not swept |
 | `RELAX_ROUND_WORK` | 64 | A later round's work as a multiple of the first's; a box twice as wide costs about four times the work on an infeasible model. The caps change nothing where an answer exists (`bench/measurements/02-297/`). Not swept |
-| `RELAX_LATTICE_CELLS` | 4096 | The most numbers, rows times (columns + 1), a block of equality rows may hold for the Hermite-form proof that no box holds an integer point; a larger block is skipped. The proof never claims infeasible on 4000 models with a planted point, and settles 2198 of 4000 with the point moved by a half (`bench/measurements/02-362/`). Not swept |
-| `RELAX_LATTICE_BITS` | 4096 | The most bits a number of that proof may hold; a block whose numbers pass it is skipped. It is the limb budget every exact number had before numbers grew with their size (`bench/measurements/02-485/`), kept so the proof skips the same blocks. Not swept |
+| `RELAX_LATTICE_CELLS` | 4096 | The most numbers, rows times (columns + 1), a block of equality rows may hold for the Hermite-form proof that no box holds an integer point, and a block of rows for the proof over the rows together, where a ranged row counts twice; a larger block is skipped. The proof never claims infeasible on 4000 models with a planted point, and settles 2198 of 4000 with the point moved by a half (`bench/measurements/02-362/`). Not swept |
+| `RELAX_LATTICE_BITS` | 4096 | The most bits a number of those proofs may hold; a block whose numbers pass it is skipped, and the proof over the rows together stops. It is the limb budget every exact number had before numbers grew with their size (`bench/measurements/02-485/`), kept so the proof skips the same blocks. Not swept |
+| `RELAX_SHADOW_WORK` | 4000000 | The work units the proof over the rows together may spend, or what the work limit leaves if less; past it the proof claims nothing. On 2000 generated models with a point moved by a half it settles 870, 876 and 881 at 4e5, 4e6 and 4e7, for 14e6, 73e6 and 546e6 units in all; at about 1.4e8 units a second a stopped proof costs 0.03 s (`bench/measurements/02-486/`) |
+| `RELAX_SHADOW_CELLS` | 16384 | The most numbers that proof holds at once over its open shadows and splinters; a branch that needs more claims nothing. On the same models it settles 876 at 4096, 16384 and 65536 cells on one seed, and 830, 831 and 832 on another (`bench/measurements/02-486/`) |
 
 ## The conic interior point
 

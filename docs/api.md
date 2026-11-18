@@ -2311,9 +2311,20 @@ columns alone, a search whose boxes stay empty past its caps tries to
 prove that no box holds a point: the equality rows, with the continuous
 columns eliminated, may ask for an integer combination that no integer
 point gives, or a ranged row over integer columns may lie between two
-multiples of its coefficients' greatest common divisor. Then `status` is
-`JAOS_SOLVE_INFEASIBLE`, the message says "none in any box", and for a
-ranged row `at_row` names it.
+multiples of its coefficients' greatest common divisor, or the rows
+together may hold no integer point. The last proof reads every row without
+an indicator and ignores the column bounds, since they are free. It sets
+aside each row that a column can satisfy alone, by going far enough one
+way or as a continuous column in no other row. Then, block by block, it
+runs Fourier-Motzkin elimination over exact integers: the continuous
+columns are projected out first, a row over integer columns is divided by
+its coefficients' greatest common divisor and its side rounded inward, and
+an integer column whose coefficients are not all 1 on either side is
+eliminated through Pugh's dark shadow and splinters (the Omega test). Past
+`RELAX_SHADOW_WORK` work units, or past the work limit, it stops and claims
+nothing. When a proof succeeds, `status` is `JAOS_SOLVE_INFEASIBLE`, the
+message says "none in any box", and for a ranged row `at_row` names it.
+`work_units` counts the proofs' work, whether or not one succeeds.
 
 ## Ranging
 

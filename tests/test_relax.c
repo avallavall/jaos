@@ -351,6 +351,102 @@ static void test_two_rows_that_meet_at_a_half_have_no_point(void)
     jaos_model_free(m);
 }
 
+static jaos_model *integer_rows(int64_t nc, int64_t nr, const double *rl,
+                                const double *ru, const int64_t *s,
+                                const int64_t *ix, const double *v,
+                                const bool *isint)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    const double c[4] = {0.0, 0.0, 0.0, 0.0};
+    const double cl[4] = {0.0, 0.0, 0.0, 0.0}, cu[4] = {0.0, 0.0, 0.0, 0.0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, nc, nr, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     s[nc], s, ix, v));
+    for (int64_t j = 0; j < nc; j++)
+        if (isint[j])
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    return m;
+}
+
+static void test_two_one_sided_rows_that_pinch_a_difference_have_no_point(void)
+{
+    const double rl[2] = {1.0, -INFINITY}, ru[2] = {INFINITY, 0.75};
+    const int64_t s[3] = {0, 2, 4};
+    const int64_t ix[4] = {0, 1, 0, 1};
+    const double v[4] = {2.0, 1.0, -2.0, -1.0};
+    const bool isint[2] = {true, true};
+    jaos_model *m = integer_rows(2, 2, rl, ru, s, ix, v, isint);
+    double rm[2], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
+    TEST_ASSERT_EQUAL_INT64(-1, rep.at_row);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "the rows together"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_row_bounds(m, 1, -INFINITY, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, rep.total);
+    jaos_model_free(m);
+}
+
+static void test_a_continuous_column_between_two_slabs_is_projected_out(void)
+{
+    const double rl[4] = {0.5, -INFINITY, 0.0, -INFINITY};
+    const double ru[4] = {INFINITY, 0.75, INFINITY, 0.25};
+    const int64_t s[4] = {0, 2, 6, 10};
+    const int64_t ix[10] = {0, 1, 0, 1, 2, 3, 0, 1, 2, 3};
+    const double v[10] = {1.0, 1.0, 1.0, 1.0, -1.0, -2.0,
+                          1.0, 1.0, 1.0, 2.0};
+    const bool isint[3] = {true, true, false};
+    jaos_model *m = integer_rows(3, 4, rl, ru, s, ix, v, isint);
+    double rm[4], cm[3];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "the rows together"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_row_bounds(m, 1, -INFINITY, 1.0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, rep.total);
+    jaos_model_free(m);
+}
+
+static void test_pughs_four_rows_hold_no_integer_point_together(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_read_mps(m, "tests/data/relax_pugh.mps"));
+    double rm[4], cm[2];
+    jaos_relax_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_NUMERICAL,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_INFEASIBLE, rep.status);
+    TEST_ASSERT_TRUE(rep.work_units > 0);
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "none in any box"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m), "the rows together"));
+    TEST_ASSERT_NOT_NULL(strstr(jaos_model_error(m),
+                                "leave no integer point"));
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_set_row_bounds(m, 2, -11.0, INFINITY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_feasrelax(m, JAOS_RELAX_COLS, rm, cm, &rep));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, rep.status);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, rep.total);
+    TEST_ASSERT_EQUAL_DOUBLE(1.0, cm[1]);
+    jaos_model_free(m);
+}
+
 static void test_a_scope_that_is_not_one_of_the_three_is_refused(void)
 {
     jaos_model *m = over_reach();
@@ -646,6 +742,9 @@ int main(void)
     RUN_TEST(test_a_row_of_even_terms_asking_an_odd_sum_has_no_point);
     RUN_TEST(test_two_rows_that_meet_at_a_half_have_no_point);
     RUN_TEST(test_a_ranged_row_between_two_multiples_has_no_point);
+    RUN_TEST(test_two_one_sided_rows_that_pinch_a_difference_have_no_point);
+    RUN_TEST(test_a_continuous_column_between_two_slabs_is_projected_out);
+    RUN_TEST(test_pughs_four_rows_hold_no_integer_point_together);
     RUN_TEST(test_a_scope_that_is_not_one_of_the_three_is_refused);
     RUN_TEST(test_an_infeasible_answer_publishes_its_basis);
     RUN_TEST(test_a_verdict_presolve_reached_publishes_no_basis);

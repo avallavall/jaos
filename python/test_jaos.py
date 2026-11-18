@@ -3555,6 +3555,33 @@ class TestFeasibilityRelaxation(unittest.TestCase):
         self.assertAlmostEqual(r.report.total, 2.0, places=9)
         self.assertEqual(r.report.rows_moved, 1)
 
+    def test_rows_that_together_hold_no_integer_point_say_so(self):
+        with jaos.Model() as m:
+            m.read_mps(data("relax_pugh.mps"))
+            with self.assertRaises(jaos.JaosError) as e:
+                m.feasrelax(jaos.RelaxScope.COLS)
+            self.assertIn("none in any box: the rows together",
+                          str(e.exception))
+            self.assertTrue(str(e.exception).endswith("no integer point"))
+
+        def pugh(r3):
+            p = jaos.Problem()
+            x = p.add_var(lb=0.0, ub=1.0, name="x", integer=True)
+            y = p.add_var(lb=0.0, ub=1.0, name="y", integer=True)
+            p.add(11 * x + 13 * y >= 27, "r1")
+            p.add(11 * x + 13 * y <= 45, "r2")
+            p.add(7 * x - 9 * y >= r3, "r3")
+            p.add(7 * x - 9 * y <= 4, "r4")
+            p.minimize(x + y)
+            return p
+
+        with self.assertRaises(jaos.JaosError) as e:
+            pugh(-10.0).feasrelax(jaos.RelaxScope.COLS)
+        self.assertIn("none in any box: the rows together", str(e.exception))
+        r = pugh(-11.0).feasrelax(jaos.RelaxScope.COLS)
+        self.assertEqual(r.report.total, 1.0)
+        self.assertEqual([(v.name, mv) for v, mv in r.col_move], [("y", 1.0)])
+
     def test_a_feasible_problem_moves_nothing(self):
         p = jaos.Problem()
         x = p.add_var(lb=0.0, ub=10.0)

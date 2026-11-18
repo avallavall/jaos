@@ -363,7 +363,10 @@ most what is left of it.
 each re-solve gets the whole work and time limit. **The feasibility
 relaxation** (`src/relax.c`) adds the work of every solve of its elastic
 copy, and caps every box round after the first at `RELAX_ROUND_WORK`
-times the first round's work.
+times the first round's work. Its proofs that no box holds a point add
+one unit per number they write or compare, and the proof over the rows
+together stops at `RELAX_SHADOW_WORK` units or at what the work limit
+leaves, whichever is less.
 
 ## What is outside the budget
 

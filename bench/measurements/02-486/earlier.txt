@@ -1,0 +1,38 @@
+== 02-362/lattice.sh on the tree; 5c159065 prints the same lines apart from the seconds
+seed 1
+plant models 2000 proved 0 skipped 0 work 164615
+  box [-20,20] point/none/limit: unproved 1974/0/26, proved 0/0/0
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 0/0
+half models 2000 proved 1116 skipped 0 work 138070
+  box [-20,20] point/none/limit: unproved 835/43/6, proved 0/1044/72
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 24/19
+dense 32x127 plant proved 0 work 161730 seconds 0.008
+dense 32x127 odd proved 1 work 170849 seconds 0.008
+dense 16x255 odd proved 1 work 50568 seconds 0.002
+dense 8x511 odd proved 1 work 18012 seconds 0.001
+seed 2
+plant models 2000 proved 0 skipped 0 work 164456
+  box [-20,20] point/none/limit: unproved 1984/0/16, proved 0/0/0
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 0/0
+half models 2000 proved 1082 skipped 0 work 139637
+  box [-20,20] point/none/limit: unproved 864/40/14, proved 0/1010/72
+  unproved with none in [-20,20], box [-1e6,1e6] point/none: 22/18
+dense 32x127 plant proved 0 work 168079 seconds 0.007
+dense 32x127 odd proved 1 work 162516 seconds 0.006
+dense 16x255 odd proved 1 work 50282 seconds 0.002
+dense 8x511 odd proved 1 work 19030 seconds 0.001
+== 02-369/range.sh on the tree; 5c159065 prints the same lines
+seed 1
+rows 4000 agree 4000 empty 711 with a multiple 3289
+seed 2
+rows 4000 agree 4000 empty 765 with a multiple 3235
+== 02-297/compare.sh, 5c159065 against the tree
+seed 1: identical, models 2000 lp 602 mip 1398
+seed 2: identical, models 2000 lp 563 mip 1437
+== 02-230/relax.c, 2000 models a seed and three scopes, 5c159065 against the tree byte for byte
+seed 1: identical, 6001 lines
+seed 2: identical, 6001 lines
+seed 3: identical, 6001 lines
+seed 4: identical, 6001 lines
+seed 5: identical, 6001 lines
+seed 6: identical, 6001 lines

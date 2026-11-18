@@ -1,0 +1,14 @@
+== 5c159065
+jaos: cannot relax tests/data/relax_pugh.mps: no point in the columns' box widened by 32768, after 17 rounds and 5592721 work units, so there is no smallest violation to report; the rows and the integrality may admit no point at all
+(exit 5)
+jaos: cannot relax bench/measurements/02-486/pinch.lp: no point in the columns' box widened by 32768, after 17 rounds and 183962 work units, so there is no smallest violation to report; the rows and the integrality may admit no point at all
+(exit 5)
+jaos: cannot relax bench/measurements/02-486/slab.lp: no point in the columns' box widened by 32768, after 17 rounds and 3209923 work units, so there is no smallest violation to report; the rows and the integrality may admit no point at all
+(exit 5)
+== the tree
+jaos: cannot relax tests/data/relax_pugh.mps: no point in the columns' box widened by 32768, after 17 rounds and 5594192 work units, and none in any box: the rows together, with the continuous columns projected out, leave no integer point
+(exit 5)
+jaos: cannot relax bench/measurements/02-486/pinch.lp: no point in the columns' box widened by 32768, after 17 rounds and 183976 work units, and none in any box: the rows together, with the continuous columns projected out, leave no integer point
+(exit 5)
+jaos: cannot relax bench/measurements/02-486/slab.lp: no point in the columns' box widened by 32768, after 17 rounds and 3210023 work units, and none in any box: the rows together, with the continuous columns projected out, leave no integer point
+(exit 5)

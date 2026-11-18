@@ -732,9 +732,20 @@ the sum over the rounds. `tests/data/relax_rounds.mps` needs four rounds.
 The search stops after `RELAX_BOX_ROUNDS` widenings, or when a round passes
 `RELAX_ROUND_WORK` times the first round's work
 (`bench/measurements/02-297/`). It then tries to prove from the equality
-rows, or from one ranged row over integer columns, that no box holds an
-integer point. When it can, the message adds "none in any box" and names
-the reason (`bench/measurements/02-362/`, `02-369/`). The
+rows, from one ranged row over integer columns, or from all the rows
+together, that no box holds an integer point. When it can, the message
+adds "none in any box" and names the reason (`bench/measurements/02-362/`,
+`02-369/`, `02-486/`). `tests/data/relax_pugh.mps` has four one-sided
+rows and no integer point:
+
+```
+jaos: cannot relax tests/data/relax_pugh.mps: no point in the columns' box
+widened by 32768, after 17 rounds and 5594192 work units, and none in any
+box: the rows together, with the continuous columns projected out, leave
+no integer point
+```
+
+The
 tool says on stderr how wide the last box was and exits 5.
 
 Exit 0 with an answer. Exit 5 when the copy did not finish, or when the

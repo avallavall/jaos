@@ -383,11 +383,6 @@ free. Each waits for a set where it removes 5% of the rows or columns
 
 J16. **Links.** GAMS, which needs a link library of its own.
 
-J17. **The feasibility relaxation's proof that no box holds a point, where
-several inequality rows together leave no integer point.** The equality
-rows' case and the single ranged row's case are proved
-(`bench/measurements/02-362/`, `02-369/`).
-
 J18. **The certified bound on suboptimality alone cannot separate a wrong
 vertex from a right one.**
 

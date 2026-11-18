@@ -2025,7 +2025,10 @@ class Model:
         basis stay as they are, and nothing needs to have been solved
         first: a feasible model answers 0. Raises when the model has no
         relaxation at all -- a lower bound above its upper -- or the copy
-        did not finish (jaos_feasrelax in jaos.h)."""
+        did not finish. Over the columns alone that includes rows and
+        integer marks that admit no point in any box; the message says
+        "none in any box" when that is proved, and why (jaos_feasrelax in
+        jaos.h)."""
         nr, nc = self.num_row, self.num_col
         rm = (_D * max(nr, 1))()
         cm = (_D * max(nc, 1))()

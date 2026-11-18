@@ -1,0 +1,40 @@
+seed 1
+plant models 2000 none 0 point 1986 open 14 | old proofs 0, new only 0, old only 0 | work 26050233 most 4000130 seconds 0.183
+plant-wide models 2000 none 0 point 1931 open 69 | old proofs 0, new only 0, old only 0 | work 41559417 most 4000344 seconds 0.399
+half models 2000 none 876 point 1097 open 27 | old proofs 661, new only 215, old only 0 | work 72557560 most 4000947 seconds 20.800
+  none  MIP: none in [-64,64] 843, point in it 0, point in [-1e5,1e5] 0, stopped 33
+  point MIP: none in [-64,64] 0, point in it 1078, point in [-1e5,1e5] 16, stopped 3
+  open  MIP: none in [-64,64] 13, point in it 12, point in [-1e5,1e5] 1, stopped 1
+pugh models 2000 none 1939 point 61 open 0 | old proofs 868, new only 1071, old only 0 | work 1760860 most 227233 seconds 0.083
+  none  brute force: no point 1938, point 0, unbounded or too wide 1
+  point brute force: no point 0, point 61, unbounded or too wide 0
+  open  brute force: no point 0, point 0, unbounded or too wide 0
+pugh-wide models 500 none 491 point 9 open 0 | old proofs 200, new only 291, old only 0 | work 2719861 most 1723261 seconds 0.045
+  none  brute force: no point 491, point 0, unbounded or too wide 0
+  point brute force: no point 0, point 9, unbounded or too wide 0
+  open  brute force: no point 0, point 0, unbounded or too wide 0
+dense 2x1023 verdict point work 21904 seconds 0.000
+dense 8x255 verdict point work 50522 seconds 0.001
+dense 8x15 verdict point work 2978 seconds 0.000
+dense 16x15 verdict point work 9798 seconds 0.000
+dense 32x63 verdict point work 175663 seconds 0.003
+seed 2
+plant models 2000 none 0 point 1973 open 27 | old proofs 0, new only 0, old only 0 | work 61447884 most 4003258 seconds 0.438
+plant-wide models 2000 none 0 point 1926 open 74 | old proofs 0, new only 0, old only 0 | work 25592318 most 4000458 seconds 0.248
+half models 2000 none 831 point 1149 open 20 | old proofs 654, new only 177, old only 0 | work 62687065 most 4001029 seconds 12.536
+  none  MIP: none in [-64,64] 810, point in it 0, point in [-1e5,1e5] 0, stopped 21
+  point MIP: none in [-64,64] 0, point in it 1133, point in [-1e5,1e5] 14, stopped 2
+  open  MIP: none in [-64,64] 12, point in it 8, point in [-1e5,1e5] 0, stopped 0
+pugh models 2000 none 1946 point 54 open 0 | old proofs 864, new only 1082, old only 0 | work 1287697 most 235922 seconds 0.082
+  none  brute force: no point 1943, point 0, unbounded or too wide 3
+  point brute force: no point 0, point 52, unbounded or too wide 2
+  open  brute force: no point 0, point 0, unbounded or too wide 0
+pugh-wide models 500 none 493 point 7 open 0 | old proofs 225, new only 268, old only 0 | work 1448122 most 644705 seconds 0.030
+  none  brute force: no point 493, point 0, unbounded or too wide 0
+  point brute force: no point 0, point 7, unbounded or too wide 0
+  open  brute force: no point 0, point 0, unbounded or too wide 0
+dense 2x1023 verdict point work 21691 seconds 0.000
+dense 8x255 verdict point work 50214 seconds 0.001
+dense 8x15 verdict point work 3023 seconds 0.000
+dense 16x15 verdict point work 9652 seconds 0.000
+dense 32x63 verdict point work 174969 seconds 0.003

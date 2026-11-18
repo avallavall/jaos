@@ -868,7 +868,9 @@ class Problem:
         Nothing needs solving first and nothing is solved: the work runs on
         an elastic copy, and a feasible problem answers 0. What the problem
         has changed since its last solve is loaded first, so the relaxation
-        is about the problem as written."""
+        is about the problem as written. Raises as `Model.feasrelax` does,
+        including over the columns alone when no box holds an integer
+        point; the message says "none in any box" when that is proved."""
         self._load_changes()
         found = self._m.feasrelax(scope)
         cons = [(c, v) for c, v in zip(self._cons, found.row_move) if v != 0.0]
