@@ -1,0 +1,22 @@
+# bench/run -j 2 at -O threads=1, 2, 4, 12; cmp of each record against the one-thread record
+m3 t1 vs t2 IDENTICAL
+m17-2e9 t1 vs t2 IDENTICAL
+m3 t1 vs t4 IDENTICAL
+m17-2e9 t1 vs t4 IDENTICAL
+m3 t1 vs t12 IDENTICAL
+m17-2e9 t1 vs t12 IDENTICAL
+# the LP gates on the same build
+netlib exit=0 gate: PASS baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes 
+netlib-infeas exit=0 gate: PASS baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes 
+kennington exit=0 gate: PASS baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes 
+# against bench/miplib.baseline
+-- against baseline --
+bell3a       changed      nodes: 26393 -> 26171 (work 0.97x)
+bell5        changed      nodes: 27699 -> 27159 (work 0.98x)
+blend2       changed      nodes: 5053 -> 5024 (work 0.89x)
+dcmulti      changed      nodes: 263 -> 273 (work 1.03x)
+misc03       changed      nodes: 335 -> 307 (work 0.93x)
+misc07       changed      nodes: 8169 -> 9735 (work 1.16x)
+stein27      changed      nodes: 1137 -> 1113 (work 1.00x)
+stein45      changed      nodes: 54578 -> 58394 (work 1.04x)
+baseline: 0 regressed, 0 improved, 0 new, 8 at other nodes

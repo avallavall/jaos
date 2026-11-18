@@ -580,7 +580,7 @@ for (fn, T) in _SETTERS
                         (Ptr{Cvoid}, $T), m, value))
 end
 
-"""The thread count; 1 unless set."""
+"""The thread count; every core unless set."""
 threads(m::Model) = Int(ccall((:jaos_threads_of, libjaos), Int64, (Ptr{Cvoid},), m))
 
 """The algorithm as the C enum's value: 0 dual, 1 primal, 2 barrier, 3 PDLP,

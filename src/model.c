@@ -32,6 +32,7 @@ static void model_release_arrays(jaos_model *m)
 {
     jm_model_drop_parked(m);
     jm_lu_spare_free(m->lu_spare);
+    jm_probe_spare_free(m->probe_spare);
     free(m->col_cost);
     free(m->col_lower);
     free(m->col_upper);
@@ -2351,7 +2352,9 @@ jaos_status jaos_set_threads(jaos_model *m, int64_t threads)
 
 int64_t jaos_threads_of(const jaos_model *m)
 {
-    return m != nullptr && m->cfg.threads > 0 ? m->cfg.threads : 1;
+    if (m == nullptr)
+        return 1;
+    return m->cfg.threads > 0 ? m->cfg.threads : jm_cpu_count();
 }
 
 jaos_status jaos_set_mip_conflicts(jaos_model *m, int on)

@@ -378,7 +378,16 @@ MIPLIB 3 and the 2017 set.
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots (`bench/measurements/02-290/`).
 The round size cannot follow the thread count, because the answer must not
-depend on the machine.
+depend on the machine. A solve takes every core and a node's
+strong-branching probes run on them, the tree the same at every count, but
+probing is at most a tenth of the tree's work and gives no speedup a loaded
+machine can tell from noise; the node relaxations are 50% to 99% of it
+(`bench/measurements/02-492/`). Next: rounds whose lanes run the node's
+propagation and cutoff and keep their solved copy, which the tree takes in
+place of the second solve. Without the second solve, rounds of 8 would
+read about 1.03x MIPLIB 3's work (geometric mean), 0.52x to 1.61x per
+instance (02-492's `rounds.txt`). Verify with `make miplib J=2` at
+`--tree-batch 8` against the baseline, then 02-492's `speedup.sh`.
 
 ## Tier 5: the features SPECS still lists
 

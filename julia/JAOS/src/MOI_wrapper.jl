@@ -291,7 +291,7 @@ MOI.supports(::Optimizer, ::MOI.NumberOfThreads) = true
 MOI.get(o::Optimizer, ::MOI.NumberOfThreads) = o.threads
 function MOI.set(o::Optimizer, ::MOI.NumberOfThreads, value::Union{Nothing,Integer})
     o.threads = value === nothing ? nothing : Int(value)
-    o.inner === nothing || set_threads(o.inner, something(o.threads, 1))
+    o.inner === nothing || set_threads(o.inner, something(o.threads, 0))
     return
 end
 

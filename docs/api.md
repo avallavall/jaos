@@ -179,7 +179,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_local_branching` | `mip_local_branching` | integer | 0 |
 | `jaos_set_mip_node_select` | `mip_node_select` | integer | 1 |
 | `jaos_set_mip_restart` | `mip_restart` | boolean | false; true in network mode |
-| `jaos_set_threads` | `threads` | integer, 0 for every core | 1 |
+| `jaos_set_threads` | `threads` | integer, 0 for every core | every core |
 
 The calls that take data have no option name. These are the model's own
 setters, `jaos_set_mip_start`, `jaos_set_basis` and the four callback
@@ -198,7 +198,8 @@ the clock, so its value changes from run to run.
 
 ### Threads
 
-`jaos_set_threads` changes four things:
+A solve uses every core the machine reports unless `jaos_set_threads` sets
+another count. The thread count changes five things:
 
 - The concurrent solve, `JAOS_ALGORITHM_CONCURRENT`, runs its three methods
   at once from its second round on. It does so only when the thread count is
@@ -209,6 +210,12 @@ the clock, so its value changes from run to run.
 - The barrier computes its Cholesky factor in blocks of rows. It spreads a
   block over up to that many threads, at most 64, when the block holds
   enough work.
+- The linear branch and bound solves the strong-branching probes of a node
+  on up to that many threads, at most one per probe, when the node's
+  probes hold enough work. Each thread probes on its own copy of the node's factored
+  relaxation, and every probe starts from the node's own state, never from
+  the probe before it. The tree takes the probes' answers in the order of
+  its candidates, so the tree is the one a single thread builds.
 - The conic branch and bound solves the relaxations of one round on up to
   that many threads, each on its own copy of the model.
 - The linear branch and bound does the same.
@@ -228,8 +235,8 @@ a few, they cost more work than they save, so the default stays 1
 (`bench/measurements/02-290/`).
 
 In each case the answer and `jaos_work_units` are the same at any thread
-count. Only `jaos_solve_time` changes. Everything else runs on the thread
-that called `jaos_solve`.
+count (`bench/measurements/02-492/`). Only `jaos_solve_time` changes.
+Everything else runs on the thread that called `jaos_solve`.
 
 The library holds no global state, so different models can be solved in
 different threads at the same time. Calls on one model are not
@@ -244,7 +251,7 @@ bound solves a round on more than one thread, the calling thread solves
 every node whose place in the round is a multiple of the thread count,
 and only those nodes call the progress callback. So a solve on more
 threads makes fewer progress calls, and its answer and work units stay
-the same.
+the same. A strong-branching probe calls no callback on any thread.
 
 ### Values that overflow
 
@@ -1709,13 +1716,16 @@ no limit. The stop happens at the same point on every machine.
 **`jaos_set_threads`**\
 `jaos_status jaos_set_threads(jaos_model *m, int64_t threads)`\
 Sets how many threads a solve may use. The concurrent solve, the barrier's
-Cholesky factor and the rounds of both branch and bounds use them, as
-[Threads](#threads) describes. The default is 1. The call fails when
-`threads` is 0 or negative.
+Cholesky factor, the strong-branching probes of the linear branch and
+bound and the rounds of both branch and bounds use them, as
+[Threads](#threads) describes. The default is every core the machine
+reports, and 0 sets that count at the time of the call. The call fails
+when `threads` is negative.
 
 **`jaos_threads_of`**\
 `int64_t jaos_threads_of(const jaos_model *m)`\
-Returns the thread count. It is 1 unless it was set.
+Returns the thread count: the count set, or every core the machine
+reports when none was set.
 
 **`jaos_set_time_limit`**\
 `jaos_status jaos_set_time_limit(jaos_model *m, double seconds)`\

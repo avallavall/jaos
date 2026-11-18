@@ -210,6 +210,25 @@ class TestSolving(unittest.TestCase):
             self.assertGreaterEqual(m.solve_time, 0.0)
 
 class TestReadingFiles(unittest.TestCase):
+    def test_a_mip_takes_every_core_and_its_tree_does_not_follow_them(self):
+        with jaos.Model() as m:
+            self.assertEqual(m.threads, os.cpu_count())
+        self.assertEqual(jaos.Problem()._m.threads, os.cpu_count())
+        seen = []
+        for n in (1, 3):
+            p = jaos.Problem()
+            xs = [p.add_var(ub=1.0, integer=True) for _ in range(20)]
+            for r in range(2):
+                p.add(sum((11 + (j * (53 + 17 * r)) % 31) * xs[j]
+                          for j in range(20)) <= 150.0)
+            p.maximize(sum((23 + (j * 37) % 29) * xs[j] for j in range(20)))
+            p.set_threads(n)
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            rep = p.mip_report()
+            seen.append((p.objective_value, p.work_units, rep.nodes,
+                         [x.value for x in xs]))
+        self.assertEqual(seen[0], seen[1])
+
     def test_the_thread_count_is_kept_and_changes_no_answer(self):
         p = jaos.Problem()
         p.set_threads(1)

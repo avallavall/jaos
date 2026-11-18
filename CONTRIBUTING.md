@@ -9,6 +9,7 @@ make              # build/release/libjaos.a
 make test         # the unit suite, the CLI's test, and the exports, install,
                   # CMake, Windows, docs and version checks
 make sanitize     # the unit suite under ASan and UBSan
+make tsan         # the suites that start threads, under ThreadSanitizer
 make python-test  # the Python binding, when python/ changed
 ```
 

@@ -932,7 +932,8 @@ class Problem:
         return self
 
     def set_threads(self, threads):
-        """The thread count; 0 takes every core. Like Model.set_threads."""
+        """The thread count, every core by default; 0 takes every core.
+        Like Model.set_threads."""
         self._m.set_threads(threads)
         return self
 

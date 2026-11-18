@@ -209,8 +209,10 @@ cells here are rows `SPECS.md` marks out of scope.
   one. SCIP threads the LP only through a threaded LP solver, and SoPlex is
   not one. Hexaly says only that its threads "parallelize the search"
   (searched: `HxParam`, `HxPhase`).
-- *Parallel MIP solve*: the tree rounds are off by default, because no
-  round is cheap enough where a node takes a few pivots (`SPECS.md` §5).
+- *Parallel MIP solve*: a node's strong-branching probes run on every
+  core by default, the tree unchanged (`bench/measurements/02-492/`). The
+  tree rounds are off by default, because no round is cheap enough where a
+  node takes a few pivots (`SPECS.md` §5).
   HiGHS's threaded tree search is a prototype that runs only when
   `parallel` is "on".
 - *Deterministic under parallelism*: no clock decides anything, so the

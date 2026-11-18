@@ -160,6 +160,33 @@ int64_t jm_cpu_count(void)
     return n > 0 ? (int64_t)n : 1;
 }
 
+typedef SRWLOCK pool_mutex;
+typedef CONDITION_VARIABLE pool_cond;
+
+static bool pool_sync_init(pool_mutex *m, pool_cond *a, pool_cond *b)
+{
+    InitializeSRWLock(m);
+    InitializeConditionVariable(a);
+    InitializeConditionVariable(b);
+    return true;
+}
+
+static void pool_sync_free(pool_mutex *m, pool_cond *a, pool_cond *b)
+{
+    (void)m;
+    (void)a;
+    (void)b;
+}
+
+static void pool_lock(pool_mutex *m) { AcquireSRWLockExclusive(m); }
+static void pool_unlock(pool_mutex *m) { ReleaseSRWLockExclusive(m); }
+static void pool_wait(pool_cond *c, pool_mutex *m)
+{
+    SleepConditionVariableSRW(c, m, INFINITE, 0);
+}
+static void pool_wake_all(pool_cond *c) { WakeAllConditionVariable(c); }
+static void pool_wake_one(pool_cond *c) { WakeConditionVariable(c); }
+
 #else
 
 #include <locale.h>
@@ -273,7 +300,150 @@ int64_t jm_cpu_count(void)
     return n > 0 ? (int64_t)n : 1;
 }
 
+typedef pthread_mutex_t pool_mutex;
+typedef pthread_cond_t pool_cond;
+
+static bool pool_sync_init(pool_mutex *m, pool_cond *a, pool_cond *b)
+{
+    if (pthread_mutex_init(m, nullptr) != 0)
+        return false;
+    if (pthread_cond_init(a, nullptr) != 0) {
+        pthread_mutex_destroy(m);
+        return false;
+    }
+    if (pthread_cond_init(b, nullptr) != 0) {
+        pthread_cond_destroy(a);
+        pthread_mutex_destroy(m);
+        return false;
+    }
+    return true;
+}
+
+static void pool_sync_free(pool_mutex *m, pool_cond *a, pool_cond *b)
+{
+    pthread_cond_destroy(b);
+    pthread_cond_destroy(a);
+    pthread_mutex_destroy(m);
+}
+
+static void pool_lock(pool_mutex *m) { pthread_mutex_lock(m); }
+static void pool_unlock(pool_mutex *m) { pthread_mutex_unlock(m); }
+static void pool_wait(pool_cond *c, pool_mutex *m) { pthread_cond_wait(c, m); }
+static void pool_wake_all(pool_cond *c) { pthread_cond_broadcast(c); }
+static void pool_wake_one(pool_cond *c) { pthread_cond_signal(c); }
+
 #endif
+
+typedef struct {
+    jm_pool *p;
+    int64_t id;
+    jm_thread th;
+} pool_worker;
+
+struct jm_pool {
+    pool_mutex mu;
+    pool_cond go, done;
+    int64_t gen, lanes, pending, workers;
+    bool quit;
+    void (*fn)(void *, int64_t);
+    void *arg;
+    pool_worker *w;
+};
+
+static void pool_body(void *arg)
+{
+    pool_worker *w = arg;
+    jm_pool *p = w->p;
+    int64_t seen = 0;
+    pool_lock(&p->mu);
+    for (;;) {
+        while (!p->quit && p->gen == seen)
+            pool_wait(&p->go, &p->mu);
+        if (p->quit)
+            break;
+        seen = p->gen;
+        if (w->id >= p->lanes)
+            continue;
+        void (*fn)(void *, int64_t) = p->fn;
+        void *a = p->arg;
+        pool_unlock(&p->mu);
+        fn(a, w->id);
+        pool_lock(&p->mu);
+        if (--p->pending == 0)
+            pool_wake_one(&p->done);
+    }
+    pool_unlock(&p->mu);
+}
+
+jm_pool *jm_pool_new(int64_t workers)
+{
+    jm_pool *p = calloc(1, sizeof *p);
+    if (p == nullptr)
+        return nullptr;
+    if (!pool_sync_init(&p->mu, &p->go, &p->done)) {
+        free(p);
+        return nullptr;
+    }
+    if (workers > 0) {
+        p->w = calloc((size_t)workers, sizeof *p->w);
+        if (p->w == nullptr)
+            workers = 0;
+    }
+    for (int64_t k = 0; k < workers; k++) {
+        p->w[k].p = p;
+        p->w[k].id = k + 1;
+        if (!jm_thread_start(&p->w[k].th, pool_body, &p->w[k]))
+            break;
+        p->workers = k + 1;
+    }
+    return p;
+}
+
+int64_t jm_pool_workers(const jm_pool *p)
+{
+    return p != nullptr ? p->workers : 0;
+}
+
+void jm_pool_run(jm_pool *p, int64_t lanes, void (*fn)(void *, int64_t),
+                 void *arg)
+{
+    int64_t posted = 0;
+    if (p != nullptr && lanes > 1 && p->workers > 0) {
+        posted = lanes < p->workers + 1 ? lanes : p->workers + 1;
+        pool_lock(&p->mu);
+        p->fn = fn;
+        p->arg = arg;
+        p->lanes = posted;
+        p->pending = posted - 1;
+        p->gen++;
+        pool_wake_all(&p->go);
+        pool_unlock(&p->mu);
+    }
+    fn(arg, 0);
+    if (posted > 1) {
+        pool_lock(&p->mu);
+        while (p->pending > 0)
+            pool_wait(&p->done, &p->mu);
+        pool_unlock(&p->mu);
+    }
+    for (int64_t l = posted > 1 ? posted : 1; l < lanes; l++)
+        fn(arg, l);
+}
+
+void jm_pool_free(jm_pool *p)
+{
+    if (p == nullptr)
+        return;
+    pool_lock(&p->mu);
+    p->quit = true;
+    pool_wake_all(&p->go);
+    pool_unlock(&p->mu);
+    for (int64_t k = 0; k < p->workers; k++)
+        jm_thread_join(&p->w[k].th);
+    pool_sync_free(&p->mu, &p->go, &p->done);
+    free(p->w);
+    free(p);
+}
 
 int64_t jm_getline(char **line, size_t *cap, FILE *f)
 {

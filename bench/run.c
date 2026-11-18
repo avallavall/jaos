@@ -268,6 +268,7 @@ static int g_nopt = 0;
 
 static void apply_settings(jaos_model *m)
 {
+    (void)jaos_set_threads(m, 1);
     if (g_work_limit > 0)
         (void)jaos_set_work_limit(m, g_work_limit);
     for (int k = 0; k < g_nopt; k++)

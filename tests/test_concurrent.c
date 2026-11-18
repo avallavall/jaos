@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 #include "unity.h"
 
 #include <math.h>
@@ -317,9 +318,9 @@ static void test_concurrent_refuses_a_quadratic_objective(void)
 static void test_three_threads_give_the_same_answer_and_the_same_work(void)
 {
     jaos_model *m = fresh();
-    TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
+    TEST_ASSERT_EQUAL_INT64(jm_cpu_count(), jaos_threads_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_threads(m, -3));
-    TEST_ASSERT_EQUAL_INT64(1, jaos_threads_of(m));
+    TEST_ASSERT_EQUAL_INT64(jm_cpu_count(), jaos_threads_of(m));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 0));
     TEST_ASSERT_TRUE(jaos_threads_of(m) >= 1);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 1));

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -79,6 +80,8 @@ constexpr int64_t POLISH_ROUNDS = 4;
 constexpr int64_t SETTLE_ROUNDS_PRIMAL = 256;
 
 constexpr int64_t WARM_REPAIR_MAX_SHORT = 8;
+
+constexpr int64_t PROBE_LANES_MAX = 64;
 
 typedef enum { NOT_FAKE = 0, FAKE_LO, FAKE_UP } jm_fake;
 
@@ -325,36 +328,126 @@ static void sx_free(sx *s)
 
 typedef struct {
     sx s;
-    sx snap;
+    sx tmpl;
+    bool tmpl_ok;
     jm_presolve p;
     bool reduced;
-    jm_var_status *status;
-    int64_t *basis, *where;
-    double *xb, *d, *dse, *lo, *up, *cost, *shift, *y;
-    jm_fake *fake;
-    uint64_t *dref;
 } jm_kept;
+
+#ifndef NDEBUG
+#define SX_DEBUG_ARRAYS(X) \
+    X(dbg_cand, s->nvar) X(dbg_rnum, s->nvar) X(dbg_rden, s->nvar) \
+    X(dbg_rrange, s->nvar) X(dbg_col, s->nrow)
+#else
+#define SX_DEBUG_ARRAYS(X)
+#endif
+
+#define SX_ARRAYS(X) \
+    X(av, s->m->num_nz) X(arv, s->m->num_nz) X(pr_index, s->m->num_nz) \
+    X(pr_at, s->m->num_nz) X(pr_k, s->m->num_nz) X(pr_nb, s->nrow) \
+    X(lo, s->nvar) X(up, s->nvar) X(cost, s->nvar) X(cost0, s->nvar) \
+    X(shift, s->nvar) X(status, s->nvar) X(basis, s->nrow) \
+    X(where, s->nvar) X(fake, s->nvar) X(xb, s->nrow) X(d, s->nvar) \
+    X(dse, s->nrow) X(pviol, s->nrow) X(punder, s->nrow) \
+    X(devex, s->nvar) X(devref, (s->nvar + 63) / 64) X(pse_tau, s->nrow) \
+    X(col, s->nrow) X(raw, s->nrow) X(rhsc, s->nrow) X(resc, s->nrow) \
+    X(y, s->nrow) X(rho, s->nrow) X(tau, s->nrow) X(alpha, s->nvar) \
+    X(uray, s->ncol) X(apat, s->nvar) X(amark, (s->nvar + 63) / 64) \
+    X(nbmark, (s->nvar + 63) / 64) X(rpat, s->nrow) \
+    X(rmark, (s->nrow + 63) / 64) X(cpat, s->nrow) X(cand, s->nvar) \
+    X(rnum, s->nvar) X(rden, s->nvar) X(prow, s->nrow) X(pnum, s->nrow) \
+    X(pden, s->nrow) X(rrange, s->nvar) X(rratio, s->nvar) \
+    X(bs, s->nrow + 1) X(sav_status, s->nvar) X(sav_basis, s->nrow) \
+    X(sav_lo, s->nvar) X(sav_up, s->nvar) X(sav_fake, s->nvar) \
+    X(bst_status, s->nvar) X(bst_basis, s->nrow) X(bst_lo, s->nvar) \
+    X(bst_up, s->nvar) X(bst_fake, s->nvar) X(dref, (s->nvar + 63) / 64) \
+    X(c1, s->nvar) X(c1_at, s->nrow) SX_DEBUG_ARRAYS(X)
+
+static bool sx_put(void **dst, const void *src, int64_t n, size_t el)
+{
+    if (src == nullptr) {
+        free(*dst);
+        *dst = nullptr;
+        return true;
+    }
+    if (*dst == nullptr && (*dst = jm_alloc_array(n, el)) == nullptr)
+        return false;
+    if (n > 0)
+        memcpy(*dst, src, (size_t)n * el);
+    return true;
+}
+
+static bool sx_put_grown(void **dst, int64_t *cap, const void *src,
+                         int64_t n, size_t el)
+{
+    if (src == nullptr || n <= 0)
+        return true;
+    if (*cap < n) {
+        void *g = jm_realloc_array(*dst, n, el);
+        if (g == nullptr)
+            return false;
+        *dst = g;
+        *cap = n;
+    }
+    memcpy(*dst, src, (size_t)n * el);
+    return true;
+}
+
+static bool sx_assign(sx *s, const sx *t)
+{
+    assert(t->cost == nullptr || t->cost != t->c1);
+    const sx own = *s;
+    *s = *t;
+#define SX_OWN(f, n) s->f = own.f;
+    SX_ARRAYS(SX_OWN)
+#undef SX_OWN
+    s->m = own.m;
+    s->lu = own.lu;
+    s->work = own.work;
+    s->bi = own.bi;
+    s->bv = own.bv;
+    s->bi_cap = own.bi_cap;
+    s->bv_cap = own.bv_cap;
+    bool ok = true;
+#define SX_PUT(f, n) \
+    ok = ok && sx_put((void **)&s->f, t->f, (n), sizeof *s->f);
+    SX_ARRAYS(SX_PUT)
+#undef SX_PUT
+    ok = ok && sx_put_grown((void **)&s->bi, &s->bi_cap, t->bi, t->bi_cap,
+                            sizeof *s->bi);
+    ok = ok && sx_put_grown((void **)&s->bv, &s->bv_cap, t->bv, t->bv_cap,
+                            sizeof *s->bv);
+    s->lu.ftran_density[0] = t->lu.ftran_density[0];
+    s->lu.ftran_density[1] = t->lu.ftran_density[1];
+    return ok;
+}
+
+static bool sx_clone(sx *d, const sx *t)
+{
+    *d = *t;
+#define SX_NULL(f, n) d->f = nullptr;
+    SX_ARRAYS(SX_NULL)
+#undef SX_NULL
+    d->bi = nullptr;
+    d->bv = nullptr;
+    d->bi_cap = 0;
+    d->bv_cap = 0;
+    jm_lu_init(&d->lu);
+    if (sx_assign(d, t))
+        return true;
+    sx_free(d);
+    return false;
+}
 
 static void kept_free(jm_kept *k)
 {
     if (k == nullptr)
         return;
     sx_free(&k->s);
+    if (k->tmpl_ok)
+        sx_free(&k->tmpl);
     if (k->reduced)
         jm_presolve_free(&k->p);
-    free(k->status);
-    free(k->basis);
-    free(k->where);
-    free(k->xb);
-    free(k->d);
-    free(k->dse);
-    free(k->lo);
-    free(k->up);
-    free(k->cost);
-    free(k->shift);
-    free(k->y);
-    free(k->fake);
-    free(k->dref);
     free(k);
 }
 
@@ -4821,42 +4914,6 @@ static jaos_status restart_without_early_perturb(sx *s, jaos_model *m,
     return JAOS_OK;
 }
 
-static bool kept_take(jm_kept *k, const sx *s)
-{
-    const size_t nv = (size_t)s->nvar, nr = (size_t)s->nrow;
-    k->status = jm_alloc_array((int64_t)nv, sizeof *k->status);
-    k->basis = jm_alloc_array((int64_t)nr, sizeof *k->basis);
-    k->where = jm_alloc_array((int64_t)nv, sizeof *k->where);
-    k->xb = jm_alloc_array((int64_t)nr, sizeof *k->xb);
-    k->d = jm_alloc_array((int64_t)nv, sizeof *k->d);
-    k->dse = jm_alloc_array((int64_t)nr, sizeof *k->dse);
-    k->lo = jm_alloc_array((int64_t)nv, sizeof *k->lo);
-    k->up = jm_alloc_array((int64_t)nv, sizeof *k->up);
-    k->cost = jm_alloc_array((int64_t)nv, sizeof *k->cost);
-    k->shift = jm_alloc_array((int64_t)nv, sizeof *k->shift);
-    k->y = jm_alloc_array((int64_t)nr, sizeof *k->y);
-    k->fake = jm_alloc_array((int64_t)nv, sizeof *k->fake);
-    k->dref = jm_alloc_array((int64_t)((nv + 63) / 64), sizeof *k->dref);
-    if (!k->status || !k->basis || !k->where || !k->xb || !k->d || !k->dse ||
-        !k->lo || !k->up || !k->cost || !k->shift || !k->y || !k->fake ||
-        !k->dref)
-        return false;
-    memcpy(k->status, s->status, nv * sizeof *k->status);
-    memcpy(k->basis, s->basis, nr * sizeof *k->basis);
-    memcpy(k->where, s->where, nv * sizeof *k->where);
-    memcpy(k->xb, s->xb, nr * sizeof *k->xb);
-    memcpy(k->d, s->d, nv * sizeof *k->d);
-    memcpy(k->dse, s->dse, nr * sizeof *k->dse);
-    memcpy(k->lo, s->lo, nv * sizeof *k->lo);
-    memcpy(k->up, s->up, nv * sizeof *k->up);
-    memcpy(k->cost, s->cost, nv * sizeof *k->cost);
-    memcpy(k->shift, s->shift, nv * sizeof *k->shift);
-    memcpy(k->y, s->y, nr * sizeof *k->y);
-    memcpy(k->fake, s->fake, nv * sizeof *k->fake);
-    memcpy(k->dref, s->dref, ((nv + 63) / 64) * sizeof *k->dref);
-    return true;
-}
-
 static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                                      bool *by_presolve, int64_t *units,
                                      int64_t *iters)
@@ -5427,7 +5484,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         (target == m || target == &p.reduced) && !p.aggregated &&
         !s.primal_run && !s.needs_refactor) {
         jm_kept *k = calloc(1, sizeof *k);
-        if (k != nullptr && kept_take(k, &s)) {
+        if (k != nullptr) {
             k->s = s;
             k->reduced = target == &p.reduced;
             if (k->reduced) {
@@ -5436,11 +5493,9 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             } else {
                 jm_presolve_free(&p);
             }
-            k->snap = k->s;
             m->kept = k;
             return st;
         }
-        kept_free(k);
     }
     if (m->cfg.node_solve && m->lu_spare == nullptr)
         m->lu_spare = jm_lu_stash(&s.lu);
@@ -5449,45 +5504,11 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     return st;
 }
 
-static void kept_restore(jm_kept *k)
+static bool probe_ready(sx *s, const sx *t)
 {
-    sx *s = &k->s;
-    const sx now = *s;
-    *s = k->snap;
-    s->lu = now.lu;
-    s->bi = now.bi;
-    s->bv = now.bv;
-    s->bi_cap = now.bi_cap;
-    s->bv_cap = now.bv_cap;
-    s->sav_status = now.sav_status;
-    s->sav_basis = now.sav_basis;
-    s->sav_lo = now.sav_lo;
-    s->sav_up = now.sav_up;
-    s->sav_fake = now.sav_fake;
-    s->bst_status = now.bst_status;
-    s->bst_basis = now.bst_basis;
-    s->bst_lo = now.bst_lo;
-    s->bst_up = now.bst_up;
-    s->bst_fake = now.bst_fake;
-    s->c1 = now.c1;
-    s->c1_at = now.c1_at;
-    s->n_c1_at = now.n_c1_at;
-    s->work = now.work;
-    s->m = now.m;
+    if (!sx_assign(s, t))
+        return false;
     const size_t nv = (size_t)s->nvar, nr = (size_t)s->nrow;
-    memcpy(s->status, k->status, nv * sizeof *s->status);
-    memcpy(s->basis, k->basis, nr * sizeof *s->basis);
-    memcpy(s->where, k->where, nv * sizeof *s->where);
-    memcpy(s->xb, k->xb, nr * sizeof *s->xb);
-    memcpy(s->d, k->d, nv * sizeof *s->d);
-    memcpy(s->dse, k->dse, nr * sizeof *s->dse);
-    memcpy(s->lo, k->lo, nv * sizeof *s->lo);
-    memcpy(s->up, k->up, nv * sizeof *s->up);
-    memcpy(s->cost, k->cost, nv * sizeof *s->cost);
-    memcpy(s->shift, k->shift, nv * sizeof *s->shift);
-    memcpy(s->y, k->y, nr * sizeof *s->y);
-    memcpy(s->fake, k->fake, nv * sizeof *s->fake);
-    memcpy(s->dref, k->dref, ((nv + 63) / 64) * sizeof *s->dref);
     s->pviol_ok = false;
     s->ncpat = -1;
     s->anpat = -1;
@@ -5508,35 +5529,35 @@ static void kept_restore(jm_kept *k)
     pr_rebuild(s);
     s->needs_refactor = true;
     set_verified(s, false);
+    return true;
 }
 
-jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
-                     int64_t cap, double *bound, jaos_solve_status *out,
-                     int64_t *work, int64_t *iters)
+static void probe_task(sx *s, jaos_model *t, const jm_kept *k,
+                       jm_probe_task *tk)
 {
-    *out = JAOS_SOLVE_NOT_RUN;
-    *work = 0;
-    *iters = 0;
-    jm_kept *k = m->kept;
-    if (k == nullptr || j < 0 || j >= m->num_col)
-        return JAOS_ERR_INVALID_INPUT;
-    jaos_model *t = k->reduced ? &k->p.reduced : m;
-    const int64_t jr = k->reduced ? k->p.col_map[j] : j;
+    tk->out = JAOS_SOLVE_NOT_RUN;
+    tk->st = JAOS_OK;
+    tk->bound = 0.0;
+    tk->work = 0;
+    tk->iters = 0;
+    const int64_t jr = k->reduced ? k->p.col_map[tk->col] : tk->col;
     if (jr < 0)
-        return JAOS_OK;
-    const double plo = lo > t->col_lower[jr] ? lo : t->col_lower[jr];
-    const double phi = hi < t->col_upper[jr] ? hi : t->col_upper[jr];
+        return;
+    const double plo = tk->lo > t->col_lower[jr] ? tk->lo : t->col_lower[jr];
+    const double phi = tk->hi < t->col_upper[jr] ? tk->hi : t->col_upper[jr];
     if (plo > phi) {
-        *out = JAOS_SOLVE_INFEASIBLE;
-        return JAOS_OK;
+        tk->out = JAOS_SOLVE_INFEASIBLE;
+        return;
     }
-    kept_restore(k);
-    sx *s = &k->s;
+    if (!probe_ready(s, &k->tmpl)) {
+        tk->st = JAOS_ERR_OUT_OF_MEMORY;
+        return;
+    }
     const int64_t w0 = s->work.units, i0 = s->iters;
     s->lo[jr] = plo / t->col_scale[jr];
     s->up[jr] = phi / t->col_scale[jr];
     const int64_t limit = t->cfg.work_limit;
-    t->cfg.work_limit = cap > 0 ? s->work.units + cap : 0;
+    t->cfg.work_limit = tk->cap > 0 ? s->work.units + tk->cap : 0;
     s->cut_lag = INFINITY;
     s->cut_hit = false;
     jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
@@ -5550,8 +5571,9 @@ jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
             o = JAOS_SOLVE_NUMERICAL_ERROR;
     }
     if (st == JAOS_ERR_OUT_OF_MEMORY) {
-        *work = s->work.units - w0;
-        return st;
+        tk->work = s->work.units - w0;
+        tk->st = st;
+        return;
     }
     if (st != JAOS_OK)
         o = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -5562,17 +5584,143 @@ jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
             lag = point_objective(s);
         if (have || o == JAOS_SOLVE_OPTIMAL) {
             const double sgn = t->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
-            *bound = sgn * lag + t->obj_offset;
+            tk->bound = sgn * lag + t->obj_offset;
         } else {
             o = JAOS_SOLVE_NUMERICAL_ERROR;
         }
     }
-    *out = o;
-    *work = s->work.units - w0;
-    *iters = s->iters - i0;
+    tk->out = o;
+    tk->work = s->work.units - w0;
+    tk->iters = s->iters - i0;
+}
+
+typedef struct {
+    sx *s;
+    jaos_model shell;
+    const jm_kept *k;
+    jm_probe_task *task;
+    int64_t n;
+    _Atomic int64_t *next;
+} probe_lane;
+
+typedef struct {
+    sx s[PROBE_LANES_MAX - 1];
+    int64_t nz[PROBE_LANES_MAX - 1];
+} probe_spare;
+
+void jm_probe_spare_free(void *spare)
+{
+    probe_spare *sp = spare;
+    if (sp == nullptr)
+        return;
+    for (int64_t l = 0; l < PROBE_LANES_MAX - 1; l++)
+        if (sp->s[l].status != nullptr)
+            sx_free(&sp->s[l]);
+    free(sp);
+}
+
+static sx *probe_spare_lane(probe_spare *sp, int64_t l, const sx *t,
+                            int64_t nz)
+{
+    sx *c = &sp->s[l];
+    if (c->status != nullptr && c->nrow == t->nrow && c->ncol == t->ncol &&
+        c->nvar == t->nvar && sp->nz[l] == nz)
+        return c;
+    if (c->status != nullptr)
+        sx_free(c);
+    if (!sx_clone(c, t))
+        return nullptr;
+    sp->nz[l] = nz;
+    return c;
+}
+
+static void probe_lane_run(void *arg, int64_t id)
+{
+    probe_lane *l = (probe_lane *)arg + id;
+    for (;;) {
+        const int64_t i = atomic_fetch_add_explicit(l->next, 1,
+                                                    memory_order_relaxed);
+        if (i >= l->n)
+            return;
+        probe_task(l->s, &l->shell, l->k, &l->task[i]);
+    }
+}
+
+jaos_status jm_probe_many(jaos_model *m, jm_probe_task *task, int64_t n,
+                          int64_t lanes, jm_pool *pool)
+{
+    jm_kept *k = m->kept;
+    if (k == nullptr || n < 0 || (n > 0 && task == nullptr))
+        return JAOS_ERR_INVALID_INPUT;
+    for (int64_t i = 0; i < n; i++)
+        if (task[i].col < 0 || task[i].col >= m->num_col)
+            return JAOS_ERR_INVALID_INPUT;
+    if (n == 0)
+        return JAOS_OK;
+    if (!k->tmpl_ok) {
+        if (!sx_clone(&k->tmpl, &k->s))
+            return JAOS_ERR_OUT_OF_MEMORY;
+        k->tmpl_ok = true;
+    }
+    jaos_model *t = k->reduced ? &k->p.reduced : m;
+    if (lanes > n)
+        lanes = n;
+    if (lanes > jm_pool_workers(pool) + 1)
+        lanes = jm_pool_workers(pool) + 1;
+    if (lanes > PROBE_LANES_MAX)
+        lanes = PROBE_LANES_MAX;
+    if (lanes < 1)
+        lanes = 1;
+    probe_lane *lane = jm_calloc_array(lanes, sizeof *lane);
+    if (lane == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    _Atomic int64_t next;
+    atomic_init(&next, 0);
+    for (int64_t l = 0; l < lanes; l++) {
+        lane[l].shell = *t;
+        lane[l].shell.cfg.log_cb = nullptr;
+        lane[l].shell.cfg.progress_cb = nullptr;
+        lane[l].k = k;
+        lane[l].task = task;
+        lane[l].n = n;
+        lane[l].next = &next;
+    }
+    if (lanes > 1 && m->probe_spare == nullptr)
+        m->probe_spare = calloc(1, sizeof(probe_spare));
+    lane[0].s = &k->s;
+    k->s.m = &lane[0].shell;
+    int64_t made = 1;
+    for (; made < lanes && m->probe_spare != nullptr; made++) {
+        sx *c = probe_spare_lane(m->probe_spare, made - 1, &k->tmpl,
+                                 t->num_nz);
+        if (c == nullptr)
+            break;
+        c->m = &lane[made].shell;
+        lane[made].s = c;
+    }
+    jm_pool_run(pool, made, probe_lane_run, lane);
+    k->s.m = t;
+    free(lane);
     m->err[0] = '\0';
     t->err[0] = '\0';
+    for (int64_t i = 0; i < n; i++)
+        if (task[i].st != JAOS_OK)
+            return task[i].st;
     return JAOS_OK;
+}
+
+jaos_status jm_probe(jaos_model *m, int64_t j, double lo, double hi,
+                     int64_t cap, double *bound, jaos_solve_status *out,
+                     int64_t *work, int64_t *iters)
+{
+    jm_probe_task tk = { .col = j, .lo = lo, .hi = hi, .cap = cap,
+                         .out = JAOS_SOLVE_NOT_RUN };
+    const jaos_status st = jm_probe_many(m, &tk, 1, 1, nullptr);
+    *bound = tk.bound;
+    *out = tk.out;
+    *work = tk.work;
+    *iters = tk.iters;
+    return st;
 }
 
 static bool presolve_answer_certified(jaos_model *m)

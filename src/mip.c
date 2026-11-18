@@ -248,6 +248,11 @@ constexpr double MIP_PROBE_CAP = 1.5;
 
 constexpr int64_t MIP_PROBE_DEPTH = -1;
 
+#ifndef JAOS_MIP_PROBE_LANE_WORK
+#define JAOS_MIP_PROBE_LANE_WORK 150000
+#endif
+constexpr int64_t MIP_PROBE_LANE_WORK = JAOS_MIP_PROBE_LANE_WORK;
+
 typedef struct {
     int64_t *start, *idx;
     double *val, *lo;
@@ -1643,52 +1648,102 @@ static void probe_learn(double *pc_sum, int64_t *pc_n, int64_t nc, int64_t j,
     pc_n[d * nc + j] += 1;
 }
 
+typedef struct {
+    jm_pool *pool;
+    int64_t task_work, threads;
+} probe_crew;
+
+static int64_t probe_lanes(const jaos_model *m, const probe_crew *crew,
+                           int64_t nt)
+{
+    const int64_t per = m->cfg.probe_lane_work > 0 ? m->cfg.probe_lane_work
+                                                   : MIP_PROBE_LANE_WORK;
+    int64_t lanes = crew->threads;
+    if (lanes > nt)
+        lanes = nt;
+    if (crew->task_work * nt / per < lanes)
+        lanes = crew->task_work * nt / per;
+    return lanes < 1 ? 1 : lanes;
+}
+
 static jaos_status kept_probes(jaos_model *lp, const jaos_model *m,
                                const double *x, double key, double sigma,
                                int64_t reliability, int64_t cap,
                                double *pc_sum, int64_t *pc_n, int64_t *work,
                                int64_t *solves, int64_t *probes,
                                int64_t *capped, int64_t *cand, int64_t ncand,
-                               int64_t *left_out)
+                               int64_t *left_out, probe_crew *crew)
 {
     const int64_t nc = m->num_col;
-    int64_t out = 0;
+    jm_probe_task *task = jm_alloc_array(2 * ncand, sizeof *task);
+    if (task == nullptr)
+        return JAOS_ERR_OUT_OF_MEMORY;
+    int64_t nt = 0;
     for (int64_t c = 0; c < ncand; c++) {
+        const int64_t j = cand[c];
+        for (int d = 0; d < 2; d++)
+            if (pc_n[d * nc + j] < reliability)
+                task[nt++] = (jm_probe_task){
+                    .col = j,
+                    .lo = d == 0 ? lp->col_lower[j] : ceil(x[j]),
+                    .hi = d == 0 ? floor(x[j]) : lp->col_upper[j],
+                    .cap = cap };
+    }
+    const bool limited = m->cfg.work_limit > 0;
+    const int64_t lanes = probe_lanes(m, crew, nt);
+    if (lanes > 1 && crew->pool == nullptr) {
+        const int64_t most = 2 * MIP_STRONG_CANDIDATES;
+        const int64_t threads = crew->threads;
+        crew->pool = jm_pool_new((threads < most ? threads : most) - 1);
+    }
+    const bool ahead = lanes > 1 && jm_pool_workers(crew->pool) > 0 &&
+                       (!limited || cap > 0);
+    const int64_t w0 = *work;
+    jaos_status st = ahead ? jm_probe_many(lp, task, nt, lanes, crew->pool)
+                           : JAOS_OK;
+    int64_t out = 0, at = 0, ran = 0;
+    for (int64_t c = 0; c < ncand && st == JAOS_OK; c++) {
         const int64_t j = cand[c];
         const double f = x[j] - floor(x[j]);
         for (int d = 0; d < 2; d++) {
             if (pc_n[d * nc + j] >= reliability)
                 continue;
+            jm_probe_task *tk = &task[at++];
             int64_t room = cap;
-            if (m->cfg.work_limit > 0) {
+            if (limited) {
                 const int64_t left = m->cfg.work_limit - *work;
                 if (room <= 0 || left < room)
                     room = left > 0 ? left : 1;
             }
-            const double lo = d == 0 ? lp->col_lower[j] : ceil(x[j]);
-            const double hi = d == 0 ? floor(x[j]) : lp->col_upper[j];
-            double bound = 0.0;
-            jaos_solve_status o = JAOS_SOLVE_NOT_RUN;
-            int64_t w = 0, it = 0;
-            const jaos_status st = jm_probe(lp, j, lo, hi, room, &bound, &o,
-                                            &w, &it);
-            if (st != JAOS_OK)
-                return st;
-            if (o == JAOS_SOLVE_NOT_RUN) {
+            if (!ahead || room != tk->cap) {
+                tk->cap = room;
+                st = jm_probe_many(lp, tk, 1, 1, nullptr);
+                if (st != JAOS_OK)
+                    break;
+            }
+            if (tk->out == JAOS_SOLVE_NOT_RUN) {
                 cand[out++] = j;
+                if (d == 0 && pc_n[nc + j] < reliability)
+                    at++;
                 break;
             }
-            *work += w;
+            *work += tk->work;
+            ran++;
             (*solves)++;
             (*probes)++;
-            if (o == JAOS_SOLVE_WORK_LIMIT)
+            if (tk->out == JAOS_SOLVE_WORK_LIMIT)
                 (*capped)++;
-            if (o == JAOS_SOLVE_OPTIMAL || o == JAOS_SOLVE_WORK_LIMIT)
-                probe_learn(pc_sum, pc_n, nc, j, d, f, sigma * bound - key);
+            if (tk->out == JAOS_SOLVE_OPTIMAL ||
+                tk->out == JAOS_SOLVE_WORK_LIMIT)
+                probe_learn(pc_sum, pc_n, nc, j, d, f,
+                            sigma * tk->bound - key);
         }
     }
+    if (ran > 0)
+        crew->task_work = (*work - w0) / ran;
+    free(task);
     *left_out = out;
-    return JAOS_OK;
+    return st;
 }
 
 static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
@@ -1697,7 +1752,8 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
                                 double *pc_sum, int64_t *pc_n, int64_t *work,
                                 int64_t *solves, int64_t *probes,
                                 int64_t *capped, jaos_basis_status *cs,
-                                jaos_basis_status *rs, int64_t *cand)
+                                jaos_basis_status *rs, int64_t *cand,
+                                probe_crew *crew)
 {
     const int64_t nc = m->num_col, nr = lp->num_row;
     int64_t ncand = 0;
@@ -1736,7 +1792,7 @@ static jaos_status strong_probe(jaos_model *lp, const jaos_model *m,
         const jaos_status ks = kept_probes(lp, m, x, key, sigma, reliability,
                                            cap, pc_sum, pc_n, work, solves,
                                            probes, capped, cand, ncand,
-                                           &ncand);
+                                           &ncand, crew);
         if (ks != JAOS_OK || ncand == 0)
             return ks;
     }
@@ -9429,6 +9485,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     jaos_basis_status *pcs = nullptr, *prs = nullptr;
     int64_t next_id = 0, nodes = 0, solves = 0, cuts = 0, heur_points = 0;
     int64_t probes = 0, capped = 0, cutoff_nodes = 0;
+    probe_crew sb_crew = { .threads = jaos_threads_of(m) };
     int64_t node_rcfixed = 0;
     int64_t dive_points = 0;
     int64_t rins_points = 0;
@@ -11892,7 +11949,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             const jaos_status ps = strong_probe(lp, m, x, key, sigma,
                                                 reliability, cap, pc_sum, pc_n,
                                                 &work, &solves, &probes,
-                                                &capped, pcs, prs, cand);
+                                                &capped, pcs, prs, cand,
+                                                &sb_crew);
             if (ps != JAOS_OK) {
                 if (ps == JAOS_ERR_NUMERICAL) {
                     outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -12320,6 +12378,7 @@ done:
     free(rcpos);
     free(pc_sum);
     free(pc_n);
+    jm_pool_free(sb_crew.pool);
     free(cand);
     free(fcol);
     free(flo);

@@ -112,6 +112,7 @@ static void measure_one(const entry *e, const char *dir, int64_t factor,
         fail(r, B_ERROR, "out of memory");
         return;
     }
+    (void)jaos_set_threads(m, 1);
     if (jaos_read_mps(m, path) != JAOS_OK) {
         fail(r, B_ERROR, "read failed");
         jaos_model_free(m);

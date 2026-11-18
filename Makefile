@@ -42,6 +42,7 @@ EXTRA_CFLAGS ?=
 RELEASE_CFLAGS := $(STD) $(WARN) $(FP) $(THREADS) -Werror $(SHIP) -g -DNDEBUG $(PGO_CFLAGS) $(EXTRA_CFLAGS)
 DEV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -Og $(EXTRA_CFLAGS)
 ASAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer
+TSAN_CFLAGS    := $(DEV_CFLAGS) -fsanitize=thread -fno-omit-frame-pointer
 COV_CFLAGS     := $(STD) $(WARN) $(FP) $(THREADS) -Werror -g -O0 --coverage $(EXTRA_CFLAGS)
 
 GCOV     ?= gcov-14
@@ -61,6 +62,7 @@ B := build
 REL_OBJ  := $(SRC:src/%.c=$(B)/release/%.o)
 DEV_OBJ  := $(SRC:src/%.c=$(B)/dev/%.o)
 ASAN_OBJ := $(SRC:src/%.c=$(B)/asan/%.o)
+TSAN_OBJ := $(SRC:src/%.c=$(B)/tsan/%.o)
 PIC_OBJ  := $(SRC:src/%.c=$(B)/pic/%.o)
 COV_OBJ  := $(SRC:src/%.c=$(B)/cov/%.o)
 
@@ -70,9 +72,10 @@ SHLIB := $(B)/release/libjaos.so
 
 DEV_TESTS  := $(TESTS:tests/%.c=$(B)/dev/%)
 ASAN_TESTS := $(TESTS:tests/%.c=$(B)/asan/%)
+TSAN_TESTS := $(patsubst %,$(B)/tsan/test_%,chol concurrent conic mip symmetry)
 COV_TESTS  := $(TESTS:tests/%.c=$(B)/cov/%)
 
-.PHONY: all test docs-check version-check sdist-test sanitize coverage valgrind configs cli bench compare-build compare-solvers compare refusals \
+.PHONY: all test docs-check version-check sdist-test sanitize tsan coverage valgrind configs cli bench compare-build compare-solvers compare refusals \
 	install uninstall pkgconfig exports-test install-test cmake-test windows-test \
 	netlib netlib-baseline \
 	netlib-kennington \
@@ -101,7 +104,7 @@ HDRS := include/jaos.h src/jaos_internal.h
 JAOS_COMMIT := $(shell bash tools/commit.sh 2>/dev/null)
 COMMIT_STAMP := $(B)/commit.txt
 $(shell mkdir -p $(B) && { printf '%s\n' '$(JAOS_COMMIT)' | cmp -s - $(COMMIT_STAMP) || printf '%s\n' '$(JAOS_COMMIT)' > $(COMMIT_STAMP); })
-VERSION_OBJ := $(foreach d,release dev asan pic cov,$(B)/$(d)/version.o)
+VERSION_OBJ := $(foreach d,release dev asan tsan pic cov,$(B)/$(d)/version.o)
 $(VERSION_OBJ): $(COMMIT_STAMP)
 $(VERSION_OBJ): LIBONLY += -DJAOS_BUILD_COMMIT='"$(JAOS_COMMIT)"'
 
@@ -113,6 +116,9 @@ $(B)/dev/%.o: src/%.c $(HDRS) | $(B)/dev
 
 $(B)/asan/%.o: src/%.c $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
+
+$(B)/tsan/%.o: src/%.c $(HDRS) | $(B)/tsan
+	$(CC) $(TSAN_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
 
 $(B)/pic/%.o: src/%.c $(HDRS) | $(B)/pic
 	$(CC) $(RELEASE_CFLAGS) -fPIC $(LIBONLY) $(INC) -c $< -o $@
@@ -133,11 +139,17 @@ $(B)/dev/unity.o: $(UNITY_DIR)/unity.c | $(B)/dev
 $(B)/asan/unity.o: $(UNITY_DIR)/unity.c | $(B)/asan
 	$(CC) $(UNITY_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer -I$(UNITY_DIR) -c $< -o $@
 
+$(B)/tsan/unity.o: $(UNITY_DIR)/unity.c | $(B)/tsan
+	$(CC) $(UNITY_CFLAGS) -fsanitize=thread -fno-omit-frame-pointer -I$(UNITY_DIR) -c $< -o $@
+
 $(B)/dev/test_%: tests/test_%.c $(DEV_OBJ) $(B)/dev/unity.o $(HDRS) | $(B)/dev
 	$(CC) $(DEV_CFLAGS) $(TEST_INC) $< $(DEV_OBJ) $(B)/dev/unity.o -o $@ $(LDLIBS)
 
 $(B)/asan/test_%: tests/test_%.c $(ASAN_OBJ) $(B)/asan/unity.o $(HDRS) | $(B)/asan
 	$(CC) $(ASAN_CFLAGS) $(TEST_INC) $< $(ASAN_OBJ) $(B)/asan/unity.o -o $@ $(LDLIBS)
+
+$(B)/tsan/test_%: tests/test_%.c $(TSAN_OBJ) $(B)/tsan/unity.o $(HDRS) | $(B)/tsan
+	$(CC) $(TSAN_CFLAGS) $(TEST_INC) $< $(TSAN_OBJ) $(B)/tsan/unity.o -o $@ $(LDLIBS)
 
 $(B)/cov/%.o: src/%.c $(HDRS) | $(B)/cov
 	$(CC) $(COV_CFLAGS) $(LIBONLY) $(INC) -c $< -o $@
@@ -182,6 +194,9 @@ windows-test: $(CLI)
 
 sanitize: $(ASAN_TESTS)
 	@fail=0; for t in $(ASAN_TESTS); do echo "== $$t"; ./$$t || fail=1; done; exit $$fail
+
+tsan: $(TSAN_TESTS)
+	@fail=0; for t in $(TSAN_TESTS); do echo "== $$t"; TSAN_OPTIONS='halt_on_error=1 exitcode=66' setarch "$$(uname -m)" -R ./$$t || fail=1; done; exit $$fail
 
 coverage: $(COV_TESTS)
 	@rm -f $(B)/cov/*.gcda
@@ -539,7 +554,7 @@ pgo:
 		all
 	@echo "== $(LIB) is now built from a profile of $(if $(PGO_LOAD),$(words $(PGO_LOAD)),94) real models"
 
-$(B)/release $(B)/dev $(B)/asan $(B)/cov $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
+$(B)/release $(B)/dev $(B)/asan $(B)/tsan $(B)/cov $(B)/bench $(B)/cli $(B)/pic $(B)/fuzz:
 	mkdir -p $@
 
 FUZZ_CC      ?= clang-20

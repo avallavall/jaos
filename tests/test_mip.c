@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #include "jaos.h"
 #include "jaos_internal.h"
+#include "jaos_sys.h"
 #include "unity.h"
 
 #include <math.h>
@@ -3551,6 +3552,76 @@ static void test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child(voi
     }
 }
 
+static void same_probe(const jm_probe_task *a, const jm_probe_task *b)
+{
+    TEST_ASSERT_EQUAL_INT64(a->col, b->col);
+    TEST_ASSERT_EQUAL_INT(a->st, b->st);
+    TEST_ASSERT_EQUAL_INT(a->out, b->out);
+    TEST_ASSERT_EQUAL_INT64(a->work, b->work);
+    TEST_ASSERT_EQUAL_INT64(a->iters, b->iters);
+    TEST_ASSERT_EQUAL_MEMORY(&a->bound, &b->bound, sizeof a->bound);
+}
+
+static void test_probes_on_lanes_give_what_one_probe_at_a_time_gives(void)
+{
+    for (int pre = 0; pre < 2; pre++) {
+        jaos_model *lp = probe_lp();
+        lp->cfg.node_solve = true;
+        lp->cfg.node_keep = true;
+        lp->cfg.no_presolve = pre == 0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(lp));
+        TEST_ASSERT_NOT_NULL(lp->kept);
+        double x[PROBE_NC];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_solution(lp, x, nullptr, nullptr, nullptr));
+        enum { PROBE_TASKS = 4 * PROBE_NC + 1 };
+        jm_probe_task task[PROBE_TASKS];
+        int64_t n = 0;
+        for (int64_t j = 0; j < PROBE_NC; j++) {
+            if (x[j] - floor(x[j]) < 1e-6 || ceil(x[j]) - x[j] < 1e-6)
+                continue;
+            for (int d = 0; d < 2; d++)
+                for (int64_t cap = 0; cap <= 1; cap++)
+                    task[n++] = (jm_probe_task){
+                        .col = j,
+                        .lo = d == 0 ? lp->col_lower[j] : ceil(x[j]),
+                        .hi = d == 0 ? floor(x[j]) : lp->col_upper[j],
+                        .cap = cap };
+        }
+        if (pre == 1)
+            task[n++] = (jm_probe_task){ .col = PROBE_NC - 1, .lo = 1.0,
+                                         .hi = 1.0 };
+        TEST_ASSERT_TRUE(n >= 16);
+        jm_probe_task one[PROBE_TASKS], three[PROBE_TASKS], back[PROBE_TASKS];
+        memcpy(one, task, (size_t)n * sizeof *task);
+        memcpy(three, task, (size_t)n * sizeof *task);
+        memcpy(back, task, (size_t)n * sizeof *task);
+        jm_pool *pool = jm_pool_new(2);
+        TEST_ASSERT_NOT_NULL(pool);
+        TEST_ASSERT_EQUAL_INT64(2, jm_pool_workers(pool));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jm_probe_many(lp, one, n, 1, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_probe_many(lp, three, n, 3, pool));
+        jm_pool_free(pool);
+        for (int64_t i = n - 1; i >= 0; i--)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jm_probe_many(lp, &back[i], 1, 1, nullptr));
+        int64_t optimal = 0, stopped = 0, not_run = 0;
+        for (int64_t i = 0; i < n; i++) {
+            same_probe(&one[i], &three[i]);
+            same_probe(&one[i], &back[i]);
+            optimal += one[i].out == JAOS_SOLVE_OPTIMAL;
+            stopped += one[i].out == JAOS_SOLVE_WORK_LIMIT;
+            not_run += one[i].out == JAOS_SOLVE_NOT_RUN;
+        }
+        TEST_ASSERT_TRUE(optimal >= 4);
+        TEST_ASSERT_TRUE(stopped >= 1);
+        TEST_ASSERT_EQUAL_INT64(pre == 1 ? 1 : 0, not_run);
+        TEST_ASSERT_NOT_NULL(lp->kept);
+        jaos_model_free(lp);
+    }
+}
+
 static int g_devex_lines;
 static void count_devex(void *user, jaos_log_level level, const char *line)
 {
@@ -4991,6 +5062,46 @@ static void test_a_round_of_nodes_is_the_same_on_any_thread_count(void)
                 TEST_ASSERT_EQUAL_INT64(nodes_ref, rep.nodes);
                 TEST_ASSERT_EQUAL_INT64(work_ref, jaos_work_units(m));
                 TEST_ASSERT_EQUAL_MEMORY(xref, x, sizeof xref);
+            }
+            jaos_model_free(m);
+        }
+    }
+}
+
+static void test_strong_branching_on_threads_keeps_the_tree(void)
+{
+    for (int shape = 0; shape < 2; shape++) {
+        double xref[PROBE_NC], objref = 0.0;
+        int64_t nodes_ref = 0, work_ref = 0, solves_ref = 0;
+        for (int64_t threads = 1; threads <= 3; threads += 2) {
+            jaos_model *m = shape == 0 ? two_knapsacks() : probe_lp();
+            const int64_t nc = jaos_num_col(m);
+            for (int64_t j = 0; shape == 1 && j < nc; j++)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                      jaos_set_col_integer(m, j, true));
+            m->cfg.probe_lane_work = 1;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+            double obj = 0.0, x[PROBE_NC];
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                jaos_solution(m, x, nullptr, nullptr, nullptr));
+            jaos_mip_report rep;
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            TEST_ASSERT_TRUE(rep.lp_solves > rep.nodes);
+            if (threads == 1) {
+                memcpy(xref, x, (size_t)nc * sizeof *x);
+                objref = obj;
+                nodes_ref = rep.nodes;
+                solves_ref = rep.lp_solves;
+                work_ref = jaos_work_units(m);
+            } else {
+                TEST_ASSERT_EQUAL_MEMORY(&objref, &obj, sizeof obj);
+                TEST_ASSERT_EQUAL_INT64(nodes_ref, rep.nodes);
+                TEST_ASSERT_EQUAL_INT64(solves_ref, rep.lp_solves);
+                TEST_ASSERT_EQUAL_INT64(work_ref, jaos_work_units(m));
+                TEST_ASSERT_EQUAL_MEMORY(xref, x, (size_t)nc * sizeof *x);
             }
             jaos_model_free(m);
         }
@@ -7436,6 +7547,7 @@ int main(void)
     RUN_TEST(test_strong_branching_probes_are_counted_and_change_no_answer);
     RUN_TEST(test_a_capped_probe_reaches_the_same_optimum);
     RUN_TEST(test_a_probe_on_the_kept_node_matches_a_fresh_solve_of_its_child);
+    RUN_TEST(test_probes_on_lanes_give_what_one_probe_at_a_time_gives);
     RUN_TEST(test_a_node_solve_below_the_root_prices_by_dual_devex);
     RUN_TEST(test_every_dive_child_rule_reaches_the_same_optimum);
     RUN_TEST(test_cuts_below_the_root_reach_the_same_optimum);
@@ -7469,6 +7581,7 @@ int main(void)
     RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_node_whose_relaxation_fails_is_set_aside);
     RUN_TEST(test_a_round_of_nodes_is_the_same_on_any_thread_count);
+    RUN_TEST(test_strong_branching_on_threads_keeps_the_tree);
     RUN_TEST(test_a_round_calls_progress_only_on_the_calling_thread);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);

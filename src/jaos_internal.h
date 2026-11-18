@@ -25,6 +25,7 @@ typedef struct {
     void *progress_user;
 
     int64_t threads;
+    int64_t probe_lane_work;
 
     bool force_primal;
     bool barrier;
@@ -375,6 +376,7 @@ struct jaos_model {
 
     void *parked;
     void *lu_spare;
+    void *probe_spare;
     void *kept;
 
     char err[256];
@@ -389,6 +391,22 @@ typedef enum {
 
 JAOS_NODISCARD jaos_status jm_dual_simplex(jaos_model *m);
 void jm_model_drop_parked(jaos_model *m);
+
+typedef struct jm_pool jm_pool;
+
+typedef struct {
+    int64_t col;
+    double lo, hi;
+    int64_t cap;
+    double bound;
+    jaos_solve_status out;
+    int64_t work, iters;
+    jaos_status st;
+} jm_probe_task;
+
+JAOS_NODISCARD jaos_status jm_probe_many(jaos_model *m, jm_probe_task *task,
+                                         int64_t n, int64_t lanes,
+                                         jm_pool *pool);
 JAOS_NODISCARD jaos_status jm_probe(jaos_model *m, int64_t j, double lo,
                                     double hi, int64_t cap, double *bound,
                                     jaos_solve_status *out, int64_t *work,
@@ -790,6 +808,7 @@ void jm_lu_free(jm_lu *lu);
 void *jm_lu_stash(jm_lu *lu);
 void jm_lu_unstash(jm_lu *lu, void *spare);
 void jm_lu_spare_free(void *spare);
+void jm_probe_spare_free(void *spare);
 
 JAOS_NODISCARD jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     const int64_t *start, const int64_t *index, const double *value,

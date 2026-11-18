@@ -1659,18 +1659,19 @@ class Model:
         return self
 
     def set_threads(self, threads):
-        """The thread count, 1 by default; 0 takes every core the machine
-        has. Four things use more than one: Algorithm.CONCURRENT, the
-        barrier's Cholesky factor, and the rounds of nodes of both
-        branch and bounds when `set_mip_tree_batch` is above 1. The
-        answer and the work units are the same at any count; the wall
-        clock is not. A negative count raises."""
+        """The thread count, every core by default; 0 also takes every
+        core the machine has. Five things use more than one:
+        Algorithm.CONCURRENT, the barrier's Cholesky factor, the
+        strong-branching probes of a linear tree's node, and the rounds
+        of nodes of both branch and bounds when `set_mip_tree_batch` is
+        above 1. The answer and the work units are the same at any count;
+        the wall clock is not. A negative count raises."""
         self._check(_lib.jaos_set_threads(self._handle(), int(threads)))
         return self
 
     @property
     def threads(self):
-        """The thread count set by set_threads; 1 by default."""
+        """The thread count set by set_threads; every core by default."""
         return _lib.jaos_threads_of(self._handle())
 
     def set_time_limit(self, seconds):

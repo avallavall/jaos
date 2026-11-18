@@ -52,6 +52,14 @@ typedef struct {
 bool jm_thread_start(jm_thread *t, void (*fn)(void *), void *arg);
 void jm_thread_join(jm_thread *t);
 
+typedef struct jm_pool jm_pool;
+
+jm_pool *jm_pool_new(int64_t workers);
+void jm_pool_free(jm_pool *p);
+int64_t jm_pool_workers(const jm_pool *p);
+void jm_pool_run(jm_pool *p, int64_t lanes, void (*fn)(void *, int64_t),
+                 void *arg);
+
 int64_t jm_cpu_count(void);
 
 #endif

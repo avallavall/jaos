@@ -203,6 +203,7 @@ with GCC 14 on macOS; see [`docs/build.md`](docs/build.md).
 make              # build/release/libjaos.a
 make test         # unit suite, the CLI's test, the install, CMake and Windows checks
 make sanitize     # unit suite under ASan and UBSan
+make tsan         # the suites that start threads, under ThreadSanitizer
 make configs      # the above over all five build configurations, clean between each
 make cli          # build/cli/jaos
 make shared       # build/release/libjaos.so, which the Python and Julia bindings load

@@ -524,6 +524,18 @@ expect_exit 5 "--threads -1 is refused" \
 "$JAOS" options --opt threads=0 | grep -Eq '^threads [1-9][0-9]*$' \
     && pass "the threads option 0 reads back as the core count" \
     || flunk "threads=0 reads back as $("$JAOS" options --opt threads=0 | grep '^threads ')"
+[ "$("$JAOS" options | grep '^threads ')" = \
+  "$("$JAOS" options --opt threads=0 | grep '^threads ')" ] \
+    && pass "the thread count is every core by default" \
+    || flunk "the default thread count reads $("$JAOS" options | grep '^threads ')"
+expect_exit 0 "a MIP on one thread" \
+    "$JAOS" solve "$DATA/mip_hull_stale.mps" --threads 1
+mip_one="$(line_of objective) $(line_of work_units) $(line_of nodes)"
+expect_exit 0 "and on three threads" \
+    "$JAOS" solve "$DATA/mip_hull_stale.mps" --threads 3
+[ "$(line_of objective) $(line_of work_units) $(line_of nodes)" = "$mip_one" ] \
+    && pass "gives the same objective, work units and nodes" \
+    || flunk "three threads: $(line_of objective) $(line_of work_units) $(line_of nodes) against $mip_one"
 expect_exit 0 "--algorithm concurrent on one thread" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent --threads 1
 conc_one="$(line_of objective) $(line_of work_units)"
