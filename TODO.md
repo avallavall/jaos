@@ -86,14 +86,17 @@ leads on most of the 17 heuristic ones. The dual simplex's solves no
 longer pass over every row and the symmetry refinement sorts each colour
 class alone, with every answer and work unit unchanged: the root LP runs
 1.23x as fast on the 31 sampled models of 90,000 rows or more (up to
-1.96x) and 1.01x on the rest, and no instance changes category. Next: the
-root LP's iterations. Solved as a node (`cfg.node_solve`), `mzzv11`'s root
-LP runs 248,058 iterations unfinished in 300 s where the same relaxation
-alone ends in 63,258 (HiGHS 62,165); read which node setting costs them
-(the steepest-edge weights never made exact, the root's tightening) on
-`mzzv11`, `dano3_3` and `qap10`, then the iteration's cost on dense LPs,
-3.9x to 4.7x HiGHS's (dense FTRAN, a refactorization every 64 updates).
-Verify with 02-501's `pair.sh` on the same sample.
+1.96x) and 1.01x on the rest, and no instance changes category. The root's
+first solve now hands pricing to dual Devex when its exact weights drift,
+as a lone LP does (`bench/measurements/02-503/`). `mzzv11`'s root LP ends
+in its lone 63,258 iterations, `dano3_3`'s in 45,213 from 280,779 and
+`qap10`'s in 22,721 from 379,018. Of the 33 whose 300 s ran out in the
+root LP, 4 now end it: `mzzv11`, `uccase9`, `uccase12` and
+`neos-3988577-wolgan`. At 300 s `qap10` is now optimal, and `uccase12`
+and `dano3_3` leave the root. Next: the iteration's cost on the other 29, 3.9x to
+4.7x HiGHS's on dense LPs (dense FTRAN, a refactorization every 64
+updates), then the cut rounds' re-solves. Verify with 02-501's `pair.sh`
+on the same sample and 02-503's `root.sh` on the 33.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and

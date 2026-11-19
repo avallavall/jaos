@@ -1,0 +1,8 @@
+mzzv11       def status time_limit iterations 37181 work_units 253271365116 bound -inf time 599.815757 
+mzzv11       new status node_limit iterations 63258 work_units 30848770036 bound -22944 time 97.002401 
+dano3_3      def status node_limit iterations 280779 work_units 79398170755 bound 576.23162027456851 time 169.629114 
+dano3_3      new status node_limit iterations 45213 work_units 11039345569 bound 576.23162027456851 time 32.188407 
+qap10        def status node_limit iterations 379018 work_units 111978468929 bound 334 time 219.955132 
+qap10        new status node_limit iterations 22721 work_units 2986817801 bound 334 time 8.859545 
+
+[exited with code 0]

@@ -1,0 +1,14 @@
+mzzv11                 def  time_limit  nodes 1       inc                        bound -inf                  
+mzzv11                 cold time_limit  nodes 1       inc                        bound -22944                
+uccase9                def  time_limit  nodes 1       inc                        bound -inf                  
+uccase9                cold time_limit  nodes 1       inc                        bound 10867.052338694501    
+uccase12               def  time_limit  nodes 1       inc                        bound -inf                  
+uccase12               cold time_limit  nodes 3       inc 11507.405614134999     bound 11507.334524618333    
+neos-3988577-wolgan    def  time_limit  nodes 1       inc                        bound -inf                  
+neos-3988577-wolgan    cold time_limit  nodes 1       inc                        bound 119                   
+dano3_3                def  time_limit  nodes 1       inc                        bound 576.23162027456851    
+dano3_3                cold time_limit  nodes 9       inc                        bound 576.24316739638266    
+qap10                  def  time_limit  nodes 1       inc 544                    bound 334                   
+qap10                  cold optimal     nodes 14      inc 340                    bound 340                   
+
+[exited with code 0]

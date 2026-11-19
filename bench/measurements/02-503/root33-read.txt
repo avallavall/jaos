@@ -1,0 +1,68 @@
+buildingenergy                 def  time_limit        86930 41231006978   299.30
+buildingenergy                 cold time_limit        87000 41289027469   299.27
+chromaticindex1024-7           def  time_limit        79195 21636173129   299.56
+chromaticindex1024-7           cold time_limit        79236 21654948112   299.67
+cryptanalysiskb128n5obj14      def  time_limit        68622 27206944776   299.74
+cryptanalysiskb128n5obj14      cold time_limit        68491 27121897868   299.75
+cryptanalysiskb128n5obj16      def  time_limit        70548 26657550276   299.73
+cryptanalysiskb128n5obj16      cold time_limit        70786 26808420561   299.76
+ex10                           def  time_limit        17642 99147349049   299.49
+ex10                           cold time_limit        17616 98871796343   300.71
+ex9                            def  time_limit        18461 115823727347   299.76
+ex9                            cold time_limit        18526 116635607294   300.28
+gfd-schedulen180f7d50m30k18    def  time_limit        98541 42291166505   299.13
+gfd-schedulen180f7d50m30k18    cold time_limit        98799 42614577076   298.98
+highschool1-aigio              def  time_limit        32152 52083223350   298.59
+highschool1-aigio              cold time_limit        32120 51992575740   298.56
+irish-electricity              def  time_limit        47971 49864335902   299.80
+irish-electricity              cold time_limit        51306 51584367681   299.75
+mzzv11                         def  time_limit       223500 122502793921   299.95
+mzzv11                         cold node_limit        63258 30848770036   85.671
+neos-2075418-temuka            def  time_limit        39586 51772094334   297.34
+neos-2075418-temuka            cold time_limit        39714 52055940408   297.29
+neos-3402294-bobin             def  time_limit         9946 53990394459   298.68
+neos-3402294-bobin             cold time_limit        10033 54555016417   298.66
+neos-3402454-bohle             def                                             
+neos-3402454-bohle             cold                                            
+neos-3656078-kumeu             def  time_limit       270861 54198821658   299.95
+neos-3656078-kumeu             cold time_limit       265482 54804440844   299.94
+neos-3988577-wolgan            def  time_limit        93957 53282836763   299.88
+neos-3988577-wolgan            cold node_limit        96133 43347499724   266.61
+neos-5052403-cygnet            def  time_limit        39911 49546119029   298.92
+neos-5052403-cygnet            cold time_limit        39721 49312958455   298.71
+neos-5104907-jarama            def  time_limit        46908 46881249859   299.20
+neos-5104907-jarama            cold time_limit        47542 47597866865   299.22
+neos-5114902-kasavu            def  time_limit        37313 61232184131   297.73
+neos-5114902-kasavu            cold time_limit        37754 62273544658   297.74
+neos-631710                    def  time_limit        49516 60744180346   299.61
+neos-631710                    cold time_limit        47870 58050594040   299.63
+ns1116954                      def  time_limit        71051 38912098402   299.82
+ns1116954                      cold time_limit        70868 38806573200   299.79
+ns1644855                      def  time_limit        61900 97952450723   299.39
+ns1644855                      cold time_limit        61946 98351760148   300.25
+ns1760995                      def  time_limit        24567 36149632975   299.05
+ns1760995                      cold time_limit        24045 35389261300   299.05
+physiciansched3-3              def  time_limit        42586 31707760895   299.44
+physiciansched3-3              cold time_limit        45220 31528681126   299.46
+rail01                         def  time_limit       158317 37618793239   299.77
+rail01                         cold time_limit       158207 37539228944   299.75
+rail02                         def  time_limit       219924 38797002093   299.48
+rail02                         cold time_limit       220654 39066046590   299.50
+s100                           def  time_limit       272968 158678456859   297.99
+s100                           cold time_limit       272257 158286100166   298.00
+savsched1                      def  time_limit        44934 61679866036   298.75
+savsched1                      cold time_limit        44980 61786379040   298.74
+square47                       def                                             
+square47                       cold                                            
+supportcase10                  def  time_limit        44006 34731325596   299.82
+supportcase10                  cold time_limit        44152 34884900609   299.79
+supportcase19                  def  time_limit        73988 330415964381   297.21
+supportcase19                  cold time_limit        78777 334391961857   297.21
+supportcase22                  def  time_limit        22296 83911563930   299.39
+supportcase22                  cold time_limit        22223 83572843359   299.23
+uccase12                       def  time_limit        87036 37857143860   299.62
+uccase12                       cold node_limit        86737 21293012718   169.93
+uccase9                        def  time_limit       182911 104029127164   299.72
+uccase9                        cold node_limit        34583 11438466736   51.302
+
+[exited with code 0]

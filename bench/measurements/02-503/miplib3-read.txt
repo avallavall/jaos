@@ -1,0 +1,6 @@
+cold geo 1.000x total 1.000x solved 24 / 24
+  moved 0 
+all geo 0.997x total 0.911x solved 24 / 24
+  moved 24 enigma 0.57x misc07 0.69x lseu 0.76x rgn 0.78x blend2 1.24x stein27 1.31x gt2 1.32x misc03 1.53x
+
+[exited with code 0]

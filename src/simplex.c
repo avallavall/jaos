@@ -223,6 +223,7 @@ typedef struct {
     double finish_breach;
 
     bool dse_guess;
+    bool cold;
     int64_t n_guess_restart;
     bool dse_exact_pending;
     bool resolve_exact_done;
@@ -2564,7 +2565,7 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
                     s->dse_guess = false;
                     s->dse_exact_pending = true;
                 }
-            } else if (!s->m->cfg.node_solve) {
+            } else if (!s->m->cfg.node_solve || s->cold) {
                 s->dual_devex = true;
                 s->dual_devex_stale = true;
                 jm_log(s->m, JAOS_LOG_DETAIL,
@@ -5320,6 +5321,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             warm = allow_warm && build_warm_basis(&s);
             if (!warm)
                 build_initial_basis(&s);
+            s.cold = !warm;
             jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
                    warm ? "the basis on the model" : "the slack basis");
         }

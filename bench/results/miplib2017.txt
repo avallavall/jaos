@@ -10,7 +10,7 @@ sp150x300d   optimal    rows=450 cols=600 shape=ok iters=1104 work=16715755 node
 mas76        optimal    rows=12 cols=151 shape=ok iters=847935 work=5149952590 nodes=315175 cuts=67 heur=8 first=1 obj=40005.054141999994 ref=40005.053989999993[miplib2017] objective=ok checker=ok (col=0 row=0 int=0) det=ok digest=61409128d5f870b1 basis=0fa7d93a41765d0f
 mas74        work limit reached rows=13 cols=151 shape=ok iters=1682385 work=10000013436 nodes=265257 cuts=69 heur=11 inc=11939.484943099995 bound=11245.669928898726 ref=11801.185719999999 | 
 gen-ip002    work limit reached rows=24 cols=41 shape=ok iters=1632829 work=10000004262 nodes=198911 cuts=158 heur=12 inc=-4774.6474389000005 bound=-4806.1305944111718 ref=-4783.7333920000001 | 
-neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=777639 work=10000004378 nodes=175820 cuts=3 heur=4 inc=12941.738385617775 bound=-395542.43093000742 ref=12941.73838561778 | 
+neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=777639 work=10000007432 nodes=175820 cuts=3 heur=4 inc=12941.738385617775 bound=-395542.43093000742 ref=12941.73838561778 | 
 neos-2657525-crna work limit reached rows=342 cols=524 shape=ok iters=527761 work=10000006007 nodes=7767 cuts=318 heur=9 inc=92.161737099999996 bound=0 ref=1.810748 | 
 assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=498674 work=10000006038 nodes=35814 cuts=803 heur=2 inc=212 bound=200 ref=211.99999999999801 | 
 glass4       work limit reached rows=396 cols=322 shape=ok iters=1425714 work=10000002865 nodes=131864 cuts=158 heur=4 inc=1625015083.3333333 bound=800005150 ref=1200012599.972384 | 
