@@ -13,7 +13,7 @@ gen-ip002    work limit reached rows=24 cols=41 shape=ok iters=1632829 work=1000
 neos-3754480-nidda work limit reached rows=402 cols=253 shape=ok iters=777639 work=10000004378 nodes=175820 cuts=3 heur=4 inc=12941.738385617775 bound=-395542.43093000742 ref=12941.73838561778 | 
 neos-2657525-crna work limit reached rows=342 cols=524 shape=ok iters=527761 work=10000006007 nodes=7767 cuts=318 heur=9 inc=92.161737099999996 bound=0 ref=1.810748 | 
 assign1-5-8  work limit reached rows=161 cols=156 shape=ok iters=498674 work=10000006038 nodes=35814 cuts=803 heur=2 inc=212 bound=200 ref=211.99999999999801 | 
-glass4       work limit reached rows=396 cols=322 shape=ok iters=1425705 work=10000000067 nodes=131864 cuts=158 heur=4 inc=1625015083.3333333 bound=800005150 ref=1200012599.972384 | 
+glass4       work limit reached rows=396 cols=322 shape=ok iters=1425714 work=10000002865 nodes=131864 cuts=158 heur=4 inc=1625015083.3333333 bound=800005150 ref=1200012599.972384 | 
 supportcase26 work limit reached rows=870 cols=436 shape=ok iters=520037 work=10000004334 nodes=68793 cuts=0 heur=7 inc=1764.0178743455424 bound=1467.2032118779173 ref=1745.1238129999999 | 
 neos-911970  work limit reached rows=107 cols=888 shape=ok iters=663714 work=10000011938 nodes=4587 cuts=672 heur=6 inc=54.959999999996512 bound=53.536368485243365 ref=54.759999999999998 | 
 mad          work limit reached rows=52 cols=220 shape=ok iters=1508317 work=10000004258 nodes=29276 cuts=114 heur=5 inc=0.11480000000000007 bound=0 ref=0.026800000000000001 | 
