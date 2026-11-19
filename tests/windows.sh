@@ -135,8 +135,14 @@ if [ "$interop" -eq 1 ] && command -v wslpath >/dev/null 2>&1 && [ -x build/cli/
         && pass "and natively checks the Linux build's solution file" \
         || { flunk "the native check of the Linux solution file failed"; \
              sed 's/^/     /' "$ROOT/out"; }
-    winpy=$(cmd.exe /c "where python.exe" 2>/dev/null | tr -d '\r' \
-            | grep -iv windowsapps | head -1)
+    winpy=""
+    while IFS= read -r p; do
+        if ! compgen -G "$(dirname "$(wslpath -u "$p")")/*._pth" > /dev/null; then
+            winpy=$p
+            break
+        fi
+    done < <(cmd.exe /c "where python.exe" 2>/dev/null | tr -d '\r' \
+             | grep -iv windowsapps)
     if [ -n "$winpy" ] && [ -e "$BUILD/libjaos.dll" ]; then
         if JAOS_LIBRARY="$(win "$BUILD/libjaos.dll")" WSLENV=JAOS_LIBRARY \
                 "$(wslpath -u "$winpy")" -m unittest discover -s python \
@@ -146,7 +152,7 @@ if [ "$interop" -eq 1 ] && command -v wslpath >/dev/null 2>&1 && [ -x build/cli/
             flunk "the Python suite failed natively on libjaos.dll"; show
         fi
     else
-        echo "skip no Windows Python to run the binding's suite natively"
+        echo "skip no Windows Python that reads PYTHONPATH to run the binding's suite natively"
     fi
 else
     echo "skip no Windows host to run jaos.exe on natively"
