@@ -8574,6 +8574,21 @@ static jaos_status pos_catch_up(const jaos_model *m, jaos_model *lp,
     return JAOS_OK;
 }
 
+static bool steer_breaks(const jaos_model *m, const rowbuf *rb,
+                         const double *x)
+{
+    const double tol = jm_primal_tolerance(m);
+    for (int64_t r = 0; r < rb->n; r++) {
+        double act = 0.0;
+        for (int64_t p = rb->start[r]; p < rb->start[r + 1]; p++)
+            act += rb->val[p] * x[rb->idx[p]];
+        if (act < rb->lo[r] - tol * (1.0 + fabs(rb->lo[r])) ||
+            act > rb->up[r] + tol * (1.0 + fabs(rb->up[r])))
+            return true;
+    }
+    return false;
+}
+
 static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
                                const cutbuf *pool, const cutlist *in_copy,
                                int64_t *nfixed, int64_t *nperm,
@@ -8583,15 +8598,7 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
     *violated = false;
     if (rb->n == 0)
         return JAOS_OK;
-    const double tol = jm_primal_tolerance(m);
-    for (int64_t r = 0; x != nullptr && r < rb->n && !*violated; r++) {
-        double act = 0.0;
-        for (int64_t p = rb->start[r]; p < rb->start[r + 1]; p++)
-            act += rb->val[p] * x[rb->idx[p]];
-        if (act < rb->lo[r] - tol * (1.0 + fabs(rb->lo[r])) ||
-            act > rb->up[r] + tol * (1.0 + fabs(rb->up[r])))
-            *violated = true;
-    }
+    *violated = x != nullptr && steer_breaks(m, rb, x);
     jaos_status st = JAOS_OK;
     if (in_copy->n > 0) {
         int64_t *del = jm_alloc_array(in_copy->n, sizeof *del);
@@ -9292,14 +9299,15 @@ static int steer_point(const jaos_model *m, steer *sw, jaos_model *lp,
     int64_t branch = -1;
     const jaos_callback_action a =
         steer_fire(m, sw, node, depth, obj, bound, x, true, &branch);
-    *work += m->num_col;
-    bool violated = false;
-    if (steer_flush(m, lp, sw, pool, in_copy, nfixed, nperm, x, &violated,
-                    work) != JAOS_OK)
-        return STEER_ERR;
-    if (a == JAOS_CALLBACK_STOP)
+    *work += m->num_col + sw->rb.nnz;
+    if (a == JAOS_CALLBACK_STOP) {
+        bool violated = false;
+        if (steer_flush(m, lp, sw, pool, in_copy, nfixed, nperm, nullptr,
+                        &violated, work) != JAOS_OK)
+            return STEER_ERR;
         return STEER_STOP;
-    if (violated) {
+    }
+    if (steer_breaks(m, &sw->rb, x)) {
         sw->rejected++;
         jm_log(m, JAOS_LOG_PROGRESS,
                "node %lld: a point at %.17g is rejected by the callback",

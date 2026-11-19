@@ -5455,6 +5455,50 @@ static void test_a_lazy_row_added_mid_round_holds_at_the_later_nodes(void)
     }
 }
 
+static void test_a_callback_row_against_a_root_heuristics_point_keeps_the_answer(void)
+{
+    jaos_model *m = knapsacks_without_points();
+    {
+        int64_t idx[20];
+        double val[20];
+        for (int64_t j = 0; j < 20; j++) {
+            idx[j] = j;
+            val[j] = 1.0;
+        }
+        const int64_t st[2] = {0, 20};
+        const double lo = -INFINITY, up = 5.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_add_rows(m, 1, &lo, &up, 20, st, idx, val));
+    }
+    const tree_run plain = tree_take(m, 1, 1);
+    jaos_model_free(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, plain.status);
+    for (int variant = 0; variant < 4; variant++) {
+        for (int64_t batch = 1; batch <= 8; batch += 7) {
+            lazy_cap seen = { .cap = 5 };
+            m = two_knapsacks();
+            if (variant == 0)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+            if (variant == 1)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                      jaos_set_mip_dive_heuristic(m, 0));
+            if (variant == 3)
+                TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, true));
+            TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                                  jaos_set_node_callback(m, lazy_count, &seen));
+            const tree_run t = tree_take(m, batch, batch == 1 ? 1 : 3);
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, t.status);
+            TEST_ASSERT_TRUE(seen.added);
+            TEST_ASSERT_DOUBLE_WITHIN(1e-9, plain.obj, t.obj);
+            double sum = 0.0;
+            for (int64_t j = 0; j < 20; j++)
+                sum += t.x[j];
+            TEST_ASSERT_TRUE(sum <= 5.0 + 1e-9);
+            jaos_model_free(m);
+        }
+    }
+}
+
 static void test_a_work_limit_stops_a_round_with_its_bound(void)
 {
     jaos_model *m = two_knapsacks();
@@ -8073,6 +8117,7 @@ int main(void)
     RUN_TEST(test_a_round_calls_progress_only_on_the_calling_thread);
     RUN_TEST(test_conflicts_found_mid_round_reach_the_later_positions);
     RUN_TEST(test_a_lazy_row_added_mid_round_holds_at_the_later_nodes);
+    RUN_TEST(test_a_callback_row_against_a_root_heuristics_point_keeps_the_answer);
     RUN_TEST(test_a_work_limit_stops_a_round_with_its_bound);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);

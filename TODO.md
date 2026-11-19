@@ -55,18 +55,6 @@ solve's settling rounds by the work of its walk, or let a warm point the
 test refuses go on in the primal as a cold one does. Verify with 02-491's
 `run.sh -n` on `ns1830653` and the gates.
 
-J38. **A node callback that rejects a root heuristic's point ends the
-solve with no answer.** When the node callback adds a row that cuts off
-a point from the root dive heuristic or the feasibility pump, the root's
-LP is left without a solution and the tree returns
-`JAOS_ERR_OUT_OF_MEMORY`. This happens one node at a time as well as in
-rounds (`bench/measurements/02-495/`, stage 1's tests). The test
-`test_a_lazy_row_added_mid_round_holds_at_the_later_nodes` turns both
-heuristics off to avoid it. Next: find which path leaves the root's LP
-unsolved after a rejected point, and re-solve the root before the tree
-reads it. Verify with that test with both heuristics left on, at round 1
-and at batch 8.
-
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and
 cones with no interior are held (`bench/measurements/02-446/`,
