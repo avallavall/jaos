@@ -28,8 +28,8 @@ is the change on it.
   (`m3`, `m17` at the gate's `-L 1e10`, `netlib`, `infeas`) at each `LIMIT`:
   `none` without a limit, a number as `-O time_limit=LIMIT`, the MIP sets
   under `flock ~/mipgate.lock` at `-j 2`. It says whether each record is
-  byte for byte the first. `sweep-7b7dd94e.txt`: its readings on the change
-  over 7b7dd94e.
+  byte for byte the first. `sweep-7b7dd94e.txt`, `sweep-dcacb163.txt`: its
+  readings on the change over each, the second with the gates.
 
 ## The branch that moved
 
@@ -139,3 +139,23 @@ throughout.
 | MIPLIB 2017 gate (30), `-L 1e10` | 1e6, 5000 | byte-identical |
 | netlib (94) | 1e6, 5000 | byte-identical |
 | netlib-infeas (29) | 1e6, 5000 | byte-identical |
+
+Rebased onto dcacb163 (J35), `sweep-dcacb163.txt`: MIPLIB 3 and the MIPLIB
+2017 gate set at 1e6 and 5000 s are byte for byte the records `make miplib`
+and `make miplib2017` wrote, with the machine up 12,069 to 14,455 s, and
+`sp150x300d` reads the same with no limit, at 1200 s and at 1e6 s
+(`sp150x300d.txt`).
+
+## The gates
+
+On the change over dcacb163. Without a limit nothing moves: `make test` and
+`make sanitize` pass (31 suites, 1030 tests). `make netlib netlib-infeas`
+and `make netlib-kennington`, at `J=1` on the shared machine, read `gate:
+PASS` and `baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes`
+each. `make miplib J=2`: `gate: PASS`, `baseline: 0 regressed, 0 improved,
+0 new, 0 at other nodes`, its record unchanged. `make miplib2017 J=2`: its
+record unchanged, `m17sum.py` reading solved 11, incumbents 29, primal
+4.1525, dual 5.0942, sum 9.2468 before and after. No LP code changed for a
+release build: the check is compiled out of it, and `src/presolve.c` at
+`-O3 -DNDEBUG` disassembles to the same code as 7b7dd94e's, so `primal
+barrier pdlp concurrent warm` were not taken.

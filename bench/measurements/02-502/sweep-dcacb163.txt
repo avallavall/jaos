@@ -1,0 +1,35 @@
+# the change over dcacb163: make miplib and make miplib2017 at J=2, then sweep.sh m3 at 1e6 and 5000 and m17 at 5000 and 1e6,
+# each record against the make target's; uptime in seconds since boot
+start uptime 11154.48
+make miplib exit 0 end 11240.03
+make miplib2017 exit 2 end 12069.26
+gate-miplib.txt:24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+gate-miplib.txt:gate: PASS
+gate-miplib.txt:baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+gate-miplib2017.txt:30 instances: 11 solved, 30 shape ok, 11 objective ok, 11 checker ok, 11 deterministic, 19 failed
+gate-miplib2017.txt:gate: NOT MET
+gate-miplib2017.txt:baseline: NOT COMPARED (no baseline given)
+before     solved 11 incumbents 29 primal 4.1525 dual 5.0942 sum 9.2468
+now        solved 11 incumbents 29 primal 4.1525 dual 5.0942 sum 9.2468
+miplib record unchanged
+miplib2017 record unchanged
+m3-1e6.txt byte-identical to bench/results/miplib.txt
+m3-5000.txt byte-identical to bench/results/miplib.txt
+m17-5000.txt byte-identical to bench/results/miplib2017.txt
+m17-1e6.txt byte-identical to bench/results/miplib2017.txt
+uptime 12069.46 bin run
+m3 1e6 exit 0 start 12069.47 end 12138.97
+m3 5000 exit 0 start 12138.98 end 12902.87
+uptime 12903.00 bin run
+m17 5000 exit 1 start 12903.01 end 13665.81
+m17 1e6 exit 1 start 13665.81 end 14455.22
+end uptime 14455.29
+# the LP gates, J=1
+netlib netlib-infeas exit 0
+netlib-kennington exit 0
+gate-netlib-b.txt:gate: PASS
+gate-netlib-b.txt:baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+gate-netlib-b.txt:gate: PASS
+gate-netlib-b.txt:baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+gate-kenn-b.txt:gate: PASS
+gate-kenn-b.txt:baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes

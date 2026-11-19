@@ -9,3 +9,7 @@ after limit=1200 status=optimal objective=69 iterations=1104 work_units=16715755
 after limit=1e6 status=optimal objective=69 iterations=1104 work_units=16715755 nodes=2 cuts=169 heuristic_points=0 first_incumbent=0 fixed_cols=36 tightened=0 symmetry_generators=0 symmetry_orbits=0 bound=69 incumbent=69 
 after no-mip-presolve limit=none status=optimal objective=69 iterations=11755 work_units=93877347 nodes=591 cuts=308 heuristic_points=2 first_incumbent=1 fixed_cols=0 tightened=0 symmetry_generators=16 symmetry_orbits=28 bound=69 incumbent=69 
 after no-mip-presolve limit=1200 status=optimal objective=69 iterations=11755 work_units=93877347 nodes=591 cuts=308 heuristic_points=2 first_incumbent=1 fixed_cols=0 tightened=0 symmetry_generators=16 symmetry_orbits=28 bound=69 incumbent=69 
+# the change over dcacb163; uptime 18347.14 s
+rebased limit=none status=optimal objective=69 iterations=1104 work_units=16715755 nodes=2 cuts=169 heuristic_points=0 first_incumbent=0 fixed_cols=36 tightened=0 symmetry_generators=0 symmetry_orbits=0 bound=69 incumbent=69 
+rebased limit=1200 status=optimal objective=69 iterations=1104 work_units=16715755 nodes=2 cuts=169 heuristic_points=0 first_incumbent=0 fixed_cols=36 tightened=0 symmetry_generators=0 symmetry_orbits=0 bound=69 incumbent=69 
+rebased limit=1e6 status=optimal objective=69 iterations=1104 work_units=16715755 nodes=2 cuts=169 heuristic_points=0 first_incumbent=0 fixed_cols=36 tightened=0 symmetry_generators=0 symmetry_orbits=0 bound=69 incumbent=69 
