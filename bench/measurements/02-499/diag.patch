@@ -1,0 +1,54 @@
+--- a/src/mip.c	2026-11-19 00:32:08.982009007 +0100
++++ b/src/mip.c	2026-11-19 00:32:09.020849779 +0100
+@@ -8419,9 +8419,11 @@
+         const bool held = lp->solve_status == JAOS_SOLVE_OPTIMAL &&
+                           lp->sol_row != nullptr &&
+                           lp->num_row >= m->num_row;
++        int64_t wl = 0;
++        const bool dw = getenv("ZI_DIAG_WORK") != nullptr;
+         const int got = zi_for_point(m, x, held ? lp->sol_row : nullptr,
+-                                     sigma, out, g->act, work);
+-        g->spent[GH_ZI] += *work - before;
++                                     sigma, out, g->act, dw ? &wl : work);
++        g->spent[GH_ZI] += dw ? wl : *work - before;
+         return got;
+     }
+     if (m->cfg.mip_sub)
+@@ -9522,6 +9524,7 @@
+     int64_t bigm_spent = 0, bigm_last = 0, bigm_wait = MIP_BIGM_EVERY;
+     uint64_t bigm_rng = 0x9E3779B97F4A7C15u;
+     ghstate gh = {0};
++    int64_t zi_whole = 0;
+     int64_t covers = 0;
+     int64_t cliques = 0;
+     int64_t zero_halves = 0;
+@@ -11463,7 +11466,7 @@
+             if (got < 0)
+                 goto done;
+             double hobj = 0.0;
+-            if (got == 1)
++            if (got == 1 && !(which == GH_ZI && getenv("ZI_DIAG_WORK") != nullptr))
+                 work += m->num_nz + nc + nr;
+             if (got == 1 && rounded_point(m, xr, x2, ra, &hobj)) {
+                 const int sc = steer_point(m, &sw, lp, &pool, &in_copy,
+@@ -11477,7 +11480,10 @@
+                     break;
+                 }
+                 const double hkey = sc == STEER_OK ? sigma * hobj : INFINITY;
+-                if (sc == STEER_OK)
++                const bool better = hkey < cut_key && (!inc.have || hkey < inc.key);
++                if (which == GH_ZI && !better)
++                    zi_whole++;
++                if (sc == STEER_OK && !(which == GH_ZI && !better && getenv("ZI_DIAG_POOL") != nullptr))
+                     spool_offer(&sp, x2, hkey, hobj);
+                 if (hkey < cut_key && (!inc.have || hkey < inc.key)) {
+                     if (!incumbent_take_point(&inc, lp, m, x2, ra, hobj, hkey))
+@@ -12339,6 +12345,8 @@
+         jm_log(m, JAOS_LOG_SUMMARY, "branch and bound: %lld nodes with an "
+                "unbounded relaxation were split on an SOS set or an indicator "
+                "row the node's box leaves open", (long long)open_splits);
++    if (gh.calls[GH_ZI] > 0)
++        jm_log(m, JAOS_LOG_SUMMARY, "diag: ZI whole points not better %lld", (long long)zi_whole);
+     for (int h = 0; h < GH_N; h++)
+         if (gh.calls[h] > 0)
+             jm_log(m, JAOS_LOG_SUMMARY,

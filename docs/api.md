@@ -146,6 +146,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_mir_rounds` | `mip_mir_rounds` | integer | 6; 100 in network mode |
 | `jaos_set_mip_node_mir` | `mip_node_mir` | boolean | true for a linear objective, false for a quadratic one |
 | `jaos_set_mip_lattice` | `mip_lattice` | boolean | true |
+| `jaos_set_mip_zi_round` | `mip_zi_round` | boolean | true |
 | `jaos_set_mip_mir_aggregate` | `mip_mir_aggregate` | integer | 6 |
 | `jaos_set_mip_dive` | `mip_dive` | boolean | false |
 | `jaos_set_mip_dive_child` | `mip_dive_child` | `nearer`, `up`, `down`, `pseudocost` | `nearer` |
@@ -916,6 +917,17 @@ long the combinations are, and the two bounds that check compared. A node
 limit of `MIP_LATTICE_NODES` or fewer keeps the columns. On by default; -1
 restores the default.
 
+**`jaos_set_mip_zi_round`**\
+`jaos_status jaos_set_mip_zi_round(jaos_model *m, int on)`\
+ZI rounding at the nodes of a linear model's tree, the first of the tree's
+heuristics after a node's relaxation (`jaos_set_mip_heuristics` says what it
+does). It stops for good once `MIP_ZI_TRIAL`, 500, runs in a row have given
+it no incumbent, counted from the tree's first node or from its last
+incumbent. The summary log says how many times it ran, for how many
+incumbents, in how many work units. `jaos_set_mip_heuristics(m, false)`
+turns it off with the other heuristics. On by default; -1 restores the
+default.
+
 **`jaos_set_mip_mir_aggregate`**\
 `jaos_status jaos_set_mip_mir_aggregate(jaos_model *m, int64_t rows)`\
 Lets an MIR row absorb up to `rows` other rows before it is rounded. Each
@@ -1301,7 +1313,8 @@ linear model's tree: each fractional integer column of the relaxation
 moves, within the slack its rows and bounds leave, toward the integer
 that leaves it least fractional, the cheaper side on a tie, in up to five
 passes, and the point is offered when every integer column ends whole.
-It stops for good after 1000 nodes that gave it no incumbent. Three
+It stops for good after 500 runs in a row that gave it no incumbent
+(`jaos_set_mip_zi_round`). Three
 sub-MIPs search around the points already found,
 in the tree of a linear model, each with a node limit of 500, a cutoff
 just below the incumbent and a share of the tree's work. Crossover fixes

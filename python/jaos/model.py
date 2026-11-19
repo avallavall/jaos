@@ -897,6 +897,13 @@ class Model:
         v = -1 if on is None else int(bool(on))
         self._check(_lib.jaos_set_mip_lattice(self._handle(), v))
 
+    def set_mip_zi_round(self, on=True):
+        """Whether ZI rounding runs at the nodes of a linear tree, until
+        it has gone MIP_ZI_TRIAL runs without an incumbent (on by
+        default); None restores the default."""
+        v = -1 if on is None else int(bool(on))
+        self._check(_lib.jaos_set_mip_zi_round(self._handle(), v))
+
     def set_mip_mir_aggregate(self, rows):
         """How many other rows a MIR cut's aggregate may absorb before it
         is rounded (D312); 0 is the single-row form, a negative value

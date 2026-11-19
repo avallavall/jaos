@@ -261,6 +261,8 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_node_mir(jaos_model *m, int on)
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_lattice(jaos_model *m, int on);
 
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_zi_round(jaos_model *m, int on);
+
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_mir_aggregate(jaos_model *m,
                                                       int64_t rows);
 

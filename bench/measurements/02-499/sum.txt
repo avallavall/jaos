@@ -1,0 +1,3 @@
+base       solved 9 incumbents 29 primal 5.1155 dual 6.1468 sum 11.2624
+final      solved 9 incumbents 29 primal 5.2342 dual 6.1518 sum 11.3860
+nozi       solved 9 incumbents 29 primal 3.9373 dual 6.1482 sum 10.0855

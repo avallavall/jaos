@@ -185,7 +185,8 @@ constexpr double MIP_SUBMIP_SHARE = 0.1;
 constexpr double MIP_SUBMIP_ROOT = 0.5;
 
 constexpr int64_t MIP_ZI_PASSES = 5;
-constexpr int64_t MIP_ZI_TRIAL = 1000;
+constexpr int64_t MIP_ZI_TRIAL = 500;
+constexpr bool MIP_ZI_ROUND = true;
 constexpr int64_t MIP_CROSS_POOL = 10;
 constexpr int64_t MIP_CROSS_SOLS = 3;
 constexpr double MIP_CROSS_FIXED = 0.5;
@@ -1541,6 +1542,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PROPAGATE_DEPTH: return (double)MIP_PROPAGATE_DEPTH;
     case JM_DEF_NODE_MIR: return MIP_NODE_MIR ? 1.0 : 0.0;
     case JM_DEF_LATTICE: return MIP_LATTICE ? 1.0 : 0.0;
+    case JM_DEF_ZI_ROUND: return MIP_ZI_ROUND ? 1.0 : 0.0;
     case JM_DEF_RELIABILITY: return (double)MIP_RELIABILITY;
     case JM_DEF_PROBE_CAP: return MIP_PROBE_CAP;
     }
@@ -8124,7 +8126,7 @@ constexpr int GH_PHASES = 3;
 typedef struct {
     bool ready, have_root;
     double *xroot, *act;
-    int64_t calls[GH_N], points[GH_N], spent[GH_N];
+    int64_t calls[GH_N], points[GH_N], spent[GH_N], last[GH_N];
     int64_t cross_spent, cross_last;
     double cross_sig;
     bool cross_seen;
@@ -8407,7 +8409,9 @@ static int gh_for_point(const jaos_model *m, const jaos_model *lp,
     if (!gh_ready(m, g))
         return -1;
     if (phase == 0) {
-        if (g->calls[GH_ZI] >= MIP_ZI_TRIAL && g->points[GH_ZI] == 0)
+        if (!(m->cfg.mip_zi_round_set ? m->cfg.mip_zi_round : MIP_ZI_ROUND))
+            return 0;
+        if (g->calls[GH_ZI] - g->last[GH_ZI] >= MIP_ZI_TRIAL)
             return 0;
         *which = GH_ZI;
         g->calls[GH_ZI]++;
@@ -11480,6 +11484,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         goto done;
                     heur_points++;
                     gh.points[which]++;
+                    gh.last[which] = gh.calls[which];
                     if (first_inc == 0)
                         first_inc = nodes;
                     jm_log(m, JAOS_LOG_PROGRESS,

@@ -1,0 +1,24 @@
+--- a/src/mip.c	2026-11-19 00:32:08.982009007 +0100
++++ b/src/mip.c	2026-11-19 00:32:09.007907233 +0100
+@@ -8378,6 +8378,12 @@
+     return got;
+ }
+ 
++static int64_t zi_trial_k(void)
++{
++    const char *s = getenv("JAOS_ZI_K");
++    return s != nullptr ? atoll(s) : MIP_ZI_TRIAL;
++}
++
+ static int gh_pick(const ghstate *g, const int *cand, int n)
+ {
+     int64_t total = 0;
+@@ -8411,7 +8417,7 @@
+     if (phase == 0) {
+         if (!(m->cfg.mip_zi_round_set ? m->cfg.mip_zi_round : MIP_ZI_ROUND))
+             return 0;
+-        if (g->calls[GH_ZI] - g->last[GH_ZI] >= MIP_ZI_TRIAL)
++        if (g->calls[GH_ZI] - g->last[GH_ZI] >= zi_trial_k())
+             return 0;
+         *which = GH_ZI;
+         g->calls[GH_ZI]++;

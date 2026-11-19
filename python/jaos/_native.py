@@ -715,6 +715,8 @@ _sig("jaos_set_mip_node_mir", ctypes.c_int, _VP, ctypes.c_int)
 
 _sig("jaos_set_mip_lattice", ctypes.c_int, _VP, ctypes.c_int)
 
+_sig("jaos_set_mip_zi_round", ctypes.c_int, _VP, ctypes.c_int)
+
 _sig("jaos_set_mip_mir_aggregate", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_dive_heuristic", ctypes.c_int, _VP, _I64)

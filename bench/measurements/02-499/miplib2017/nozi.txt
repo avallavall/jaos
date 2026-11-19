@@ -1,0 +1,30 @@
+markshare_4_0 work_limit rows=0 work=10000021987 nodes=597342 first=1 inc=0.99999999999781197 bound=0 ref=1
+markshare2 work_limit rows=0 work=10000001683 nodes=678591 first=1 inc=52 bound=0 ref=1
+enlight_hard optimal rows=0 work=29384 nodes=1 first=1 obj=37 ref=37
+pk1 optimal rows=0 work=8349980406 nodes=191108 first=1 obj=11 ref=11
+neos5 work_limit rows=0 work=10000005601 nodes=111770 first=1 inc=15 bound=14.25 ref=15
+gen-ip054 optimal rows=0 work=1280127331 nodes=62943 first=1 obj=6840.9656417920005 ref=6840.96564179
+timtab1 work_limit rows=0 work=10000013915 nodes=247844 first=1413 inc=877946.99999982002 bound=555897.54093885061 ref=764771.99999978
+neos-3046615-murg work_limit rows=0 work=10000012432 nodes=243810 first=235 inc=1653 bound=457 ref=1600
+sp150x300d optimal rows=0 work=18799936 nodes=2 first=0 obj=69 ref=69
+mas76 optimal rows=0 work=6290733182 nodes=394893 first=1 obj=40005.054141999994 ref=40005.05398999999
+mas74 work_limit rows=0 work=10000033568 nodes=319212 first=1 inc=11857.371258200003 bound=11269.267717034665 ref=11801.18572
+gen-ip002 work_limit rows=0 work=10000012910 nodes=352485 first=1 inc=-4783.7333915999998 bound=-4804.2304753133521 ref=-4783.733392
+neos-3754480-nidda work_limit rows=0 work=10000196064 nodes=165747 first=1 inc=12941.738385617775 bound=-398162.41048724769 ref=12941.73838561778
+neos-2657525-crna work_limit rows=0 work=10000008185 nodes=10157 first=1 inc=90.878296699999993 bound=0 ref=1.810748
+assign1-5-8 work_limit rows=0 work=10000009248 nodes=30559 first=1 inc=212 bound=200 ref=211.999999999998
+glass4 work_limit rows=0 work=10000020204 nodes=157374 first=1 inc=1625015083.3333333 bound=800005018.99768174 ref=1200012599.972384
+supportcase26 work_limit rows=0 work=10000032055 nodes=70934 first=1 inc=1789.4951418529583 bound=1459.207083486591 ref=1745.123813
+neos-911970 work_limit rows=0 work=10000014624 nodes=2997 first=1 inc=54.959999999996825 bound=52.927393977909446 ref=54.76
+mad work_limit rows=0 work=10000006853 nodes=42762 first=1 inc=0.11479999999994886 bound=0 ref=0.0268
+graphdraw-domain work_limit rows=0 work=10000010956 nodes=69507 first=1 inc=21741 bound=14811.561264822129 ref=19685.99997550038
+exp-1-500-5-5 optimal rows=0 work=541561539 nodes=53 first=1 obj=65887 ref=65887
+tr12-30 work_limit rows=0 work=10000019696 nodes=41932 first=1 inc=130629.99999999996 bound=130300.24450110091 ref=130595.9999999999
+neos-3381206-awhea optimal rows=0 work=531308745 nodes=1 first=1 obj=453 ref=453
+ic97_potential work_limit rows=0 work=10000016781 nodes=487 first=0 inc=none bound=3877 ref=3941.99993090225
+neos-3627168-kasai work_limit rows=0 work=10000037654 nodes=1764 first=1 inc=990748.17999999993 bound=962272.49272365286 ref=988585.6199999998
+binkar10_1 optimal rows=0 work=5356341404 nodes=7236 first=1 obj=6742.2000239999998 ref=6742.1998835
+csched008 work_limit rows=0 work=10000053525 nodes=157 first=1 inc=175 bound=171 ref=173
+csched007 work_limit rows=0 work=10000061792 nodes=6452 first=1 inc=405 bound=306 ref=350.9999999999955
+beasleyC3 work_limit rows=0 work=10000059969 nodes=7773 first=1 inc=760 bound=743 ref=753.9999999999128
+p200x1188c optimal rows=0 work=2214975566 nodes=46 first=1 obj=15078 ref=15078

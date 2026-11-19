@@ -413,6 +413,23 @@ expect_exit 0 "and --no-lattice closes it over the columns" \
 printf '%s\n' "$err" | grep -q "^lattice:" \
     && flunk "--no-lattice still reformulated" \
     || pass "with no lattice line"
+"$JAOS" options | grep -q '^mip_zi_round true$' \
+    && pass "options lists mip_zi_round, on" \
+    || flunk "options: no mip_zi_round true"
+expect_exit 0 "ZI rounding finds the knapsack's first incumbent" \
+    "$JAOS" solve "$DATA/zi_knapsack.lp" --log progress --zi-round
+[ "$(line_of objective)" = "objective -1582" ] && pass "to -1582" \
+    || flunk "zi: $(line_of objective)"
+printf '%s\n' "$err" | grep -q "^node 1: incumbent -1518 by ZI rounding" \
+    && pass "at node 1" \
+    || flunk "no ZI incumbent at node 1"
+expect_exit 0 "and --no-zi-round solves it without" \
+    "$JAOS" solve "$DATA/zi_knapsack.lp" --log progress --no-zi-round
+[ "$(line_of objective)" = "objective -1582" ] && pass "to -1582" \
+    || flunk "no zi: $(line_of objective)"
+printf '%s\n' "$err" | grep -q "ZI rounding" \
+    && flunk "--no-zi-round still ran ZI rounding" \
+    || pass "with no ZI line"
 expect_exit 0 "a dive bounded by the gap still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --cut-rounds 0 --cover-rounds 0 --mir-rounds 0 --cut-depth 0 --dive --dive-gap 0.1
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

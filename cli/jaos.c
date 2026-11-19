@@ -39,7 +39,7 @@ static const char U_SYNOPSIS[] =
     "                  [--cover-lift | --no-cover-lift] [--mir-rounds N]\n"
     "                  [--dive] [--dive-child RULE] [--dive-backtrack N]\n"
     "                  [--dive-gap F] [--node-mir | --no-node-mir]\n"
-    "                  [--lattice | --no-lattice]\n"
+    "                  [--lattice | --no-lattice] [--zi-round | --no-zi-round]\n"
     "                  [--mir-aggregate N] [--dive-heuristic N]\n"
     "                  [--dive-heuristic-depth D] [--rins N]\n"
     "                  [--local-branching K]\n"
@@ -182,6 +182,8 @@ static const char U_SOLVE_D[] =
     "  --lattice        branch on a reduced basis of the improving region on\n"
     "                   small dense models of general integers (default);\n"
     "                   --no-lattice branches on the columns\n"
+    "  --zi-round       ZI rounding of the relaxation at the nodes of a linear\n"
+    "                   tree (default); --no-zi-round turns it off\n"
     "  --mir-aggregate N  rows a MIR cut may absorb before it is rounded\n"
     "                   (N >= 0; 0 is the single-row form)\n"
     "  --dive-heuristic N  relaxations a dive for a first incumbent may\n"
@@ -893,6 +895,7 @@ struct solve_options {
     double dive_gap;
     int node_mir;
     int lattice;
+    int zi_round;
     int64_t mir_aggregate;
     int64_t dive_heuristic;
     int64_t dive_heuristic_depth;
@@ -960,6 +963,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->dive_backtrack = -1;
     o->node_mir = -1;
     o->lattice = -1;
+    o->zi_round = -1;
     o->pump_always = -1;
     o->rcfix = -1;
     o->restart = -1;
@@ -1036,6 +1040,14 @@ static int parse_solve_options(int argc, char **argv, int first,
         }
         if (strcmp(a, "--no-lattice") == 0) {
             o->lattice = 0;
+            continue;
+        }
+        if (strcmp(a, "--zi-round") == 0) {
+            o->zi_round = 1;
+            continue;
+        }
+        if (strcmp(a, "--no-zi-round") == 0) {
+            o->zi_round = 0;
             continue;
         }
         if (strcmp(a, "--pump-always") == 0) {
@@ -1581,6 +1593,10 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.lattice >= 0 && jaos_set_mip_lattice(m, o.lattice) != JAOS_OK) {
         rc = library_error("set the lattice branching for", o.file, m);
+        goto out;
+    }
+    if (o.zi_round >= 0 && jaos_set_mip_zi_round(m, o.zi_round) != JAOS_OK) {
+        rc = library_error("set ZI rounding for", o.file, m);
         goto out;
     }
     if (o.mir_aggregate >= 0 &&

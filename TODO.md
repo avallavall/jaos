@@ -243,7 +243,8 @@ span 10.85 to 11.88, so a change is judged instance by instance.
 
 J32. **MIP: a library of primal heuristics, at least 50.** JAOS has 23:
 - for linear MIPs:
-  - node rounding, ZI rounding at every node (`bench/measurements/02-489/`),
+  - node rounding, ZI rounding at every node until 500 runs find nothing
+    (`bench/measurements/02-499/`),
     lock rounding;
   - the search over the starts of a time-indexed schedule, the
     feasibility jump, the exchanges between assignment rows, threshold
@@ -294,13 +295,18 @@ instances:
 - Generic, by family (Berthold's survey of MIP primal heuristics, 2006 and
   2014; Fischetti and Lodi, 2011):
   - rounding: shifting, seeded randomized rounding, shift-and-propagate
-    (Berthold and Hendel); ZI round is in (02-489), and runs on for good
-    once it has an incumbent: `gen-ip002` ran it at 309,127 nodes for
-    two, 2.4e8 work units. Next: a stop at one incumbent per 1000 nodes,
-    and the cost on MIPLIB 3: with 02-488's sub-MIPs, ZI and 02-492's
-    probes it reads 1.037x geometric and 1.078x in total against
-    02-483's baseline, `misc06` 1.43x at the same 40 nodes, `misc07`
-    1.20x and `p0282` 1.21x;
+    (Berthold and Hendel); ZI round is in (02-489) and stops after 500
+    runs in a row without an incumbent (02-499). Against ZI off it reads
+    1.013x geometric and 0.970x in total on MIPLIB 3, from 1.043x and
+    1.061x with the old stop. Its own work is 0.25% of the set's; the
+    rest is the path its units send the shares that read the tree's work
+    down, strong branching's and the sub-MIPs'. `misc06`'s 1.43x is
+    02-488's crossover at the root. On MIPLIB 2017 it keeps its points on
+    `beasleyC3`, `gen-ip002` and `gen-ip054`, none of them a last
+    incumbent, and ZI off reads 3.94 on the primal side against 5.23,
+    `markshare_4_0` and `timtab1` by path. Next: shares that read the
+    node relaxations' work alone, then a reading of what ZI's points are
+    worth without the path;
   - diving: Farkas, conflict; the coefficient, pseudocost, guided,
     vector-length and line-search dives in the tree were refused
     (`tree-dives`, 02-490) until a dive costs less than its share or the

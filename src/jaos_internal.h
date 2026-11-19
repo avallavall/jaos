@@ -108,6 +108,9 @@ typedef struct {
     bool mip_lattice_set;
     bool mip_lattice;
 
+    bool mip_zi_round_set;
+    bool mip_zi_round;
+
     bool mip_mir_aggregate_set;
     int64_t mip_mir_aggregate;
 
@@ -426,6 +429,7 @@ enum jm_mip_key {
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
     JM_DEF_FLOW_COVER_ROUNDS, JM_DEF_LOCAL_BRANCHING, JM_DEF_NODE_SELECT,
     JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP, JM_DEF_LATTICE,
+    JM_DEF_ZI_ROUND,
 };
 double jm_mip_default(enum jm_mip_key key);
 bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,

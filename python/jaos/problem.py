@@ -1076,6 +1076,12 @@ class Problem:
         self._m.set_mip_lattice(on)
         return self
 
+    def set_mip_zi_round(self, on=True):
+        """ZI rounding of the relaxation at the nodes of a linear tree;
+        None restores the default."""
+        self._m.set_mip_zi_round(on)
+        return self
+
     def set_mip_mir_aggregate(self, rows):
         """Rows a MIR cut may absorb before it is rounded (D312); 0 is the
         single-row form, negative the default."""

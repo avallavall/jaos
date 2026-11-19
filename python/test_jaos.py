@@ -2842,6 +2842,36 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_lattice(None)
         self.assertLess(nodes[1], nodes[0])
 
+    def test_zi_rounding_finds_the_knapsacks_first_incumbent_until_turned_off(self):
+
+        for on in (True, False):
+            seen = []
+            with jaos.Model() as m:
+                m.read_lp(data("zi_knapsack.lp"))
+                m.set_mip_zi_round(on)
+                self.assertEqual(m.get_option("mip_zi_round"),
+                                 "true" if on else "false")
+                m.set_log_callback(lambda lvl, line: seen.append(line),
+                                   jaos.LogLevel.PROGRESS)
+                self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+                self.assertAlmostEqual(m.objective(), -1582.0, places=9)
+                m.set_log_callback(None)
+                m.set_mip_zi_round(None)
+                self.assertEqual(m.get_option("mip_zi_round"), "true")
+            self.assertEqual("node 1: incumbent -1518 by ZI rounding" in seen,
+                             on)
+            self.assertEqual(any("ZI rounding" in s for s in seen), on)
+        p = jaos.Problem()
+        xs = [p.add_var(ub=u, integer=True) for u in (3, 2, 5)]
+        p.add(7 * xs[0] + 5 * xs[1] + 4 * xs[2] <= 23)
+        p.maximize(9 * xs[0] + 6 * xs[1] + 5 * xs[2])
+        self.assertIs(p.set_mip_zi_round(False), p)
+        self.assertEqual(p.get_option("mip_zi_round"), "false")
+        self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+        self.assertAlmostEqual(p.objective_value, 29.0, places=9)
+        p.set_mip_zi_round(None)
+        self.assertEqual(p.get_option("mip_zi_round"), "true")
+
     def test_mir_cuts_at_the_nodes_keep_the_optimum(self):
 
         counts = []

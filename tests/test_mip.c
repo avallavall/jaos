@@ -1871,6 +1871,40 @@ static void test_zi_rounding_moves_columns_within_their_rows_slack(void)
     jaos_model_free(m);
 }
 
+static char g_zi[256];
+static void capture_zi(void *user, jaos_log_level level, const char *line)
+{
+    (void)level; (void)user;
+    if (strstr(line, "ZI rounding") != nullptr)
+        snprintf(g_zi, sizeof g_zi, "%s", line);
+}
+
+static void test_zi_rounding_stops_after_500_runs_without_an_incumbent(void)
+{
+    for (int on = 1; on >= 0; on--) {
+        jaos_model *m = knapsack_rows(4, 25, 1);
+        g_zi[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zi_round(m, on));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_zi, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        jaos_mip_report rep = {0};
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-6, -2011.0, rep.incumbent);
+        if (on) {
+            TEST_ASSERT_TRUE(rep.nodes > 547);
+            TEST_ASSERT_EQUAL_STRING(
+                "branch and bound: ZI rounding ran 547 times for 1 incumbents "
+                "in 38015 work units", g_zi);
+        } else {
+            TEST_ASSERT_EQUAL_STRING("", g_zi);
+        }
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_EQUAL_INT(JAOS_ERR_INVALID_INPUT, jaos_set_mip_zi_round(nullptr, 1));
+}
+
 static void test_crossover_fixes_what_the_pool_agrees_on(void)
 {
     jaos_model *m = market_split(2, 16, 14);
@@ -7539,6 +7573,7 @@ int main(void)
     RUN_TEST(test_threshold_accepting_over_items_balances_the_groups);
     RUN_TEST(test_threshold_accepting_with_an_lp_over_linking_columns);
     RUN_TEST(test_zi_rounding_moves_columns_within_their_rows_slack);
+    RUN_TEST(test_zi_rounding_stops_after_500_runs_without_an_incumbent);
     RUN_TEST(test_crossover_fixes_what_the_pool_agrees_on);
     RUN_TEST(test_mutation_fixes_a_seeded_share_of_the_incumbent);
     RUN_TEST(test_dins_boxes_each_column_by_its_distance);
