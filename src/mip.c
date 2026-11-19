@@ -9807,6 +9807,205 @@ static void phase_to(bb_phases *p, int64_t work, int next)
     p->phase = next;
 }
 
+enum { LANE_SOLVED, LANE_CLIQUE, LANE_PROP, LANE_CUTOFF, LANE_FAILED };
+
+typedef struct {
+    jaos_model *lp;
+    int64_t nfixed, nperm;
+    cutlist in_copy;
+    double *plo, *phi;
+    int64_t *ouf, *cstack;
+    bool *ozero;
+} bb_pos;
+
+typedef struct {
+    jaos_model *m;
+    const double *ilo, *ihi;
+    const cutbuf *pool;
+    const jm_symmetry *sym;
+    const clique_table *ctab;
+    const objgrid *og;
+    double sigma, gap, gap_shift, bk;
+    int64_t node, passes, propagate_depth, w0, n;
+    bool orbital, clique_fix, quadratic, stop_duals;
+} bb_snap;
+
+typedef struct {
+    int end;
+    jaos_status st;
+    double cut_bound, cut_at;
+    int64_t prop_work, lp_work, node_work, first_work, iters, last_iters;
+    int64_t solves, orbital_fixed, clique_fixed, tightened;
+} bb_rec;
+
+static void lane_budget(jaos_model *lp, const bb_snap *s, int64_t spent)
+{
+    const jaos_model *m = s->m;
+    if (m->cfg.work_limit > 0) {
+        const int64_t left = (m->cfg.work_limit - s->w0) / s->n - spent;
+        lp->cfg.work_limit = left > 0 ? left : 1;
+    }
+    if (m->cfg.time_limit > 0.0)
+        lp->cfg.time_limit = time_left(m, m->mip_started);
+}
+
+static void lane_solve(const bb_snap *s, jaos_model *lp, bb_rec *r)
+{
+    lane_budget(lp, s, r->prop_work);
+    const double cut_at = s->node > 1 && !s->quadratic
+        ? prune_at(s->og, s->bk, s->gap, s->gap_shift) : INFINITY;
+    r->cut_at = cut_at;
+    lp->cfg.node_cutoff_set = cut_at < INFINITY;
+    lp->cfg.node_cutoff = cut_at;
+    lp->cfg.node_devex = s->node > 1 && !s->quadratic;
+    lp->cfg.node_stop_duals = s->node > 1 && s->stop_duals;
+    lp->cutoff_hit = false;
+    jaos_status st = jaos_solve(lp);
+    lp->cfg.node_cutoff_set = false;
+    lp->cfg.node_stop_duals = false;
+    r->solves++;
+    r->node_work = jaos_work_units(lp);
+    r->first_work = r->node_work;
+    r->lp_work += r->node_work;
+    r->iters += jaos_iterations(lp);
+    r->end = LANE_SOLVED;
+    if (st == JAOS_OK && lp->cutoff_hit) {
+        const double ck = s->sigma * lp->stop_bound;
+        if (s->bk - grid_up(s->og, ck) <=
+            s->gap * (s->gap_shift + fabs(s->bk))) {
+            r->end = LANE_CUTOFF;
+            r->cut_bound = ck;
+            r->st = st;
+            r->last_iters = jaos_iterations(lp);
+            return;
+        }
+        lane_budget(lp, s, r->prop_work + r->lp_work);
+        st = jaos_solve(lp);
+        r->solves++;
+        r->node_work = jaos_work_units(lp);
+        r->lp_work += r->node_work;
+        r->iters += jaos_iterations(lp);
+    }
+    r->st = st;
+    r->last_iters = jaos_iterations(lp);
+}
+
+static void node_lane_a(const bb_snap *s, bb_pos *p, bnode *cur, bb_rec *r)
+{
+    *r = (bb_rec){ .end = LANE_FAILED, .st = JAOS_ERR_OUT_OF_MEMORY };
+    jaos_model *m = s->m;
+    jaos_model *lp = p->lp;
+    const int64_t nc = m->num_col;
+    int64_t work = 0;
+    jaos_status st = node_apply(lp, m, s->ilo, s->ihi, cur, s->pool,
+                                p->nfixed, &p->in_copy);
+    if (st != JAOS_OK) {
+        r->st = st;
+        return;
+    }
+    if (s->node > 1 && s->orbital && s->sym->ngen > 0) {
+        if (p->ouf == nullptr) {
+            p->ouf = jm_alloc_array(nc > 0 ? nc : 1, sizeof *p->ouf);
+            p->ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *p->ozero);
+            if (p->ouf == nullptr || p->ozero == nullptr)
+                return;
+        }
+        int64_t *ouf = p->ouf;
+        bool *ozero = p->ozero;
+        orbit_stabilizer(m, s->sym, cur, s->ilo, s->ihi, ouf, &work);
+        bool any = false;
+        for (int64_t k = 0; k < cur->nfix; k++) {
+            const int64_t j = cur->col[k];
+            if (m->col_integer[j] && s->ilo[j] == 0.0 && s->ihi[j] == 1.0 &&
+                cur->lo[k] == 0.0 && cur->hi[k] == 0.0 && !cur->rcf[k]) {
+                ozero[orbit_find(ouf, j)] = true;
+                any = true;
+            }
+        }
+        const int64_t before_fix = cur->nfix;
+        for (int64_t l = 0; any && l < nc; l++) {
+            if (!m->col_integer[l] || s->ilo[l] != 0.0 || s->ihi[l] != 1.0)
+                continue;
+            if (lp->col_lower[l] != 0.0 || lp->col_upper[l] != 1.0)
+                continue;
+            if (!ozero[orbit_find(ouf, l)])
+                continue;
+            if (jaos_set_col_bounds(lp, l, 0.0, 0.0) != JAOS_OK ||
+                !node_add_fix(cur, l, 0.0, 0.0, false))
+                return;
+            r->orbital_fixed++;
+        }
+        for (int64_t k = 0; k < before_fix; k++)
+            ozero[orbit_find(ouf, cur->col[k])] = false;
+        work += nc;
+    }
+    r->prop_work = work;
+    r->st = JAOS_OK;
+    r->end = LANE_SOLVED;
+    if (s->node > 1 && s->clique_fix && s->ctab->ne > 0) {
+        if (p->cstack == nullptr) {
+            p->cstack = jm_alloc_array(2 * nc, sizeof *p->cstack);
+            if (p->cstack == nullptr) {
+                r->end = LANE_FAILED;
+                r->st = JAOS_ERR_OUT_OF_MEMORY;
+                return;
+            }
+        }
+        const int64_t got = clique_fix(m, lp, s->ctab, p->cstack, &work);
+        r->prop_work = work;
+        if (got == -2) {
+            r->end = LANE_FAILED;
+            r->st = JAOS_ERR_OUT_OF_MEMORY;
+            return;
+        }
+        if (got == -1) {
+            r->end = LANE_CLIQUE;
+            return;
+        }
+        r->clique_fixed = got;
+    }
+}
+
+static void node_lane_b(const bb_snap *s, bb_pos *p, const bnode *cur,
+                        bb_rec *r)
+{
+    jaos_model *m = s->m;
+    jaos_model *lp = p->lp;
+    const int64_t nc = m->num_col;
+    int64_t work = 0;
+    r->end = LANE_FAILED;
+    r->st = JAOS_ERR_OUT_OF_MEMORY;
+    r->prop_work = 0;
+    const int64_t depth = cur != nullptr ? cur->depth : 0;
+    if (s->passes > 0 &&
+        (s->propagate_depth < 0 || depth <= s->propagate_depth)) {
+        if (p->plo == nullptr) {
+            p->plo = jm_alloc_array(nc > 0 ? nc : 1, sizeof *p->plo);
+            p->phi = jm_alloc_array(nc > 0 ? nc : 1, sizeof *p->phi);
+            if (p->plo == nullptr || p->phi == nullptr)
+                return;
+        }
+        const int64_t got = propagate_node(m, lp, p->plo, p->phi, s->passes,
+                                           &work);
+        if (got == -2)
+            return;
+        if (got == -1) {
+            r->prop_work = work;
+            r->end = LANE_PROP;
+            r->st = JAOS_OK;
+            return;
+        }
+        r->tightened = got;
+    }
+    const jaos_status st = apply_indicators(lp, m);
+    if (st != JAOS_OK) {
+        r->st = st;
+        return;
+    }
+    r->prop_work = work;
+    lane_solve(s, lp, r);
+}
+
 static bool root_certifies(jaos_model *m, const jaos_model *lp)
 {
     if (!lp->farkas_ok || lp->sol_farkas == nullptr ||
@@ -10505,9 +10704,6 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
-        if (node_apply(lp, m, ilo, ihi, nodes > 0 ? cur : nullptr, &pool,
-                       nfixed, &in_copy) != JAOS_OK)
-            goto done;
         const int64_t depth_here = nodes > 0 ? cur->depth : 0;
         bool stalled = false;
         act_n = 0;
@@ -10520,53 +10716,37 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         nodes++;
 
         phase_to(&ph, work, PH_PROP);
-        if (nodes > 1 && orbital_on && sym.ngen > 0) {
-            if (ouf == nullptr) {
-                ouf = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ouf);
-                ozero = calloc((size_t)(nc > 0 ? nc : 1), sizeof *ozero);
-                if (ouf == nullptr || ozero == nullptr)
-                    goto done;
-            }
-            orbit_stabilizer(m, &sym, cur, ilo, ihi, ouf, &work);
-            bool any = false;
-            for (int64_t k = 0; k < cur->nfix; k++) {
-                const int64_t j = cur->col[k];
-                if (m->col_integer[j] && ilo[j] == 0.0 && ihi[j] == 1.0 &&
-                    cur->lo[k] == 0.0 && cur->hi[k] == 0.0 && !cur->rcf[k]) {
-                    ozero[orbit_find(ouf, j)] = true;
-                    any = true;
-                }
-            }
-            const int64_t before_fix = cur->nfix;
-            for (int64_t l = 0; any && l < nc; l++) {
-                if (!m->col_integer[l] || ilo[l] != 0.0 || ihi[l] != 1.0)
-                    continue;
-                if (lp->col_lower[l] != 0.0 || lp->col_upper[l] != 1.0)
-                    continue;
-                if (!ozero[orbit_find(ouf, l)])
-                    continue;
-                if (jaos_set_col_bounds(lp, l, 0.0, 0.0) != JAOS_OK ||
-                    !node_add_fix(cur, l, 0.0, 0.0, false))
-                    goto done;
-                orbital_fixed++;
-            }
-            for (int64_t k = 0; k < before_fix; k++)
-                ozero[orbit_find(ouf, cur->col[k])] = false;
-            work += nc;
-        }
-
-        if (nodes > 1 && clique_fix_on && ctab.ne > 0) {
-            const int64_t got = clique_fix(m, lp, &ctab, cstack, &work);
-            if (got == -2)
-                goto done;
-            if (got == -1) {
-                clique_cut_nodes++;
-                jm_log(m, JAOS_LOG_PROGRESS,
-                       "node %lld: infeasible by a clique",
-                       (long long)nodes);
-                continue;
-            }
-            clique_fixed += got;
+        bb_rec rec;
+        const double sol_bk = inc.have && inc.key < cut_key ? inc.key
+                                                            : cut_key;
+        bb_snap sn = {
+            .m = m, .ilo = ilo, .ihi = ihi, .pool = &pool, .sym = &sym,
+            .ctab = &ctab, .og = &og, .sigma = sigma, .gap = gap,
+            .gap_shift = gap_shift, .bk = sol_bk, .node = nodes,
+            .passes = propagate > 0 ? propagate
+                      : !inc.have && nodes >= MIP_NOINC_DIVE_AFTER
+                          ? noinc_propagate : 0,
+            .propagate_depth = propagate_depth, .n = 1,
+            .orbital = orbital_on, .clique_fix = clique_fix_on,
+            .quadratic = quadratic };
+        bb_pos here = { .lp = lp, .nfixed = nfixed, .nperm = nperm,
+                        .in_copy = in_copy, .plo = plo, .phi = phi,
+                        .ouf = ouf, .cstack = cstack, .ozero = ozero };
+        node_lane_a(&sn, &here, cur, &rec);
+        in_copy = here.in_copy;
+        ouf = here.ouf;
+        ozero = here.ozero;
+        cstack = here.cstack;
+        if (rec.end == LANE_FAILED)
+            goto done;
+        work += rec.prop_work;
+        orbital_fixed += rec.orbital_fixed;
+        clique_fixed += rec.clique_fixed;
+        if (rec.end == LANE_CLIQUE) {
+            clique_cut_nodes++;
+            jm_log(m, JAOS_LOG_PROGRESS, "node %lld: infeasible by a clique",
+                   (long long)nodes);
+            continue;
         }
 
         if (nodes > 1 && !pf.off && !pf.decided) {
@@ -10630,96 +10810,70 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             }
         }
 
-        const int64_t passes = propagate > 0 ? propagate
-                             : !inc.have && nodes >= MIP_NOINC_DIVE_AFTER
-                                   ? noinc_propagate : 0;
-        if (passes > 0 &&
-            (propagate_depth < 0 || depth_here <= propagate_depth)) {
-            const int64_t got = propagate_node(m, lp, plo, phi, passes,
-                                               &work);
-            if (got == -2)
-                goto done;
-            if (got == -1) {
-                jm_log(m, JAOS_LOG_PROGRESS,
-                       "node %lld: infeasible by propagation",
-                       (long long)nodes);
-                continue;
-            }
-            tightened += got;
-
-            if (nodes == 1 && got > 0) {
-                for (int64_t j = 0; j < nc; j++) {
-                    if (!m->col_integer[j])
-                        continue;
-                    ilo[j] = lp->col_lower[j];
-                    ihi[j] = lp->col_upper[j];
-                }
+        sn.w0 = work;
+        sn.stop_duals = !pf.off;
+        node_lane_b(&sn, &here, cur, &rec);
+        plo = here.plo;
+        phi = here.phi;
+        if (rec.end == LANE_FAILED)
+            goto done;
+        work += rec.prop_work;
+        tightened += rec.tightened;
+        if (rec.end == LANE_PROP) {
+            jm_log(m, JAOS_LOG_PROGRESS,
+                   "node %lld: infeasible by propagation", (long long)nodes);
+            continue;
+        }
+        if (nodes == 1 && rec.tightened > 0) {
+            for (int64_t j = 0; j < nc; j++) {
+                if (!m->col_integer[j])
+                    continue;
+                ilo[j] = lp->col_lower[j];
+                ihi[j] = lp->col_upper[j];
             }
         }
-        jaos_status st = apply_indicators(lp, m);
-        if (st != JAOS_OK)
-            goto done;
         phase_to(&ph, work, PH_LP);
-        budget(lp, m, work);
-        const double sol_bk = inc.have && inc.key < cut_key ? inc.key : cut_key;
-        const double cut_at = nodes > 1 && !quadratic
-            ? prune_at(&og, sol_bk, gap, gap_shift) : INFINITY;
-        lp->cfg.node_cutoff_set = cut_at < INFINITY;
-        lp->cfg.node_cutoff = cut_at;
-        lp->cfg.node_devex = nodes > 1 && !quadratic;
-        lp->cfg.node_stop_duals = nodes > 1 && !pf.off;
-        lp->cutoff_hit = false;
-        st = jaos_solve(lp);
-        lp->cfg.node_cutoff_set = false;
-        lp->cfg.node_stop_duals = false;
-        solves++;
-        int64_t node_work = jaos_work_units(lp);
-        work += node_work;
-        iters += jaos_iterations(lp);
+        solves += rec.solves;
+        work += rec.lp_work;
+        iters += rec.iters;
+        int64_t node_work = rec.node_work;
+        jaos_status st = rec.st;
         if (!pf.off && nodes > 1) {
-            pf.wlpw += node_work;
+            pf.wlpw += rec.first_work;
             pf.wlps++;
         }
-        if (st == JAOS_OK && lp->cutoff_hit) {
-            const double ck = sigma * lp->stop_bound;
-            if (sol_bk - grid_up(&og, ck) <= gap * (gap_shift + fabs(sol_bk))) {
-                pseudocost_learn(cur, ck, nc, pc_sum, pc_n);
-                cutoff_nodes++;
-                if (!pf.off && lp->stop_duals_ok) {
-                    phase_to(&ph, work, PH_PROP);
-                    if (pf.len == nullptr) {
-                        ppos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ppos);
-                        pdcol = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pdcol);
-                        if (ppos == nullptr || pdcol == nullptr ||
-                            !proofs_init(&pf, nc, ilo, ihi))
-                            goto done;
-                        for (int64_t j = 0; j < nc; j++)
-                            ppos[j] = -1;
-                    }
-                    const int64_t w0 = work;
-                    double base = 0.0;
-                    if (!stop_proof(m, lp, cur, ilo, ihi, nfixed, sigma, cut_at,
-                                    ppos, pdcol, &base, &work))
-                        pf.refused++;
-                    else if (!proof_store(&pf, m, ilo, ihi, pdcol, base, nodes,
-                                          &work))
+        if (rec.end == LANE_CUTOFF) {
+            pseudocost_learn(cur, rec.cut_bound, nc, pc_sum, pc_n);
+            cutoff_nodes++;
+            if (!pf.off && lp->stop_duals_ok) {
+                phase_to(&ph, work, PH_PROP);
+                if (pf.len == nullptr) {
+                    ppos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ppos);
+                    pdcol = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pdcol);
+                    if (ppos == nullptr || pdcol == nullptr ||
+                        !proofs_init(&pf, nc, ilo, ihi))
                         goto done;
-                    pf.work += work - w0;
-                    pf.wwork += work - w0;
+                    for (int64_t j = 0; j < nc; j++)
+                        ppos[j] = -1;
                 }
-                continue;
+                const int64_t w0 = work;
+                double base = 0.0;
+                if (!stop_proof(m, lp, cur, ilo, ihi, nfixed, sigma, rec.cut_at,
+                                ppos, pdcol, &base, &work))
+                    pf.refused++;
+                else if (!proof_store(&pf, m, ilo, ihi, pdcol, base, nodes,
+                                      &work))
+                    goto done;
+                pf.work += work - w0;
+                pf.wwork += work - w0;
             }
-            budget(lp, m, work);
-            st = jaos_solve(lp);
-            solves++;
-            node_work = jaos_work_units(lp);
-            work += node_work;
-            iters += jaos_iterations(lp);
+            continue;
         }
+
         if (nodes > 1 && !lp->cfg.node_no_presolve &&
             npre_n < MIP_NODE_PRESOLVE_TRIAL) {
             npre_n++;
-            npre_it += jaos_iterations(lp);
+            npre_it += rec.last_iters;
             if (npre_n == MIP_NODE_PRESOLVE_TRIAL &&
                 (double)npre_it >
                     MIP_NODE_PRESOLVE_ITERS * (double)MIP_NODE_PRESOLVE_TRIAL) {
