@@ -198,6 +198,7 @@ final class Native {
     static final MethodHandle SET_MIP_NODE_SELECT = setter("jaos_set_mip_node_select", JAVA_LONG);
     static final MethodHandle SET_MIP_RESTART = setter("jaos_set_mip_restart", JAVA_INT);
     static final MethodHandle SET_MIP_CONFLICTS = setter("jaos_set_mip_conflicts", JAVA_INT);
+    static final MethodHandle SET_MIP_DUAL_PROOFS = setter("jaos_set_mip_dual_proofs", JAVA_LONG);
     static final MethodHandle SET_MIP_SYMMETRY = setter("jaos_set_mip_symmetry", JAVA_INT);
     static final MethodHandle SET_MIP_ORBITAL = setter("jaos_set_mip_orbital", JAVA_INT);
     static final MethodHandle SET_MIP_PROPAGATE = setter("jaos_set_mip_propagate", JAVA_LONG);

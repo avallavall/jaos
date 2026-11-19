@@ -135,7 +135,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_probe_cap` | `mip_probe_cap` | number | 1.5 |
 | `jaos_set_mip_probe_depth` | `mip_probe_depth` | integer | -1, every depth |
 | `jaos_set_mip_cut_rounds` | `mip_cut_rounds` | integer | 1; up to 20 while they lift on a model with implied integers |
-| `jaos_set_mip_cut_depth` | `mip_cut_depth` | integer | 3 |
+| `jaos_set_mip_cut_depth` | `mip_cut_depth` | integer | 3, and 0 when the root's symmetries move at least half the integer columns |
 | `jaos_set_mip_cut_drop` | `mip_cut_drop` | boolean | true |
 | `jaos_set_mip_node_cut_cap` | `mip_node_cut_cap` | integer | 4 |
 | `jaos_set_mip_cover_rounds` | `mip_cover_rounds` | integer | 4 |
@@ -167,6 +167,7 @@ value `jaos_get_option` reports before any setter runs.
 | `jaos_set_mip_probing_cap` | `mip_probing_cap` | number | 1 |
 | `jaos_set_mip_clique_fix` | `mip_clique_fix` | boolean | true |
 | `jaos_set_mip_conflicts` | `mip_conflicts` | boolean | true |
+| `jaos_set_mip_dual_proofs` | `mip_dual_proofs` | integer | 600 |
 | `jaos_set_mip_symmetry` | `mip_symmetry` | boolean | false |
 | `jaos_set_mip_orbital` | `mip_orbital` | boolean | true |
 | `jaos_set_mip_propagate` | `mip_propagate` | integer | -1, the tree's own choice: 4 on a quadratic objective, 0 otherwise but 4 from node 1000 while no incumbent is known |
@@ -770,7 +771,9 @@ the count.
 `jaos_status jaos_set_mip_cut_depth(jaos_model *m, int64_t depth)`\
 Gives one round of Gomory cuts to every node below the root whose depth is
 at most `depth`. The root is at depth 0. A node's cuts hold in its subtree
-only. The default is 3, and 0 keeps the cuts at the root.
+only. The default is 3, and 0 keeps the cuts at the root. Left unset, a model
+whose root symmetries put at least `MIP_SYMMETRY_CUTS` of its integer columns
+in orbits of more than one column keeps its cuts at the root.
 
 **`jaos_set_mip_cut_drop`**\
 `jaos_status jaos_set_mip_cut_drop(jaos_model *m, bool on)`\
@@ -1190,6 +1193,30 @@ the path. When the proof needs only binaries fixed on the path, at most 32
 of them, it adds a row that forbids that combination for the rest of the
 search. A binary the nodes fixed by its reduced cost does not count as fixed
 on the path, so a proof that needs one adds no row.
+
+**`jaos_set_mip_dual_proofs`**\
+`jaos_status jaos_set_mip_dual_proofs(jaos_model *m, int64_t count)`\
+Keeps up to `count` dual proofs, 600 by default; 0 turns them off and a
+negative count restores the default. When a node's dual simplex stops because
+its bound passed the incumbent, its duals over the model's rows and the
+root's permanent cuts give the inequality `(c - A'y)'x + y'b <= c'x` that
+every point satisfies; read over the node's bounds it passes the incumbent,
+so every point that improves the incumbent satisfies the proof below it. A
+proof whose duals touch a node's own cuts, whose sides are infinite, or whose
+coefficients on the integer columns span more than `MIP_PROOF_RANGE` is not
+kept. Before each node's relaxation the kept proofs are read over the node's
+bounds: one whose least activity passes the incumbent cuts the node, and one
+close to it tightens the integer columns whose coefficient times their range
+exceeds its slack, rounded as reduced-cost fixing rounds them. The proof
+unused longest is replaced when the pool is full. A column the proofs tighten
+is written to the node's bounds ahead of its branching bound, so the
+pseudocosts still learn from the column the node branched on. The pool stops
+for the rest of the search when its first `MIP_PROOF_TRIAL` proofs have cut
+and tightened no more than `MIP_PROOF_PAYS` times their number, or when
+`MIP_PROOF_IDLE` stopped relaxations have given no proof. Every
+`MIP_PROOF_WINDOW` nodes after that, a pool that took more than
+`MIP_PROOF_SHARE` of a node relaxation's work a node drops its proofs unused
+longest down to half its size, and stops under `MIP_PROOF_FLOOR` proofs.
 
 **`jaos_set_mip_symmetry`**\
 `jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)`\

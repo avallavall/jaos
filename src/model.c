@@ -2366,6 +2366,15 @@ jaos_status jaos_set_mip_conflicts(jaos_model *m, int on)
     return JAOS_OK;
 }
 
+jaos_status jaos_set_mip_dual_proofs(jaos_model *m, int64_t count)
+{
+    if (m == nullptr)
+        return JAOS_ERR_INVALID_INPUT;
+    m->cfg.mip_dual_proofs_set = count >= 0;
+    m->cfg.mip_dual_proofs = count >= 0 ? count : 0;
+    return JAOS_OK;
+}
+
 jaos_status jaos_set_mip_symmetry(jaos_model *m, int on)
 {
     if (m == nullptr)

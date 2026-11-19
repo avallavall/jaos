@@ -79,12 +79,15 @@ Mittelmann's table at the same time reads serial HiGHS 82 and SCIP 73;
 the heuristics and the symmetry search with `--log detail`, and take the
 largest share first. Verify with 02-491's `run.sh` on the 96.
 
-J7. **MIP: MIPLIB 2017, 9 of 30 at 1e10 work units, 29 with an
+J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
 HiGHS and SCIP 8 each, the three JAOS leaves open being `beasleyC3`,
 `binkar10_1` and `neos-911970` (`bench/compare/README.md`). Open, largest
 first:
 
+- `markshare2` holds bound 0 at 1e10. `markshare_4_0`, of its family,
+  closes at 2.0e9 work units in 378,496 nodes under the dual proofs of
+  node relaxations stopped at the incumbent (`bench/measurements/02-500/`).
 - No incumbent: `ic97_potential`. `csched008` has one at its root from
   J32's search over the starts (`bench/measurements/02-472/`): 175, its
   optimum 173. Its bound stays at 171 after 96 nodes. Next for it: the
@@ -107,20 +110,22 @@ first:
   every integer point, which the objective step now reads through
   continuous columns held as differences; with node relaxations that stop
   at the incumbent and reduced-cost fixing at every node it closes at
-  7.5e9 in 174,316 nodes, where SCIP takes 353,721. `mas76` closes at
-  5.6e9 in 379,655 nodes against SCIP's 216,712. SCIP's ablation on
-  `mas76` puts its conflicts from nodes that pass the incumbent at 1.54x
-  its nodes and its node cuts at 1.46x; JAOS has neither on `mas76`'s
-  rows, which all hold its continuous column.
-- The other four lack bound per node: `gen-ip002`, `gen-ip054`, `neos5`
-  and `assign1-5-8`. In 20 s JAOS takes 1.5 to 9 times the nodes of
-  HiGHS and SCIP on `gen-ip002`, `gen-ip054` and `assign1-5-8` (02-465);
-  on `gen-ip002` and `gen-ip054` JAOS's bound per node leads, and neither
-  HiGHS nor SCIP closes them in 300 s (02-476). Conflicts from node
-  relaxations stopped at the incumbent, as bounds or as dual proofs,
-  lift none of the open three at 1e10: 4% to 6% of their nodes stop
-  there, the conflicts hold 14 to 19 bounds, and `assign1-5-8`'s proofs
-  need its local cuts (`stop-conflicts`, `bench/measurements/02-482/`).
+  7.5e9 in 174,316 nodes, where SCIP takes 353,721, and under 02-500's
+  dual proofs at 6.6e9 in 152,344. `mas76` closes at 5.6e9 in 379,655
+  nodes against SCIP's 216,712, and under the proofs at 5.1e9 in 315,175;
+  its null readings spread 1.5x on either side of the change. SCIP's
+  ablation on `mas76` puts its conflicts from nodes that pass the
+  incumbent at 1.54x its nodes and its node cuts at 1.46x; JAOS has no
+  node cuts on `mas76`'s rows, which all hold its continuous column.
+- Of the four that lacked bound per node, `gen-ip054` closes on a reduced
+  basis (below) and `neos5` under the dual proofs (below); `gen-ip002` and
+  `assign1-5-8` lack it still. In 20 s JAOS takes 1.5 to 9 times the nodes
+  of HiGHS and SCIP on `gen-ip002`, `gen-ip054` and `assign1-5-8`
+  (02-465); on `gen-ip002` and `gen-ip054` JAOS's bound per node leads,
+  and neither HiGHS nor SCIP closes them in 300 s (02-476). Neither of the
+  two makes a dual proof: their first 200 stopped relaxations give none
+  that passes the checks, `gen-ip002`'s also with no cuts below the root,
+  and the pool stops (02-500).
 - `gen-ip054` closes at 1.4e9 work units on an LLL-reduced basis of the
   improving region taken after 1000 nodes (`--lattice`, 02-476, 02-478),
   where the columns' tree is open at 1e11. `gen-ip002` holds its optimum
@@ -136,31 +141,26 @@ first:
   `gen-ip002` needs the bound at -4783.73: with the optimum given from the
   root, best bound first reads -4800.75 on the columns and -4800.93 on the
   reduced basis at 1e10, and SCIP -4801.29 after 2.27M nodes in 300 s.
+  Under 02-500's change the 200 stopped relaxations before the proof pool
+  stops move the work that check reads, the tree stays on the reduced
+  basis, and `gen-ip002` ends at 1e10 with bound -4806.13 and incumbent
+  -4774.65.
   Next for `gen-ip002`: a relaxation that lifts the bound per node, since
   node order and the basis move it by under 5. Verify with `gen-ip002`
   closing inside 1e10.
-- `neos5` and `assign1-5-8` are out of reach at 1e10
-  (`bench/measurements/02-477/`, `02-479/`, `02-480/`, `02-481/`). For
-  `neos5` it is the tree, not the node (`bench/measurements/02-481/`).
-  Below the root the dual prices by Devex since 02-479: 116,376 nodes and
-  bound 14.25 at 1e10, 8.6e4 work units a node. JAOS's tree is not
-  HiGHS's: the record closes `neos5` at 1.91e11 in 2,977,069 nodes, and
-  at its smallest here, with no cuts below the root, node presolve on
-  every node and `--rins 0`, at 6.1e10 in 1,456,423. The local Gomory cuts
-  to depth 3 make the tree 1.5x to 1.7x larger, and node presolve on every
-  node 1.2x to 1.3x smaller with a node 0.7x as dear (refused for MIPLIB
-  3's 1.225x, `node-presolve-always`). Inside 1e10 those
-  trees need 3.4e3 and 6.9e3 work units a node, under the 1.4e4 a node of
-  one pivot costs, so the node relaxations cannot close it
-  (`neos5-node-cost`).
-  HiGHS closes it in 110,582 to 206,031 nodes over four seeds, and SCIP
-  is at 14.75 after 2.48M. With its symmetry, node cuts, restarts,
-  heuristics and pools off, HiGHS takes 1,612,417 nodes, JAOS's size; its
-  pools, conflicts above all, are the largest single part, 2.4x on that
-  bare tree, and the other four each cost it 1.1x to 1.7x, inside its
-  seeds' spread, 3.3x together. JAOS's tree leans on orbital branching: without it the
-  explored share at 100,000 nodes is 0.008% against 1.1%.
-  Neither HiGHS nor SCIP closes `assign1-5-8` in 600 s (200.0 and 205.0).
+- `neos5` closes at 7.4e9 work units in 165,501 nodes (02-500), HiGHS's
+  110,582 to 206,031, from the record's 1.91e11 in 2,977,069: up to 600
+  dual proofs of node relaxations stopped at the incumbent cut and tighten
+  the nodes before their relaxations, and since its symmetries move 79%
+  of its integer columns its cuts stay at the root (`MIP_SYMMETRY_CUTS`).
+  The proofs alone close it at 2.5e10, the root's cuts alone at 7.7e10.
+  The proofs' tightened bounds had taught the pseudocosts gains for
+  columns the nodes did not branch on; written ahead of the branching
+  bound they shrink `neos5`'s tree from 222,931 nodes to 186,781 and
+  `pk1`'s from 202,147 to 159,769. Orbital fixing at a node writes its
+  bounds after the branching bound the same way. Next: the same order for
+  orbital fixing, read on the models with symmetries.
+- Neither HiGHS nor SCIP closes `assign1-5-8` in 600 s (200.0 and 205.0).
   Its gap is the tree's: the LP reads 183.36, the products of its columns
   with the triangle rows 184.53, its 26 cost columns alone made integer
   193, the optimum 212. A second symmetry search before the first branch
@@ -170,9 +170,9 @@ first:
   a model the root's rounds go past the first while they lift the bound
   and a round's cuts hold under ten times the model's nonzeros (02-483):
   the root goes from 189.80 to 192.30 after eight rounds and the bound at
-  1e10 from 197.32–197.52 to 199.04–199.36 over five null readings, in
+  1e10 from 197.32-197.52 to 199.04-199.36 over five null readings, in
   26,000 to 40,000 nodes against 58,000. At 20,000 nodes it reads
-  198.5–199.0 against SCIP's 197.12, at 50,000 199.71 against 199.05.
+  198.5-199.0 against SCIP's 197.12, at 50,000 199.71 against 199.05.
   JAOS's bound still gains 0.9 a doubling of the nodes (202.93 at
   570,000), SCIP's 1.3; past 211 takes about 2e8 nodes at JAOS's rate and
   2.5e7 at SCIP's, against 30,000 at 1e10. Of SCIP's 199.05 at 50,000
@@ -181,17 +181,10 @@ first:
   is fixed, and grow `misc07` (`gomory-equality-slacks`); `bell5` grew
   under rounds past the first, not under integral slacks, and has no
   implied integers. The root now spends 2.2e9 of the 1e10 against 3.6e8,
-  its heuristics' share with it. Next for `assign1-5-8`: reliability
-  branching's probes. On `neos5` the dual proofs of stopped relaxations,
-  their sides tightened as the incumbent improves, close it in 1,264,193
-  nodes and 7.4e10 work units against 2,977,069 and 1.9e11, HiGHS's
-  size; the same tightening grows `pk1` and `misc07` (02-482). Next for
-  `neos5`: a rule that tells its tightenings from `pk1`'s and
-  `misc07`'s, then symmetry handling that reaches below the shallow
-  nodes where orbital branching acts now, and cuts at the nodes that
-  hold for the whole tree in place of local ones that enlarge it.
-  Verify by the nodes `neos5` closes in against 2,977,069, at 1e10 on both
-  and with `make miplib J=2`.
+  its heuristics' share with it. Under 02-500 its symmetries move 92% of
+  its integer columns and its cuts stay at the root: bound 200 at 1e10 in
+  35,814 nodes, and 200 in 32,762 nodes under `--reliability 16`. Next for
+  `assign1-5-8`: reliability branching's probes.
 - Strong branching is on by default for a linear model: reliability 4,
   the children on the node's kept factors, each capped at 1.5 times the
   node's work (02-461 to 02-464). The 2017 gap sum is 13.52 against

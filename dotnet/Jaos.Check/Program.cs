@@ -183,6 +183,7 @@ using (var m = new Model())
     m.SetMipNodeSelect(0); Is("mip_node_select", "0");
     Flip("mip_restart", on => m.SetMipRestart(on ? 1 : 0));
     Flip("mip_conflicts", on => m.SetMipConflicts(on ? 1 : 0));
+    m.SetMipDualProofs(25); Is("mip_dual_proofs", "25");
     Flip("mip_symmetry", on => m.SetMipSymmetry(on ? 1 : 0));
     Flip("mip_orbital", on => m.SetMipOrbital(on ? 1 : 0));
     m.SetMipPropagate(3); Is("mip_propagate", "3");

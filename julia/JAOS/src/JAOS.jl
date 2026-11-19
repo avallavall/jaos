@@ -549,6 +549,7 @@ const _SETTERS = (
     (:set_mip_reliability, Int64), (:set_mip_probe_cap, Cdouble),
     (:set_mip_probe_depth, Int64), (:set_mip_node_select, Int64),
     (:set_mip_restart, Cint), (:set_mip_conflicts, Cint),
+    (:set_mip_dual_proofs, Int64),
     (:set_mip_symmetry, Cint), (:set_mip_orbital, Cint),
     (:set_mip_propagate, Int64), (:set_mip_propagate_depth, Int64),
     (:set_mip_rcfix, Cint), (:set_mip_tighten, Cint),

@@ -4922,6 +4922,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     *units = 0;
     *iters = 0;
     m->cutoff_hit = false;
+    m->stop_duals_ok = false;
     jm_presolve p;
     jm_presolve_init(&p);
     p.orig = m;
@@ -5375,6 +5376,26 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
         polish_unscaled(&s);
     if (st == JAOS_OK)
         st = publish(&s, outcome, &p);
+    m->stop_duals_ok = false;
+    if (st == JAOS_OK && m->cutoff_hit && m->cfg.node_stop_duals &&
+        m->sol_dual != nullptr && (target == m || p.orig_row != nullptr)) {
+        double lag = 0.0;
+        if (stop_bound_in(&s, s.tau, &lag)) {
+            const double sgn = target->sense == JAOS_MAXIMIZE ? -1.0 : 1.0;
+            memset(m->sol_dual, 0, (size_t)m->num_row * sizeof *m->sol_dual);
+            bool ok = true;
+            for (int64_t ri = 0; ri < target->num_row && ok; ri++) {
+                const int64_t i = target == m ? ri : p.orig_row[ri];
+                ok = i >= 0 && i < m->num_row;
+                if (ok)
+                    m->sol_dual[i] = s.status[target->num_col + ri] == JM_BASIC
+                        ? 0.0 : sgn * s.tau[ri] * target->row_scale[ri];
+            }
+            m->stop_duals_ok = ok;
+        }
+        m->solve_work += (target->num_nz + s.nvar + m->num_row) *
+                         JM_WORK_NONZERO;
+    }
     if (st == JAOS_OK && quad_probe && outcome == JAOS_SOLVE_INFEASIBLE) {
         jaos_certificate_report rep = {0};
         const bool certified =

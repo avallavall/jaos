@@ -1201,6 +1201,7 @@ public final class Check {
             m.setMipProbingCap(3.0); reads(m, wrong, "mip_probing_cap", "3");
             m.setMipCliqueFix(1); reads(m, wrong, "mip_clique_fix", "true");
             m.setMipConflicts(0); reads(m, wrong, "mip_conflicts", "false");
+            m.setMipDualProofs(25); reads(m, wrong, "mip_dual_proofs", "25");
             m.setMipSymmetry(1); reads(m, wrong, "mip_symmetry", "true");
             m.setMipOrbital(0); reads(m, wrong, "mip_orbital", "false");
             m.setMipPropagate(2); reads(m, wrong, "mip_propagate", "2");

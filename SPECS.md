@@ -86,7 +86,7 @@ there is a row here that is not done.
 | SOS1 and SOS2 constraints | **done** | `jaos_add_sos`, `jaos_sos`; MPS and LP `SOS` sections, both writers; Python `add_sos` |
 | Indicator constraints | **done** | `jaos_set_row_indicator`: a row that holds only while an integer column equals 0 or 1. The tree keeps it free until the column is fixed. LP `z = 1 ->`, MPS `INDICATORS`, both writers, Python `add_indicator` |
 | Symmetry detection | **done** | automorphisms by colour refinement and a partition search under a work cap, each row read with one sign so that a negated row matches its twins (`src/symmetry.c`, `02-447/`), searched again under four times the cap before the first branch when the root's search runs out (`02-477/`); orbital branching and fixing on by default (`--orbital`), `--symmetry` to detect and report |
-| Conflict analysis | **done** | an infeasible node's Farkas proof gives a row over the binaries the proof needs, kept for the rest of the search; on by default (`--conflicts`) |
+| Conflict analysis | **done** | an infeasible node's Farkas proof gives a row over the binaries the proof needs, kept for the rest of the search; on by default (`--conflicts`). The duals of node relaxations stopped at the incumbent give dual proofs, up to 600 kept, that cut and tighten nodes before their relaxations (`--dual-proofs`, `bench/measurements/02-500/`) |
 | Deterministic parallel tree search | **done** | both trees can take their open nodes in rounds (`--tree-batch N`), each node on its own copy, the answers taken in the round's order, so the tree and its work are the same at any thread count; off by default by measurement (`bench/measurements/02-264/`, `02-290/`) |
 
 ## 5. Parallelism
@@ -137,7 +137,7 @@ there is a row here that is not done.
 
 | | status | |
 |---|---|---|
-| C API, one header | **done** | `include/jaos.h`, 211 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
+| C API, one header | **done** | `include/jaos.h`, 212 functions, each returning a `jaos_status` the caller must read or a plain value; the model an opaque `jaos_model`, its last message in `jaos_model_error`. C23, linking libc and libm only (`docs/api.md`) |
 | Command-line tool | **done** | `docs/cli.md` |
 | Python: ctypes wrapper and modeling layer | **done** | `python/jaos/`, standard library only: `Model` over every C call and `Problem` on top, which edits the model in place and re-solves warm |
 | Python package installable with pip | **done** | `pyproject.toml` and `setup.py`; a tag builds the wheels and the sdist into a GitHub Release, and the PyPI upload is off until the project is registered (`docs/build.md`) |
@@ -158,7 +158,7 @@ there is a row here that is not done.
 | Logging with levels | **done** | `jaos_set_log_callback`, `jaos_set_log_level` (`off`, `summary`, `progress`, `detail`), `--log`, `--quiet` (`bench/measurements/02-243/`) |
 | Progress callback that can stop | **done** | `jaos_set_progress_callback`: iterations, work, primal infeasibility, and for a MIP nodes, bound and incumbent; a `STOP` ends the solve `INTERRUPTED` and the next solve continues (`bench/measurements/02-232/`) |
 | Choose the algorithm | **done** | `jaos_set_algorithm`, `--algorithm dual|primal|barrier|pdlp|concurrent` |
-| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 64 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
+| Options as name-value strings, parameter file | **done** | `jaos_set_option`, `jaos_get_option`, `jaos_read_options`; 65 options; `--opt NAME=VALUE`, `--params FILE`, `jaos options` |
 | Steering callbacks: user cuts, lazy constraints, branching, solutions | **done** | `jaos_set_node_callback`: rows through `jaos_node_add_row`, the branching column, and points through `jaos_node_add_solution` |
 | Thread count | **done** | `jaos_set_threads`, `--threads N`; every core by default, and 0 means every core; the answer is the same at every count |
 | Sensitivity and ranging | **done** | `jaos_cost_ranging`, `jaos_rhs_ranging`, `jaos_bound_ranging`, the CLI's `ranging`; a QP and a MIP are refused by name |

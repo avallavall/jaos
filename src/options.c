@@ -34,7 +34,7 @@ enum opt_id {
     O_ROOT_CUT_DROP, O_COVER_LIFT, O_MIR_ROUNDS, O_NODE_MIR, O_LATTICE, O_ZI_ROUND, O_MIR_AGGREGATE,
     O_DIVE, O_DIVE_CHILD, O_DIVE_BACKTRACK, O_DIVE_GAP, O_DIVE_DEGRADE,
     O_DIVE_HEURISTIC, O_DIVE_HEURISTIC_DEPTH, O_RINS, O_FEASPUMP,
-    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
+    O_PUMP_GENERAL, O_PUMP_OBJ, O_PUMP_ALWAYS, O_RCFIX, O_TIGHTEN, O_MIP_PRESOLVE, O_PROBING, O_PROBING_CAP, O_CLIQUE_FIX, O_CONFLICTS, O_DUAL_PROOFS, O_SYMMETRY, O_ORBITAL, O_PROPAGATE,
     O_PROPAGATE_DEPTH, O_HEURISTICS, O_POOL_SIZE, O_CUTOFF, O_CLIQUE_ROUNDS, O_ZERO_HALF_ROUNDS, O_FLOW_COVER_ROUNDS, O_LOCAL_BRANCHING, O_NODE_SELECT, O_RESTART, O_THREADS,
     O_GAP_RULE, O_HULL_ROUNDS, O_EXACT, O_EXACT_DECIMAL,
     O_COUNT
@@ -87,6 +87,7 @@ static const opt_def OPTS[O_COUNT] = {
     [O_PROBING_CAP] = {"mip_probing_cap", OPT_DOUBLE, nullptr, 0},
     [O_CLIQUE_FIX] = {"mip_clique_fix", OPT_BOOL, nullptr, 0},
     [O_CONFLICTS] = {"mip_conflicts", OPT_BOOL, nullptr, 0},
+    [O_DUAL_PROOFS] = {"mip_dual_proofs", OPT_INT, nullptr, 0},
     [O_SYMMETRY] = {"mip_symmetry", OPT_BOOL, nullptr, 0},
     [O_ORBITAL] = {"mip_orbital", OPT_BOOL, nullptr, 0},
     [O_PROPAGATE] = {"mip_propagate", OPT_INT, nullptr, 0},
@@ -255,6 +256,7 @@ jaos_status jaos_set_option(jaos_model *m, const char *name, const char *value)
     case O_PROBING_CAP: return jaos_set_mip_probing_cap(m, x);
     case O_CLIQUE_FIX: return jaos_set_mip_clique_fix(m, b);
     case O_CONFLICTS: return jaos_set_mip_conflicts(m, b);
+    case O_DUAL_PROOFS: return jaos_set_mip_dual_proofs(m, i);
     case O_SYMMETRY: return jaos_set_mip_symmetry(m, b);
     case O_ORBITAL: return jaos_set_mip_orbital(m, b);
     case O_PROPAGATE: return jaos_set_mip_propagate(m, i);
@@ -343,6 +345,7 @@ jaos_status jaos_get_option(const jaos_model *m, const char *name, char *buf,
     case O_PROBING_CAP: x = eff(c->mip_probing_cap_set, c->mip_probing_cap, JM_DEF_PROBING_CAP); break;
     case O_CLIQUE_FIX: b = eff(c->mip_clique_fix_set, c->mip_clique_fix ? 1.0 : 0.0, JM_DEF_CLIQUE_FIX) != 0.0; break;
     case O_CONFLICTS: b = eff(c->mip_conflicts_set, c->mip_conflicts ? 1.0 : 0.0, JM_DEF_CONFLICTS) != 0.0; break;
+    case O_DUAL_PROOFS: i = (int64_t)eff(c->mip_dual_proofs_set, (double)c->mip_dual_proofs, JM_DEF_DUAL_PROOFS); break;
     case O_SYMMETRY: b = eff(c->mip_symmetry_set, c->mip_symmetry ? 1.0 : 0.0, JM_DEF_SYMMETRY) != 0.0; break;
     case O_ORBITAL: b = eff(c->mip_orbital_set, c->mip_orbital ? 1.0 : 0.0, JM_DEF_ORBITAL) != 0.0; break;
     case O_PROPAGATE: i = c->mip_propagate_set ? c->mip_propagate : -1; break;

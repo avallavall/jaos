@@ -665,6 +665,7 @@ public sealed class Model : IDisposable
     public void SetMipNodeSelect(long rule) => Check(Native.jaos_set_mip_node_select(h, rule));
     public void SetMipRestart(int on) => Check(Native.jaos_set_mip_restart(h, on));
     public void SetMipConflicts(int on) => Check(Native.jaos_set_mip_conflicts(h, on));
+    public void SetMipDualProofs(long count) => Check(Native.jaos_set_mip_dual_proofs(h, count));
     public void SetMipSymmetry(int on) => Check(Native.jaos_set_mip_symmetry(h, on));
     public void SetMipOrbital(int on) => Check(Native.jaos_set_mip_orbital(h, on));
     public void SetMipPropagate(long rounds) => Check(Native.jaos_set_mip_propagate(h, rounds));

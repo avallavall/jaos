@@ -1884,6 +1884,7 @@ static void test_zi_rounding_stops_after_500_runs_without_an_incumbent(void)
     for (int on = 1; on >= 0; on--) {
         jaos_model *m = knapsack_rows(4, 25, 1);
         g_zi[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, 0));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zi_round(m, on));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_zi, nullptr));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
@@ -1915,6 +1916,7 @@ static void test_crossover_fixes_what_the_pool_agrees_on(void)
 static void test_mutation_fixes_a_seeded_share_of_the_incumbent(void)
 {
     jaos_model *m = market_split(2, 16, 13);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, 0));
     found_by(m, "by mutation of the incumbent", 0.0);
     jaos_model_free(m);
 }
@@ -1922,6 +1924,7 @@ static void test_mutation_fixes_a_seeded_share_of_the_incumbent(void)
 static void test_dins_boxes_each_column_by_its_distance(void)
 {
     jaos_model *m = market_split(2, 16, 15);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, 0));
     found_by(m, "by a sub-MIP boxed by the incumbent's distances", 0.0);
     jaos_model_free(m);
 
@@ -7121,6 +7124,79 @@ static void test_a_conflict_row_shortens_an_infeasible_tree(void)
     TEST_ASSERT_TRUE(nodes[1] <= nodes[0]);
 }
 
+static void test_dual_proofs_shrink_a_parity_covering_tree(void)
+{
+    enum { N = 31, NZ = 31 * 16 };
+    double c[N], cl[N], cu[N], rl[N], ru[N], av[NZ];
+    int64_t as[N + 1], ai[NZ];
+    int64_t nz = 0;
+    for (int64_t t = 1; t <= N; t++) {
+        c[t - 1] = 1.0;
+        cl[t - 1] = 0.0;
+        cu[t - 1] = 1.0;
+        as[t - 1] = nz;
+        for (int64_t s = 1; s <= N; s++)
+            if (__builtin_popcountll((unsigned long long)(s & t)) % 2 == 1) {
+                ai[nz] = s - 1;
+                av[nz] = 1.0;
+                nz++;
+            }
+    }
+    as[N] = nz;
+    TEST_ASSERT_EQUAL_INT64(NZ, nz);
+    for (int64_t s = 1; s <= N; s++) {
+        rl[s - 1] = 5.0 - (double)__builtin_popcountll((unsigned long long)s);
+        ru[s - 1] = INFINITY;
+    }
+    int64_t nodes[2] = {0, 0};
+    for (int on = 0; on < 2; on++) {
+        jaos_model *m = nullptr;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_load_lp(m, N, N, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, nz,
+                         as, ai, av));
+        for (int64_t j = 0; j < N; j++)
+            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_zero_half_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_hull_rounds(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_orbital(m, 0));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, on ? 50 : 0));
+        TEST_ASSERT_TRUE(m->cfg.mip_dual_proofs_set);
+        char opt[64];
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_get_option(m, "mip_dual_proofs", opt, 64));
+        TEST_ASSERT_EQUAL_STRING(on ? "50" : "0", opt);
+        g_log[0] = '\0';
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_log, nullptr));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+        double obj = 0.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, 8.0, obj);
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        nodes[on] = rep.nodes;
+        if (on)
+            TEST_ASSERT_NOT_NULL(strstr(g_log, " dual proofs from them"));
+        else
+            TEST_ASSERT_NULL(strstr(g_log, " dual proofs from them"));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, -1));
+        TEST_ASSERT_FALSE(m->cfg.mip_dual_proofs_set);
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_get_option(m, "mip_dual_proofs", opt, 64));
+        TEST_ASSERT_EQUAL_STRING("600", opt);
+        jaos_model_free(m);
+    }
+    TEST_ASSERT_TRUE(nodes[1] < nodes[0]);
+}
+
 static void test_coefficient_tightening_is_a_switch(void)
 {
     jaos_model *m = knapsack();
@@ -7736,6 +7812,7 @@ int main(void)
     RUN_TEST(test_hull_cuts_give_the_knapsack_row_its_integer_hull_at_the_root);
     RUN_TEST(test_a_mir_cut_on_a_mixed_row_measures_a_binary_from_its_far_bound);
     RUN_TEST(test_a_conflict_row_shortens_an_infeasible_tree);
+    RUN_TEST(test_dual_proofs_shrink_a_parity_covering_tree);
     RUN_TEST(test_a_quadratic_objective_branches_on_barrier_relaxations);
     RUN_TEST(test_a_quadratic_objective_matches_enumeration);
     RUN_TEST(test_symmetry_does_not_swap_a_column_an_indicator_reads);

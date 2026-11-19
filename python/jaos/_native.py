@@ -751,6 +751,7 @@ _sig("jaos_set_mip_probing_cap", ctypes.c_int, _VP, _D)
 _sig("jaos_set_mip_clique_fix", ctypes.c_int, _VP, ctypes.c_int)
 
 _sig("jaos_set_mip_conflicts", ctypes.c_int, _VP, ctypes.c_int)
+_sig("jaos_set_mip_dual_proofs", ctypes.c_int, _VP, _I64)
 
 _sig("jaos_set_mip_symmetry", ctypes.c_int, _VP, ctypes.c_int)
 

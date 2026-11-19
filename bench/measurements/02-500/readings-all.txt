@@ -1,0 +1,105 @@
+wc status work_limit work_units 10000006423 nodes 98082 bound 14.25 incumbent 14.999999999999931 
+allint status work_limit work_units 10000005955 nodes 153455 bound 15 incumbent 16 
+w status work_limit work_units 10000146239 nodes 132004 bound 14.300000000000001 incumbent 15 
+n5pt status work_limit work_units 2000010820 nodes 14560 bound 14 incumbent 15.5 
+a158-rel16 status work_limit work_units 10000008796 nodes 32762 bound 200 incumbent 212 
+n5pt10 status work_limit work_units 10000004956 nodes 108115 bound 14.25 incumbent 15 
+proof-cd0-close status optimal objective 15 work_units 21049946612 nodes 487875 bound 15 incumbent 15 
+allint-5e10 status work_limit work_units 50000004513 nodes 852689 bound 15 incumbent 16 
+proof-cd0-rins0 status optimal objective 15 work_units 19967673437 nodes 488145 bound 15 incumbent 15 
+proofpre-cd0 status optimal objective 15 work_units 21049946612 nodes 487875 bound 15 incumbent 15 
+p300-cd0 status optimal objective 15 work_units 11261311453 nodes 230761 bound 15 incumbent 15 
+both-cd0 status optimal objective 15 work_units 16386595602 nodes 347015 bound 15 incumbent 15 
+p1000-cd0 status optimal objective 15 work_units 11898450116 nodes 200697 bound 15 incumbent 15 
+p300-cd3 status optimal objective 15 work_units 24747903249 nodes 420405 bound 15 incumbent 15 
+c1000-cd0 status optimal objective 15 work_units 10112547207 nodes 200697 bound 15 incumbent 15 
+c300-cd0 status optimal objective 15 work_units 10078310284 nodes 230761 bound 15 incumbent 15 
+w-close status optimal objective 14.999999999999874 work_units 154688592300 nodes 3259341 bound 14.999999999999874 incumbent 14.999999999999874 
+w1000-cd0 status optimal objective 15 work_units 9877741127 nodes 205939 bound 15 incumbent 15 
+w1000-cd0-1e10 status optimal objective 15 work_units 9877741127 nodes 205939 bound 15 incumbent 15 
+w300-cd0 status optimal objective 15 work_units 9799086022 nodes 230307 bound 15 incumbent 15 
+pk1-w300-cd0 status optimal objective 11 work_units 9376725043 nodes 203767 bound 11 incumbent 11 
+stein27-w300 status optimal objective 18 work_units 25750375 nodes 1143 bound 18 incumbent 18 
+stein45-w300 status optimal objective 30 work_units 2510404816 nodes 56516 bound 30 incumbent 30 
+w300-cd2 status optimal objective 15 work_units 22306803119 nodes 436321 bound 15 incumbent 15 
+w300-cd1 status optimal objective 15 work_units 22529135944 nodes 442039 bound 15 incumbent 15 
+w300pre-cd1 status optimal objective 15 work_units 14140753751 nodes 337127 bound 15 incumbent 15 
+w300pre-cd3 status optimal objective 15 work_units 18298070643 nodes 441991 bound 15 incumbent 15 
+null100-cd0 status optimal objective 15 work_units 10430830400 nodes 241949 bound 15 incumbent 15 
+null100-cd3 status optimal objective 15 work_units 20889028399 nodes 412801 bound 15 incumbent 15 
+null300-cd0 status optimal objective 15 work_units 10223732279 nodes 235117 bound 15 incumbent 15 
+null300-cd3 status optimal objective 15 work_units 19141417133 nodes 377277 bound 15 incumbent 15 
+r300-neos5 status optimal objective 14.999999999999739 work_units 70065796144 nodes 1429667 bound 14.999999999999739 incumbent 14.999999999999739 
+q300-neos5 status optimal objective 15 work_units 9993649792 nodes 231687 bound 15 incumbent 15 
+q1000-neos5 status optimal objective 15 work_units 10047500882 nodes 206503 bound 15 incumbent 15 
+q1000r-neos5 status optimal objective 15 work_units 10070023711 nodes 206791 bound 15 incumbent 15 
+q300r-neos5 status optimal objective 15 work_units 10022374431 nodes 232831 bound 15 incumbent 15 
+land-pk1 status optimal objective 11 work_units 7627284462 nodes 196283 bound 11 incumbent 11 
+land1000-neos5 status optimal objective 15 work_units 9833230626 nodes 205929 bound 15 incumbent 15 
+land300-neos5 status optimal objective 15 work_units 10162897712 nodes 242957 bound 15 incumbent 15 
+l2-1000-pk1 status optimal objective 10.999999999999186 work_units 9437780509 nodes 186627 bound 10.999999999999186 incumbent 10.999999999999186 
+l2-1000-neos5 status optimal objective 15 work_units 10284395190 nodes 218215 bound 15 incumbent 15 
+l2-300-neos5 status optimal objective 15 work_units 10830979708 nodes 263967 bound 15 incumbent 15 
+l2-600-neos5 status optimal objective 15 work_units 9887973762 nodes 222931 bound 15 incumbent 15 
+l2-2000-neos5 status optimal objective 15 work_units 10418303380 nodes 217621 bound 15 incumbent 15 
+l2-600-pk1 status optimal objective 11 work_units 8378607502 nodes 190225 bound 11 incumbent 11 
+l2-noorb-cd3 status work_limit work_units 10000006830 nodes 116149 bound 14.0625 incumbent 15 
+l2-noorb-cd0 status work_limit work_units 10000007682 nodes 145605 bound 14.1875 incumbent 15 
+l2-300-pk1 status optimal objective 11 work_units 7773411127 nodes 203503 bound 11 incumbent 11 
+l2-0-neos5 status optimal objective 14.99999999999995 work_units 76931620247 nodes 1594019 bound 14.99999999999995 incumbent 14.99999999999995 
+l2-300-markshare status optimal objective 1 work_units 2382913195 nodes 435555 bound 1 incumbent 1 
+l2-300-mas76 status optimal objective 40005.054141999994 work_units 9293220392 nodes 318855 bound 40005.054141999994 incumbent 40005.054141999994 
+l2-0-mas76 status optimal objective 40005.054141999994 work_units 7861522299 nodes 523989 bound 40005.054141999994 incumbent 40005.054141999994 
+l3-neos5 status optimal objective 15 work_units 9887977667 nodes 222931 bound 15 incumbent 15 
+l3-mas76 status optimal objective 40005.054141999994 work_units 9075178774 nodes 232685 bound 40005.054141999994 incumbent 40005.054141999994 
+l3-0-mas76 status optimal objective 40005.054141999994 work_units 7092150900 nodes 443875 bound 40005.054141999994 incumbent 40005.054141999994 
+l4-pk1 status optimal objective 11 work_units 8495068824 nodes 195355 bound 11 incumbent 11 
+l4-neos5 status optimal objective 15 work_units 9887977667 nodes 222931 bound 15 incumbent 15 
+l4-mas76 status optimal objective 40005.054141999994 work_units 7465535253 nodes 486959 bound 40005.054141999994 incumbent 40005.054141999994 
+l5-pk1 status optimal objective 11 work_units 7863686761 nodes 202147 bound 11 incumbent 11 
+l5-neos5 status optimal objective 15 work_units 9887977667 nodes 222931 bound 15 incumbent 15 
+l5-mas76 status optimal objective 40005.054141999994 work_units 9215023206 nodes 590513 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-head-0 status optimal objective 40005.054141999994 work_units 5338859910 nodes 360363 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-head-100 status optimal objective 40005.054141999994 work_units 6626027094 nodes 402337 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-l5-0 status optimal objective 40005.054141999994 work_units 9215023206 nodes 590513 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-head-200 status optimal objective 40005.054141999994 work_units 7778272602 nodes 426937 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-l5-100 status optimal objective 40005.054141999994 work_units 9245285960 nodes 589487 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-l5-200 status optimal objective 40005.054141999994 work_units 8623020105 nodes 502487 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-head-300 status optimal objective 40005.054141999994 work_units 7385643558 nodes 452607 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-l5-300 status optimal objective 40005.054141999994 work_units 7915758114 nodes 470245 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-head-400 status optimal objective 40005.054141999994 work_units 7083148282 nodes 402695 bound 40005.054141999994 incumbent 40005.054141999994 
+nm-l5-400 status optimal objective 40005.054141999994 work_units 8600360303 nodes 496539 bound 40005.054141999994 incumbent 40005.054141999994 
+l6-mas76 status optimal objective 40005.054141999994 work_units 4040744820 nodes 237711 bound 40005.054141999994 incumbent 40005.054141999994 
+l6-pk1 status optimal objective 11 work_units 6574877723 nodes 159769 bound 11 incumbent 11 
+l6-neos5 status optimal objective 15 work_units 8453785051 nodes 186781 bound 15 incumbent 15 
+np6-100 status optimal objective 10.999999999999998 work_units 6765917131 nodes 162161 bound 10.999999999999998 incumbent 10.999999999999998 
+nm6-100 status optimal objective 40005.054141999994 work_units 5471805143 nodes 347845 bound 40005.054141999994 incumbent 40005.054141999994 
+nn6-100 status optimal objective 15 work_units 8202888195 nodes 180455 bound 15 incumbent 15 
+np6-200 status optimal objective 11 work_units 6482497219 nodes 151700 bound 11 incumbent 11 
+nn6-200 status optimal objective 15 work_units 7873379293 nodes 170039 bound 15 incumbent 15 
+nm6-200 status optimal objective 40005.054141999994 work_units 7278187979 nodes 406617 bound 40005.054141999994 incumbent 40005.054141999994 
+p6-300-neos5 status optimal objective 15 work_units 8860787015 nodes 209875 bound 15 incumbent 15 
+np6-300 status optimal objective 11 work_units 6451820228 nodes 161433 bound 11 incumbent 11 
+nm6-300 status optimal objective 40005.054141999994 work_units 6631848133 nodes 389029 bound 40005.054141999994 incumbent 40005.054141999994 
+nn6-300 status optimal objective 15 work_units 8365765697 nodes 184863 bound 15 incumbent 15 
+p6-1000-neos5 status optimal objective 15 work_units 8877708167 nodes 187265 bound 15 incumbent 15 
+np6-400 status optimal objective 11 work_units 6502710563 nodes 163710 bound 11 incumbent 11 
+nm6-400 status optimal objective 40005.054141999994 work_units 7514096944 nodes 409987 bound 40005.054141999994 incumbent 40005.054141999994 
+nn6-400 status optimal objective 15 work_units 8700231982 nodes 191249 bound 15 incumbent 15 
+p6-300-pk1 status optimal objective 11 work_units 6366398090 nodes 162593 bound 11 incumbent 11 
+p6-1000-pk1 status optimal objective 11 work_units 6821874226 nodes 157457 bound 11 incumbent 11 
+l7-pk1 status optimal objective 11 work_units 6593190424 nodes 163760 bound 11 incumbent 11 
+l7-markshare status optimal objective 1 work_units 2000717835 nodes 374129 bound 1 incumbent 1 
+l7-mas76 status optimal objective 40005.054141999994 work_units 5722684127 nodes 364305 bound 40005.054141999994 incumbent 40005.054141999994 
+l7-neos5 status optimal objective 15 work_units 8382425349 nodes 182211 bound 15 incumbent 15 
+l7-assign status work_limit work_units 10000012688 nodes 36702 bound 200 incumbent 212 
+l7-genip002 status work_limit work_units 10000004196 nodes 210081 bound -4805.7981142755489 incumbent -4770.7191027999997 
+p6-0-neos5 status optimal objective 14.99999999999995 work_units 76931621137 nodes 1594019 bound 14.99999999999995 incumbent 14.99999999999995 
+p6-0-pk1 status optimal objective 11 work_units 8404052059 nodes 191552 bound 11 incumbent 11 
+l8-genip054 status optimal objective 6840.9656417920005 work_units 1470489116 nodes 68545 bound 6840.9656417920005 incumbent 6840.9656417920005 
+l8-pk1 status optimal objective 11 work_units 6593190424 nodes 163760 bound 11 incumbent 11 
+l8-neos5 status optimal objective 15 work_units 8382425349 nodes 182211 bound 15 incumbent 15 
+b-genip054 status optimal objective 6840.9656417920005 work_units 1202496219 nodes 53724 bound 6840.9656417920005 incumbent 6840.9656417920005 
+l8-genip002 status work_limit work_units 10000004196 nodes 210081 bound -4805.7981142755489 incumbent -4770.7191027999997 
+l8-mas76 status optimal objective 40005.054141999994 work_units 5722684127 nodes 364305 bound 40005.054141999994 incumbent 40005.054141999994 
+l7-genip054 status optimal objective 6840.9656417920005 work_units 1470489116 nodes 68545 bound 6840.9656417920005 incumbent 6840.9656417920005 

@@ -1,0 +1,7 @@
+GOMLOG node 2 depth 1 got 4 lift 1184.92432 gain 1361.7981 open 1
+GOMLOG node 3 depth 2 got 0 lift 0 gain 104.23524 open 1
+GOMLOG node 4 depth 3 got 0 lift 0 gain 51.92928 open 1
+GOMLOG node 5 depth 3 got 1 lift 688.536 gain 685.25976 open 1
+GOMLOG node 12 depth 2 got 1 lift 76.869 gain 0 open 1
+GOMLOG node 17 depth 3 got 1 lift 182.90156 gain 74.6126895 open 1
+GOMLOG node 22 depth 3 got 1 lift 160.6365 gain 0 open 1

@@ -348,6 +348,9 @@ JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_clique_fix(jaos_model *m, int o
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_conflicts(jaos_model *m, int on);
 
+JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_dual_proofs(jaos_model *m,
+                                                    int64_t count);
+
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_symmetry(jaos_model *m, int on);
 
 JAOS_NODISCARD JAOS_API jaos_status jaos_set_mip_orbital(jaos_model *m, int on);

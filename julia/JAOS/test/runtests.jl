@@ -587,7 +587,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.presolve_report(m).num_col <= 3
     @test JAOS.solve_time(m) >= 0.0
     names = JAOS.option_names()
-    @test length(names) == 63
+    @test length(names) == 65
     @test "mip_gap" in names
     mktempdir() do dir
         path = joinpath(dir, "opts.txt")
@@ -649,7 +649,7 @@ function test_statistics_options_and_typed_setters()
     @test JAOS.get_option(t, "mip_node_limit") == "7"
     @test parse(Float64, JAOS.get_option(t, "time_limit")) == 2.5
     @test isempty(wrong)
-    @test length(JAOS._SETTERS) == 56
+    @test length(JAOS._SETTERS) == 57
 end
 
 function test_moi_conformance()

@@ -42,6 +42,7 @@ typedef struct {
     bool node_no_presolve;
     bool node_devex;
     bool node_cutoff_set;
+    bool node_stop_duals;
     double node_cutoff;
     bool no_cert_solve;
     bool no_flat_rows;
@@ -158,6 +159,8 @@ typedef struct {
 
     bool mip_conflicts_set;
     bool mip_conflicts;
+    bool mip_dual_proofs_set;
+    int64_t mip_dual_proofs;
 
     bool mip_symmetry_set;
     bool mip_symmetry;
@@ -352,6 +355,7 @@ struct jaos_model {
     double stop_bound;
     bool stop_bound_ok;
     bool cutoff_hit;
+    bool stop_duals_ok;
 
     char **exact_col;
     char **exact_dual;
@@ -429,7 +433,7 @@ enum jm_mip_key {
     JM_DEF_RELIABILITY, JM_DEF_CLIQUE_ROUNDS, JM_DEF_ZERO_HALF_ROUNDS,
     JM_DEF_FLOW_COVER_ROUNDS, JM_DEF_LOCAL_BRANCHING, JM_DEF_NODE_SELECT,
     JM_DEF_RESTART, JM_DEF_HULL_ROUNDS, JM_DEF_PROBE_CAP, JM_DEF_LATTICE,
-    JM_DEF_ZI_ROUND,
+    JM_DEF_ZI_ROUND, JM_DEF_DUAL_PROOFS,
 };
 double jm_mip_default(enum jm_mip_key key);
 bool jm_open_piece(const jaos_model *m, const double *lo, const double *hi,

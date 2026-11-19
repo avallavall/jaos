@@ -1077,6 +1077,21 @@ class Model:
         """
         self._check(_lib.jaos_set_mip_conflicts(self._handle(), int(on)))
 
+    def set_mip_dual_proofs(self, count):
+        """Dual proofs from node relaxations that stop at the incumbent.
+
+        A node relaxation the dual simplex stops once its bound passes
+        the incumbent leaves its duals; over the model's rows they give
+        an inequality every improving point satisfies. Up to `count` are
+        kept, the one unused longest replaced, and each node reads them
+        over its own bounds before its relaxation: one past the incumbent
+        cuts the node, and one close to it tightens integer bounds. The
+        pool stops when its first proofs cut and tighten little. 600 by
+        default; 0 turns them off and a negative value restores it.
+        """
+        self._check(_lib.jaos_set_mip_dual_proofs(self._handle(),
+                                                  int(count)))
+
     def set_mip_symmetry(self, on):
         """Symmetry detection at the root: the model as a coloured graph,
         colour refinement, and a partition search under a work cap for

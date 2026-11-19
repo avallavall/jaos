@@ -52,7 +52,7 @@ static const char U_SYNOPSIS[] =
     "                  [--restart | --no-restart]\n"
     "                  [--probing | --no-probing] [--probing-cap M]\n"
     "                  [--clique-fix | --no-clique-fix]\n"
-    "                  [--conflicts | --no-conflicts]\n"
+    "                  [--conflicts | --no-conflicts] [--dual-proofs K]\n"
     "                  [--symmetry | --no-symmetry] [--orbital | --no-orbital]\n"
     "                  [--propagate N]\n"
     "                  [--propagate-depth D]\n"
@@ -245,6 +245,10 @@ static const char U_SOLVE_D2[] =
     "                   and a row forbidding them together is kept for the\n"
     "                   rest of the search; on by default, --no-conflicts\n"
     "                   turns it off\n"
+    "  --dual-proofs K  keep up to K dual proofs from node relaxations that\n"
+    "                   stop at the incumbent, and cut or tighten the nodes\n"
+    "                   they reach before their relaxations (default 600;\n"
+    "                   0 turns them off)\n"
     "  --symmetry       at the root, find the model's symmetries (column\n"
     "                   permutations that map it to itself) and report the\n"
     "                   orbits; off on its own, but --orbital, on by\n"
@@ -915,6 +919,7 @@ struct solve_options {
     double probing_cap;
     int clique_fix;
     int conflicts;
+    int64_t dual_proofs;
     int symmetry;
     int orbital;
     int64_t propagate;
@@ -972,6 +977,7 @@ static int parse_solve_options(int argc, char **argv, int first,
     o->probing = -1;
     o->clique_fix = -1;
     o->conflicts = -1;
+    o->dual_proofs = -1;
     o->symmetry = -1;
     o->orbital = -1;
     o->propagate = -1;
@@ -1328,6 +1334,10 @@ static int parse_solve_options(int argc, char **argv, int first,
                 return usage_error("--propagate-depth needs a depth, or a "
                                    "negative value for every node, not '%s'",
                                    v);
+        } else if (strcmp(a, "--dual-proofs") == 0) {
+            if (!parse_int64(v, &o->dual_proofs) || o->dual_proofs < 0)
+                return usage_error("--dual-proofs needs a count of proofs, "
+                                   "0 or more, not '%s'", v);
         } else if (strcmp(a, "--propagate") == 0) {
             if (!parse_int64(v, &o->propagate) || o->propagate < 0)
                 return usage_error("--propagate needs a count of passes, "
@@ -1679,6 +1689,11 @@ static int cmd_solve(int argc, char **argv)
     }
     if (o.conflicts >= 0 && jaos_set_mip_conflicts(m, o.conflicts) != JAOS_OK) {
         rc = library_error("set conflict analysis for", o.file, m);
+        goto out;
+    }
+    if (o.dual_proofs >= 0 &&
+        jaos_set_mip_dual_proofs(m, o.dual_proofs) != JAOS_OK) {
+        rc = library_error("set the dual proofs for", o.file, m);
         goto out;
     }
     if (o.symmetry >= 0 && jaos_set_mip_symmetry(m, o.symmetry) != JAOS_OK) {

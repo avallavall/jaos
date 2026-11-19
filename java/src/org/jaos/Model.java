@@ -841,6 +841,7 @@ public final class Model implements AutoCloseable {
     /** The switches below take 1 for on, 0 for off and a negative value for the default. */
     public void setMipRestart(int on) { check(call(Native.SET_MIP_RESTART, h, on)); }
     public void setMipConflicts(int on) { check(call(Native.SET_MIP_CONFLICTS, h, on)); }
+    public void setMipDualProofs(long count) { check(call(Native.SET_MIP_DUAL_PROOFS, h, count)); }
     public void setMipSymmetry(int on) { check(call(Native.SET_MIP_SYMMETRY, h, on)); }
     public void setMipOrbital(int on) { check(call(Native.SET_MIP_ORBITAL, h, on)); }
     public void setMipRcfix(int on) { check(call(Native.SET_MIP_RCFIX, h, on)); }

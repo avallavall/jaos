@@ -41,8 +41,20 @@ constexpr bool MIP_SYMMETRY = false;
 constexpr bool MIP_ORBITAL = true;
 constexpr int64_t MIP_SYMMETRY_WORK = 250;
 constexpr int64_t MIP_SYMMETRY_MORE = 1000;
+constexpr double MIP_SYMMETRY_CUTS = 0.5;
 constexpr int64_t MIP_CONFLICT_MAX = 32;
 constexpr double MIP_CONFLICT_GAP = 1e-9;
+constexpr int64_t MIP_DUAL_PROOFS = 600;
+constexpr double MIP_PROOF_RANGE = 1e8;
+constexpr double MIP_PROOF_ROUNDOFF = 1e-9;
+constexpr int64_t MIP_PROOF_PASSES = 4;
+constexpr int64_t MIP_PROOF_TRIAL = 100;
+constexpr double MIP_PROOF_PAYS = 1.0;
+constexpr int64_t MIP_PROOF_IDLE = 200;
+constexpr int64_t MIP_PROOF_REREAD = 1000;
+constexpr int64_t MIP_PROOF_WINDOW = 1000;
+constexpr int64_t MIP_PROOF_FLOOR = 25;
+constexpr double MIP_PROOF_SHARE = 0.5;
 constexpr int64_t MIP_CLIQUE_ROW_CAP = 64;
 
 constexpr double MIP_CUT_STALL = 0.0;
@@ -1553,6 +1565,7 @@ double jm_mip_default(enum jm_mip_key key)
     case JM_DEF_PROBING_CAP: return MIP_PROBING_CAP;
     case JM_DEF_CLIQUE_FIX: return MIP_CLIQUE_FIX ? 1.0 : 0.0;
     case JM_DEF_CONFLICTS: return MIP_CONFLICTS ? 1.0 : 0.0;
+    case JM_DEF_DUAL_PROOFS: return (double)MIP_DUAL_PROOFS;
     case JM_DEF_SYMMETRY: return MIP_SYMMETRY ? 1.0 : 0.0;
     case JM_DEF_ORBITAL: return MIP_ORBITAL ? 1.0 : 0.0;
     case JM_DEF_PROPAGATE: return (double)MIP_PROPAGATE;
@@ -8657,6 +8670,502 @@ static jaos_status steer_flush(const jaos_model *m, jaos_model *lp, steer *sw,
 }
 
 
+typedef struct {
+    int64_t s;
+    double d;
+} pentry;
+
+typedef struct {
+    int64_t cap, n, nc;
+    int64_t *len, *used;
+    int64_t **col;
+    double **val;
+    double *base, *act, **pot;
+    pentry **cidx;
+    int64_t *ccnt, *ccap;
+    double *slo, *shi;
+    int64_t *tlist;
+    bool *tin;
+    int64_t tn;
+    int64_t *stamp, *wla, *wlb;
+    int64_t wn, epoch;
+    int64_t reread;
+    int64_t made, pruned, fixed, replaced, refused, work, shrunk;
+    int64_t wnodes, wwork, wlpw, wlps;
+    bool off, decided;
+} proofs;
+
+static void proofs_free(proofs *p)
+{
+    for (int64_t s = 0; s < p->n; s++) {
+        free(p->col[s]);
+        free(p->val[s]);
+        free(p->pot[s]);
+    }
+    for (int64_t j = 0; p->cidx != nullptr && j < p->nc; j++)
+        free(p->cidx[j]);
+    free(p->len); free(p->used); free(p->col); free(p->val); free(p->base);
+    free(p->act); free(p->pot); free(p->cidx); free(p->ccnt); free(p->ccap);
+    free(p->slo); free(p->shi); free(p->tlist); free(p->tin);
+    free(p->stamp); free(p->wla); free(p->wlb);
+    p->len = p->used = nullptr;
+    p->col = nullptr;
+    p->val = p->pot = nullptr;
+    p->base = p->act = p->slo = p->shi = nullptr;
+    p->cidx = nullptr;
+    p->ccnt = p->ccap = p->tlist = nullptr;
+    p->tin = nullptr;
+    p->stamp = p->wla = p->wlb = nullptr;
+    p->n = p->tn = p->wn = 0;
+}
+
+static bool proofs_init(proofs *p, int64_t nc, const double *ilo,
+                        const double *ihi)
+{
+    const int64_t c = p->cap > 0 ? p->cap : 1, w = nc > 0 ? nc : 1;
+    p->nc = nc;
+    p->len = jm_alloc_array(c, sizeof *p->len);
+    p->used = jm_alloc_array(c, sizeof *p->used);
+    p->col = calloc((size_t)c, sizeof *p->col);
+    p->val = calloc((size_t)c, sizeof *p->val);
+    p->pot = calloc((size_t)c, sizeof *p->pot);
+    p->base = jm_alloc_array(c, sizeof *p->base);
+    p->act = jm_alloc_array(c, sizeof *p->act);
+    p->stamp = calloc((size_t)c, sizeof *p->stamp);
+    p->wla = jm_alloc_array(c, sizeof *p->wla);
+    p->wlb = jm_alloc_array(c, sizeof *p->wlb);
+    p->epoch = 1;
+    p->cidx = calloc((size_t)w, sizeof *p->cidx);
+    p->ccnt = calloc((size_t)w, sizeof *p->ccnt);
+    p->ccap = calloc((size_t)w, sizeof *p->ccap);
+    p->slo = jm_alloc_array(w, sizeof *p->slo);
+    p->shi = jm_alloc_array(w, sizeof *p->shi);
+    p->tlist = jm_alloc_array(w, sizeof *p->tlist);
+    p->tin = calloc((size_t)w, sizeof *p->tin);
+    if (!p->len || !p->used || !p->col || !p->val || !p->pot || !p->base ||
+        !p->act || !p->stamp || !p->wla || !p->wlb || !p->cidx ||
+        !p->ccnt || !p->ccap || !p->slo || !p->shi || !p->tlist || !p->tin)
+        return false;
+    for (int64_t j = 0; j < nc; j++) {
+        p->slo[j] = ilo[j];
+        p->shi[j] = ihi[j];
+    }
+    return true;
+}
+
+static int pot_cmp(const void *a, const void *b)
+{
+    const double *x = a, *y = b;
+    if (x[0] != y[0])
+        return x[0] > y[0] ? -1 : 1;
+    return x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0;
+}
+
+static double proof_term(double d, double lo, double hi)
+{
+    return d > 0.0 ? d * lo : d * hi;
+}
+
+static void proof_read(proofs *p, int64_t s)
+{
+    double a = p->base[s];
+    for (int64_t t = 0; t < p->len[s]; t++) {
+        const int64_t j = p->col[s][t];
+        a += proof_term(p->val[s][t], p->slo[j], p->shi[j]);
+    }
+    p->act[s] = a;
+}
+
+static bool proof_store(proofs *p, const jaos_model *m, const double *ilo,
+                        const double *ihi, const double *d, double base,
+                        int64_t node, int64_t *work)
+{
+    const int64_t nc = m->num_col;
+    int64_t n = 0;
+    double amax = 0.0, amin = INFINITY;
+    for (int64_t j = 0; j < nc; j++) {
+        if (d[j] == 0.0)
+            continue;
+        if (!m->col_integer[j] || ilo[j] == ihi[j]) {
+            const double b = d[j] > 0.0 ? ilo[j] : ihi[j];
+            if (!isfinite(b)) {
+                p->refused++;
+                return true;
+            }
+            base += d[j] * b;
+            continue;
+        }
+        if (!isfinite(d[j] > 0.0 ? ilo[j] : ihi[j])) {
+            p->refused++;
+            return true;
+        }
+        n++;
+        const double a = fabs(d[j]);
+        amax = a > amax ? a : amax;
+        amin = a < amin ? a : amin;
+    }
+    *work += nc;
+    if (n == 0 || amax > MIP_PROOF_RANGE * amin) {
+        p->refused++;
+        return true;
+    }
+    int64_t s = p->n;
+    if (p->n == p->cap) {
+        s = 0;
+        for (int64_t t = 1; t < p->n; t++)
+            if (p->used[t] < p->used[s])
+                s = t;
+        *work += p->n;
+        for (int64_t t = 0; t < p->len[s]; t++) {
+            const int64_t j = p->col[s][t];
+            for (int64_t q = 0; q < p->ccnt[j]; q++)
+                if (p->cidx[j][q].s == s) {
+                    p->cidx[j][q] = p->cidx[j][--p->ccnt[j]];
+                    break;
+                }
+            *work += p->ccnt[j] + 1;
+        }
+        free(p->col[s]);
+        free(p->val[s]);
+        free(p->pot[s]);
+        p->col[s] = nullptr;
+        p->val[s] = nullptr;
+        p->pot[s] = nullptr;
+        p->replaced++;
+    } else {
+        p->n++;
+    }
+    p->len[s] = 0;
+    p->col[s] = jm_alloc_array(n, sizeof **p->col);
+    p->val[s] = jm_alloc_array(n, sizeof **p->val);
+    p->pot[s] = jm_alloc_array(2 * n, sizeof **p->pot);
+    if (p->col[s] == nullptr || p->val[s] == nullptr || p->pot[s] == nullptr)
+        return false;
+    int64_t k = 0;
+    for (int64_t j = 0; j < nc; j++) {
+        if (d[j] == 0.0 || !m->col_integer[j] || ilo[j] == ihi[j])
+            continue;
+        if (p->ccnt[j] == p->ccap[j]) {
+            const int64_t c = p->ccap[j] > 0 ? 2 * p->ccap[j] : 8;
+            pentry *g = jm_realloc_array(p->cidx[j], c, sizeof *g);
+            if (g == nullptr)
+                return false;
+            p->cidx[j] = g;
+            p->ccap[j] = c;
+        }
+        p->cidx[j][p->ccnt[j]++] = (pentry){s, d[j]};
+        p->col[s][k] = j;
+        p->val[s][k] = d[j];
+        p->pot[s][2 * k] = fabs(d[j]) * (ihi[j] - ilo[j]);
+        p->pot[s][2 * k + 1] = (double)k;
+        k++;
+    }
+    qsort(p->pot[s], (size_t)n, 2 * sizeof **p->pot, pot_cmp);
+    p->len[s] = n;
+    p->used[s] = node;
+    p->base[s] = base;
+    p->stamp[s] = 0;
+    proof_read(p, s);
+    p->made++;
+    *work += 2 * n;
+    return true;
+}
+
+static void proof_unlist(proofs *p, int64_t s, int64_t to, int64_t *work)
+{
+    for (int64_t t = 0; t < p->len[s]; t++) {
+        const int64_t j = p->col[s][t];
+        for (int64_t q = 0; q < p->ccnt[j]; q++)
+            if (p->cidx[j][q].s == s) {
+                if (to < 0)
+                    p->cidx[j][q] = p->cidx[j][--p->ccnt[j]];
+                else
+                    p->cidx[j][q].s = to;
+                break;
+            }
+        *work += p->ccnt[j] + 1;
+    }
+}
+
+static void proofs_shrink(proofs *p, int64_t cap, int64_t *work)
+{
+    while (p->n > cap) {
+        int64_t s = 0;
+        for (int64_t t = 1; t < p->n; t++)
+            if (p->used[t] < p->used[s])
+                s = t;
+        *work += p->n;
+        proof_unlist(p, s, -1, work);
+        free(p->col[s]);
+        free(p->val[s]);
+        free(p->pot[s]);
+        const int64_t last = p->n - 1;
+        if (s != last) {
+            proof_unlist(p, last, s, work);
+            p->len[s] = p->len[last];
+            p->used[s] = p->used[last];
+            p->col[s] = p->col[last];
+            p->val[s] = p->val[last];
+            p->pot[s] = p->pot[last];
+            p->base[s] = p->base[last];
+            p->act[s] = p->act[last];
+            p->stamp[s] = p->stamp[last];
+        }
+        p->col[last] = nullptr;
+        p->val[last] = nullptr;
+        p->pot[last] = nullptr;
+        p->n--;
+    }
+    p->cap = cap;
+}
+
+static void proof_move(proofs *p, int64_t j, double lo, double hi,
+                       int64_t skip, int64_t below, int64_t *work)
+{
+    const double dl = lo - p->slo[j], dh = hi - p->shi[j];
+    if (dl == 0.0 && dh == 0.0)
+        return;
+    for (int64_t q = 0; q < p->ccnt[j]; q++) {
+        const pentry e = p->cidx[j][q];
+        if (e.d > 0.0 && dl != 0.0)
+            p->act[e.s] += e.d * dl;
+        else if (e.d < 0.0 && dh != 0.0)
+            p->act[e.s] += e.d * dh;
+        else
+            continue;
+        if (e.s != skip && e.s < below && p->stamp[e.s] != p->epoch) {
+            p->stamp[e.s] = p->epoch;
+            p->wlb[p->wn++] = e.s;
+        }
+    }
+    *work += p->ccnt[j] + 1;
+    p->slo[j] = lo;
+    p->shi[j] = hi;
+    if (!p->tin[j]) {
+        p->tin[j] = true;
+        p->tlist[p->tn++] = j;
+    }
+}
+
+static int proof_check(proofs *p, const jaos_model *m, jaos_model *lp,
+                       bnode *cur, int64_t *pos, int64_t node, int64_t s,
+                       double cutoff, double tol, int64_t below,
+                       int64_t *work)
+{
+    (void)m;
+    *work += 1;
+    if (p->act[s] - cutoff > tol) {
+        p->used[s] = node;
+        p->pruned++;
+        return -1;
+    }
+    const double slack = cutoff - p->act[s];
+    const double *pv = p->pot[s];
+    for (int64_t t = 0; t < p->len[s]; t++) {
+        *work += 1;
+        if (!(pv[2 * t] > slack))
+            break;
+        const int64_t tt = (int64_t)pv[2 * t + 1];
+        const int64_t j = p->col[s][tt];
+        const double a = p->val[s][tt];
+        const double blo = p->slo[j], bhi = p->shi[j];
+        double nlo = lp->col_lower[j], nhi = lp->col_upper[j];
+        if (a > 0.0) {
+            const double h = blo + floor(slack / a + MIP_RCFIX_SLACK);
+            if (!(h < nhi))
+                continue;
+            nhi = h;
+        } else {
+            const double l = bhi - floor(slack / -a + MIP_RCFIX_SLACK);
+            if (!(l > nlo))
+                continue;
+            nlo = l;
+        }
+        p->used[s] = node;
+        if (nlo > nhi) {
+            p->pruned++;
+            return -1;
+        }
+        if (jaos_set_col_bounds(lp, j, nlo, nhi) != JAOS_OK)
+            return -2;
+        if (pos[j] >= 0) {
+            cur->lo[pos[j]] = nlo;
+            cur->hi[pos[j]] = nhi;
+            cur->rcf[pos[j]] = true;
+        } else {
+            if (!node_add_fix(cur, j, nlo, nhi, true))
+                return -2;
+            pos[j] = cur->nfix - 1;
+        }
+        proof_move(p, j, nlo > blo ? nlo : blo, nhi < bhi ? nhi : bhi, s,
+                   below, work);
+        p->fixed++;
+    }
+    return 0;
+}
+
+static int proofs_propagate(proofs *p, const jaos_model *m, jaos_model *lp,
+                            bnode *cur, int64_t *pos, int64_t node,
+                            double cutoff, const double *ilo,
+                            const double *ihi, int64_t *work)
+{
+    if (p->n == 0 || !isfinite(cutoff))
+        return 0;
+    const double tol = MIP_CONFLICT_GAP * (1.0 + fabs(cutoff));
+    const int64_t nfix0 = cur->nfix;
+    int rc = 0;
+    for (int64_t k = 0; k < cur->nfix; k++)
+        pos[cur->col[k]] = k;
+    *work += cur->nfix;
+    p->wn = 0;
+    for (int64_t k = 0; k < cur->nfix; k++) {
+        const int64_t j = cur->col[k];
+        if (pos[j] == k && m->col_integer[j] && ilo[j] != ihi[j])
+            proof_move(p, j, cur->lo[k], cur->hi[k], -1, -1, work);
+    }
+    int64_t keep = 0;
+    for (int64_t t = 0; t < p->tn; t++) {
+        const int64_t j = p->tlist[t];
+        if (pos[j] < 0)
+            proof_move(p, j, ilo[j], ihi[j], -1, -1, work);
+        if (p->slo[j] != ilo[j] || p->shi[j] != ihi[j])
+            p->tlist[keep++] = j;
+        else
+            p->tin[j] = false;
+    }
+    *work += p->tn;
+    p->tn = keep;
+    if (++p->reread >= MIP_PROOF_REREAD) {
+        p->reread = 0;
+        for (int64_t s = 0; s < p->n; s++) {
+            proof_read(p, s);
+            *work += p->len[s] + 1;
+        }
+    }
+    p->epoch++;
+    for (int64_t s = 0; s < p->n && rc == 0; s++)
+        rc = proof_check(p, m, lp, cur, pos, node, s, cutoff, tol, s, work);
+    for (int64_t pass = 1; pass < MIP_PROOF_PASSES && rc == 0 && p->wn > 0;
+         pass++) {
+        int64_t *list = p->wlb;
+        const int64_t len = p->wn;
+        p->wlb = p->wla;
+        p->wla = list;
+        p->wn = 0;
+        p->epoch++;
+        for (int64_t q = 0; q < len && rc == 0; q++)
+            rc = proof_check(p, m, lp, cur, pos, node, list[q], cutoff, tol,
+                             INT64_MAX, work);
+    }
+    for (int64_t k = 0; k < cur->nfix; k++)
+        pos[cur->col[k]] = -1;
+    *work += cur->nfix;
+    if (nfix0 > 0 && cur->nfix > nfix0) {
+        const int64_t k0 = nfix0 - 1, tail = cur->nfix - nfix0;
+        const size_t t = (size_t)tail;
+        const int64_t c0 = cur->col[k0];
+        const double l0 = cur->lo[k0], h0 = cur->hi[k0];
+        const bool r0 = cur->rcf[k0];
+        memmove(cur->col + k0, cur->col + k0 + 1, t * sizeof *cur->col);
+        memmove(cur->lo + k0, cur->lo + k0 + 1, t * sizeof *cur->lo);
+        memmove(cur->hi + k0, cur->hi + k0 + 1, t * sizeof *cur->hi);
+        memmove(cur->rcf + k0, cur->rcf + k0 + 1, t * sizeof *cur->rcf);
+        cur->col[cur->nfix - 1] = c0;
+        cur->lo[cur->nfix - 1] = l0;
+        cur->hi[cur->nfix - 1] = h0;
+        cur->rcf[cur->nfix - 1] = r0;
+        *work += tail;
+    }
+    return rc;
+}
+
+static bool stop_proof(const jaos_model *m, const jaos_model *lp,
+                       const bnode *cur, const double *ilo, const double *ihi,
+                       int64_t nperm, double sigma, double cutoff,
+                       int64_t *pos, double *dcol, double *base,
+                       int64_t *work)
+{
+    const int64_t nc = m->num_col, nrl = lp->num_row;
+    if (cur == nullptr || m->row_ind_col != nullptr || m->num_sos > 0 ||
+        !lp->stop_duals_ok)
+        return false;
+    const double *y = lp->sol_dual;
+    *work += lp->num_nz + nc + nrl;
+    const int64_t np = nperm < nrl ? nperm : nrl;
+    for (int64_t i = np; i < nrl; i++)
+        if (y[i] != 0.0)
+            return false;
+    double rows = sigma * lp->obj_offset;
+    for (int64_t i = 0; i < np; i++) {
+        const double yk = sigma * y[i];
+        if (yk > 0.0) {
+            if (!isfinite(lp->row_lower[i]))
+                return false;
+            rows += yk * lp->row_lower[i];
+        } else if (yk < 0.0) {
+            if (!isfinite(lp->row_upper[i]))
+                return false;
+            rows += yk * lp->row_upper[i];
+        }
+    }
+    for (int64_t j = 0; j < nc; j++) {
+        double a = sigma * lp->col_cost[j], mag = fabs(a);
+        for (int64_t q = lp->a_start[j]; q < lp->a_start[j + 1]; q++) {
+            const int64_t i = lp->a_index[q];
+            if (i < np) {
+                a -= lp->a_value[q] * sigma * y[i];
+                mag += fabs(lp->a_value[q] * y[i]);
+            }
+        }
+        if (a != 0.0 && fabs(a) <= MIP_PROOF_ROUNDOFF * mag &&
+            isfinite(ilo[j]) && isfinite(ihi[j])) {
+            rows += proof_term(a, ilo[j], ihi[j]);
+            a = 0.0;
+        }
+        dcol[j] = a;
+    }
+    for (int64_t k = 0; k < cur->nfix; k++)
+        pos[cur->col[k]] = k;
+    double low = rows;
+    bool finite = true;
+    for (int64_t j = 0; j < nc && finite; j++) {
+        if (dcol[j] == 0.0)
+            continue;
+        const int64_t k = pos[j];
+        const double lo = k >= 0 ? cur->lo[k] : ilo[j];
+        const double hi = k >= 0 ? cur->hi[k] : ihi[j];
+        const double b = dcol[j] > 0.0 ? lo : hi;
+        finite = isfinite(b);
+        low += dcol[j] * b;
+    }
+    for (int64_t k = 0; k < cur->nfix; k++)
+        pos[cur->col[k]] = -1;
+    *work += nc + 2 * cur->nfix;
+    *base = rows;
+    return finite && low - cutoff > MIP_CONFLICT_GAP * (1.0 + fabs(cutoff));
+}
+
+static double symmetry_moved(const jaos_model *m, const jm_symmetry *sym)
+{
+    const int64_t nc = m->num_col;
+    if (sym->ngen == 0 || sym->orbit == nullptr || nc == 0)
+        return 0.0;
+    int64_t *cell = calloc((size_t)nc, sizeof *cell);
+    if (cell == nullptr)
+        return 0.0;
+    int64_t nint = 0, moved = 0;
+    for (int64_t j = 0; j < nc; j++)
+        cell[sym->orbit[j]]++;
+    for (int64_t j = 0; j < nc; j++) {
+        if (!m->col_integer[j])
+            continue;
+        nint++;
+        moved += cell[sym->orbit[j]] > 1;
+    }
+    free(cell);
+    return nint > 0 ? (double)moved / (double)nint : 0.0;
+}
+
 static int64_t conflict_row(const jaos_model *m, const jaos_model *lp,
                             const bnode *cur, const double *ilo,
                             const double *ihi, int64_t nperm, double *ray,
@@ -9448,6 +9957,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         ? m->cfg.mip_clique_fix : MIP_CLIQUE_FIX;
     const bool conflicts_on = m->cfg.mip_conflicts_set
         ? m->cfg.mip_conflicts : MIP_CONFLICTS;
+    const int64_t proof_cap = m->cfg.mip_dual_proofs_set
+        ? m->cfg.mip_dual_proofs : MIP_DUAL_PROOFS;
     const bool orbital_on = m->cfg.mip_orbital_set
         ? m->cfg.mip_orbital : MIP_ORBITAL;
     const bool symmetry_on = (m->cfg.mip_symmetry_set
@@ -9569,12 +10080,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t nperm = nr;
     jm_symmetry sym = {0};
     bool sym_short = false;
+    double sym_moved = 0.0;
     int64_t *ouf = nullptr;
     bool *ozero = nullptr;
     int64_t orbital_fixed = 0, orbital_branches = 0;
     double *cray = nullptr, *cacol = nullptr, *cblo = nullptr;
     int64_t *clast = nullptr;
     int64_t cray_cap = 0, conflicts = 0, conflict_lits = 0;
+    proofs pf = {.cap = proof_cap, .off = proof_cap <= 0 || quadratic};
+    int64_t *ppos = nullptr;
+    double *pdcol = nullptr;
     double *mu = nullptr;
     double *mbest = nullptr, *mdelta = nullptr;
     double *prnd = nullptr;
@@ -9816,12 +10331,17 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         sym_short = work - before >= cap;
         m->mip_sym_gen = sym.ngen;
         m->mip_sym_orbits = sym.norbit;
+        sym_moved = symmetry_moved(m, &sym);
         if (sym.ngen > 0)
             jm_log(m, JAOS_LOG_SUMMARY,
                    "symmetry: %lld generators, %lld orbits of more than one "
                    "column, the largest of %lld",
                    (long long)sym.ngen, (long long)sym.norbit,
                    (long long)sym.largest);
+        if (sym.ngen > 0)
+            jm_log(m, JAOS_LOG_SUMMARY,
+                   "symmetry: %.3f of the integer columns in orbits of more "
+                   "than one", sym_moved);
     }
 
     if (node_mir) {
@@ -10049,6 +10569,67 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             clique_fixed += got;
         }
 
+        if (nodes > 1 && !pf.off && !pf.decided) {
+            if (pf.made >= MIP_PROOF_TRIAL) {
+                pf.decided = true;
+                pf.off = !((double)(pf.pruned + pf.fixed) >
+                           MIP_PROOF_PAYS * (double)pf.made);
+            } else {
+                pf.off = pf.made == 0 && cutoff_nodes >= MIP_PROOF_IDLE;
+            }
+            if (pf.off || pf.decided)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "node %lld: the proof pool %s, %lld nodes cut and "
+                       "%lld bounds tightened by %lld proofs after %lld "
+                       "stopped relaxations", (long long)nodes,
+                       pf.off ? "stops" : "stays",
+                       (long long)pf.pruned, (long long)pf.fixed,
+                       (long long)pf.made, (long long)cutoff_nodes);
+            if (pf.off)
+                proofs_free(&pf);
+        }
+        if (nodes > 1 && !pf.off && pf.n > 0) {
+            const double pk = inc.have && inc.key < cut_key ? inc.key : cut_key;
+            const int64_t w0 = work;
+            const int got = proofs_propagate(&pf, m, lp, cur, ppos, nodes,
+                                             prune_at(&og, pk, gap, gap_shift),
+                                             ilo, ihi, &work);
+            pf.work += work - w0;
+            pf.wwork += work - w0;
+            pf.wnodes++;
+            if (got == -2)
+                goto done;
+            if (pf.decided && pf.wnodes >= MIP_PROOF_WINDOW) {
+                const double avg = pf.wlps > 0
+                    ? (double)pf.wlpw / (double)pf.wlps : 0.0;
+                if ((double)pf.wwork >
+                    MIP_PROOF_SHARE * avg * (double)pf.wnodes) {
+                    const int64_t w1 = work;
+                    if (pf.cap / 2 < MIP_PROOF_FLOOR) {
+                        pf.off = true;
+                        proofs_free(&pf);
+                    } else {
+                        proofs_shrink(&pf, pf.cap / 2, &work);
+                    }
+                    pf.work += work - w1;
+                    pf.shrunk++;
+                    jm_log(m, JAOS_LOG_PROGRESS,
+                           "node %lld: the proof pool took %.4g work units "
+                           "a node over %lld nodes, a relaxation %.4g; it %s",
+                           (long long)nodes,
+                           (double)pf.wwork / (double)pf.wnodes,
+                           (long long)pf.wnodes, avg,
+                           pf.off ? "stops" : "halves");
+                }
+                pf.wnodes = pf.wwork = pf.wlpw = pf.wlps = 0;
+            }
+            if (got == -1) {
+                jm_log(m, JAOS_LOG_PROGRESS,
+                       "node %lld: cut by a proof", (long long)nodes);
+                continue;
+            }
+        }
+
         const int64_t passes = propagate > 0 ? propagate
                              : !inc.have && nodes >= MIP_NOINC_DIVE_AFTER
                                    ? noinc_propagate : 0;
@@ -10086,18 +10667,46 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         lp->cfg.node_cutoff_set = cut_at < INFINITY;
         lp->cfg.node_cutoff = cut_at;
         lp->cfg.node_devex = nodes > 1 && !quadratic;
+        lp->cfg.node_stop_duals = nodes > 1 && !pf.off;
         lp->cutoff_hit = false;
         st = jaos_solve(lp);
         lp->cfg.node_cutoff_set = false;
+        lp->cfg.node_stop_duals = false;
         solves++;
         int64_t node_work = jaos_work_units(lp);
         work += node_work;
         iters += jaos_iterations(lp);
+        if (!pf.off && nodes > 1) {
+            pf.wlpw += node_work;
+            pf.wlps++;
+        }
         if (st == JAOS_OK && lp->cutoff_hit) {
             const double ck = sigma * lp->stop_bound;
             if (sol_bk - grid_up(&og, ck) <= gap * (gap_shift + fabs(sol_bk))) {
                 pseudocost_learn(cur, ck, nc, pc_sum, pc_n);
                 cutoff_nodes++;
+                if (!pf.off && lp->stop_duals_ok) {
+                    phase_to(&ph, work, PH_PROP);
+                    if (pf.len == nullptr) {
+                        ppos = jm_alloc_array(nc > 0 ? nc : 1, sizeof *ppos);
+                        pdcol = jm_alloc_array(nc > 0 ? nc : 1, sizeof *pdcol);
+                        if (ppos == nullptr || pdcol == nullptr ||
+                            !proofs_init(&pf, nc, ilo, ihi))
+                            goto done;
+                        for (int64_t j = 0; j < nc; j++)
+                            ppos[j] = -1;
+                    }
+                    const int64_t w0 = work;
+                    double base = 0.0;
+                    if (!stop_proof(m, lp, cur, ilo, ihi, nfixed, sigma, cut_at,
+                                    ppos, pdcol, &base, &work))
+                        pf.refused++;
+                    else if (!proof_store(&pf, m, ilo, ihi, pdcol, base, nodes,
+                                          &work))
+                        goto done;
+                    pf.work += work - w0;
+                    pf.wwork += work - w0;
+                }
                 continue;
             }
             budget(lp, m, work);
@@ -11536,7 +12145,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         const bool node_open =
             !(nbk < INFINITY &&
               nbk - grid_up(&og, key) <= gap * (gap_shift + fabs(nbk)));
-        const bool gomory_here = nodes > 1 && cur->depth <= cut_depth;
+        const bool gomory_here = nodes > 1 && cur->depth <= cut_depth &&
+                                 (m->cfg.mip_cut_depth_set ||
+                                  !(sym_moved >= MIP_SYMMETRY_CUTS));
         const bool mir_here = mir_live && node_open;
         if (nodes > 1 && branch >= 0 && !cur->no_cuts &&
             (gomory_here || mir_here)) {
@@ -12069,6 +12680,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 goto done;
             m->mip_sym_gen = sym.ngen;
             m->mip_sym_orbits = sym.norbit;
+            sym_moved = symmetry_moved(m, &sym);
             if (sym.ngen > 0)
                 jm_log(m, JAOS_LOG_SUMMARY,
                        "symmetry: the root's search ran out, and again "
@@ -12076,6 +12688,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                        "orbits of more than one column, the largest of %lld",
                        (long long)sym.ngen, (long long)sym.norbit,
                        (long long)sym.largest);
+            if (sym.ngen > 0)
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "symmetry: %.3f of the integer columns in orbits of "
+                       "more than one", sym_moved);
         }
         const double v = branch >= 0 ? x[branch] : 0.0;
         int64_t nfd = 1, nfu = 1;
@@ -12358,6 +12974,16 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld node relaxations stopped once their "
                "bound reached the incumbent", (long long)cutoff_nodes);
+    if (pf.made + pf.refused > 0)
+        jm_log(m, JAOS_LOG_SUMMARY,
+               "branch and bound: %lld dual proofs from them, %lld refused "
+               "and %lld replaced, %lld held of %lld; %lld nodes cut and %lld "
+               "bounds tightened by them in %lld work units, the pool halved "
+               "%lld times%s",
+               (long long)pf.made, (long long)pf.refused,
+               (long long)pf.replaced, (long long)pf.n, (long long)pf.cap,
+               (long long)pf.pruned, (long long)pf.fixed, (long long)pf.work,
+               (long long)pf.shrunk, pf.off ? ", then stopped" : "");
     if (node_rcfixed > 0)
         jm_log(m, JAOS_LOG_SUMMARY,
                "branch and bound: %lld column bounds tightened at the nodes "
@@ -12468,6 +13094,9 @@ done:
     free(ouf);
     free(ozero);
     free(cray);
+    proofs_free(&pf);
+    free(ppos);
+    free(pdcol);
     free(cacol);
     free(clast);
     free(cstack);

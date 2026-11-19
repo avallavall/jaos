@@ -409,6 +409,7 @@ internal static class Native
     [DllImport(Lib)] internal static extern int jaos_set_mip_node_select(ModelHandle m, long rule);
     [DllImport(Lib)] internal static extern int jaos_set_mip_restart(ModelHandle m, int on);
     [DllImport(Lib)] internal static extern int jaos_set_mip_conflicts(ModelHandle m, int on);
+    [DllImport(Lib)] internal static extern int jaos_set_mip_dual_proofs(ModelHandle m, long count);
     [DllImport(Lib)] internal static extern int jaos_set_mip_symmetry(ModelHandle m, int on);
     [DllImport(Lib)] internal static extern int jaos_set_mip_orbital(ModelHandle m, int on);
     [DllImport(Lib)] internal static extern int jaos_set_mip_propagate(ModelHandle m, long rounds);

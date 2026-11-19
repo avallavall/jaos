@@ -727,6 +727,19 @@ expect_exit 0 "--conflicts is accepted" \
 "$JAOS" options | grep -q '^mip_conflicts ' \
     && pass "jaos options lists mip_conflicts" \
     || flunk "jaos options does not list mip_conflicts"
+expect_exit 0 "--dual-proofs 0 still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dual-proofs 0
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dual-proofs 0: $(line_of objective)"
+expect_exit 0 "--dual-proofs 5 still solves it" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dual-proofs 5
+[ "$(line_of objective)" = "objective 3" ] && pass "to 3" \
+    || flunk "dual-proofs 5: $(line_of objective)"
+expect_exit 5 "--dual-proofs refuses a negative" \
+    "$JAOS" solve "$DATA/nl_int.lp" --dual-proofs -1
+"$JAOS" options | grep -q '^mip_dual_proofs ' \
+    && pass "jaos options lists mip_dual_proofs" \
+    || flunk "jaos options does not list mip_dual_proofs"
 expect_exit 0 "--no-clique-fix still solves it" \
     "$JAOS" solve "$DATA/nl_int.lp" --no-clique-fix
 [ "$(line_of objective)" = "objective 3" ] && pass "to 3" \

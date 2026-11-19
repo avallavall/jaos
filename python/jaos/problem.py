@@ -1191,6 +1191,13 @@ class Problem:
         self._m.set_mip_conflicts(on)
         return self
 
+    def set_mip_dual_proofs(self, count):
+        """Dual proofs from node relaxations stopped at the incumbent,
+        up to `count` kept; 600 by default, 0 turns them off, negative
+        restores it."""
+        self._m.set_mip_dual_proofs(count)
+        return self
+
     def set_mip_symmetry(self, on):
         """Symmetry detection at the root; off by default, negative
         restores it."""

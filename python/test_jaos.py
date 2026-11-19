@@ -3159,6 +3159,27 @@ class TestBranchAndBound(unittest.TestCase):
             nodes.append(p.mip_report().nodes)
         self.assertLess(nodes[1], nodes[0])
 
+    def test_dual_proofs_shrink_a_parity_covering_tree(self):
+        nodes = []
+        for count in (0, 50):
+            p = jaos.Problem()
+            xs = [p.add_var(integer=True, ub=1, name=f"x{t}") for t in range(1, 32)]
+            for s in range(1, 32):
+                p.add(sum(xs[t - 1] for t in range(1, 32)
+                          if bin(s & t).count("1") % 2 == 1)
+                      >= 5 - bin(s).count("1"))
+            p.minimize(sum(xs))
+            p.set_mip_cut_rounds(0).set_mip_cover_rounds(0).set_mip_mir_rounds(0).set_mip_hull_rounds(0)
+            p.set_mip_clique_rounds(0).set_mip_zero_half_rounds(0).set_mip_cut_depth(0)
+            p.set_mip_heuristics(False).set_mip_orbital(0).set_mip_dual_proofs(count)
+            self.assertEqual(p._m.get_option("mip_dual_proofs"), str(count))
+            self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
+            self.assertAlmostEqual(p.objective_value, 8.0, places=9)
+            nodes.append(p.mip_report().nodes)
+            p.set_mip_dual_proofs(-1)
+            self.assertEqual(p._m.get_option("mip_dual_proofs"), "600")
+        self.assertLess(nodes[1], nodes[0])
+
     def test_symmetry_detection_reports_the_orbits_of_three_alike_columns(self):
         for on, want in ((1, 1), (0, 0)):
             p = jaos.Problem()
