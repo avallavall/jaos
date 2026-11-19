@@ -1,0 +1,6 @@
+# 02-501 pair.sh: before jaos, after jaos; 300 s, --threads 1, jobs 2, cap 6 GB
+# machine: Linux x86_64 AMD Ryzen 5 9600X 6-Core Processor
+# load 0.84 2.30 4.18 at start, 2.01 2.14 3.58 at end; 277 s
+# instance leg status objective nodes seconds work_units wall_seconds peak_kb load_at_start load_at_end
+rail01	before	time_limit		1	299.942987	42819179212	300.23	2950336	0.84	2.01
+rail01	after	time_limit		1	299.935460	42819292748	300.22	2872392	0.84	2.01

@@ -86,10 +86,18 @@ and `dano3_3` leave the root. `ns1830653`'s re-solve after cut round 9
 no longer settles for most of 300 s: a dual run's rounds stop once they
 cost more than its walk (`bench/measurements/02-504/`), and its root
 reaches bound 11162 from 11130, its ten cut rounds' re-solves taking
-99.9% of the work. Next: the iteration's cost on the other 29, 3.9x to
-4.7x HiGHS's on dense LPs (dense FTRAN, a refactorization every 64
-updates), then the cut rounds' re-solves. Verify with 02-501's `pair.sh`
-on the same sample and 02-503's `root.sh` on the 33.
+99.9% of the work. U's columns sit in one block in the dense forward
+solve's order (`bench/measurements/02-505/`), every answer and work unit
+the same: on 27 of the other 29 the root LP reaches 1.14x the iterations
+in 300 s (geometric; up to 1.42x), and `rail01`'s ends. On `mzzv11`'s
+root LP the factorization takes 24% of the seconds (20 ms, one every 65
+iterations), the dense U solve 24% and BTRAN 13%, and with that
+factorization 64 updates between them is near the best. Next: the same
+pivots in less time (the stale row positions that send
+`compact_pivot_row` to a linear search, the elimination's pass over
+each active column), then fewer updates between factorizations, then
+the cut rounds' re-solves. Verify with 02-505's `root.sh` and 02-501's
+`pair.sh` on `root27.txt`.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and

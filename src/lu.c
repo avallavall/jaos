@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -266,6 +267,48 @@ void jm_lu_init(jm_lu *lu)
     memset(lu, 0, sizeof *lu);
 }
 
+static bool ucol_owned(const jm_lu *lu, const jm_svec *v)
+{
+    if (lu->uarena_idx == nullptr || v->idx == nullptr)
+        return false;
+    const uintptr_t p = (uintptr_t)v->idx, a = (uintptr_t)lu->uarena_idx;
+    return p >= a && p < a + (uintptr_t)lu->uarena_n * sizeof *lu->uarena_idx;
+}
+
+static void ucol_drop_arena(jm_lu *lu, jm_svec *ucol, int64_t n)
+{
+    for (int64_t s = 0; ucol != nullptr && s < n; s++)
+        if (ucol_owned(lu, &ucol[s]))
+            ucol[s] = (jm_svec){0};
+    free(lu->uarena_idx);
+    free(lu->uarena_val);
+    lu->uarena_idx = nullptr;
+    lu->uarena_val = nullptr;
+    lu->uarena_n = 0;
+}
+
+static bool ucol_push(jm_lu *lu, jm_svec *v, int64_t i, double x)
+{
+    if (v->n == v->cap && ucol_owned(lu, v)) {
+        const int64_t cap = v->n < 4 ? 8 : 2 * v->n;
+        int64_t *idx = jm_alloc_array(cap, sizeof *idx);
+        double *val = jm_alloc_array(cap, sizeof *val);
+        if (idx == nullptr || val == nullptr) {
+            free(idx);
+            free(val);
+            return false;
+        }
+        if (v->n > 0) {
+            memcpy(idx, v->idx, (size_t)v->n * sizeof *idx);
+            memcpy(val, v->val, (size_t)v->n * sizeof *val);
+        }
+        v->idx = idx;
+        v->val = val;
+        v->cap = cap;
+    }
+    return jm_svec_push(v, i, x);
+}
+
 void jm_lu_free(jm_lu *lu)
 {
     if (lu->urow)
@@ -273,7 +316,13 @@ void jm_lu_free(jm_lu *lu)
             jm_svec_free(&lu->urow[s]);
     if (lu->ucol)
         for (int64_t s = 0; s < lu->keep_dim; s++)
-            jm_svec_free(&lu->ucol[s]);
+            if (!ucol_owned(lu, &lu->ucol[s]))
+                jm_svec_free(&lu->ucol[s]);
+    free(lu->uarena_idx);
+    free(lu->uarena_val);
+    lu->uarena_idx = nullptr;
+    lu->uarena_val = nullptr;
+    lu->uarena_n = 0;
     free(lu->urow);
     free(lu->ucol);
     free(lu->l_start); free(lu->l_index); free(lu->l_value);
@@ -349,6 +398,7 @@ static void lu_reset(jm_lu *lu, int64_t dim)
         return;
     }
     jm_svec *urow = lu->urow, *ucol = lu->ucol, ft = lu->ft;
+    ucol_drop_arena(lu, ucol, lu->keep_dim);
     int64_t *ft_source = lu->ft_source, ft_source_cap = lu->ft_source_cap;
     struct jm_lu_keep *keep = lu->keep;
     const int64_t keep_dim = lu->keep_dim;
@@ -716,16 +766,46 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             assert(inv_row[lacc.idx[k]] >= 0);
             lacc.idx[k] = inv_row[lacc.idx[k]];
         }
+        const int64_t unnz = uacc.n;
+        int64_t *ustart = jm_calloc_array(dim + 1, sizeof *ustart);
+        lu->uarena_idx = jm_alloc_array(unnz > 0 ? unnz : 1,
+                                        sizeof *lu->uarena_idx);
+        lu->uarena_val = jm_alloc_array(unnz > 0 ? unnz : 1,
+                                        sizeof *lu->uarena_val);
+        if (ustart == nullptr || lu->uarena_idx == nullptr ||
+            lu->uarena_val == nullptr) {
+            free(ustart);
+            st = JAOS_ERR_OUT_OF_MEMORY;
+            goto done;
+        }
+        lu->uarena_n = unnz > 0 ? unnz : 1;
+        for (int64_t k = 0; k < unnz; k++)
+            ustart[lu->inv_col[uacc.idx[k]]]++;
+        int64_t off = 0;
+        for (int64_t c = dim - 1; c >= 0; c--) {
+            const int64_t cnt = ustart[c];
+            jm_svec_free(&lu->ucol[c]);
+            if (cnt > 0)
+                lu->ucol[c] = (jm_svec){ .idx = lu->uarena_idx + off,
+                                         .val = lu->uarena_val + off,
+                                         .n = 0, .cap = cnt };
+            off += cnt;
+        }
+        free(ustart);
         for (int64_t s = 0; s < dim; s++) {
             for (int64_t k = us_start[s]; k < us_start[s + 1]; k++) {
                 int64_t c = lu->inv_col[uacc.idx[k]];
                 assert(c >= 0);
                 double v = uacc.val[k];
-                if (!jm_svec_push(&lu->urow[s], c, v) ||
-                    !jm_svec_push(&lu->ucol[c], s, v)) {
+                if (!jm_svec_push(&lu->urow[s], c, v)) {
                     st = JAOS_ERR_OUT_OF_MEMORY;
                     goto done;
                 }
+                jm_svec *cv = &lu->ucol[c];
+                assert(cv->n < cv->cap);
+                cv->idx[cv->n] = s;
+                cv->val[cv->n] = v;
+                cv->n++;
             }
         }
     }
@@ -1493,7 +1573,7 @@ static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         const int64_t s = by_pattern ? lu->spike_pat[k] : k;
         if (s == s_out || fabs(sp[s]) <= drop)
             continue;
-        if (!jm_svec_push(&lu->ucol[s_out], s, sp[s]) ||
+        if (!ucol_push(lu, &lu->ucol[s_out], s, sp[s]) ||
             !jm_svec_push(&lu->urow[s], s_out, sp[s])) {
             lu->rank = -1;
             return JAOS_ERR_OUT_OF_MEMORY;

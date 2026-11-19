@@ -1,0 +1,9 @@
+# per instance: before | after. nodes, incumbent (- none), bound, root LP iterations (* when it ended optimal), root LP seconds, load average at the leg's start and end
+instance                        nodes      incumbent          bound     lp_it    lp_s      load |    nodes      incumbent          bound     lp_it    lp_s      load
+rail01                              1              - -92.0872999795         0     0.0 0.84>2.01 |        1              - -92.0872999795         0     0.0 0.84>2.01
+
+# 1 instances with both legs
+left the root (or solved): before 0 after 0
+hold an incumbent:         before 0 after 0
+root LP solved:            before 0 after 0
+incumbent value differs where both hold one: 0

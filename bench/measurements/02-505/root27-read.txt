@@ -1,0 +1,29 @@
+buildingenergy                 time_limit     85411 time_limit    100101
+chromaticindex1024-7           time_limit     79395 time_limit     96791
+cryptanalysiskb128n5obj14      time_limit     68027 time_limit     96461
+cryptanalysiskb128n5obj16      time_limit     70526 time_limit     99013
+ex10                           time_limit     17616 time_limit     18396
+ex9                            time_limit     18396 time_limit     20216
+gfd-schedulen180f7d50m30k18    time_limit     98828 time_limit    104586
+highschool1-aigio              time_limit     32248 time_limit     36157
+irish-electricity              time_limit     47603 time_limit     56928
+neos-2075418-temuka            time_limit     46931 time_limit     56681
+neos-3402294-bobin             time_limit     11051 time_limit     11921
+neos-3656078-kumeu             time_limit    212216 time_limit    259414
+neos-5052403-cygnet            time_limit     35946 time_limit     39326
+neos-5104907-jarama            time_limit     43206 time_limit     49782
+neos-5114902-kasavu            time_limit     35247 time_limit     37738
+neos-631710                    time_limit     45453 time_limit     47540
+ns1116954                      time_limit     63356 time_limit     70655
+ns1644855                      time_limit     60256 time_limit     61816
+ns1760995                      time_limit     22686 time_limit     25161
+physiciansched3-3              time_limit     42186 time_limit     52987
+rail01                         time_limit    164473 node_limit    164473
+rail02                         time_limit    226231 time_limit    252590
+s100                           time_limit    273995 time_limit    287414
+savsched1                      time_limit     44851 time_limit     47189
+supportcase10                  time_limit     44225 time_limit     55798
+supportcase19                  time_limit     78412 time_limit     78615
+supportcase22                  time_limit     25828 time_limit     32928
+
+[exited with code 0]

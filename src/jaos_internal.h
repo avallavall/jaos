@@ -775,6 +775,9 @@ typedef struct {
 
     jm_svec *urow;
     jm_svec *ucol;
+    int64_t *uarena_idx;
+    double  *uarena_val;
+    int64_t uarena_n;
     double  *u_diag;
 
     jm_svec ft;

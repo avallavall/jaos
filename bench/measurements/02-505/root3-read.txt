@@ -1,0 +1,9 @@
+patched
+mzzv11     base   status node_limit iterations 63258 work_units 30848770036 bound -22944 time 67.477898 
+mzzv11     arena  status node_limit iterations 63258 work_units 30848770036 bound -22944 time 61.235384 
+qap10      base   status node_limit iterations 22721 work_units 2986817801 bound 334 time 5.684330 
+qap10      arena  status node_limit iterations 22721 work_units 2986817801 bound 334 time 5.477860 
+dano3_3    base   status node_limit iterations 45213 work_units 11039345569 bound 576.23162027456851 time 21.002268 
+dano3_3    arena  status node_limit iterations 45213 work_units 11039345569 bound 576.23162027456851 time 20.263274 
+
+[exited with code 0]
