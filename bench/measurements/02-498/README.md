@@ -246,3 +246,72 @@ optima exactly, and now to 9 places. `knapsack_rows(4, 25, 1)` of
 probes in a sub-MIP past its cap first: ZI rounding now finds a second
 incumbent and runs 646 times in 45,422 units, from 547 times for one in
 38,015, still stopping 500 runs after its last incumbent.
+
+## MIPLIB 2017 at 1e10
+
+`make miplib2017` solves the 30 under a work limit of 1e10, the caller's,
+so the tree itself reads it at every step now, and its sub-MIPs move as
+above. `m17sum.py` (`02-328/`): before, 9 solved, 29 incumbents, primal
+5.2342, dual 6.1518, sum 11.3860; after, 9, 29, 5.2367, 6.1186, 11.3552.
+
+26 of the 30 move. The four that do not are solved before any sub-MIP
+reaches its cap (`enlight_hard`, `exp-1-500-5-5`, `neos-3381206-awhea`,
+`p200x1188c`). The 21 that end at the limit now pass it by at most 14,403
+units, 3,575 on average, from 369,898 and 46,675: the tree runs under the
+limit less the MIP presolve's work, and the steps at its end read it.
+`ic97_potential` moves by that alone. The last column is the first new
+check to fire in a sub-MIP (`first-divergence.txt`): strong branching for
+15, its start (1818) or its kept probes (1733).
+
+| instance | end | before: nodes | incumbent | bound | after: nodes | incumbent | bound | first |
+|---|---|---|---|---|---|---|---|---|
+| `markshare_4_0` | limit | 590900 | 2 | 0 | 590893 | 2 | 0 | 1818 |
+| `markshare2` | limit | 676989 | 58 | 0 | 677649 | 89 | 0 | 1818 |
+| `pk1` | optimal | 191800 | 11 | - | 186963 | 11 | - | 2010 |
+| `neos5` | limit | 110137 | 15 | 14.25 | 110147 | 15 | 14.25 | 1818 |
+| `gen-ip054` | optimal | 53724 | 6840.97 | - | 50913 | 6840.97 | - | 4701 |
+| `timtab1` | limit | 244873 | 1.06896e+06 | 555382 | 244874 | 1.06896e+06 | 555382 | 1818 |
+| `neos-3046615-murg` | limit | 249377 | 1661 | 463 | 224539 | 1654 | 490 | 4973 |
+| `sp150x300d` | optimal | 2 | 69 | - | 2 | 69 | - | 4701 |
+| `mas76` | optimal | 411611 | 40005.1 | - | 417415 | 40005.1 | - | 1818 |
+| `mas74` | limit | 318036 | 12180.1 | 11272.8 | 299402 | 12291 | 11258.2 | 9813 |
+| `gen-ip002` | limit | 350469 | -4783.73 | -4804.62 | 213595 | -4761.72 | -4804.92 | 1818 |
+| `neos-3754480-nidda` | limit | 133722 | 12941.7 | -394555 | 169559 | 12941.7 | -388344 | 1818 |
+| `neos-2657525-crna` | limit | 10798 | 43.3535 | 0 | 7855 | 79.4479 | 0 | 4193 |
+| `assign1-5-8` | limit | 25313 | 212 | 199 | 31742 | 212 | 200 | 1733 |
+| `glass4` | limit | 137468 | 1.62502e+09 | 8.00005e+08 | 142872 | 1.62502e+09 | 8.00005e+08 | 1818 |
+| `supportcase26` | limit | 72353 | 1802.19 | 1467.09 | 69558 | 1793.74 | 1470.62 | 1818 |
+| `neos-911970` | limit | 2987 | 54.96 | 52.891 | 2962 | 54.96 | 52.8937 | 1818 |
+| `mad` | limit | 37787 | 0.1148 | 0 | 40603 | 0.1148 | -1.91226e-17 | 1818 |
+| `graphdraw-domain` | limit | 53641 | 21741 | 14718.4 | 50749 | 21741 | 14990.1 | 2458 |
+| `tr12-30` | limit | 42668 | 130603 | 130301 | 42088 | 130649 | 130298 | 2458 |
+| `ic97_potential` | limit | 487 | none | 3877 | 487 | none | 3877 | none |
+| `neos-3627168-kasai` | limit | 1817 | 990498 | 962278 | 1792 | 990498 | 962278 | 1818 |
+| `binkar10_1` | optimal | 6867 | 6742.2 | - | 7299 | 6742.2 | - | 1733 |
+| `csched008` | limit | 157 | 175 | 171 | 157 | 175 | 171 | 10431 |
+| `csched007` | limit | 6662 | 405 | 306 | 6738 | 405 | 305 | 1818 |
+| `beasleyC3` | limit | 7149 | 766 | 742 | 7215 | 764 | 742 | 12064 |
+
+Five incumbents are worse: `markshare2` 89 from 58, `gen-ip002` -4761.72
+from its optimum -4783.73, `neos-2657525-crna` 79.45 from 43.35, `mas74`
+12291.0 from 12180.1, `tr12-30` 130649 from 130603. Three are better:
+`neos-3046615-murg` 1654 from 1661, with its bound at 490 from 463,
+`supportcase26` 1793.74 from 1802.19, `beasleyC3` 764 from 766; and
+`graphdraw-domain`'s bound is 14990 from 14718. Of the solved, `pk1`,
+`gen-ip054` and `sp150x300d` take less work (8.11e9 from 8.43e9, 1.14e9
+from 1.20e9, 16.7 million from 18.8), `mas76` and `binkar10_1` more
+(6.64e9 from 6.33e9, 5.50e9 from 5.02e9). `graphdraw-domain`'s first is a
+sub-MIP started with a cap of one unit, its heuristic's share of the
+tree's work already spent; before, it ran its MIP presolve and its
+implied bounds anyway.
+
+## The gates
+
+On the change over 87475d8a: `make test`, `sanitize`, `tsan` and
+`python-test` pass; `netlib netlib-infeas` and `netlib-kennington` leave
+their records as they were (`baseline: 0 regressed, 0 improved, 0 new, 0
+at other nodes`). No LP code changed, so `primal barrier pdlp concurrent
+warm` were not taken. `make miplib`: `gate: PASS`, `baseline: 0
+regressed, 0 improved, 0 new, 8 at other nodes`, the 12 above; its
+baseline is rewritten with `miplib-baseline`. `make miplib2017`: 9 solved
+and 21 at the limit, as before, its record rewritten with the 26 above.
