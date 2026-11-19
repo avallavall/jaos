@@ -1,0 +1,7 @@
+patched
+primal  geo 1.000x moved  0 solved 24/24 
+r4      geo 1.005x moved 13 solved 24/24 l152lav 0.86x khb05250 0.93x misc03 0.96x p0282 1.00x p0201 1.02x blend2 1.50x
+r8      geo 1.002x moved  3 solved 24/24 dcmulti 0.99x stein45 1.00x misc03 1.06x dcmulti 0.99x stein45 1.00x misc03 1.06x
+r16     geo 1.000x moved  1 solved 24/24 stein45 1.00x stein45 1.00x
+
+[exited with code 0]

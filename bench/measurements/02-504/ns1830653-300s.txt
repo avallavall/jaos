@@ -1,0 +1,24 @@
+coefficient tightening: 72 coefficients on 11 rows
+implied bounds: 893 integer columns tightened
+branch and bound: 1458 integer columns of 1629, 1 rounds of cuts, 20 of MIR over 6 aggregated rows, cuts to depth 3 with MIR, dive off with 0 backtracks and a resume gap of 0, rounding on, pseudocost branching, reliabili
+branch and bound: 171 continuous columns share rows with the ones that carry a cost, and take whole values at an optimum, since those rows hold them alone or as differences with whole sides; the objective is a multiple o
+branch and bound: the root's Gomory rounds go past the first, up to 20, while a round lifts the bound by 0.0001 of it and its cuts hold at most 10 times the model's nonzeros
+clique table: 2472 conflicts over 357 literals, 0 of the conflicts from probing
+branch and bound work: node relaxations 99.9%, cuts 0.1%, heuristics 0.0%, propagation, probing and conflicts 0.0%, strong branching 0.0%, the rest 0.0%
+branch and bound: time limit reached after 1 nodes, 11 solves, 2132 cuts (0 below the root), 0 points by rounding, 0 of them by the dive heuristic, 0 by RINS, 0 by local branching and 0 by the pump, 0 probes, 0 of them c
+branch and bound: MIR cuts over 576 integer rows at 0 nodes lifted the bound by 0 against 0 from branching, still on at the end
+status time_limit
+iterations 67064
+work_units 180091310165
+nodes 1
+cuts 2132
+heuristic_points 0
+first_incumbent 0
+fixed_cols 0
+tightened 0
+symmetry_generators 0
+symmetry_orbits 0
+bound 11162
+time 300.023155
+
+[exited with code 0]

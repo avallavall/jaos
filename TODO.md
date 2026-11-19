@@ -44,17 +44,6 @@ ray test stays as it is: on 2026-11-18 the maintainer chose to keep its
 contract and push the solver instead. Verify with `netqp_read.py`
 on the same seeds and 02-398's `read.sh`.
 
-J35. **`ns1830653`'s warm re-solve settles for most of 300 s.** The
-six of 02-491 that ended `numerical_error` end at the time limit since
-`bench/measurements/02-497/`, five in the tree and `ns1830653` at the
-root on its bound. Its re-solve after cut round 9 starts from the last
-round's basis, and its 32 settling rounds each flip boxed columns of
-zero cost and cost the dual about 1400 iterations, 44665 in all, before
-the cold restart that the primal then finishes. Next: bound a warm
-solve's settling rounds by the work of its walk, or let a warm point the
-test refuses go on in the primal as a cold one does. Verify with 02-491's
-`run.sh -n` on `ns1830653` and the gates.
-
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and
 cones with no interior are held (`bench/measurements/02-446/`,
@@ -93,7 +82,11 @@ in its lone 63,258 iterations, `dano3_3`'s in 45,213 from 280,779 and
 `qap10`'s in 22,721 from 379,018. Of the 33 whose 300 s ran out in the
 root LP, 4 now end it: `mzzv11`, `uccase9`, `uccase12` and
 `neos-3988577-wolgan`. At 300 s `qap10` is now optimal, and `uccase12`
-and `dano3_3` leave the root. Next: the iteration's cost on the other 29, 3.9x to
+and `dano3_3` leave the root. `ns1830653`'s re-solve after cut round 9
+no longer settles for most of 300 s: a dual run's rounds stop once they
+cost more than its walk (`bench/measurements/02-504/`), and its root
+reaches bound 11162 from 11130, its ten cut rounds' re-solves taking
+99.9% of the work. Next: the iteration's cost on the other 29, 3.9x to
 4.7x HiGHS's on dense LPs (dense FTRAN, a refactorization every 64
 updates), then the cut rounds' re-solves. Verify with 02-501's `pair.sh`
 on the same sample and 02-503's `root.sh` on the 33.

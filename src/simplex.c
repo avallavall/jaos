@@ -77,6 +77,8 @@ constexpr int64_t SETTLE_ROUNDS = 32;
 constexpr int64_t POLISH_ROUNDS = 4;
 constexpr int64_t SETTLE_ROUNDS_PRIMAL = 256;
 
+constexpr int64_t SETTLE_ROUNDS_FREE = 8;
+
 constexpr int64_t WARM_REPAIR_MAX_SHORT = 8;
 
 constexpr int64_t PROBE_LANES_MAX = 64;
@@ -201,6 +203,7 @@ typedef struct {
     bool bst_valid;
 
     int64_t settle_round;
+    int64_t walk_from, settle_from;
 
     double started;
     int64_t iters;
@@ -3350,6 +3353,7 @@ static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped,
         if (!save_best(s))
             return JAOS_ERR_OUT_OF_MEMORY;
         s->settle_round = 0;
+        s->settle_from = s->work.units;
     }
 
     const int64_t rounds = s->primal_run ? SETTLE_ROUNDS_PRIMAL
@@ -3365,6 +3369,10 @@ static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped,
             if (st != JAOS_OK || done)
                 return st;
             continue;
+        } else if (!s->primal_run && round >= SETTLE_ROUNDS_FREE &&
+                   s->work.units - s->settle_from >
+                       s->settle_from - s->walk_from) {
+            break;
         } else {
             if (!save_settled(s))
                 return JAOS_ERR_OUT_OF_MEMORY;
@@ -5322,6 +5330,7 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             if (!warm)
                 build_initial_basis(&s);
             s.cold = !warm;
+            s.walk_from = s.work.units;
             jm_log(m, JAOS_LOG_DETAIL, "starting from %s",
                    warm ? "the basis on the model" : "the slack basis");
         }
