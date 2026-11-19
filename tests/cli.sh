@@ -183,6 +183,28 @@ expect_exit 3 "a time limit the read spends stops a MIP before its root" \
     && pass "it prints 'status time_limit' and no node" \
     || flunk "a spent limit on a MIP printed: $out"
 
+awk -v k=30 -v b=30 'BEGIN {
+    print "NAME BINS"; print "ROWS"; print " N COST"
+    for (i = 0; i < k; i++) print " E I" i
+    for (j = 0; j < b; j++) print " L B" j
+    print "COLUMNS"; print "    M1 \047MARKER\047 \047INTORG\047"
+    for (i = 0; i < k; i++) for (j = 0; j < b; j++)
+        printf "    X%d_%d COST 1 I%d 1\n    X%d_%d B%d 1\n", i, j, i, i, j, j
+    print "    M2 \047MARKER\047 \047INTEND\047"; print "RHS"
+    for (i = 0; i < k; i++) printf "    RHS I%d 1\n", i
+    for (j = 0; j < b; j++) printf "    RHS B%d 2\n", j
+    print "BOUNDS"
+    for (i = 0; i < k; i++) for (j = 0; j < b; j++)
+        printf " UP BND X%d_%d 1\n", i, j
+    print "ENDATA" }' > "$tmp/bins.mps"
+expect_exit 3 "a work limit stops a MIP inside its symmetry search" \
+    "$JAOS" solve "$tmp/bins.mps" --work-limit 30000 --threads 1
+units=$(line_of work_units | awk '{print $2}')
+[ "$(line_of status)" = "status work_limit" ] && [ -n "$units" ] \
+    && [ "$units" -ge 30000 ] && [ "$units" -le 36000 ] \
+    && pass "it ends at $units work units, within the model's size of 30000" \
+    || flunk "a work limit of 30000 on the bins printed: $out"
+
 expect_exit 1 "an infeasible model exits 1" "$JAOS" solve "$DATA/t1.mps"
 [ "$(line_of status)" = "status infeasible" ] \
     && pass "it prints 'status infeasible'" \

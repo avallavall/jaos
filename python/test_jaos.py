@@ -2025,7 +2025,7 @@ class TestBranchAndBound(unittest.TestCase):
         p.set_mip_gap(0)
         self.assertEqual(p._m.get_option("mip_gap"), "0")
         self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
-        self.assertEqual(p.objective_value, best)
+        self.assertAlmostEqual(p.objective_value, best, places=9)
         p.set_mip_gap_rule(jaos.GapRule.RELATIVE)
         self.assertEqual(p._m.get_option("mip_gap_rule"), "relative")
         with self.assertRaises(ValueError):

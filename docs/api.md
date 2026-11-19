@@ -1724,7 +1724,16 @@ fails when `m` is null.
 `jaos_status jaos_set_work_limit(jaos_model *m, int64_t units)`\
 Stops a solve after `units` work units, and the solve ends
 `JAOS_SOLVE_WORK_LIMIT`. The default is 0, and 0 or a negative value means
-no limit. The stop happens at the same point on every machine.
+no limit. The stop happens at the same point on every machine. In a branch
+and bound every step before and around the tree reads it: the MIP presolve
+between its passes, the implied bounds, the coefficient tightening and the
+parity fixing row by row, the symmetry search, which gets no more than what
+is left, the root's cut rounds and their separators, probing, strong
+branching, the heuristics' loops, and each sub-MIP, which runs under what is
+left. A solve ends past the limit by the last piece of the step it stopped
+in, such as a row or a simplex iteration. An LP's presolve and aggregator
+run to their end before the simplex reads the limit, so a stopped simplex
+resumes on the walk of a run that never stopped.
 
 **`jaos_set_threads`**\
 `jaos_status jaos_set_threads(jaos_model *m, int64_t threads)`\

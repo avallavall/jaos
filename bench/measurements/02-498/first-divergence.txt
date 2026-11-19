@@ -1,0 +1,81 @@
+# The first work check of this change to fire, under trace.patch, and on
+# MIPLIB 3 the count of each. Lines of src/mip.c on the change: 1733 the
+# kept probes, 1818 strong branching's start, 1835 its probe loop, 2010
+# Gomory, 2458 the implied bounds, 3521 hull, 4193 MIR, 4289 aggregated MIR,
+# 4701 heur_budget, 4973 the feasibility jump, 9813 the symmetry search's
+# cap (printed when what is left is below it, whether or not the search
+# needs it), 10431 and 10641 a root cut round's start and its re-solve,
+# 10595 to 10621 a separator's start, 12064 the second symmetry search
+# (printed when what is left is below its 1000x cap).
+
+## MIPLIB 3, no limit
+== bell3a status=optimal work_units=378623144 nodes=26281 
+TRN 3521 sub=1 limit=198453 w=198885
+357 1818 1; 294 9813 cap; 33 4973 1; 16 4193 1; 13 10431 1; 9 4701 1;
+== bell5 status=optimal work_units=413087870 nodes=38009 
+TRN 4973 sub=1 limit=159846 w=159868
+529 1818 1; 471 9813 cap; 95 4973 1; 8 4701 1; 6 4193 1; 5 3521 1;
+== blend2 status=optimal work_units=179810158 nodes=2969 
+TRN 2458 sub=1 limit=503 w=504
+19 9813 cap; 19 4973 1; 14 10641 1; 13 1818 1; 12 4289 1; 4 10621 1;
+== dcmulti status=optimal work_units=108007438 nodes=241 
+TRN 1818 sub=1 limit=7394700 w=7408270
+1 9813 cap; 1 4289 1; 1 1818 1; 1 10641 1;
+== khb05250 status=optimal work_units=33174443 nodes=63 
+TRN 1818 sub=1 limit=2599184 w=2607338
+1 1818 1;
+== lseu status=optimal work_units=13110417 nodes=253 
+TRN 1818 sub=1 limit=775597 w=781667
+5 1818 1; 2 4973 1; 1 9813 cap; 1 4193 1; 1 3521 1; 1 10611 1;
+== misc06 status=optimal work_units=54727675 nodes=42 
+TRN 1835 sub=1 limit=6794010 w=6838482
+2 12064 sym2; 1 4973 1; 1 1835 1; 1 1818 1;
+== misc07 status=optimal work_units=1594076913 nodes=8439 
+TRN 4973 sub=1 limit=24033264 w=24034292
+33 9813 cap; 10 10641 1; 6 4193 1; 4 10611 1; 2 4973 1; 2 3521 1;
+== p0201 status=optimal work_units=27758795 nodes=80 
+TRN 1818 sub=1 limit=2404026 w=2425304
+1 1818 1;
+== rgn status=optimal work_units=10163977 nodes=193 
+TRN 10431 sub=1 limit=1131844 w=1137170
+1 10431 1;
+== stein27 status=optimal work_units=21092911 nodes=1161 
+TRN 2010 sub=1 limit=383671 w=384128
+2 9813 cap; 2 1818 1; 1 4701 1; 1 2010 1;
+== stein45 status=optimal work_units=1979306904 nodes=54145 
+TRN 1818 sub=1 limit=774420 w=774566
+164 1818 1; 98 9813 cap; 19 4701 1; 18 1733 1; 6 4973 1; 6 4193 1;
+
+## MIPLIB 2017 at --work-limit 10000000000: the first check in a sub-MIP
+## (the tree's own, at its end, left out), and the seconds to it; none is
+## a run that ended within 300 s with none
+markshare_4_0 | TRN 1818 sub=1 limit=183958 w=184626 | 0s
+markshare2 | TRN 1818 sub=1 limit=1211667 w=1227237 | 0s
+enlight_hard | none | 0s
+pk1 | TRN 2010 sub=1 limit=4101315 w=4102124 | 0s
+neos5 | TRN 1818 sub=1 limit=3535270 w=3560051 | 1s
+gen-ip054 | TRN 4701 sub=1 limit=466835 w=527274 | 0s
+timtab1 | TRN 1818 sub=1 limit=27940000 w=27954088 | 3s
+neos-3046615-murg | TRN 4973 sub=1 limit=916984 w=917979 | 1s
+sp150x300d | TRN 4701 sub=1 limit=1294197 w=1303427 | 0s
+mas76 | TRN 1818 sub=1 limit=924949 w=931034 | 0s
+mas74 | TRN 9813 cap sub=1 limit=141204 w=8871 cap=467750 got=132333 | 0s
+gen-ip002 | TRN 1818 sub=1 limit=650259 w=656296 | 0s
+neos-3754480-nidda | TRN 1818 sub=1 limit=12173950 w=12178509 | 0s
+neos-2657525-crna | TRN 4193 sub=1 limit=31786704 w=31803082 | 2s
+assign1-5-8 | TRN 1733 sub=1 limit=80740000 w=80787869 | 5s
+glass4 | TRN 1818 sub=1 limit=3141350 w=3141440 | 2s
+supportcase26 | TRN 1818 sub=1 limit=1973357 w=1979714 | 1s
+neos-911970 | TRN 1818 sub=1 limit=22102016 w=22121627 | 8s
+mad | TRN 1818 sub=1 limit=11682922 w=11697397 | 1s
+graphdraw-domain | TRN 2458 sub=1 limit=1 w=6573 | 4s
+exp-1-500-5-5 | none | 2s
+tr12-30 | TRN 2458 sub=1 limit=27109 w=27124 | 4s
+neos-3381206-awhea | none | 2s
+ic97_potential | none | 22s
+neos-3627168-kasai | TRN 1818 sub=1 limit=40749944 w=40771029 | 24s
+binkar10_1 | TRN 1733 sub=1 limit=41184648 w=41192685 | 2s
+csched008 | TRN 10431 sub=1 limit=150680000 w=150738544 | 14s
+csched007 | TRN 1818 sub=1 limit=94333724 w=94378186 | 4s
+beasleyC3 | TRN 12064 sym2 sub=1 limit=13786816 room=6244240 first=2071250 | 15s
+p200x1188c | none | 5s

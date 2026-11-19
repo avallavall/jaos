@@ -1893,10 +1893,10 @@ static void test_zi_rounding_stops_after_500_runs_without_an_incumbent(void)
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
         TEST_ASSERT_DOUBLE_WITHIN(1e-6, -2011.0, rep.incumbent);
         if (on) {
-            TEST_ASSERT_TRUE(rep.nodes > 547);
+            TEST_ASSERT_TRUE(rep.nodes > 646);
             TEST_ASSERT_EQUAL_STRING(
-                "branch and bound: ZI rounding ran 547 times for 1 incumbents "
-                "in 38015 work units", g_zi);
+                "branch and bound: ZI rounding ran 646 times for 2 incumbents "
+                "in 45422 work units", g_zi);
         } else {
             TEST_ASSERT_EQUAL_STRING("", g_zi);
         }
@@ -4890,6 +4890,65 @@ static void test_a_spent_time_limit_stops_the_tree_before_its_root(void)
     jaos_model_free(m);
 }
 
+static jaos_model *identical_bins(void)
+{
+    enum { K = 30, B = 30, NC = K * B, NR = K + B, NZ = 2 * NC };
+    static double c[NC], cl[NC], cu[NC], rl[NR], ru[NR], v[NZ];
+    static int64_t start[NC + 1], index[NZ];
+    for (int64_t i = 0; i < K; i++)
+        for (int64_t b = 0; b < B; b++) {
+            const int64_t j = i * B + b;
+            c[j] = 1.0;
+            cl[j] = 0.0;
+            cu[j] = 1.0;
+            start[j] = 2 * j;
+            index[2 * j] = i;
+            index[2 * j + 1] = K + b;
+            v[2 * j] = v[2 * j + 1] = 1.0;
+        }
+    start[NC] = NZ;
+    for (int64_t i = 0; i < K; i++)
+        rl[i] = ru[i] = 1.0;
+    for (int64_t b = 0; b < B; b++) {
+        rl[K + b] = -INFINITY;
+        ru[K + b] = 2.0;
+    }
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, NC, NR, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru, NZ,
+                     start, index, v));
+    for (int64_t j = 0; j < NC; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, 1));
+    return m;
+}
+
+static void test_a_work_limit_holds_through_the_symmetry_search(void)
+{
+    jaos_model *m = identical_bins();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    const int64_t whole = jaos_work_units(m);
+    const int64_t size = jaos_num_nz(m) + jaos_num_col(m) + jaos_num_row(m);
+    jaos_model_free(m);
+    TEST_ASSERT_TRUE(whole > 100 * size);
+
+    const int64_t limits[3] = { 1, 10 * size, 30 * size };
+    for (int k = 0; k < 3; k++) {
+        m = identical_bins();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, limits[k]));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, jaos_status_of(m));
+        jaos_mip_report rep;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+        TEST_ASSERT_EQUAL_INT64(0, rep.nodes);
+        TEST_ASSERT_TRUE(jaos_work_units(m) >= limits[k]);
+        TEST_ASSERT_TRUE(jaos_work_units(m) <= limits[k] + 2 * size);
+        jaos_model_free(m);
+    }
+}
+
 static void test_local_branching_searches_the_incumbents_neighbourhood(void)
 {
     const int64_t size[2] = { 0, 3 };
@@ -7636,6 +7695,7 @@ int main(void)
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_time_limit_stops_the_root_between_its_solves);
     RUN_TEST(test_a_spent_time_limit_stops_the_tree_before_its_root);
+    RUN_TEST(test_a_work_limit_holds_through_the_symmetry_search);
     RUN_TEST(test_local_branching_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_estimate_order_keeps_the_optimum_and_repeats);
     RUN_TEST(test_a_restart_keeps_the_optimum_and_repeats);

@@ -44,18 +44,6 @@ ray test stays as it is: on 2026-11-18 the maintainer chose to keep its
 contract and push the solver instead. Verify with `netqp_read.py`
 on the same seeds and 02-398's `read.sh`.
 
-J34. **A work limit that the symmetry search, presolve and the root's
-separators do not read.** `neos-3402454-bohle` at `--work-limit 1e8` ends
-at 3.04e9 work units after 167 s, nearly all of it in the root's symmetry
-search; 02-494 made those steps read the time limit only, since a work
-check there also stops the sub-MIPs and strong-branching probes, which
-run under small work caps, and so moves the default records
-(`bench/measurements/02-494/`). On 2026-11-18 the maintainer chose the
-check with the records rebased. Next: the work check in those steps, the
-MIPLIB 3 and 2017 diffs read and both rebased with their targets. Verify
-with `bohle` and the 20 largest of `bench/miplib2017-bench.manifest`
-under `--work-limit 1e8`, each ending within a few percent of it.
-
 J35. **Six MIPLIB 2017 benchmark instances that end `numerical_error`.**
 `leo1`, `leo2`, `ns1830653`, `sp98ar` and `supportcase42` at the root,
 `sp97ar` at node 2 with an incumbent, all within 90 s of a 300 s limit
