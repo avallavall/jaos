@@ -6,26 +6,26 @@
 #
 # name status solved shape objective checker det iters work rsub nodes
 air03        optimal      1 1 1 1 1 443 56557588 -1 1
-bell3a       optimal      1 1 1 1 1 109704 398808578 -1 26351
-bell5        optimal      1 1 1 1 1 86108 221636642 -1 17793
-blend2       optimal      1 1 1 1 1 36443 291826907 -1 3835
+bell3a       optimal      1 1 1 1 1 109692 386745646 -1 26349
+bell5        optimal      1 1 1 1 1 86108 216076233 -1 17793
+blend2       optimal      1 1 1 1 1 22358 197033647 -1 3045
 dcmulti      optimal      1 1 1 1 1 11569 106710972 -1 267
 egout        optimal      1 1 1 1 1 121 1169208 -1 1
 enigma       optimal      1 1 1 1 1 392 3682041 -1 1
 flugpl       optimal      1 1 1 1 1 286 1213693 -1 73
 gen          optimal      1 1 1 1 1 568 4377775 -1 2
-gt2          optimal      1 1 1 1 1 373 2246124 -1 5
+gt2          optimal      1 1 1 1 1 397 2268539 -1 5
 khb05250     optimal      1 1 1 1 1 1250 30990600 -1 59
 l152lav      optimal      1 1 1 1 1 30397 1089505622 -1 799
-lseu         optimal      1 1 1 1 1 3335 12624635 -1 245
+lseu         optimal      1 1 1 1 1 3335 12627096 -1 245
 misc03       optimal      1 1 1 1 1 5112 40613549 -1 303
 misc06       optimal      1 1 1 1 1 1073 66024621 -1 40
-misc07       optimal      1 1 1 1 1 142974 1898190262 -1 10179
+misc07       optimal      1 1 1 1 1 114056 1558148889 -1 8195
 mod008       optimal      1 1 1 1 1 811 12098286 -1 41
 mod010       optimal      1 1 1 1 1 822 18885597 -1 1
-p0033        optimal      1 1 1 1 1 218 2876469 -1 11
+p0033        optimal      1 1 1 1 1 218 2877437 -1 11
 p0201        optimal      1 1 1 1 1 3002 27939243 -1 80
-p0282        optimal      1 1 1 1 1 6569 34917359 -1 315
+p0282        optimal      1 1 1 1 1 6569 34918062 -1 315
 rgn          optimal      1 1 1 1 1 2294 10244595 -1 193
-stein27      optimal      1 1 1 1 1 4802 21315732 -1 1161
-stein45      optimal      1 1 1 1 1 342805 2076910723 -1 57918
+stein27      optimal      1 1 1 1 1 4802 21170799 -1 1161
+stein45      optimal      1 1 1 1 1 327673 1979454578 -1 54145
