@@ -1,0 +1,26 @@
+instance                nodes   rounds   rnodes  closed_work   closed   caught        again
+air03                       1        0        0            0        0        0            0
+bell3a                  26043     3258    26044        22531        2        0            0
+bell5                   22243     2784    22242            0        0       28            0
+blend2                   3921      492     3921       209280        4      381            7
+dcmulti                   345       47      354       749695       22       35            2
+egout                       1        0        0            0        0        0            0
+enigma                      1        0        0            0        0        0            0
+flugpl                    121       17      120            0        0        0            0
+gen                         2        0        0            0        0        0            0
+gt2                         5        2        4            0        0        0            0
+khb05250                   57       14       56            0        0        0            0
+l152lav                   303       39      302     14793201        2        0            0
+lseu                      285       38      284        31989        1        0            0
+misc03                    311       40      310        41007        1       14            0
+misc06                     58       11       58       222677        2        0            0
+misc07                   6751      845     6750            0        0      260            0
+mod008                     33       12       32            0        0        0            0
+mod010                      1        0        0            0        0        0            0
+p0033                      13        3       12        32945        2        0            0
+p0201                      96       15      104       927225       11        0            0
+p0282                     272       36      271        94343        3        0            0
+rgn                       155       22      154            0        0        0            0
+stein27                  1207      154     1206            0        0        8            0
+stein45                 52628     6581    52628        14533        1        0            0
+round nodes 114852, closed after their lane 51, solved again 9 (0.008% of round nodes)

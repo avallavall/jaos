@@ -221,7 +221,13 @@ another count. The thread count changes five things:
   its candidates, so the tree is the one a single thread builds.
 - The conic branch and bound solves the relaxations of one round on up to
   that many threads, each on its own copy of the model.
-- The linear branch and bound does the same.
+- The linear branch and bound runs each node of one round up to the end of
+  its relaxation's solve on up to that many threads: its bounds and cuts,
+  orbital and clique fixing, propagation, and the solve with the cutoff at
+  the incumbent the round started with. Each node of the round has its own
+  copy of the tree's relaxation, kept for the whole tree, and the threads
+  take the round's nodes from a shared counter. No callback runs and
+  nothing is logged on those threads.
 
 `jaos_set_mip_tree_batch` sets the size of a round in both trees. At its
 default of 1, a round holds one node.
@@ -233,12 +239,14 @@ the rule of [Determinism](#determinism): the same model would get a
 different tree on a machine with more cores. To let threads speed up a
 MIP, set a batch that stays the same on every machine, for example 8, and
 set the threads to what the machine allows. Threads beyond the batch wait.
-Rounds save time where a node takes hundreds of pivots. Where a node takes
-a few, they cost more work than they save, so the default stays 1
-(`bench/measurements/02-290/`).
+A round of 8 changes the tree, and MIPLIB 3 takes 1.026 times its work on
+one thread (geometric mean), from 0.75x to 1.43x per instance. The node
+relaxations of a round run at once, but the rest of each node runs in
+order, so the default stays 1 (`bench/measurements/02-495/`).
 
 In each case the answer and `jaos_work_units` are the same at any thread
-count (`bench/measurements/02-492/`). Only `jaos_solve_time` changes.
+count (`bench/measurements/02-492/`, `bench/measurements/02-495/`). Only
+`jaos_solve_time` changes.
 Everything else runs on the thread that called `jaos_solve`.
 
 The library holds no global state, so different models can be solved in
@@ -1376,13 +1384,18 @@ relaxations are solved on up to `jaos_set_threads` threads. The tree takes
 their answers in the round's own order, so the tree does not depend on the
 thread count. The default, 1, is the tree that takes one node at a time.
 Above 1 the search changes (`bench/measurements/02-264/` for the conic
-tree, `bench/measurements/02-290/` for the linear tree). The linear tree
-solves each node of a round from the node's own basis on a copy of the
-tree's model. It then takes the nodes in order and solves each again from
-its copy's final basis, so the cuts and conflicts one node finds reach the
-nodes after it. The linear tree takes one node per round on a model with a
-quadratic objective, and once the work or time limit is spent. A round
-holds at most 64 nodes. The call fails when `nodes` is below 1.
+tree, `bench/measurements/02-495/` for the linear tree). The linear tree
+keeps one copy of its relaxation per node of a round and solves each node
+once, on its copy, with the cutoff at the incumbent the round started
+with. It then takes the nodes in the round's order on their copies. An
+incumbent an earlier node found closes a later node it bounds. A later
+node's point is tested against the conflicts and the callback's rows the
+earlier nodes added, and the node is solved again when its point breaks
+one of them. The node callback, strong branching, cuts, heuristics and the
+children run in that order, as in a tree of one node at a time. The linear
+tree takes one node per round on a model with a quadratic objective, in a
+sub-MIP's tree, and once the work or time limit is spent. A round holds at
+most 64 nodes. The call fails when `nodes` is below 1.
 
 **`jaos_set_mip_branching`**\
 `jaos_status jaos_set_mip_branching(jaos_model *m, jaos_branching rule)`\

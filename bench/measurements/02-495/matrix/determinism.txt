@@ -1,0 +1,13 @@
+# bench/run -j 2 at -O mip_tree_batch=B -O threads=T; cmp of each record against the one-thread record
+m3 b8 t1 vs t2 IDENTICAL
+m17-2e9 b8 t1 vs t2 IDENTICAL
+m3 b8 t1 vs t4 IDENTICAL
+m17-2e9 b8 t1 vs t4 IDENTICAL
+m3 b8 t1 vs t12 IDENTICAL
+m17-2e9 b8 t1 vs t12 IDENTICAL
+m3 b3 t1 vs t2 IDENTICAL
+m17-2e9 b3 t1 vs t2 IDENTICAL
+m3 b3 t1 vs t4 IDENTICAL
+m17-2e9 b3 t1 vs t4 IDENTICAL
+m3 b3 t1 vs t12 IDENTICAL
+m17-2e9 b3 t1 vs t12 IDENTICAL

@@ -389,25 +389,17 @@ MIPLIB 3 and the 2017 set.
 
 J12. **Parallel.** A parallel simplex; a round of nodes cheap enough to be
 the default where a node takes a few pivots. The round size cannot follow
-the thread count, because the answer must not depend on the machine. A
-solve takes every core for a node's strong-branching probes, but probing
-is at most a tenth of the tree's work; the node relaxations are 50% to 99%
-of it (`bench/measurements/02-492/`). Under `--tree-batch N` each node is
-solved twice, on a fresh copy without its fixings and cutoff and again in
-the tree's LP: rounds of 8 cost 1.21x MIPLIB 3's work, and without the
-second solve about 1.035x (02-492's `rounds.txt`). The design is in
-`bench/measurements/02-495/`. Next, its stage 1: one LP per round
-position, whose lane runs the node's fixings, propagation and solve with
-the cutoff at the round's starting incumbent; the tree then takes each
-node in round order on that LP, with no second solve. Strong branching,
-heuristics, cuts, conflicts and children stay in round order, and the
-default round stays 1. Verify: the default reads its records unchanged;
-at `-O mip_tree_batch=8` the records are byte-identical at 1, 2, 4 and
-12 threads; MIPLIB 3 at batch 8 on one thread reads at most 1.05x the
-baseline's work (geometric mean); and on a quiet machine 02-492's
-`speedup.sh` at `--tree-batch 8` reads at least 1.8x at 8 threads. Then
-stage 2: rounds of 8 by default where a tree's node relaxations are
-expensive, by a rule in work units.
+the thread count, because the answer must not depend on the machine.
+Under `--tree-batch N` the linear tree solves each node once, on one of N
+copies of its relaxation kept for the tree, and takes the rest of each
+node in round order (stage 1 of `bench/measurements/02-495/`): rounds of
+8 read 1.026x MIPLIB 3's work on one thread and the same records at 1, 2,
+4 and 12 threads. Next: 02-495's `speedup.sh` on a quiet machine (load
+under 1), for its item 8: at least 1.8x geometric at 8 threads, 1.5x at
+4, peak RSS at most 1.5x batch 1; under a load of 5 it read 1.52x and
+1.47x. Then stage 2: rounds of 8 by default where a tree's node
+relaxations are expensive, by the rule in work units of 02-495's section
+4, verified with its items 9 to 11.
 
 ## Tier 5: the features SPECS still lists
 

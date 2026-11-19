@@ -621,6 +621,21 @@ expect_exit 0 "and on three threads" \
 [ "$(line_of objective) $(line_of work_units) $(line_of nodes)" = "$mip_one" ] \
     && pass "gives the same objective, work units and nodes" \
     || flunk "three threads: $(line_of objective) $(line_of work_units) $(line_of nodes) against $mip_one"
+for f in mip_hull_stale.mps g_sos.mps; do
+    expect_exit 0 "$f in rounds of eight nodes on one thread" \
+        "$JAOS" solve "$DATA/$f" --tree-batch 8 --threads 1 --log summary
+    round_one="$(line_of status) $(line_of objective) $(line_of work_units) $(line_of nodes) $(line_of bound)"
+    round_log=$(printf '%s\n' "$err" | grep 'rounds of up to 8 nodes')
+    [ -n "$round_log" ] \
+        && pass "the summary counts the rounds" \
+        || flunk "no rounds line in the summary of $f"
+    expect_exit 0 "and on four threads" \
+        "$JAOS" solve "$DATA/$f" --tree-batch 8 --threads 4 --log summary
+    [ "$(line_of status) $(line_of objective) $(line_of work_units) $(line_of nodes) $(line_of bound)" = "$round_one" ] \
+        && [ "$(printf '%s\n' "$err" | grep 'rounds of up to 8 nodes')" = "$round_log" ] \
+        && pass "gives the same answer, work units, nodes, bound and rounds" \
+        || flunk "four threads: $(line_of objective) $(line_of work_units) $(line_of nodes) against $round_one"
+done
 expect_exit 0 "--algorithm concurrent on one thread" \
     "$JAOS" solve "$DATA/solve1.mps" --algorithm concurrent --threads 1
 conc_one="$(line_of objective) $(line_of work_units)"

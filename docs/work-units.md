@@ -338,12 +338,20 @@ root searches again under a larger cap before the first branch, and bills
 that too. The objective step's reading of the rows over a costed
 continuous column bills one unit per entry it reads, and the scan for the
 rows its columns leave all integer, read by the Gomory rounds, bills
-`nnz + nc + nr` once. Under `--tree-batch N` above 1,
-each node of a round is solved on its own copy of the tree's LP with
-`(work_limit - work) / n` of the budget, and its work is added. The tree
-then solves each node again from the round's basis, and that solve is
-billed too. So the work at N above 1 differs from the work at 1
-(`bench/measurements/02-290/`), but it does not change with the thread
+`nnz + nc + nr` once. Under `--tree-batch N` above 1, the tree keeps one
+copy of its LP per place in a round, made at the first round and billed
+`nnz + nr + nc` each. A round of `n` nodes runs each node's fixings,
+propagation and solve on its own place, the solve under
+`(work_limit - work) / n` of the budget less that node's propagation, and
+the tree adds every node's work in the round's order before it takes the
+first of them. A place that misses permanent rows (conflicts and a
+callback's rows) added since it last ran adds them first and bills their
+nonzeros and `nc`. When a node's turn comes, the tree bills the nonzeros
+of the permanent rows added during its round as it tests the node's point
+against them, and solves the node again, billed as any solve, when the
+point breaks one of them or when its share of the budget stopped its
+solve. So the work at N above 1 differs from the work at 1
+(`bench/measurements/02-495/`), but it does not change with the thread
 count. `jaos_work_units` after a MIP solve is that total, and the work
 limit applies to it.
 

@@ -655,3 +655,152 @@ no-incumbent dive.
   programming, Tutorials in Operations Research, INFORMS, 1–12, 2013.
   Trees that move by such factors from small changes are why the round's
   work is read in the geometric mean, and per instance only against 2x.
+
+## Stage 1: the readings
+
+Taken on 2026-11-19 on 853eafca (the lane functions alone) and on the
+stage-1 change above it, both over dcacb163; 7b7dd94e added 02-500's dual
+proofs to the node path after this design was written. Other agents ran
+on the machine the whole time, at a load of 2 to 6, so every wall-clock
+number is noisy; work units, nodes and answers do not depend on it.
+
+### What was built
+
+Stage 1 as section 8 lays it out, with these choices where the design
+left room:
+
+- The positions are made at the first round of more than one node, all
+  N − 1 at once, from the tree's LP as it stands then, and billed
+  `nnz + nr + nc` each. A round of one node runs on position 0 in place,
+  as does any node taken outside a round (a dive's next node, a node
+  resumed from the dive stack).
+- A round's pick drops its first node too when the incumbent closes it,
+  so no lane runs on a node the tree then drops at once; at round 1 the
+  pick is unchanged.
+- The positions' lanes count the round's starting node count plus one
+  for their tests, and propagate with the passes the round started with.
+- The merge closes a node whose lane's objective a newer incumbent closes
+  (step 4) only when the incumbent moved since the round began; a node
+  closed at the round's own cutoff is a cut-off node as in the one-node
+  tree.
+- A share-stopped lane and a lane whose point breaks a new permanent row
+  are solved again in their merge after the position catches up with the
+  log, under the cutoff of the incumbent at that merge.
+- `steer_flush` brings its position up to the log before it appends, so
+  the prefix invariant holds on every position.
+- A sub-MIP's tree keeps one node at a time (section 6, condition 5).
+- The spare probe states follow the active position, and so does the
+  progress relay; neither is on a position while lanes run.
+- The dual proof pool is tree state like the conflicts. The lane function
+  is two halves, the bounds and fixings, then propagation and the solve,
+  and the one-node tree runs 02-500's proof step between them on the
+  tree's pool, as before. A lane runs the same step between them on the
+  pool as the round found it: each position keeps its own copy of the
+  pool's moving box and activities, and before its lane it rereads only
+  the proofs whose slot was written since, which the pool now counts per
+  slot. The lane applies the proofs with the round's cutoff, and its
+  record carries what they cut and tightened. In the merge, in round
+  order, the tree decides whether the pool stays, counts the lane's
+  proofs and their work, marks the proofs the lane used, halves the pool
+  when it costs too much, and stores the proof a lane stopped at the
+  cutoff leaves, from the duals still on its position.
+
+The summary line under `--log summary` reads, for example on `misc03`:
+`branch and bound: 40 rounds of up to 8 nodes took 310 nodes; 1 closed
+after their lane by a newer incumbent, with 41007 work units in them; a
+position caught up with the permanent rows 14 times, and 0 nodes were
+solved again in their merge`.
+
+On `mas76` at 1e9 work units the pool on lanes cuts 1,082 nodes and
+tightens 200,153 bounds from 437 proofs (one node at a time: 225 and
+72,726 from 127), and halves three times where one node at a time never
+does: a position rereads every proof stored since its last lane, which
+the one-node tree's single box does not pay. The records at 1 and 4
+threads agree.
+
+### Item 1: the tests
+
+`make test`, `make sanitize`, `make tsan` and `make python-test` pass on
+the change. `tests/test_mip.c` solves two knapsacks at batch 1 and 8 on 1,
+2 and 3 threads with the probe lanes forced on and compares the
+objective's bits, the nodes, solves, work, bound, point and the rounds
+line; a market split whose conflicts reach the later positions; a
+lazy-row callback whose row node 2 adds while
+node 3 waits in its round, so node 3 is solved again; a work limit at half
+the full tree's work that stops inside a round, with the bound above the
+optimum (a maximisation) and the same record on 1 and 3 threads; and the
+progress callback's count, now equal on 1 and 3 threads. `tests/cli.sh`
+compares `--tree-batch 8` at `--threads 1` and 4 on two MIPs, and
+`python/test_jaos.py` does it at both layers.
+
+The lazy-row test turns the root dive heuristic and the feasibility pump
+off. A node callback that rejects one of their points with a row leaves
+the root's LP without a solution, and the tree ends with
+`JAOS_ERR_OUT_OF_MEMORY`; this happens at round 1 too, on ab51180f, and
+is not stage 1's.
+
+### Item 2: the default reads its records
+
+On 853eafca and on the stage-1 change alike: `netlib` and `netlib-infeas`
+at `J=12` and `netlib-kennington` at `J=2` read their baselines (gate PASS,
+0 regressed, 0 improved, 0 new, 0 at other nodes), MIPLIB 3 at `J=2` reads
+its baseline with 0 at other nodes, and the records of all four and of
+the 2017 set at 1e10 are byte-identical to `bench/results/` on dcacb163.
+The same held on ab51180f and on 7b7dd94e before the rebases.
+
+### Item 3: the same tree at every thread count
+
+`matrix.sh` runs `bench/run -j 2` at `-O mip_tree_batch=8` and 3 and
+`-O threads=1`, 2, 4 and 12, on MIPLIB 3 to completion and the 2017 set at
+2e9. Every record is byte-identical to its one-thread record
+(`matrix/determinism.txt`; the one-thread records are in `matrix/`).
+
+### Item 5: MIPLIB 3 at batch 8 on one thread
+
+`matrix/m3-b8-t1.txt` against `bench/miplib.baseline` (`ratio.sh`): 24 of
+24 optimal and checked, gate PASS, 0 regressed, 18 at other nodes. The
+work reads 1.026x geometric over the 24 and 1.033x over the 19 whose work
+moved, from 0.75x (`misc07`) to 1.43x (`blend2`), none past 2x; today's
+rounds read 1.21x over their 19 (02-492's `rounds.txt`). At batch 3 the
+work reads 1.022x, one instance past 2x.
+
+`waste.sh` runs the same 24 through the CLI at `--tree-batch 8` and reads
+the rounds line (`waste/table.txt`): 114,852 round nodes, 51 closed after
+their lane by a newer incumbent, and 9 solved again in their merge
+(`blend2` 7, `dcmulti` 2), 0.008% of the
+round nodes against the bar of 1%. The positions caught up with the log
+on `blend2`, `bell5`, `dcmulti`, `misc03`, `misc07` and `stein27`.
+
+Stage 1 lands: items 1 to 5 hold.
+
+### Item 6
+
+1.026x is under the 1.05x bar, and under 02-492's estimate of 1.035x for
+the same trees without the second solve.
+
+### Item 7: the 2017 set at 1e10, batch 8, one thread
+
+`miplib2017-b8.txt` with 02-328's `m17sum.py`: 10 solved and 29 with an
+incumbent, primal 4.1513, dual 5.1471, sum 9.2984, against the record's
+11 solved and 29, primal 4.1525, dual 5.0942, sum 9.2468. The bar was
+written against a sum of 11.34 before 02-500's proofs (9 solved, 29, at
+most 11.88), and the reading meets it; against today's record it sits
+0.05 above. `neos5`, which 02-500's proofs close at 7.4e9 one node at a
+time, stays open at 1e10 in rounds of 8. Of the ten solved, `pk1` reads
+1.00x its work, `gen-ip054` 0.89x, `exp-1-500-5-5` 1.07x, `mas76` 1.15x
+and `binkar10_1` 1.21x.
+
+### Item 8: the speedup, under load
+
+`speedup.sh` (02-492's, with `ARGS` passed through, a one-thread batch-1
+run first, and peak RSS) at 1e9 work units, one solve at a time, at a
+load of 4.6 to 5.5 from the other agents: not the quiet machine the item
+asks for (`speedup-loaded/table.txt`, with `uptime` at its end). Every
+status, objective, work, nodes, bound and incumbent line agrees at 1, 2,
+4 and 8 threads. Against one thread at batch 8, eight threads read 1.15x
+(`bell5`) to 1.99x (`misc07`, `stein45`), 1.52x geometric; four threads
+1.47x. One thread at batch 8 against batch 1 reads 0.92x to 1.54x in wall
+time, peak RSS 1.03x to 2.53x (`gen-ip002`). Under this load the bars
+(1.8x at eight threads, 1.5x at four, RSS at most 1.5x) are not met and
+not refuted; the reading is taken again on a quiet machine before stage
+2.

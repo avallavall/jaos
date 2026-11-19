@@ -3378,7 +3378,7 @@ class TestBranchAndBound(unittest.TestCase):
     def test_the_linear_tree_takes_rounds_of_nodes(self):
 
         found = []
-        for batch, threads in ((1, 1), (4, 1), (4, 3)):
+        for batch, threads in ((1, 1), (8, 1), (8, 4)):
             p = jaos.Problem()
             xs = [p.add_var(integer=True, ub=1) for _ in range(20)]
             for r in range(2):
@@ -3390,9 +3390,43 @@ class TestBranchAndBound(unittest.TestCase):
             p.set_mip_tree_batch(batch)
             p.set_threads(threads)
             self.assertIs(p.solve(), jaos.SolveStatus.OPTIMAL)
-            found.append(p.objective_value)
-        self.assertAlmostEqual(found[1], found[0], places=9)
+            rep = p.mip_report()
+            found.append((p.objective_value, p.work_units, rep.nodes,
+                          rep.lp_solves, [x.value for x in xs]))
+        self.assertAlmostEqual(found[1][0], found[0][0], places=9)
         self.assertEqual(found[2], found[1])
+
+    def test_a_model_in_rounds_of_eight_is_the_same_on_one_and_four_threads(self):
+
+        n = 20
+        cost = [float(23 + (j * 37) % 29) for j in range(n)]
+        start, index, value = [0], [], []
+        for j in range(n):
+            for r in range(2):
+                index.append(r)
+                value.append(float(11 + (j * (53 + 17 * r)) % 31))
+            start.append(len(index))
+        seen = []
+        for threads in (1, 4):
+            with jaos.Model() as m:
+                m.load(num_col=n, num_row=2, col_cost=cost,
+                       col_lower=[0.0] * n, col_upper=[1.0] * n,
+                       row_lower=[-math.inf] * 2, row_upper=[150.0] * 2,
+                       a_start=start, a_index=index, a_value=value,
+                       sense=jaos.ObjSense.MAXIMIZE)
+                for j in range(n):
+                    m.set_col_integer(j)
+                m.set_mip_cut_rounds(0)
+                m.set_mip_heuristics(False)
+                m.set_mip_tree_batch(8)
+                m.set_threads(threads)
+                self.assertIs(m.solve(), jaos.SolveStatus.OPTIMAL)
+                rep = m.mip_report()
+                self.assertGreater(rep.nodes, 8)
+                seen.append((m.objective(), m.work_units, m.iterations,
+                             rep.nodes, rep.lp_solves, rep.bound,
+                             m.solution().col_value))
+        self.assertEqual(seen[0], seen[1])
 
     def test_a_restart_keeps_the_optimum(self):
 

@@ -5205,41 +5205,276 @@ static jaos_model *two_knapsacks(void)
     return m;
 }
 
+static char g_rounds[1024];
+static void capture_rounds(void *user, jaos_log_level level, const char *line)
+{
+    (void)level; (void)user;
+    if (strstr(line, "rounds of up to") != nullptr)
+        snprintf(g_rounds, sizeof g_rounds, "%s", line);
+}
+
+typedef struct {
+    int64_t rounds, nodes, closed, closed_work, caught, again;
+} round_counts;
+
+static round_counts rounds_read(void)
+{
+    round_counts c = {0};
+    long long n[7] = {0};
+    if (sscanf(g_rounds,
+               "branch and bound: %lld rounds of up to %lld nodes took %lld "
+               "nodes; %lld closed after their lane by a newer incumbent, "
+               "with %lld work units in them; a position caught up with the "
+               "permanent rows %lld times, and %lld nodes",
+               &n[0], &n[1], &n[2], &n[3], &n[4], &n[5], &n[6]) == 7)
+        c = (round_counts){ n[0], n[2], n[3], n[4], n[5], n[6] };
+    return c;
+}
+
+typedef struct {
+    double obj;
+    double x[64];
+    int64_t nodes, solves, work;
+    jaos_solve_status status;
+    double bound;
+    round_counts rc;
+} tree_run;
+
+static tree_run tree_take(jaos_model *m, int64_t batch, int64_t threads)
+{
+    tree_run t = {0};
+    TEST_ASSERT_TRUE(jaos_num_col(m) <= 64);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, batch));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads));
+    m->cfg.probe_lane_work = 1;
+    g_rounds[0] = '\0';
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, capture_rounds, nullptr));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    t.status = jaos_status_of(m);
+    jaos_mip_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+    t.nodes = rep.nodes;
+    t.solves = rep.lp_solves;
+    t.bound = rep.bound;
+    t.work = jaos_work_units(m);
+    if (t.status == JAOS_SOLVE_OPTIMAL) {
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &t.obj));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_solution(m, t.x, nullptr, nullptr, nullptr));
+    } else if (rep.has_incumbent) {
+        t.obj = rep.incumbent;
+    }
+    t.rc = rounds_read();
+    return t;
+}
+
+static void tree_same(const tree_run *a, const tree_run *b, int64_t nc)
+{
+    TEST_ASSERT_EQUAL_INT(a->status, b->status);
+    TEST_ASSERT_EQUAL_MEMORY(&a->obj, &b->obj, sizeof a->obj);
+    TEST_ASSERT_EQUAL_MEMORY(&a->bound, &b->bound, sizeof a->bound);
+    TEST_ASSERT_EQUAL_INT64(a->nodes, b->nodes);
+    TEST_ASSERT_EQUAL_INT64(a->solves, b->solves);
+    TEST_ASSERT_EQUAL_INT64(a->work, b->work);
+    TEST_ASSERT_EQUAL_MEMORY(a->x, b->x, (size_t)nc * sizeof *a->x);
+    TEST_ASSERT_EQUAL_MEMORY(&a->rc, &b->rc, sizeof a->rc);
+}
+
 static void test_a_round_of_nodes_is_the_same_on_any_thread_count(void)
 {
     double best = 0.0;
-    for (int64_t batch = 1; batch <= 4; batch += 3) {
-        double xref[20];
-        int64_t nodes_ref = 0, work_ref = 0;
-        for (int64_t threads = 1; threads <= 3; threads += 2) {
+    for (int64_t batch = 1; batch <= 8; batch += 7) {
+        tree_run ref = {0};
+        for (int64_t threads = 1; threads <= 3; threads++) {
             jaos_model *m = two_knapsacks();
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, batch));
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, threads));
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
-            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
-            double obj = 0.0, x[20];
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
-            TEST_ASSERT_EQUAL_INT(JAOS_OK,
-                jaos_solution(m, x, nullptr, nullptr, nullptr));
-            jaos_mip_report rep;
-            TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
+            const tree_run t = tree_take(m, batch, threads);
+            TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, t.status);
             if (batch == 1 && threads == 1)
-                best = obj;
+                best = t.obj;
             else
-                TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, obj);
-            if (batch > 1)
-                TEST_ASSERT_TRUE(rep.nodes > batch);
-            if (threads == 1) {
-                memcpy(xref, x, sizeof xref);
-                nodes_ref = rep.nodes;
-                work_ref = jaos_work_units(m);
+                TEST_ASSERT_DOUBLE_WITHIN(1e-9, best, t.obj);
+            if (batch > 1) {
+                TEST_ASSERT_TRUE(t.nodes > batch);
+                TEST_ASSERT_TRUE(t.rc.rounds > 0);
+                TEST_ASSERT_TRUE(t.rc.nodes >= t.nodes / 2);
+                TEST_ASSERT_TRUE(t.solves > t.nodes);
             } else {
-                TEST_ASSERT_EQUAL_INT64(nodes_ref, rep.nodes);
-                TEST_ASSERT_EQUAL_INT64(work_ref, jaos_work_units(m));
-                TEST_ASSERT_EQUAL_MEMORY(xref, x, sizeof xref);
+                TEST_ASSERT_EQUAL_INT64(0, t.rc.rounds);
             }
+            if (threads == 1)
+                ref = t;
+            else
+                tree_same(&ref, &t, 20);
             jaos_model_free(m);
         }
+    }
+}
+
+static jaos_model *split_market(void)
+{
+    constexpr int64_t N = 18;
+    constexpr int64_t M = 2;
+    double cost[N], cl[N], cu[N], av[M * N], rl[M] = {0.0}, ru[M] = {0.0};
+    int64_t as[N + 1], ai[M * N], nz = 0;
+    for (int64_t j = 0; j < N; j++) {
+        cost[j] = (double)(1 + (j * 29) % 13);
+        cl[j] = 0.0;
+        cu[j] = 1.0;
+        as[j] = nz;
+        for (int64_t i = 0; i < M; i++) {
+            const double a = (double)(1 + (j * 37 + i * 53 + j * j * 11) % 47);
+            ai[nz] = i;
+            av[nz++] = a;
+            if (j % 3 != 1) {
+                rl[i] += a;
+                ru[i] += a;
+            }
+        }
+    }
+    as[N] = nz;
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, N, M, JAOS_MINIMIZE, 0.0, cost, cl, cu, rl, ru,
+                     nz, as, ai, av));
+    for (int64_t j = 0; j < N; j++)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_col_integer(m, j, true));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cover_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_mir_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_rounds(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_cut_depth(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_mir(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tighten(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_clique_fix(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_conflicts(m, 1));
+    return m;
+}
+
+static void test_conflicts_found_mid_round_reach_the_later_positions(void)
+{
+    jaos_model *m = split_market();
+    const tree_run one = tree_take(m, 1, 1);
+    jaos_model_free(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, one.status);
+    tree_run ref = {0};
+    for (int64_t threads = 1; threads <= 3; threads++) {
+        m = split_market();
+        const tree_run t = tree_take(m, 8, threads);
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, t.status);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, one.obj, t.obj);
+        TEST_ASSERT_TRUE(t.rc.rounds > 0);
+        TEST_ASSERT_TRUE(t.rc.caught > 0);
+        if (threads == 1)
+            ref = t;
+        else
+            tree_same(&ref, &t, 18);
+        jaos_model_free(m);
+    }
+}
+
+typedef struct {
+    int64_t cap;
+    bool added;
+    int calls;
+} lazy_cap;
+
+static jaos_callback_action lazy_count(jaos_node *ev, void *user)
+{
+    lazy_cap *s = user;
+    s->calls++;
+    double sum = 0.0;
+    for (int64_t j = 0; j < ev->num_col; j++)
+        sum += ev->col_value[j];
+    if ((ev->integral && sum > (double)s->cap + 0.5) ||
+        (!s->added && ev->node >= 2)) {
+        int64_t idx[20];
+        double val[20];
+        for (int64_t j = 0; j < 20; j++) {
+            idx[j] = j;
+            val[j] = 1.0;
+        }
+        if (jaos_node_add_row(ev, 20, idx, val, -INFINITY, (double)s->cap) ==
+            JAOS_OK)
+            s->added = true;
+    }
+    return JAOS_CALLBACK_CONTINUE;
+}
+
+static jaos_model *knapsacks_without_points(void)
+{
+    jaos_model *m = two_knapsacks();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dive_heuristic(m, 0));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_feaspump(m, 0));
+    return m;
+}
+
+static void test_a_lazy_row_added_mid_round_holds_at_the_later_nodes(void)
+{
+    jaos_model *m = knapsacks_without_points();
+    {
+        int64_t idx[20];
+        double val[20];
+        for (int64_t j = 0; j < 20; j++) {
+            idx[j] = j;
+            val[j] = 1.0;
+        }
+        const int64_t st[2] = {0, 20};
+        const double lo = -INFINITY, up = 5.0;
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_add_rows(m, 1, &lo, &up, 20, st, idx, val));
+    }
+    const tree_run plain = tree_take(m, 1, 1);
+    jaos_model_free(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, plain.status);
+    tree_run ref = {0};
+    for (int64_t threads = 1; threads <= 3; threads++) {
+        lazy_cap seen = { .cap = 5 };
+        m = knapsacks_without_points();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                              jaos_set_node_callback(m, lazy_count, &seen));
+        const tree_run t = tree_take(m, 8, threads);
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, t.status);
+        TEST_ASSERT_TRUE(seen.added);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-9, plain.obj, t.obj);
+        double sum = 0.0;
+        for (int64_t j = 0; j < 20; j++)
+            sum += t.x[j];
+        TEST_ASSERT_TRUE(sum <= 5.0 + 1e-9);
+        TEST_ASSERT_TRUE(t.rc.rounds > 0);
+        TEST_ASSERT_TRUE(t.rc.again > 0);
+        if (threads == 1)
+            ref = t;
+        else
+            tree_same(&ref, &t, 20);
+        jaos_model_free(m);
+    }
+}
+
+static void test_a_work_limit_stops_a_round_with_its_bound(void)
+{
+    jaos_model *m = two_knapsacks();
+    const tree_run full = tree_take(m, 8, 1);
+    jaos_model_free(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, full.status);
+    tree_run ref = {0};
+    for (int64_t threads = 1; threads <= 3; threads += 2) {
+        m = two_knapsacks();
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_work_limit(m, full.work / 2));
+        const tree_run t = tree_take(m, 8, threads);
+        TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_WORK_LIMIT, t.status);
+        TEST_ASSERT_TRUE(t.bound >= full.obj - 1e-9);
+        TEST_ASSERT_TRUE(t.nodes < full.nodes);
+        TEST_ASSERT_TRUE(t.rc.rounds > 0);
+        if (threads == 1)
+            ref = t;
+        else
+            tree_same(&ref, &t, 20);
+        jaos_model_free(m);
     }
 }
 
@@ -5306,7 +5541,7 @@ static void test_a_round_calls_progress_only_on_the_calling_thread(void)
     for (int t = 0; t < 2; t++) {
         thread_watch w = { .caller = &this_thread };
         jaos_model *m = two_knapsacks();
-        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, 4));
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_tree_batch(m, 8));
         TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_threads(m, t == 0 ? 1 : 3));
         TEST_ASSERT_EQUAL_INT(JAOS_OK,
                               jaos_set_progress_callback(m, watch_thread, &w));
@@ -5318,7 +5553,8 @@ static void test_a_round_calls_progress_only_on_the_calling_thread(void)
         jaos_model_free(m);
     }
     TEST_ASSERT_EQUAL_INT64(work[0], work[1]);
-    TEST_ASSERT_TRUE(calls[1] > 0 && calls[1] < calls[0]);
+    TEST_ASSERT_TRUE(calls[0] > 0);
+    TEST_ASSERT_EQUAL_INT64(calls[0], calls[1]);
 }
 
 static void test_a_dive_bounded_by_the_degradation_keeps_the_optimum(void)
@@ -7835,6 +8071,9 @@ int main(void)
     RUN_TEST(test_a_round_of_nodes_is_the_same_on_any_thread_count);
     RUN_TEST(test_strong_branching_on_threads_keeps_the_tree);
     RUN_TEST(test_a_round_calls_progress_only_on_the_calling_thread);
+    RUN_TEST(test_conflicts_found_mid_round_reach_the_later_positions);
+    RUN_TEST(test_a_lazy_row_added_mid_round_holds_at_the_later_nodes);
+    RUN_TEST(test_a_work_limit_stops_a_round_with_its_bound);
     RUN_TEST(test_a_dive_bounded_by_the_degradation_keeps_the_optimum);
     RUN_TEST(test_propagation_tightens_bounds_and_keeps_the_optimum);
     RUN_TEST(test_propagation_proves_a_row_infeasible);
