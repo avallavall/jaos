@@ -44,12 +44,16 @@ ray test stays as it is: on 2026-11-18 the maintainer chose to keep its
 contract and push the solver instead. Verify with `netqp_read.py`
 on the same seeds and 02-398's `read.sh`.
 
-J35. **Six MIPLIB 2017 benchmark instances that end `numerical_error`.**
-`leo1`, `leo2`, `ns1830653`, `sp98ar` and `supportcase42` at the root,
-`sp97ar` at node 2 with an incumbent, all within 90 s of a 300 s limit
-(`bench/measurements/02-491/`, the reading of 2026-11-18). Next: read
-which solve fails on each and what it reports, root LP or a node's.
-Verify with 02-491's `run.sh -n` on the six.
+J35. **`ns1830653`'s warm re-solve settles for most of 300 s.** The
+six of 02-491 that ended `numerical_error` end at the time limit since
+`bench/measurements/02-497/`, five in the tree and `ns1830653` at the
+root on its bound. Its re-solve after cut round 9 starts from the last
+round's basis, and its 32 settling rounds each flip boxed columns of
+zero cost and cost the dual about 1400 iterations, 44665 in all, before
+the cold restart that the primal then finishes. Next: bound a warm
+solve's settling rounds by the work of its walk, or let a warm point the
+test refuses go on in the primal as a cold one does. Verify with 02-491's
+`run.sh -n` on `ns1830653` and the gates.
 
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and

@@ -1,0 +1,12 @@
+# JAOS against HiGHS on miplib2017-bench.manifest, 300 s each, one thread, gap: HiGHS 0 (the MIPLIB script's), JAOS 1e-6 (its default), SCIP 1e-6
+# machine: Linux x86_64 AMD Ryzen 5 9600X 6-Core Processor under WSL
+# tree: unknown, jaos --threads 1
+# solvers: [jaos] HiGHS not found
+# jobs 1, heavy 1, cap 13 GB; load 7.52 7.32 7.84 at start, 10.17 9.46 7.89 at end; 1710 s
+# instance solver status objective nodes seconds reference source wall_seconds peak_kb
+supportcase42	jaos	time_limit	27.463697549414675	360	299.783726	7.75863072227	miplib2017	300.21	443776
+sp98ar	jaos	time_limit	534517051.19999999	372	299.759198	529740623.2	miplib2017	300.10	706884
+sp97ar	jaos	time_limit	683504233.60000002	201	299.854208	660705645.759	miplib2017	300.08	731252
+leo2	jaos	time_limit	592193010.34000003	6587	299.926697	404077441.12	miplib2017	300.10	941876
+leo1	jaos	time_limit	425120732	6652	299.952486	404227536.16	miplib2017	300.07	563192
+ns1830653	jaos	time_limit		1	300.007128	20622	miplib2017	300.09	467824

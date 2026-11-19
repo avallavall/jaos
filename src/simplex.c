@@ -189,6 +189,7 @@ typedef struct {
     double bst_obj;
 
     double bst_dviol;
+    double bst_rel;
     bool bst_valid;
 
     int64_t settle_round;
@@ -210,6 +211,8 @@ typedef struct {
 
     bool primal_run;
     bool no_loans;
+    bool finishing;
+    double finish_breach;
 
     bool dse_guess;
     int64_t n_guess_restart;
@@ -2777,35 +2780,83 @@ static double settled_dual_violation(const sx *s)
     return worst;
 }
 
-static double settled_violation_by_terms(const sx *s)
+static double published_terms(const sx *s, int64_t j)
+{
+    const jaos_model *m = s->m;
+    double size = fabs(s->cost0[j]);
+    for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++)
+        size += fabs(s->av[k] * s->y[m->a_index[k]]);
+    size /= m->col_scale[j];
+    return size > 1.0 ? size : 1.0;
+}
+
+static double settled_violation_by_terms(sx *s)
 {
     const jaos_model *m = s->m;
     double worst = 0.0;
+    bool rows = false;
     for (int64_t v = 0; v < s->nvar; v++) {
         const double br = published_breach(s, v);
         if (br == 0.0)
             continue;
-        double size = 0.0;
-        if (v < s->ncol) {
-            size = fabs(s->cost0[v]);
-            for (int64_t k = m->a_start[v]; k < m->a_start[v + 1]; k++)
-                size += fabs(s->av[k] * s->y[m->a_index[k]]);
-            size /= m->col_scale[v];
+        if (v >= s->ncol) {
+            rows = true;
+            continue;
         }
-        const double rel = br / (size > 1.0 ? size : 1.0);
+        const double rel = br / published_terms(s, v);
+        if (rel > worst)
+            worst = rel;
+    }
+    if (!rows)
+        return worst;
+
+    double *reach = s->tau;
+    for (int64_t i = 0; i < s->nrow; i++)
+        reach[i] = 0.0;
+    for (int64_t j = 0; j < s->ncol; j++) {
+        const double per = 1.0 / (m->col_scale[j] * published_terms(s, j));
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double t = fabs(s->av[k]) * per;
+            if (t > reach[i])
+                reach[i] = t;
+        }
+    }
+    for (int64_t i = 0; i < s->nrow; i++) {
+        const double br = published_breach(s, s->ncol + i);
+        if (br == 0.0)
+            continue;
+        const double t = reach[i] / m->row_scale[i];
+        const double rel = t > 0.0 && t < 1.0 ? br * t : br;
         if (rel > worst)
             worst = rel;
     }
     return worst;
 }
 
-static bool better_point(double tol, double dviol_a, double obj_a,
-                         double dviol_b, double obj_b)
+static int settled_class(double tol, double dviol, double rel)
 {
-    const bool a_ok = dviol_a <= tol, b_ok = dviol_b <= tol;
-    if (a_ok != b_ok)
-        return a_ok;
-    return a_ok ? obj_a < obj_b : dviol_a < dviol_b;
+    if (dviol <= tol)
+        return 0;
+    return rel <= tol ? 1 : 2;
+}
+
+static bool better_point(double tol, double dviol_a, double rel_a,
+                         double obj_a, double dviol_b, double rel_b,
+                         double obj_b)
+{
+    const int a = settled_class(tol, dviol_a, rel_a);
+    const int b = settled_class(tol, dviol_b, rel_b);
+    if (a != b)
+        return a < b;
+    return a == 0 ? obj_a < obj_b : dviol_a < dviol_b;
+}
+
+static bool beats_best(sx *s)
+{
+    return better_point(s->dual_tol, settled_dual_violation(s),
+                        settled_violation_by_terms(s), settled_objective(s),
+                        s->bst_dviol, s->bst_rel, s->bst_obj);
 }
 
 static bool save_best(sx *s)
@@ -2827,6 +2878,7 @@ static bool save_best(sx *s)
     memcpy(s->bst_fake, s->fake, (size_t)s->nvar * sizeof *s->fake);
     s->bst_obj = settled_objective(s);
     s->bst_dviol = settled_dual_violation(s);
+    s->bst_rel = settled_violation_by_terms(s);
     s->bst_valid = true;
     return true;
 }
@@ -2835,8 +2887,9 @@ static jaos_status take_best_if_better(sx *s, bool *ok)
 {
     *ok = true;
     if (!s->bst_valid ||
-        !better_point(s->dual_tol, s->bst_dviol, s->bst_obj,
-                      settled_dual_violation(s), settled_objective(s)))
+        !better_point(s->dual_tol, s->bst_dviol, s->bst_rel, s->bst_obj,
+                      settled_dual_violation(s),
+                      settled_violation_by_terms(s), settled_objective(s)))
         return JAOS_OK;
 
     repay_shifts(s);
@@ -3180,9 +3233,7 @@ static jaos_status settle_without_moves(sx *s, bool *done)
         return JAOS_OK;
     }
     settle_shifts(s);
-    if (better_point(s->dual_tol, settled_dual_violation(s),
-                     settled_objective(s), s->bst_dviol, s->bst_obj) &&
-        !save_best(s))
+    if (beats_best(s) && !save_best(s))
         return JAOS_ERR_OUT_OF_MEMORY;
     *done = false;
     return JAOS_OK;
@@ -3226,9 +3277,7 @@ static jaos_status reenter_after_settling(sx *s, jaos_solve_status *stopped,
 
         if (again == JAOS_SOLVE_OPTIMAL) {
             settle_shifts(s);
-            if (better_point(s->dual_tol, settled_dual_violation(s),
-                             settled_objective(s), s->bst_dviol, s->bst_obj) &&
-                !save_best(s))
+            if (beats_best(s) && !save_best(s))
                 return JAOS_ERR_OUT_OF_MEMORY;
             continue;
         }
@@ -4182,6 +4231,10 @@ static jaos_status run_primal(sx *s, jaos_solve_status *out)
 
         double total = 0.0;
         int64_t q = primal_price(s, &total);
+        if (s->finishing && s->bland) {
+            *out = JAOS_SOLVE_NUMERICAL_ERROR;
+            return JAOS_OK;
+        }
 
         if (s->iters % LOG_EVERY == 0)
             jm_log(s->m, JAOS_LOG_PROGRESS,
@@ -5151,9 +5204,12 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
     }
 
     jaos_solve_status outcome = JAOS_SOLVE_NOT_RUN;
+    bool finish_primal = false;
     for (;;) {
         if (resumed) {
             resumed = false;
+        } else if (finish_primal) {
+            finish_primal = false;
         } else {
             s.early_perturb_off = !allow_early_perturb;
             warm = allow_warm && build_warm_basis(&s);
@@ -5176,6 +5232,21 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
             s.cut_hit = false;
             st = s.primal_run ? run_primal(&s, &outcome)
                               : run(&s, &outcome);
+        }
+
+        if (s.finishing &&
+            (st == JAOS_ERR_NUMERICAL ||
+             (st == JAOS_OK && outcome == JAOS_SOLVE_NUMERICAL_ERROR))) {
+            jm_set_err(m, "the settled point is not dual feasible: a reduced "
+                          "cost breaches its bound by %.6g after settling, "
+                          "from a cold start, and the primal simplex from "
+                          "there stopped after %lld iterations; publishing "
+                          "that as OPTIMAL would certify a point the reduced "
+                          "costs do not support",
+                       s.finish_breach, (long long)s.n_primal_iters);
+            st = JAOS_OK;
+            outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+            break;
         }
 
         if (st == JAOS_ERR_NUMERICAL && s.early_stalled) {
@@ -5289,7 +5360,20 @@ static jaos_status dual_simplex_once(jaos_model *m, bool *aggregated,
                 allow_warm = false;
                 continue;
             }
-            if (settled_violation_by_terms(&s) > s.dual_tol) {
+            const double rel = settled_violation_by_terms(&s);
+            if (rel > s.dual_tol && !s.primal_run) {
+                jm_log(m, JAOS_LOG_SUMMARY,
+                       "a reduced cost breaches its bound by %.6g after "
+                       "settling, %.3g of its terms; the primal simplex "
+                       "goes on from the settled basis after %lld "
+                       "iterations", breach, rel, (long long)s.iters);
+                s.primal_run = true;
+                s.finishing = true;
+                s.finish_breach = breach;
+                finish_primal = true;
+                continue;
+            }
+            if (rel > s.dual_tol) {
                 jm_set_err(m, "the settled point is not dual feasible: a "
                               "reduced cost breaches its bound by %.6g after "
                               "settling, from a %s start; publishing that as "

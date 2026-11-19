@@ -1436,6 +1436,58 @@ static void test_a_stop_inside_the_settling_reentry_resumes_its_walk(void)
     jaos_model_free(ref);
 }
 
+[[maybe_unused]] static jaos_model *settled_from(const char *path)
+{
+    jaos_model *m = fresh();
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_read_mps(m, path));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+
+    const int64_t nc = jaos_num_col(m), nr = jaos_num_row(m);
+    double *x = calloc((size_t)nc, sizeof *x);
+    double *y = calloc((size_t)nr, sizeof *y);
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(y);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    free(x);
+    free(y);
+    return m;
+}
+
+static void test_a_row_dual_within_the_rounding_of_its_columns_stands(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
+#else
+    jaos_model *m = settled_from("tests/data/lp_row_dual_noise.mps");
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * 876744988.55797017, 876744988.55797017,
+                              obj);
+    TEST_ASSERT_EQUAL_INT64(0, m->solve_primal_iters);
+    jaos_model_free(m);
+#endif
+}
+
+static void test_a_settled_point_past_its_terms_goes_on_in_the_primal(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test -- skipped under either fault build");
+#else
+    jaos_model *m = settled_from("tests/data/lp_settle_primal_finish.mps");
+    double obj = 0.0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_objective(m, &obj));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-9 * 403952761.22491175, 403952761.22491175,
+                              obj);
+    TEST_ASSERT_GREATER_THAN_INT64(0, m->solve_primal_iters);
+    jaos_model_free(m);
+#endif
+}
+
 static void test_work_limit_stops_and_reports(void)
 {
     const double c[] = {2.0, 3.0, 4.0};
@@ -3754,6 +3806,8 @@ int main(void)
     RUN_TEST(test_nonbasic_survives_interleaved_eviction);
     RUN_TEST(test_nonbasic_notices_a_missed_hook);
     RUN_TEST(test_solving_twice_is_bit_identical);
+    RUN_TEST(test_a_row_dual_within_the_rounding_of_its_columns_stands);
+    RUN_TEST(test_a_settled_point_past_its_terms_goes_on_in_the_primal);
     RUN_TEST(test_work_limit_stops_and_reports);
     RUN_TEST(test_a_stopped_solve_resumes_the_walk_it_left);
     RUN_TEST(test_a_stop_inside_the_settling_reentry_resumes_its_walk);
