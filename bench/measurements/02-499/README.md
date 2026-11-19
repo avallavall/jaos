@@ -129,12 +129,9 @@ solved; `mas76` takes 6.33e9 work units against the record's 5.34e9
 
 ## The gates
 
-On the branch over 4e9f5c2c: `make test` passes but for `windows-test`,
-whose native Python suite fails `test_the_module_runs_as_a_command` and
-`test_a_library_that_cannot_load_is_an_import_error`, the two that start a
-second Windows Python, as they do on an unchanged copy of main; the rest,
-run with `-o windows-test`, passes. `make sanitize` and `make python-test`
-pass. `netlib`, `netlib-infeas` and `netlib-kennington` read their
+On the branch over f75117aa: `make test` passes, its Windows step
+skipping the native Python suite as f75117aa has it do on this machine.
+`make sanitize` and `make python-test` pass. `netlib`, `netlib-infeas` and `netlib-kennington` read their
 baselines with 0 at other nodes and rewrite their records byte for byte.
 `make miplib` passes with 0 regressed and 4 at other nodes, `bell3a`,
 `blend2`, `misc07` and `stein45`, each in less work; the baseline is
