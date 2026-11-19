@@ -1,0 +1,62 @@
+--- a/src/presolve.c
++++ b/src/presolve.c
+@@ -1738,6 +1738,38 @@
+ }
+ #endif
+ 
++
++#include <stdio.h>
++static int dbg_check(const char *tag, const jaos_model *x, int verbose)
++{
++    if (x->solve_status != JAOS_SOLVE_OPTIMAL || x->num_row <= 0 || x->sol_row == nullptr || x->sol_col == nullptr)
++        return 0;
++    double *act = calloc((size_t)x->num_row, sizeof *act);
++    double *tr = calloc((size_t)x->num_row, sizeof *tr);
++    int64_t *nz = calloc((size_t)x->num_row, sizeof *nz);
++    for (int64_t j = 0; j < x->num_col; j++)
++        for (int64_t k = x->a_start[j]; k < x->a_start[j + 1]; k++) {
++            const int64_t i = x->a_index[k];
++            const double t = x->a_value[k] * x->sol_col[j];
++            act[i] += t; tr[i] += fabs(t); nz[i]++;
++        }
++    int bad = 0;
++    for (int64_t i = 0; i < x->num_row; i++) {
++        if (x->sol_row_status[i] != JAOS_BASIS_BASIC) continue;
++        if (!isfinite(act[i]) || !isfinite(x->sol_row[i])) continue;
++        const double w = 8.0 * DBL_EPSILON * (tr[i] > 1.0 ? tr[i] : 1.0);
++        const double win = nz[i] > 1 ? w * (double)(nz[i] - 1) : w;
++        if (fabs(x->sol_row[i] - act[i]) > win) {
++            bad++;
++            if (verbose && bad <= 10)
++                fprintf(stderr, "DBG %s row %lld: sol_row %.17g act %.17g diff %.3g window %.3g traffic %.17g nnz %lld bounds [%.17g, %.17g]\n",
++                        tag, (long long)i, x->sol_row[i], act[i], fabs(x->sol_row[i] - act[i]), win, tr[i], (long long)nz[i], x->row_lower[i], x->row_upper[i]);
++        }
++    }
++    free(act); free(tr); free(nz);
++    if (bad) fprintf(stderr, "DBG %s: %d bad rows of %lld (cols %lld)\n", tag, bad, (long long)x->num_row, (long long)x->num_col);
++    return bad;
++}
+ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
+ {
+ 
+@@ -1749,6 +1781,7 @@
+             return ast;
+     }
+     const jaos_model *red = p->aggregated ? &p->stage1 : &p->reduced;
++    if (red->solve_status == JAOS_SOLVE_OPTIMAL) { if (p->aggregated) dbg_check("reduced", &p->reduced, 1); dbg_check("red", red, 1); }
+ 
+     assert(red->a_start != orig->a_start && red->a_index != orig->a_index &&
+            red->a_value != orig->a_value);
+@@ -1894,6 +1927,12 @@
+     free(rowc);
+ 
+ #ifndef NDEBUG
++    if (dbg_check("orig", orig, 1)) {
++        fprintf(stderr, "DBG aggregated %d arena %lld\n", (int)p->aggregated, (long long)p->arena_len);
++        for (int64_t r = 0; r < p->arena_len; r++)
++            fprintf(stderr, "DBG rec %lld tag %d index %lld index2 %lld value %.17g coef %.17g lo %.17g hi %.17g rlo %.17g rhi %.17g\n", (long long)r, (int)p->arena[r].tag, (long long)p->arena[r].index, (long long)p->arena[r].index2, p->arena[r].value, p->arena[r].coef, p->arena[r].lo, p->arena[r].hi, p->arena[r].row_lo, p->arena[r].row_hi);
++        if (getenv("DBG_DUMP")) { (void)jaos_write_mps(orig, getenv("DBG_DUMP")); }
++    }
+     ps_verify_row_activities(orig);
+ #endif
+ 

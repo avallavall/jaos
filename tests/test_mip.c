@@ -4893,6 +4893,61 @@ static void test_a_spent_time_limit_stops_the_tree_before_its_root(void)
     jaos_model_free(m);
 }
 
+typedef struct {
+    jaos_solve_status status;
+    int64_t work, iters;
+    jaos_mip_report rep;
+    double x[256];
+} far_run;
+
+static void far_solve(jaos_model *(*make)(void), double limit, far_run *out)
+{
+    jaos_model *m = make();
+    if (limit > 0.0)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_time_limit(m, limit));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    memset(out, 0, sizeof *out);
+    out->status = jaos_status_of(m);
+    out->work = jaos_work_units(m);
+    out->iters = jaos_iterations(m);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &out->rep));
+    TEST_ASSERT_TRUE(jaos_num_col(m) <= 256);
+    if (out->rep.has_incumbent)
+        TEST_ASSERT_EQUAL_INT(JAOS_OK,
+            jaos_mip_incumbent(m, out->x, &out->rep.incumbent));
+    jaos_model_free(m);
+}
+
+static void test_a_time_limit_never_reached_leaves_the_tree_as_it_was(void)
+{
+    jaos_model *(*const make[2])(void) = {pass_through_path, binary_cover};
+    const jaos_solve_status want[2] = {JAOS_SOLVE_OPTIMAL,
+                                       JAOS_SOLVE_NODE_LIMIT};
+    const double now = jaos_clock();
+    const double limits[2] = {1e6, now > 120.0 ? now / 2.0 : 60.0};
+    for (int k = 0; k < 2; k++) {
+        far_run plain, timed;
+        far_solve(make[k], 0.0, &plain);
+        TEST_ASSERT_EQUAL_INT(want[k], plain.status);
+        for (int t = 0; t < 2; t++) {
+            far_solve(make[k], limits[t], &timed);
+            TEST_ASSERT_EQUAL_INT(plain.status, timed.status);
+            TEST_ASSERT_EQUAL(plain.rep.has_incumbent, timed.rep.has_incumbent);
+            TEST_ASSERT_EQUAL_INT64(plain.work, timed.work);
+            TEST_ASSERT_EQUAL_INT64(plain.iters, timed.iters);
+            TEST_ASSERT_EQUAL_INT64(plain.rep.nodes, timed.rep.nodes);
+            TEST_ASSERT_EQUAL_INT64(plain.rep.lp_solves, timed.rep.lp_solves);
+            TEST_ASSERT_EQUAL_INT64(plain.rep.cuts, timed.rep.cuts);
+            TEST_ASSERT_EQUAL_INT64(plain.rep.fixed_cols, timed.rep.fixed_cols);
+            TEST_ASSERT_EQUAL_MEMORY(&plain.rep.bound, &timed.rep.bound,
+                                     sizeof plain.rep.bound);
+            TEST_ASSERT_EQUAL_MEMORY(&plain.rep.incumbent, &timed.rep.incumbent,
+                                     sizeof plain.rep.incumbent);
+            TEST_ASSERT_EQUAL_MEMORY(plain.x, timed.x, sizeof plain.x);
+        }
+    }
+}
+
 static jaos_model *identical_bins(void)
 {
     enum { K = 30, B = 30, NC = K * B, NR = K + B, NZ = 2 * NC };
@@ -7771,6 +7826,7 @@ int main(void)
     RUN_TEST(test_rins_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_a_time_limit_stops_the_root_between_its_solves);
     RUN_TEST(test_a_spent_time_limit_stops_the_tree_before_its_root);
+    RUN_TEST(test_a_time_limit_never_reached_leaves_the_tree_as_it_was);
     RUN_TEST(test_a_work_limit_holds_through_the_symmetry_search);
     RUN_TEST(test_local_branching_searches_the_incumbents_neighbourhood);
     RUN_TEST(test_estimate_order_keeps_the_optimum_and_repeats);

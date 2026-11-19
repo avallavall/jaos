@@ -1,0 +1,56 @@
+# bench/run of the change over 7b7dd94e, once without a limit and once with -O time_limit=L for each L;
+# start and end are seconds since boot (/proc/uptime), the lock wait included
+## m3a
+uptime 7254.96
+m3 none exit 0 start 7254.96 end 7737.07
+m3 1e6 exit 0 start 7737.08 end 7848.27
+m3 5000 exit 0 start 7848.28 end 8708.31
+m3: m3-1e6.txt byte-identical to m3-none.txt
+m3: m3-5000.txt byte-identical to m3-none.txt
+m3-none.txt byte-identical to bench/results/miplib.txt
+## m17a
+uptime 7837.97 bin scratch/sweep/m3a/run
+m17 none exit 1 start 7837.97 end 8674.18
+m17 5000 exit 1 start 8674.19 end 10228.97
+m17 1e6 exit 1 start 10228.97 end 10994.09
+m17: m17-5000.txt byte-identical to m17-none.txt
+m17: m17-1e6.txt byte-identical to m17-none.txt
+m17-none.txt byte-identical to bench/results/miplib2017.txt
+## netlib-a
+uptime 7257.17
+netlib none exit 0 start 7257.18 end 7310.42
+netlib 1e6 exit 0 start 7310.43 end 7363.94
+netlib 5000 exit 0 start 7363.95 end 7418.47
+netlib: netlib-1e6.txt byte-identical to netlib-none.txt
+netlib: netlib-5000.txt byte-identical to netlib-none.txt
+netlib-none.txt byte-identical to bench/results/netlib.txt
+## infeas-a
+uptime 7731.35 bin build/bench/run
+infeas none exit 0 start 7731.35 end 7733.32
+infeas 1e6 exit 0 start 7733.33 end 7735.32
+infeas 5000 exit 0 start 7735.33 end 7737.34
+infeas-none.txt byte-identical to bench/results/netlib-infeas.txt
+## m3-1e6.txt.log
+24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+## m3-5000.txt.log
+24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+## m3-none.txt.log
+24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+gate: PASS
+baseline: 0 regressed, 0 improved, 0 new, 0 at other nodes
+## m17-1e6.txt.log
+30 instances: 11 solved, 30 shape ok, 11 objective ok, 11 checker ok, 11 deterministic, 19 failed
+gate: NOT MET
+baseline: NOT COMPARED (no baseline given)
+## m17-5000.txt.log
+30 instances: 11 solved, 30 shape ok, 11 objective ok, 11 checker ok, 11 deterministic, 19 failed
+gate: NOT MET
+baseline: NOT COMPARED (no baseline given)
+## m17-none.txt.log
+30 instances: 11 solved, 30 shape ok, 11 objective ok, 11 checker ok, 11 deterministic, 19 failed
+gate: NOT MET
+baseline: NOT COMPARED (no baseline given)

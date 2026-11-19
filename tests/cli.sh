@@ -567,6 +567,16 @@ grep -q '^MIP presolve: 2 equality rows' "$tmp/mplog" \
     || flunk "no-mip-presolve: $(grep -h 'MIP presolve\|^objective' "$tmp/mplog" "$tmp/mpout")"
 expect_exit 0 "--mip-presolve is accepted" \
     "$JAOS" solve "$DATA/mp_path.lp" --mip-presolve
+far=$(awk '{ h = int($1 / 2); print (h > 60 ? h : 60) }' /proc/uptime 2>/dev/null)
+[ -n "$far" ] || far=60
+"$JAOS" solve "$DATA/mp_path.lp" --threads 1 | grep -v '^time ' >"$tmp/far0"
+for lim in 1e6 "$far"; do
+    "$JAOS" solve "$DATA/mp_path.lp" --threads 1 --time-limit "$lim" \
+        | grep -v '^time ' >"$tmp/far1"
+    grep -q '^status optimal' "$tmp/far0" && cmp -s "$tmp/far0" "$tmp/far1" \
+        && pass "a time limit of $lim s it never reaches leaves the MIP's report as it was" \
+        || flunk "a time limit of $lim s moved the MIP: $(diff "$tmp/far0" "$tmp/far1" | tr '\n' ' ')"
+done
 "$JAOS" options | grep -q '^mip_presolve ' \
     && pass "jaos options lists mip_presolve" \
     || flunk "jaos options does not list mip_presolve"

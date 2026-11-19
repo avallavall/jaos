@@ -1678,12 +1678,59 @@ JAOS_NODISCARD static bool ps_lift_ray(const jm_presolve *p, double *d)
 }
 
 #ifndef NDEBUG
+#if !defined(JAOS_PRESOLVE_FAULT_OFFBYONE) && !defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 
-static void ps_verify_row_activities(const jaos_model *orig)
+typedef struct {
+    double *act, *traffic;
+    int64_t *nnz;
+} ps_row_sums;
+
+static void ps_row_sums_free(ps_row_sums *r)
+{
+    free(r->act);
+    free(r->traffic);
+    free(r->nnz);
+}
+
+static bool ps_row_sums_of(const jaos_model *m, ps_row_sums *r)
+{
+    const size_t nr = (size_t)(m->num_row > 0 ? m->num_row : 1);
+    r->act = calloc(nr, sizeof *r->act);
+    r->traffic = calloc(nr, sizeof *r->traffic);
+    r->nnz = calloc(nr, sizeof *r->nnz);
+    if (r->act == nullptr || r->traffic == nullptr || r->nnz == nullptr) {
+        ps_row_sums_free(r);
+        return false;
+    }
+    for (int64_t j = 0; j < m->num_col; j++) {
+        const double xv = m->sol_col[j];
+        for (int64_t k = m->a_start[j]; k < m->a_start[j + 1]; k++) {
+            const int64_t i = m->a_index[k];
+            const double t = m->a_value[k] * xv;
+            r->act[i] += t;
+            r->traffic[i] += fabs(t);
+            r->nnz[i]++;
+        }
+    }
+    return true;
+}
+
+static double ps_sum_window(const ps_row_sums *r, int64_t i)
+{
+    const double w = ps_round_tol(r->traffic[i]);
+    return r->nnz[i] > 1 ? w * (double)(r->nnz[i] - 1) : w;
+}
+#endif
+
+static void ps_verify_row_activities(const jaos_model *orig,
+                                     const jaos_model *red,
+                                     const int64_t *row_map)
 {
 #if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
 
     (void)orig;
+    (void)red;
+    (void)row_map;
     return;
 #else
     if (orig->solve_status != JAOS_SOLVE_OPTIMAL)
@@ -1700,40 +1747,34 @@ static void ps_verify_row_activities(const jaos_model *orig)
         orig->sol_col == nullptr)
         return;
 
-    double *act = calloc((size_t)orig->num_row, sizeof *act);
-    double *traffic = calloc((size_t)orig->num_row, sizeof *traffic);
-    int64_t *nnz = calloc((size_t)orig->num_row, sizeof *nnz);
-    if (act == nullptr || traffic == nullptr || nnz == nullptr) {
-        free(act);
-        free(traffic);
-        free(nnz);
+    ps_row_sums o = {0}, r = {0};
+    if (!ps_row_sums_of(orig, &o))
         return;
-    }
-
-    for (int64_t j = 0; j < orig->num_col; j++) {
-        const double xv = orig->sol_col[j];
-        for (int64_t k = orig->a_start[j]; k < orig->a_start[j + 1]; k++) {
-            const int64_t i = orig->a_index[k];
-            const double t = orig->a_value[k] * xv;
-            act[i] += t;
-            traffic[i] += fabs(t);
-            nnz[i]++;
-        }
+    const bool carried = red != nullptr && red->num_row > 0 &&
+                         red->sol_row != nullptr && red->sol_col != nullptr;
+    if (carried && !ps_row_sums_of(red, &r)) {
+        ps_row_sums_free(&o);
+        return;
     }
 
     for (int64_t i = 0; i < orig->num_row; i++) {
         if (orig->sol_row_status[i] != JAOS_BASIS_BASIC)
             continue;
-        if (!isfinite(act[i]) || !isfinite(orig->sol_row[i]))
+        if (!isfinite(o.act[i]) || !isfinite(orig->sol_row[i]))
             continue;
-        const double w = ps_round_tol(traffic[i]);
-        const double window = nnz[i] > 1 ? w * (double)(nnz[i] - 1) : w;
-        assert(fabs(orig->sol_row[i] - act[i]) <= window);
+        double window = ps_sum_window(&o, i);
+        const int64_t ri = carried ? row_map[i] : -1;
+        if (ri >= 0) {
+            if (!isfinite(r.act[ri]) || !isfinite(red->sol_row[ri]))
+                continue;
+            window += ps_sum_window(&r, ri) +
+                      fabs(red->sol_row[ri] - r.act[ri]);
+        }
+        assert(fabs(orig->sol_row[i] - o.act[i]) <= window);
     }
 
-    free(act);
-    free(traffic);
-    free(nnz);
+    ps_row_sums_free(&o);
+    ps_row_sums_free(&r);
 #endif
 }
 #endif
@@ -1894,7 +1935,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_expand(jm_presolve *p)
     free(rowc);
 
 #ifndef NDEBUG
-    ps_verify_row_activities(orig);
+    ps_verify_row_activities(orig, red, p->row_map);
 #endif
 
     jm_model_publish_objective(orig);
@@ -1945,7 +1986,7 @@ JAOS_NODISCARD jaos_status jm_postsolve_solved(jm_presolve *p)
     free(rowc);
 
 #ifndef NDEBUG
-    ps_verify_row_activities(orig);
+    ps_verify_row_activities(orig, nullptr, nullptr);
 #endif
 
     jm_model_publish_objective(orig);

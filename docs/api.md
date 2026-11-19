@@ -193,7 +193,8 @@ JAOS gives bit-identical results on every machine and in every run. The
 same model with the same options gives the same answer, the same basis, the
 same `jaos_work_units` and the same files. A time limit is the one
 exception. Where `jaos_set_time_limit` stops a run depends on the clock, so
-two runs stopped by it can differ. `jaos_set_work_limit` stops a run at the
+two runs stopped by it can differ; a run it does not stop is the run without
+it. `jaos_set_work_limit` stops a run at the
 same point on every machine, because the solver counts work units in its
 kernels. `docs/work-units.md` describes that count. `jaos_solve_time` reads
 the clock, so its value changes from run to run.
@@ -1790,7 +1791,9 @@ heuristic starts. In a MIP, every relaxation the tree solves, at a node, in
 a cut round or in a heuristic, gets only the time that is left. A solve the
 limit stops keeps what it proved: its incumbent, if it has one, and as its
 bound the root relaxation's once that relaxation is solved. Without a time
-limit no step reads the clock to decide anything.
+limit no step reads the clock to decide anything, and a limit the solve does
+not reach leaves it as it is without one: the same answer, the same
+`jaos_work_units`, the same nodes.
 
 **`jaos_set_primal_tolerance`**\
 `jaos_status jaos_set_primal_tolerance(jaos_model *m, double tol)`\

@@ -14603,9 +14603,10 @@ static jaos_status bb_run_after(jaos_model *m, int64_t spent, double t0)
 
 jaos_status jm_branch_and_bound(jaos_model *m)
 {
+    const double t0 = now_seconds();
+    m->mip_started = t0;
     if (!mp_eligible(m))
         return bb_run_marked(m);
-    const double t0 = now_seconds();
     const int64_t nc = m->num_col, nr = m->num_row;
     mp_state s = {0};
     mp_user u = {0};

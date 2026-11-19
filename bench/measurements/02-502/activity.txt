@@ -1,0 +1,7 @@
+# the trace.patch build on 7b7dd94e: jaos solve sp150x300d.mps --threads 1 --work-limit 100000000 --no-mip-presolve
+DBG red row 197: sol_row 3.6652636481449008e-10 act 3.6655348831604595e-10 diff 2.71e-14 window 1.78e-15 traffic 3.6655348831604595e-10 nnz 2 bounds [-inf, 0]
+DBG red: 1 bad rows of 241 (cols 288)
+DBG orig row 448: sol_row 3.6652636481449008e-10 act 3.6655348831604595e-10 diff 2.71e-14 window 1.78e-15 traffic 3.6655348831604595e-10 nnz 2 bounds [-inf, 0]
+DBG orig: 1 bad rows of 494 (cols 600)
+DBG aggregated 0 arena 565
+jaos-trace: src/presolve.c:1731: ps_verify_row_activities: Assertion `fabs(orig->sol_row[i] - act[i]) <= window' failed.

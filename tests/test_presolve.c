@@ -1624,6 +1624,65 @@ static void test_a_node_keeps_a_fixed_column_its_start_basis_holds_basic(void)
         jaos_model_free(m);
     }
 }
+
+static void test_a_kept_row_carries_the_residual_of_the_reduced_solve(void)
+{
+#if defined(JAOS_PRESOLVE_FAULT_OFFBYONE) || defined(JAOS_PRESOLVE_FAULT_WRONGDUAL)
+    TEST_IGNORE_MESSAGE("positive test — skipped under either fault build");
+#else
+    const double c[]  = {0.0, -1.0, 0.0};
+    const double cl[] = {2.0, 0.0, 0.0}, cu[] = {2.0, 10.0, 10.0};
+    const double rl[] = {-INFINITY, -INFINITY}, ru[] = {8.0, 9.0};
+    const int64_t s[]  = {0, 2, 4, 6};
+    const int64_t ix[] = {0, 1,   0, 1,   0, 1};
+    const double v[]   = {1.0, 1.0,   1.0, 1.0,   1.0, -1.0};
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+        jaos_load_lp(m, 3, 2, JAOS_MINIMIZE, 0.0, c, cl, cu, rl, ru,
+                     6, s, ix, v));
+    jm_presolve p;
+    jm_presolve_init(&p);
+    p.orig = m;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_presolve_run(m, &p, nullptr));
+    TEST_ASSERT_EQUAL_INT(JM_PRESOLVE_REDUCED, p.outcome);
+    TEST_ASSERT_EQUAL_INT64(1, p.counts.fixed_col);
+    jaos_model *red = &p.reduced;
+    TEST_ASSERT_EQUAL_INT64(2, red->num_row);
+    TEST_ASSERT_EQUAL_INT64(2, red->num_col);
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_model_ensure_solution_arrays(red));
+    const int64_t c1 = p.col_map[1], c2 = p.col_map[2];
+    const int64_t r0 = p.row_map[0], r1 = p.row_map[1];
+    const double residual = 1e-13;
+    red->sol_col[c1] = 6.0;
+    red->sol_col[c2] = 0.0;
+    red->sol_redcost[c1] = 0.0;
+    red->sol_redcost[c2] = 1.0;
+    red->sol_col_status[c1] = JAOS_BASIS_BASIC;
+    red->sol_col_status[c2] = JAOS_BASIS_AT_LOWER;
+    red->sol_row[r0] = 6.0;
+    red->sol_row[r1] = 6.0 + residual;
+    red->sol_dual[r0] = -1.0;
+    red->sol_dual[r1] = 0.0;
+    red->sol_row_status[r0] = JAOS_BASIS_AT_UPPER;
+    red->sol_row_status[r1] = JAOS_BASIS_BASIC;
+    red->objective = -6.0;
+    red->solve_status = JAOS_SOLVE_OPTIMAL;
+    red->sol_basis_ok = true;
+
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_postsolve_expand(&p));
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, m->solve_status);
+    const double ex0 = 2.0, ex1 = 6.0, row0 = 8.0;
+    TEST_ASSERT_EQUAL_MEMORY(&ex0, &m->sol_col[0], sizeof ex0);
+    TEST_ASSERT_EQUAL_MEMORY(&ex1, &m->sol_col[1], sizeof ex1);
+    TEST_ASSERT_EQUAL_MEMORY(&row0, &m->sol_row[0], sizeof row0);
+    TEST_ASSERT_EQUAL_INT(JAOS_BASIS_BASIC, m->sol_row_status[1]);
+    TEST_ASSERT_DOUBLE_WITHIN(4.0 * DBL_EPSILON * 8.0, residual,
+                              m->sol_row[1] - 8.0);
+    jm_presolve_free(&p);
+    jaos_model_free(m);
+#endif
+}
 #endif
 
 static void test_an_implied_bound_at_exact_equality_is_declined(void)
@@ -3438,6 +3497,7 @@ int main(void)
     RUN_TEST(test_the_implied_free_counter_reads_its_three_models);
     RUN_TEST(test_a_range_row_that_shifted_into_an_equality_is_declined);
     RUN_TEST(test_a_node_keeps_a_fixed_column_its_start_basis_holds_basic);
+    RUN_TEST(test_a_kept_row_carries_the_residual_of_the_reduced_solve);
 #endif
 
     RUN_TEST(test_empty_row_reports_infeasible);

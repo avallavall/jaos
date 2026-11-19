@@ -396,11 +396,14 @@ bits it finds are charged. On a model whose nonbasic set is a small
 fraction of its variables, the scan pays `nvar/64` reads and bills almost
 nothing.
 
-**The clock.** A time limit is read once every 64 iterations in the
-simplex and PDLP, once per iteration in the barrier and the conic interior
-point, and once per node in both trees. It can stop a solve. It never
-chooses a pivot. This is why the work limit and the time limit are
-separate calls, and why only the work limit is reproducible.
+**The clock.** A time limit is read once per iteration in the simplex,
+the barrier and the conic interior point, once every 64 iterations in PDLP,
+once per node in both trees, and at the steps before and around a tree that
+`jaos_set_time_limit` in `docs/api.md` lists. Without a limit nothing reads
+it. It can stop a solve. It never chooses a pivot, and a limit the solve
+does not reach leaves every count as it is without one. This is why the
+work limit and the time limit are separate calls, and why only the work
+limit is reproducible.
 
 ## There is no per-iteration constant
 

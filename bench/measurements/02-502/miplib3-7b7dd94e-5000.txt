@@ -1,0 +1,19 @@
+# 7b7dd94e: bench/run -j 2 -m bench/miplib.manifest -e mip -d bench/instances-miplib -O time_limit=5000, at an uptime of 7728 s,
+# against bench/results/miplib.txt of 7b7dd94e (diff old new)
+6c6
+< egout        optimal    rows=98 cols=141 shape=ok iters=121 work=1169208 nodes=1 cuts=53 heur=0 first=1 obj=568.10069999999996 ref=568.10069999999996[miplib3] objective=ok checker=ok (col=0 row=1.87e-14 int=0) det=ok digest=f1567eced7be38c2 basis=cc0122d09df4417c
+---
+> egout        optimal    rows=98 cols=141 shape=ok iters=120 work=2543926 nodes=1 cuts=61 heur=0 first=1 obj=568.10069999999996 ref=568.10069999999996[miplib3] objective=ok checker=ok (col=0 row=1.87e-14 int=0) det=DIVERGED digest=f1567eced7be38c2 basis=cc0122d09df4417c
+26,27c26,27
+< 24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 24 deterministic, 0 failed
+< gate: PASS
+---
+> 24 instances: 24 solved, 24 shape ok, 24 objective ok, 24 checker ok, 23 deterministic, 0 failed
+> gate: NOT MET
+# its log
+time: INFLATED -- 2 solves ran at once. For a time ratio, rerun with -j 1.
+
+-- against baseline --
+egout        REGRESSED    det: yes -> no (optimal -> optimal)
+egout        REGRESSED    work: 1169208 -> 2543926 (2.2x), iters 121 -> 120
+baseline: 2 regressed, 0 improved, 0 new, 0 at other nodes

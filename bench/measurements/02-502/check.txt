@@ -1,0 +1,81 @@
+# 7b7dd94e, release: the points the time-limited runs return, judged by jaos check
+## jaos solve sp150x300d.mps --threads 1 --work-limit 100000000 --time-limit 1200 --pool-out tl
+status work_limit
+work_units 100000399
+nodes 512
+bound 68
+incumbent 69
+pool_files 1
+## jaos check sp150x300d.mps --point tl-0.pt
+status point
+max_col_violation 0
+max_row_violation 0
+max_row_violation_relative 0
+max_dual_violation 0
+primal_objective 69
+dual_objective 0
+objective_gap 0
+gap_positive 0
+gap_negative 0
+max_dropped_multiplier 0
+dropped_terms 0
+certified_suboptimality 0
+unquantified_rays 0
+relative_suboptimality 0
+primal_feasible yes
+dual_feasible no
+checked_duals no
+gap_certified no
+max_dual_violation_relative 0
+## jaos solve sp150x300d.mps --threads 1 --time-limit 1200 --solution tlfull.sol
+status optimal
+objective 69
+work_units 110597489
+nodes 591
+## jaos check sp150x300d.mps tlfull.sol
+status optimal
+max_col_violation 0
+max_row_violation 0
+max_row_violation_relative 0
+max_dual_violation 0
+primal_objective 69
+dual_objective 0
+objective_gap 0
+gap_positive 0
+gap_negative 0
+max_dropped_multiplier 0
+dropped_terms 0
+certified_suboptimality 0
+unquantified_rays 0
+relative_suboptimality 0
+primal_feasible yes
+dual_feasible no
+checked_duals no
+gap_certified no
+max_dual_violation_relative 0
+## jaos solve sp150x300d.mps --threads 1 --solution plain.sol
+status optimal
+objective 69
+work_units 16715755
+nodes 2
+## jaos check sp150x300d.mps plain.sol
+status optimal
+max_col_violation 0
+max_row_violation 0
+max_row_violation_relative 0
+max_dual_violation 0
+primal_objective 69
+dual_objective 0
+objective_gap 0
+gap_positive 0
+gap_negative 0
+max_dropped_multiplier 0
+dropped_terms 0
+certified_suboptimality 0
+unquantified_rays 0
+relative_suboptimality 0
+primal_feasible yes
+dual_feasible no
+checked_duals no
+gap_certified no
+max_dual_violation_relative 0
