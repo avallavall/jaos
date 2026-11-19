@@ -115,10 +115,20 @@ the reach walk examines and one per word and per entry of the pattern
 sort. Both directions charge the same way. The reach walk is billed,
 although it replaces an unbilled pass over every slot, so on hyper-sparse
 instances the counter can read slightly above the full pass while fewer
-instructions run (`FTRAN_HYPER_DEN` in `tolerances.md`).
+instructions run (`FTRAN_HYPER_DEN` in `tolerances.md`). The dual
+simplex hands the solves of an iteration (the entering column, the unit
+row of the leaving one, the bound flips and the steepest-edge weight row)
+the pattern of their right-hand side, and each keeps the list of the
+entries it wrote, so the hyper-sparse form starts from that pattern and
+the next solve clears only those entries, with no pass over every slot.
+The charges are the ones above; neither the patterns nor the clearing is
+billed.
 
 **Basis update** (`jm_lu_update`): `JM_WORK_UPDATE` for the floor, plus
-`JM_WORK_ELIMINATED` per entry of the eliminated row.
+`JM_WORK_ELIMINATED` per entry of the eliminated row. The update walks
+that row's entries in the order of U through a heap, and the replaced
+slot takes a position after the last one instead of shifting every slot
+behind it; the pattern sort bills its words as if the order had no gaps.
 
 **Pricing** (`src/simplex.c`): the pricing row `rho' M_v` charges the
 nonzeros of column `v`: one for a logical, `nnz` for a structural. The
@@ -128,7 +138,8 @@ whose nonbasic entries come first in each row, and `touched` counts those
 entries only. Keeping that copy in step charges the nonzeros of each
 column that enters or leaves the basis, and rebuilding it after a new
 basis charges `nnz + nrow`. The row scan that picks which infeasibility to
-repair charges one per row. Scanning the candidates charges one per live
+repair charges one per row; it reads the rows outside their bounds from a
+bitmap kept as their values change. Scanning the candidates charges one per live
 candidate, and the Harris two-pass over them charges two.
 
 **Ordering the pricing row's pattern** charges one per position the

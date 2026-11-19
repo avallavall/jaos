@@ -1,0 +1,14 @@
+# 02-501 pair.sh: before jaos-before, after jaos-after; 300 s, --threads 1, jobs 2, cap 6 GB
+# machine: Linux x86_64 AMD Ryzen 5 9600X 6-Core Processor
+# load 6.68 4.01 4.59 at start, 5.04 7.18 7.29 at end; 1340 s
+# instance leg status objective nodes seconds work_units wall_seconds peak_kb load_at_start load_at_end
+neos-5114902-kasavu	before	time_limit		1	297.278418	41408139480	300.50	2342152	6.68	5.78
+neos-5114902-kasavu	after	time_limit		1	297.163636	64998981587	300.44	2481044	6.68	5.78
+square41	before	time_limit	42	1	294.495135	203050073655	300.60	2733016	5.78	6.57
+square41	after	time_limit	42	1	294.984867	204731194439	301.03	2787696	5.78	6.57
+square47	before	time_limit		1	285.427426	155390643968	300.46	3412588	6.57	8.39
+square47	after	time_limit		1	285.695805	157552570821	300.49	3412372	6.57	8.39
+k1mushroom	before	fail					134.98	4805304	8.39	11.70
+k1mushroom	after	fail					126.48	4836068	8.39	12.29
+academictimetablesmall	before	time_limit		1	302.751701	213973797684	303.07	4893364	12.29	5.15
+academictimetablesmall	after	time_limit		1	303.153025	213973797684	303.47	4905436	11.70	5.04

@@ -281,9 +281,13 @@ void jm_lu_free(jm_lu *lu)
     jm_svec_free(&lu->ft);
     free(lu->ft_source);
     free(lu->slot_at); free(lu->pos_of);
+    free(lu->dead); free(lu->heap);
     free(lu->perm_row); free(lu->perm_col);
     free(lu->inv_col);
     free(lu->tmp);
+    free(lu->ys);
+    free(lu->inv_row);
+    free(lu->cand);
     free(lu->spike);
     free(lu->spike_pat);
     free(lu->zrow);
@@ -467,13 +471,21 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         lu->keep->col = jm_calloc_array(dim, sizeof(jm_svec));
         lu->keep->row = jm_calloc_array(dim, sizeof(pat));
     }
-    lu->slot_at  = jm_alloc_array(dim, sizeof(int64_t));
+    lu->pos_cap  = dim + dim / 2 + 1;
+    lu->slot_at  = jm_alloc_array(lu->pos_cap, sizeof(int64_t));
     lu->pos_of   = jm_alloc_array(dim, sizeof(int64_t));
+    lu->dead     = jm_alloc_array(lu->pos_cap - dim, sizeof(int64_t));
+    lu->heap     = jm_alloc_array(dim, sizeof(int64_t));
+    lu->top      = dim;
+    lu->ndead    = 0;
     lu->perm_row = jm_alloc_array(dim, sizeof(int64_t));
     lu->perm_col = jm_alloc_array(dim, sizeof(int64_t));
     lu->inv_col  = jm_alloc_array(dim, sizeof(int64_t));
     lu->tmp      = jm_alloc_array(dim, sizeof(double));
-    lu->spike    = jm_alloc_array(dim, sizeof(double));
+    lu->ys       = jm_calloc_array(dim, sizeof(double));
+    lu->cand     = jm_alloc_array(dim, sizeof(int64_t));
+    lu->spike    = jm_calloc_array(dim, sizeof(double));
+    lu->spike_live = 0;
     lu->zrow     = jm_calloc_array(dim, sizeof(double));
     lu->spike_pat = jm_alloc_array(dim, sizeof(int64_t));
 
@@ -482,7 +494,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     lu->dfs_node = jm_alloc_array(dim, sizeof(int64_t));
     lu->dfs_next = jm_alloc_array(dim, sizeof(int64_t));
     lu->pattern  = jm_alloc_array(dim, sizeof(int64_t));
-    lu->bits     = jm_calloc_array((dim + 63) / 64 + 1, sizeof(uint64_t));
+    lu->bits     = jm_calloc_array((lu->pos_cap + 63) / 64 + 1,
+                                   sizeof(uint64_t));
 
     e.col       = lu->keep ? lu->keep->col : nullptr;
     e.row       = lu->keep ? lu->keep->row : nullptr;
@@ -503,8 +516,10 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.rowval    = jm_alloc_array(dim, sizeof(double));
 
     if (!us_start || !inv_row || !lu->l_start || !lu->u_diag || !lu->urow ||
-        !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->perm_row ||
-        !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->spike || !lu->zrow || !lu->spike_pat ||
+        !lu->ucol || !lu->slot_at || !lu->pos_of || !lu->dead ||
+        !lu->heap || !lu->perm_row ||
+        !lu->perm_col || !lu->inv_col || !lu->tmp || !lu->ys || !lu->cand ||
+        !lu->spike || !lu->zrow || !lu->spike_pat ||
         !lu->mark || !lu->dfs_node || !lu->dfs_next || !lu->pattern ||
         !lu->bits ||
         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
@@ -741,7 +756,10 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
 
 done:
     free(us_start);
-    free(inv_row);
+    if (st == JAOS_OK)
+        lu->inv_row = inv_row;
+    else
+        free(inv_row);
     jm_svec_free(&lacc);
     jm_svec_free(&uacc);
     elim_free(&e);
@@ -755,6 +773,14 @@ done:
 #endif
 constexpr int64_t FTRAN_HYPER_DEN = JAOS_FTRAN_HYPER_DEN;
 constexpr double FTRAN_DENSITY_KEEP = 0.9;
+
+static int64_t pos_rank(const jm_lu *lu, int64_t p)
+{
+    int64_t below = 0;
+    for (int64_t k = 0; k < lu->ndead; k++)
+        below += lu->dead[k] < p;
+    return p - below;
+}
 
 static void ftran_prefix(const jm_lu *lu, const double *b, double *y,
                          jm_work *w)
@@ -827,8 +853,10 @@ static int64_t ftran_reach(jm_lu *lu, int64_t n_in, bool through_u,
 
 static void ftran_u_dense(jm_lu *lu, double *y, jm_work *w)
 {
-    for (int64_t k = lu->dim - 1; k >= 0; k--) {
+    for (int64_t k = lu->top - 1; k >= 0; k--) {
         const int64_t s = lu->slot_at[k];
+        if (s < 0)
+            continue;
         const double z = y[s] / lu->u_diag[s];
         y[s] = z;
         if (z == 0.0)
@@ -863,6 +891,7 @@ static void keep_spike(jm_lu *lu, const double *y, int64_t units,
                        const int64_t *pat, int64_t npat)
 {
     memcpy(lu->spike, y, (size_t)lu->dim * sizeof *y);
+    lu->spike_live = -1;
     lu->spike_work = units;
     lu->spike_kept = true;
     lu->nspike = -1;
@@ -874,23 +903,44 @@ static void keep_spike(jm_lu *lu, const double *y, int64_t units,
     }
 }
 
+static void keep_spike_in(jm_lu *lu, const double *y, int64_t units,
+                          const int64_t *pat, int64_t npat)
+{
+    if (lu->spike_live < 0)
+        memset(lu->spike, 0, (size_t)lu->dim * sizeof *lu->spike);
+    else
+        for (int64_t k = 0; k < lu->spike_live; k++)
+            lu->spike[lu->spike_pat[k]] = 0.0;
+    for (int64_t k = 0; k < npat; k++)
+        lu->spike[pat[k]] = y[pat[k]];
+    lu->spike_work = units;
+    lu->spike_kept = true;
+    memcpy(lu->spike_pat, pat, (size_t)npat * sizeof *pat);
+    int64_t words = 0;
+    lu->nspike = jm_pattern_order(npat, lu->spike_pat, lu->bits, lu->dim,
+                                  &words);
+    lu->spike_live = lu->nspike;
+}
+
 static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
-                      int64_t *npat, bool keep)
+                      int64_t *npat, bool keep, int cls, const int64_t *in,
+                      int64_t nin, int64_t *wrote, int64_t *nwrote)
 {
     const int64_t n = lu->dim;
-    double *y = lu->tmp;
 
     if (keep)
         lu->spike_kept = false;
     if (npat != nullptr)
         *npat = 0;
+    if (nwrote != nullptr)
+        *nwrote = -1;
     if (lu->rank != n || n == 0)
         return;
 
-    const int cls = pat != nullptr;
     const bool hyper = lu->ftran_density[cls] * FTRAN_HYPER_DEN < 1.0;
     int64_t nz = 0;
     jm_work pw = {0};
+    double *y = in != nullptr && hyper ? lu->ys : lu->tmp;
 
     if (!hyper) {
         ftran_prefix(lu, x, y, &pw);
@@ -901,13 +951,26 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
         nz = ftran_scatter_all(lu, y, x, pat, npat);
     } else {
         int64_t nroot = 0;
-        for (int64_t s = 0; s < n; s++) {
-            const int64_t row = lu->perm_row[s];
-            const double v = x[row];
-            y[s] = v;
-            if (v != 0.0) {
-                lu->pattern[nroot++] = s;
-                x[row] = 0.0;
+        if (in == nullptr) {
+            for (int64_t s = 0; s < n; s++) {
+                const int64_t row = lu->perm_row[s];
+                const double v = x[row];
+                y[s] = v;
+                if (v != 0.0) {
+                    lu->pattern[nroot++] = s;
+                    x[row] = 0.0;
+                }
+            }
+        } else {
+            for (int64_t k = 0; k < nin; k++) {
+                const int64_t row = in[k];
+                const double v = x[row];
+                if (v != 0.0) {
+                    const int64_t s = lu->inv_row[row];
+                    y[s] = v;
+                    lu->pattern[nroot++] = s;
+                    x[row] = 0.0;
+                }
             }
         }
 
@@ -936,17 +999,27 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
         }
         jm_work_add(&pw, lu->ft.n * JM_WORK_NONZERO);
         jm_work_add(w, pw.units);
-        if (keep)
-            keep_spike(lu, y, pw.units, lu->pattern, nl);
+        if (keep) {
+            if (in == nullptr)
+                keep_spike(lu, y, pw.units, lu->pattern, nl);
+            else
+                keep_spike_in(lu, y, pw.units, lu->pattern, nl);
+        }
 
         if (nl * FTRAN_HYPER_DEN >= n) {
             ftran_u_dense(lu, y, w);
             nz = ftran_scatter_all(lu, y, x, pat, npat);
+            if (in != nullptr)
+                memset(y, 0, (size_t)n * sizeof *y);
         } else {
             int64_t nu = ftran_reach(lu, nl, true, w);
             for (int64_t k = 0; k < nu; k++)
                 lu->dfs_next[k] = lu->pos_of[lu->pattern[k]];
-            nu = jm_pattern_order(nu, lu->dfs_next, lu->bits, n, &words);
+            nu = jm_pattern_order(nu, lu->dfs_next, lu->bits, lu->top,
+                                  &words);
+            if (lu->ndead > 0 && nu > 0)
+                words = (pos_rank(lu, lu->dfs_next[nu - 1]) >> 6) -
+                        (pos_rank(lu, lu->dfs_next[0]) >> 6) + 1;
             jm_work_add(w, (nu + words) * JM_WORK_NONZERO);
             for (int64_t k = nu - 1; k >= 0; k--) {
                 const int64_t s = lu->slot_at[lu->dfs_next[k]];
@@ -973,6 +1046,16 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
             }
             if (npat != nullptr)
                 *npat = nz;
+            if (in != nullptr) {
+                for (int64_t t = 0; t < nu; t++) {
+                    const int64_t s = lu->slot_at[lu->dfs_next[t]];
+                    y[s] = 0.0;
+                    if (wrote != nullptr)
+                        wrote[t] = lu->perm_col[s];
+                }
+                if (nwrote != nullptr)
+                    *nwrote = nu;
+            }
         }
     }
 
@@ -984,16 +1067,27 @@ static void ftran_any(jm_lu *lu, double *x, jm_work *w, int64_t *pat,
 void jm_lu_ftran_sparse(jm_lu *lu, double *x, jm_work *w,
                         int64_t *pat, int64_t *npat)
 {
-    ftran_any(lu, x, w, pat, npat, false);
+    ftran_any(lu, x, w, pat, npat, false, pat != nullptr, nullptr, 0,
+              nullptr, nullptr);
 }
 
 void jm_lu_ftran_keep(jm_lu *lu, double *x, jm_work *w,
                       int64_t *pat, int64_t *npat)
 {
-    ftran_any(lu, x, w, pat, npat, true);
+    ftran_any(lu, x, w, pat, npat, true, pat != nullptr, nullptr, 0,
+              nullptr, nullptr);
 }
 
-static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
+void jm_lu_ftran_in(jm_lu *lu, double *x, const int64_t *in, int64_t nin,
+                    int cls, bool keep, jm_work *w, int64_t *pat,
+                    int64_t *npat, int64_t *wrote, int64_t *nwrote)
+{
+    ftran_any(lu, x, w, pat, npat, keep, cls, in, nin, wrote, nwrote);
+}
+
+static int64_t btran_u_pattern(jm_lu *lu, const double *y,
+                               const int64_t *roots, int64_t nroots,
+                               jm_work *w)
 {
     const int64_t n = lu->dim;
     int64_t top = n;
@@ -1002,7 +1096,9 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
     lu->stamp++;
 
     assert(lu->stamp > 0);
-    for (int64_t root = 0; root < n; root++) {
+    const int64_t nr = roots != nullptr ? nroots : n;
+    for (int64_t kr = 0; kr < nr; kr++) {
+        const int64_t root = roots != nullptr ? roots[kr] : kr;
         if (y[root] == 0.0 || lu->mark[root] == lu->stamp)
             continue;
 
@@ -1045,7 +1141,9 @@ static int64_t btran_u_pattern(jm_lu *lu, const double *y, jm_work *w)
     return top;
 }
 
-static int64_t btran_l_pattern(jm_lu *lu, const double *y, jm_work *w)
+static int64_t btran_l_pattern(jm_lu *lu, const double *y,
+                               const int64_t *roots, int64_t nroots,
+                               jm_work *w)
 {
     const int64_t n = lu->dim;
     int64_t top = n;
@@ -1053,7 +1151,9 @@ static int64_t btran_l_pattern(jm_lu *lu, const double *y, jm_work *w)
 
     lu->stamp++;
     assert(lu->stamp > 0);
-    for (int64_t root = 0; root < n; root++) {
+    const int64_t nr = roots != nullptr ? nroots : n;
+    for (int64_t kr = 0; kr < nr; kr++) {
+        const int64_t root = roots != nullptr ? roots[kr] : kr;
         if (y[root] == 0.0 || lu->mark[root] == lu->stamp)
             continue;
 
@@ -1114,7 +1214,7 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
     for (int64_t s = 0; s < n; s++)
         y[s] = x[lu->perm_col[s]];
 
-    const int64_t first = btran_u_pattern(lu, y, w);
+    const int64_t first = btran_u_pattern(lu, y, nullptr, 0, w);
     for (int64_t k = first; k < n; k++) {
         int64_t s = lu->pattern[k];
         const jm_svec *col = &lu->ucol[s];
@@ -1129,7 +1229,7 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
         y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
     jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
 
-    const int64_t lfirst = btran_l_pattern(lu, y, w);
+    const int64_t lfirst = btran_l_pattern(lu, y, nullptr, 0, w);
     for (int64_t k = lfirst; k < n; k++) {
         const int64_t s = lu->pattern[k];
         double sum = y[s];
@@ -1153,6 +1253,154 @@ void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
             pat[k++] = row;
     }
     *npat = k;
+}
+
+void jm_lu_btran_in(jm_lu *lu, double *x, const int64_t *in, int64_t nin,
+                    jm_work *w, int64_t *pat, int64_t *npat, int64_t *wrote,
+                    int64_t *nwrote)
+{
+    const int64_t n = lu->dim;
+    double *y = lu->ys;
+
+    if (npat != nullptr)
+        *npat = 0;
+    if (nwrote != nullptr)
+        *nwrote = -1;
+    if (lu->rank != n)
+        return;
+
+    int64_t nroot = 0;
+    for (int64_t k = 0; k < nin; k++) {
+        const int64_t row = in[k];
+        const double v = x[row];
+        x[row] = 0.0;
+        if (v != 0.0) {
+            const int64_t s = lu->inv_col[row];
+            if (y[s] == 0.0)
+                lu->cand[nroot++] = s;
+            y[s] = v;
+        }
+    }
+
+    const int64_t first = btran_u_pattern(lu, y, lu->cand, nroot, w);
+    for (int64_t k = first; k < n; k++) {
+        int64_t s = lu->pattern[k];
+        const jm_svec *col = &lu->ucol[s];
+        double sum = y[s];
+        for (int64_t p = 0; p < col->n; p++)
+            sum -= col->val[p] * y[col->idx[p]];
+        y[s] = sum / lu->u_diag[s];
+        jm_work_add(w, col->n * JM_WORK_NONZERO);
+    }
+
+    for (int64_t k = lu->ft.n - 1; k >= 0; k--)
+        y[lu->ft_source[k]] -= lu->ft.val[k] * y[lu->ft.idx[k]];
+    jm_work_add(w, lu->ft.n * JM_WORK_NONZERO);
+
+    const int64_t stamp = ++lu->stamp;
+    int64_t nc = 0;
+    for (int64_t k = first; k < n; k++) {
+        const int64_t s = lu->pattern[k];
+        lu->mark[s] = stamp;
+        lu->cand[nc++] = s;
+    }
+    for (int64_t k = 0; k < lu->ft.n; k++) {
+        const int64_t s = lu->ft_source[k];
+        if (lu->mark[s] != stamp) {
+            lu->mark[s] = stamp;
+            lu->cand[nc++] = s;
+        }
+    }
+
+    const int64_t lfirst = btran_l_pattern(lu, y, lu->cand, nc, w);
+    for (int64_t k = lfirst; k < n; k++) {
+        const int64_t s = lu->pattern[k];
+        double sum = y[s];
+        for (int64_t p = lu->l_start[s]; p < lu->l_start[s + 1]; p++)
+            sum -= lu->l_value[p] * y[lu->l_index[p]];
+        y[s] = sum;
+        jm_work_add(w, (lu->l_start[s + 1] - lu->l_start[s]) * JM_WORK_NONZERO);
+    }
+
+    const int64_t stamp2 = ++lu->stamp;
+    int64_t k = 0, nw = 0;
+    for (int64_t t = 0; t < nc + (n - lfirst); t++) {
+        const int64_t s = t < nc ? lu->cand[t] : lu->pattern[lfirst + t - nc];
+        if (lu->mark[s] == stamp2)
+            continue;
+        lu->mark[s] = stamp2;
+        const double v = y[s];
+        y[s] = 0.0;
+        const int64_t row = lu->perm_row[s];
+        x[row] = v;
+        if (wrote != nullptr)
+            wrote[nw] = row;
+        nw++;
+        if (v != 0.0 && pat != nullptr)
+            pat[k] = row;
+        if (v != 0.0)
+            k++;
+    }
+    if (npat != nullptr)
+        *npat = k;
+    if (nwrote != nullptr)
+        *nwrote = nw;
+}
+
+static bool pos_grow(jm_lu *lu)
+{
+    const int64_t cap = lu->pos_cap + lu->pos_cap / 2 + 1;
+    int64_t *slot = jm_realloc_array(lu->slot_at, cap, sizeof *slot);
+    if (slot == nullptr)
+        return false;
+    lu->slot_at = slot;
+    int64_t *dead = jm_realloc_array(lu->dead, cap - lu->dim, sizeof *dead);
+    if (dead == nullptr)
+        return false;
+    lu->dead = dead;
+    const int64_t old_words = (lu->pos_cap + 63) / 64 + 1;
+    const int64_t words = (cap + 63) / 64 + 1;
+    uint64_t *bits = jm_realloc_array(lu->bits, words, sizeof *bits);
+    if (bits == nullptr)
+        return false;
+    memset(bits + old_words, 0, (size_t)(words - old_words) * sizeof *bits);
+    lu->bits = bits;
+    lu->pos_cap = cap;
+    return true;
+}
+
+static void heap_push(int64_t *h, int64_t *n, int64_t v)
+{
+    int64_t i = (*n)++;
+    while (i > 0) {
+        const int64_t up = (i - 1) / 2;
+        if (h[up] <= v)
+            break;
+        h[i] = h[up];
+        i = up;
+    }
+    h[i] = v;
+}
+
+static int64_t heap_pop(int64_t *h, int64_t *n)
+{
+    const int64_t top = h[0];
+    const int64_t v = h[--(*n)];
+    int64_t i = 0;
+    for (;;) {
+        int64_t c = 2 * i + 1;
+        if (c >= *n)
+            break;
+        if (c + 1 < *n && h[c + 1] < h[c])
+            c++;
+        if (h[c] >= v)
+            break;
+        h[i] = h[c];
+        i = c;
+    }
+    if (*n > 0)
+        h[i] = v;
+    return top;
 }
 
 static bool ft_push(jm_lu *lu, int64_t target, int64_t source, double factor)
@@ -1203,6 +1451,7 @@ static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
 #endif
     } else {
         ftran_prefix(lu, new_col, sp, w);
+        lu->spike_live = -1;
     }
     lu->spike_kept = false;
 
@@ -1216,9 +1465,21 @@ static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
     const double drop = lu->drop;
 
     const int64_t p = lu->pos_of[s_out];
+    if (lu->top >= lu->pos_cap && !pos_grow(lu)) {
+        lu->rank = -1;
+        return JAOS_ERR_OUT_OF_MEMORY;
+    }
 
-    for (int64_t k = 0; k < lu->urow[s_out].n; k++)
-        row[lu->urow[s_out].idx[k]] = lu->urow[s_out].val[k];
+    const int64_t stamp = ++lu->stamp;
+    int64_t nheap = 0;
+    for (int64_t k = 0; k < lu->urow[s_out].n; k++) {
+        const int64_t c = lu->urow[s_out].idx[k];
+        row[c] = lu->urow[s_out].val[k];
+        if (lu->mark[c] != stamp) {
+            lu->mark[c] = stamp;
+            heap_push(lu->heap, &nheap, lu->pos_of[c]);
+        }
+    }
     row[s_out] = sp[s_out];
 
     for (int64_t k = 0; k < lu->urow[s_out].n; k++)
@@ -1239,20 +1500,21 @@ static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         }
     }
 
-    for (int64_t k = p; k < n - 1; k++) {
-        lu->slot_at[k] = lu->slot_at[k + 1];
-        lu->pos_of[lu->slot_at[k]] = k;
-    }
-    lu->slot_at[n - 1] = s_out;
-    lu->pos_of[s_out] = n - 1;
+    lu->slot_at[p] = -1;
+    lu->dead[lu->ndead++] = p;
+    lu->slot_at[lu->top] = s_out;
+    lu->pos_of[s_out] = lu->top;
+    lu->top++;
 #ifndef NDEBUG
 
     for (int64_t k = 0; k < lu->ucol[s_out].n; k++)
-        assert(lu->pos_of[lu->ucol[s_out].idx[k]] < n - 1);
+        assert(lu->pos_of[lu->ucol[s_out].idx[k]] < lu->top - 1);
 #endif
 
-    for (int64_t k = p; k < n - 1; k++) {
+    while (nheap > 0) {
+        const int64_t k = heap_pop(lu->heap, &nheap);
         int64_t s = lu->slot_at[k];
+        assert(s >= 0 && s != s_out && k > p);
         if (fabs(row[s]) <= drop) {
             row[s] = 0.0;
             continue;
@@ -1260,8 +1522,14 @@ static jaos_status lu_update(jm_lu *lu, int64_t col_out, const double *new_col,
         double factor = row[s] / lu->u_diag[s];
         row[s] = 0.0;
         const jm_svec *r = &lu->urow[s];
-        for (int64_t q = 0; q < r->n; q++)
-            row[r->idx[q]] -= factor * r->val[q];
+        for (int64_t q = 0; q < r->n; q++) {
+            const int64_t c = r->idx[q];
+            row[c] -= factor * r->val[q];
+            if (c != s_out && lu->mark[c] != stamp) {
+                lu->mark[c] = stamp;
+                heap_push(lu->heap, &nheap, lu->pos_of[c]);
+            }
+        }
         jm_work_add(w, r->n * JM_WORK_ELIMINATED);
 
         if (!ft_push(lu, s_out, s, factor)) {

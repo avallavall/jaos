@@ -784,6 +784,11 @@ typedef struct {
 
     int64_t *slot_at;
     int64_t *pos_of;
+    int64_t top;
+    int64_t pos_cap;
+    int64_t *dead;
+    int64_t ndead;
+    int64_t *heap;
 
     int64_t *perm_row;
     int64_t *perm_col;
@@ -792,12 +797,16 @@ typedef struct {
     double drop;
 
     double *tmp;
+    double *ys;
+    int64_t *inv_row;
+    int64_t *cand;
     double *spike;
     double *zrow;
     bool spike_kept;
     int64_t spike_work;
     int64_t *spike_pat;
     int64_t nspike;
+    int64_t spike_live;
 
     int64_t *mark;
     int64_t stamp;
@@ -838,6 +847,14 @@ void jm_lu_ftran_keep(jm_lu *lu, double *x, jm_work *w,
 
 void jm_lu_btran_sparse(jm_lu *lu, double *x, jm_work *w,
                         int64_t *pat, int64_t *npat);
+
+void jm_lu_ftran_in(jm_lu *lu, double *x, const int64_t *in, int64_t nin,
+                    int cls, bool keep, jm_work *w, int64_t *pat,
+                    int64_t *npat, int64_t *wrote, int64_t *nwrote);
+
+void jm_lu_btran_in(jm_lu *lu, double *x, const int64_t *in, int64_t nin,
+                    jm_work *w, int64_t *pat, int64_t *npat, int64_t *wrote,
+                    int64_t *nwrote);
 
 JAOS_NODISCARD jaos_status jm_lu_update(jm_lu *lu, int64_t col_out,
     const double *new_col, double min_pivot_ratio, jm_work *w);

@@ -1,0 +1,43 @@
+# 02-491's run.sh (a copy that takes the binary) with the before build alone, on the instances the pairs left out; 300 s, --threads 1 --log summary, jobs 3 (bohle and k1mushroom alone, cap 9 GB)
+# instance solver status objective nodes seconds reference source wall_seconds peak_kb
+CMS750_4	jaos	time_limit	645	1	300.064760	252	miplib2017	300.15	196392
+atlanta-ip	jaos	time_limit		1	299.982044	90.009878614	miplib2017	300.18	301004
+bnatt400	jaos	time_limit		1	300.032838	1	miplib2017	300.10	477856
+bnatt500	jaos	time_limit		1	299.994572	0	infeasible	300.06	376544
+brazil3	jaos	time_limit		1	301.131407	24	miplib2017	301.29	1953244
+chromaticindex512-7	jaos	time_limit		1	299.885035	4	miplib2017	300.06	294868
+cod105	jaos	time_limit	-1	1	300.106863	-12	miplib2017	300.19	366444
+comp07-2idx	jaos	time_limit		1	301.607185	6	miplib2017	301.78	960412
+comp21-2idx	jaos	time_limit		1	300.001365	74	miplib2017	300.13	623520
+cvs16r128-89	jaos	time_limit	-2	1	300.206956	-97	miplib2017	300.32	2343444
+dano3_3	jaos	time_limit		1	299.986762	576.34463303	miplib2017	300.05	133280
+dano3_5	jaos	time_limit		1	299.973872	576.9249159565619	miplib2017	300.05	83892
+fiball	jaos	time_limit	154	1	299.994195	138	miplib2017	300.11	357992
+graph20-20-1rand	jaos	time_limit	-1	1	300.049976	-9	miplib2017	300.12	631136
+k1mushroom	jaos	time_limit		1	300.248554	-3288	miplib2017	301.12	6187776
+lectsched-5-obj	jaos	time_limit		1	300.185207	24	miplib2017	300.35	192432
+mzzv11	jaos	time_limit		1	299.963919	-21718	miplib2017	300.06	265044
+mzzv42z	jaos	time_limit		1	299.972821	-20540	miplib2017	300.08	540488
+neos-1122047	jaos	time_limit	163	1	300.171791	161	miplib2017	300.48	379476
+neos-1354092	jaos	time_limit		1	300.135163	46	miplib2017	300.25	1130848
+neos-1445765	jaos	time_limit	-3764	1	300.027011	-17783	miplib2017	300.09	199436
+neos-2746589-doon	jaos	time_limit		5	299.902920	2008.199999999999	miplib2017	300.10	396772
+neos-3216931-puriri	jaos	time_limit		1	300.080544	71320	miplib2017	300.16	485872
+neos-3402454-bohle	jaos	time_limit		1	295.960957	0	infeasible	301.11	6805320
+neos-3656078-kumeu	jaos	time_limit		1	299.973577	-13172.2	miplib2017	300.04	107304
+neos-3988577-wolgan	jaos	time_limit		1	299.889791	0	infeasible	300.10	537800
+neos-4722843-widden	jaos	time_limit		1	300.009018	25009.662227	miplib2017	300.28	558448
+neos-5195221-niemur	jaos	time_limit	0.074971105600000004	7	299.934400	0.0038354326	miplib2017	300.10	547420
+neos-662469	jaos	time_limit	515615	1	300.051264	184379.9999999999	miplib2017	300.16	1106228
+neos-787933	jaos	time_limit	161	1	299.964108	30	miplib2017	300.23	419224
+neos-933966	jaos	time_limit		1	300.211527	318	miplib2017	300.43	3441204
+neos-960392	jaos	time_limit		1	300.019954	-238	miplib2017	300.16	1337228
+neos8	jaos	time_limit		1	299.867924	-3719	miplib2017	300.08	620184
+net12	jaos	time_limit	337	1	300.012201	214	miplib2017	300.12	410556
+nexp-150-20-8-5	jaos	time_limit		1	300.037660	231	miplib2017	300.13	378896
+ns1208400	jaos	time_limit	2	19	299.991889	2	miplib2017	300.07	411720
+peg-solitaire-a3	jaos	time_limit		1	299.977839	1	miplib2017	300.08	670936
+qap10	jaos	time_limit	544	1	300.010016	339.9999999983871	miplib2017	300.05	62400
+satellites2-40	jaos	time_limit		1	300.714218	-19	miplib2017	300.89	2847264
+tbfp-network	jaos	time_limit	142.12500000079999	1	300.003069	24.16319444	miplib2017	300.22	2471196
+triptim1	jaos	time_limit		1	300.164667	22.8680999999999	miplib2017	300.49	7504876

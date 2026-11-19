@@ -1,0 +1,57 @@
+# instance rows measure before after speed
+radiationm40-10-02             173603 seconds        135.51      69.18   1.96
+supportcase12                  166781 seconds        249.08     135.83   1.83
+snp-02-004-104                 126512 seconds         58.59      33.41   1.75
+neos-5049753-cuanza            322248 seconds        103.62      59.29   1.75
+thor50dday                      53360 seconds         67.21      44.25   1.52
+neos-4532248-waihi             167322 seconds          1.05       0.71   1.48
+neos-5114902-kasavu            961170 iterations      26993      38641   1.43
+buildingenergy                 277594 iterations      65128      93146   1.43
+ns1760995                      615388 iterations      19141      26311   1.37
+netdiversion                   119589 seconds         43.85      32.68   1.34
+map10                          328818 seconds          67.4      50.68   1.33
+neos-3555904-turama            146493 seconds         49.11      37.58   1.31
+neos-2075418-temuka            349602 iterations      39966      50896   1.27
+neos-5104907-jarama            489818 iterations      41861      52976   1.27
+map16715-04                    328818 seconds         63.12       52.3   1.21
+neos-873061                     93360 seconds         93.69      78.69   1.19
+neos-5052403-cygnet             38268 iterations      36875      43633   1.18
+rail02                          95791 iterations     157224     182624   1.16
+savsched1                      295989 iterations      41324      46266   1.12
+physiciansched6-2              168336 seconds          31.2      28.35   1.10
+supportcase10                  165684 iterations      42516      46346   1.09
+rd-rplusc-21                   125899 seconds          1.06       0.98   1.08
+gfd-schedulen180f7d50m30k18    457985 iterations      96589     103923   1.08
+uccase12                       121161 iterations      89909      96542   1.07
+bab6                            29904 seconds        119.99     112.06   1.07
+ns1116954                      131991 iterations      72355      75978   1.05
+neos-631710                    169576 iterations      53284      55889   1.05
+chromaticindex1024-7            67583 iterations      84005      87750   1.04
+supportcase22                  260602 iterations      21609      22070   1.02
+cryptanalysiskb128n5obj16       98021 iterations      71624      73151   1.02
+var-smallemery-m6j6             13416 seconds          1.02        1.0   1.02
+neos-3402294-bobin             591076 iterations      10699      10906   1.02
+square47                        61591 iterations      16288      16503   1.01
+square41                        40160 seconds         57.39      56.73   1.01
+nursesched-medium-hint03        14062 seconds         14.03      13.94   1.01
+ex10                            69608 iterations      18201      18266   1.00
+cryptanalysiskb128n5obj14       98021 iterations      69925      70165   1.00
+physiciansched3-3              266227 iterations      51986      52081   1.00
+irish-electricity              104259 iterations      50796      50777   1.00
+supportcase7                     6532 seconds          8.91       8.99   0.99
+supportcase19                   10713 iterations      74865      74162   0.99
+splice1k1                        6505 seconds         15.94      16.12   0.99
+bab2                            17245 seconds        227.39     230.54   0.99
+highschool1-aigio               92568 iterations      36726      36020   0.98
+ex9                             40962 iterations      20021      19631   0.98
+s100                            14733 iterations     288683     282758   0.98
+uccase9                         49565 iterations     124895     122048   0.98
+neos-957323                      3757 seconds         18.22      18.87   0.97
+roi5alpha10n8                    4665 seconds        240.84     255.29   0.94
+ns1644855                       40698 iterations      62336      58501   0.94
+academictimetablesmall          23294 seconds          9.93      10.85   0.92
+neos-4413714-turia               2303 seconds         10.11      12.25   0.83
+rail01                          46843 one ended      158658     164473    nan
+# all: 52 pairs, geometric mean 1.134
+# 90,000 rows or more: 31 pairs, geometric mean 1.226
+# fewer rows: 21 pairs, geometric mean 1.010

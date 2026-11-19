@@ -19,6 +19,7 @@ typedef struct {
     double deadline;
     int64_t *gen;
     int64_t ngen, gcap;
+    int64_t *cnt;
 } sg;
 
 typedef struct {
@@ -57,7 +58,7 @@ static bool vertex_sort(int64_t *a, int64_t *tmp, int64_t n, const vx_ctx *c,
                         double deadline)
 {
     for (int64_t w = 1; w < n; w *= 2) {
-        if (jm_past(deadline))
+        if (n >= SYM_CLOCK_STRIDE && jm_past(deadline))
             return false;
         for (int64_t lo = 0; lo < n; lo += 2 * w) {
             const int64_t mid = lo + w < n ? lo + w : n;
@@ -99,6 +100,13 @@ static bool sg_refine(sg *g, int64_t *color)
 {
     const int64_t n = g->n;
     int64_t ncol = sg_count_colors(g, color);
+    memset(g->cnt, 0, (size_t)(ncol + 1) * sizeof *g->cnt);
+    for (int64_t v = 0; v < n; v++)
+        g->cnt[color[v] + 1]++;
+    for (int64_t c = 0; c < ncol; c++)
+        g->cnt[c + 1] += g->cnt[c];
+    for (int64_t v = 0; v < n; v++)
+        g->order[g->cnt[color[v]]++] = v;
     for (;;) {
         if (sg_spent(g))
             return false;
@@ -111,7 +119,6 @@ static bool sg_refine(sg *g, int64_t *color)
             const int64_t d = g->adj_start[v + 1] - g->adj_start[v];
             if (d > 1)
                 qsort(k, (size_t)d, sizeof *k, i64_cmp);
-            g->order[v] = v;
             keyed += d + 1;
             if (keyed >= SYM_CLOCK_STRIDE) {
                 if (jm_past(g->deadline))
@@ -121,8 +128,25 @@ static bool sg_refine(sg *g, int64_t *color)
         }
         g->budget -= g->adj_start[n] + n;
         const vx_ctx ctx = {g->key, g->adj_start, color};
-        if (!vertex_sort(g->order, g->inv, n, &ctx, g->deadline))
-            return false;
+        int64_t sorted = 0;
+        for (int64_t lo = 0; lo < n;) {
+            const int64_t c = color[g->order[lo]];
+            int64_t hi = lo + 1;
+            while (hi < n && color[g->order[hi]] == c)
+                hi++;
+            if (hi - lo > 1) {
+                if (!vertex_sort(g->order + lo, g->inv + lo, hi - lo, &ctx,
+                                 g->deadline))
+                    return false;
+                sorted += hi - lo;
+                if (sorted >= SYM_CLOCK_STRIDE) {
+                    if (jm_past(g->deadline))
+                        return false;
+                    sorted = 0;
+                }
+            }
+            lo = hi;
+        }
         int64_t rank = 0;
         g->inv[g->order[0]] = 0;
         for (int64_t t = 1; t < n; t++) {
@@ -362,6 +386,7 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     g->inv = jm_alloc_array(n > 0 ? n : 1, sizeof *g->inv);
     g->perm = jm_alloc_array(n > 0 ? n : 1, sizeof *g->perm);
     g->uf = jm_alloc_array(n > 0 ? n : 1, sizeof *g->uf);
+    g->cnt = jm_alloc_array(2 * n + 2, sizeof *g->cnt);
     double *vals = jm_alloc_array(nz + qz > 0 ? nz + qz : 1, sizeof *vals);
     ckey *keys = jm_alloc_array(n > 0 ? n : 1, sizeof *keys);
     int64_t *indmark = jm_calloc_array(nc > 0 ? nc : 1, sizeof *indmark);
@@ -369,7 +394,8 @@ static jaos_status sg_build(sg *g, const jaos_model *m)
     if (g->adj_start == nullptr || g->adj == nullptr || g->lab == nullptr ||
         g->color0 == nullptr || g->order == nullptr || g->key == nullptr ||
         g->cells == nullptr || g->inv == nullptr || g->perm == nullptr ||
-        g->uf == nullptr || vals == nullptr || keys == nullptr ||
+        g->uf == nullptr || g->cnt == nullptr || vals == nullptr ||
+        keys == nullptr ||
         indmark == nullptr || rsign == nullptr) {
         free(vals);
         free(keys);
@@ -505,7 +531,7 @@ static void sg_free(sg *g)
 {
     free(g->adj_start); free(g->adj); free(g->lab); free(g->color0);
     free(g->order); free(g->key); free(g->cells); free(g->inv);
-    free(g->perm); free(g->uf); free(g->gen);
+    free(g->perm); free(g->uf); free(g->gen); free(g->cnt);
     memset(g, 0, sizeof *g);
 }
 

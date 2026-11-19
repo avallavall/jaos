@@ -1,0 +1,153 @@
+# root split per instance, share of the solve's work units in percent; stop: the piece the time limit passed in; lp: root LP iterations and whether it ended optimal (opt) or not (-)
+instance                         work   secs presolve symmetry  root_lp  probing  cut_sep   cut_lp     heur       sb    other stop             lp_it  lp inc
+CMS750_4                     6.21e+10  300.0      0.0      0.0      1.1      0.0      0.0     58.8     40.1      0.0      0.0 h_dive           12718 opt yes
+academictimetablesmall       2.14e+11  302.6      0.0      0.0      1.7      0.0      0.0     98.2      0.0      0.0      0.0 cut_lp           13062 opt  no
+atlanta-ip                   6.31e+10  299.9      0.0      0.1     27.2      0.0      0.2      4.2     53.4     14.8      0.0 strong_branch    69792 opt  no
+bab2                         1.44e+11  298.8      0.0      0.2     80.7      0.0      0.0     19.0      0.0      0.0      0.0 cut_lp          189056 opt  no
+bab6                         7.98e+10  299.4      0.0      0.3     47.4      0.0      0.1     52.2      0.0      0.0      0.0 cut_lp          107163 opt  no
+bnatt400                     2.35e+11  300.0      0.0      0.0      0.0      0.0      0.0     85.9     14.0      0.0      0.0 h_dive            1525 opt  no
+bnatt500                     2.19e+11  300.0      0.0      0.0      0.0      0.0      0.0     99.9      0.0      0.0      0.0 cut_lp            2436 opt  no
+brazil3                      1.68e+11  301.0      0.0      0.0     11.4      0.0      0.2     88.4      0.0      0.0      0.0 cut_lp           50564 opt  no
+buildingenergy               2.72e+10  299.2      0.0      0.1     99.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          65128   -  no
+chromaticindex1024-7         2.36e+10  299.7      0.0      0.4     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          84005   -  no
+chromaticindex512-7          3.40e+10  299.9      0.0      0.2     97.7      0.0      2.1      0.0      0.0      0.0      0.0 cut_clique      134556 opt  no
+cod105                       2.65e+11  300.1      0.0      0.0      6.8      0.0      0.1      4.8     35.4     53.0      0.0 strong_branch    10285 opt yes
+comp07-2idx                  1.68e+11  301.5      0.0      0.0      0.4      0.0      0.0     99.6      0.0      0.0      0.0 cut_lp            4541 opt  no
+comp21-2idx                  2.03e+11  300.0      0.0      0.0      0.1      0.0      0.0     99.9      0.0      0.0      0.0 cut_lp            2929 opt  no
+cryptanalysiskb128n5obj14    2.80e+10  299.7      0.0      0.4     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          69925   -  no
+cryptanalysiskb128n5obj16    2.73e+10  299.7      0.0      0.4     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          71624   -  no
+cvs16r128-89                 2.43e+11  300.2      0.0      0.0      0.1      0.0      0.0     75.2     24.7      0.0      0.0 h_dive            4997 opt yes
+dano3_3                      1.75e+11  300.0      0.0      0.0     45.4      0.0      0.0      0.1     48.9      5.6      0.0 strong_branch   280779 opt  no
+dano3_5                      1.74e+11  299.9      0.0      0.0     45.7      0.0      0.0      0.4     49.5      4.4      0.0 strong_branch   280779 opt  no
+ex10                         1.13e+11  302.1      0.0      0.2     99.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          18201   -  no
+ex9                          1.34e+11  300.2      0.0      0.1     99.9      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          20021   -  no
+fiball                       1.91e+11  300.0      0.0      0.0      0.1      0.0      0.0     33.5     66.4      0.0      0.0 h_link            3217 opt yes
+gfd-schedulen180f7d50m30k18  3.99e+10  298.8      0.0      1.2     98.7      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          96589   -  no
+graph20-20-1rand             2.06e+11  300.0      0.0      0.0      0.1      0.0      0.0     22.9     77.0      0.0      0.0 h_dive            2965 opt yes
+highschool1-aigio            7.02e+10  297.9      0.0      0.7     99.3      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          36726   -  no
+irish-electricity            5.45e+10  299.7      0.0      0.3     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          50796   -  no
+k1mushroom                   2.17e+11  300.2      0.2      0.2     14.3      0.0      3.1     82.1      0.0      0.0      0.0 cut_lp            6608 opt  no
+lectsched-5-obj              5.15e+10  300.2      0.0      0.1      0.2      0.0      3.1     87.2      9.4      0.0      0.0 h_fj_swap         2778 opt  no
+map10                        2.89e+10  299.4      0.0      0.9     21.6      0.0      0.3     30.4     46.8      0.0      0.0 h_gh             32637 opt yes
+map16715-04                  2.62e+10  299.3      0.0      1.0     22.2      0.0      0.2     12.0     31.0     33.5      0.0 strong_branch    30252 opt yes
+mzzv11                       1.33e+11  300.0      0.0      0.0    100.0      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         248058   -  no
+mzzv42z                      1.33e+11  299.9      0.0      0.0     14.7      0.0      0.0     85.3      0.0      0.0      0.0 cut_lp           79901 opt  no
+neos-1122047                 6.41e+10  300.1      0.0      0.0      2.9      0.0      0.1      0.0     96.9      0.0      0.0 h_rins            9278 opt yes
+neos-1354092                 2.22e+11  300.1      0.0      0.0      4.0      0.0      0.0     96.0      0.0      0.0      0.0 cut_lp           45506 opt  no
+neos-1445765                 1.33e+11  300.0      0.0      0.0      0.2      0.0      0.0     34.9     64.9      0.0      0.0 h_dive           12224 opt yes
+neos-2075418-temuka          5.27e+10  297.2      0.1      3.8     96.1      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          39966   -  no
+neos-2746589-doon            4.20e+10  299.9      0.0      1.1      9.2      0.0      0.2      5.9     49.6     19.0     15.0 tree             19876 opt  no
+neos-3216931-puriri          2.09e+11  300.0      0.0      0.0     11.4      0.0      0.0     88.6      0.0      0.0      0.0 cut_lp          104580 opt  no
+neos-3402294-bobin           5.89e+10  298.9      0.0      1.1     98.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          10699   -  no
+neos-3402454-bohle           5.50e+10  295.3      0.2      5.4     94.4      0.0      0.0      0.0      0.0      0.0      0.0 root_lp           2720   -  no
+neos-3555904-turama          2.82e+10  299.7      0.0      0.9     31.4      0.0      0.3     27.5     39.9      0.0      0.0 h_dive           23560 opt yes
+neos-3656078-kumeu           6.18e+10  299.9      0.0      0.0    100.0      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         306682   -  no
+neos-3988577-wolgan          6.75e+10  299.9      0.0      0.2     99.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         115651   -  no
+neos-4413714-turia           1.83e+11  299.6      0.0      0.0      4.1      0.0      0.1     95.7      0.0      0.0      0.0 cut_lp           16917 opt  no
+neos-4532248-waihi           7.64e+10  299.7      0.1      0.2      0.3      0.0      0.0     99.5      0.0      0.0      0.0 cut_lp             731 opt  no
+neos-4722843-widden          1.02e+10  300.0      0.0      1.2     11.4      0.0     17.6     14.9     54.8      0.0      0.0 h_dive            7279 opt  no
+neos-5049753-cuanza          3.05e+10  299.1      0.1      1.6     34.6      0.0      0.2     63.4      0.0      0.0      0.0 cut_lp           19171 opt  no
+neos-5052403-cygnet          4.49e+10  298.2      0.1      2.8     97.2      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          36875   -  no
+neos-5104907-jarama          4.05e+10  299.1      0.1      1.6     98.3      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          41861   -  no
+neos-5114902-kasavu          4.14e+10  297.0      0.1      3.6     96.3      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          26993   -  no
+neos-5195221-niemur          5.22e+10  299.9      0.0      0.6      3.0      0.0      0.1     52.3     13.9      7.1     23.1 tree             11251 opt yes
+neos-631710                  6.66e+10  299.5      0.0      0.4     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          53284   -  no
+neos-662469                  2.61e+11  300.0      0.0      0.0      0.2      0.0      0.0      1.9     97.9      0.0      0.0 h_dive            4170 opt yes
+neos-787933                  1.87e+11  299.9      0.0      0.1      0.5      0.0      0.0     80.7     18.3      0.5      0.0 strong_branch    10592 opt yes
+neos-873061                  4.38e+10  299.8      0.0      0.4     36.1      0.0      0.1     63.4      0.0      0.0      0.0 cut_lp           39622 opt  no
+neos-933966                  1.57e+11  300.0      0.0      0.0     10.9      0.0      0.0     89.0      0.0      0.0      0.0 cut_lp           55394 opt  no
+neos-957323                  2.76e+11  299.8      0.0      0.1      4.2      0.0      0.0     25.1     70.6      0.0      0.0 h_dive           56155 opt yes
+neos-960392                  2.07e+11  300.0      0.0      0.0     19.6      0.0      0.0     80.3      0.0      0.0      0.0 cut_lp          226143 opt  no
+neos8                        1.24e+11  299.9      0.0      0.1      6.4      0.0      0.3     93.2      0.0      0.0      0.0 cut_lp           24597 opt  no
+net12                        1.30e+11  300.0      0.0      0.0      0.5      0.0      0.0     46.6     52.9      0.0      0.0 h_dive            8114 opt yes
+netdiversion                 4.81e+10  299.5      0.0      0.4     13.4      0.0      0.1     86.1      0.0      0.0      0.0 cut_lp           29712 opt  no
+nexp-150-20-8-5              1.43e+11  300.0      0.0      0.0      0.0      0.0      0.0    100.0      0.0      0.0      0.0 cut_lp             835 opt  no
+ns1116954                    3.97e+10  299.7      0.0      0.3     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          72355   -  no
+ns1208400                    2.71e+11  299.9      0.0      0.0      0.8      0.0      0.0     60.9      5.8     19.0     13.4 tree             15716 opt yes
+ns1644855                    1.01e+11  299.7      0.0      0.0    100.0      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          62336   -  no
+ns1760995                    2.81e+10  299.0      0.1      2.2     97.7      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          19141   -  no
+nursesched-medium-hint03     1.79e+11  299.3      0.0      0.1      2.2      0.0      0.0     97.6      0.0      0.0      0.0 cut_lp           15938 opt  no
+peg-solitaire-a3             2.18e+11  299.9      0.0      0.0      0.6      0.0      0.0     99.4      0.0      0.0      0.0 cut_lp           21598 opt  no
+physiciansched3-3            3.89e+10  299.4      0.1      0.9     99.0      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          51986   -  no
+physiciansched6-2            1.10e+11  299.6      0.0      0.2      3.1      0.0      0.1     96.6      0.0      0.0      0.0 cut_lp           28797 opt  no
+qap10                        2.05e+11  300.0      0.0      0.0     54.5      0.0      0.0      0.0      0.1     45.3      0.0 strong_branch   379018 opt yes
+radiationm40-10-02           1.98e+10  299.5      0.0      0.1     99.8      0.0      0.1      0.0      0.0      0.0      0.0 cut_clique      107983 opt  no
+rail01                       3.78e+10  299.7      0.0      0.4     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         158658   -  no
+rail02                       2.37e+10  299.4      0.0      1.2     98.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         157224   -  no
+rd-rplusc-21                 2.24e+11  299.5      1.5      0.1      0.1      0.0     44.7     53.6      0.0      0.0      0.0 cut_lp             373 opt  no
+roi5alpha10n8                1.78e+11  298.2      0.0      0.3     89.1      0.0      0.1     10.4      0.0      0.0      0.0 cut_lp           99184 opt  no
+s100                         1.67e+11  297.5      0.0      0.3     99.7      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         288683   -  no
+satellites2-40               9.94e+10  300.5      0.0      0.1     57.9      0.0      0.1     41.9      0.0      0.0      0.0 cut_lp          134251 opt  no
+savsched1                    5.32e+10  298.4      0.0      1.1     98.8      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          41324   -  no
+snp-02-004-104               7.18e+10  299.6      0.0      0.1     12.4      0.0      0.3     15.8     71.5      0.0      0.0 h_submip         77727 opt yes
+splice1k1                    1.21e+11  299.8      0.1      0.0      8.7      0.0      0.2      3.6     27.7     59.6      0.0 strong_branch     2153 opt yes
+square41                     2.03e+11  294.3      0.0      0.3     23.2      0.0      0.6     73.5      2.4      0.0      0.0 h_dive           10635 opt yes
+square47                     1.55e+11  285.1      0.1      0.8     99.1      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          16288   -  no
+supportcase10                3.30e+10  299.7      0.0      0.6     99.4      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          42516   -  no
+supportcase12                5.41e+10  298.0      0.1      1.4     81.6      0.0      0.3     16.6      0.0      0.0      0.0 cut_lp          225810 opt  no
+supportcase19                3.65e+11  296.8      0.0      0.0    100.0      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          74865   -  no
+supportcase22                8.07e+10  299.1      0.3      0.1     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          21609   -  no
+supportcase7                 1.10e+11  299.1      0.0      0.7      3.7      0.0      1.6     13.4     80.6      0.0      0.0 h_dive           16675 opt yes
+tbfp-network                 1.83e+11  299.9      0.0      0.0      4.0      0.0      0.0     57.6     10.3     28.2      0.0 strong_branch    28857 opt yes
+thor50dday                   8.07e+10  299.6      0.0      0.0     21.1      0.0      2.1     76.7      0.0      0.0      0.0 cut_lp           45176 opt  no
+triptim1                     1.99e+11  299.9      0.0      0.0     26.3      0.0      0.2     73.5      0.0      0.0      0.0 cut_lp           95023 opt  no
+uccase12                     3.96e+10  299.5      0.0      0.3     99.6      0.0      0.0      0.0      0.0      0.0      0.0 root_lp          89909   -  no
+uccase9                      7.36e+10  299.7      0.0      0.1     99.9      0.0      0.0      0.0      0.0      0.0      0.0 root_lp         124895   -  no
+var-smallemery-m6j6          1.80e+11  299.3      0.0      0.1      0.2      0.0      0.1      0.1     99.5      0.0      0.0 h_dive            2165 opt yes
+
+# 94 instances read; over them, the share of all work and of all seconds, and the instances each group leads
+group         work%    secs%  leads
+presolve        0.0      0.1      0
+symmetry        0.2      1.9      0
+root_lp        32.2     45.4     40
+probing         0.0      0.0      0
+cut_sep         1.1      4.1      0
+cut_lp         44.8     31.3     34
+heur           17.0     14.1     17
+sb              4.1      2.7      3
+other           0.5      0.5      0
+
+# where the time limit passed: instances per piece
+root_lp            33
+cut_lp             29
+h_dive             13
+strong_branch       9
+tree                3
+cut_clique          2
+h_link              1
+h_fj_swap           1
+h_gh                1
+h_rins              1
+h_submip            1
+
+# every piece over the instances read: share of all work and of all seconds
+cut_lp              44.79    31.29
+root_lp             32.24    45.40
+h_dive              13.75     9.27
+strong_branch        4.15     2.66
+cut_mir_agg          0.96     0.23
+h_fj_swap            0.94     2.45
+h_rins               0.88     0.56
+h_pump               0.88     0.60
+tree                 0.50     0.50
+h_submip             0.47     1.08
+symmetry             0.22     1.89
+cut_gomory           0.09     0.19
+setup                0.04     0.02
+h_link               0.02     0.04
+cut_hull             0.02     0.03
+cut_mir              0.02     0.01
+h_locks              0.01     0.03
+h_bigm               0.01     0.01
+cut_select           0.01     0.05
+cut_flowcover        0.00     0.01
+mip_presolve         0.00     0.08
+h_gh                 0.00     0.02
+lp_presolve          0.00     0.01
+clique_table         0.00     0.01
+cut_cover            0.00     0.03
+cut_clique           0.00     3.50
+h_sched              0.00     0.00
+h_anneal             0.00     0.00
+h_round              0.00     0.00
+other                0.00     0.01

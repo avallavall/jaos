@@ -111,6 +111,7 @@ typedef struct {
     double *pviol;
     bool *punder;
     bool pviol_ok;
+    uint64_t *ibits;
 
     double *devex;
     uint64_t *devref;
@@ -153,6 +154,13 @@ typedef struct {
 
     int64_t *cpat;
     int64_t ncpat;
+
+    int64_t *cwr;
+    int64_t ncwr;
+    int64_t *twr;
+    int64_t ntwr;
+    int64_t *fin;
+    uint64_t *fmark;
 
     int64_t *cand;
     double *rnum, *rden;
@@ -302,13 +310,14 @@ static void sx_free(sx *s)
     free(s->lo); free(s->up); free(s->cost); free(s->cost0); free(s->shift);
     free(s->status); free(s->basis); free(s->where);
     free(s->xb); free(s->d); free(s->dse);
-    free(s->pviol); free(s->punder);
+    free(s->pviol); free(s->punder); free(s->ibits);
     free(s->devex); free(s->devref); free(s->pse_tau); free(s->dref);
     free(s->col); free(s->raw); free(s->rhsc); free(s->resc);
     free(s->y); free(s->rho);
     free(s->tau); free(s->alpha); free(s->apat); free(s->amark);
     free(s->nbmark);
     free(s->rpat); free(s->rmark); free(s->cpat);
+    free(s->cwr); free(s->twr); free(s->fin); free(s->fmark);
     free(s->cand); free(s->rnum); free(s->rden); free(s->rrange);
     free(s->rratio);
     free(s->prow); free(s->pnum); free(s->pden);
@@ -350,12 +359,15 @@ typedef struct {
     X(shift, s->nvar) X(status, s->nvar) X(basis, s->nrow) \
     X(where, s->nvar) X(fake, s->nvar) X(xb, s->nrow) X(d, s->nvar) \
     X(dse, s->nrow) X(pviol, s->nrow) X(punder, s->nrow) \
+    X(ibits, (s->nrow + 63) / 64 + 1) \
     X(devex, s->nvar) X(devref, (s->nvar + 63) / 64) X(pse_tau, s->nrow) \
     X(col, s->nrow) X(raw, s->nrow) X(rhsc, s->nrow) X(resc, s->nrow) \
     X(y, s->nrow) X(rho, s->nrow) X(tau, s->nrow) X(alpha, s->nvar) \
     X(uray, s->ncol) X(apat, s->nvar) X(amark, (s->nvar + 63) / 64) \
     X(nbmark, (s->nvar + 63) / 64) X(rpat, s->nrow) \
     X(rmark, (s->nrow + 63) / 64) X(cpat, s->nrow) X(cand, s->nvar) \
+    X(cwr, s->nrow) X(twr, s->nrow) X(fin, s->nrow) \
+    X(fmark, (s->nrow + 63) / 64) \
     X(rnum, s->nvar) X(rden, s->nvar) X(prow, s->nrow) X(pnum, s->nrow) \
     X(pden, s->nrow) X(rrange, s->nvar) X(rratio, s->nvar) \
     X(bs, s->nrow + 1) X(sav_status, s->nvar) X(sav_basis, s->nrow) \
@@ -524,6 +536,7 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->d      = jm_calloc_array(s->nvar, sizeof(double));
     s->dse    = jm_alloc_array(s->nrow, sizeof(double));
     s->pviol  = jm_alloc_array(s->nrow, sizeof(double));
+    s->ibits  = jm_calloc_array((s->nrow + 63) / 64 + 1, sizeof(uint64_t));
     s->punder = jm_alloc_array(s->nrow, sizeof(bool));
     s->devex  = jm_alloc_array(s->nvar, sizeof(double));
     s->devref = jm_calloc_array((s->nvar + 63) / 64, sizeof(uint64_t));
@@ -545,6 +558,12 @@ static jaos_status sx_init(sx *s, jaos_model *m)
     s->rpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
     s->rmark  = jm_calloc_array((s->nrow + 63) / 64, sizeof(uint64_t));
     s->cpat   = jm_alloc_array(s->nrow, sizeof(int64_t));
+    s->cwr    = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof(int64_t));
+    s->twr    = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof(int64_t));
+    s->fin    = jm_alloc_array(s->nrow > 0 ? s->nrow : 1, sizeof(int64_t));
+    s->fmark  = jm_calloc_array((s->nrow + 63) / 64 + 1, sizeof(uint64_t));
+    s->ncwr   = 0;
+    s->ntwr   = 0;
     s->ncpat  = -1;
     s->anpat  = -1;
     s->nrpat  = -1;
@@ -567,12 +586,14 @@ static jaos_status sx_init(sx *s, jaos_model *m)
         !s->shift ||
         !s->status || !s->basis ||
         !s->where || !s->xb || !s->d || !s->dse || !s->pviol || !s->punder ||
+        !s->ibits ||
         !s->devex || !s->devref ||
         !s->pse_tau || !s->dref ||
         !s->col || !s->raw || !s->rhsc || !s->resc ||
         !s->y || !s->rho || !s->tau || !s->alpha || !s->apat || !s->amark ||
         !s->nbmark ||
         !s->rpat || !s->rmark || !s->cpat || !s->cand || !s->rnum ||
+        !s->cwr || !s->twr || !s->fin || !s->fmark ||
         !s->rden || !s->rrange || !s->rratio || !s->prow || !s->pnum ||
         !s->pden ||
         !s->bs || !s->fake || !s->uray) {
@@ -834,6 +855,7 @@ static void break_start_ties(sx *s)
 {
     const jaos_model *m = s->m;
     double *r = s->col;
+    s->ncwr = -1;
     memset(r, 0, (size_t)s->nrow * sizeof *r);
     for (int64_t j = 0; j < s->ncol; j++) {
         if (start_tie(s, j))
@@ -1104,8 +1126,14 @@ static void pviol_set(sx *s, int64_t i)
     const double viol_lo = isfinite(s->lo[v]) ? s->lo[v] - s->xb[i] : 0.0;
     const double viol_up = isfinite(s->up[v]) ? s->xb[i] - s->up[v] : 0.0;
     const bool under = viol_lo >= viol_up;
-    s->pviol[i] = under ? viol_lo : viol_up;
+    const double viol = under ? viol_lo : viol_up;
+    s->pviol[i] = viol;
     s->punder[i] = under;
+    const uint64_t bit = UINT64_C(1) << (i & 63);
+    if (viol <= s->primal_tol)
+        s->ibits[i >> 6] &= ~bit;
+    else
+        s->ibits[i >> 6] |= bit;
 }
 
 static void pviol_touch(sx *s, int64_t i)
@@ -1118,6 +1146,7 @@ static void compute_primal(sx *s, bool refine)
 {
     s->pviol_ok = false;
     s->zobj_ok = false;
+    s->ncwr = -1;
     double *rhs = s->col;
     double *comp = s->rhsc;
     memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
@@ -1183,6 +1212,7 @@ static void compute_duals(sx *s, bool refine)
 
     if (refine) {
 
+        s->ntwr = -1;
         double *r = s->tau;
         int64_t nz = 0;
         for (int64_t i = 0; i < s->nrow; i++) {
@@ -1221,6 +1251,7 @@ static void compute_duals(sx *s, bool refine)
 static void refine_published_duals(sx *s)
 {
     const jaos_model *m = s->m;
+    s->ntwr = -1;
     double *y = s->y, *r = s->tau;
     int64_t nz = 0;
     for (int64_t i = 0; i < s->nrow; i++) {
@@ -1519,30 +1550,33 @@ static int64_t price_row(sx *s, bool *below, double *violation)
     }
 #endif
 
-    for (int64_t i = 0; i < s->nrow; i++) {
-        const double viol = s->pviol[i];
-        if (viol <= s->primal_tol)
-            continue;
+    const int64_t nwords = (s->nrow + 63) / 64;
+    for (int64_t wd = 0; wd < nwords; wd++) {
+        for (uint64_t bits = s->ibits[wd]; bits != 0; bits &= bits - 1) {
+            const int64_t i = (wd << 6) + __builtin_ctzll(bits);
+            const double viol = s->pviol[i];
+            assert(!(viol <= s->primal_tol));
 
-        const bool under = s->punder[i];
-        total += viol;
+            const bool under = s->punder[i];
+            total += viol;
 
-        if (s->bland) {
-            const int64_t v = s->basis[i];
-            if (best < 0 || v < s->basis[best]) {
+            if (s->bland) {
+                const int64_t v = s->basis[i];
+                if (best < 0 || v < s->basis[best]) {
+                    best = i;
+                    *below = under;
+                    *violation = viol;
+                }
+                continue;
+            }
+
+            double score = viol * viol / s->dse[i];
+            if (score > best_score) {
+                best_score = score;
                 best = i;
                 *below = under;
                 *violation = viol;
             }
-            continue;
-        }
-
-        double score = viol * viol / s->dse[i];
-        if (score > best_score) {
-            best_score = score;
-            best = i;
-            *below = under;
-            *violation = viol;
         }
     }
     jm_work_add(&s->work, s->nrow * JM_WORK_NONZERO);
@@ -1682,11 +1716,31 @@ static int64_t bfrt_walk(sx *s, int64_t n, double remaining)
     return live;
 }
 
+static void col_clear(sx *s)
+{
+    if (s->ncwr < 0)
+        memset(s->col, 0, (size_t)s->nrow * sizeof *s->col);
+    else
+        for (int64_t k = 0; k < s->ncwr; k++)
+            s->col[s->cwr[k]] = 0.0;
+    s->ncwr = 0;
+}
+
+static inline void fin_push(sx *s, int64_t i, int64_t *n)
+{
+    const uint64_t bit = UINT64_C(1) << (i & 63);
+    if (s->fmark[i >> 6] & bit)
+        return;
+    s->fmark[i >> 6] |= bit;
+    s->fin[(*n)++] = i;
+}
+
 static void apply_flips(sx *s, int64_t at, int64_t n)
 {
 
     double *rhs = s->col;
-    memset(rhs, 0, (size_t)s->nrow * sizeof *rhs);
+    col_clear(s);
+    int64_t nfin = 0;
     const bool track = s->zobj_ok && s->cut_lag < INFINITY;
     double dz = 0.0;
 
@@ -1704,18 +1758,24 @@ static void apply_flips(sx *s, int64_t at, int64_t n)
 
         if (v < s->ncol) {
             const jaos_model *m = s->m;
-            for (int64_t p = m->a_start[v]; p < m->a_start[v + 1]; p++)
+            for (int64_t p = m->a_start[v]; p < m->a_start[v + 1]; p++) {
                 rhs[m->a_index[p]] += s->av[p] * delta;
+                fin_push(s, m->a_index[p], &nfin);
+            }
             jm_work_add(&s->work, (m->a_start[v + 1] - m->a_start[v]) *
                                   JM_WORK_NONZERO);
         } else {
             rhs[v - s->ncol] -= delta;
+            fin_push(s, v - s->ncol, &nfin);
             jm_work_add(&s->work, JM_WORK_NONZERO);
         }
     }
+    for (int64_t k = 0; k < nfin; k++)
+        s->fmark[s->fin[k] >> 6] = 0;
 
     int64_t nc = 0;
-    jm_lu_ftran_sparse(&s->lu, rhs, &s->work, s->cpat, &nc);
+    jm_lu_ftran_in(&s->lu, rhs, s->fin, nfin, 1, false, &s->work, s->cpat,
+                   &nc, s->cwr, &s->ncwr);
     if (nc * SPARSE_COL_DEN <= s->nrow) {
         for (int64_t k = 0; k < nc; k++) {
             const int64_t i = s->cpat[k];
@@ -2127,9 +2187,14 @@ static void build_pricing_row(sx *s, int64_t r)
     else
         memset(s->rho, 0, (size_t)s->nrow * sizeof *s->rho);
     s->rho[r] = 1.0;
+#ifndef NDEBUG
+    for (int64_t i = 0; i < s->nrow; i++)
+        assert(i == r || s->rho[i] == 0.0);
+#endif
 
     int64_t nr = 0, words = 0;
-    jm_lu_btran_sparse(&s->lu, s->rho, &s->work, s->rpat, &nr);
+    jm_lu_btran_in(&s->lu, s->rho, &r, 1, &s->work, s->rpat, &nr, nullptr,
+                   nullptr);
     if (nr * SPARSE_RHO_DEN <= s->nrow) {
         s->nrpat = jm_pattern_order(nr, s->rpat, s->rmark, s->nrow, &words);
         jm_work_add(&s->work, (nr + words + s->nrpat) * JM_WORK_NONZERO);
@@ -2396,10 +2461,25 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     double alpha_q = s->alpha[q];
 
     raw_column(s, q);
-    memcpy(s->col, s->raw, (size_t)s->nrow * sizeof *s->col);
     {
+        int64_t one = 0, nin = 1;
+        const int64_t *in = &one;
+        if (q < s->ncol) {
+            in = s->m->a_index + s->m->a_start[q];
+            nin = s->m->a_start[q + 1] - s->m->a_start[q];
+        } else {
+            one = q - s->ncol;
+        }
+        col_clear(s);
+        for (int64_t k = 0; k < nin; k++)
+            s->col[in[k]] = s->raw[in[k]];
+#ifndef NDEBUG
+        for (int64_t i = 0; i < s->nrow; i++)
+            assert(s->col[i] == s->raw[i]);
+#endif
         int64_t nc = 0;
-        jm_lu_ftran_keep(&s->lu, s->col, &s->work, s->cpat, &nc);
+        jm_lu_ftran_in(&s->lu, s->col, in, nin, 1, true, &s->work, s->cpat,
+                       &nc, s->cwr, &s->ncwr);
         s->ncpat = nc * SPARSE_COL_DEN <= s->nrow ? nc : -1;
     }
 
@@ -2442,8 +2522,25 @@ static jaos_status pivot(sx *s, int64_t r, int64_t q, bool below,
     if (s->dual_devex) {
         dual_devex_update(s, r);
     } else {
-        memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
-        jm_lu_ftran(&s->lu, s->tau, &s->work);
+        if (s->nrpat >= 0) {
+            if (s->ntwr < 0)
+                memset(s->tau, 0, (size_t)s->nrow * sizeof *s->tau);
+            else
+                for (int64_t k = 0; k < s->ntwr; k++)
+                    s->tau[s->twr[k]] = 0.0;
+            for (int64_t k = 0; k < s->nrpat; k++)
+                s->tau[s->rpat[k]] = s->rho[s->rpat[k]];
+#ifndef NDEBUG
+            for (int64_t i = 0; i < s->nrow; i++)
+                assert(s->tau[i] == s->rho[i]);
+#endif
+            jm_lu_ftran_in(&s->lu, s->tau, s->rpat, s->nrpat, 0, false,
+                           &s->work, nullptr, nullptr, s->twr, &s->ntwr);
+        } else {
+            memcpy(s->tau, s->rho, (size_t)s->nrow * sizeof *s->tau);
+            jm_lu_ftran(&s->lu, s->tau, &s->work);
+            s->ntwr = -1;
+        }
 
         double exact = 0.0;
         if (s->nrpat >= 0) {
@@ -2563,6 +2660,7 @@ static void repair_dual_infeasibility(sx *s)
             continue;
 
         double delta = to - nonbasic_value(s, v);
+        s->ncwr = -1;
         var_column(s, v, s->col);
         for (int64_t i = 0; i < s->nrow; i++)
             s->col[i] *= delta;
@@ -2725,6 +2823,8 @@ static bool stop_bound_in(sx *s, double *y, double *out)
 {
     if (s->needs_refactor)
         return false;
+    if (y == s->tau)
+        s->ntwr = -1;
     for (int64_t i = 0; i < s->nrow; i++)
         y[i] = s->cost0[s->basis[i]];
     jm_lu_btran(&s->lu, y, &s->work);
@@ -2810,6 +2910,7 @@ static double settled_violation_by_terms(sx *s)
     if (!rows)
         return worst;
 
+    s->ntwr = -1;
     double *reach = s->tau;
     for (int64_t i = 0; i < s->nrow; i++)
         reach[i] = 0.0;
@@ -3098,6 +3199,7 @@ static double primal_dir(const sx *s, int64_t q)
 static int64_t primal_ratio_test(sx *s, int64_t q, double dir, bool bland,
                                  bool *below, double *step)
 {
+    s->ncwr = -1;
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
@@ -3326,6 +3428,7 @@ static bool held_by_an_invented_bound(const sx *s, int64_t j)
 
 static bool improves_without_limit(sx *s, int64_t j)
 {
+    s->ncwr = -1;
     var_column(s, j, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
@@ -3351,6 +3454,7 @@ static bool combined_improves_without_limit(sx *s)
 {
     const jaos_model *m = s->m;
 
+    s->ncwr = -1;
     memset(s->col, 0, (size_t)s->nrow * sizeof *s->col);
     for (int64_t j = 0; j < s->ncol; j++) {
         if (!held_by_an_invented_bound(s, j))
@@ -3757,6 +3861,7 @@ static bool phase1_lands_low(const sx *s, int64_t i, double move)
 static int64_t primal_phase1_ratio(sx *s, int64_t q, bool bland, bool *below,
                                    double *step)
 {
+    s->ncwr = -1;
     var_column(s, q, s->col);
     jm_lu_ftran(&s->lu, s->col, &s->work);
 
@@ -5623,6 +5728,8 @@ static bool probe_ready(sx *s, const sx *t)
     s->rho_by_pattern = false;
     s->held_valid = false;
     memset(s->col, 0, nr * sizeof *s->col);
+    s->ncwr = 0;
+    s->ntwr = 0;
     memset(s->raw, 0, nr * sizeof *s->raw);
     memset(s->rhsc, 0, nr * sizeof *s->rhsc);
     memset(s->resc, 0, nr * sizeof *s->resc);
