@@ -1,0 +1,32 @@
+status node_limit
+iterations 45213
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 12.32      2.25     2.25    45213     0.00     0.00  price_all
+  9.15      3.92     1.67      699     0.00     0.01  jm_lu_factor
+  8.65      5.50     1.58    45213     0.00     0.00  jm_lu_btran_in
+  7.83      6.93     1.43    45923     0.00     0.00  btran_l_pattern
+  7.17      8.24     1.31 623192913     0.00     0.00  admit_candidate
+  6.90      9.50     1.26    79550     0.00     0.00  ftran_u_dense
+  4.55     10.33     0.83    79548     0.00     0.00  ftran_prefix
+  4.38     11.13     0.80 767753013     0.00     0.00  update_dual
+  3.78     11.82     0.69    44518     0.00     0.00  lu_update
+  3.67     12.49     0.67 183109371     0.00     0.00  pviol_set
+  2.90     13.02     0.53 623690405     0.00     0.00  shift_to_feasible
+  2.74     13.52     0.50    36930     0.00     0.00  dual_devex_update
+  2.41     13.96     0.44    45923     0.00     0.00  btran_u_pattern
+  2.25     14.37     0.41    79550     0.00     0.00  ftran_scatter_all
+  2.25     14.78     0.41    45213     0.00     0.00  jm_harris_pick
+  2.25     15.19     0.41                             _init
+  2.03     15.56     0.37  2238198     0.00     0.00  compact_pivot_row
+  1.75     15.88     0.32    45183     0.00     0.00  dual_ratio_test
+  1.59     16.17     0.29    45213     0.00     0.00  pivot.constprop.0
+  1.37     16.42     0.25    22155     0.00     0.00  jm_dse_update
+  1.20     16.64     0.22    45183     0.00     0.00  bfrt_walk
+  0.93     16.81     0.17 65076939     0.00     0.00  jm_svec_push
+  0.82     16.96     0.15      699     0.00     0.01  refactorize
+  0.71     17.09     0.13 360874165     0.00     0.00  jm_work_add
+  0.60     17.20     0.11  2238198     0.00     0.00  find_pivot

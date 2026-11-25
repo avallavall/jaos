@@ -1,0 +1,32 @@
+status time_limit
+iterations 33736
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 16.60      5.50     5.50    90633     0.00     0.00  ftran_u_dense
+ 11.04      9.16     3.66 25286536     0.00     0.00  col_update
+  8.63     12.02     2.86    90633     0.00     0.00  ftran_prefix
+  8.36     14.79     2.77    33736     0.00     0.00  jm_lu_btran_in
+  7.15     17.16     2.37    33736     0.00     0.00  price_all
+  7.00     19.48     2.32    34256     0.00     0.00  btran_l_pattern
+  5.07     21.16     1.68 536690389     0.00     0.00  pviol_set
+  4.59     22.68     1.52  4939480     0.00     0.00  compact_pivot_row
+  3.83     23.95     1.27    33217     0.00     0.00  lu_update
+  3.68     25.17     1.22      520     0.00     0.03  jm_lu_factor
+  3.20     26.23     1.06    90633     0.00     0.00  ftran_scatter_all
+  2.14     26.94     0.71    34256     0.00     0.00  btran_u_pattern
+  2.08     27.63     0.69 279352043     0.00     0.00  admit_candidate
+  1.72     28.20     0.57                             _init
+  1.69     28.76     0.56 536233250     0.00     0.00  update_dual
+  1.63     29.30     0.54    33736     0.00     0.00  jm_dse_update
+  1.12     29.67     0.37 159968208     0.00     0.00  jm_svec_push
+  1.00     30.00     0.33  4939480     0.00     0.00  find_pivot
+  0.94     30.31     0.31 84659502     0.00     0.00  pat_push
+  0.91     30.61     0.30 280267758     0.00     0.00  shift_to_feasible
+  0.88     30.90     0.29    33736     0.00     0.00  pivot.constprop.0
+  0.78     31.16     0.26 902342035     0.00     0.00  jm_work_add
+  0.63     31.37     0.21  9922882     0.00     0.00  ftran_any
+  0.57     31.56     0.19  1777600     0.00     0.00  jm_svec_erase
+  0.57     31.75     0.19    33736     0.00     0.00  price_row.constprop.0

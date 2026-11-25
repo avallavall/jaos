@@ -1,0 +1,32 @@
+status node_limit
+iterations 22721
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 14.49      0.83     0.83    22721     0.00     0.00  jm_lu_btran_in
+ 12.04      1.52     0.69    23076     0.00     0.00  btran_l_pattern
+  8.73      2.02     0.50    35172     0.00     0.00  ftran_prefix
+  7.33      2.44     0.42    35172     0.00     0.00  ftran_u_dense
+  6.81      2.83     0.39    22721     0.00     0.00  price_all
+  5.06      3.12     0.29  4838455     0.00     0.00  col_update
+  4.71      3.39     0.27      351     0.00     0.01  jm_lu_factor
+  4.19      3.63     0.24    23076     0.00     0.00  btran_u_pattern
+  4.01      3.86     0.23 133433970     0.00     0.00  update_dual
+  4.01      4.09     0.23 92836790     0.00     0.00  admit_candidate
+  3.66      4.30     0.21    22372     0.00     0.00  lu_update
+  2.97      4.47     0.17    11692     0.00     0.00  dual_devex_update
+  2.79      4.63     0.16 39590905     0.00     0.00  pviol_set
+  2.09      4.75     0.12   638820     0.00     0.00  compact_pivot_row
+  1.92      4.86     0.11 92860710     0.00     0.00  shift_to_feasible
+  1.40      4.94     0.08   638820     0.00     0.00  find_pivot
+  1.40      5.02     0.08                             _init
+  1.22      5.09     0.07 123993498     0.00     0.00  jm_work_add
+  1.22      5.16     0.07    35172     0.00     0.00  ftran_scatter_all
+  1.05      5.22     0.06    22721     0.00     0.00  dual_ratio_test
+  0.87      5.27     0.05  3254969     0.00     0.00  heap_pop
+  0.87      5.32     0.05    22721     0.00     0.00  pivot.constprop.0
+  0.70      5.36     0.04 17527192     0.00     0.00  pat_push
+  0.70      5.40     0.04   180184     0.00     0.00  pr_swap
+  0.70      5.44     0.04    22723     0.00     0.00  price_row.constprop.0

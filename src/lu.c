@@ -13,6 +13,8 @@ constexpr double DROP_REL = 1e-14;
 
 constexpr double TINY = 1e-300;
 
+constexpr int64_t LU_DENSE_PASS = 8;
+
 void jm_svec_free(jm_svec *v)
 {
     free(v->idx);
@@ -87,7 +89,7 @@ typedef struct {
 
     double *mult_of;
     bool *mult_set;
-    bool *hit;
+    uint32_t *hit;
 
     int64_t *seen;
     double *rowval;
@@ -227,6 +229,56 @@ found:
     *pj = best_j;
     *pval = best_val;
     return true;
+}
+
+[[gnu::noinline]]
+static int64_t col_update(int64_t *ci, double *cx, int64_t n,
+                          const bool *done, const bool *in_piv,
+                          const double *mult, double urow, bool dense,
+                          double drop, int64_t *row_cnt, uint32_t *hit,
+                          uint32_t cst, int64_t *found)
+{
+    int64_t keep = 0, met = 0;
+    if (dense && isfinite(urow)) {
+        for (int64_t k = 0; k < n; k++) {
+            const int64_t i = ci[k];
+            if (done[i])
+                continue;
+            const double m = mult[i];
+            assert(m != 0.0 || fabs(cx[k]) > drop || isnan(cx[k]));
+            const double v = cx[k] - m * urow;
+            met += m != 0.0;
+            if (fabs(v) <= drop) {
+                row_cnt[i]--;
+                hit[i] = cst;
+                continue;
+            }
+            ci[keep] = i;
+            cx[keep] = v;
+            keep++;
+        }
+    } else {
+        for (int64_t k = 0; k < n; k++) {
+            const int64_t i = ci[k];
+            if (done[i])
+                continue;
+            double v = cx[k];
+            if (in_piv[i]) {
+                v -= mult[i] * urow;
+                met++;
+                if (fabs(v) <= drop) {
+                    row_cnt[i]--;
+                    hit[i] = cst;
+                    continue;
+                }
+            }
+            ci[keep] = i;
+            cx[keep] = v;
+            keep++;
+        }
+    }
+    *found = met;
+    return keep;
 }
 
 static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
@@ -559,7 +611,7 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     e.in_bucket = jm_calloc_array(dim, sizeof(bool));
     e.mult_of   = jm_calloc_array(dim, sizeof(double));
     e.mult_set  = jm_calloc_array(dim, sizeof(bool));
-    e.hit       = jm_calloc_array(dim, sizeof(bool));
+    e.hit       = jm_calloc_array(dim, sizeof(uint32_t));
     e.piv_row   = jm_alloc_array(dim, sizeof(int64_t));
     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
@@ -605,12 +657,8 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
     for (int64_t j = 0; j < dim; j++)
         bucket_insert(&e, j);
 
+    uint32_t cst = 0;
     for (int64_t step = 0; step < dim; step++) {
-#ifndef NDEBUG
-
-        for (int64_t i = 0; i < dim; i++)
-            assert(!e.mult_set[i]);
-#endif
         int64_t pi, pj;
         double pv;
         if (!find_pivot(&e, pivot_tol, &pi, &pj, &pv))
@@ -655,10 +703,6 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             if (!e.row_done[i])
                 e.row_cnt[i]--;
         }
-        for (int64_t k = 0; k < e.row[pi].n; k++) {
-            int64_t j = e.row[pi].idx[k];
-            bucket_move(&e, j, e.col_cnt[j] - 1);
-        }
 
         for (int64_t k = 0; k < e.piv_n; k++) {
             e.mult_of[e.piv_row[k]] = e.piv_mult[k];
@@ -677,59 +721,47 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
             }
 
             if (e.piv_n == 0) {
-                bucket_move(&e, j, e.col_cnt[j]);
+                bucket_move(&e, j, e.col_cnt[j] - 1);
                 continue;
             }
 
-            int64_t found = 0, keep = 0;
-            for (int64_t k = 0; k < cv->n; k++) {
+            if (++cst == 0) {
+                memset(e.hit, 0, (size_t)dim * sizeof *e.hit);
+                cst = 1;
+            }
+            int64_t found;
+            const bool dense = LU_DENSE_PASS * e.piv_n >= cv->n;
+            int64_t keep = col_update(cv->idx, cv->val, cv->n, e.row_done,
+                                      e.mult_set, e.mult_of, urow, dense,
+                                      e.drop, e.row_cnt, e.hit, cst, &found);
 
-                assert(keep <= k);
-                int64_t i = cv->idx[k];
-                if (e.row_done[i])
-                    continue;
-                double v = cv->val[k];
-                assert(fabs(v) > e.drop || isnan(v));
-                if (e.mult_set[i]) {
-                    v -= e.mult_of[i] * urow;
-                    e.hit[i] = true;
-                    found++;
+            if (found < e.piv_n) {
+                if (keep + e.piv_n - found > cv->cap &&
+                    !grow_pair(&cv->idx, &cv->val, &cv->cap,
+                               keep + e.piv_n - found)) {
+                    st = JAOS_ERR_OUT_OF_MEMORY;
+                    goto done;
+                }
+                for (int64_t k = 0; k < keep; k++)
+                    e.hit[cv->idx[k]] = cst;
+                for (int64_t k = 0; k < e.piv_n; k++) {
+                    int64_t i = e.piv_row[k];
+                    if (e.hit[i] == cst)
+                        continue;
+                    double v = -(e.piv_mult[k] * urow);
+                    if (!pat_push(&e.row[i], j, keep)) {
+                        st = JAOS_ERR_OUT_OF_MEMORY;
+                        goto done;
+                    }
+                    e.row_cnt[i]++;
                     if (fabs(v) <= e.drop) {
                         e.row_cnt[i]--;
                         continue;
                     }
+                    cv->idx[keep] = i;
+                    cv->val[keep] = v;
+                    keep++;
                 }
-                cv->idx[keep] = i;
-                cv->val[keep] = v;
-                keep++;
-            }
-
-            if (found < e.piv_n && keep + e.piv_n - found > cv->cap &&
-                !grow_pair(&cv->idx, &cv->val, &cv->cap,
-                           keep + e.piv_n - found)) {
-                st = JAOS_ERR_OUT_OF_MEMORY;
-                goto done;
-            }
-
-            for (int64_t k = 0; k < e.piv_n; k++) {
-                int64_t i = e.piv_row[k];
-                if (e.hit[i]) {
-                    e.hit[i] = false;
-                    continue;
-                }
-                double v = -(e.piv_mult[k] * urow);
-                if (!pat_push(&e.row[i], j, keep)) {
-                    st = JAOS_ERR_OUT_OF_MEMORY;
-                    goto done;
-                }
-                e.row_cnt[i]++;
-                if (fabs(v) <= e.drop) {
-                    e.row_cnt[i]--;
-                    continue;
-                }
-                cv->idx[keep] = i;
-                cv->val[keep] = v;
-                keep++;
             }
 
             jm_work_add(w, e.piv_n * JM_WORK_ELIMINATED);
@@ -739,8 +771,10 @@ jaos_status jm_lu_factor(jm_lu *lu, int64_t dim,
         }
         us_start[step + 1] = uacc.n;
 
-        for (int64_t k = 0; k < e.piv_n; k++)
+        for (int64_t k = 0; k < e.piv_n; k++) {
+            e.mult_of[e.piv_row[k]] = 0.0;
             e.mult_set[e.piv_row[k]] = false;
+        }
 
         lu->rank = step + 1;
     }

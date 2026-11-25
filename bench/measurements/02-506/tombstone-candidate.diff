@@ -1,0 +1,435 @@
+--- a/src/lu.c
++++ b/src/lu.c
+@@ -61,15 +61,29 @@
+     int64_t n, cap;
+ } pat;
+ 
++typedef struct {
++    int64_t *idx;
++    double *val;
++    int64_t *slot;
++    int64_t n, cap;
++} ecol;
++
++constexpr int64_t ECOL_GONE = INT64_MIN;
++
++#ifndef JAOS_ECOL_GC_QUARTERS
++#define JAOS_ECOL_GC_QUARTERS 1
++#endif
++constexpr int64_t ECOL_GC_QUARTERS = JAOS_ECOL_GC_QUARTERS;
++
+ struct jm_lu_keep {
+-    jm_svec *col;
++    ecol *col;
+     pat *row;
+ };
+ 
+ typedef struct {
+     int64_t dim;
+ 
+-    jm_svec *col;
++    ecol *col;
+     pat *row;
+     int64_t *col_cnt;
+     int64_t *row_cnt;
+@@ -86,8 +100,9 @@
+     int64_t piv_n;
+ 
+     double *mult_of;
+-    bool *mult_set;
+-    bool *hit;
++    uint8_t *mark;
++    int64_t *reuse_at;
++    int64_t *reuse_pos;
+ 
+     int64_t *seen;
+     double *rowval;
+@@ -95,6 +110,37 @@
+     double drop;
+ } elim;
+ 
++static bool ecol_grow(ecol *c, int64_t need)
++{
++    int64_t ci = c->cap, cv = c->cap, cs = c->cap;
++    if (!jm_grow((void **)&c->idx, &ci, need, sizeof *c->idx) ||
++        !jm_grow((void **)&c->val, &cv, need, sizeof *c->val) ||
++        !jm_grow((void **)&c->slot, &cs, need, sizeof *c->slot))
++        return false;
++    int64_t cap = ci < cv ? ci : cv;
++    c->cap = cap < cs ? cap : cs;
++    return true;
++}
++
++static bool ecol_push(ecol *c, int64_t i, double x, int64_t slot)
++{
++    if (c->n == c->cap && !ecol_grow(c, c->n + 1))
++        return false;
++    c->idx[c->n] = i;
++    c->val[c->n] = x;
++    c->slot[c->n] = slot;
++    c->n++;
++    return true;
++}
++
++static void ecol_free(ecol *c)
++{
++    free(c->idx);
++    free(c->val);
++    free(c->slot);
++    memset(c, 0, sizeof *c);
++}
++
+ static bool pat_push(pat *p, int64_t j, int64_t at)
+ {
+     if (p->n == p->cap) {
+@@ -121,8 +167,9 @@
+     free(e->bprev);
+     free(e->in_bucket);
+     free(e->mult_of);
+-    free(e->mult_set);
+-    free(e->hit);
++    free(e->mark);
++    free(e->reuse_at);
++    free(e->reuse_pos);
+     free(e->piv_row);
+     free(e->piv_mult);
+     free(e->seen);
+@@ -166,9 +213,9 @@
+ static double col_max_abs(const elim *e, int64_t j)
+ {
+     double mx = 0.0;
+-    const jm_svec *v = &e->col[j];
++    const ecol *v = &e->col[j];
+     for (int64_t k = 0; k < v->n; k++) {
+-        if (e->row_done[v->idx[k]])
++        if (v->idx[k] < 0)
+             continue;
+         double a = fabs(v->val[k]);
+         if (a > mx)
+@@ -190,10 +237,10 @@
+             if (mx <= e->drop)
+                 continue;
+ 
+-            const jm_svec *v = &e->col[j];
++            const ecol *v = &e->col[j];
+             for (int64_t k = 0; k < v->n; k++) {
+                 int64_t i = v->idx[k];
+-                if (e->row_done[i])
++                if (i < 0)
+                     continue;
+                 double a = fabs(v->val[k]);
+                 if (a < tol * mx)
+@@ -232,34 +279,54 @@
+ static void compact_pivot_row(elim *e, int64_t pi, int64_t step)
+ {
+     const int64_t stamp = step + 1;
++    pat *r = &e->row[pi];
+     int64_t keep = 0;
+ 
+-    for (int64_t k = 0; k < e->row[pi].n; k++) {
+-        int64_t j = e->row[pi].idx[k];
+-        if (e->col_done[j] || e->seen[j] == stamp)
++    for (int64_t k = 0; k < r->n; k++) {
++        int64_t j = r->idx[k];
++        if (e->col_done[j])
++            continue;
++        ecol *cv = &e->col[j];
++        const int64_t at = r->pos[k];
++        assert(at >= 0 && at < cv->n);
++        const bool live = cv->idx[at] == pi;
++        assert(live || cv->idx[at] == ~pi);
++        cv->idx[at] = ECOL_GONE;
++        if (e->seen[j] == stamp)
+             continue;
+         e->seen[j] = stamp;
+-
+-        const jm_svec *cv = &e->col[j];
+-        int64_t at = e->row[pi].pos[k];
+-        if (at < 0 || at >= cv->n || cv->idx[at] != pi) {
+-            at = -1;
+-            for (int64_t q = 0; q < cv->n; q++)
+-                if (cv->idx[q] == pi) {
+-                    at = q;
+-                    break;
+-                }
+-        }
+-        const double aij = at >= 0 ? cv->val[at] : 0.0;
++        const double aij = live ? cv->val[at] : 0.0;
+         if (aij == 0.0)
+             continue;
+ 
+-        e->row[pi].idx[keep] = j;
+-        e->row[pi].pos[keep] = at;
++        r->idx[keep] = j;
++        r->pos[keep] = at;
+         e->rowval[keep] = aij;
+         keep++;
+     }
+-    e->row[pi].n = keep;
++    r->n = keep;
++}
++
++static void col_gc(elim *e, int64_t j)
++{
++    ecol *cv = &e->col[j];
++    int64_t q = 0;
++    for (int64_t k = 0; k < cv->n; k++) {
++        const int64_t i = cv->idx[k];
++        if (i == ECOL_GONE)
++            continue;
++        const int64_t r = i >= 0 ? i : ~i;
++        if (e->row_done[r])
++            continue;
++        if (q != k) {
++            cv->idx[q] = i;
++            cv->val[q] = cv->val[k];
++            cv->slot[q] = cv->slot[k];
++            e->row[r].pos[cv->slot[q]] = q;
++        }
++        q++;
++    }
++    cv->n = q;
+ }
+ 
+ void jm_lu_init(jm_lu *lu)
+@@ -350,7 +417,7 @@
+     if (lu->keep) {
+         if (lu->keep->col)
+             for (int64_t j = 0; j < lu->keep_dim; j++)
+-                jm_svec_free(&lu->keep->col[j]);
++                ecol_free(&lu->keep->col[j]);
+         if (lu->keep->row)
+             for (int64_t i = 0; i < lu->keep_dim; i++) {
+                 free(lu->keep->row[i].idx);
+@@ -518,7 +585,7 @@
+         lu->keep_dim = dim;
+     }
+     if (lu->keep == nullptr && (lu->keep = calloc(1, sizeof *lu->keep))) {
+-        lu->keep->col = jm_calloc_array(dim, sizeof(jm_svec));
++        lu->keep->col = jm_calloc_array(dim, sizeof(ecol));
+         lu->keep->row = jm_calloc_array(dim, sizeof(pat));
+     }
+     lu->pos_cap  = dim + dim / 2 + 1;
+@@ -558,8 +625,9 @@
+     e.bprev     = jm_alloc_array(dim, sizeof(int64_t));
+     e.in_bucket = jm_calloc_array(dim, sizeof(bool));
+     e.mult_of   = jm_calloc_array(dim, sizeof(double));
+-    e.mult_set  = jm_calloc_array(dim, sizeof(bool));
+-    e.hit       = jm_calloc_array(dim, sizeof(bool));
++    e.mark      = jm_calloc_array(dim, sizeof(uint8_t));
++    e.reuse_at  = jm_calloc_array(dim, sizeof(int64_t));
++    e.reuse_pos = jm_alloc_array(dim, sizeof(int64_t));
+     e.piv_row   = jm_alloc_array(dim, sizeof(int64_t));
+     e.piv_mult  = jm_alloc_array(dim, sizeof(double));
+     e.seen      = jm_calloc_array(dim, sizeof(int64_t));
+@@ -574,7 +642,8 @@
+         !lu->bits ||
+         !e.col || !e.row || !e.col_cnt || !e.row_cnt || !e.col_done ||
+         !e.row_done || !e.bhead || !e.bnext || !e.bprev || !e.in_bucket ||
+-        !e.mult_of || !e.mult_set || !e.hit || !e.piv_row || !e.piv_mult ||
++        !e.mult_of || !e.mark || !e.reuse_at ||
++        !e.reuse_pos || !e.piv_row || !e.piv_mult ||
+         !e.seen || !e.rowval) {
+         st = JAOS_ERR_OUT_OF_MEMORY;
+         goto done;
+@@ -593,7 +662,7 @@
+             if (fabs(v) <= e.drop)
+                 continue;
+             int64_t i = index[k];
+-            if (!jm_svec_push(&e.col[j], i, v) ||
++            if (!ecol_push(&e.col[j], i, v, e.row[i].n) ||
+                 !pat_push(&e.row[i], j, e.col[j].n - 1)) {
+                 st = JAOS_ERR_OUT_OF_MEMORY;
+                 goto done;
+@@ -605,12 +674,8 @@
+     for (int64_t j = 0; j < dim; j++)
+         bucket_insert(&e, j);
+ 
++    int64_t cstamp = 0;
+     for (int64_t step = 0; step < dim; step++) {
+-#ifndef NDEBUG
+-
+-        for (int64_t i = 0; i < dim; i++)
+-            assert(!e.mult_set[i]);
+-#endif
+         int64_t pi, pj;
+         double pv;
+         if (!find_pivot(&e, pivot_tol, &pi, &pj, &pv))
+@@ -625,10 +690,10 @@
+         e.piv_n = 0;
+         lu->l_start[step] = lacc.n;
+         {
+-            const jm_svec *pcol = &e.col[pj];
++            const ecol *pcol = &e.col[pj];
+             for (int64_t k = 0; k < pcol->n; k++) {
+                 int64_t i = pcol->idx[k];
+-                if (i == pi || e.row_done[i])
++                if (i < 0 || i == pi)
+                     continue;
+                 double mult = pcol->val[k] / pv;
+                 if (mult == 0.0)
+@@ -652,7 +717,7 @@
+         e.row_done[pi] = true;
+         for (int64_t k = 0; k < e.col[pj].n; k++) {
+             int64_t i = e.col[pj].idx[k];
+-            if (!e.row_done[i])
++            if (i >= 0 && i != pi)
+                 e.row_cnt[i]--;
+         }
+         for (int64_t k = 0; k < e.row[pi].n; k++) {
+@@ -662,13 +727,14 @@
+ 
+         for (int64_t k = 0; k < e.piv_n; k++) {
+             e.mult_of[e.piv_row[k]] = e.piv_mult[k];
+-            e.mult_set[e.piv_row[k]] = true;
++            e.mark[e.piv_row[k]] = 1;
+         }
++        uint8_t cst = 1;
+ 
+         us_start[step] = uacc.n;
+         for (int64_t rk = 0; rk < e.row[pi].n; rk++) {
+             int64_t j = e.row[pi].idx[rk];
+-            jm_svec *cv = &e.col[j];
++            ecol *cv = &e.col[j];
+             double urow = e.rowval[rk];
+ 
+             if (!jm_svec_push(&uacc, j, urow)) {
+@@ -676,71 +742,96 @@
+                 goto done;
+             }
+ 
++            if (4 * (cv->n - e.col_cnt[j]) > ECOL_GC_QUARTERS * e.col_cnt[j])
++                col_gc(&e, j);
++
+             if (e.piv_n == 0) {
+                 bucket_move(&e, j, e.col_cnt[j]);
+                 continue;
+             }
+ 
+-            int64_t found = 0, keep = 0;
++            const int64_t cs = ++cstamp;
++            if (++cst == 0) {
++                cst = 2;
++                for (int64_t k = 0; k < e.piv_n; k++)
++                    e.mark[e.piv_row[k]] = 1;
++            }
++            int64_t found = 0, live = 0;
+             for (int64_t k = 0; k < cv->n; k++) {
+-
+-                assert(keep <= k);
+-                int64_t i = cv->idx[k];
+-                if (e.row_done[i])
+-                    continue;
+-                double v = cv->val[k];
+-                assert(fabs(v) > e.drop || isnan(v));
+-                if (e.mult_set[i]) {
+-                    v -= e.mult_of[i] * urow;
+-                    e.hit[i] = true;
+-                    found++;
+-                    if (fabs(v) <= e.drop) {
+-                        e.row_cnt[i]--;
+-                        continue;
++                const int64_t i = cv->idx[k];
++                if (i < 0) {
++                    if (i != ECOL_GONE && e.mark[~i] != 0) {
++                        e.reuse_at[~i] = cs;
++                        e.reuse_pos[~i] = k;
+                     }
++                    continue;
+                 }
+-                cv->idx[keep] = i;
+-                cv->val[keep] = v;
+-                keep++;
+-            }
+-
+-            if (found < e.piv_n && keep + e.piv_n - found > cv->cap &&
+-                !grow_pair(&cv->idx, &cv->val, &cv->cap,
+-                           keep + e.piv_n - found)) {
+-                st = JAOS_ERR_OUT_OF_MEMORY;
+-                goto done;
+-            }
+-
+-            for (int64_t k = 0; k < e.piv_n; k++) {
+-                int64_t i = e.piv_row[k];
+-                if (e.hit[i]) {
+-                    e.hit[i] = false;
++                const uint8_t m = e.mark[i];
++                if (m == 0) {
++                    live++;
+                     continue;
+                 }
+-                double v = -(e.piv_mult[k] * urow);
+-                if (!pat_push(&e.row[i], j, keep)) {
+-                    st = JAOS_ERR_OUT_OF_MEMORY;
+-                    goto done;
++                const double v = cv->val[k] - e.mult_of[i] * urow;
++                if (m != cst) {
++                    e.mark[i] = cst;
++                    found++;
+                 }
+-                e.row_cnt[i]++;
+                 if (fabs(v) <= e.drop) {
+                     e.row_cnt[i]--;
++                    cv->idx[k] = ~i;
+                     continue;
+                 }
+-                cv->idx[keep] = i;
+-                cv->val[keep] = v;
+-                keep++;
++                cv->val[k] = v;
++                live++;
++            }
++
++            if (found < e.piv_n) {
++                if (cv->n + e.piv_n - found > cv->cap &&
++                    !ecol_grow(cv, cv->n + e.piv_n - found)) {
++                    st = JAOS_ERR_OUT_OF_MEMORY;
++                    goto done;
++                }
++                for (int64_t k = 0; k < e.piv_n; k++) {
++                    const int64_t i = e.piv_row[k];
++                    if (e.mark[i] == cst)
++                        continue;
++                    const double v = -(e.piv_mult[k] * urow);
++                    const bool tiny = fabs(v) <= e.drop;
++                    int64_t s;
++                    if (e.reuse_at[i] == cs) {
++                        e.reuse_at[i] = 0;
++                        if (tiny)
++                            continue;
++                        const int64_t at = e.reuse_pos[i];
++                        s = cv->slot[at];
++                        cv->idx[at] = ECOL_GONE;
++                    } else {
++                        s = e.row[i].n;
++                        if (!pat_push(&e.row[i], j, cv->n)) {
++                            st = JAOS_ERR_OUT_OF_MEMORY;
++                            goto done;
++                        }
++                    }
++                    e.row[i].pos[s] = cv->n;
++                    cv->idx[cv->n] = tiny ? ~i : i;
++                    cv->val[cv->n] = v;
++                    cv->slot[cv->n] = s;
++                    cv->n++;
++                    if (!tiny) {
++                        e.row_cnt[i]++;
++                        live++;
++                    }
++                }
+             }
+ 
+             jm_work_add(w, e.piv_n * JM_WORK_ELIMINATED);
+ 
+-            cv->n = keep;
+-            bucket_move(&e, j, keep);
++            bucket_move(&e, j, live);
+         }
+         us_start[step + 1] = uacc.n;
+ 
+         for (int64_t k = 0; k < e.piv_n; k++)
+-            e.mult_set[e.piv_row[k]] = false;
++            e.mark[e.piv_row[k]] = 0;
+ 
+         lu->rank = step + 1;
+     }

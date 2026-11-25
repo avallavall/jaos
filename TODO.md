@@ -89,15 +89,18 @@ reaches bound 11162 from 11130, its ten cut rounds' re-solves taking
 99.9% of the work. U's columns sit in one block in the dense forward
 solve's order (`bench/measurements/02-505/`), every answer and work unit
 the same: on 27 of the other 29 the root LP reaches 1.14x the iterations
-in 300 s (geometric; up to 1.42x), and `rail01`'s ends. On `mzzv11`'s
-root LP the factorization takes 24% of the seconds (20 ms, one every 65
-iterations), the dense U solve 24% and BTRAN 13%, and with that
-factorization 64 updates between them is near the best. Next: the same
-pivots in less time (the stale row positions that send
-`compact_pivot_row` to a linear search, the elimination's pass over
-each active column), then fewer updates between factorizations, then
-the cut rounds' re-solves. Verify with 02-505's `root.sh` and 02-501's
-`pair.sh` on `root27.txt`.
+in 300 s (geometric; up to 1.42x), and `rail01`'s ends. The
+elimination's pass over a column no longer branches on each row where the
+pivot column is long (`bench/measurements/02-506/`), every answer and work
+unit the same: a factorization in the solver takes 0.70x the cycles on
+`mzzv11`, 0.77x on `dano3_3` and 0.75x on `ex9`, and on the 26 of the 27
+that run out of 300 s the root LP reaches 1.019x the iterations
+(geometric; up to 1.21x).
+Row positions kept exact cost the pass more than `compact_pivot_row`'s
+search (`lu-exact-row-positions`). On `mzzv11`'s root LP the factorization
+takes 22% of the seconds (14 ms, one every 65 iterations). Next: fewer
+updates between factorizations, then the cut rounds' re-solves. Verify
+with 02-506's `root.sh` and 02-501's `pair.sh` on 02-505's `root27.txt`.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and

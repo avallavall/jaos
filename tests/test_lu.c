@@ -422,6 +422,38 @@ static void test_exact_cancellation_does_not_corrupt_state(void)
     jm_lu_free(&lu);
 }
 
+static void test_an_overflowing_pivot_row_spares_the_other_rows(void)
+{
+    static const int v[25] = {
+         0,  0,  0, -1,  0,
+         1, -1,  1,  1, -1,
+         0,  1,  0,  1,  0,
+         1,  1,  0, -1,  0,
+         1,  0,  1, -1,  1,
+    };
+    mat m;
+    m.n = 5;
+    for (int64_t i = 0; i < m.n; i++)
+        for (int64_t j = 0; j < m.n; j++)
+            m.a[i][j] = v[i * m.n + j] * 5e307;
+    mat_pack(&m);
+
+    jm_lu lu;
+    jm_lu_init(&lu);
+    jm_work w = {0};
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jm_lu_factor(&lu, m.n, m.start, m.index,
+                                                m.value, PIVOT_TOL, &w));
+    TEST_ASSERT_EQUAL_INT64(m.n, lu.rank);
+    for (int64_t s = 0; s < lu.dim; s++) {
+        TEST_ASSERT_FALSE(isnan(lu.u_diag[s]));
+        for (int64_t k = 0; k < lu.urow[s].n; k++)
+            TEST_ASSERT_FALSE(isnan(lu.urow[s].val[k]));
+    }
+    for (int64_t k = 0; k < lu.l_start[lu.dim]; k++)
+        TEST_ASSERT_FALSE(isnan(lu.l_value[k]));
+    jm_lu_free(&lu);
+}
+
 static void test_nonsingular_pm1_matrix_reaches_full_rank(void)
 {
     static const int v[64] = {
@@ -803,6 +835,7 @@ int main(void)
     RUN_TEST(test_work_counter_moves_and_repeats);
     RUN_TEST(test_factor_rejects_bad_arguments);
     RUN_TEST(test_exact_cancellation_does_not_corrupt_state);
+    RUN_TEST(test_an_overflowing_pivot_row_spares_the_other_rows);
     RUN_TEST(test_nonsingular_pm1_matrix_reaches_full_rank);
     RUN_TEST(test_random_pm1_matrices);
     RUN_TEST(test_update_matches_the_new_basis);

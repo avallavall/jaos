@@ -1,0 +1,19 @@
+Mcycles a factorization inside the solver, the root LP alone, all builds of a
+round at once. before = 7b5784ac; always = the pass without the branch on every
+column; pass=N = the landed rule at LU_DENSE_PASS = N. Two rounds where listed.
+
+instance               before   always   pass=2   pass=4   pass=8   pass=16
+chromaticindex1024-7   157.52   161.80   154.14   152.13   152.11
+                       126.15   128.11            121.59   120.39   121.63
+mzzv11                  69.70    49.44    50.43    48.63    49.05
+                        68.67    48.94             48.73    48.78    48.03
+dano3_3                 17.30    13.76    14.17    14.05    13.39
+                        17.79    13.94             13.75    13.63    13.81
+qap10                   14.93    12.43    12.77    12.44    11.87
+                        15.25    11.77             12.25    12.09    12.05
+ns1116954               66.90    78.00                      63.47
+ex9                   1123.22   848.41                     838.55
+supportcase19            9.17     9.34                       9.17
+
+chromaticindex1024-7, the two changes apart (one round): before 154.3, the
+bucket pass alone dropped 152.2, the branch-free pass alone 165.5, both 160.1.
