@@ -18,6 +18,7 @@ constexpr int64_t MIP_CUT_ROUNDS = 1;
 constexpr int64_t MIP_GOMORY_MORE = 20;
 constexpr double MIP_GOMORY_MORE_STALL = 1e-4;
 constexpr double MIP_GOMORY_MORE_NZ = 10.0;
+constexpr double MIP_GOMORY_ROUND_NZ = 1.0;
 
 constexpr int64_t MIP_CUT_DEPTH = 3;
 
@@ -316,20 +317,8 @@ static void cutbuf_free(cutbuf *cb)
     free(cb->start); free(cb->idx); free(cb->val); free(cb->lo); free(cb->eff);
 }
 
-static int64_t cutbuf_keep_best(cutbuf *cb, int64_t cap)
+static int64_t cutbuf_compact(cutbuf *cb, bool *keep)
 {
-    if (cap <= 0 || cb->n <= cap)
-        return cb->n;
-    bool *keep = calloc((size_t)cb->n, sizeof *keep);
-    if (keep == nullptr)
-        return -1;
-    for (int64_t k = 0; k < cap; k++) {
-        int64_t best = -1;
-        for (int64_t r = 0; r < cb->n; r++)
-            if (!keep[r] && (best < 0 || cb->eff[r] > cb->eff[best]))
-                best = r;
-        keep[best] = true;
-    }
     int64_t n = 0, nnz = 0;
     for (int64_t r = 0; r < cb->n; r++) {
         if (!keep[r])
@@ -350,6 +339,60 @@ static int64_t cutbuf_keep_best(cutbuf *cb, int64_t cap)
     cb->nnz = nnz;
     free(keep);
     return n;
+}
+
+static int64_t cutbuf_keep_best(cutbuf *cb, int64_t cap)
+{
+    if (cap <= 0 || cb->n <= cap)
+        return cb->n;
+    bool *keep = calloc((size_t)cb->n, sizeof *keep);
+    if (keep == nullptr)
+        return -1;
+    for (int64_t k = 0; k < cap; k++) {
+        int64_t best = -1;
+        for (int64_t r = 0; r < cb->n; r++)
+            if (!keep[r] && (best < 0 || cb->eff[r] > cb->eff[best]))
+                best = r;
+        keep[best] = true;
+    }
+    return cutbuf_compact(cb, keep);
+}
+
+typedef struct {
+    int64_t nz, r;
+} cutsize;
+
+static int cutsize_cmp(const void *pa, const void *pb)
+{
+    const cutsize *a = pa, *b = pb;
+    if (a->nz != b->nz)
+        return a->nz < b->nz ? -1 : 1;
+    return (a->r > b->r) - (a->r < b->r);
+}
+
+static int64_t cutbuf_keep_sparse(cutbuf *cb, double budget)
+{
+    if ((double)cb->nnz <= budget)
+        return cb->n;
+    cutsize *ord = jm_alloc_array(cb->n, sizeof *ord);
+    bool *keep = calloc((size_t)cb->n, sizeof *keep);
+    if (ord == nullptr || keep == nullptr) {
+        free(ord);
+        free(keep);
+        return -1;
+    }
+    for (int64_t r = 0; r < cb->n; r++)
+        ord[r] = (cutsize){cb->start[r + 1] - cb->start[r], r};
+    qsort(ord, (size_t)cb->n, sizeof *ord, cutsize_cmp);
+    double used = 0.0;
+    for (int64_t k = 0; k < cb->n; k++) {
+        if (used + (double)ord[k].nz > budget)
+            break;
+        used += (double)ord[k].nz;
+        keep[ord[k].r] = true;
+    }
+    free(ord);
+    return cutbuf_compact(cb, keep);
 }
 
 typedef struct {
@@ -10562,6 +10605,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
     int64_t rcfixed = 0;
     int64_t tightened = 0;
     int64_t *rp_del = nullptr, *rp_mark = nullptr, *rp_sel = nullptr;
+    jaos_basis_status *rp_basis = nullptr;
+    int64_t rp_basis_cap = 0;
     double *rp_nrm = nullptr;
     cutrank *rp_rk = nullptr;
     int64_t rp_del_cap = 0, rp_mark_cap = 0, rp_sel_cap = 0, rp_nrm_cap = 0;
@@ -11594,6 +11639,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             const double key_first = key;
             bool stop = false;
             lp->cfg.cut_resolve = true;
+            lp->cfg.node_devex = !quadratic;
             for (int64_t r = 0; r < root_rounds && !stop; r++) {
                 if (budget_gone(m, work)) {
                     outcome = gone_status(m, work);
@@ -11721,6 +11767,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                 if (r < rounds || (r < gomory_rounds && gomory_live)) {
                     got = gomory_round(m, lp, gint, gom_row, nr, x, &cb, row,
                                        cut, &work);
+                    if (got > 0)
+                        got = cutbuf_keep_sparse(
+                            &cb, MIP_GOMORY_ROUND_NZ * (double)lp->num_nz);
                     if (got < 0)
                         goto done;
                     gomory_done++;
@@ -11819,7 +11868,9 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     got = cb.n;
                 }
                 const double key_before = key;
-                for (int pass = 0; pass < 2; pass++) {
+                jaos_model *taken = nullptr;
+                bool undone = false;
+                for (int pass = 0; pass < 2 && !undone; pass++) {
                     const cutbuf *add = pass == 0 ? &cb : &agb;
                     if (add->n == 0)
                         continue;
@@ -11832,6 +11883,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                             goto done;
                         }
                         work += lp->num_nz + lp->num_row + lp->num_col;
+                        pv->cfg.node_keep = lp->cfg.node_keep;
                         phase_to(&ph, work, PH_LP);
                         budget(pv, m, work);
                         const jaos_status pst = jaos_solve(pv);
@@ -11847,7 +11899,10 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         const double gain = solved
                             ? (sigma * pobj - key) / (1.0 + fabs(key)) : 0.0;
                         const bool pays = solved && gain > MIP_MIR_AGG_GAIN;
-                        jaos_model_free(pv);
+                        if (pays)
+                            taken = pv;
+                        else
+                            jaos_model_free(pv);
                         jm_log(m, JAOS_LOG_DETAIL,
                                "root cuts, round %lld: %lld aggregated MIR "
                                "cuts lift the bound by %.3e of it on a copy; "
@@ -11866,27 +11921,84 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         mirs += agb.n;
                         got += agb.n;
                     }
-                    if (cuts_add(lp, add) != JAOS_OK)
+                    const int64_t nrow0 = lp->num_row, act0 = act_n;
+                    const int64_t copy0 = in_copy.n;
+                    const bool undo = taken == nullptr && lp->sol_basis_ok;
+                    if (undo) {
+                        const int64_t nc0 = lp->num_col;
+                        if (!JM_GROW(rp_basis, rp_basis_cap,
+                                     nc0 + nrow0 + add->n + 1))
+                            goto done;
+                        memcpy(rp_basis, lp->sol_col_status,
+                               (size_t)nc0 * sizeof *rp_basis);
+                        memcpy(rp_basis + nc0, lp->sol_row_status,
+                               (size_t)nrow0 * sizeof *rp_basis);
+                    }
+                    if (taken == nullptr && cuts_add(lp, add) != JAOS_OK)
                         goto done;
                     if (root_cut_drop) {
                         for (int64_t k = 0; k < add->n; k++) {
                             if (!cutbuf_append(&pool, add, k) ||
                                 !JM_GROW(act, act_cap, act_n + 1) ||
                                 !JM_GROW(in_copy.v, in_copy.cap,
-                                         in_copy.n + 1))
+                                         in_copy.n + 1)) {
+                                jaos_model_free(taken);
                                 goto done;
+                            }
                             act[act_n++] = pool.n - 1;
                             in_copy.v[in_copy.n++] = pool.n - 1;
                         }
                     }
                     cuts += pass == 0 ? got : add->n;
-                    phase_to(&ph, work, PH_LP);
-                    budget(lp, m, work);
-                    st = jaos_solve(lp);
-                    solves++;
-                    work += jaos_work_units(lp);
-                    iters += jaos_iterations(lp);
-                    phase_to(&ph, work, PH_CUTS);
+                    if (taken != nullptr) {
+                        jaos_model_free(lp);
+                        lp = taken;
+                        taken = nullptr;
+                        st = JAOS_OK;
+                    } else {
+                        phase_to(&ph, work, PH_LP);
+                        budget(lp, m, work);
+                        st = jaos_solve(lp);
+                        solves++;
+                        work += jaos_work_units(lp);
+                        iters += jaos_iterations(lp);
+                        phase_to(&ph, work, PH_CUTS);
+                    }
+                    if (undo && (st == JAOS_ERR_NUMERICAL ||
+                                 (st == JAOS_OK &&
+                                  jaos_status_of(lp) ==
+                                      JAOS_SOLVE_NUMERICAL_ERROR))) {
+                        const int64_t nc0 = lp->num_col;
+                        const int64_t nadd = lp->num_row - nrow0;
+                        if (!JM_GROW(rp_del, rp_del_cap, nadd + 1))
+                            goto done;
+                        for (int64_t k = 0; k < nadd; k++) {
+                            rp_del[k] = nrow0 + k;
+                            rp_basis[nc0 + nrow0 + k] = JAOS_BASIS_BASIC;
+                        }
+                        if (jaos_set_basis(lp, rp_basis, rp_basis + nc0) !=
+                                JAOS_OK ||
+                            jaos_delete_rows(lp, nadd, rp_del) != JAOS_OK)
+                            goto done;
+                        lp->err[0] = '\0';
+                        act_n = act0;
+                        in_copy.n = copy0;
+                        cuts -= pass == 0 ? got : add->n;
+                        work += lp->num_nz + lp->num_row;
+                        jm_log(m, JAOS_LOG_DETAIL,
+                               "root cuts, round %lld: the re-solve ended "
+                               "without an answer; its %lld cuts leave the "
+                               "relaxation and the rounds stop",
+                               (long long)(r + 1), (long long)nadd);
+                        phase_to(&ph, work, PH_LP);
+                        budget(lp, m, work);
+                        st = jaos_solve(lp);
+                        solves++;
+                        work += jaos_work_units(lp);
+                        iters += jaos_iterations(lp);
+                        phase_to(&ph, work, PH_CUTS);
+                        undone = true;
+                    }
                     if (st != JAOS_OK) {
                         if (st == JAOS_ERR_NUMERICAL) {
                             outcome = JAOS_SOLVE_NUMERICAL_ERROR;
@@ -11910,6 +12022,8 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                         goto done;
                     key = sigma * obj;
                 }
+                if (undone)
+                    break;
                 jm_log(m, JAOS_LOG_DETAIL,
                        "root cuts, round %lld: %lld cuts, relaxation %.17g, "
                        "%lld rows", (long long)(r + 1), (long long)got,
@@ -11936,6 +12050,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     break;
             }
             lp->cfg.cut_resolve = false;
+            lp->cfg.node_devex = false;
             if (stop) {
                 if (outcome == JAOS_SOLVE_TIME_LIMIT ||
                     outcome == JAOS_SOLVE_WORK_LIMIT)
@@ -13687,6 +13802,7 @@ done:
     cmir_free(&cmx);
     gh_free(&gh);
     free(rp_del);
+    free(rp_basis);
     free(rp_mark);
     free(rp_sel);
     free(rp_nrm);

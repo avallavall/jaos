@@ -1,0 +1,34 @@
+# instance status_a status_b | nodes a b | incumbent a b | bound a b | ref
+assign1-5-8            work limit work limit |   33204   45034 |          212          212 |          200          200 | 211.99999999
+beasleyC3              work limit work limit |    5503    4682 |          762          759 |          743          741 | 753.99999999
+binkar10_1             optimal    optimal    |    6336    9016 | 6742.2000239 6742.2000239 |            -            - | 6742.1998835
+csched007              work limit work limit |    6611    6091 |          405 397.99999999 |          305          306 | 350.99999999
+csched008              work limit work limit |     157     201 |          175          175 |          171          171 | 173
+enlight_hard           optimal    optimal    |       1       1 |           37           37 |            -            - | 37
+exp-1-500-5-5          optimal    optimal    |      57      29 |        65887        65887 |            -            - | 65887
+gen-ip002              work limit work limit |  198911  220272 | -4774.647438 -4772.326055 | -4806.130594 -4804.697750 | -4783.733392
+gen-ip054              optimal    optimal    |   68545   46535 | 6840.9656417 6840.9656417 |            -            - | 6840.9656417
+glass4                 work limit work limit |  132047  131839 | 1625015083.3 1625015083.3 | 800005163.15 800005159.61 | 1200012599.9
+graphdraw-domain       work limit work limit |   49788   92530 |        21741        22855 | 14618.272815 15478.301892 | 19685.999975
+ic97_potential         work limit work limit |     487   20717 |         none         none |         3877         3869 | 3941.9999309
+mad                    work limit work limit |   31994   36312 | 0.1148000000 0.1805999999 |            0            0 | 0.0268000000
+markshare2             work limit work limit |  677696  682368 | 88.999999999           84 |            0            0 | 1
+markshare_4_0          optimal    optimal    |  378496  377966 |            1            1 |            -            - | 1
+mas74                  work limit work limit |  265257  271335 | 11939.484943 11801.185729 | 11245.669928 11246.921794 | 11801.185719
+mas76                  optimal    optimal    |  315175  460609 | 40005.054141 40005.054141 |            -            - | 40005.053989
+neos-2657525-crna      work limit work limit |    7767   14141 | 92.161737099 45.095016799 |            0            0 | 1.810748
+neos-3046615-murg      work limit work limit |  216375  226845 |         1664         1661 |          456          451 | 1600
+neos-3381206-awhea     optimal    optimal    |       1       1 |          453          453 |            -            - | 453
+neos-3627168-kasai     work limit work limit |    1812    2207 | 998740.85999 990498.17999 | 960426.06715 962747.53944 | 988585.61999
+neos-3754480-nidda     work limit work limit |  165129  165130 | 12941.738385 12941.738385 | -384460.6020 -384460.6020 | 12941.738385
+neos-911970            work limit work limit |    3371    5402 | 54.829999999 54.759999999 | 53.054471662 52.297773420 | 54.759999999
+neos5                  optimal    work limit |  165457  148603 |           15           15 |            - 14.285714285 | 15
+p200x1188c             optimal    optimal    |      46     176 |        15078        15078 |            -            - | 15078
+pk1                    optimal    optimal    |  152344  158417 |           11 10.999999999 |            -            - | 11
+sp150x300d             optimal    optimal    |       2       2 |           69           69 |            -            - | 69
+supportcase26          work limit work limit |   68793   68793 | 1764.0178743 1764.0178743 | 1467.2032118 1467.2032118 | 1745.1238129
+timtab1                work limit work limit |  242306  157183 | 1036197.9999 1007484.9999 | 554497.57721 546002.39302 | 764771.99999
+tr12-30                work limit work limit |   42596   45935 | 130652.99999       131245 | 130292.15280 130249.41242 | 130595.99999
+before     solved 11 incumbents 29 primal 4.1539 dual 5.1108 sum 9.2647
+devex      solved 9 incumbents 28 primal 5.1966 dual 6.1422 sum 11.3388
+after      solved 10 incumbents 29 primal 4.1966 dual 5.1422 sum 9.3388

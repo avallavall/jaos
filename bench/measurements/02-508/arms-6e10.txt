@@ -1,0 +1,88 @@
+== rounds
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 1496 iters, 1496 restarts, 5.840e+10 work; last cuts work limit reached; end work_limit work 62239703617 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 11446 iters, 9824 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60001077485 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 1 re-solves, 8418 iters, 8417 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000118193 bound 0 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 1 re-solves, 39784 iters, 35052 restarts, 4.372e+10 work; last cuts work limit reached; end work_limit work 60000741609 bound -21622 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 39047 iters, 37059 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60001681259 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 3103 iters, 2847 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000214259 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 1 re-solves, 68901 iters, 68622 restarts, 5.187e+10 work; last cuts work limit reached; end work_limit work 60001563273 bound -3773 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 17 re-solves, 260505 iters, 255075 restarts, 5.996e+10 work; last probe work limit reached; end work_limit work 60000178362 bound 39 nodes 1
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 1 re-solves, 18524 iters, 9447 restarts, 5.874e+10 work; last cuts work limit reached; end work_limit work 60001180904 bound 1 nodes 1
+== rounds-dx
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 3562 iters, 5 restarts, 5.617e+10 work; last cuts work limit reached; end work_limit work 60005163624 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 19948 iters, 132 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60000401932 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 2 re-solves, 22880 iters, 125 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000170586 bound 2 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 53049 iters, 380 restarts, 4.371e+10 work; last cuts work limit reached; end work_limit work 60000283444 bound -21400 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 40611 iters, 69 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60000552870 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 4950 iters, 19 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000074930 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 7 re-solves, 101718 iters, 83 restarts, 3.701e+10 work; last cuts optimal; end work_limit work 60001164366 bound -3729 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 32 re-solves, 82551 iters, 799 restarts, 2.541e+10 work; last probe optimal; end work_limit work 60000122744 bound 49 nodes 101
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 41714 iters, 222 restarts, 5.872e+10 work; last cuts work limit reached; end work_limit work 60001708679 bound 1 nodes 1
+== rounds-devex
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 3562 iters, 4 restarts, 5.616e+10 work; last cuts work limit reached; end work_limit work 60000912844 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 19949 iters, 131 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60000867543 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 2 re-solves, 23059 iters, 124 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000049054 bound 2 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 52299 iters, 367 restarts, 4.371e+10 work; last cuts work limit reached; end work_limit work 60002691925 bound -21400 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 40611 iters, 68 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60000573567 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 4993 iters, 19 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000105965 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 7 re-solves, 80228 iters, 89 restarts, 2.876e+10 work; last cuts optimal; end work_limit work 60000786098 bound -3729 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 32 re-solves, 76469 iters, 727 restarts, 2.348e+10 work; last probe optimal; end work_limit work 60000076611 bound 50 nodes 121
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 43713 iters, 274 restarts, 5.872e+10 work; last cuts work limit reached; end work_limit work 60000365000 bound 1 nodes 1
+== rounds-exact
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 7021 iters, 1 restarts, 5.617e+10 work; last cuts work limit reached; end work_limit work 60007970504 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 2 re-solves, 36248 iters, 6122 restarts, 5.996e+10 work; last cuts work limit reached; end work_limit work 60095984383 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 4 re-solves, 42874 iters, 3 restarts, 5.227e+10 work; last cuts optimal; end work_limit work 60005900039 bound 2 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 1 re-solves, 52795 iters, 22995 restarts, 4.372e+10 work; last cuts work limit reached; end work_limit work 60004687607 bound -21622 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 61457 iters, 1 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60000823326 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 34380 iters, 1 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000948711 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 3 re-solves, 88427 iters, 1 restarts, 5.172e+10 work; last cuts work limit reached; end work_limit work 60000575586 bound -3735 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 32 re-solves, 39000 iters, 447 restarts, 2.982e+10 work; last probe optimal; end work_limit work 60012938982 bound 51 nodes 101
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 6 re-solves, 54700 iters, 4 restarts, 5.450e+10 work; last cuts optimal; end work_limit work 60255195027 bound 1 nodes 1
+== rounds-exactdx
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 3706 iters, 4 restarts, 5.658e+10 work; last cuts work limit reached; end work_limit work 60417988711 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 2 re-solves, 28547 iters, 217 restarts, 5.987e+10 work; last cuts work limit reached; end work_limit work 60002797987 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 1 re-solves, 12091 iters, 21 restarts, 5.977e+10 work; last cuts work limit reached; end work_limit work 60049611587 bound 0 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 48869 iters, 397 restarts, 4.371e+10 work; last cuts work limit reached; end work_limit work 60000561070 bound -21400 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 49540 iters, 130 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60001096868 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 5155 iters, 20 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60004042681 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 5 re-solves, 82814 iters, 29 restarts, 5.303e+10 work; last cuts work limit reached; end work_limit work 61461042724 bound -3731 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 28 re-solves, 59030 iters, 560 restarts, 2.663e+10 work; last probe optimal; end work_limit work 60000069770 bound 49 nodes 161
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 44247 iters, 261 restarts, 5.872e+10 work; last cuts work limit reached; end work_limit work 60001082676 bound 1 nodes 1
+== rounds-swap
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 1496 iters, 1496 restarts, 5.840e+10 work; last cuts work limit reached; end work_limit work 62239703617 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 11446 iters, 9824 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60001077485 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 1 re-solves, 8418 iters, 8417 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000118193 bound 0 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 1 re-solves, 39784 iters, 35052 restarts, 4.372e+10 work; last cuts work limit reached; end work_limit work 60000741609 bound -21622 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 39047 iters, 37059 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60001681259 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 3103 iters, 2847 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000214259 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 1 re-solves, 68901 iters, 68622 restarts, 5.187e+10 work; last cuts work limit reached; end work_limit work 60001563273 bound -3773 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 14 re-solves, 195674 iters, 192678 restarts, 5.994e+10 work; last probe work limit reached; end work_limit work 60000605082 bound 42 nodes 1
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 1 re-solves, 18524 iters, 9447 restarts, 5.874e+10 work; last cuts work limit reached; end work_limit work 60001180904 bound 1 nodes 1
+== rounds-swapdevex
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 3562 iters, 4 restarts, 5.616e+10 work; last cuts work limit reached; end work_limit work 60000912844 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 19949 iters, 131 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60000867543 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 2 re-solves, 23059 iters, 124 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000049054 bound 2 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 52299 iters, 367 restarts, 4.371e+10 work; last cuts work limit reached; end work_limit work 60002691925 bound -21400 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 40611 iters, 68 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60000573567 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 4993 iters, 19 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000105965 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 7 re-solves, 80228 iters, 89 restarts, 2.876e+10 work; last cuts optimal; end work_limit work 60000786098 bound -3729 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 17 re-solves, 40940 iters, 387 restarts, 1.248e+10 work; last probe optimal; end work_limit work 60000022903 bound 50 nodes 292
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 43713 iters, 274 restarts, 5.872e+10 work; last cuts work limit reached; end work_limit work 60000365000 bound 1 nodes 1
+== rounds-swapdx
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 3562 iters, 5 restarts, 5.617e+10 work; last cuts work limit reached; end work_limit work 60005163624 bound 0 nodes 1
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 19948 iters, 132 restarts, 5.988e+10 work; last cuts work limit reached; end work_limit work 60000401932 bound 0 nodes 1
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 2 re-solves, 22880 iters, 125 restarts, 5.972e+10 work; last cuts work limit reached; end work_limit work 60000170586 bound 2 nodes 1
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 53049 iters, 380 restarts, 4.371e+10 work; last cuts work limit reached; end work_limit work 60000283444 bound -21400 nodes 1
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 40611 iters, 69 restarts, 5.958e+10 work; last cuts work limit reached; end work_limit work 60000552870 bound 0 nodes 1
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 4950 iters, 19 restarts, 1.929e+10 work; last cuts work limit reached; end work_limit work 60000074930 bound -238 nodes 1
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 7 re-solves, 101718 iters, 83 restarts, 3.701e+10 work; last cuts optimal; end work_limit work 60001164366 bound -3729 nodes 1
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 17 re-solves, 44197 iters, 421 restarts, 1.339e+10 work; last probe optimal; end work_limit work 60000140839 bound 50 nodes 276
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 41714 iters, 222 restarts, 5.872e+10 work; last cuts work limit reached; end work_limit work 60001708679 bound 1 nodes 1

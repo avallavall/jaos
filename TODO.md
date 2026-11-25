@@ -97,15 +97,25 @@ unit the same: a factorization in the solver takes 0.70x the cycles on
 that run out of 300 s the root LP reaches 1.019x the iterations
 (geometric; up to 1.21x).
 Row positions kept exact cost the pass more than `compact_pivot_row`'s
-search (`lu-exact-row-positions`). On `mzzv11`'s root LP the factorization
-takes 22% of the seconds (14 ms, one every 65 iterations). Fewer updates
-between factorizations does not pay as read (`bench/measurements/02-507/`,
-`refactor-interval-and-fill`): every other interval and the rule on U's
-fill move the walk more than its cost, and `wood1p`'s suboptimality bound
-with it. Taking it up again needs the interval's cost apart from the walk,
-one walk's bases and entering columns replayed through the LU at each
-interval. Next: the cut rounds' re-solves. Verify with 02-506's `root.sh`
-and 02-501's `pair.sh` on 02-505's `root27.txt`.
+search (`lu-exact-row-positions`), and fewer updates between
+factorizations does not pay as read (`bench/measurements/02-507/`,
+`refactor-interval-and-fill`). The cut rounds' re-solves priced by the
+largest infeasibility, their steepest-edge weights restarting at 1 at
+nearly every pivot, a first round's Gomory cuts added 9 to 129 times the
+relaxation's nonzeros, and a paying aggregation probe was solved twice
+(`bench/measurements/02-508/`). The re-solves now price by dual Devex,
+a round's Gomory cuts add at most the relaxation's nonzeros, the probe's
+copy becomes the relaxation, and a round whose re-solve ends in a
+numerical error is undone. At 300 s on the 34 where the re-solves lead,
+11 leave the root against 2 and 13 hold an incumbent against 6, and 15
+bounds rise and 2 fall slightly. MIPLIB 3 reads 0.917x the work (geometric), MIPLIB 2017's sum 9.34
+against 9.26, and `neos5` no longer closes inside 1e10. The first round's
+re-solve still does not end on `neos-4532248-waihi`,
+`academictimetablesmall` and `neos-960392`: on `neos-4532248-waihi` its
+infeasibility holds at 336.4 for 6,000 iterations under dual Devex. Next:
+that stall, then the root dive, which leads on most of the 17 heuristic
+ones. Verify with 02-508's `read.sh` on `nine.txt` and 02-501's `pair.sh`
+on 02-508's `cut34.txt`.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
@@ -186,8 +196,10 @@ first:
   columns the nodes did not branch on; written ahead of the branching
   bound they shrink `neos5`'s tree from 222,931 nodes to 186,781 and
   `pk1`'s from 202,147 to 159,769. Orbital fixing at a node writes its
-  bounds after the branching bound the same way. Next: the same order for
-  orbital fixing, read on the models with symmetries.
+  bounds after the branching bound the same way. Under 02-508's root cut
+  rounds `neos5` holds 15 against a bound of 14.29 after 148,603 nodes at
+  1e10, where it closed in 165,457. Next: the same order for orbital
+  fixing, read on the models with symmetries.
 - Neither HiGHS nor SCIP closes `assign1-5-8` in 600 s (200.0 and 205.0).
   Its gap is the tree's: the LP reads 183.36, the products of its columns
   with the triangle rows 184.53, its 26 cost columns alone made integer

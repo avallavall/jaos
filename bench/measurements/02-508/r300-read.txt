@@ -1,0 +1,55 @@
+# instance: root LP; then each re-solve: round kind cuts nz-added(x root LP nz) iters restarts refactorizations work status bound
+academictimetablesmall: root LP 13062 iters, 3.697e+09 work, 268350 nz, bound 0; 1 re-solves, 2666 iters, 2666 restarts, 1.713e+11 work; last cuts time limit reached; end time_limit work 175115117273 bound 0 nodes 1
+  r1   cuts  +2636  nz+34658852 (129.16x) it 2666    rs 2666    rf 42    w 1.713e+11 time limit reached   nan
+bnatt500: root LP 2436 iters, 9.806e+07 work, 27203 nz, bound 0; 1 re-solves, 87101 iters, 85111 restarts, 2.485e+11 work; last cuts time limit reached; end time_limit work 248656299497 bound 0 nodes 1
+  r1   cuts  +1829  nz+965143   (35.48x) it 87101   rs 85111   rf 1341  w 2.485e+11 time limit reached   nan
+comp21-2idx: root LP 2929 iters, 2.490e+08 work, 57301 nz, bound 0; 1 re-solves, 20086 iters, 20085 restarts, 1.571e+11 work; last cuts time limit reached; end time_limit work 157343161531 bound 0 nodes 1
+  r1   cuts  +979   nz+1143662  (19.96x) it 20086   rs 20085   rf 310   w 1.571e+11 time limit reached   nan
+mzzv42z: root LP 62834 iters, 1.623e+10 work, 151261 nz, bound -21622.99848; 2 re-solves, 126248 iters, 116161 restarts, 1.477e+11 work; last cuts time limit reached; end time_limit work 163959717978 bound -21400 nodes 1
+  r1   cuts  +1035  nz+1319387  (8.72x) it 85970   rs 81001   rf 1324  w 8.737e+10 optimal              -21400.118406914902
+  r2   cuts  +74    nz+1431     (0.01x) it 40278   rs 35160   rf 620   w 6.030e+10 time limit reached   nan
+neos-4532248-waihi: root LP 731 iters, 2.099e+08 work, 525339 nz, bound 0; 1 re-solves, 41510 iters, 39364 restarts, 6.376e+10 work; last cuts time limit reached; end time_limit work 64174563611 bound 0 nodes 1
+  r1   cuts  +322   nz+420609   (0.80x) it 41510   rs 39364   rf 639   w 6.376e+10 time limit reached   nan
+neos-960392: root LP 226143 iters, 4.062e+10 work, 189503 nz, bound -238; 1 re-solves, 21301 iters, 19153 restarts, 1.445e+11 work; last cuts time limit reached; end time_limit work 185207700934 bound -238 nodes 1
+  r1   cuts  +411   nz+8405390  (44.35x) it 21301   rs 19153   rf 328   w 1.445e+11 time limit reached   nan
+neos8: root LP 24597 iters, 7.925e+09 work, 313180 nz, bound -3773.391969; 6 re-solves, 186011 iters, 170442 restarts, 1.266e+11 work; last cuts time limit reached; end time_limit work 135131770131 bound -3730 nodes 1
+  r1   cuts  +1249  nz+372453   (1.19x) it 84737   rs 70257   rf 1305  w 6.188e+10 optimal              -3742.7560046865851
+  r2   cuts  +528   nz+94905    (0.30x) it 27367   rs 26896   rf 422   w 1.601e+10 optimal              -3735.6282911613216
+  r3   cuts  +342   nz+65006    (0.21x) it 25327   rs 25092   rf 391   w 1.661e+10 optimal              -3732.6919254658401
+  r4   cuts  +310   nz+70638    (0.23x) it 26518   rs 26351   rf 409   w 1.705e+10 optimal              -3731.2697022767097
+  r5   cuts  +234   nz+507      (0.00x) it 22062   rs 21846   rf 341   w 1.508e+10 optimal              -3730.0090090090112
+  r6   cuts  +120   nz+270      (0.00x) it 0       rs 0       rf 1     w 4.811e+06 time limit reached   nan
+nexp-150-20-8-5: root LP 835 iters, 2.125e+07 work, 42465 nz, bound 18.22680412; 29 re-solves, 414532 iters, 408399 restarts, 1.438e+11 work; last probe time limit reached; end time_limit work 143900873610 bound 43 nodes 1
+  r1   cuts  +69    nz+13820    (0.33x) it 14657   rs 14575   rf 227   w 1.707e+09 optimal              30.362862143821772
+  r1   probe +252   nz+0        (0.00x) it 1825    rs 1804    rf 29    w 2.061e+08 optimal              30.691814098974707
+  r1   agg   +252   nz+7004     (0.16x) it 1825    rs 1804    rf 29    w 2.061e+08 optimal              30.691814098974707
+  r2   probe +566   nz+0        (0.00x) it 7005    rs 6965    rf 109   w 9.365e+08 optimal              32.987515364081062
+  r2   agg   +566   nz+21993    (0.52x) it 7005    rs 6965    rf 109   w 9.365e+08 optimal              32.987515364081062
+  r3   cuts  +1     nz+8        (0.00x) it 0       rs 0       rf 1     w 6.316e+05 optimal              32.987515364081062
+  r3   probe +844   nz+0        (0.00x) it 27586   rs 26465   rf 426   w 4.605e+09 optimal              34.462793740171563
+  r3   agg   +844   nz+37338    (0.88x) it 27586   rs 26465   rf 426   w 4.605e+09 optimal              34.462793740171563
+  r4   probe +1254  nz+0        (0.00x) it 29065   rs 27722   rf 451   w 5.943e+09 optimal              35.762203900891897
+  r4   agg   +1254  nz+57670    (1.36x) it 29065   rs 27722   rf 451   w 5.943e+09 optimal              35.762203900891897
+  r5   probe +1306  nz+0        (0.00x) it 19903   rs 19856   rf 308   w 4.857e+09 optimal              36.716465986912503
+  r5   agg   +1306  nz+60302    (1.42x) it 19903   rs 19856   rf 308   w 4.857e+09 optimal              36.716465986912503
+  r6   probe +1267  nz+0        (0.00x) it 14035   rs 13984   rf 217   w 3.987e+09 optimal              37.757524475652176
+  r6   agg   +1267  nz+60386    (1.42x) it 14035   rs 13984   rf 217   w 3.987e+09 optimal              37.757524475652176
+  r7   probe +1531  nz+0        (0.00x) it 18708   rs 18662   rf 289   w 6.581e+09 optimal              38.800051628451151
+  r7   agg   +1531  nz+74120    (1.75x) it 18708   rs 18662   rf 289   w 6.581e+09 optimal              38.800051628451151
+  r8   probe +1587  nz+0        (0.00x) it 14924   rs 14856   rf 231   w 6.153e+09 optimal              39.666796601548555
+  r8   agg   +1587  nz+77962    (1.84x) it 14924   rs 14856   rf 231   w 6.153e+09 optimal              39.666796601548555
+  r9   probe +1517  nz+0        (0.00x) it 14485   rs 14437   rf 224   w 6.798e+09 optimal              40.451258127606309
+  r9   agg   +1517  nz+74036    (1.74x) it 14485   rs 14437   rf 224   w 6.798e+09 optimal              40.451258127606309
+  r10  probe +1741  nz+0        (0.00x) it 16736   rs 16666   rf 259   w 8.656e+09 optimal              41.042877629613102
+  r10  agg   +1741  nz+87339    (2.06x) it 16736   rs 16666   rf 259   w 8.656e+09 optimal              41.042877629613102
+  r11  probe +1563  nz+0        (0.00x) it 14392   rs 14333   rf 223   w 8.067e+09 optimal              41.646523509613672
+  r11  agg   +1563  nz+78070    (1.84x) it 14392   rs 14333   rf 223   w 8.067e+09 optimal              41.646523509613672
+  r12  probe +1472  nz+0        (0.00x) it 9969    rs 9931    rf 155   w 6.200e+09 optimal              42.135414555219185
+  r12  agg   +1472  nz+76573    (1.80x) it 9969    rs 9931    rf 155   w 6.200e+09 optimal              42.135414555219185
+  r13  probe +1257  nz+0        (0.00x) it 8729    rs 8661    rf 136   w 6.146e+09 optimal              42.694728675293561
+  r13  agg   +1257  nz+64720    (1.52x) it 8729    rs 8661    rf 136   w 6.146e+09 optimal              42.694728675293561
+  r14  probe +1152  nz+0        (0.00x) it 5151    rs 5140    rf 80    w 3.852e+09 time limit reached   nan
+peg-solitaire-a3: root LP 21598 iters, 1.237e+09 work, 28387 nz, bound 1; 3 re-solves, 61353 iters, 29519 restarts, 1.870e+11 work; last cuts time limit reached; end time_limit work 188234057083 bound 1 nodes 1
+  r1   cuts  +1015  nz+1932654  (68.08x) it 24654   rs 9447    rf 381   w 6.586e+10 optimal              1
+  r2   cuts  +399   nz+3323     (0.12x) it 26038   rs 9845    rf 402   w 7.408e+10 optimal              1
+  r3   cuts  +383   nz+3775     (0.13x) it 10661   rs 10227   rf 165   w 4.701e+10 time limit reached   nan
