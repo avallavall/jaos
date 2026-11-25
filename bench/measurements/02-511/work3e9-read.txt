@@ -1,0 +1,76 @@
+neos-4722843-widden same=yes time 324.286271 -> 28.489004; clique 295.77 -> 0.29
+neos-3555904-turama same=yes time 69.332284 -> 17.489663; clique 53.91 -> 0.11
+neos-2746589-doon same=yes time 105.372496 -> 23.203940; clique 83.54 -> 0.28
+radiationm40-10-02 same=yes time 18.501752 -> 17.795950; clique  -> 
+
+[exited with code 0]
+== neos-4722843-widden before
+root piece: cut_gomory 32000994 4.52
+root piece: cut_cover 2011228 1.19
+root piece: cut_clique 4016546 295.77
+root piece: cut_flowcover 4762454 0.02
+root piece: cut_hull 2137076 0.02
+root piece: cut_mir 25247396 0.04
+root piece: cut_mir_agg 838788631 1.05
+root piece: cut_select 1559138 0.98
+root piece: cut_lp 555358868 2.63
+time 324.286271
+== neos-4722843-widden after
+root piece: cut_gomory 32000994 4.71
+root piece: cut_cover 2011228 1.31
+root piece: cut_clique 4016546 0.29
+root piece: cut_flowcover 4762454 0.03
+root piece: cut_hull 2137076 0.03
+root piece: cut_mir 25247396 0.07
+root piece: cut_mir_agg 838788631 1.52
+root piece: cut_select 1559138 1.18
+root piece: cut_lp 555358868 3.26
+time 28.489004
+== neos-3555904-turama before
+root piece: cut_gomory 608675 0.76
+root piece: cut_cover 977559 0.34
+root piece: cut_clique 435116 53.91
+root piece: cut_flowcover 1774706 0.01
+root piece: cut_hull 504749 0.01
+root piece: cut_mir 8798031 0.01
+root piece: cut_mir_agg 8198505 0.01
+root piece: cut_select 0 0.04
+root piece: cut_lp 2739467585 3.46
+time 69.332284
+== neos-3555904-turama after
+root piece: cut_gomory 608675 0.59
+root piece: cut_cover 977559 0.34
+root piece: cut_clique 435116 0.11
+root piece: cut_flowcover 1774706 0.03
+root piece: cut_hull 504749 0.01
+root piece: cut_mir 8798031 0.04
+root piece: cut_mir_agg 8198505 0.02
+root piece: cut_select 0 0.22
+root piece: cut_lp 2739467585 6.21
+time 17.489663
+== neos-2746589-doon before
+root piece: cut_gomory 15926117 0.55
+root piece: cut_cover 353538 0.07
+root piece: cut_clique 3218905 83.54
+root piece: cut_flowcover 864986 0.01
+root piece: cut_hull 81096 0.00
+root piece: cut_mir 3181842 0.00
+root piece: cut_mir_agg 5247882 0.00
+root piece: cut_select 0 0.03
+root piece: cut_lp 685735253 1.58
+time 105.372496
+== neos-2746589-doon after
+root piece: cut_gomory 15926117 0.51
+root piece: cut_cover 353538 0.09
+root piece: cut_clique 3218905 0.28
+root piece: cut_flowcover 864986 0.01
+root piece: cut_hull 81096 0.00
+root piece: cut_mir 3181842 0.01
+root piece: cut_mir_agg 5247882 0.00
+root piece: cut_select 0 0.03
+root piece: cut_lp 685735253 2.24
+time 23.203940
+== radiationm40-10-02 before
+time 18.501752
+== radiationm40-10-02 after
+time 17.795950

@@ -1,0 +1,1 @@
+MIPLIB 2017's 30 at 5e8: every line but time the same, digests included
