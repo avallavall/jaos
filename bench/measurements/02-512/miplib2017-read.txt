@@ -1,0 +1,33 @@
+before     solved 10 incumbents 29 primal 4.2045 dual 5.1349 sum 9.3394
+after      solved 10 incumbents 29 primal 4.2082 dual 5.1178 sum 9.3260
+# instance status_a status_b | nodes a b | incumbent a b | bound a b | ref
+assign1-5-8            work limit work limit |   46402   56002 | 211.99999999 211.99999999 |          200          199 | 211.99999999
+beasleyC3              work limit work limit |    4682    5400 |          759          756 |          741          741 | 753.99999999
+binkar10_1             optimal    optimal    |    9016   13990 | 6742.2000239 6742.2000239 |            -            - | 6742.1998835
+csched007              work limit work limit |     201    4807 |          405          405 |          297          303 | 350.99999999
+csched008              work limit work limit |     401     402 |          175          175 |          171          171 | 173
+enlight_hard           optimal    optimal    |       1       1 |           37           37 |            -            - | 37
+exp-1-500-5-5          optimal    optimal    |      29      29 |        65887        65887 |            -            - | 65887
+gen-ip002              work limit work limit |  220272  220272 | -4772.326055 -4772.326055 | -4804.697750 -4804.697750 | -4783.733392
+gen-ip054              optimal    optimal    |   46535   46535 | 6840.9656417 6840.9656417 |            -            - | 6840.9656417
+glass4                 work limit work limit |  131839  112578 | 1625015083.3 1625015083.3 | 800005159.61    800005400 | 1200012599.9
+graphdraw-domain       work limit work limit |   92530   94213 |        22855        22855 | 15478.301892 15529.373920 | 19685.999975
+ic97_potential         work limit work limit |   18362   20481 |         none         none |         3870         3870 | 3941.9999309
+mad                    work limit work limit |   29329   31458 | 0.1179999999 0.1289999999 |            0            0 | 0.0268000000
+markshare2             work limit work limit |  682368  681273 |           84 66.999999999 |            0            0 | 1
+markshare_4_0          optimal    optimal    |  377966  382777 |            1            1 |            -            - | 1
+mas74                  work limit work limit |  271335  271337 | 11801.185729 11801.185729 | 11246.921794 11246.921794 | 11801.185719
+mas76                  optimal    optimal    |  460609  322537 | 40005.054141 40005.054141 |            -            - | 40005.053989
+neos-2657525-crna      work limit work limit |   19727   17407 |   80.4466635 80.088558300 |            0            0 | 1.810748
+neos-3046615-murg      work limit work limit |  226845  226845 |         1661         1661 |          451          451 | 1600
+neos-3381206-awhea     optimal    optimal    |       1       1 |          453          453 |            -            - | 453
+neos-3627168-kasai     work limit work limit |    2207    1401 | 990498.17999 992248.17999 | 962747.53944 962231.05467 | 988585.61999
+neos-3754480-nidda     work limit work limit |  165130  165130 | 12941.738385 12941.738385 | -384460.6020 -384460.6020 | 12941.738385
+neos-911970            work limit work limit |   12272   12577 | 55.259999999 55.259999999 | 54.163529583 54.157825626 | 54.759999999
+neos5                  work limit work limit |  148603  147742 |           15           15 | 14.285714285 14.285714285 | 15
+p200x1188c             optimal    optimal    |     176     634 |        15078        15078 |            -            - | 15078
+pk1                    optimal    optimal    |  158417  157745 | 10.999999999           11 |            -            - | 11
+sp150x300d             optimal    optimal    |       2       2 |           69           69 |            -            - | 69
+supportcase26          work limit work limit |   78146   78146 | 1844.6526919 1844.6526919 | 1464.8234646 1464.8234646 | 1745.1238129
+timtab1                work limit work limit |  157183  179040 | 1007484.9999 1003617.9999 | 546002.39302 547989.94834 | 764771.99999
+tr12-30                work limit work limit |   48038   44093 | 130614.99999 130609.99999 | 130240.97452 130260.75366 | 130595.99999

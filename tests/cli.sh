@@ -425,8 +425,8 @@ expect_exit 0 "a thin slab of general integers closes on a reduced basis" \
     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress
 [ "$(line_of objective)" = "objective 426" ] && pass "to 426" \
     || flunk "lattice: $(line_of objective)"
-printf '%s\n' "$err" | grep -q "^lattice: after 1149 nodes the tree starts again on 6 integer combinations" \
-    && pass "after 1149 nodes over the columns" \
+printf '%s\n' "$err" | grep -q "^lattice: after 1985 nodes the tree starts again on 6 integer combinations" \
+    && pass "after 1985 nodes over the columns" \
     || flunk "no lattice line in the log"
 expect_exit 0 "and --no-lattice closes it over the columns" \
     "$JAOS" solve "$DATA/lattice_slab.lp" --log progress --no-lattice
@@ -438,13 +438,13 @@ printf '%s\n' "$err" | grep -q "^lattice:" \
 "$JAOS" options | grep -q '^mip_zi_round true$' \
     && pass "options lists mip_zi_round, on" \
     || flunk "options: no mip_zi_round true"
-expect_exit 0 "ZI rounding finds the knapsack's first incumbent" \
+expect_exit 0 "ZI rounding finds incumbents on the knapsack" \
     "$JAOS" solve "$DATA/zi_knapsack.lp" --log progress --zi-round
 [ "$(line_of objective)" = "objective -1582" ] && pass "to -1582" \
     || flunk "zi: $(line_of objective)"
-printf '%s\n' "$err" | grep -q "^node 1: incumbent -1518 by ZI rounding" \
-    && pass "at node 1" \
-    || flunk "no ZI incumbent at node 1"
+printf '%s\n' "$err" | grep -q "^node 4: incumbent -1544 by ZI rounding" \
+    && pass "at node 4" \
+    || flunk "no ZI incumbent at node 4"
 expect_exit 0 "and --no-zi-round solves it without" \
     "$JAOS" solve "$DATA/zi_knapsack.lp" --log progress --no-zi-round
 [ "$(line_of objective)" = "objective -1582" ] && pass "to -1582" \

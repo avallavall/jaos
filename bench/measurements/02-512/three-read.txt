@@ -1,0 +1,15 @@
+neos-662469 split              root piece: h_dive 60476735876 109.37 root piece: h_rins 89257184 0.50 root piece: tree 80283624957 168.91 status time_limit nodes 46 incumbent 264462 
+var-smallemery-m6j6 split      root piece: h_dive 179360612138 289.97 status time_limit nodes 1 incumbent -101.15625 
+supportcase7 split             root piece: h_dive 113941962386 271.71 status time_limit nodes 1 incumbent -1012.2514817675062 
+neos-662469 dvboth             root piece: h_dive 28896297157 69.96 root piece: h_rins 78463993 1.56 root piece: tree 76113337506 185.05 status time_limit nodes 35 incumbent 264462 
+var-smallemery-m6j6 dvboth     root piece: h_dive 86981944363 288.81 status time_limit nodes 1 incumbent -101.15625 
+supportcase7 dvboth            root piece: h_dive 73575183781 266.16 status time_limit nodes 1 incumbent -1012.2514817675062 
+neos-662469 dvdevex            root piece: h_dive 28896297157 69.44 root piece: h_rins 78463993 1.01 root piece: tree 76560582131 185.85 status time_limit nodes 35 incumbent 264462 
+var-smallemery-m6j6 dvdevex    root piece: h_dive 89793923554 288.86 status time_limit nodes 1 incumbent -101.15625 
+supportcase7 dvdevex           root piece: h_dive 73293698439 265.91 status time_limit nodes 1 incumbent -1012.2514817675062 
+neos-662469 dzA                root piece: h_dive 106464518927 294.95 status time_limit nodes 1 incumbent 384571.5 
+var-smallemery-m6j6 dzA        root piece: h_dive 20425202031 84.65 root piece: h_rins 1862550147 7.60 root piece: tree 8330360620 30.77 status time_limit nodes 7 incumbent -143.0625 
+supportcase7 dzA               root piece: h_dive 67336401839 256.76 status time_limit nodes 1 incumbent -1012.2514817675062 
+neos-662469 dzB                root piece: h_dive 425829153 1.09 root piece: h_rins 33333870 0.21 root piece: tree 93387175200 283.21 status time_limit nodes 373 incumbent 184390.5 
+var-smallemery-m6j6 dzB        root piece: h_dive 421379172 1.66 root piece: h_rins 1862550147 7.11 root piece: tree 28650900798 174.00 status time_limit nodes 185 incumbent -146.15625 
+supportcase7 dzB               root piece: h_dive 2685945327 11.86 root piece: h_rins 61868589363 244.46 status time_limit nodes 1 incumbent -1012.2514817675062 

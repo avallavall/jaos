@@ -1854,7 +1854,7 @@ static void found_by(jaos_model *m, const char *what, double optimum)
 static void test_zi_rounding_moves_columns_within_their_rows_slack(void)
 {
     jaos_model *m = knapsack_rows(4, 20, 7);
-    found_by(m, "node 1: incumbent -1518 by ZI rounding", -1582.0);
+    found_by(m, "node 4: incumbent -1544 by ZI rounding", -1582.0);
     jaos_model_free(m);
 
     m = knapsack_rows(4, 20, 7);
@@ -1908,7 +1908,7 @@ static void test_zi_rounding_stops_after_500_runs_without_an_incumbent(void)
 
 static void test_crossover_fixes_what_the_pool_agrees_on(void)
 {
-    jaos_model *m = market_split(2, 16, 5);
+    jaos_model *m = market_split(2, 16, 4);
     found_by(m, "by crossover over the pool", 0.0);
     jaos_model_free(m);
 }
@@ -1923,12 +1923,12 @@ static void test_mutation_fixes_a_seeded_share_of_the_incumbent(void)
 
 static void test_dins_boxes_each_column_by_its_distance(void)
 {
-    jaos_model *m = market_split(2, 16, 14);
+    jaos_model *m = market_split(2, 16, 3);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_dual_proofs(m, 0));
     found_by(m, "by a sub-MIP boxed by the incumbent's distances", 0.0);
     jaos_model_free(m);
 
-    m = market_split(2, 16, 14);
+    m = market_split(2, 16, 3);
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_heuristics(m, false));
     g_found[0] = '\0';
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_callback(m, capture_found, nullptr));
@@ -7127,7 +7127,7 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
         nodes[on] = rep.nodes;
         work[on] = jaos_work_units(m);
         if (on)
-            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the "
+            TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1985 nodes the "
                                                "tree starts again on 6 integer "
                                                "combinations of the columns"));
         else
@@ -7143,10 +7143,10 @@ static void test_lattice_branching_closes_a_thin_knapsack_slab(void)
 static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
 {
     jaos_model *m = wide_slab(20.0);
-    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 1165));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_mip_node_limit(m, 2001));
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
     TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_NODE_LIMIT, jaos_status_of(m));
-    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1149 nodes the tree "
+    TEST_ASSERT_NOT_NULL(strstr(g_log, "lattice: after 1985 nodes the tree "
                                        "starts again on 6 integer combinations "
                                        "of the columns, a reduced basis of the "
                                        "improving region at the incumbent 380,"));
@@ -7154,7 +7154,7 @@ static void test_lattice_branching_publishes_its_point_at_a_node_limit(void)
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_result(m, &rep));
     TEST_ASSERT_TRUE(rep.has_incumbent);
     TEST_ASSERT_DOUBLE_WITHIN(1e-9, 426.0, rep.incumbent);
-    TEST_ASSERT_EQUAL_INT64(1165, rep.nodes);
+    TEST_ASSERT_EQUAL_INT64(2001, rep.nodes);
     TEST_ASSERT_TRUE(rep.bound >= rep.incumbent);
     double x[6], obj = 0.0, px[6], pobj = 0.0;
     TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_mip_incumbent(m, x, &obj));

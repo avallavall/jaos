@@ -1,0 +1,26 @@
+# irp at 6e10 work units (02-512's trees); dcap arms by DCAP_*
+dcapoff: status optimal work_units 27575923296 nodes 4555 
+dcap: status optimal work_units 27575923296 nodes 4555 
+dcapdx: status optimal work_units 51565442301 nodes 14977 
+ro: status optimal work_units 51565442301 nodes 14977 
+# the cap and Devex arm alone, to the end:
+status optimal work_units 51565442301 nodes 14977 time 310.849312 
+# incumbents at 3e10, 02-511 (c3) and the cap and Devex arm (c32):
+== c3
+root: incumbent 14181.050310000001 by feasibility jump
+node 101: incumbent 12542.633911000001 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 142: incumbent 12191.232947999039, integral
+node 247: incumbent 12191.212927999319, integral
+node 312: incumbent 12160.992714, integral
+node 348: incumbent 12159.492835999161, integral
+== c32
+root: incumbent 14181.050310000001 by feasibility jump
+node 101: incumbent 12542.633911000001 by a sub-MIP over the columns the incumbent and the relaxation disagree on
+node 142: incumbent 12191.232947999039, integral
+node 247: incumbent 12191.212927999319, integral
+node 312: incumbent 12160.992714, integral
+node 527: incumbent 12159.762855999135, integral
+node 678: incumbent 12159.492835999199, integral
+# the 02-511 / cap and Devex pair on the 20 (300 s):
+irp	before	optimal	12159.492835999999	4555	116.532580	27575923296	116.71	878840	4.95	4.73
+irp	after	time_limit	12159.492835999999	13968	299.951309	50480344072	300.23	2487820	5.31	5.01

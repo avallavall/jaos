@@ -957,7 +957,9 @@ quadratic objective keeps the single-row form.
 Sets the most solves that the dive heuristic takes. On a copy of the
 relaxation, the dive fixes the integer column nearest an integer and solves
 again. An integral point it reaches is judged like any heuristic point. The
-default is 50, and 0 turns it off. At a root with no incumbent, the dive
+default is 50, and 0 turns it off. Each solve
+stops at the work the root's relaxation took; a solve stopped there ends
+the dive. At a root with no incumbent, the dive
 also stops once it has spent half the work the root took before it, or
 20000 times (nonzeros + columns + rows) if that is more. In a
 model with cones or quadratic rows, each solve fixes half of the
@@ -971,7 +973,8 @@ depth 0. The default is 0, the root only.
 **`jaos_set_mip_rins`**\
 `jaos_status jaos_set_mip_rins(jaos_model *m, int64_t solves)`\
 Sets the most solves of RINS. RINS fixes the integer columns on which the
-incumbent and a node's relaxation agree, and dives on the rest. It runs once
+incumbent and a node's relaxation agree, and dives on the rest, each solve
+held as the dive heuristic's are. It runs once
 per distinct incumbent. The default is 50, and 0, off, for a model with a
 quadratic objective, whose dives are barrier solves. 0 turns
 it off. While it is on, a linear model also runs a sub-MIP of at most 500

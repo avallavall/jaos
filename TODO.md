@@ -125,9 +125,13 @@ hold an incumbent against 49. The clique separator grows a clique over its
 first literal's neighbours alone, every answer and work unit the same
 (`bench/measurements/02-511/`): `neos-4722843-widden` reaches 13x the work
 in 300 s and leaves the root with an incumbent, and `neos-2746589-doon`
-leaves it too. Next: the root's dive and RINS's dive, which spend most of
-the 300 s for nothing on models that hold an incumbent; then the root LPs
-that do not end,
+leaves it too. A solve of the root's dive or of RINS's stops at the root
+LP's work (`bench/measurements/02-512/`): on the 33 where the heuristics
+lead, 27 leave the root against 19 and none loses its incumbent. 02-491's
+`swath1` no longer closes in 300 s since 02-508 (`b08f2c17`): from
+02-508's root cuts its tree finds 382.31 against the optimum 379.07 and
+grows past 126,000 nodes, where 0814fa80 closes it in 11,321. Next:
+`swath1`, then the root LPs that do not end,
 18 of the 66 (HiGHS's dual leaves three of six sampled unfinished too, and
 its presolve removes 36% of `supportcase10`'s rows, JAOS's 0.2%). Verify
 with 02-501's `pair.sh` at 300 s on 02-510's lists.

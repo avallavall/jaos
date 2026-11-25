@@ -1,0 +1,37 @@
+# rcap.py on 02-512's tree, RCAP1=16 RCAP=1, each at the work its 02-510 leg reached in 300 s (02-510's pair, after legs)
+== neos-4532248-waihi
+round 0 root: rows 167322 nz 525339 iters 2449 work 725272791 secs 14.963 bound 0
+round 1 cuts: added 275 rows 167597 nz 1034853 (+509514) iters 10134 primal 0 phase1 0 work 6400631401 secs 72.361 status optimal bound 0.37042021692106225
+round 2 cuts: added 229 rows 167826 nz 1045932 (+11079) iters 647 primal 0 phase1 0 work 726140789 secs 6.112 status work limit reached bound nan
+rcap: round 2 undone, status work limit reached
+status work_limit
+nodes 1
+bound 0.37042021692106225
+-- 02-510 after leg:
+time_limit		1	limit	36768733619
+== supportcase12
+round 0 root: rows 125139 nz 2251153 iters 39508 work 8424102153 secs 68.436 bound -7609.53305373885
+round 1 cuts: added 237 rows 125376 nz 2682644 (+431491) iters 31588 primal 0 phase1 0 work 97554162738 secs 285.860 status work limit reached bound nan
+status work_limit
+nodes 1
+bound -7609.53305373885
+-- 02-510 after leg:
+time_limit		1	limit	106915171642
+== supportcase22
+round 0 root: rows 260602 nz 2228828 iters 5019 work 5353192950 secs 46.086 bound 0
+round 1 cuts: added 82 rows 260684 nz 2420378 (+191550) iters 18591 primal 0 phase1 0 work 33064664887 secs 206.243 status work limit reached bound nan
+status work_limit
+nodes 1
+bound 0
+-- 02-510 after leg:
+time_limit		1	limit	38769480670
+== neos-4413714-turia
+round 0 root: rows 2303 nz 761756 iters 8289 work 2649495961 secs 12.891 bound 43.474651010000002
+round 1 cuts: added 1945 rows 4248 nz 1476226 (+714470) iters 26963 primal 0 phase1 0 work 42396342468 secs 145.688 status work limit reached bound nan
+rcap: round 1 undone, status work limit reached
+status work_limit
+nodes 2
+bound 43.474651010000002
+incumbent 75.13053592
+-- 02-510 after leg:
+time_limit		1	301.027936	81854500745
