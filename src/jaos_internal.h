@@ -48,6 +48,7 @@ typedef struct {
     bool no_cert_solve;
     bool no_flat_rows;
     bool cut_resolve;
+    bool perturb_degenerate;
     bool no_aggregate;
     bool no_presolve;
 

@@ -1,0 +1,32 @@
+== m3-k0.txt: 24 moved, work geometric 1.1683x, total 1.1032x over 24
+  air03 optimal->optimal nodes 1->1 work 1.003x
+  bell3a optimal->optimal nodes 26403->26159 work 0.987x
+  bell5 optimal->optimal nodes 20693->20143 work 0.978x
+  blend2 optimal->optimal nodes 3814->3365 work 0.895x
+  dcmulti optimal->optimal nodes 364->258 work 1.348x
+  egout optimal->optimal nodes 1->1 work 1.005x
+  enigma optimal->optimal nodes 1->7132 work 42.755x
+  flugpl optimal->optimal nodes 73->73 work 1.000x
+  gen optimal->optimal nodes 2->2 work 1.005x
+  gt2 optimal->optimal nodes 5->13 work 1.020x
+  khb05250 optimal->optimal nodes 61->73 work 1.060x
+  l152lav optimal->optimal nodes 631->341 work 0.850x
+  lseu optimal->optimal nodes 185->183 work 0.999x
+  misc03 optimal->optimal nodes 415->288 work 0.544x
+  misc06 optimal->optimal nodes 42->42 work 1.001x
+  misc07 optimal->optimal nodes 4085->8201 work 1.789x
+  mod008 optimal->optimal nodes 67->67 work 1.011x
+  mod010 optimal->optimal nodes 1->1 work 1.021x
+  p0033 optimal->optimal nodes 11->13 work 0.699x
+  p0201 optimal->optimal nodes 93->154 work 1.146x
+  p0282 optimal->optimal nodes 257->307 work 1.226x
+  rgn optimal->optimal nodes 71->55 work 0.899x
+  stein27 optimal->optimal nodes 1869->2137 work 1.095x
+  stein45 optimal->optimal nodes 56168->51215 work 0.929x
+== m3-k50.txt: 2 moved, work geometric 1.0252x, total 1.1336x over 24
+  enigma optimal->optimal nodes 1->1 work 1.034x
+  misc07 optimal->optimal nodes 4085->8375 work 1.757x
+== m3-k100.txt: 1 moved, work geometric 1.0061x, total 1.0001x over 24
+  enigma optimal->optimal nodes 1->1 work 1.158x
+== m3-k200.txt: 0 moved, work geometric 1.0000x, total 1.0000x over 24
+== m3-wt.txt: 0 moved, work geometric 1.0000x, total 1.0000x over 24

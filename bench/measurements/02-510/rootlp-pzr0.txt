@@ -1,0 +1,6 @@
+buildingenergy.pzr0                  status=time_limit nodes=1 bound=-inf incumbent= 
+chromaticindex1024-7.pzr0            status=time_limit nodes=1 bound=-inf incumbent= 
+neos-3656078-kumeu.pzr0              rootLP iters 17538 secs 10.129 status=time_limit nodes=1 bound=-18413.200000000001 incumbent= 
+neos-960392.pzr0                     rootLP iters 6176 secs 2.912 status=time_limit nodes=1 bound=-238 incumbent= 
+rail02.pzr0                          status=time_limit nodes=1 bound=-inf incumbent= 
+s100.pzr0                            status=time_limit nodes=1 bound=-inf incumbent= 

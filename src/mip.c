@@ -10028,10 +10028,12 @@ static void lane_solve(const bb_snap *s, jaos_model *lp, bb_rec *r)
     lp->cfg.node_cutoff = cut_at;
     lp->cfg.node_devex = s->node > 1 && !s->quadratic;
     lp->cfg.node_stop_duals = s->node > 1 && s->stop_duals;
+    lp->cfg.perturb_degenerate = s->node == 1;
     lp->cutoff_hit = false;
     jaos_status st = jaos_solve(lp);
     lp->cfg.node_cutoff_set = false;
     lp->cfg.node_stop_duals = false;
+    lp->cfg.perturb_degenerate = false;
     r->solves++;
     r->node_work = jaos_work_units(lp);
     r->first_work = r->node_work;
@@ -11639,6 +11641,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
             const double key_first = key;
             bool stop = false;
             lp->cfg.cut_resolve = true;
+            lp->cfg.perturb_degenerate = true;
             lp->cfg.node_devex = !quadratic;
             for (int64_t r = 0; r < root_rounds && !stop; r++) {
                 if (budget_gone(m, work)) {
@@ -12050,6 +12053,7 @@ static jaos_status bb_tree(jaos_model *m, bb_restart *rs)
                     break;
             }
             lp->cfg.cut_resolve = false;
+            lp->cfg.perturb_degenerate = false;
             lp->cfg.node_devex = false;
             if (stop) {
                 if (outcome == JAOS_SOLVE_TIME_LIMIT ||

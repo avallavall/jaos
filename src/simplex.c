@@ -64,6 +64,8 @@ constexpr int64_t STALL_FACTOR = 10;
 
 constexpr int64_t PERTURB_STALL_FACTOR = 1;
 
+constexpr int64_t PERTURB_DEGENERATE_STEPS = 200;
+
 #ifndef JAOS_DUAL_PERTURB
 #define JAOS_DUAL_PERTURB 1e-6
 #endif
@@ -216,6 +218,7 @@ typedef struct {
 
     bool costs_perturbed;
     int64_t n_perturb;
+    int64_t degen_run;
     bool early_perturb_off;
     bool early_perturbed;
     bool early_stalled;
@@ -1512,11 +1515,18 @@ static int64_t price_row(sx *s, bool *below, double *violation)
 {
 
     if (!s->bland && DUAL_PERTURB > 0.0 && !s->costs_perturbed &&
-        !s->early_perturb_off && shifts_costs(s) &&
-        s->iters - s->last_gain >
-            PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1)) {
-        perturb_costs(s);
-        s->early_perturbed = true;
+        !s->early_perturb_off && shifts_costs(s)) {
+        const bool flat = s->m->cfg.perturb_degenerate &&
+                          s->degen_run >= PERTURB_DEGENERATE_STEPS;
+        if (flat)
+            jm_log(s->m, JAOS_LOG_DETAIL,
+                   "iter %lld: %lld degenerate dual steps in a row",
+                   (long long)s->iters, (long long)s->degen_run);
+        if (flat || s->iters - s->last_gain >
+                        PERTURB_STALL_FACTOR * (s->nrow + s->ncol + 1)) {
+            perturb_costs(s);
+            s->early_perturbed = true;
+        }
     }
     if (!s->bland &&
         s->iters - s->last_gain > STALL_FACTOR * (s->nrow + s->ncol + 1)) {
@@ -4476,6 +4486,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         s->infeas_best = HUGE_VAL;
         s->last_gain = s->iters;
         s->bland = false;
+        s->degen_run = 0;
 
         st = refresh(s, &ok, false);
         if (st != JAOS_OK)
@@ -4632,6 +4643,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
 
         set_verified(s, false);
         bool took = false;
+        const bool degenerate = fabs(s->d[q]) <= s->dual_tol;
         st = pivot(s, r, q, below, theta_dual, &took);
         if (st != JAOS_OK)
             return st;
@@ -4639,6 +4651,7 @@ static jaos_status run(sx *s, jaos_solve_status *out)
         if (!took)
             continue;
 
+        s->degen_run = degenerate ? s->degen_run + 1 : 0;
         s->iters++;
         if (s->cut_lag < INFINITY && !s->needs_refactor && past_cutoff(s)) {
             *out = JAOS_SOLVE_WORK_LIMIT;

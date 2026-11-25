@@ -1,0 +1,46 @@
+# the LP relaxation (relaxmps.py) of six root LPs JAOS does not finish in 300 s, one thread, 300 s, beside other runs (load 8 to 11)
+# JAOS barrier (--algorithm barrier) on rail02 s100 buildingenergy:
+rail02                 time limit reached after 1 barrier iterations, 446955137790 work units; 72099705 nonzeros in the Cholesky factor, 0 pivots replaced in the last factorisation status time_limit iterations 1 time 369.215875 time limit reached after 1 barrier iterations, 446955137790 work units; 72099705 nonzeros in the Cholesky factor, 0 pivots replaced in the last factorisation
+
+s100                   time limit reached after 36 barrier iterations, 382375783166 work units; 8445579 nonzeros in the Cholesky factor, 0 pivots replaced in the last factorisation status time_limit iterations 36 time 309.869186 time limit reached after 36 barrier iterations, 382375783166 work units; 8445579 nonzeros in the Cholesky factor, 0 pivots replaced in the last factorisation
+
+buildingenergy         time limit reached after 77210 iterations, 71346441598 work units; 1188 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1 status time_limit iterations 77410 time 299.641993 
+# JAOS dual on the relaxation alone:
+ex9                    time limit reached after 15146 iterations, 74441199190 work units; 234 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1 status time_limit iterations 15146 time 299.948718 presolve: 40962 rows, 10404 columns, 517112 nonzeros -> 33846 rows, 8560 columns, 403100 nonzeros; fixed_col=1844 empty_
+
+supportcase10          time limit reached after 34836 iterations, 24082039178 work units; 536 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1 status time_limit iterations 34836 time 299.693233 presolve: 165684 rows, 14770 columns, 555082 nonzeros -> 165284 rows, 14594 columns, 553762 nonzeros; fixed_col=36 empty
+
+chromaticindex1024-7   time limit reached after 68065 iterations, 17010389823 work units; 1048 refactorizations, 0 weight restarts, 0 stalls, 0 stability rebuilds, 0 primal iterations, 0 of them phase 1 status time_limit iterations 68065 time 299.758338 presolve: nothing fired
+
+# HiGHS 1.15.1 dual simplex, presolve on:
+rail02                 Presolve reductions: rows 50201(-45590); columns 192478(-78391); nonzeros 602038(-154190)  Model status : Time limit reached Simplex iterations: 232179 HiGHS run time : 300.03 
+s100                   Presolve reductions: rows 14484(-249); columns 364190(-227); nonzeros 1413826(-364091)  Model status : Time limit reached Simplex iterations: 121857 HiGHS run time : 300.03 
+buildingenergy         Presolve reductions: rows 267853(-9741); columns 145237(-9741); nonzeros 815124(+26155)  Model status : Time limit reached Simplex iterations: 212366 HiGHS run time : 300.03 
+chromaticindex1024-7   Presolve reductions: rows 67583(-0); columns 73728(-0); nonzeros 270324(-0) - Not reduced Model status : Optimal Simplex iterations: 81372 HiGHS run time : 139.49 
+supportcase10          Presolve reductions: rows 105209(-60475); columns 8955(-5815); nonzeros 361283(-193799)  Model status : Optimal Simplex iterations: 104360 HiGHS run time : 206.60 
+ex9                    Presolve reductions: rows 33678(-7284); columns 8479(-1925); nonzeros 402524(-114588)  Model status : Optimal Simplex iterations: 11830 HiGHS run time : 28.59 
+# gprof of ex9's root LP, 90 s, 02-506's prof.sh on the change:
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 18.91     10.70    10.70    31331     0.00     0.00  ftran_u_dense
+ 10.71     16.76     6.06    14756     0.00     0.00  price_all
+  9.44     22.10     5.34 575845909     0.00     0.00  pviol_set
+  8.68     27.01     4.91    14756     0.00     0.00  jm_lu_btran_in
+  6.05     30.43     3.42    31329     0.00     0.00  ftran_prefix
+  4.58     33.02     2.59    31331     0.00     0.00  ftran_scatter_all
+  4.54     35.59     2.57  7716888     0.00     0.00  compact_pivot_row
+  3.62     37.64     2.05    14529     0.00     0.00  lu_update
+  3.54     39.64     2.00 112016842     0.00     0.00  admit_candidate
+  2.67     41.15     1.51    14756     0.00     0.00  jm_dse_update
+  2.37     42.49     1.34    14984     0.00     0.00  btran_l_pattern
+  2.26     43.77     1.28 120166493     0.00     0.00  update_dual
+  1.87     44.83     1.06      228     0.00     0.11  jm_lu_factor
+  1.71     45.80     0.97 79451972     0.00     0.00  jm_svec_push
+  1.70     46.76     0.96    14984     0.00     0.00  btran_u_pattern
+  1.66     47.70     0.94 36285131     0.00     0.00  pat_push
+  1.64     48.63     0.93    14756     0.00     0.00  pivot.constprop.0
+  1.50     49.48     0.85 112237689     0.00     0.00  shift_to_feasible
+  1.48     50.32     0.84    14756     0.00     0.00  price_row.constprop.0

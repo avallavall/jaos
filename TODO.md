@@ -111,13 +111,22 @@ copy becomes the relaxation, and a round whose re-solve ends in a
 numerical error is undone. At 300 s on the 34 where the re-solves lead,
 11 leave the root against 2 and 13 hold an incumbent against 6, and 15
 bounds rise and 2 fall slightly. MIPLIB 3 reads 0.917x the work (geometric), MIPLIB 2017's sum 9.34
-against 9.26, and `neos5` no longer closes inside 1e10. The first round's
-re-solve still does not end on `neos-4532248-waihi`,
-`academictimetablesmall` and `neos-960392`: on `neos-4532248-waihi` its
-infeasibility holds at 336.4 for 6,000 iterations under dual Devex. Next:
-that stall, then the root dive, which leads on most of the 17 heuristic
-ones. Verify with 02-508's `read.sh` on `nine.txt` and 02-501's `pair.sh`
-on 02-508's `cut34.txt`.
+against 9.26, and `neos5` no longer closes inside 1e10. Every step of
+those first re-solves that did not end walked a face of optima with no
+reduced cost to steer it; the root's LP and its cut re-solves now perturb
+their costs once 200 dual steps in a row are degenerate
+(`bench/measurements/02-510/`). The first round's re-solve ends in 31 s on
+`neos-4532248-waihi`, 6.5 s on `academictimetablesmall` and 2.5 s on
+`neos-960392`, whose root LP takes 2.7 s against 75, and the root LPs of
+`neos-3656078-kumeu`, `neos-3402294-bobin` and `neos-3402454-bohle` end.
+At 300 s on the 94, 66 stay at the root against 79 under the same load,
+`neos8` and `neos-1122047` close, and 55 of the 114 with the 20 solved
+hold an incumbent against 49. Next: the root's dive and RINS's dive, which
+spend most of the 300 s for nothing on models that hold an incumbent; the
+clique separator's unbilled seconds; then the root LPs that do not end,
+18 of the 66 (HiGHS's dual leaves three of six sampled unfinished too, and
+its presolve removes 36% of `supportcase10`'s rows, JAOS's 0.2%). Verify
+with 02-501's `pair.sh` at 300 s on 02-510's lists.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
