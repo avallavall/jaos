@@ -1,0 +1,48 @@
+# instance, tree, status, iterations, work units, bound, wall seconds; all six trees of an instance at once
+qap10                  rf32   node_limit 24614 3003247429 334 6.75 
+qap10                  rf48   node_limit 43044 6022508256 334 10.77 
+qap10                  rf64   node_limit 22721 2986817801 334 5.82 
+qap10                  rf96   node_limit 31374 4779171428 334 8.00 
+qap10                  fill2  node_limit 28365 3915978656 334 7.25 
+qap10                  fill3  node_limit 32106 4487908211 334 8.09 
+dano3_3                rf32   node_limit 38397 9948979454 576.23162027456851 20.61 
+dano3_3                rf48   node_limit 47594 11363462418 576.23162027456851 22.51 
+dano3_3                rf64   node_limit 45213 11039345569 576.23162027456851 21.06 
+dano3_3                rf96   node_limit 18612 5188275453 576.23162027456851 11.55 
+dano3_3                fill2  node_limit 40577 9374061344 576.23162027456851 20.20 
+dano3_3                fill3  node_limit 41896 10390234499 576.23162027456851 19.58 
+uccase9                rf32   node_limit 35503 12076176566 10819.582996256881 70.01 
+uccase9                rf48   node_limit 32476 9666490009 10819.582996419074 58.17 
+uccase9                rf64   node_limit 34583 11438466736 10819.582996256881 61.62 
+uccase9                rf96   node_limit 35477 12082489355 10819.582996419074 59.88 
+uccase9                fill2  node_limit 33315 10488041897 10819.582996256881 57.24 
+uccase9                fill3  node_limit 33174 10690519317 10819.582996256881 57.83 
+mzzv11                 rf32   node_limit 62265 31022838598 -22944 71.32 
+mzzv11                 rf48   node_limit 61221 29947792082 -22944 66.46 
+mzzv11                 rf64   node_limit 63258 30848770036 -22944 65.96 
+mzzv11                 rf96   node_limit 58666 18230242132 -22944 47.84 
+mzzv11                 fill2  node_limit 63617 19577959666 -22944 54.18 
+mzzv11                 fill3  node_limit 62806 21057976545 -22944 54.62 
+uccase12               rf32   node_limit 82187 21275668921 11507.285323905 202.11 
+uccase12               rf48   node_limit 89919 26012976836 11507.285323905 205.16 
+uccase12               rf64   node_limit 86737 21293012718 11507.285323905 156.94 
+uccase12               rf96   node_limit 85676 25397414753 11507.285323905 167.41 
+uccase12               fill2  node_limit 80535 21854816070 11507.285323905 162.70 
+uccase12               fill3  node_limit 84688 23896399937 11507.285323905 179.05 
+neos-3988577-wolgan    rf32   node_limit 88968 37882963321 119 252.74 
+neos-3988577-wolgan    rf48   node_limit 79189 32666019921 119 215.82 
+neos-3988577-wolgan    rf64   node_limit 96133 43347499724 119 241.88 
+neos-3988577-wolgan    rf96   node_limit 89133 40496286738 119 225.07 
+neos-3988577-wolgan    fill2  node_limit 99779 43084050240 119 245.67 
+neos-3988577-wolgan    fill3  node_limit 81399 34865936059 119 206.24 
+rail01                 rf32   node_limit 179424 50535081410 -92.087299979578134 343.39 
+rail01                 rf48   node_limit 174639 45643462159 -92.087299979578134 302.11 
+rail01                 rf64   node_limit 164473 42382055579 -92.087299979578134 264.38 
+rail01                 rf96   node_limit 178549 49721134878 -92.087299979578134 287.72 
+rail01                 fill2  node_limit 177202 46443632381 -92.087299979578134 293.34 
+rail01                 fill3  node_limit 178649 45111697625 -92.087299979578134 290.60 
+rf32 seconds geomean vs 64 1.136 over 7, iterations 0.85x to 1.09x
+rf48 seconds geomean vs 64 1.140 over 7, iterations 0.82x to 1.89x
+rf96 seconds geomean vs 64 0.924 over 7, iterations 0.41x to 1.38x
+fill2 seconds geomean vs 64 1.009 over 7, iterations 0.90x to 1.25x
+fill3 seconds geomean vs 64 1.010 over 7, iterations 0.85x to 1.41x

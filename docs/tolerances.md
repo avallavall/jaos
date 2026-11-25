@@ -132,7 +132,7 @@ These numbers in `src/simplex.c` are counts:
 
 | Name | Value | What it decides |
 |---|---|---|
-| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. 32 costs 5% to 9% less work but loses three orders of `pilot87`'s accuracy and raises `wood1p`'s suboptimality bound to 2e-9 (`bench/measurements/02-92/`, `bench/measurements/02-299/`) |
+| `REFACTOR_EVERY` | 64 | Basis updates before a refactorization. On the LP gates 32 and 48 cost 5% and 4% less work but raise `wood1p`'s suboptimality bound from 9.9e-15 to 2.2e-9 and 5.0e-10, and 96 costs 9% more with `pilot` at 7.9x; `pilot87`'s objective is the reference's at every one. On the root LPs that end, the walk moves more than the interval (`bench/measurements/02-92/`, `bench/measurements/02-299/`, `bench/measurements/02-507/`) |
 | `VERIFY_UPDATES` | 8 | The most updates the factors may carry when a solve verifies its answer without refactorizing. Of 0 to 32 on MIPLIB 3, 8 has the lowest work, 0.844x (`bench/measurements/02-353/`) |
 | `ITER_SANITY_FACTOR` | 200 | Times `rows + columns + 1`, a ceiling against a loop that does not end; hitting it is a library error |
 | `SETTLE_ROUNDS` | 32 | Times a settled point may go back to the dual simplex. At 128 `wood1p` costs 1.49x for the same answer |

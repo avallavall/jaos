@@ -1,0 +1,6 @@
+counts.sh mzzv11 120, the four trees at once:
+
+rf32 iterations 62265 work_units 31022838598  FACTOR calls 1907 cycles 73264M of 233106M
+rf64 iterations 63258 work_units 30848770036  FACTOR calls 995 cycles 43044M of 213066M
+fill2 iterations 63617 work_units 19577959666  FACTOR calls 1023 cycles 30626M of 176554M
+fill3 iterations 62806 work_units 21057976545  FACTOR calls 1009 cycles 33937M of 180575M

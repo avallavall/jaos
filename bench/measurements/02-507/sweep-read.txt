@@ -1,0 +1,26 @@
+sweep.sh on rf32 rf48 rf96 fill2 fill3 fill4 (trees.sh's settings, taken on
+7b5784ac with 02-506's factorization, whose answers and work units are
+7b5784ac's), netlib and netlib-infeas at J=4,
+netlib-kennington at J=2, against the committed baselines; summarise.py sets
+each tree's records against the committed ones, which hold 64.
+
+The baselines' regressions:
+
+rf32 wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 2.2e-09 (222333.0x relative to its own objective)
+rf48 wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 4.97e-10 (50309.6x relative to its own objective)
+rf96 pilot        REGRESSED    work: 891033818 -> 7006790622 (7.9x), iters 5636 -> 27108
+rf96 wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 1.02e-09 (103461.6x relative to its own objective)
+fill2 pilot        REGRESSED    work: 891033818 -> 7549289016 (8.5x), iters 5636 -> 24341
+fill2 wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 3.03e-08 (3061864.5x relative to its own objective)
+fill3 pilot        REGRESSED    work: 891033818 -> 11671098566 (13.1x), iters 5636 -> 38686
+fill4 pilot        REGRESSED    work: 891033818 -> 15593141984 (17.5x), iters 5636 -> 70622
+fill4 wood1p       REGRESSED    suboptimality bound: 9.88e-15 -> 4.71e-10 (47653.8x relative to its own objective)
+
+summarise.py:
+
+rf32: work geomean 0.9466 over 139 (120 moved), verdicts 139/139, worst 1.796 pilot, best 0.439 agg3, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 2.23e+05x wood1p (9.88e-15 -> 2.2e-09)
+rf48: work geomean 0.9575 over 139 (116 moved), verdicts 139/139, worst 1.544 greenbeb, best 0.379 wood1p, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 5.03e+04x wood1p (9.88e-15 -> 4.97e-10)
+rf96: work geomean 1.0940 over 139 (115 moved), verdicts 139/139, worst 7.883 pilot, best 0.416 wood1p, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 1.03e+05x wood1p (9.88e-15 -> 1.02e-09)
+fill2: work geomean 1.0348 over 139 (129 moved), verdicts 139/139, worst 8.494 pilot, best 0.428 pilotnov, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 3.07e+06x wood1p (9.88e-15 -> 3.03e-08)
+fill3: work geomean 1.0432 over 139 (129 moved), verdicts 139/139, worst 13.131 pilot, best 0.474 pilotnov, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 25.2x sctap1 (1.77e-17 -> 4.46e-16)
+fill4: work geomean 1.0466 over 139 (129 moved), verdicts 139/139, worst 17.544 pilot, best 0.376 wood1p, pilot87 rel obj error 0.0, largest rel obj error 4.04e-08 osa-14, largest rsub rise 4.77e+04x wood1p (9.88e-15 -> 4.71e-10)

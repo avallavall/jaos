@@ -98,9 +98,14 @@ that run out of 300 s the root LP reaches 1.019x the iterations
 (geometric; up to 1.21x).
 Row positions kept exact cost the pass more than `compact_pivot_row`'s
 search (`lu-exact-row-positions`). On `mzzv11`'s root LP the factorization
-takes 22% of the seconds (14 ms, one every 65 iterations). Next: fewer
-updates between factorizations, then the cut rounds' re-solves. Verify
-with 02-506's `root.sh` and 02-501's `pair.sh` on 02-505's `root27.txt`.
+takes 22% of the seconds (14 ms, one every 65 iterations). Fewer updates
+between factorizations does not pay as read (`bench/measurements/02-507/`,
+`refactor-interval-and-fill`): every other interval and the rule on U's
+fill move the walk more than its cost, and `wood1p`'s suboptimality bound
+with it. Taking it up again needs the interval's cost apart from the walk,
+one walk's bases and entering columns replayed through the LU at each
+interval. Next: the cut rounds' re-solves. Verify with 02-506's `root.sh`
+and 02-501's `pair.sh` on 02-505's `root27.txt`.
 
 J7. **MIP: MIPLIB 2017, 11 of 30 at 1e10 work units, 29 with an
 incumbent** (`bench/results/miplib2017.txt`); in 20 s JAOS solves 5 and
