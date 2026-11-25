@@ -327,6 +327,36 @@ static void test_a_row_its_held_columns_break_frees_one(void)
     jaos_model_free(m);
 }
 
+static void catch_refined(void *user, jaos_log_level level, const char *line)
+{
+    (void)level;
+    if (strstr(line, "it walks again with a refinement step on each Newton "
+                     "solve") != nullptr)
+        (*(int *)user)++;
+}
+
+static void test_a_refused_walk_walks_again_refined(void)
+{
+    jaos_model *m = nullptr;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_model_new(&m));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_read_mps(m, "tests/data/qp_refined_walk.mps"));
+    int again = 0;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK,
+                          jaos_set_log_callback(m, catch_refined, &again));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_set_log_level(m, JAOS_LOG_SUMMARY));
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solve(m));
+    TEST_ASSERT_EQUAL_INT(1, again);
+    TEST_ASSERT_EQUAL_INT(JAOS_SOLVE_OPTIMAL, jaos_status_of(m));
+    double x[30], y[12];
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_solution(m, x, nullptr, y, nullptr));
+    jaos_check_report rep;
+    TEST_ASSERT_EQUAL_INT(JAOS_OK, jaos_check_solution(m, x, y, 1e-7, &rep));
+    TEST_ASSERT_TRUE(rep.primal_feasible);
+    TEST_ASSERT_TRUE(rep.dual_feasible);
+    jaos_model_free(m);
+}
+
 static void test_a_polished_point_passes_on_the_size_of_its_terms(void)
 {
     jaos_model *m = nullptr;
@@ -1070,5 +1100,6 @@ int main(void)
     RUN_TEST(test_a_second_leg_that_stays_near_keeps_its_last_point);
     RUN_TEST(test_duals_that_grow_over_feasible_rows_are_not_divergence);
     RUN_TEST(test_a_push_release_undone_at_once_frees_one_pin);
+    RUN_TEST(test_a_refused_walk_walks_again_refined);
     return UNITY_END();
 }

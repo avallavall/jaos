@@ -271,9 +271,12 @@ whose pinned columns break them charges
 `3 * nnz + 2 * nrow` per round, up to one round per row. Before the third
 push, finding the duals' shift factors the rows' normal matrix and solves
 with it three times at the LDL's rates, and charges `4 * nrow + nvar`
-more. When the barrier gives up on a point the checker refuses, the
-conic interior point that solves the model again counts on from all of
-the barrier's work, the pushes and polishes that did not settle included.
+more. When the barrier gives up on a point the checker refuses, its
+second walk counts on from all of the first one's work, and each of its
+refinement steps charges a product pair with the rows, a solve with
+their factor and `nvar + 3 * nrow` more; the conic interior point that
+solves the model again after it counts on from all of the barrier's
+work, the pushes and polishes that did not settle included.
 
 *The crossover* charges the sort of the basis guess at one per variable
 per pass of a comparison sort, `nvar * (2 + floor(log2 nvar))`, then the

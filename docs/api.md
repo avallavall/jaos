@@ -1986,9 +1986,11 @@ from the model:
   `src/conictree.c` solves it.
 - The branch and bound of `src/mip.c` solves any other model with integer
   structure.
-- The barrier solves a continuous model with a quadratic objective. When the
-  barrier ends `JAOS_SOLVE_NUMERICAL_ERROR`, the conic interior point solves
-  the model again.
+- The barrier solves a continuous model with a quadratic objective. When its
+  walk converges on a point the checker refuses after every push and
+  polish, it walks once more with a refinement step on each Newton solve.
+  When the barrier still ends `JAOS_SOLVE_NUMERICAL_ERROR`, the conic
+  interior point solves the model again.
 - The method that `jaos_set_algorithm` chose solves any other continuous
   model.
 

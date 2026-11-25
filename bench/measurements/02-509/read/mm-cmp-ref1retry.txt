@@ -1,0 +1,4 @@
+dtoc3 586918988 1251381478 2.132
+ksip 178523619 335402198 1.879
+ubh1 1732865846 2404875415 1.388
+work, same status: 137 instances, geometric mean 1.0126x, 0 cheaper, 3 dearer

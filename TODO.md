@@ -15,34 +15,36 @@ Where JAOS stands against other solvers is in `bench/compare/README.md`.
 
 J24. **QPs whose optimum lies far out.** 02-365's `netqp.py` circulations
 carry cycles of arcs bounded only above, with curvatures down to 1e-11,
-so their optimum can carry flows of 1e11 to 1e13. 4 of seeds 1 to 400
-and 11 of seeds 1001 to 1800 at 12 nodes end `numerical_error`, and none
+so their optimum can carry flows of 1e11 to 1e13. 3 of seeds 1 to 400
+and 8 of seeds 1001 to 1800 at 12 nodes end `numerical_error`, and none
 of seeds 1 to 120 and 1 of seeds 1001 to 1200 at 40 nodes, from 10, 18,
 1 and 1 before the walk lifted a column off the bound that closes rows
 only the regularisation moves, stopped reading a growing dual over rows
 within 1e-2 as divergence, and kept its second leg's last point within
-1e-8 (`bench/measurements/02-484/`). Of the 16 left, seven stop on the
-growth stop: 288, 1411 and 1537 on a primal iterate past 1e10 of the
-data, and 110, 1163, 1514 and 1746 on a dual one while their rows are
-off by 1.6e-2 to 2.4. Seeds 127 and 1535 reach the iteration cap. On
-195, 1104, 1282, 1458, 1504, 1624 and 40-node 1076 the walk converges
-and no push or polish gives a point the checker passes. On all 16 the conic
-walk then reports an improving direction the ray checker refuses. 02-417
-found that on 195 and 1624 only the reduced-cost test refused a point
-whose gap is certified, with a column off its bound by a reduced cost as
-large as its terms. HiGHS calls such models optimal at points from which
-the objective still falls along a cycle, so it cannot judge this family
-(`02-398/`). On 02-398's seven, now four solved, one refinement step on
-the normal equations finishes 1104 and 1282 as well, and with the growth
-stop lifted all seven (`02-484/`, `r398-knobs.txt`); alone, before the
-lift, it finished only 1357 (`barrier-far-qp-switches`). A push proximal
-term that follows each column's curvature broke two
-(`push-reg-by-curvature`). Next: that refinement step in a QP walk,
-read on every QP set; then a push solve that keeps the rows exact when
-its weights span 1e-6 to 1e10, for the seven that converge. The checker's
-ray test stays as it is: on 2026-11-18 the maintainer chose to keep its
-contract and push the solver instead. Verify with `netqp_read.py`
-on the same seeds and 02-398's `read.sh`.
+1e-8 (`bench/measurements/02-484/`), and from 4, 11, 0 and 1 before a
+walk that converges on a point the checker refuses walked again with a
+refinement step on the normal equations (`bench/measurements/02-509/`:
+195, 1104, 1282 and 1458). Of the 12 left, seven stop on the growth
+stop: 288, 1411 and 1537 on a primal iterate past 1e10 of the data, and
+110, 1163, 1514 and 1746 on a dual one while their rows are off by
+1.6e-2 to 2.4. Seeds 127 and 1535 reach the iteration cap. On 1504, 1624
+and 40-node 1076 both walks converge and no push or polish gives a point
+the checker passes. On all 12 the conic walk then reports an improving
+direction the ray checker refuses. 02-417 found that on 1624 only the
+reduced-cost test refused a point whose gap is certified, with a column
+off its bound by a reduced cost as large as its terms. HiGHS calls such
+models optimal at points from which the objective still falls along a
+cycle, so it cannot judge this family (`02-398/`). The refinement step on
+every QP walk, or only while the duals are far, breaks circulations the
+base solves and costs Maros-Meszaros (`02-509/`); with the growth stop
+lifted it finished 02-398's 1163 too (`02-484/`, `r398-knobs.txt`). A
+push proximal term that follows each column's curvature broke two
+(`push-reg-by-curvature`). Next: a push solve that keeps the rows exact
+when its weights span 1e-6 to 1e10, for the three that converge; then
+the seven on the growth stop. The checker's ray test stays as it is: on
+2026-11-18 the maintainer chose to keep its contract and push the solver
+instead. Verify with `netqp_read.py` on the same seeds and 02-509's
+`read.sh`.
 
 J27. **Walks that break at a cone's boundary, and optima no point
 reaches. Parked on 2026-11-15 by the maintainer.** Quadratic rows and

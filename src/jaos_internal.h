@@ -34,6 +34,7 @@ typedef struct {
     bool concurrent_arm;
     bool barrier_no_crossover;
     bool barrier_augmented;
+    bool barrier_refine;
     bool primal_dantzig;
     bool primal_devex;
     bool node_solve;
@@ -355,6 +356,7 @@ struct jaos_model {
     double stop_bound;
     bool stop_bound_ok;
     bool cutoff_hit;
+    bool barrier_refused;
     bool stop_duals_ok;
 
     char **exact_col;

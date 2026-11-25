@@ -14,6 +14,7 @@ constexpr double  BARRIER_STEP     = 0.99995;
 constexpr double  BARRIER_REG      = 1e-9;
 constexpr double  BARRIER_FREE_REG = 1e-8;
 constexpr double  BARRIER_DELTA    = 1e-10;
+constexpr int64_t BARRIER_QP_REFINE = 1;
 constexpr double  BARRIER_AUG_FLOOR = 1e-30;
 constexpr double  BARRIER_AUG_EDGE = 1.0;
 constexpr double  BARRIER_AUG_TRY = 1e8;
@@ -797,7 +798,23 @@ static void newton(bx *s, const double *r, const double *rt, double *dy,
     mul_e(s, s->tmp, s->rhs);
     for (int64_t i = 0; i < s->nrow; i++)
         dy[i] = r[i] + s->rhs[i];
+    const int64_t refine = s->quadratic && s->m->cfg.barrier_refine && s->pin == nullptr &&
+                           s->dec == nullptr ? BARRIER_QP_REFINE : 0;
+    if (refine > 0)
+        memcpy(s->rhs, dy, (size_t)s->nrow * sizeof *dy);
     solve_normal(s, dy);
+    for (int64_t k = 0; k < refine; k++) {
+        mul_et(s, dy, dz);
+        for (int64_t j = 0; j < s->nvar; j++)
+            dz[j] = s->kind[j] == FIXED ? 0.0 : s->theta[j] * dz[j];
+        mul_e(s, dz, s->tmp);
+        for (int64_t i = 0; i < s->nrow; i++)
+            s->tmp[i] = s->rhs[i] - s->tmp[i] - s->delta * dy[i];
+        solve_normal(s, s->tmp);
+        for (int64_t i = 0; i < s->nrow; i++)
+            dy[i] += s->tmp[i];
+        jm_work_add(&s->work, (s->nvar + 3 * s->nrow) * JM_WORK_NONZERO);
+    }
     mul_et(s, dy, dz);
     for (int64_t j = 0; j < s->nvar; j++)
         dz[j] = s->kind[j] == FIXED ? 0.0 : s->theta[j] * (dz[j] - rt[j]);
@@ -3080,6 +3097,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     *crossover = false;
     *handoff = false;
     *iters = 0;
+    m->barrier_refused = false;
     bx s;
     jaos_status st = bx_init(&s, target, false);
     if (st != JAOS_OK)
@@ -3370,6 +3388,7 @@ jaos_status jm_barrier(jaos_model *m, jaos_model *target, jm_presolve *p,
     }
     if (st == JAOS_OK && refused) {
         outcome = JAOS_SOLVE_NUMERICAL_ERROR;
+        m->barrier_refused = true;
         m->solve_status = JAOS_SOLVE_NUMERICAL_ERROR;
         m->solve_work = s.work.units;
         m->solve_time = jm_monotonic_seconds() - s.started;

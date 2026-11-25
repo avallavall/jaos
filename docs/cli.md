@@ -300,8 +300,10 @@ again: `bench/refusals.txt` says what would reopen each one, and
 - A quadratic objective (`QUADOBJ` in MPS, a `[ ... ] / 2` block in LP) is
   solved by the barrier under `dual` or `barrier`, without presolve or
   crossover. `--log summary` says which linear system it took. When the
+  walk converges and the checker refuses every point after it, the barrier
+  walks once more with a refinement step on each Newton solve. When the
   barrier fails, or the checker refuses its point, the conic interior point
-  solves the model again, and the limits cover both. When the checker
+  solves the model again, and the limits cover all of them. When the checker
   refuses both, the solve ends `numerical_error`.
 - A MIP with a quadratic objective solves its root and every node by the
   barrier, without Gomory cuts. While no incumbent is known, its root

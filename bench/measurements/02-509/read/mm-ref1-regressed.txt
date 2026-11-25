@@ -1,0 +1,5 @@
+cont-101     REGRESSED    work: 1170040315 -> 3101843783 (2.7x), iters 12 -> 34
+cont-201     REGRESSED    work: 10765599813 -> 26205264298 (2.4x), iters 13 -> 34
+liswet8      REGRESSED    suboptimality bound: 2.28e-08 -> 5.42e-08 (2.4x relative to its own objective)
+stadat1      REGRESSED    work: 18379080 -> 123307694 (6.7x), iters 40 -> 200
+baseline: 4 regressed, 0 improved, 0 new, 0 at other nodes

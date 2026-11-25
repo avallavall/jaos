@@ -848,6 +848,33 @@ done:
     return st;
 }
 
+static jaos_status qp_walk_refined(jaos_model *m)
+{
+    const double tlim = m->cfg.time_limit, spent = m->solve_time;
+    const int64_t wlim = m->cfg.work_limit, work = m->solve_work;
+    const int64_t iters = m->solve_iters;
+    if ((tlim > 0.0 && spent >= tlim) || (wlim > 0 && work >= wlim))
+        return JAOS_OK;
+    jm_log(m, JAOS_LOG_SUMMARY, "the barrier ended without an answer after "
+           "%lld iterations and %lld work units; it walks again with a "
+           "refinement step on each Newton solve", (long long)iters,
+           (long long)work);
+    m->err[0] = '\0';
+    m->cfg.barrier_refine = true;
+    if (tlim > 0.0)
+        m->cfg.time_limit = tlim - spent;
+    if (wlim > 0)
+        m->cfg.work_limit = wlim - work;
+    const jaos_status st = jm_dual_simplex(m);
+    m->cfg.barrier_refine = false;
+    m->cfg.time_limit = tlim;
+    m->cfg.work_limit = wlim;
+    m->solve_work += work;
+    m->solve_iters += iters;
+    m->solve_time += spent;
+    return st;
+}
+
 jaos_status jaos_solve(jaos_model *m)
 {
     if (m == nullptr)
@@ -917,7 +944,11 @@ jaos_status jaos_solve(jaos_model *m)
         const jaos_status cst = jm_solve_concurrent(m);
         return cst == JAOS_OK && m->cfg.exact ? jm_exact_finish(m) : cst;
     }
-    const jaos_status st = jm_dual_simplex(m);
+    jaos_status st = jm_dual_simplex(m);
+    if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR &&
+        jm_model_has_quadratic(m) &&
+        m->barrier_refused)
+        st = qp_walk_refined(m);
     if (st == JAOS_OK && m->solve_status == JAOS_SOLVE_NUMERICAL_ERROR &&
         jm_model_has_quadratic(m))
         return jm_conic_after_barrier(m);

@@ -1,0 +1,4 @@
+huestis 7101768 10983024 1.547
+liswet7 58299550 72999270 1.252
+powell20 147563452 177232516 1.201
+work, same status: 137 instances, geometric mean 1.0089x, 0 cheaper, 6 dearer
