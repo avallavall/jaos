@@ -1,0 +1,12 @@
+buildingenergy               base time_limit 53285 pvb time_limit 53100 pvu time_limit 53542
+chromaticindex1024-7         base time_limit 47173 pvb time_limit 52586 pvu time_limit 51732
+cryptanalysiskb128n5obj14    base time_limit 47126 pvb time_limit 51185 pvu time_limit 51494
+ex10                         base time_limit 26322 pvb time_limit 27709 pvu time_limit 27951
+gfd-schedulen180f7d50m30k18  base time_limit 61457 pvb time_limit 61416 pvu time_limit 61585
+irish-electricity            base time_limit 24051 pvb time_limit 25170 pvu time_limit 25351
+neos-631710                  base time_limit 21061 pvb time_limit 21824 pvu time_limit 21828
+ns1116954                    base node_limit 5347 pvb node_limit 5347 pvu node_limit 5347
+rail02                       base time_limit 108096 pvb time_limit 108250 pvu time_limit 108594
+s100                         base time_limit 70230 pvb time_limit 71895 pvu time_limit 70194
+supportcase10                base time_limit 25286 pvb time_limit 25350 pvu time_limit 25265
+supportcase19                base time_limit 51698 pvb time_limit 52817 pvu time_limit 52656

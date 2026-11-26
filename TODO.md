@@ -127,7 +127,11 @@ first literal's neighbours alone, every answer and work unit the same
 in 300 s and leaves the root with an incumbent, and `neos-2746589-doon`
 leaves it too. A solve of the root's dive or of RINS's stops at the root
 LP's work (`bench/measurements/02-512/`): on the 33 where the heuristics
-lead, 27 leave the root against 19 and none loses its incumbent. 02-491's
+lead, 27 leave the root against 19 and none loses its incumbent. The
+dual's rows keep their basic variables' bounds and a row a pivot leaves
+alone keeps its infeasibility, every answer and work unit the same
+(`bench/measurements/02-513/`): under `run.sh`'s load twelve root LPs
+reach 1.034x the iterations in 120 s (geometric; up to 1.115x). 02-491's
 `swath1` no longer closes in 300 s since 02-508 (`b08f2c17`): from
 02-508's root cuts its tree finds 382.31 against the optimum 379.07 and
 grows past 126,000 nodes, where 0814fa80 closes it in 11,321. Next:
